@@ -1,0 +1,8 @@
+pytest
+pytest-cov
+make
+numpydoc
+sphinx
+sphinx_rtd_theme
+sphinxcontrib-apidoc
+
