@@ -1,0 +1,31 @@
+python-3.7:
+  image: registry.gitlab.com/quantco/miniconda3-alpine:latest
+  script:
+    - conda create -n test python=3.7 pre_commit --file=conda-requirements.txt --file=conda-test-requirements.txt -c conda-forge
+    - conda run -n test pre-commit install
+    - conda run -n test pre-commit run -a
+    - conda run -n test pip install --no-use-pep517 --no-deps --disable-pip-version-check -e .
+    - conda run -n test pytest --cov=glm_benchmarks
+    - conda run -n test --cwd $(pwd)/docs make html
+pages:
+  image: registry.gitlab.com/quantco/miniconda3-alpine:latest
+  script:
+    - conda create -n test python=3.7 pre_commit --file=conda-requirements.txt --file=conda-test-requirements.txt -c conda-forge
+    - conda run -n test pip install --no-use-pep517 --no-deps --disable-pip-version-check -e .
+    - conda run -n test --cwd $(pwd)/docs make html
+    - cp -r docs/_build/html public
+  artifacts:
+   paths:
+    - public
+  only:
+    - master
+conda-package:
+  image: registry.gitlab.com/quantco/miniconda3-alpine:latest
+  script:
+    - conda config --set custom_channels.quantco_main https://${CONDA_CHANNEL_UPLOAD_USER}:${CONDA_CHANNEL_UPLOAD_PASSWORD}@conda.quantco.cloud
+    - conda config --prepend channels quantco_main
+    - conda install -y conda-build conda-channel-client
+    - conda build conda.recipe
+    # upload only on tags
+    - "[[ -z $CI_BUILD_TAG ]] && exit 0"
+    - upload-conda-package $(conda render --output conda.recipe)
