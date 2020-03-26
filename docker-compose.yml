@@ -1,0 +1,7 @@
+version: '3'
+services:
+  work:
+    build: .
+    volumes:
+      - .:/app
+    network_mode: host
