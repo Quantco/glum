@@ -120,3 +120,7 @@ mlruns
 
 # direnv
 .envrc
+
+# vim backup files
+*.swo
+*.swp
