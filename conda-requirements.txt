@@ -5,3 +5,4 @@ pre-commit
 black
 flake8
 pyarrow
+pyglmnet
