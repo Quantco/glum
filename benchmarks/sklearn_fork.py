@@ -5,6 +5,8 @@ from glm_benchmarks.sklearn_fork import GeneralizedLinearRegressor
 
 # get data
 df = pd.read_parquet(git_root("data/data.parquet"))
+import ipdb
+ipdb.set_trace()
 X = df[[col for col in df.columns if col not in ["y", "exposure"]]]
 y = df["y"]
 exposure = df["exposure"]
