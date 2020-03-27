@@ -8,3 +8,5 @@ pyarrow
 matplotlib
 ipython
 jupyterlab
+ipdb
+pytest
