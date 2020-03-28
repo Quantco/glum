@@ -1,0 +1,14 @@
+#!/bin/bash
+set -e
+
+echo "Running Black"
+black .
+
+echo "Running MyPy"
+mypy .
+
+echo "Running flake8"
+flake8 .
+
+echo "Running isort"
+isort --recursive .

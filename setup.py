@@ -1,6 +1,6 @@
 from os import path
 
-from setuptools import find_packages, setup
+from setuptools import find_packages, setup  # type:ignore
 
 here = path.abspath(path.dirname(__file__))
 
