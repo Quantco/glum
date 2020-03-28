@@ -1,6 +1,18 @@
 FROM continuumio/miniconda3:latest
 
-RUN apt-get install -y gfortran
+# Necessary if we need to build from source for a Fortran-based package (e.g.
+# glmnet_python)
+RUN apt-get update && \
+    apt-get install -y gfortran
+
+# Installing Java for H2O
+# the mkdir -p line is necessary to avoid a bug in default-jdk-headless
+# installation: https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=863199
+RUN apt-get update && \
+    mkdir -p /usr/share/man/man1 && \ 
+    DEBIAN_FRONTEND=noninteractive apt-get -y install default-jdk-headless && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 RUN mkdir /app
 WORKDIR /app
