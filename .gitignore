@@ -124,3 +124,6 @@ mlruns
 # vim backup files
 *.swo
 *.swp
+
+# others
+*.pdf
