@@ -20,3 +20,8 @@ pip install --no-use-pep517 --disable-pip-version-check -e .
 To build the image, make sure you have a functioning Docker and docker-compose installation. Then, `docker-compose build`.
 
 To run something, for example: `./run python benchmarks/sklearn_fork.py`
+
+## Library examples:
+
+glmnet_python: see https://bitbucket.org/quantco/wayfairelastpricing/tests/test_glmnet_numerical.py
+H2O: https://github.com/h2oai/h2o-tutorials/blob/master/tutorials/glm/glm_h2oworld_demo.py
