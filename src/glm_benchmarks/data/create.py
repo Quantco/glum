@@ -300,7 +300,9 @@ exposure = df["Exposure"].values
 # claims frequency
 y = z / exposure
 
+import ipdb
+ipdb.set_trace()
 # save to disk
 X = pd.DataFrame(X)
-X.columns = [f"feature_{x}" for x in X.columns]
+X.columns = col_trans_GLM1_names
 X.assign(y=y, exposure=exposure).to_parquet(git_root("data/data.parquet"))
