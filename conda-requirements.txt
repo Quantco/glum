@@ -1,3 +1,5 @@
+tensorflow
+tensorflow-probability
 scikit-learn
 pandas
 git_root
