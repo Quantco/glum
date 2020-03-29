@@ -1,3 +1,4 @@
+import ipdb
 import pandas as pd
 from git_root import git_root
 
@@ -5,7 +6,7 @@ from glm_benchmarks.sklearn_fork import GeneralizedLinearRegressor
 
 # get data
 df = pd.read_parquet(git_root("data/data.parquet"))
-import ipdb
+
 ipdb.set_trace()
 X = df[[col for col in df.columns if col not in ["y", "exposure"]]]
 y = df["y"]

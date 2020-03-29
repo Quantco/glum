@@ -1,15 +1,16 @@
-import warnings
+import os
 import sys
+import warnings
 from collections import OrderedDict
+
 import numpy as np
 import pandas as pd
 import pytest
-import os
-
-from glmnet_python import glmnet
 from git_root import git_root
+from glmnet_python import glmnet
 
 # Copied over from https://bitbucket.org/quantco/wayfairelastpricing/
+
 
 @pytest.fixture
 def df() -> pd.DataFrame:
