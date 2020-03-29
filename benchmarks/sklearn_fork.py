@@ -57,3 +57,4 @@ def compute_path(niters, model_args, fit_args):
         print(time.time() - start)
         path.append(m.coef_.copy())
     return path
+
