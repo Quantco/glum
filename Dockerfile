@@ -1,10 +1,5 @@
 FROM continuumio/miniconda3:latest
 
-# Necessary if we need to build from source for a Fortran-based package (e.g.
-# glmnet_python)
-RUN apt-get update && \
-    apt-get install -y gfortran
-
 # Installing Java for H2O
 # the mkdir -p line is necessary to avoid a bug in default-jdk-headless
 # installation: https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=863199
@@ -18,7 +13,10 @@ RUN mkdir /app
 WORKDIR /app
 
 COPY conda-requirements.txt /app
-RUN conda install -c conda-forge --file conda-requirements.txt
+
+# Rather than using `-c conda-forge`, add it as a default channel.
+RUN conda config --add channels conda-forge
+RUN conda install --file conda-requirements.txt
 
 COPY pip-requirements.txt /app
 RUN pip install -r pip-requirements.txt

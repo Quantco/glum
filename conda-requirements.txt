@@ -11,4 +11,6 @@ matplotlib
 ipython
 jupyterlab
 ipdb
+pyglmnet
 scikit-learn
+compilers 
