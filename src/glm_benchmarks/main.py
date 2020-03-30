@@ -77,7 +77,7 @@ def cli_analyze(problem_names, library_names, output_dir):
                 Ln, "runtime per iter", results[Ln]["runtime"] / results[Ln]["n_iter"]
             )
 
-        print(results["glmnet_python"]["coeffs"] - results["sklearn_fork"]["coeffs"])
+        print(results["glmnet_python"]["coef"] - results["sklearn_fork"]["coef"])
 
 
 def get_limited_problems_libraries(problem_names, library_names):

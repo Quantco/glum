@@ -23,6 +23,8 @@ To run the full benchmarking suite, just run `glm_benchmarks_run` with no flags.
 
 For a more advanced example: `glm_benchmarks_run --problem_names simple_insurance_l2 --library_names sklearn_fork --num_rows 100 --output_dir mydatadirname` will run just the first 100 rows of the `simple_insurance_l2` problem through the `sklearn_fork` library and save the output to `mydatadirname`. This demonstrates several capabilities that will speed development when you just want to run a subset of either data or problems or libraries. 
 
+The `--problem_names` and `--library_names` flags take comma separated lists. This mean that if you want to run both `sklearn_fork` and `glmnet_python`, you could run `glm_benchmarks_run --library_names sklearn_fork,glmnet_python`.
+
 The `glm_benchmarks_analyze` tool is still more a sketch-up and will evolve as we identify what we care about.
 
 ## Docker
