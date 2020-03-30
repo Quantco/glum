@@ -1,5 +1,6 @@
 import os
 import pickle
+from typing import Dict, List, Tuple
 
 import click
 import numpy as np
@@ -58,7 +59,7 @@ def cli_run(problem_names, library_names, num_rows, output_dir):
     default="benchmark_output",
     help="The directory where we load benchmarking output.",
 )
-def cli_analyze(problem_names, library_names, output_dir):
+def cli_analyze(problem_names: str, library_names: str, output_dir: str):
     np.set_printoptions(precision=4, suppress=True)
     problems, libraries = get_limited_problems_libraries(problem_names, library_names)
 
@@ -81,7 +82,9 @@ def cli_analyze(problem_names, library_names, output_dir):
         print(results["glmnet_python"]["coef"] - results["sklearn_fork"]["coef"])
 
 
-def get_limited_problems_libraries(problem_names, library_names):
+def get_limited_problems_libraries(
+    problem_names: str, library_names: str
+) -> Tuple[Dict, Dict]:
     all_problems = get_all_problems()
     all_libraries = dict(
         sklearn_fork=sklearn_fork_bench,
@@ -103,7 +106,7 @@ def get_limited_problems_libraries(problem_names, library_names):
     return problems, libraries
 
 
-def get_comma_sep_names(xs):
+def get_comma_sep_names(xs: str) -> List[str]:
     return [x.strip() for x in xs.split(",")]
 
 
