@@ -17,9 +17,9 @@ pip install --no-use-pep517 --disable-pip-version-check -e .
 
 ## Docker
 
-To build the image, make sure you have a functioning Docker and docker-compose installation. Then, `docker-compose build`.
+To build the image, make sure you have a functioning Docker and docker-compose installation. Then, `docker-compose build work`.
 
-To run something, for example: `./run python benchmarks/sklearn_fork.py`
+To run something, for example: `docker-compose run work python benchmarks/sklearn_fork.py`
 
 ## Library examples:
 
