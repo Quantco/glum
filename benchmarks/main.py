@@ -1,21 +1,12 @@
-import git_root
+from typing import Any, Dict
+
 import numpy as np
-import pandas as pd
+from glm_benchmarks.utils import load_data, runtime
 from glmnet_python import glmnet
-from sklearn_fork import runtime, sklearn_fork_bench
+from sklearn_fork import sklearn_fork_bench
 
 
-def load_data(nrows=None):
-    df = pd.read_parquet(git_root.git_root("data/data.parquet"))
-    if nrows is not None:
-        df = df.iloc[:nrows]
-    X = df[[col for col in df.columns if col not in ["y", "exposure"]]]
-    y = df["y"]
-    exposure = df["exposure"]
-    return dict(X=X, y=y, exposure=exposure)
-
-
-def glmnet_python_bench(dat, distribution, alpha, l1_ratio):
+def glmnet_python_bench(dat, distribution, alpha, l1_ratio) -> Dict[str, Any]:
     result = dict()
     result["runtime"], m = runtime(
         glmnet,
