@@ -1,4 +1,4 @@
-from typing import Callable
+from typing import Callable, Dict
 
 import attr
 import git_root
@@ -23,7 +23,7 @@ def load_simple_insurance_data(num_rows=None):
     return dict(X=X, y=y, exposure=exposure)
 
 
-def get_all_problems():
+def get_all_problems() -> Dict[str, Problem]:
     problems = dict()
     for suffix, l1_ratio in [("l2", 0.0), ("net", 0.5), ("lasso", 1.0)]:
         problems["simple_insurance_" + suffix] = Problem(
