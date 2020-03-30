@@ -19,6 +19,6 @@ def glmnet_python_bench(dat, distribution, alpha, l1_ratio):
     )
     result["model_obj"] = m
     result["intercept"] = m["a0"]
-    result["coeffs"] = m["beta"][:, 0]
+    result["coef"] = m["beta"][:, 0]
     result["n_iter"] = m["npasses"]
     return result

@@ -27,13 +27,13 @@ def sklearn_fork_bench(dat, distribution, alpha, l1_ratio):
     result["runtime"], m = runtime(build_and_fit, model_args, fit_args)
     result["model_obj"] = m
     result["intercept"] = m.intercept_
-    result["coeffs"] = m.coef_
+    result["coef"] = m.coef_
     result["n_iter"] = m.n_iter_
 
     # import numpy as np
     # result["path"] = compute_path(m.n_iter_, model_args, fit_args)
     # np.testing.assert_almost_equal(
-    #     result["path"][-1], result["coeffs"], -np.log10(model_args["tol"]) - 1
+    #     result["path"][-1], result["coef"], -np.log10(model_args["tol"]) - 1
     # )
     return result
 

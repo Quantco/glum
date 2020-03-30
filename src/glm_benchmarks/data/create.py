@@ -1,4 +1,3 @@
-import ipdb
 import numpy as np
 import pandas as pd
 from git_root import git_root
@@ -301,7 +300,6 @@ exposure = df["Exposure"].values
 # claims frequency
 y = z / exposure
 
-ipdb.set_trace()
 # save to disk
 X = pd.DataFrame(X)
 X.columns = col_trans_GLM1_names
