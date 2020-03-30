@@ -92,7 +92,7 @@ def get_limited_problems_libraries(problem_names, library_names):
     else:
         problems = all_problems
 
-    if len(problem_names) > 0:
+    if len(library_names) > 0:
         library_names_split = get_comma_sep_names(library_names)
         libraries = {k: all_libraries[k] for k in library_names_split}
     else:
