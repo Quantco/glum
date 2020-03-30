@@ -5,7 +5,6 @@ import pandas as pd
 import tensorflow as tf
 import tensorflow_probability as tfp
 
-from glm_benchmarks.problems import load_simple_insurance_data
 from glm_benchmarks.util import runtime
 
 
@@ -48,17 +47,4 @@ def tensorflow_bench(
     result["intercept"] = model_coefficients.numpy()[0]
     result["coef"] = model_coefficients.numpy()[1:]
     result["n_iter"] = iter_.numpy()
-    print(result)
     return result
-
-
-def main():
-    dat = load_simple_insurance_data(1000)
-    x = dat["X"]
-    print(type(x.values))
-    print(x.shape)
-    tensorflow_bench(dat)
-
-
-if __name__ == "__main__":
-    main()
