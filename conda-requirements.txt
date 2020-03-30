@@ -1,7 +1,14 @@
-scikit-learn
-pandas
-git_root
 pre-commit
 black
 flake8
+pytest
+git_root
+pandas
 pyarrow
+matplotlib
+ipython
+jupyterlab
+ipdb
+pyglmnet
+scikit-learn
+compilers 
