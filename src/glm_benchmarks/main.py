@@ -6,6 +6,7 @@ import numpy as np
 
 from glm_benchmarks.bench_glmnet_python import glmnet_python_bench
 from glm_benchmarks.bench_sklearn_fork import sklearn_fork_bench
+from glm_benchmarks.bench_tensorflow import tensorflow_bench
 from glm_benchmarks.problems import get_all_problems
 
 
@@ -83,7 +84,9 @@ def cli_analyze(problem_names, library_names, output_dir):
 def get_limited_problems_libraries(problem_names, library_names):
     all_problems = get_all_problems()
     all_libraries = dict(
-        sklearn_fork=sklearn_fork_bench, glmnet_python=glmnet_python_bench
+        sklearn_fork=sklearn_fork_bench,
+        glmnet_python=glmnet_python_bench,
+        tensorflow=tensorflow_bench,
     )
 
     if len(problem_names) > 0:
