@@ -1,7 +1,5 @@
 import time
 
-import numpy as np
-
 from glm_benchmarks.sklearn_fork import GeneralizedLinearRegressor
 
 random_seed = 110
@@ -38,10 +36,11 @@ def sklearn_fork_bench(dat, distribution, alpha, l1_ratio):
     result["coeffs"] = m.coef_
     result["n_iter"] = m.n_iter_
 
-    result["path"] = compute_path(m.n_iter_, model_args, fit_args)
-    np.testing.assert_almost_equal(
-        result["path"][-1], result["coeffs"], -np.log10(model_args["tol"]) - 1
-    )
+    # import numpy as np
+    # result["path"] = compute_path(m.n_iter_, model_args, fit_args)
+    # np.testing.assert_almost_equal(
+    #     result["path"][-1], result["coeffs"], -np.log10(model_args["tol"]) - 1
+    # )
     return result
 
 

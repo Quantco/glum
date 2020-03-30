@@ -1,3 +1,0 @@
-#!/bin/bash
-set -e
-jupyter lab --allow-root --ip='*' --NotebookApp.token='' --NotebookApp.password=''

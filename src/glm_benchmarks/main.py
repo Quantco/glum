@@ -2,7 +2,8 @@ import git_root
 import numpy as np
 import pandas as pd
 from glmnet_python import glmnet
-from sklearn_fork import runtime, sklearn_fork_bench
+
+from glm_benchmarks.bench_sklearn_fork import runtime, sklearn_fork_bench
 
 
 def load_data(nrows=None):
@@ -31,11 +32,12 @@ def glmnet_python_bench(dat, distribution, alpha, l1_ratio):
     result["model_obj"] = m
     result["intercept"] = m["a0"]
     result["coeffs"] = m["beta"][:, 0]
+    result["n_iter"] = m["npasses"]
     return result
 
 
 def main():
-    dat = load_data(nrows=1000)
+    dat = load_data(nrows=None)
     benchmarks = dict(
         sklearn_fork=sklearn_fork_bench, glmnet_python=glmnet_python_bench
     )
@@ -47,12 +49,11 @@ def main():
         print(results[name]["coeffs"])
 
     for k in results:
-        print(k, results[k]["runtime"])
+        print(k, "number of iterations", results[k]["n_iter"])
+        print(k, "runtime", results[k]["runtime"])
+        print(k, "runtime per iter", results[k]["runtime"] / results[k]["n_iter"])
 
     print(results["glmnet_python"]["coeffs"] - results["sklearn_fork"]["coeffs"])
-    import ipdb
-
-    ipdb.set_trace()
 
 
 if __name__ == "__main__":

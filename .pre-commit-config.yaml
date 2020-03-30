@@ -3,6 +3,7 @@ repos:
    rev: 19.10b0
    hooks:
      - id: black-conda
+       additional_dependencies: [flake8-docstrings, flake8-rst-docstrings]
        args:
          - --safe
          - --target-version=py36

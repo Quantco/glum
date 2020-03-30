@@ -10,3 +10,4 @@ ipython
 jupyterlab
 ipdb
 scikit-learn
+compilers 
