@@ -302,5 +302,5 @@ y = z / exposure
 
 # save to disk
 X = pd.DataFrame(X)
-X.columns = [f"feature_{x}" for x in X.columns]
+X.columns = col_trans_GLM1_names
 X.assign(y=y, exposure=exposure).to_parquet(git_root("data/data.parquet"))
