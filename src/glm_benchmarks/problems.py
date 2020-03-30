@@ -30,6 +30,6 @@ def get_all_problems():
             data_loader=load_simple_insurance_data,
             distribution="poisson",
             regularization_strength=0.001,
-            l1_ratio=0.5,
+            l1_ratio=l1_ratio,
         )
     return problems
