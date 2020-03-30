@@ -31,8 +31,11 @@ pseudo_R2 = glm.score(Xtest, ytest)
 print("Pseudo R^2 is %.3f" % pseudo_R2)
 
 # plot the true coefficients and the estimated ones
-plt.stem(beta, markerfmt="r.", label="True coefficients")
-plt.stem(glm.beta_, markerfmt="b.", label="Estimated coefficients")
+# use_line_collection=True improves efficiency and causes this to behave as it will in
+# future releases of matplotlib, removing a DeprecationWarning
+plt.stem(beta, markerfmt="r.", label="True coefficients", use_line_collection=True)
+plt.stem(glm.beta_, markerfmt="b.", label="Estimated coefficients",
+         use_line_collection=True)
 plt.ylabel(r"$\beta$")
 plt.legend(loc="upper right")
 

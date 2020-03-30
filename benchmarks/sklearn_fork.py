@@ -3,15 +3,9 @@ import time
 import numpy as np
 
 from glm_benchmarks.sklearn_fork import GeneralizedLinearRegressor
+from glm_benchmarks.utils import runtime
 
 random_seed = 110
-
-
-def runtime(f, *args, **kwargs):
-    start = time.time()
-    out = f(*args, **kwargs)
-    end = time.time()
-    return end - start, out
 
 
 def build_and_fit(model_args, fit_args):
@@ -57,4 +51,3 @@ def compute_path(niters, model_args, fit_args):
         print(time.time() - start)
         path.append(m.coef_.copy())
     return path
-
