@@ -25,4 +25,10 @@ setup(
     package_dir={"": "src"},
     packages=find_packages(where="src"),
     install_requires=[],
+    entry_points="""
+        [console_scripts]
+        glm_benchmarks_run = glm_benchmarks.main:cli_run
+        glm_benchmarks_analyze = glm_benchmarks.main:cli_analyze
+    """,
+    console_scripts={},
 )

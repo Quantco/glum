@@ -1,15 +1,9 @@
 import time
 
-from glm_benchmarks.sklearn_fork import GeneralizedLinearRegressor
+from .sklearn_fork import GeneralizedLinearRegressor
+from .util import runtime
 
 random_seed = 110
-
-
-def runtime(f, *args, **kwargs):
-    start = time.time()
-    out = f(*args, **kwargs)
-    end = time.time()
-    return end - start, out
 
 
 def build_and_fit(model_args, fit_args):
