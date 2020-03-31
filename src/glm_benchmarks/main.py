@@ -1,5 +1,6 @@
 import os
 import pickle
+import warnings
 
 import click
 import numpy as np
@@ -70,14 +71,22 @@ def cli_analyze(problem_names, library_names, output_dir):
 
         results = dict()
         for Ln in libraries:
-            results[Ln] = load_benchmark_results(output_dir, Pn, Ln)
-            print(Ln, "number of iterations", results[Ln]["n_iter"])
-            print(Ln, "runtime", results[Ln]["runtime"])
-            print(
-                Ln, "runtime per iter", results[Ln]["runtime"] / results[Ln]["n_iter"]
-            )
+            res = load_benchmark_results(output_dir, Pn, Ln)
+            if len(res) == 0:
+                warnings.warn(f"Did not solve problem {Pn} in library {Ln}.")
+            else:
+                results[Ln] = res
+                print(Ln, "number of iterations", results[Ln]["n_iter"])
+                print(Ln, "runtime", results[Ln]["runtime"])
+                print(
+                    Ln,
+                    "runtime per iter",
+                    results[Ln]["runtime"] / results[Ln]["n_iter"],
+                )
 
-        print(results["glmnet_python"]["coef"] - results["sklearn_fork"]["coef"])
+        if "glmnet_python" in results.keys() and "sklearn_fork" in results.keys():
+            print("Difference in coefficients:")
+            print(results["glmnet_python"]["coef"] - results["sklearn_fork"]["coef"])
 
 
 def get_limited_problems_libraries(problem_names, library_names):
