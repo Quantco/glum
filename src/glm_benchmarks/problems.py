@@ -1,8 +1,8 @@
 from typing import Callable
 
 import attr
-import git_root
-import pandas as pd
+
+from .data import generate_simple_insurance_dataset, generate_sparse_insurance_dataset
 
 
 @attr.s
@@ -14,12 +14,12 @@ class Problem:
 
 
 def load_simple_insurance_data(num_rows=None):
-    df = pd.read_parquet(git_root.git_root("data/data.parquet"))
-    if num_rows is not None:
-        df = df.iloc[:num_rows]
-    X = df[[col for col in df.columns if col not in ["y", "exposure"]]]
-    y = df["y"]
-    exposure = df["exposure"]
+    X, y, exposure = generate_simple_insurance_dataset(num_rows)
+    return dict(X=X, y=y, exposure=exposure)
+
+
+def load_sparse_insurance_data(num_rows=None):
+    X, y, exposure = generate_sparse_insurance_dataset(num_rows)
     return dict(X=X, y=y, exposure=exposure)
 
 

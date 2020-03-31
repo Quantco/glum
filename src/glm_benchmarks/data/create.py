@@ -13,6 +13,77 @@ from sklearn.preprocessing import (
 # taken from https://github.com/lorentzenchr/Tutorial_freMTPL2/blob/master/glm_freMTPL2_example.ipynb
 
 
+def create_raw_data():
+    # load the datasets
+    # first row (=column names) uses "", all other rows use ''
+    # use '' as quotechar as it is easier to change column names
+    df = pd.read_csv(
+        "https://www.openml.org/data/get_csv/20649148/freMTPL2freq.arff", quotechar="'"
+    )
+
+    # rename column names '"name"' => 'name'
+    df.rename(lambda x: x.replace('"', ""), axis="columns", inplace=True)
+    df["IDpol"] = df["IDpol"].astype(np.int64)
+    df.set_index("IDpol", inplace=True)
+
+    df_sev = pd.read_csv(
+        "https://www.openml.org/data/get_csv/20649149/freMTPL2sev.arff", index_col=0
+    )
+
+    # join ClaimAmount from df_sev to df:
+    #   1. cut ClaimAmount at 100_000
+    #   2. aggregate ClaimAmount per IDpol
+    #   3. join by IDpol
+    df_sev["ClaimAmountCut"] = df_sev["ClaimAmount"].clip(upper=100_000)
+    df = df.join(df_sev.groupby(level=0).sum(), how="left")
+    df.fillna(value={"ClaimAmount": 0, "ClaimAmountCut": 0}, inplace=True)
+
+    # Check if there are IDpol in df_sev that do not match any IDPol in df.
+    df2 = pd.merge(
+        df_sev,
+        df.loc[:, ["ClaimNb"]],
+        left_index=True,
+        right_index=True,
+        how="outer",
+        indicator=True,
+    )
+    print(
+        "There are {} rows in freMTPL2sev that do not have a matching IDpol in freMTPL2freq.\n"
+        "They have a ClaimAmountCut of {}.".format(
+            df2[df2._merge == "left_only"].shape[0],
+            df2.ClaimAmountCut[df2._merge == "left_only"].sum(),
+        )
+    )
+
+    round(df_sev.ClaimAmountCut.sum() - df.ClaimAmountCut.sum(), 2)
+
+    print(
+        "Number or rows with ClaimAmountCut > 0 and ClaimNb == 0: {}".format(
+            df[(df.ClaimAmountCut > 0) & (df.ClaimNb == 0)].shape[0]
+        )
+    )
+
+    # 9116 zero claims
+    print(
+        "Number or rows with ClaimAmountCut = 0 and ClaimNb >= 1: {}".format(
+            df[(df.ClaimAmountCut == 0) & (df.ClaimNb >= 1)].shape[0]
+        )
+    )
+
+    # Note: Zero claims must be ignored in severity models, because the support is (0, inf) not [0, inf).
+    # Therefore, we define the number of claims with positive claim amount for later use.
+    df["ClaimNb_pos"] = df["ClaimNb"]
+    df.loc[(df.ClaimAmount <= 0) & (df.ClaimNb >= 1), "ClaimNb_pos"] = 0
+
+    # correct for unreasonable observations (that might be data error)
+    # see case study paper
+    df["ClaimNb"] = df["ClaimNb"].clip(upper=4)
+    df["ClaimNb_pos"] = df["ClaimNb_pos"].clip(upper=4)
+    df["Exposure"] = df["Exposure"].clip(upper=1)
+
+    df.to_parquet(git_root("data/insurance.parquet"))
+
+
 def gen_col_trans(drop=True, standardize=False):
     """Generate a ColumnTransformer and list of names.
 
@@ -226,81 +297,60 @@ def gen_col_trans(drop=True, standardize=False):
     return column_trans, column_trans_names
 
 
-# load the datasets
-# first row (=column names) uses "", all other rows use ''
-# use '' as quotechar as it is easier to change column names
-df = pd.read_csv(
-    "https://www.openml.org/data/get_csv/20649148/freMTPL2freq.arff", quotechar="'"
-)
+def generate_simple_insurance_dataset(nrows=None):
+    """Generate the tutorial data set from the sklearn fork and save it to disk."""
 
-# rename column names '"name"' => 'name'
-df.rename(lambda x: x.replace('"', ""), axis="columns", inplace=True)
-df["IDpol"] = df["IDpol"].astype(np.int64)
-df.set_index("IDpol", inplace=True)
+    df = pd.read_parquet(git_root("data/insurance.parquet"))
 
-df_sev = pd.read_csv(
-    "https://www.openml.org/data/get_csv/20649149/freMTPL2sev.arff", index_col=0
-)
+    # sample
+    if nrows is not None:
+        df = df.sample(n=nrows, replace=True, random_state=12345)
 
-# join ClaimAmount from df_sev to df:
-#   1. cut ClaimAmount at 100_000
-#   2. aggregate ClaimAmount per IDpol
-#   3. join by IDpol
-df_sev["ClaimAmountCut"] = df_sev["ClaimAmount"].clip(upper=100_000)
-df = df.join(df_sev.groupby(level=0).sum(), how="left")
-df.fillna(value={"ClaimAmount": 0, "ClaimAmountCut": 0}, inplace=True)
+    col_trans_GLM1, col_trans_GLM1_names = gen_col_trans(drop=True, standardize=False)
+    z = df["ClaimNb"].values
+    exposure = df["Exposure"].values
+    # claims frequency
+    y = z / exposure
 
-# Check if there are IDpol in df_sev that do not match any IDPol in df.
-df2 = pd.merge(
-    df_sev,
-    df.loc[:, ["ClaimNb"]],
-    left_index=True,
-    right_index=True,
-    how="outer",
-    indicator=True,
-)
-print(
-    "There are {} rows in freMTPL2sev that do not have a matching IDpol in freMTPL2freq.\n"
-    "They have a ClaimAmountCut of {}.".format(
-        df2[df2._merge == "left_only"].shape[0],
-        df2.ClaimAmountCut[df2._merge == "left_only"].sum(),
+    return col_trans_GLM1.fit_transform(df), y, exposure
+
+
+def generate_sparse_insurance_dataset(nrows=None):
+    """Generate a version of the tutorial data set with many features."""
+    df = pd.read_parquet(git_root("data/insurance.parquet"))
+
+    # sample
+    if nrows is not None:
+        df = df.sample(n=nrows, replace=True, random_state=12345)
+
+    # %%
+    transformer = ColumnTransformer(
+        [
+            (
+                "numerics",
+                FunctionTransformer(),
+                lambda x: x.select_dtypes(["number"]).columns,
+            ),
+            (
+                "one_hot_encode",
+                OneHotEncoder(),
+                [
+                    "Area",
+                    "VehPower",
+                    "VehAge",
+                    "DrivAge",
+                    "BonusMalus",
+                    "VehBrand",
+                    "VehGas",
+                    "Region",
+                ],
+            ),
+        ],
+        remainder="drop",
     )
-)
+    z = df["ClaimNb"].values
+    exposure = df["Exposure"].values
+    # claims frequency
+    y = z / exposure
 
-round(df_sev.ClaimAmountCut.sum() - df.ClaimAmountCut.sum(), 2)
-
-print(
-    "Number or rows with ClaimAmountCut > 0 and ClaimNb == 0: {}".format(
-        df[(df.ClaimAmountCut > 0) & (df.ClaimNb == 0)].shape[0]
-    )
-)
-
-# 9116 zero claims
-print(
-    "Number or rows with ClaimAmountCut = 0 and ClaimNb >= 1: {}".format(
-        df[(df.ClaimAmountCut == 0) & (df.ClaimNb >= 1)].shape[0]
-    )
-)
-
-# Note: Zero claims must be ignored in severity models, because the support is (0, inf) not [0, inf).
-# Therefore, we define the number of claims with positive claim amount for later use.
-df["ClaimNb_pos"] = df["ClaimNb"]
-df.loc[(df.ClaimAmount <= 0) & (df.ClaimNb >= 1), "ClaimNb_pos"] = 0
-
-# correct for unreasonable observations (that might be data error)
-# see case study paper
-df["ClaimNb"] = df["ClaimNb"].clip(upper=4)
-df["ClaimNb_pos"] = df["ClaimNb_pos"].clip(upper=4)
-df["Exposure"] = df["Exposure"].clip(upper=1)
-
-col_trans_GLM1, col_trans_GLM1_names = gen_col_trans(drop=True, standardize=False)
-X = col_trans_GLM1.fit_transform(df)
-z = df["ClaimNb"].values
-exposure = df["Exposure"].values
-# claims frequency
-y = z / exposure
-
-# save to disk
-X = pd.DataFrame(X)
-X.columns = col_trans_GLM1_names
-X.assign(y=y, exposure=exposure).to_parquet(git_root("data/data.parquet"))
+    return transformer.fit_transform(df), y, exposure
