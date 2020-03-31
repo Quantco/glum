@@ -10,7 +10,7 @@ def glmnet_python_bench(dat, distribution, alpha, l1_ratio):
         glmnet,
         x=dat["X"].values.copy(),
         y=dat["y"].values.copy(),
-        weights=dat["exposure"].values,
+        offset=np.log(dat["exposure"].values),
         family=distribution,
         alpha=l1_ratio,
         lambdau=np.array([alpha]),
