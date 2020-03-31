@@ -1,3 +1,5 @@
+tensorflow
+tensorflow-probability
 pre-commit
 black
 flake8

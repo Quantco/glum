@@ -35,7 +35,7 @@ def load_simple_insurance_data_no_weights(
     return dict(X=dat["X"], y=dat["y"])
 
 
-def get_all_problems():
+def get_all_problems() -> Dict[str, Problem]:
     regularization_strength = 0.001
     distribution = "poisson"
 
@@ -48,7 +48,7 @@ def get_all_problems():
             l1_ratio=l1_ratio,
         )
         problems["simple_insurance_no_weights" + suffix] = Problem(
-            data_loader=load_simple_insurance_data_no_weights(),
+            data_loader=load_simple_insurance_data_no_weights,
             distribution=distribution,
             regularization_strength=regularization_strength,
             l1_ratio=l1_ratio,
