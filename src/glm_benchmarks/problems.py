@@ -41,7 +41,7 @@ def load_sparse_insurance_data(num_rows=None):
     return dict(X=X, y=y, weights=exposure)
 
 
-def load_sparse_insurance_data_no_weights(num_rows=None,):
+def load_sparse_insurance_data_no_weights(num_rows=None):
     X, y, _ = generate_sparse_insurance_dataset(num_rows)
     return dict(X=X, y=y)
 
