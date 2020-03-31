@@ -1,5 +1,4 @@
 import time
-import warnings
 
 from .sklearn_fork import GeneralizedLinearRegressor
 from .util import runtime
@@ -13,11 +12,11 @@ def build_and_fit(model_args, fit_args):
 
 def sklearn_fork_bench(dat, distribution, alpha, l1_ratio):
     result = dict()
-    if "exposure" in dat.keys():
-        warnings.warn("sklearn_fork does not support offsets. Skipping.")
-        return result
 
     fit_args = dict(X=dat["X"], y=dat["y"])
+    if "weight" in dat.keys():
+        fit_args.update({"sample_weight": dat["weight"]})
+
     model_args = dict(
         family=distribution,
         alpha=alpha,
