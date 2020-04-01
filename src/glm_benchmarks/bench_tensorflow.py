@@ -18,13 +18,26 @@ def map_distribution_to_tf_dist(distribution: str):
         raise NotImplementedError
 
 
+def sps_to_tf_sparse(x: sps.spmatrix) -> tf.SparseTensor:
+    """
+    From https://stackoverflow.com/questions/40896157/scipy-sparse-csr-matrix-to-tensorflow-sparsetensor-mini-batch-gradient-descent
+    """
+    coo = x.tocoo()
+    indices = np.mat([coo.row, coo.col]).T
+    return tf.SparseTensor(indices, coo.data, coo.shape)
+
+
 def format_design_mat(x):
+    """
+    Adds constant and returns dense tensor if input is dense, sparse tensor if input is
+    sparse.
+    """
     # Add intercept
+    to_stack = (np.ones((x.shape[0], 1)), x)
     if isinstance(x, sps.spmatrix):
-        x = sps.hstack((np.ones(x.shape[0]), x))
-    else:
-        x = np.hstack((np.ones(x.shape[0]), x))
-    x = tf.convert_to_tensor(x)
+        x = sps_to_tf_sparse(sps.hstack(to_stack))
+        return x
+    x = tf.convert_to_tensor(np.hstack(to_stack))
     return x
 
 
