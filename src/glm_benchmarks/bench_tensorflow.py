@@ -48,11 +48,13 @@ def tensorflow_bench(
     l1_ratio: float,
 ) -> Dict[str, Any]:
 
+    result: Dict[str, Any] = dict()
     if "weights" in dat.keys():
         warnings.warn("Tensorflow doesn't support weights.")
-        return {}
-
-    result = dict()
+        return result
+    if len(dat["y"]) <= 37:
+        warnings.warn("Tensorflow doesn't work with 37 or fewer rows.")
+        return result
 
     x = format_design_mat(dat["X"])
     y = tf.convert_to_tensor(dat["y"])
