@@ -26,13 +26,15 @@ def h2o_bench(
     train_h2o = h2o.H2OFrame(train_np)
 
     model_args = dict(
-        model_id="glm", family=distribution, alpha=l1_ratio, lambda_=alpha
+        model_id="glm",
+        family=distribution,
+        alpha=l1_ratio,
+        lambda_=alpha,
+        standardize=False,
     )
 
     train_args = dict(
-        x=list(range(train_np.shape[1] - 1)),
-        y=train_np.shape[1] - 1,
-        training_frame=train_h2o,
+        x=train_h2o.col_names[:-1], y=train_h2o.col_names[-1], training_frame=train_h2o,
     )
 
     result = dict()
