@@ -19,6 +19,10 @@ def glmnet_python_bench(
         warnings.warn("glmnet_python does not support sparse matrices")
         return result
 
+    if len(dat["y"]) <= 650:
+        warnings.warn("glmnet_python does not work with too few rows")
+        return result
+
     glmnet_kws = dict(
         x=dat["X"].copy(),
         y=dat["y"].copy(),
