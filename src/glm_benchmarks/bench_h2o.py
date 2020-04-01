@@ -23,6 +23,11 @@ def h2o_bench(
     h2o.init()
 
     train_np = np.hstack((dat["X"], dat["y"][:, np.newaxis]))
+
+    use_weights = "weights" in dat.keys()
+    if use_weights:
+        train_np = np.hstack((train_np, dat["weights"][:, np.newaxis]))
+
     train_h2o = h2o.H2OFrame(train_np)
 
     model_args = dict(
@@ -33,16 +38,29 @@ def h2o_bench(
         standardize=False,
     )
 
-    train_args = dict(
-        x=train_h2o.col_names[:-1], y=train_h2o.col_names[-1], training_frame=train_h2o,
-    )
+    if use_weights:
+        train_args = dict(
+            x=train_h2o.col_names[:-2],
+            y=train_h2o.col_names[-2],
+            training_frame=train_h2o,
+            weights_column=train_h2o.col_names[-1],
+        )
+    else:
+        train_args = dict(
+            x=train_h2o.col_names[:-1],
+            y=train_h2o.col_names[-1],
+            training_frame=train_h2o,
+        )
 
     result = dict()
     result["runtime"], m = runtime(build_and_fit, model_args, train_args)
     result["model_obj"] = "h2o objects fail to pickle"
     result["intercept"] = m.coef()["Intercept"]
     result["coef"] = np.array(
-        [m.coef()[f"C{i + 1}"] for i in range(train_np.shape[1] - 1)]
+        [
+            m.coef()[f"C{i + 1}"]
+            for i in range(train_np.shape[1] - (2 if use_weights else 1))
+        ]
     )
     result["n_iter"] = m.score_history().iloc[-1]["iterations"]
     return result
