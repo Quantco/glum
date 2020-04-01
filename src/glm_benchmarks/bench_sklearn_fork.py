@@ -1,4 +1,8 @@
 import time
+from typing import Dict, Union
+
+import numpy as np
+from scipy import sparse as sps
 
 from .sklearn_fork import GeneralizedLinearRegressor
 from .util import runtime
@@ -10,7 +14,12 @@ def build_and_fit(model_args, fit_args):
     return GeneralizedLinearRegressor(**model_args).fit(**fit_args)
 
 
-def sklearn_fork_bench(dat, distribution, alpha, l1_ratio):
+def sklearn_fork_bench(
+    dat: Dict[str, Union[np.ndarray, sps.spmatrix]],
+    distribution: str,
+    alpha: float,
+    l1_ratio: float,
+):
     result = dict()
 
     fit_args = dict(X=dat["X"], y=dat["y"])
