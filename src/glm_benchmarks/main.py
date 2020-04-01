@@ -1,12 +1,14 @@
 import os
 import pickle
 import warnings
+from typing import Dict, List, Tuple
 
 import click
 import numpy as np
 
 from glm_benchmarks.bench_glmnet_python import glmnet_python_bench
 from glm_benchmarks.bench_sklearn_fork import sklearn_fork_bench
+from glm_benchmarks.bench_tensorflow import tensorflow_bench
 from glm_benchmarks.problems import get_all_problems
 
 
@@ -58,7 +60,7 @@ def cli_run(problem_names, library_names, num_rows, output_dir):
     default="benchmark_output",
     help="The directory where we load benchmarking output.",
 )
-def cli_analyze(problem_names, library_names, output_dir):
+def cli_analyze(problem_names: str, library_names: str, output_dir: str):
     np.set_printoptions(precision=4, suppress=True)
     problems, libraries = get_limited_problems_libraries(problem_names, library_names)
 
@@ -89,10 +91,14 @@ def cli_analyze(problem_names, library_names, output_dir):
             print(results["glmnet_python"]["coef"] - results["sklearn_fork"]["coef"])
 
 
-def get_limited_problems_libraries(problem_names, library_names):
+def get_limited_problems_libraries(
+    problem_names: str, library_names: str
+) -> Tuple[Dict, Dict]:
     all_problems = get_all_problems()
     all_libraries = dict(
-        sklearn_fork=sklearn_fork_bench, glmnet_python=glmnet_python_bench
+        sklearn_fork=sklearn_fork_bench,
+        glmnet_python=glmnet_python_bench,
+        tensorflow=tensorflow_bench,
     )
 
     if len(problem_names) > 0:
@@ -109,7 +115,7 @@ def get_limited_problems_libraries(problem_names, library_names):
     return problems, libraries
 
 
-def get_comma_sep_names(xs):
+def get_comma_sep_names(xs: str) -> List[str]:
     return [x.strip() for x in xs.split(",")]
 
 
