@@ -1,6 +1,9 @@
+from typing import Any, List, Tuple
+
 import numpy as np
 import pandas as pd
 from git_root import git_root
+from scipy import sparse as sps
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import (
@@ -13,7 +16,7 @@ from sklearn.preprocessing import (
 # taken from https://github.com/lorentzenchr/Tutorial_freMTPL2/blob/master/glm_freMTPL2_example.ipynb
 
 
-def create_raw_data():
+def create_raw_data() -> None:
     # load the datasets
     # first row (=column names) uses "", all other rows use ''
     # use '' as quotechar as it is easier to change column names
@@ -84,7 +87,7 @@ def create_raw_data():
     df.to_parquet(git_root("data/insurance.parquet"))
 
 
-def gen_col_trans(drop=True, standardize=False):
+def gen_col_trans(drop=True, standardize=False) -> Tuple[Any, List[str]]:
     """Generate a ColumnTransformer and list of names.
 
     With drop=False and standardize=False, the transformer corresponds to the GLM of the case study paper.
@@ -297,7 +300,9 @@ def gen_col_trans(drop=True, standardize=False):
     return column_trans, column_trans_names
 
 
-def generate_simple_insurance_dataset(nrows=None):
+def generate_simple_insurance_dataset(
+    nrows=None,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Generate the tutorial data set from the sklearn fork and save it to disk."""
 
     df = pd.read_parquet(git_root("data/insurance.parquet"))
@@ -315,7 +320,9 @@ def generate_simple_insurance_dataset(nrows=None):
     return col_trans_GLM1.fit_transform(df), y, exposure
 
 
-def generate_sparse_insurance_dataset(nrows=None):
+def generate_sparse_insurance_dataset(
+    nrows=None,
+) -> Tuple[sps.spmatrix, np.ndarray, np.ndarray]:
     """Generate a version of the tutorial data set with many features."""
     df = pd.read_parquet(git_root("data/insurance.parquet"))
 
