@@ -1,9 +1,10 @@
+import warnings
 from typing import Any, Dict, Union
 
 import numpy as np
-import pandas as pd
 import tensorflow as tf
 import tensorflow_probability as tfp
+from scipy import sparse as sps
 
 from glm_benchmarks.util import runtime
 
@@ -17,18 +18,31 @@ def map_distribution_to_tf_dist(distribution: str):
         raise NotImplementedError
 
 
+def format_design_mat(x):
+    # Add intercept
+    if isinstance(x, sps.spmatrix):
+        x = sps.hstack((np.ones(x.shape[0]), x))
+    else:
+        x = np.hstack((np.ones(x.shape[0]), x))
+    x = tf.convert_to_tensor(x)
+    return x
+
+
 def tensorflow_bench(
-    dat: Dict[str, Union[pd.Series, pd.DataFrame]],
+    dat: Dict[str, Union[np.ndarray, sps.spmatrix]],
     distribution: str,
     alpha: float,
     l1_ratio: float,
 ) -> Dict[str, Any]:
 
+    if "weights" in dat.keys():
+        warnings.warn("Tensorflow doesn't support weights.")
+        return {}
+
     result = dict()
-    x = tf.convert_to_tensor(
-        np.hstack((np.ones((dat["X"].shape[0], 1)), dat["X"].values))
-    )
-    y = tf.convert_to_tensor(dat["y"].values)
+
+    x = format_design_mat(dat["X"])
+    y = tf.convert_to_tensor(dat["y"])
 
     t, fit = runtime(
         tfp.glm.fit_sparse,
