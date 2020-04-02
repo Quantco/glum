@@ -19,7 +19,7 @@ def _get_poisson_ll(
     Only up to a constant!
     """
     ln_e_y = _get_linear_prediction_part(dat["X"], coefs, intercept)
-    w_ln_e_y = ln_e_y if dat["weights"] is None else dat["weights"] * ln_e_y
+    w_ln_e_y = dat["weights"] * ln_e_y if "weights" in dat.keys() else ln_e_y
     ll = w_ln_e_y.dot(dat["y"]) - np.exp(w_ln_e_y).sum()
     return ll
 
@@ -32,9 +32,10 @@ def _get_minus_ssr(
     """
     resids = dat["y"] - _get_linear_prediction_part(dat["X"], coefs, intercept)
     squared_resids = resids ** 2
-    if dat["weights"] is None:
+    if "weights" in dat.keys():
+        return dat["weights"].dot(squared_resids)
+    else:
         return squared_resids.sum()
-    return dat["weights"].dot(squared_resids)
 
 
 def _get_linear_prediction_part(
