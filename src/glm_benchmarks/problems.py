@@ -51,35 +51,38 @@ def load_sparse_insurance_data_no_weights(num_rows=None,) -> Dict[str, np.ndarra
 
 def get_all_problems() -> Dict[str, Problem]:
     regularization_strength = 0.001
-    distribution = "poisson"
+    distributions = ["gaussian", "poisson"]
 
     problems = dict()
-    for suffix, l1_ratio in [("l2", 0.0), ("net", 0.5), ("lasso", 1.0)]:
-        problems["simple_insurance_" + suffix] = Problem(
-            data_loader=load_simple_insurance_data,
-            distribution=distribution,
-            regularization_strength=regularization_strength,
-            l1_ratio=l1_ratio,
-        )
+    for penalty_str, l1_ratio in [("l2", 0.0), ("net", 0.5), ("lasso", 1.0)]:
+        for distribution in distributions:
+            suffix = penalty_str + "_" + distribution
 
-        problems["simple_insurance_no_weights" + suffix] = Problem(
-            data_loader=load_simple_insurance_data_no_weights,
-            distribution=distribution,
-            regularization_strength=regularization_strength,
-            l1_ratio=l1_ratio,
-        )
+            problems["simple_insurance_" + suffix] = Problem(
+                data_loader=load_simple_insurance_data,
+                distribution=distribution,
+                regularization_strength=regularization_strength,
+                l1_ratio=l1_ratio,
+            )
 
-        problems["sparse_insurance_" + suffix] = Problem(
-            data_loader=load_simple_insurance_data,
-            distribution=distribution,
-            regularization_strength=regularization_strength,
-            l1_ratio=l1_ratio,
-        )
+            problems["simple_insurance_no_weights_" + suffix] = Problem(
+                data_loader=load_simple_insurance_data_no_weights,
+                distribution=distribution,
+                regularization_strength=regularization_strength,
+                l1_ratio=l1_ratio,
+            )
 
-        problems["sparse_insurance_no_weights_" + suffix] = Problem(
-            data_loader=load_sparse_insurance_data,
-            distribution=distribution,
-            regularization_strength=regularization_strength,
-            l1_ratio=l1_ratio,
-        )
+            problems["sparse_insurance_" + suffix] = Problem(
+                data_loader=load_simple_insurance_data,
+                distribution=distribution,
+                regularization_strength=regularization_strength,
+                l1_ratio=l1_ratio,
+            )
+
+            problems["sparse_insurance_no_weights_" + suffix] = Problem(
+                data_loader=load_sparse_insurance_data,
+                distribution=distribution,
+                regularization_strength=regularization_strength,
+                l1_ratio=l1_ratio,
+            )
     return problems
