@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 
 from glm_benchmarks.bench_glmnet_python import glmnet_python_bench
+from glm_benchmarks.bench_qc_glmnet import glmnet_qc_bench
 from glm_benchmarks.bench_sklearn_fork import sklearn_fork_bench
 from glm_benchmarks.bench_tensorflow import tensorflow_bench
 from glm_benchmarks.problems import get_all_problems
@@ -73,7 +74,7 @@ def cli_analyze(problem_names: str, library_names: str, num_rows: int, output_di
 
     problems, libraries = get_limited_problems_libraries(problem_names, library_names)
 
-    results: Dict[str, Dict] = dict()
+    results: Dict[str, Dict[str, Dict[str, dict]]] = dict()
     for Pn in problems:
         results[Pn] = dict()
 
@@ -81,15 +82,20 @@ def cli_analyze(problem_names: str, library_names: str, num_rows: int, output_di
         n_rows_used = (
             get_n_rows_used_to_solve_this_problem(output_dir, Pn)
             if num_rows is None
-            else [num_rows]
+            else [str(num_rows)]
         )
 
         for n_rows in n_rows_used:
             results[Pn][n_rows] = dict()
             for Ln in libraries:
-                res = load_benchmark_results(output_dir, Pn, Ln, n_rows)
+                warning = f"Did not solve problem {Pn} in library {Ln}."
+                try:
+                    res = load_benchmark_results(output_dir, Pn, Ln, n_rows)
+                except FileNotFoundError:
+                    warnings.warn(warning)
+                    continue
                 if len(res) == 0:
-                    warnings.warn(f"Did not solve problem {Pn} in library {Ln}.")
+                    warnings.warn(warning)
                 else:
                     results[Pn][n_rows][Ln] = res
 
@@ -114,7 +120,7 @@ def cli_analyze(problem_names: str, library_names: str, num_rows: int, output_di
 
 
 def extract_dict_results_to_pd_series(
-    prob_name: str, lib_name: str, n_rows: int, results: Dict[str, Any]
+    prob_name: str, lib_name: str, n_rows: str, results: Dict[str, Any]
 ) -> pd.Series:
     coefs = results["coef"]
     runtime_per_iter = results["runtime"] / results["n_iter"]
@@ -124,7 +130,7 @@ def extract_dict_results_to_pd_series(
     formatted = {
         "problem": prob_name,
         "library": lib_name,
-        "n_rows": n_rows,
+        "n_rows": 1000 if n_rows == "None" else int(n_rows),
         "n_iter": results["n_iter"],
         "runtime": results["runtime"],
         "runtime per iter": runtime_per_iter,
@@ -135,7 +141,7 @@ def extract_dict_results_to_pd_series(
     return pd.Series(formatted)
 
 
-def get_n_rows_used_to_solve_this_problem(output_dir: str, prob_name: str) -> List[int]:
+def get_n_rows_used_to_solve_this_problem(output_dir: str, prob_name: str) -> List[str]:
     prob_dir = os.path.join(output_dir, prob_name)
     n_rows_used = os.listdir(prob_dir)
     if not all(os.path.isdir(os.path.join(prob_dir, x)) for x in n_rows_used):
@@ -146,7 +152,7 @@ def get_n_rows_used_to_solve_this_problem(output_dir: str, prob_name: str) -> Li
             under an older storage scheme. Please delete them.
             """
         )
-    return [int(i) for i in n_rows_used]
+    return n_rows_used
 
 
 def get_limited_problems_libraries(
@@ -157,6 +163,7 @@ def get_limited_problems_libraries(
         sklearn_fork=sklearn_fork_bench,
         glmnet_python=glmnet_python_bench,
         tensorflow=tensorflow_bench,
+        glmnet_qc=glmnet_qc_bench,
     )
 
     if len(problem_names) > 0:
@@ -191,8 +198,8 @@ def save_benchmark_results(
 
 
 def load_benchmark_results(
-    output_dir: str, problem_name: str, library_name: str, n_rows: int
+    output_dir: str, problem_name: str, library_name: str, n_rows: str
 ):
-    problem_nrow_dir = os.path.join(output_dir, problem_name, str(n_rows))
+    problem_nrow_dir = os.path.join(output_dir, problem_name, n_rows)
     with open(os.path.join(problem_nrow_dir, library_name + "-results.pkl"), "rb") as f:
         return pickle.load(f)
