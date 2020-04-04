@@ -14,9 +14,6 @@ def glmnet_qc_bench(
     if distribution != "gaussian":
         warnings.warn("only gaussian is supported")
         return result
-    if not isinstance(dat["X"], np.ndarray):
-        warnings.warn("only dense arrays are supported")
-        return result
     if "weights" in dat.keys():
         warnings.warn("weights are not supported")
         return result

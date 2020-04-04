@@ -13,6 +13,9 @@ from glm_benchmarks.bench_sklearn_fork import sklearn_fork_bench
 from glm_benchmarks.bench_tensorflow import tensorflow_bench
 from glm_benchmarks.problems import get_all_problems
 
+from .util import get_obj_val
+from .zeros_benchmark import zeros_bench
+
 
 @click.command()
 @click.option(
@@ -44,6 +47,7 @@ def cli_run(problem_names, library_names, num_rows, output_dir):
             dat = P.data_loader(num_rows=num_rows)
             result = L(dat, P.distribution, P.regularization_strength, P.l1_ratio)
             save_benchmark_results(output_dir, Pn, Ln, num_rows, result)
+            print("ran")
 
 
 @click.command()
@@ -68,13 +72,13 @@ def cli_run(problem_names, library_names, num_rows, output_dir):
     help="The directory where we load benchmarking output.",
 )
 def cli_analyze(problem_names: str, library_names: str, num_rows: int, output_dir: str):
-    display_precision = 3
+    display_precision = 4
     np.set_printoptions(precision=display_precision, suppress=True)
     pd.set_option("precision", display_precision)
 
     problems, libraries = get_limited_problems_libraries(problem_names, library_names)
 
-    results: Dict[str, Dict[str, Dict[str, dict]]] = dict()
+    results: Dict[str, Dict[str, Dict[str, Any]]] = dict()
     for Pn in problems:
         results[Pn] = dict()
 
@@ -107,25 +111,39 @@ def cli_analyze(problem_names: str, library_names: str, num_rows: int, output_di
     )
     res_df = (
         pd.concat(formatted_results, axis=1)
-        .T.sort_values(["problem", "n_rows", "library"])
-        .reset_index(drop=True)
+        .T.set_index(["problem", "n_rows", "library"])
+        .sort_index()
     )
 
     res_df["n_iter"] = res_df["n_iter"].astype(int)
     for col in ["runtime", "runtime per iter", "intercept", "l1", "l2"]:
         res_df[col] = res_df[col].astype(float)
 
-    print(res_df)
-    print(res_df[["problem", "n_rows", "library", "n_iter", "runtime"]])
+    res_df["rel_obj_val"] = (
+        res_df["obj_val"] - res_df.groupby(level=[0, 1])["obj_val"].min()
+    )
+    print(res_df[["n_iter", "runtime", "intercept", "obj_val", "rel_obj_val"]])
 
 
 def extract_dict_results_to_pd_series(
     prob_name: str, lib_name: str, n_rows: str, results: Dict[str, Any]
 ) -> pd.Series:
     coefs = results["coef"]
+    assert np.isfinite(coefs).all()
     runtime_per_iter = results["runtime"] / results["n_iter"]
     l1_norm = np.sum(np.abs(coefs))
     l2_norm = np.sum(coefs ** 2)
+
+    problem = get_all_problems()[prob_name]
+    dat = problem.data_loader(None if n_rows == "None" else int(n_rows))
+    obj_val = get_obj_val(
+        dat,
+        problem.distribution,
+        problem.regularization_strength,
+        problem.l1_ratio,
+        results["intercept"],
+        coefs,
+    )
 
     formatted = {
         "problem": prob_name,
@@ -137,6 +155,7 @@ def extract_dict_results_to_pd_series(
         "intercept": results["intercept"],
         "l1": l1_norm,
         "l2": l2_norm,
+        "obj_val": obj_val,
     }
     return pd.Series(formatted)
 
@@ -164,6 +183,7 @@ def get_limited_problems_libraries(
         glmnet_python=glmnet_python_bench,
         tensorflow=tensorflow_bench,
         glmnet_qc=glmnet_qc_bench,
+        zeros=zeros_bench,
     )
 
     if len(problem_names) > 0:
