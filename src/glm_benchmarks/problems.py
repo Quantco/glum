@@ -1,4 +1,4 @@
-from typing import Callable, Dict, Union
+from typing import Callable, Dict, Optional, Union
 
 import attr
 import numpy as np
@@ -9,7 +9,9 @@ from .data import generate_simple_insurance_dataset, generate_sparse_insurance_d
 
 @attr.s
 class Problem:
-    data_loader = attr.ib(type=Callable)
+    data_loader = attr.ib(
+        type=Callable[[Optional[int]], Dict[str, Union[np.ndarray, sps.spmatrix]]]
+    )
     distribution = attr.ib(type=str)
     regularization_strength = attr.ib(type=float)
     l1_ratio = attr.ib(type=float)
@@ -85,4 +87,5 @@ def get_all_problems() -> Dict[str, Problem]:
                 regularization_strength=regularization_strength,
                 l1_ratio=l1_ratio,
             )
+
     return problems
