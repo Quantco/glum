@@ -34,8 +34,10 @@ def h2o_bench(
         model_id="glm",
         family=distribution,
         alpha=l1_ratio,
-        lambda_=alpha,
+        lambda_=alpha,  # 0.0006945007199887186,#alpha/1.44,
         standardize=False,
+        objective_epsilon=1e-7,
+        beta_epsilon=1e-7,
     )
 
     if use_weights:
@@ -56,11 +58,27 @@ def h2o_bench(
     result["runtime"], m = runtime(build_and_fit, model_args, train_args)
     result["model_obj"] = "h2o objects fail to pickle"
     result["intercept"] = m.coef()["Intercept"]
-    result["coef"] = np.array(
-        [
-            m.coef()[f"C{i + 1}"]
-            for i in range(train_np.shape[1] - (2 if use_weights else 1))
-        ]
-    )
+    n_coefs = train_np.shape[1] - (2 if use_weights else 1)
+    result["coef"] = extract_coefs(m, n_coefs)
     result["n_iter"] = m.score_history().iloc[-1]["iterations"]
+    # print('correct: ', )
+    # print(np.sum(np.abs(result['coef'])))
+
+    # def objfnc(L):
+    #     MM = model_args.copy()
+    #     MM['lambda_'] = L
+    #     modelobj = build_and_fit(MM, train_args)
+    #     coefs = extract_coefs(modelobj, n_coefs)
+    #     l1 = np.sum(np.abs(coefs))
+    #     print(L, l1)
+    #     return l1 - 13.198392302008212
+
+    # from scipy.optimize import bisect
+    # LAMBDA = bisect(objfnc, alpha / 10.0, alpha * 3.0)
+    # import ipdb
+    # ipdb.set_trace()
     return result
+
+
+def extract_coefs(m, n_coefs):
+    return np.array([m.coef()[f"C{i + 1}"] for i in range(n_coefs)])

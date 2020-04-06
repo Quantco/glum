@@ -106,6 +106,11 @@ def cli_analyze(problem_names: str, library_names: str, num_rows: int, output_di
                 for k2 in ks[(i + 1) :]:
                     print(f"Difference in coefficients ({k1},{k2}):")
                     print(results[k1]["coef"] - results[k2]["coef"])
+                    print(np.sum(np.abs(results[k1]["coef"])))
+                    print(np.sum(np.abs(results[k2]["coef"])))
+                    import ipdb
+
+                    ipdb.set_trace()
 
 
 def get_limited_problems_libraries(
