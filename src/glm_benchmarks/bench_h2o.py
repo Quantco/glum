@@ -35,7 +35,12 @@ def h2o_bench(
         family=distribution,
         alpha=l1_ratio,
         lambda_=alpha,
-        standardize=False,
+        standardize=True,
+        # solver='COORDINATE_DESCENT',
+        solver="IRLSM",
+        objective_epsilon=1e-12,
+        beta_epsilon=1e-12,
+        gradient_epsilon=1e-12,
     )
 
     if use_weights:
@@ -55,12 +60,22 @@ def h2o_bench(
     result = dict()
     result["runtime"], m = runtime(build_and_fit, model_args, train_args)
     result["model_obj"] = "h2o objects fail to pickle"
-    result["intercept"] = m.coef()["Intercept"]
-    result["coef"] = np.array(
+
+    # un-standardize
+    standardized_intercept = m.coef()["Intercept"]
+    standardized_coefs = np.array(
         [
             m.coef()[f"C{i + 1}"]
             for i in range(train_np.shape[1] - (2 if use_weights else 1))
         ]
     )
+    # import ipdb
+    # ipdb.set_trace()
+    # coefs = standardized_coefs / (dat['X'].std(0))
+    # intercept = (standardized_x - unstandardized_x).dot(coefs)
+    # intercept = (dat['y'] - dat['X'].dot(coefs)).mean()
+
+    result["intercept"] = standardized_intercept
+    result["coef"] = standardized_coefs
     result["n_iter"] = m.score_history().iloc[-1]["iterations"]
     return result

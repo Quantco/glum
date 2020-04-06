@@ -1,24 +1,21 @@
 import os
 import pickle
 import warnings
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 
 import click
 import numpy as np
+import pandas as pd
 
+from glm_benchmarks.bench_glmnet_python import glmnet_python_bench
+from glm_benchmarks.bench_h2o import h2o_bench
+from glm_benchmarks.bench_qc_glmnet import glmnet_qc_bench
+from glm_benchmarks.bench_sklearn_fork import sklearn_fork_bench
+from glm_benchmarks.bench_tensorflow import tensorflow_bench
 from glm_benchmarks.problems import get_all_problems
 
-from .bench_glmnet_python import glmnet_python_bench
-from .bench_h2o import h2o_bench
-from .bench_sklearn_fork import sklearn_fork_bench
-from .bench_tensorflow import tensorflow_bench
-
-all_libraries = dict(
-    sklearn_fork=sklearn_fork_bench,
-    glmnet_python=glmnet_python_bench,
-    tensorflow=tensorflow_bench,
-    h2o=h2o_bench,
-)
+from .util import get_obj_val
+from .zeros_benchmark import zeros_bench
 
 
 @click.command()
@@ -50,7 +47,8 @@ def cli_run(problem_names: str, library_names: str, num_rows: int, output_dir: s
             print(f"running problem={Pn} library={Ln}")
             dat = P.data_loader(num_rows=num_rows)
             result = L(dat, P.distribution, P.regularization_strength, P.l1_ratio)
-            save_benchmark_results(output_dir, num_rows, Pn, Ln, result)
+            save_benchmark_results(output_dir, Pn, Ln, num_rows, result)
+            print("ran")
 
 
 @click.command()
@@ -66,7 +64,7 @@ def cli_run(problem_names: str, library_names: str, num_rows: int, output_dir: s
 )
 @click.option(
     "--num_rows",
-    type=int,
+    type=str,
     help="The number of rows that the GLM models were run with.",
 )
 @click.option(
@@ -74,44 +72,131 @@ def cli_run(problem_names: str, library_names: str, num_rows: int, output_dir: s
     default="benchmark_output",
     help="The directory where we load benchmarking output.",
 )
-def cli_analyze(problem_names: str, library_names: str, num_rows: int, output_dir: str):
-    np.set_printoptions(precision=4, suppress=True)
+def cli_analyze(problem_names: str, library_names: str, num_rows: str, output_dir: str):
+    display_precision = 4
+    np.set_printoptions(precision=display_precision, suppress=True)
+    pd.set_option("precision", display_precision)
+
     problems, libraries = get_limited_problems_libraries(problem_names, library_names)
 
-    # TODO: support more than a pair of libraries?
-    # NOTE: might be better to leave this more ad-hoc until the dust settles a bit.
-
+    results: Dict[str, Dict[str, Dict[str, Any]]] = dict()
     for Pn in problems:
-        print("")
-        print(f"for {Pn}")
+        results[Pn] = dict()
 
-        results = dict()
-        for Ln in libraries:
-            res = load_benchmark_results(output_dir, num_rows, Pn, Ln)
-            if len(res) == 0:
-                warnings.warn(f"Did not solve problem {Pn} in library {Ln}.")
-            else:
-                results[Ln] = res
-                print(Ln, "number of iterations", results[Ln]["n_iter"])
-                print(Ln, "runtime", results[Ln]["runtime"])
-                print(
-                    Ln,
-                    "runtime per iter",
-                    results[Ln]["runtime"] / results[Ln]["n_iter"],
-                )
+        # Find the row counts that have been used on this problem
+        n_rows_used = (
+            get_n_rows_used_to_solve_this_problem(output_dir, Pn)
+            if num_rows is None
+            else [str(num_rows)]
+        )
 
-        if len(results.keys()) >= 2:
-            ks = list(results.keys())
-            for i, k1 in enumerate(ks):
-                for k2 in ks[(i + 1) :]:
-                    print(f"Difference in coefficients ({k1},{k2}):")
-                    print(results[k1]["coef"] - results[k2]["coef"])
+        for n_rows in n_rows_used:
+            results[Pn][n_rows] = dict()
+            for Ln in libraries:
+                warning = f"Did not solve problem {Pn} in library {Ln}."
+                try:
+                    res = load_benchmark_results(output_dir, Pn, Ln, n_rows)
+                except FileNotFoundError:
+                    warnings.warn(warning)
+                    continue
+                if len(res) == 0:
+                    warnings.warn(warning)
+                else:
+                    results[Pn][n_rows][Ln] = res
+
+    formatted_results = (
+        extract_dict_results_to_pd_series(prob_name, lib_name, n_rows, res)
+        for prob_name in results.keys()
+        for n_rows in results[prob_name].keys()
+        for lib_name, res in results[prob_name][n_rows].items()
+    )
+    res_df = (
+        pd.concat(formatted_results, axis=1)
+        .T.set_index(["problem", "n_rows", "library"])
+        .sort_index()
+    )
+
+    res_df["n_iter"] = res_df["n_iter"].astype(int)
+    for col in ["runtime", "runtime per iter", "intercept", "l1", "l2"]:
+        res_df[col] = res_df[col].astype(float)
+
+    res_df["rel_obj_val"] = (
+        res_df["obj_val"] - res_df.groupby(level=[0, 1])["obj_val"].min()
+    )
+    print(res_df[["n_iter", "runtime", "intercept", "obj_val", "rel_obj_val"]])
+
+    # for Pn in results:
+    #     coefs = dict()
+    #     specific = results['simple_insurance_no_weights_lasso_poisson']['10000']
+    #     for k in specific:
+    #         coefs[k] = specific[k]['coef']
+    #     print(coefs['glmnet_python'] - coefs['h2o'])
+    import ipdb
+
+    ipdb.set_trace()
+
+
+def extract_dict_results_to_pd_series(
+    prob_name: str, lib_name: str, n_rows: str, results: Dict[str, Any]
+) -> pd.Series:
+    coefs = results["coef"]
+    assert np.isfinite(coefs).all()
+    runtime_per_iter = results["runtime"] / results["n_iter"]
+    l1_norm = np.sum(np.abs(coefs))
+    l2_norm = np.sum(coefs ** 2)
+
+    problem = get_all_problems()[prob_name]
+    dat = problem.data_loader(None if n_rows == "None" else int(n_rows))
+    obj_val = get_obj_val(
+        dat,
+        problem.distribution,
+        problem.regularization_strength,
+        problem.l1_ratio,
+        results["intercept"],
+        coefs,
+    )
+
+    formatted = {
+        "problem": prob_name,
+        "library": lib_name,
+        "n_rows": dat["y"].shape[0] if n_rows == "None" else int(n_rows),
+        "n_iter": results["n_iter"],
+        "runtime": results["runtime"],
+        "runtime per iter": runtime_per_iter,
+        "intercept": results["intercept"],
+        "l1": l1_norm,
+        "l2": l2_norm,
+        "obj_val": obj_val,
+    }
+    return pd.Series(formatted)
+
+
+def get_n_rows_used_to_solve_this_problem(output_dir: str, prob_name: str) -> List[str]:
+    prob_dir = os.path.join(output_dir, prob_name)
+    n_rows_used = os.listdir(prob_dir)
+    if not all(os.path.isdir(os.path.join(prob_dir, x)) for x in n_rows_used):
+        raise RuntimeError(
+            f"""
+            Everything in {prob_dir} should be a directory, but this is not the
+            case. This likely happened because you have benchmarks generated
+            under an older storage scheme. Please delete them.
+            """
+        )
+    return n_rows_used
 
 
 def get_limited_problems_libraries(
     problem_names: str, library_names: str
 ) -> Tuple[Dict, Dict]:
     all_problems = get_all_problems()
+    all_libraries = dict(
+        sklearn_fork=sklearn_fork_bench,
+        glmnet_python=glmnet_python_bench,
+        tensorflow=tensorflow_bench,
+        h2o=h2o_bench,
+        glmnet_qc=glmnet_qc_bench,
+        zeros=zeros_bench,
+    )
 
     if len(problem_names) > 0:
         problem_names_split = get_comma_sep_names(problem_names)
@@ -131,15 +216,22 @@ def get_comma_sep_names(xs: str) -> List[str]:
     return [x.strip() for x in xs.split(",")]
 
 
-def save_benchmark_results(output_dir, num_rows, problem_name, library_name, result):
-    problem_dir = os.path.join(output_dir, str(num_rows), problem_name)
+def save_benchmark_results(
+    output_dir: str, problem_name: str, library_name: str, n_rows: int, result
+) -> None:
+    problem_dir = os.path.join(output_dir, problem_name)
     if not os.path.exists(problem_dir):
         os.makedirs(problem_dir)
-    with open(os.path.join(problem_dir, library_name + "-results.pkl"), "wb") as f:
+    problem_nrow_dir = os.path.join(problem_dir, str(n_rows))
+    if not os.path.exists(problem_nrow_dir):
+        os.makedirs(problem_nrow_dir)
+    with open(os.path.join(problem_nrow_dir, library_name + "-results.pkl"), "wb") as f:
         pickle.dump(result, f)
 
 
-def load_benchmark_results(output_dir, num_rows, problem_name, library_name):
-    problem_dir = os.path.join(output_dir, str(num_rows), problem_name)
-    with open(os.path.join(problem_dir, library_name + "-results.pkl"), "rb") as f:
+def load_benchmark_results(
+    output_dir: str, problem_name: str, library_name: str, n_rows: str
+):
+    problem_nrow_dir = os.path.join(output_dir, problem_name, n_rows)
+    with open(os.path.join(problem_nrow_dir, library_name + "-results.pkl"), "rb") as f:
         return pickle.load(f)
