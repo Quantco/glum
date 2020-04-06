@@ -75,14 +75,14 @@ def get_all_problems() -> Dict[str, Problem]:
             )
 
             problems["sparse_insurance_" + suffix] = Problem(
-                data_loader=load_simple_insurance_data,
+                data_loader=load_sparse_insurance_data,
                 distribution=distribution,
                 regularization_strength=regularization_strength,
                 l1_ratio=l1_ratio,
             )
 
             problems["sparse_insurance_no_weights_" + suffix] = Problem(
-                data_loader=load_sparse_insurance_data,
+                data_loader=load_sparse_insurance_data_no_weights,
                 distribution=distribution,
                 regularization_strength=regularization_strength,
                 l1_ratio=l1_ratio,
