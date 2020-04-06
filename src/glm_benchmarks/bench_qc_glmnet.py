@@ -2,6 +2,7 @@ import warnings
 from typing import Any, Dict
 
 import numpy as np
+from scipy import sparse as sps
 
 from .glmnet_qc.glmnet_qc import fit_glmnet
 from .util import runtime
@@ -18,11 +19,19 @@ def glmnet_qc_bench(
         warnings.warn("weights are not supported")
         return result
 
-    x = np.hstack((np.ones((len(dat["y"]), 1)), dat["X"]))
-
-    result["runtime"], coef = runtime(fit_glmnet, dat["y"], x, alpha, l1_ratio)
-    result["model_obj"] = None
-    result["intercept"] = coef[0]
-    result["coef"] = coef[1:]
-    result["n_iter"] = 10
+    n_iters = 10
+    result["runtime"], model = runtime(
+        fit_glmnet,
+        dat["y"],
+        dat["X"],
+        alpha,
+        l1_ratio,
+        n_iters=n_iters,
+        solver="sparse" if sps.issparse(dat["X"]) else "naive",
+    )
+    result["model_obj"] = model
+    result["intercept"] = model.intercept
+    assert np.isfinite(model.params).all()
+    result["coef"] = model.params
+    result["n_iter"] = n_iters
     return result

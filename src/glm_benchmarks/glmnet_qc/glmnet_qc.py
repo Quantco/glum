@@ -36,11 +36,6 @@ class GlmnetGaussianModel:
         return self.intercept + self.x.dot(self.params)
 
 
-def _get_ssr(model: GlmnetGaussianModel) -> float:
-    resid = model.y - model.predict()
-    return (resid ** 2).sum()
-
-
 def soft_threshold(z: float, threshold: float) -> Union[float, int]:
     if np.abs(z) <= threshold:
         return 0
@@ -68,19 +63,13 @@ def _get_coordinate_wise_update_naive(
     return new_param_j, resid
 
 
-def get_col_j(x: sps.spmatrix, j: int) -> Tuple[np.ndarray, np.ndarray]:
-    nz_indices = x.indices[x.indptr[j] : x.indptr[j + 1]]
-    nz_data = x.data[x.indptr[j] : x.indptr[j + 1]]
-    return nz_indices, nz_data
-
-
 def _get_coordinate_wise_update_sparse(
     model: GlmnetGaussianModel, j: int, resid: np.ndarray
 ) -> Tuple[float, np.ndarray]:
-    nz_indices, x_j_nz = get_col_j(model.x, j)
+    x_j = model.x.getcol(j)
+    nonzero_rows = x_j.indices
 
-    resid_nz = resid[nz_indices]
-    grad_part = x_j_nz.dot(resid_nz)
+    grad_part = x_j.data.dot(resid[nonzero_rows])
 
     mean_resid_times_x = grad_part / len(model.y) + model.params[j]
     numerator = soft_threshold(mean_resid_times_x, model.l1_ratio * model.alpha)
@@ -91,18 +80,24 @@ def _get_coordinate_wise_update_sparse(
         new_param_j = numerator / denominator
 
     if new_param_j != 0 or model.params[j] != 0:
-        resid[nz_indices] += x_j_nz * (model.params[j] - new_param_j)
+        resid[nonzero_rows] += x_j.data * (model.params[j] - new_param_j)
 
     return new_param_j, resid
 
 
 def _do_cd_naive(
-    y: np.ndarray, x: np.ndarray, alpha: float, l1_ratio: float, n_iters: int = 10,
+    y: np.ndarray,
+    x: np.ndarray,
+    alpha: float,
+    l1_ratio: float,
+    n_iters: int = 10,
+    report_normalized=False,
 ) -> GlmnetGaussianModel:
     """
     This is the "naive algorithm" from the paper.
     """
-    x_standardized = (x - x.mean(0)[None, :]) / x.std(0)[None, :]
+    x_sd = x.std(0)
+    x_standardized = (x - x.mean(0)[None, :]) / x_sd[None, :]
     model = GlmnetGaussianModel(y, x_standardized, alpha, l1_ratio, intercept=y.mean())
     resid = model.y - model.predict()
 
@@ -110,6 +105,10 @@ def _do_cd_naive(
         for j in range(len(model.params)):
             model.params[j], resid = _get_coordinate_wise_update_naive(model, j, resid)
 
+    if not report_normalized:
+        model.x = x
+        model.params /= x_sd
+        model.intercept += (model.y - model.predict()).mean()
     return model
 
 
@@ -118,7 +117,12 @@ def r2(model: GlmnetGaussianModel, y: np.ndarray) -> float:
 
 
 def _do_cd_sparse(
-    y: np.ndarray, x: sps.spmatrix, alpha: float, l1_ratio: float, n_iters: int
+    y: np.ndarray,
+    x: sps.spmatrix,
+    alpha: float,
+    l1_ratio: float,
+    n_iters: int,
+    report_normalized=False,
 ) -> GlmnetGaussianModel:
     """
     The paper is not terribly clear on what to do here. It sounds like the
@@ -128,7 +132,8 @@ def _do_cd_sparse(
     this takes about 44% of the time of the dense example, and does not reach quite
     as high an R-squared.
     """
-    z = sps.csc_matrix(1 / (np.sqrt(x.power(2).sum(0) / x.shape[0])))
+    x_norm = np.sqrt(x.power(2).sum(0) / x.shape[0])
+    z = sps.csc_matrix(1 / x_norm)
     x_scaled = x.multiply(z)
     model = GlmnetGaussianModel(y, x_scaled, alpha, l1_ratio, intercept=y.mean())
     resid = y - model.predict()
@@ -139,21 +144,29 @@ def _do_cd_sparse(
         model.intercept += resid.mean()
         resid -= resid.mean()
 
+    if not report_normalized:
+        model.x = x
+        model.params /= np.array(x_norm)[0, :]
+        model.intercept = (model.y - model.x.dot(model.params)).mean()
+        model.intercept += (model.y - model.predict()).mean()
+
     return model
 
 
 def fit_glmnet(
     y: np.ndarray,
-    x: Union[np.ndarray, sps.csc_matrix],
+    x: Union[np.ndarray, sps.spmatrix],
     alpha: float,
     l1_ratio: float,
     n_iters: int = 10,
     solver: str = "naive",
 ) -> GlmnetGaussianModel:
     if solver == "naive":
+        assert isinstance(x, np.ndarray)
         model = _do_cd_naive(y, x, alpha, l1_ratio, n_iters)
     elif solver == "sparse":
-        model = _do_cd_sparse(y, x, alpha, l1_ratio, n_iters)
+        assert sps.issparse(x)
+        model = _do_cd_sparse(y, x.tocsc(), alpha, l1_ratio, n_iters)
     else:
         raise NotImplementedError
 
@@ -163,7 +176,7 @@ def fit_glmnet(
 def sim_data(n_rows: int, n_cols: int, sparse: bool) -> Dict[str, Any]:
     intercept = -3
     np.random.seed(0)
-    x = sps.random(n_rows, n_cols, density=0.001, format="csc")
+    x = sps.random(n_rows, n_cols, format="csc")
     if not sparse:
         x = x.A
     true_coefs = np.random.normal(0, 1, n_cols)
@@ -173,7 +186,7 @@ def sim_data(n_rows: int, n_cols: int, sparse: bool) -> Dict[str, Any]:
 
 
 def test(sparse: bool):
-    data = sim_data(10000, 10000, sparse)
+    data = sim_data(10000, 1000, sparse)
     y = data["y"]
     print("\n\n")
     solver = "sparse" if sparse else "naive"
