@@ -48,11 +48,25 @@ def tensorflow_bench(
     l1_ratio: float,
 ) -> Dict[str, Any]:
 
+    result: Dict[str, Any] = dict()
     if "weights" in dat.keys():
         warnings.warn("Tensorflow doesn't support weights.")
-        return {}
+        return result
 
-    result = dict()
+    n_minimum_rows_sparse = 156
+    n_minimum_rows_dense = 38
+    if len(dat["y"]) < n_minimum_rows_sparse and sps.isspmatrix(dat["X"]):
+        warnings.warn(
+            f"""Tensorflow doesn't work with fewer than {n_minimum_rows_sparse} rows when
+            sparse."""
+        )
+        return result
+    if len(dat["y"]) < n_minimum_rows_dense:
+        warnings.warn(
+            f"""Tensorflow doesn't work with {n_minimum_rows_dense} or fewer rows when
+            dense."""
+        )
+        return result
 
     x = format_design_mat(dat["X"])
     y = tf.convert_to_tensor(dat["y"])
@@ -63,12 +77,14 @@ def tensorflow_bench(
         response=y,
         model=map_distribution_to_tf_dist(distribution),
         model_coefficients_start=tf.zeros(x.shape[1], dtype=tf.float64),
-        tolerance=1.0,
+        tolerance=1e-2,
         l1_regularizer=alpha * l1_ratio,
         l2_regularizer=alpha * (1 - l1_ratio),
-        maximum_iterations=10,
+        # Starts to return infinite coefficients with more than 2
+        maximum_iterations=2,
     )
     model_coefficients, is_converged, iter_ = fit
+    assert np.isfinite(model_coefficients.numpy()).all()
     result["runtime"] = t
     result["model_obj"] = fit
     result["intercept"] = model_coefficients.numpy()[0]
