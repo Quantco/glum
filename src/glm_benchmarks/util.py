@@ -32,10 +32,11 @@ def _get_minus_ssr(
     """
     resids = dat["y"] - _get_linear_prediction_part(dat["X"], coefs, intercept)
     squared_resids = resids ** 2
+
     if "weights" in dat.keys():
-        return dat["weights"].dot(squared_resids)
+        return -dat["weights"].dot(squared_resids)
     else:
-        return squared_resids.sum()
+        return -squared_resids.sum()
 
 
 def _get_linear_prediction_part(

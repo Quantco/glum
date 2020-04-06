@@ -27,7 +27,7 @@ def sklearn_fork_bench(
         fit_args.update({"sample_weight": dat["weight"]})
 
     model_args = dict(
-        family=distribution,
+        family="normal" if distribution == "gaussian" else distribution,
         alpha=alpha,
         l1_ratio=l1_ratio,
         max_iter=10000,

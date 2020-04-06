@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 
 from glm_benchmarks.bench_glmnet_python import glmnet_python_bench
+from glm_benchmarks.bench_qc_glmnet import glmnet_qc_bench
 from glm_benchmarks.bench_sklearn_fork import sklearn_fork_bench
 from glm_benchmarks.bench_tensorflow import tensorflow_bench
 from glm_benchmarks.problems import get_all_problems
@@ -46,6 +47,7 @@ def cli_run(problem_names, library_names, num_rows, output_dir):
             dat = P.data_loader(num_rows=num_rows)
             result = L(dat, P.distribution, P.regularization_strength, P.l1_ratio)
             save_benchmark_results(output_dir, Pn, Ln, num_rows, result)
+            print("ran")
 
 
 @click.command()
@@ -70,13 +72,13 @@ def cli_run(problem_names, library_names, num_rows, output_dir):
     help="The directory where we load benchmarking output.",
 )
 def cli_analyze(problem_names: str, library_names: str, num_rows: int, output_dir: str):
-    display_precision = 3
+    display_precision = 4
     np.set_printoptions(precision=display_precision, suppress=True)
     pd.set_option("precision", display_precision)
 
     problems, libraries = get_limited_problems_libraries(problem_names, library_names)
 
-    results: Dict[str, Dict[int, Dict[str, Any]]] = dict()
+    results: Dict[str, Dict[str, Dict[str, Any]]] = dict()
     for Pn in problems:
         results[Pn] = dict()
 
@@ -84,7 +86,7 @@ def cli_analyze(problem_names: str, library_names: str, num_rows: int, output_di
         n_rows_used = (
             get_n_rows_used_to_solve_this_problem(output_dir, Pn)
             if num_rows is None
-            else [num_rows]
+            else [str(num_rows)]
         )
 
         for n_rows in n_rows_used:
@@ -117,11 +119,14 @@ def cli_analyze(problem_names: str, library_names: str, num_rows: int, output_di
     for col in ["runtime", "runtime per iter", "intercept", "l1", "l2"]:
         res_df[col] = res_df[col].astype(float)
 
-    print(res_df[["n_iter", "runtime", "intercept", "obj_val"]])
+    res_df["rel_obj_val"] = (
+        res_df["obj_val"] - res_df.groupby(level=[0, 1])["obj_val"].min()
+    )
+    print(res_df[["n_iter", "runtime", "intercept", "obj_val", "rel_obj_val"]])
 
 
 def extract_dict_results_to_pd_series(
-    prob_name: str, lib_name: str, n_rows: int, results: Dict[str, Any]
+    prob_name: str, lib_name: str, n_rows: str, results: Dict[str, Any]
 ) -> pd.Series:
     coefs = results["coef"]
     assert np.isfinite(coefs).all()
@@ -130,7 +135,7 @@ def extract_dict_results_to_pd_series(
     l2_norm = np.sum(coefs ** 2)
 
     problem = get_all_problems()[prob_name]
-    dat = problem.data_loader(n_rows)
+    dat = problem.data_loader(None if n_rows == "None" else int(n_rows))
     obj_val = get_obj_val(
         dat,
         problem.distribution,
@@ -143,7 +148,7 @@ def extract_dict_results_to_pd_series(
     formatted = {
         "problem": prob_name,
         "library": lib_name,
-        "n_rows": n_rows,
+        "n_rows": 1000 if n_rows == "None" else int(n_rows),
         "n_iter": results["n_iter"],
         "runtime": results["runtime"],
         "runtime per iter": runtime_per_iter,
@@ -155,7 +160,7 @@ def extract_dict_results_to_pd_series(
     return pd.Series(formatted)
 
 
-def get_n_rows_used_to_solve_this_problem(output_dir: str, prob_name: str) -> List[int]:
+def get_n_rows_used_to_solve_this_problem(output_dir: str, prob_name: str) -> List[str]:
     prob_dir = os.path.join(output_dir, prob_name)
     n_rows_used = os.listdir(prob_dir)
     if not all(os.path.isdir(os.path.join(prob_dir, x)) for x in n_rows_used):
@@ -166,7 +171,7 @@ def get_n_rows_used_to_solve_this_problem(output_dir: str, prob_name: str) -> Li
             under an older storage scheme. Please delete them.
             """
         )
-    return [int(i) for i in n_rows_used]
+    return n_rows_used
 
 
 def get_limited_problems_libraries(
@@ -177,6 +182,7 @@ def get_limited_problems_libraries(
         sklearn_fork=sklearn_fork_bench,
         glmnet_python=glmnet_python_bench,
         tensorflow=tensorflow_bench,
+        glmnet_qc=glmnet_qc_bench,
         zeros=zeros_bench,
     )
 
@@ -212,8 +218,8 @@ def save_benchmark_results(
 
 
 def load_benchmark_results(
-    output_dir: str, problem_name: str, library_name: str, n_rows: int
+    output_dir: str, problem_name: str, library_name: str, n_rows: str
 ):
-    problem_nrow_dir = os.path.join(output_dir, problem_name, str(n_rows))
+    problem_nrow_dir = os.path.join(output_dir, problem_name, n_rows)
     with open(os.path.join(problem_nrow_dir, library_name + "-results.pkl"), "rb") as f:
         return pickle.load(f)
