@@ -13,4 +13,5 @@ jupyterlab
 ipdb
 pyglmnet
 scikit-learn
+statsmodels
 compilers 

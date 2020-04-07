@@ -10,6 +10,7 @@ import pandas as pd
 from glm_benchmarks.bench_glmnet_python import glmnet_python_bench
 from glm_benchmarks.bench_qc_glmnet import glmnet_qc_bench
 from glm_benchmarks.bench_sklearn_fork import sklearn_fork_bench
+from glm_benchmarks.bench_statsmodels import statsmodels_bench
 from glm_benchmarks.bench_tensorflow import tensorflow_bench
 from glm_benchmarks.problems import get_all_problems
 
@@ -183,6 +184,7 @@ def get_limited_problems_libraries(
         glmnet_python=glmnet_python_bench,
         tensorflow=tensorflow_bench,
         glmnet_qc=glmnet_qc_bench,
+        statsmodels=statsmodels_bench,
         zeros=zeros_bench,
     )
 
