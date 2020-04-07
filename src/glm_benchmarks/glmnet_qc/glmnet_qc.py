@@ -1,11 +1,19 @@
 """
 This implements the algorithm given in the glmnet paper.
+TODO:
+- stop normalizing and un-normalizing (make scale/shift methods of model
+and store the scaling and shifting params, and give it an 'unnormalize' method)
+- profile again
+- n_alphas option
+- active set convergence
+- stopping criteria
 """
-import time
-from typing import Any, Dict, Tuple, Union
+from typing import Tuple, Union
 
 import numpy as np
 from scipy import sparse as sps
+
+from .util import spmatrix_col_sd
 
 
 class GlmnetGaussianModel:
@@ -17,7 +25,9 @@ class GlmnetGaussianModel:
         l1_ratio: float,
         intercept: float = 0.0,
         params: np.ndarray = None,
-        penalty_scaling: Union[np.ndarray, None] = None,
+        penalty_scaling: np.ndarray = None,
+        is_x_zero_centered: bool = False,
+        is_x_squared_mean_one: bool = False,
     ):
         """
         Assume x does *not* include an intercept.
@@ -26,6 +36,8 @@ class GlmnetGaussianModel:
             raise ValueError("alpha must be positive.")
         if not 0 <= l1_ratio <= 1:
             raise ValueError("l1_ratio must be between zero and one.")
+        if not y.shape == (x.shape[0],):
+            raise ValueError("y has the wrong shape")
         self.y = y
         self.x = x
         self.alpha = alpha
@@ -40,17 +52,84 @@ class GlmnetGaussianModel:
                 )
         self.params = params
         self.intercept = intercept
-        if penalty_scaling is not None and np.any(penalty_scaling < 0):
+        if penalty_scaling is None:
+            penalty_scaling = np.ones(x.shape[1])
+        elif (penalty_scaling < 0).any():
             raise ValueError("penalty_scaling must be non-negative.")
         self.penalty_scaling = penalty_scaling
+        self.is_x_zero_centered = is_x_zero_centered
+        self.is_x_squared_mean_one = is_x_squared_mean_one
+        self.original_x_mean = np.squeeze(np.asarray(self.x.mean(0)))
+
+        if sps.issparse(x):
+            self.original_x_sd = spmatrix_col_sd(x)
+        else:
+            self.original_x_sd = self.x.std(0)
 
     def predict(self):
         return self.intercept + self.x.dot(self.params)
 
-    def get_overall_penalty_coordinate_j(self, j: int) -> float:
-        if self.penalty_scaling is None:
-            return self.alpha
-        return self.alpha * self.penalty_scaling[j]
+    def set_optimal_intercept(self):
+        resid = self.y - self.predict()
+        self.intercept += resid.mean()
+
+    def scale_to_mean_squared_one(self):
+        if sps.issparse(self.x):
+            x_squared = self.x.power(2)
+        else:
+            x_squared = self.x ** 2
+
+        scale_factor = np.squeeze(np.asarray(np.sqrt(x_squared.sum(0) / len(self.y))))
+
+        if sps.issparse(self.x):
+            self.x = self.x.multiply(sps.csc_matrix(1 / scale_factor))
+        else:
+            self.x /= scale_factor[None, :]
+        self.params *= scale_factor
+        self.is_x_squared_mean_one = True
+
+    def rescale_to_original_sd(self):
+        """
+        Undoes scale_to_sum_squared_one, resetting scale to original
+        """
+        current_sd = spmatrix_col_sd(self.x) if sps.issparse(self.x) else self.x.std(0)
+        scale_factor = self.original_x_sd / current_sd
+
+        if sps.issparse(self.x):
+            self.x = self.x.multiply(sps.csc_matrix(scale_factor))
+        else:
+            self.x *= scale_factor[None, :]
+        self.params /= scale_factor
+        self.is_x_squared_mean_one = False
+
+    def center_around_zero(self):
+        if sps.issparse(self.x):
+            # Make x dense
+            self.x = self.x.A
+        self.x -= self.original_x_mean[None, :]
+        self.is_x_zero_centered = True
+
+    def shift_to_original_centering(self):
+        """
+        Undoes center_around_zero, resetting mean to original
+        """
+        current_mean = np.squeeze(np.asarray(self.x.mean(0)))
+        shifter = self.original_x_mean - current_mean
+
+        if sps.issparse(self.x):
+            # densify
+            self.x = self.x.A
+
+        self.x += shifter[None, :]
+        self.is_x_zero_centered = False
+
+    def normalize(self):
+        self.center_around_zero()
+        self.scale_to_mean_squared_one()
+
+    def undo_normalize(self):
+        self.rescale_to_original_sd()
+        self.shift_to_original_centering()
 
 
 def soft_threshold(z: float, threshold: float) -> Union[float, int]:
@@ -64,12 +143,13 @@ def soft_threshold(z: float, threshold: float) -> Union[float, int]:
 def _get_new_param(
     mean_resid_times_x: float, model: GlmnetGaussianModel, j: int
 ) -> float:
-    p = model.get_overall_penalty_coordinate_j(j)
-    numerator = soft_threshold(mean_resid_times_x, model.l1_ratio * p)
+    numerator = soft_threshold(
+        mean_resid_times_x, model.l1_ratio * model.alpha * model.penalty_scaling[j]
+    )
     if numerator == 0:
         new_param_j = 0.0
     else:
-        denominator = 1 + p * (1 - model.l1_ratio)
+        denominator = 1 + model.alpha * model.penalty_scaling[j] * (1 - model.l1_ratio)
         new_param_j = numerator / denominator
     return new_param_j
 
@@ -112,22 +192,17 @@ def _do_cd_naive(
     start_params: np.ndarray,
     n_iters: int,
     report_normalized=False,
-    penalty_scaling: Union[np.ndarray, None] = None,
+    penalty_scaling: np.ndarray = None,
 ) -> GlmnetGaussianModel:
     """
     This is the "naive algorithm" from the paper.
     """
-    x_sd = x.std(0)
-    x_standardized = (x - x.mean(0)[None, :]) / x_sd[None, :]
     model = GlmnetGaussianModel(
-        y,
-        x_standardized,
-        alpha,
-        l1_ratio,
-        params=start_params * x_sd,
-        intercept=(y - x.dot(start_params)).mean(),
-        penalty_scaling=penalty_scaling,
+        y, x, alpha, l1_ratio, params=start_params, penalty_scaling=penalty_scaling,
     )
+    model.normalize()
+    model.set_optimal_intercept()
+
     resid = model.y - model.predict()
 
     for i in range(n_iters):
@@ -135,9 +210,8 @@ def _do_cd_naive(
             model.params[j], resid = _get_coordinate_wise_update_naive(model, j, resid)
 
     if not report_normalized:
-        model.x = x
-        model.params /= x_sd
-        model.intercept += (model.y - model.predict()).mean()
+        model.undo_normalize()
+        model.set_optimal_intercept()
     return model
 
 
@@ -153,7 +227,7 @@ def _do_cd_sparse(
     start_params: np.ndarray,
     n_iters: int,
     report_normalized=False,
-    penalty_scaling: Union[np.ndarray, None] = None,
+    penalty_scaling: np.ndarray = None,
 ) -> GlmnetGaussianModel:
     """
     The paper is not terribly clear on what to do here. It sounds like the
@@ -163,21 +237,13 @@ def _do_cd_sparse(
     this takes about 44% of the time of the dense example, and does not reach quite
     as high an R-squared.
     """
-    x_norm = np.sqrt(x.power(2).sum(0) / x.shape[0])
-    z = sps.csc_matrix(1 / x_norm)
-    x_scaled = x.multiply(z)
     model = GlmnetGaussianModel(
-        y,
-        x_scaled,
-        alpha,
-        l1_ratio,
-        params=start_params * np.array(x_norm)[0, :],
-        intercept=(y - x.dot(start_params)).mean(),
-        penalty_scaling=penalty_scaling,
+        y, x, alpha, l1_ratio, params=start_params, penalty_scaling=penalty_scaling,
     )
+
+    model.scale_to_mean_squared_one()
+    model.set_optimal_intercept()
     resid = y - model.predict()
-    model.intercept = resid.mean()
-    resid -= resid.mean()
 
     for i in range(n_iters):
         for j in range(len(model.params)):
@@ -186,10 +252,8 @@ def _do_cd_sparse(
         resid -= resid.mean()
 
     if not report_normalized:
-        model.x = x
-        model.params /= np.array(x_norm)[0, :]
-        model.intercept = (model.y - model.x.dot(model.params)).mean()
-        model.intercept += (model.y - model.predict()).mean()
+        model.rescale_to_original_sd()
+        model.set_optimal_intercept()
 
     return model
 
@@ -223,11 +287,12 @@ def fit_pathwise(
     n_iters: int = 10,
     solver: str = "naive",
     alpha_path: np.ndarray = None,
-    penalty_scaling: Union[np.ndarray, None] = None,
+    penalty_scaling: np.ndarray = None,
 ) -> GlmnetGaussianModel:
     """
     See documentation for fit_glmnet.
     """
+    # TODO: stop normalizing and un-normalizing so much.
     if alpha_path is None:
         alpha_path = get_alpha_path(x, y, l1_ratio)
     assert len(alpha_path) > 0
@@ -258,7 +323,7 @@ def fit_glmnet(
     solver: str = "naive",
     start_params: np.ndarray = None,
     report_normalized: bool = False,
-    penalty_scaling: Union[np.ndarray, None] = None,
+    penalty_scaling: np.ndarray = None,
 ) -> GlmnetGaussianModel:
     """
     Parameters
@@ -277,6 +342,8 @@ def fit_glmnet(
     """
     if start_params is None:
         start_params = np.zeros(x.shape[1])
+    if penalty_scaling is None:
+        penalty_scaling = np.ones(x.shape[1])
 
     if solver == "naive":
         assert isinstance(x, np.ndarray)
@@ -306,36 +373,3 @@ def fit_glmnet(
         raise NotImplementedError
 
     return model
-
-
-def sim_data(n_rows: int, n_cols: int, sparse: bool) -> Dict[str, Any]:
-    intercept = -3
-    np.random.seed(0)
-    x = sps.random(n_rows, n_cols, format="csc")
-    if not sparse:
-        x = x.A
-    true_coefs = np.random.normal(0, 1, n_cols)
-    y = x.dot(true_coefs)
-    y = y + intercept + np.random.normal(0, 1, n_rows)
-    return {"y": y, "x": x, "coefs": true_coefs}
-
-
-def test(sparse: bool):
-    data = sim_data(10000, 1000, sparse)
-    y = data["y"]
-    print("\n\n")
-    solver = "sparse" if sparse else "naive"
-    print(solver)
-    x = data["x"]
-
-    start = time.time()
-    model = fit_glmnet(y, x, 0.1, 0.5, n_iters=40, solver=solver)
-    end = time.time()
-    print("time", end - start)
-    print("r2", get_r2(model, y))
-    print("frac of coefs zero", (model.params == 0).mean())
-
-
-if __name__ == "__main__":
-    test(sparse=False)
-    test(sparse=True)
