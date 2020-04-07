@@ -1,5 +1,8 @@
+import warnings
+
 import numpy as np
 import statsmodels.api as sm
+from scipy import sparse as sps
 
 from .util import runtime
 
@@ -11,6 +14,11 @@ def build_and_fit(model_args, fit_args):
 def statsmodels_bench(dat, distribution, alpha, l1_ratio):
 
     result = dict()
+
+    if isinstance(dat["X"], sps.spmatrix):
+        warnings.warn("statsmodels does not support sparse matrices")
+        return result
+
     dat["X"] = sm.add_constant(dat["X"])
 
     nb_coefs = dat["X"].shape[1]
@@ -34,11 +42,6 @@ def statsmodels_bench(dat, distribution, alpha, l1_ratio):
     result["runtime"], m = runtime(build_and_fit, model_args, fit_args)
     result["model_obj"] = m
     result["intercept"] = m.params[0]
-    result["coeffs"] = m.params[1:]
-    # result["n_iter"] = m.n_iter_
+    result["coef"] = m.params[1:]
 
-    # result["path"] = compute_path(m.n_iter_, model_args, fit_args)
-    # np.testing.assert_almost_equal(
-    #     result["path"][-1], result["coeffs"], -np.log10(model_args["tol"]) - 1
-    # )
     return result
