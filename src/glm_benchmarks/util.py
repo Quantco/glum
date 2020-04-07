@@ -59,6 +59,7 @@ def get_obj_val(
     l1_ratio: float,
     intercept: float,
     coefs: np.ndarray,
+    one_over_n_likelihood: bool = False,
 ) -> float:
     if distribution == "poisson":
         log_like = _get_poisson_ll(dat, intercept, coefs)
@@ -68,5 +69,7 @@ def get_obj_val(
         raise NotImplementedError
 
     penalty = _get_penalty(alpha, l1_ratio, coefs)
+    if one_over_n_likelihood:
+        log_like /= len(dat["y"])
 
     return -log_like + penalty
