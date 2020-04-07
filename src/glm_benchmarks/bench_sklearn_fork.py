@@ -23,8 +23,8 @@ def sklearn_fork_bench(
     result = dict()
 
     fit_args = dict(X=dat["X"], y=dat["y"])
-    if "weight" in dat.keys():
-        fit_args.update({"sample_weight": dat["weight"]})
+    if "weights" in dat.keys():
+        fit_args.update({"sample_weight": dat["weights"]})
 
     model_args = dict(
         family="normal" if distribution == "gaussian" else distribution,
