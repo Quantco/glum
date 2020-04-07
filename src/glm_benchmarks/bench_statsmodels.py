@@ -44,4 +44,10 @@ def statsmodels_bench(dat, distribution, alpha, l1_ratio):
     result["intercept"] = m.params[0]
     result["coef"] = m.params[1:]
 
+    warnings.warn(
+        """statsmodels does not store the number of iterations. Runtime per iteration
+        will not be accurate."""
+    )
+    result["n_iter"] = 1
+
     return result
