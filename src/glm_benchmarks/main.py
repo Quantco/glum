@@ -120,7 +120,8 @@ def cli_analyze(problem_names: str, library_names: str, num_rows: str, output_di
         res_df["rel_" + col] = res_df[col] - res_df.groupby(level=[0, 1])[col].min()
 
     problems = res_df.index.get_level_values("problem").values
-    keeps = ["sparse" not in x and "no_weights" in x for x in problems]
+    # keeps = ["sparse" not in x and "no_weights" in x for x in problems]
+    keeps = [x in x for x in problems]
     res_df.loc[keeps, :].reset_index().to_csv("results.csv")
     print(
         res_df.loc[
@@ -135,16 +136,6 @@ def cli_analyze(problem_names: str, library_names: str, num_rows: str, output_di
             ],
         ]
     )
-
-    # for Pn in results:
-    #     coefs = dict()
-    #     specific = results['simple_insurance_no_weights_lasso_poisson']['10000']
-    #     for k in specific:
-    #         coefs[k] = specific[k]['coef']
-    #     print(coefs['glmnet_python'] - coefs['h2o'])
-    import ipdb
-
-    ipdb.set_trace()
 
 
 def extract_dict_results_to_pd_series(
