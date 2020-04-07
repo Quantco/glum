@@ -14,6 +14,13 @@ def build_and_fit(model_args, train_args):
     return glm
 
 
+def hstack_sparse_or_dense(to_stack):
+    if sps.isspmatrix(to_stack[0]):
+        return sps.hstack(to_stack)
+    else:
+        return np.hstack(to_stack)
+
+
 def h2o_bench(
     dat: Dict[str, Union[np.ndarray, sps.spmatrix]],
     distribution: str,
@@ -22,13 +29,13 @@ def h2o_bench(
 ):
     h2o.init()
 
-    train_np = np.hstack((dat["X"], dat["y"][:, np.newaxis]))
+    train_mat = hstack_sparse_or_dense((dat["X"], dat["y"][:, np.newaxis]))
 
     use_weights = "weights" in dat.keys()
     if use_weights:
-        train_np = np.hstack((train_np, dat["weights"][:, np.newaxis]))
+        train_mat = hstack_sparse_or_dense((train_mat, dat["weights"][:, np.newaxis]))
 
-    train_h2o = h2o.H2OFrame(train_np)
+    train_h2o = h2o.H2OFrame(train_mat)
 
     model_args = dict(
         model_id="glm",
@@ -66,7 +73,7 @@ def h2o_bench(
     standardized_coefs = np.array(
         [
             m.coef()[f"C{i + 1}"]
-            for i in range(train_np.shape[1] - (2 if use_weights else 1))
+            for i in range(train_mat.shape[1] - (2 if use_weights else 1))
         ]
     )
     # import ipdb
