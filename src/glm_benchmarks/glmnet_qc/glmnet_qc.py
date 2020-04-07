@@ -17,23 +17,40 @@ class GlmnetGaussianModel:
         l1_ratio: float,
         intercept: float = 0.0,
         params: np.ndarray = None,
+        penalty_scaling: Union[np.ndarray, None] = None,
     ):
         """
         Assume x does *not* include an intercept.
         """
-        assert alpha >= 0
-        assert 0 <= l1_ratio <= 1
+        if alpha < 0:
+            raise ValueError("alpha must be positive.")
+        if not 0 <= l1_ratio <= 1:
+            raise ValueError("l1_ratio must be between zero and one.")
         self.y = y
         self.x = x
         self.alpha = alpha
         self.l1_ratio = l1_ratio
         if params is None:
             params = np.zeros(x.shape[1])
+        else:
+            if not params.shape == (x.shape[1],):
+                raise ValueError(
+                    f"""params should have shape {x.shape[1],}. Do not include the
+                    intercept."""
+                )
         self.params = params
         self.intercept = intercept
+        if penalty_scaling is not None and np.any(penalty_scaling < 0):
+            raise ValueError("penalty_scaling must be non-negative.")
+        self.penalty_scaling = penalty_scaling
 
     def predict(self):
         return self.intercept + self.x.dot(self.params)
+
+    def get_overall_penalty_coordinate_j(self, j: int) -> float:
+        if self.penalty_scaling is None:
+            return self.alpha
+        return self.alpha * self.penalty_scaling[j]
 
 
 def soft_threshold(z: float, threshold: float) -> Union[float, int]:
@@ -44,19 +61,26 @@ def soft_threshold(z: float, threshold: float) -> Union[float, int]:
     return z + threshold
 
 
-def _get_coordinate_wise_update_naive(
-    model: GlmnetGaussianModel, j: int, resid: np.ndarray
-) -> Tuple[float, np.ndarray]:
-    x_j = model.x[:, j]
-
-    # Equation 8. 54% of time
-    mean_resid_times_x = x_j.dot(resid) / len(model.y) + model.params[j]
-    numerator = soft_threshold(mean_resid_times_x, model.l1_ratio * model.alpha)
+def _get_new_param(
+    mean_resid_times_x: float, model: GlmnetGaussianModel, j: int
+) -> float:
+    p = model.get_overall_penalty_coordinate_j(j)
+    numerator = soft_threshold(mean_resid_times_x, model.l1_ratio * p)
     if numerator == 0:
         new_param_j = 0.0
     else:
-        denominator = 1 + model.alpha * (1 - model.l1_ratio)
+        denominator = 1 + p * (1 - model.l1_ratio)
         new_param_j = numerator / denominator
+    return new_param_j
+
+
+def _get_coordinate_wise_update_naive(
+    model: GlmnetGaussianModel, j: int, resid: np.ndarray,
+) -> Tuple[float, np.ndarray]:
+
+    x_j = model.x[:, j]
+    mean_resid_times_x = x_j.dot(resid) / len(model.y) + model.params[j]
+    new_param_j = _get_new_param(mean_resid_times_x, model, j)
 
     if new_param_j != 0 or model.params[j] != 0:
         resid += x_j * (model.params[j] - new_param_j)
@@ -69,16 +93,11 @@ def _get_coordinate_wise_update_sparse(
     x_j = model.x.getcol(j)
     nonzero_rows = x_j.indices
 
-    grad_part = x_j.data.dot(resid[nonzero_rows])
+    mean_resid_times_x = (
+        x_j.data.dot(resid[nonzero_rows]) / len(model.y) + model.params[j]
+    )
 
-    mean_resid_times_x = grad_part / len(model.y) + model.params[j]
-    numerator = soft_threshold(mean_resid_times_x, model.l1_ratio * model.alpha)
-    if numerator == 0:
-        new_param_j = 0.0
-    else:
-        denominator = 1 + model.alpha * (1 - model.l1_ratio)
-        new_param_j = numerator / denominator
-
+    new_param_j = _get_new_param(mean_resid_times_x, model, j)
     if new_param_j != 0 or model.params[j] != 0:
         resid[nonzero_rows] += x_j.data * (model.params[j] - new_param_j)
 
@@ -90,15 +109,25 @@ def _do_cd_naive(
     x: np.ndarray,
     alpha: float,
     l1_ratio: float,
-    n_iters: int = 10,
+    start_params: np.ndarray,
+    n_iters: int,
     report_normalized=False,
+    penalty_scaling: Union[np.ndarray, None] = None,
 ) -> GlmnetGaussianModel:
     """
     This is the "naive algorithm" from the paper.
     """
     x_sd = x.std(0)
     x_standardized = (x - x.mean(0)[None, :]) / x_sd[None, :]
-    model = GlmnetGaussianModel(y, x_standardized, alpha, l1_ratio, intercept=y.mean())
+    model = GlmnetGaussianModel(
+        y,
+        x_standardized,
+        alpha,
+        l1_ratio,
+        params=start_params * x_sd,
+        intercept=(y - x.dot(start_params)).mean(),
+        penalty_scaling=penalty_scaling,
+    )
     resid = model.y - model.predict()
 
     for i in range(n_iters):
@@ -112,7 +141,7 @@ def _do_cd_naive(
     return model
 
 
-def r2(model: GlmnetGaussianModel, y: np.ndarray) -> float:
+def get_r2(model: GlmnetGaussianModel, y: np.ndarray) -> float:
     return 1 - np.var(y - model.predict()) / np.var(y)
 
 
@@ -121,8 +150,10 @@ def _do_cd_sparse(
     x: sps.spmatrix,
     alpha: float,
     l1_ratio: float,
+    start_params: np.ndarray,
     n_iters: int,
     report_normalized=False,
+    penalty_scaling: Union[np.ndarray, None] = None,
 ) -> GlmnetGaussianModel:
     """
     The paper is not terribly clear on what to do here. It sounds like the
@@ -135,8 +166,18 @@ def _do_cd_sparse(
     x_norm = np.sqrt(x.power(2).sum(0) / x.shape[0])
     z = sps.csc_matrix(1 / x_norm)
     x_scaled = x.multiply(z)
-    model = GlmnetGaussianModel(y, x_scaled, alpha, l1_ratio, intercept=y.mean())
+    model = GlmnetGaussianModel(
+        y,
+        x_scaled,
+        alpha,
+        l1_ratio,
+        params=start_params * np.array(x_norm)[0, :],
+        intercept=(y - x.dot(start_params)).mean(),
+        penalty_scaling=penalty_scaling,
+    )
     resid = y - model.predict()
+    model.intercept = resid.mean()
+    resid -= resid.mean()
 
     for i in range(n_iters):
         for j in range(len(model.params)):
@@ -153,6 +194,61 @@ def _do_cd_sparse(
     return model
 
 
+def get_alpha_path(
+    x: Union[np.ndarray, sps.spmatrix],
+    y: np.ndarray,
+    l1_ratio: float,
+    min_max_ratio: float = 0.001,
+    n_alphas: int = 100,
+) -> np.ndarray:
+
+    # with ridge, there is no alpha such that all coefficients are zero
+    l1_ratio = np.maximum(l1_ratio, 1e-5)
+
+    # Find minimum alpha such that all coefficients are zero
+    max_grad = np.max(np.abs(x.T.dot(y)))
+    max_alpha = max_grad / (len(y) * l1_ratio)
+    # paper suggests minimum alpha = .001 * max alpha
+    min_alpha = min_max_ratio * max_alpha
+    # suggested by paper
+    n_values = n_alphas
+    alpha_path = np.logspace(np.log(max_alpha), np.log(min_alpha), n_values)
+    return alpha_path
+
+
+def fit_pathwise(
+    y: np.ndarray,
+    x: Union[np.ndarray, sps.spmatrix],
+    l1_ratio: float,
+    n_iters: int = 10,
+    solver: str = "naive",
+    alpha_path: np.ndarray = None,
+    penalty_scaling: Union[np.ndarray, None] = None,
+) -> GlmnetGaussianModel:
+    """
+    See documentation for fit_glmnet.
+    """
+    if alpha_path is None:
+        alpha_path = get_alpha_path(x, y, l1_ratio)
+    assert len(alpha_path) > 0
+
+    model = fit_glmnet(y, x, alpha_path[0], l1_ratio, n_iters, solver)
+
+    for alpha in alpha_path[1:]:
+        model = fit_glmnet(
+            y,
+            x,
+            alpha,
+            l1_ratio,
+            n_iters,
+            solver,
+            start_params=model.params,
+            penalty_scaling=penalty_scaling,
+        )
+
+    return model
+
+
 def fit_glmnet(
     y: np.ndarray,
     x: Union[np.ndarray, sps.spmatrix],
@@ -160,13 +256,52 @@ def fit_glmnet(
     l1_ratio: float,
     n_iters: int = 10,
     solver: str = "naive",
+    start_params: np.ndarray = None,
+    report_normalized: bool = False,
+    penalty_scaling: Union[np.ndarray, None] = None,
 ) -> GlmnetGaussianModel:
+    """
+    Parameters
+    ----------
+    y
+    x
+    alpha: Overall penalty multiplier. The glmnet paper calls this 'lambda'.
+    l1_ratio: penalty on l1 part is multiplied by l1_ratio; penalty on l2 part is
+        multiplied by 1 - l1_ratio.
+    n_iters
+    solver: 'naive' or 'sparse'
+    start_params: starting parameters for an *unscaled* model
+    report_normalized: Whether to keep the model in normalized form or not.
+    penalty_scaling: Optional. Relative penalty. The penalty on parameter [i] is
+        alpha * penalty_scaling[i] (times either l1_ratio or (1 - l1_ratio))
+    """
+    if start_params is None:
+        start_params = np.zeros(x.shape[1])
+
     if solver == "naive":
         assert isinstance(x, np.ndarray)
-        model = _do_cd_naive(y, x, alpha, l1_ratio, n_iters)
+        model = _do_cd_naive(
+            y,
+            x,
+            alpha,
+            l1_ratio,
+            start_params,
+            n_iters,
+            report_normalized,
+            penalty_scaling=penalty_scaling,
+        )
     elif solver == "sparse":
         assert sps.issparse(x)
-        model = _do_cd_sparse(y, x.tocsc(), alpha, l1_ratio, n_iters)
+        model = _do_cd_sparse(
+            y,
+            x.tocsc(),
+            alpha,
+            l1_ratio,
+            start_params,
+            n_iters,
+            report_normalized,
+            penalty_scaling=penalty_scaling,
+        )
     else:
         raise NotImplementedError
 
@@ -197,7 +332,7 @@ def test(sparse: bool):
     model = fit_glmnet(y, x, 0.1, 0.5, n_iters=40, solver=solver)
     end = time.time()
     print("time", end - start)
-    print("r2", r2(model, y))
+    print("r2", get_r2(model, y))
     print("frac of coefs zero", (model.params == 0).mean())
 
 
