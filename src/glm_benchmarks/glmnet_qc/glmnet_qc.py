@@ -73,8 +73,12 @@ class GlmnetModel:
         return self.inv_link(self.intercept + self.x.dot(self.params))
 
     def set_optimal_intercept(self):
-        resid = self.y - self.predict()
-        self.intercept += resid.mean()
+        if self.distribution == "gaussian":
+            resid = self.y - self.predict()
+            self.intercept += resid.mean()
+        elif self.distribution == "poisson":
+            pass
+            # self.intercept = self.link(self.y.mean())
 
     def scale_to_mean_squared_one(self):
         if sps.issparse(self.x):
@@ -155,7 +159,9 @@ def soft_threshold(z: float, threshold: float) -> Union[float, int]:
     return z + threshold
 
 
-def _get_new_param(mean_resid_times_x: float, model: GlmnetModel, j: int) -> float:
+def _get_new_param_gaussian(
+    mean_resid_times_x: float, model: GlmnetModel, j: int
+) -> float:
     numerator = soft_threshold(
         mean_resid_times_x, model.l1_ratio * model.alpha * model.penalty_scaling[j]
     )
@@ -173,11 +179,45 @@ def _get_coordinate_wise_update_naive(
 
     x_j = model.x[:, j]
     mean_resid_times_x = x_j.dot(resid) / len(model.y) + model.params[j]
-    new_param_j = _get_new_param(mean_resid_times_x, model, j)
+    new_param_j = _get_new_param_gaussian(mean_resid_times_x, model, j)
 
     if new_param_j != 0 or model.params[j] != 0:
         resid += x_j * (model.params[j] - new_param_j)
     return new_param_j, resid
+
+
+def _poisson_step(
+    model: GlmnetModel, j: int, x_j: np.ndarray, param_value: float, penalty: float
+):
+    # goal: take one newton step towards the minimum
+
+    # first check if lasso penalty implies this param should be zero
+    ll_d1_zero, _ = _poisson_ll_derivs(model, x_j, j)
+    if np.abs(ll_d1_zero) < penalty * model.l1_ratio:
+        return 0.0
+
+    # step 1: first derivative of log likelihood + penalty
+    ll_d1, ll_d2 = _poisson_ll_derivs(model, x_j)
+    penalty_d1 = penalty * (
+        (1 - model.l1_ratio) * param_value + model.l1_ratio * np.sign(param_value)
+    )
+    D1 = -ll_d1 + penalty_d1
+    # step 2: second derivative of log likelihood + penalty
+    penalty_d2 = penalty * (1 - model.l1_ratio)
+    D2 = -ll_d2 + penalty_d2
+    # newton step
+    return param_value - (D1 / D2)
+
+
+def _poisson_ll_derivs(model: GlmnetModel, x_j: np.ndarray, zero_j: int = -1):
+    beta_dot_x = model.x.dot(model.params)
+    if zero_j >= 0:
+        beta_dot_x -= model.x[:, zero_j] * model.params[zero_j]
+    pred = model.inv_link(model.intercept + beta_dot_x)
+    d1 = (model.y - pred).dot(x_j)
+    d2 = -(x_j ** 2).dot(pred)
+    N = x_j.shape[0]
+    return d1 / N, d2 / N
 
 
 # TODO: refactor a bit so that there's less duplication between _do_cd_naive
@@ -191,6 +231,7 @@ def _do_cd_naive(
     n_iters: int,
     report_normalized=False,
     penalty_scaling: np.ndarray = None,
+    standardize=True,
     distribution="gaussian",
 ) -> GlmnetModel:
     """
@@ -205,16 +246,27 @@ def _do_cd_naive(
         params=start_params,
         penalty_scaling=penalty_scaling,
     )
-    model.normalize()
-    model.set_optimal_intercept()
+    if standardize:
+        model.normalize()
+        model.set_optimal_intercept()
 
     resid = model.y - model.predict()
 
+    ones_arr = np.ones(model.y.shape[0])
     for i in range(n_iters):
-        for j in range(len(model.params)):
-            model.params[j], resid = _get_coordinate_wise_update_naive(model, j, resid)
+        if model.distribution == "gaussian":
+            for j in range(len(model.params)):
+                model.params[j], resid = _get_coordinate_wise_update_naive(
+                    model, j, resid
+                )
+        elif model.distribution == "poisson":
+            for j in range(len(model.params)):
+                model.params[j] = _poisson_step(
+                    model, j, model.x[:, j], model.params[j], model.alpha
+                )
+            model.intercept = _poisson_step(model, -1, ones_arr, model.intercept, 0)
 
-    if not report_normalized:
+    if standardize and not report_normalized:
         model.undo_normalize()
         model.set_optimal_intercept()
     return model
@@ -229,7 +281,7 @@ def _get_coordinate_wise_update_sparse(
         x_j.data.dot(resid[nonzero_rows]) / len(model.y) + model.params[j]
     )
 
-    new_param_j = _get_new_param(mean_resid_times_x, model, j)
+    new_param_j = _get_new_param_gaussian(mean_resid_times_x, model, j)
     if new_param_j != 0 or model.params[j] != 0:
         resid[nonzero_rows] += x_j.data * (model.params[j] - new_param_j)
 
@@ -316,6 +368,7 @@ def fit_pathwise(
     solver: str = "naive",
     alpha_path: np.ndarray = None,
     penalty_scaling: np.ndarray = None,
+    standardize=True,
     distribution="gaussian",
 ) -> GlmnetModel:
     """
@@ -338,6 +391,7 @@ def fit_pathwise(
             solver,
             start_params=model.params,
             penalty_scaling=penalty_scaling,
+            standardize=standardize,
             distribution=distribution,
         )
 
@@ -354,6 +408,7 @@ def fit_glmnet(
     start_params: np.ndarray = None,
     report_normalized: bool = False,
     penalty_scaling: np.ndarray = None,
+    standardize=True,
     distribution="gaussian",
 ) -> GlmnetModel:
     """
@@ -387,6 +442,7 @@ def fit_glmnet(
             n_iters,
             report_normalized,
             penalty_scaling=penalty_scaling,
+            standardize=standardize,
             distribution=distribution,
         )
     elif solver == "sparse":
