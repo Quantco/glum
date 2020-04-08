@@ -3,7 +3,7 @@ import pytest
 from scipy import sparse as sps
 from scipy.sparse.linalg import lsqr
 
-from .glmnet_qc import GlmnetGaussianModel, fit_glmnet, fit_pathwise, get_r2
+from .glmnet_qc import GlmnetModel, fit_glmnet, fit_pathwise
 
 n_rows = 10
 n_cols = 5
@@ -33,14 +33,14 @@ def x_sparse() -> sps.spmatrix:
 
 
 def test_predict(x: np.ndarray) -> None:
-    model = GlmnetGaussianModel(np.zeros(n_rows), x, 0, 0)
+    model = GlmnetModel(np.zeros(n_rows), x, "gaussian", 0, 0)
     prediction = model.predict()
     np.testing.assert_almost_equal(prediction, np.zeros(n_rows))
 
 
 def test_r2(x: np.ndarray, y: np.ndarray) -> None:
-    model = GlmnetGaussianModel(y, x, 0, 0)
-    r2 = get_r2(model, y)
+    model = GlmnetModel(y, x, "gaussian", 0, 0)
+    r2 = model.get_r2(y)
     np.testing.assert_almost_equal(r2, 0)
 
 
@@ -139,3 +139,24 @@ def test_penalty_scaling(y: np.ndarray, x: np.ndarray) -> None:
     model_2 = fit_glmnet(y, x, 2, 0.5, penalty_scaling=np.ones(x.shape[1]) * 0.5)
     np.testing.assert_almost_equal(model_1.intercept, model_2.intercept)
     np.testing.assert_almost_equal(model_1.params, model_2.params)
+
+
+def test_glmnet_poisson_ridge() -> None:
+    X = np.array([[-2, -1, 1, 2], [0, 0, 1, 1]]).T
+    y = np.array([0, 1, 1, 2])
+    glm = fit_glmnet(y, X, 1, 0, distribution="poisson")
+
+    glm2 = GlmnetModel(
+        y,
+        X,
+        "poisson",
+        1,
+        0,
+        intercept=-0.12889386979,
+        params=np.array([0.29019207995, 0.03741173122]),
+    )
+    print(glm.get_r2(y))
+    print(glm2.get_r2(y))
+
+    np.testing.assert_almost_equal(glm.intercept, -0.12889386979)
+    np.testing.assert_almost_equal(glm.params, [0.29019207995, 0.03741173122])
