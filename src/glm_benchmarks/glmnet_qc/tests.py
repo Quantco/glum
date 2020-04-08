@@ -204,22 +204,42 @@ def test_undo_center_around_zero_sparse(
     np.testing.assert_almost_equal(model.x.mean(0), model.original_x_mean)
 
 
-def test_glmnet_poisson_ridge() -> None:
+def glmnet_poisson_tester(alpha: float, l1_ratio: float) -> None:
     X = np.array([[-2, -1, 1, 2], [0, 0, 1, 1.0]]).T
-    y = np.array([0, 1, 1, 2])
-    glm = fit_glmnet(y, X, 1, 0, distribution="poisson")
-
-    glm2 = GlmnetModel(
-        y,
-        X,
-        "poisson",
-        1,
-        0,
-        intercept=-0.12889386979,
-        params=np.array([0.29019207995, 0.03741173122]),
+    y = np.array([0, 1, 1, 2.0])
+    glm = fit_glmnet(
+        y, X, alpha, l1_ratio, distribution="poisson", standardize=False, n_iters=20
     )
-    print(glm.get_r2(y))
-    print(glm2.get_r2(y))
 
-    np.testing.assert_almost_equal(glm.intercept, -0.12889386979)
-    np.testing.assert_almost_equal(glm.params, [0.29019207995, 0.03741173122])
+    from glmnet_python import glmnet
+
+    glmnet_m = glmnet(
+        x=X,
+        y=y,
+        family="poisson",
+        alpha=l1_ratio,
+        lambdau=np.array([alpha]),
+        standardize=False,
+        thresh=1e-7,
+    )
+
+    if False:
+        print("intercept: ", glm.intercept)
+        print("params: ", glm.params)
+        print("glmnet intercept: ", glmnet_m["a0"])
+        print("glmnet params: ", glmnet_m["beta"][:, 0])
+
+    np.testing.assert_almost_equal(glm.intercept, glmnet_m["a0"], 4)
+    np.testing.assert_almost_equal(glm.params, glmnet_m["beta"][:, 0], 4)
+
+
+def test_glmnet_poisson_ridge():
+    glmnet_poisson_tester(1.0, 0.0)
+
+
+def test_glmnet_poisson_lasso():
+    glmnet_poisson_tester(0.1, 1.0)
+
+
+def test_glmnet_poisson_enet():
+    glmnet_poisson_tester(0.1, 0.5)
