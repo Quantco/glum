@@ -4,6 +4,7 @@ from scipy import sparse as sps
 from scipy.sparse.linalg import lsqr
 
 from .glmnet_qc import GlmnetGaussianModel, fit_glmnet, fit_pathwise, get_r2
+from .util import spmatrix_col_sd
 
 n_rows = 10
 n_cols = 5
@@ -139,3 +140,65 @@ def test_penalty_scaling(y: np.ndarray, x: np.ndarray) -> None:
     model_2 = fit_glmnet(y, x, 2, 0.5, penalty_scaling=np.ones(x.shape[1]) * 0.5)
     np.testing.assert_almost_equal(model_1.intercept, model_2.intercept)
     np.testing.assert_almost_equal(model_1.params, model_2.params)
+
+
+def test_rescale(y: np.ndarray, x: np.ndarray) -> None:
+    model = GlmnetGaussianModel(y, x, 0, 0)
+    model.scale_to_mean_squared_one()
+    assert model.is_x_squared_mean_one
+    x_squared_mean = (model.x ** 2).sum(0) / len(y)
+    np.testing.assert_almost_equal(x_squared_mean, 1)
+
+
+def test_undo_rescale(y: np.ndarray, x: np.ndarray) -> None:
+    model = GlmnetGaussianModel(y, x, 0, 0)
+    model.scale_to_mean_squared_one()
+    model.rescale_to_original_sd()
+    assert not model.is_x_squared_mean_one
+    np.testing.assert_almost_equal(model.x.std(0), model.original_x_sd)
+
+
+def test_rescale_sparse(y: np.ndarray, x_sparse: sps.spmatrix) -> None:
+    model = GlmnetGaussianModel(y, x_sparse, 0, 0)
+    model.scale_to_mean_squared_one()
+    assert model.is_x_squared_mean_one
+    x_squared_mean = model.x.power(2).sum(0) / len(y)
+    np.testing.assert_almost_equal(x_squared_mean, 1)
+
+
+def test_undo_rescale_sparse(y: np.ndarray, x_sparse: sps.spmatrix) -> None:
+    model = GlmnetGaussianModel(y, x_sparse, 0, 0)
+    model.scale_to_mean_squared_one()
+    model.rescale_to_original_sd()
+    assert not model.is_x_squared_mean_one
+    x_sd = spmatrix_col_sd(x_sparse)
+    np.testing.assert_almost_equal(x_sd, model.original_x_sd)
+
+
+def test_center_around_zero(y: np.ndarray, x: np.ndarray) -> None:
+    model = GlmnetGaussianModel(y, x, 0, 0)
+    model.center_around_zero()
+    np.testing.assert_almost_equal(x.sum(0), 0)
+
+
+def test_undo_center_around_zero(y: np.ndarray, x: np.ndarray) -> None:
+    model = GlmnetGaussianModel(y, x, 0, 0)
+    model.center_around_zero()
+    model.shift_to_original_centering()
+    np.testing.assert_almost_equal(x.mean(0), model.original_x_mean)
+
+
+def test_center_around_zero_sparse(y: np.ndarray, x_sparse: sps.csc_matrix) -> None:
+    model = GlmnetGaussianModel(y, x_sparse, 0, 0)
+    model.center_around_zero()
+    np.testing.assert_almost_equal(model.x.sum(0), 0)
+
+
+def test_undo_center_around_zero_sparse(
+    y: np.ndarray, x_sparse: sps.csc_matrix
+) -> None:
+    model = GlmnetGaussianModel(y, x_sparse, 0, 0)
+    model.center_around_zero()
+    model.x = sps.csc_matrix(model.x)
+    model.shift_to_original_centering()
+    np.testing.assert_almost_equal(model.x.mean(0), model.original_x_mean)
