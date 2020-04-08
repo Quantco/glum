@@ -16,11 +16,12 @@ from scipy import sparse as sps
 from .util import spmatrix_col_sd
 
 
-class GlmnetGaussianModel:
+class GlmnetModel:
     def __init__(
         self,
         y: np.ndarray,
         x: Union[np.ndarray, sps.spmatrix],
+        distribution: str,
         alpha: float,
         l1_ratio: float,
         intercept: float = 0.0,
@@ -36,6 +37,7 @@ class GlmnetGaussianModel:
             raise ValueError("alpha must be positive.")
         if not 0 <= l1_ratio <= 1:
             raise ValueError("l1_ratio must be between zero and one.")
+        self.distribution = distribution
         if not y.shape == (x.shape[0],):
             raise ValueError("y has the wrong shape")
         self.y = y
@@ -57,6 +59,7 @@ class GlmnetGaussianModel:
         elif (penalty_scaling < 0).any():
             raise ValueError("penalty_scaling must be non-negative.")
         self.penalty_scaling = penalty_scaling
+        self.link, self.inv_link = get_link_and_inverse(self.distribution)
         self.is_x_zero_centered = is_x_zero_centered
         self.is_x_squared_mean_one = is_x_squared_mean_one
         self.original_x_mean = np.squeeze(np.asarray(self.x.mean(0)))
@@ -67,11 +70,15 @@ class GlmnetGaussianModel:
             self.original_x_sd = self.x.std(0)
 
     def predict(self):
-        return self.intercept + self.x.dot(self.params)
+        return self.inv_link(self.intercept + self.x.dot(self.params))
 
     def set_optimal_intercept(self):
-        resid = self.y - self.predict()
-        self.intercept += resid.mean()
+        if self.distribution == "gaussian":
+            resid = self.y - self.predict()
+            self.intercept += resid.mean()
+        elif self.distribution == "poisson":
+            pass
+            # self.intercept = self.link(self.y.mean())
 
     def scale_to_mean_squared_one(self):
         if sps.issparse(self.x):
@@ -131,6 +138,18 @@ class GlmnetGaussianModel:
         self.rescale_to_original_sd()
         self.shift_to_original_centering()
 
+    def get_r2(self, y: np.ndarray) -> float:
+        return 1 - np.var(y - self.predict()) / np.var(y)
+
+
+def get_link_and_inverse(distribution):
+    if distribution == "gaussian":
+        return (lambda x: x, lambda x: x)
+    elif distribution == "poisson":
+        return (lambda x: np.log(x), lambda x: np.exp(x))
+    else:
+        raise NotImplementedError(f"{distribution} is not a supported distribution")
+
 
 def soft_threshold(z: float, threshold: float) -> Union[float, int]:
     if np.abs(z) <= threshold:
@@ -140,8 +159,8 @@ def soft_threshold(z: float, threshold: float) -> Union[float, int]:
     return z + threshold
 
 
-def _get_new_param(
-    mean_resid_times_x: float, model: GlmnetGaussianModel, j: int
+def _get_new_param_gaussian(
+    mean_resid_times_x: float, model: GlmnetModel, j: int
 ) -> float:
     numerator = soft_threshold(
         mean_resid_times_x, model.l1_ratio * model.alpha * model.penalty_scaling[j]
@@ -155,35 +174,54 @@ def _get_new_param(
 
 
 def _get_coordinate_wise_update_naive(
-    model: GlmnetGaussianModel, j: int, resid: np.ndarray,
+    model: GlmnetModel, j: int, resid: np.ndarray,
 ) -> Tuple[float, np.ndarray]:
 
     x_j = model.x[:, j]
     mean_resid_times_x = x_j.dot(resid) / len(model.y) + model.params[j]
-    new_param_j = _get_new_param(mean_resid_times_x, model, j)
+    new_param_j = _get_new_param_gaussian(mean_resid_times_x, model, j)
 
     if new_param_j != 0 or model.params[j] != 0:
         resid += x_j * (model.params[j] - new_param_j)
     return new_param_j, resid
 
 
-def _get_coordinate_wise_update_sparse(
-    model: GlmnetGaussianModel, j: int, resid: np.ndarray
-) -> Tuple[float, np.ndarray]:
-    x_j = model.x.getcol(j)
-    nonzero_rows = x_j.indices
+def _poisson_step(
+    model: GlmnetModel, j: int, x_j: np.ndarray, param_value: float, penalty: float
+):
+    # goal: take one newton step towards the minimum
 
-    mean_resid_times_x = (
-        x_j.data.dot(resid[nonzero_rows]) / len(model.y) + model.params[j]
+    # first check if lasso penalty implies this param should be zero
+    ll_d1_zero, _ = _poisson_ll_derivs(model, x_j, j)
+    if np.abs(ll_d1_zero) < penalty * model.l1_ratio:
+        return 0.0
+
+    # step 1: first derivative of log likelihood + penalty
+    ll_d1, ll_d2 = _poisson_ll_derivs(model, x_j)
+    penalty_d1 = penalty * (
+        (1 - model.l1_ratio) * param_value + model.l1_ratio * np.sign(param_value)
     )
+    D1 = -ll_d1 + penalty_d1
+    # step 2: second derivative of log likelihood + penalty
+    penalty_d2 = penalty * (1 - model.l1_ratio)
+    D2 = -ll_d2 + penalty_d2
+    # newton step
+    return param_value - (D1 / D2)
 
-    new_param_j = _get_new_param(mean_resid_times_x, model, j)
-    if new_param_j != 0 or model.params[j] != 0:
-        resid[nonzero_rows] += x_j.data * (model.params[j] - new_param_j)
 
-    return new_param_j, resid
+def _poisson_ll_derivs(model: GlmnetModel, x_j: np.ndarray, zero_j: int = -1):
+    beta_dot_x = model.x.dot(model.params)
+    if zero_j >= 0:
+        beta_dot_x -= model.x[:, zero_j] * model.params[zero_j]
+    pred = model.inv_link(model.intercept + beta_dot_x)
+    d1 = (model.y - pred).dot(x_j)
+    d2 = -(x_j ** 2).dot(pred)
+    N = x_j.shape[0]
+    return d1 / N, d2 / N
 
 
+# TODO: refactor a bit so that there's less duplication between _do_cd_naive
+# and _do_cd_sparse
 def _do_cd_naive(
     y: np.ndarray,
     x: np.ndarray,
@@ -193,30 +231,61 @@ def _do_cd_naive(
     n_iters: int,
     report_normalized=False,
     penalty_scaling: np.ndarray = None,
-) -> GlmnetGaussianModel:
+    standardize=True,
+    distribution="gaussian",
+) -> GlmnetModel:
     """
     This is the "naive algorithm" from the paper.
     """
-    model = GlmnetGaussianModel(
-        y, x, alpha, l1_ratio, params=start_params, penalty_scaling=penalty_scaling,
+    model = GlmnetModel(
+        y,
+        x,
+        distribution,
+        alpha,
+        l1_ratio,
+        params=start_params,
+        penalty_scaling=penalty_scaling,
     )
-    model.normalize()
-    model.set_optimal_intercept()
+    if standardize:
+        model.normalize()
+        model.set_optimal_intercept()
 
     resid = model.y - model.predict()
 
+    ones_arr = np.ones(model.y.shape[0])
     for i in range(n_iters):
-        for j in range(len(model.params)):
-            model.params[j], resid = _get_coordinate_wise_update_naive(model, j, resid)
+        if model.distribution == "gaussian":
+            for j in range(len(model.params)):
+                model.params[j], resid = _get_coordinate_wise_update_naive(
+                    model, j, resid
+                )
+        elif model.distribution == "poisson":
+            for j in range(len(model.params)):
+                model.params[j] = _poisson_step(
+                    model, j, model.x[:, j], model.params[j], model.alpha
+                )
+            model.intercept = _poisson_step(model, -1, ones_arr, model.intercept, 0)
 
-    if not report_normalized:
+    if standardize and not report_normalized:
         model.undo_normalize()
         model.set_optimal_intercept()
     return model
 
 
-def get_r2(model: GlmnetGaussianModel, y: np.ndarray) -> float:
-    return 1 - np.var(y - model.predict()) / np.var(y)
+def _get_coordinate_wise_update_sparse(
+    model: GlmnetModel, j: int, resid: np.ndarray
+) -> Tuple[float, np.ndarray]:
+    x_j = model.x.getcol(j)
+    nonzero_rows = x_j.indices
+    mean_resid_times_x = (
+        x_j.data.dot(resid[nonzero_rows]) / len(model.y) + model.params[j]
+    )
+
+    new_param_j = _get_new_param_gaussian(mean_resid_times_x, model, j)
+    if new_param_j != 0 or model.params[j] != 0:
+        resid[nonzero_rows] += x_j.data * (model.params[j] - new_param_j)
+
+    return new_param_j, resid
 
 
 def _do_cd_sparse(
@@ -228,7 +297,8 @@ def _do_cd_sparse(
     n_iters: int,
     report_normalized=False,
     penalty_scaling: np.ndarray = None,
-) -> GlmnetGaussianModel:
+    distribution="gaussian",
+) -> GlmnetModel:
     """
     The paper is not terribly clear on what to do here. It sounds like the
     variables are scaled but not centered to as not to alter the sparsity.
@@ -237,8 +307,14 @@ def _do_cd_sparse(
     this takes about 44% of the time of the dense example, and does not reach quite
     as high an R-squared.
     """
-    model = GlmnetGaussianModel(
-        y, x, alpha, l1_ratio, params=start_params, penalty_scaling=penalty_scaling,
+    model = GlmnetModel(
+        y,
+        x,
+        distribution,
+        alpha,
+        l1_ratio,
+        params=start_params,
+        penalty_scaling=penalty_scaling,
     )
 
     model.scale_to_mean_squared_one()
@@ -280,6 +356,10 @@ def get_alpha_path(
     return alpha_path
 
 
+# TODO: refactor to avoid so many duplicate parameters between fit_pathwise and
+# fit_glmnet
+
+
 def fit_pathwise(
     y: np.ndarray,
     x: Union[np.ndarray, sps.spmatrix],
@@ -288,7 +368,9 @@ def fit_pathwise(
     solver: str = "naive",
     alpha_path: np.ndarray = None,
     penalty_scaling: np.ndarray = None,
-) -> GlmnetGaussianModel:
+    standardize=True,
+    distribution="gaussian",
+) -> GlmnetModel:
     """
     See documentation for fit_glmnet.
     """
@@ -309,6 +391,8 @@ def fit_pathwise(
             solver,
             start_params=model.params,
             penalty_scaling=penalty_scaling,
+            standardize=standardize,
+            distribution=distribution,
         )
 
     return model
@@ -324,7 +408,9 @@ def fit_glmnet(
     start_params: np.ndarray = None,
     report_normalized: bool = False,
     penalty_scaling: np.ndarray = None,
-) -> GlmnetGaussianModel:
+    standardize=True,
+    distribution="gaussian",
+) -> GlmnetModel:
     """
     Parameters
     ----------
@@ -356,6 +442,8 @@ def fit_glmnet(
             n_iters,
             report_normalized,
             penalty_scaling=penalty_scaling,
+            standardize=standardize,
+            distribution=distribution,
         )
     elif solver == "sparse":
         assert sps.issparse(x)
@@ -368,6 +456,7 @@ def fit_glmnet(
             n_iters,
             report_normalized,
             penalty_scaling=penalty_scaling,
+            distribution=distribution,
         )
     else:
         raise NotImplementedError
