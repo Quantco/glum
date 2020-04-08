@@ -3,7 +3,7 @@ import pytest
 from scipy import sparse as sps
 from scipy.sparse.linalg import lsqr
 
-from .glmnet_qc import GlmnetGaussianModel, fit_glmnet, fit_pathwise, get_r2
+from .glmnet_qc import GlmnetModel, fit_glmnet, fit_pathwise
 from .util import spmatrix_col_sd
 
 n_rows = 10
@@ -34,14 +34,14 @@ def x_sparse() -> sps.spmatrix:
 
 
 def test_predict(x: np.ndarray) -> None:
-    model = GlmnetGaussianModel(np.zeros(n_rows), x, 0, 0)
+    model = GlmnetModel(np.zeros(n_rows), x, "gaussian", 0, 0)
     prediction = model.predict()
     np.testing.assert_almost_equal(prediction, np.zeros(n_rows))
 
 
 def test_r2(x: np.ndarray, y: np.ndarray) -> None:
-    model = GlmnetGaussianModel(y, x, 0, 0)
-    r2 = get_r2(model, y)
+    model = GlmnetModel(y, x, "gaussian", 0, 0)
+    r2 = model.get_r2(y)
     np.testing.assert_almost_equal(r2, 0)
 
 
@@ -143,7 +143,7 @@ def test_penalty_scaling(y: np.ndarray, x: np.ndarray) -> None:
 
 
 def test_rescale(y: np.ndarray, x: np.ndarray) -> None:
-    model = GlmnetGaussianModel(y, x, 0, 0)
+    model = GlmnetModel(y, x, "gaussian", 0, 0)
     model.scale_to_mean_squared_one()
     assert model.is_x_squared_mean_one
     x_squared_mean = (model.x ** 2).sum(0) / len(y)
@@ -151,7 +151,7 @@ def test_rescale(y: np.ndarray, x: np.ndarray) -> None:
 
 
 def test_undo_rescale(y: np.ndarray, x: np.ndarray) -> None:
-    model = GlmnetGaussianModel(y, x, 0, 0)
+    model = GlmnetModel(y, x, "gaussian", 0, 0)
     model.scale_to_mean_squared_one()
     model.rescale_to_original_sd()
     assert not model.is_x_squared_mean_one
@@ -159,7 +159,7 @@ def test_undo_rescale(y: np.ndarray, x: np.ndarray) -> None:
 
 
 def test_rescale_sparse(y: np.ndarray, x_sparse: sps.spmatrix) -> None:
-    model = GlmnetGaussianModel(y, x_sparse, 0, 0)
+    model = GlmnetModel(y, x_sparse, "gaussian", 0, 0)
     model.scale_to_mean_squared_one()
     assert model.is_x_squared_mean_one
     x_squared_mean = model.x.power(2).sum(0) / len(y)
@@ -167,7 +167,7 @@ def test_rescale_sparse(y: np.ndarray, x_sparse: sps.spmatrix) -> None:
 
 
 def test_undo_rescale_sparse(y: np.ndarray, x_sparse: sps.spmatrix) -> None:
-    model = GlmnetGaussianModel(y, x_sparse, 0, 0)
+    model = GlmnetModel(y, x_sparse, "gaussian", 0, 0)
     model.scale_to_mean_squared_one()
     model.rescale_to_original_sd()
     assert not model.is_x_squared_mean_one
@@ -176,20 +176,20 @@ def test_undo_rescale_sparse(y: np.ndarray, x_sparse: sps.spmatrix) -> None:
 
 
 def test_center_around_zero(y: np.ndarray, x: np.ndarray) -> None:
-    model = GlmnetGaussianModel(y, x, 0, 0)
+    model = GlmnetModel(y, x, "gaussian", 0, 0)
     model.center_around_zero()
     np.testing.assert_almost_equal(x.sum(0), 0)
 
 
 def test_undo_center_around_zero(y: np.ndarray, x: np.ndarray) -> None:
-    model = GlmnetGaussianModel(y, x, 0, 0)
+    model = GlmnetModel(y, x, "gaussian", 0, 0)
     model.center_around_zero()
     model.shift_to_original_centering()
     np.testing.assert_almost_equal(x.mean(0), model.original_x_mean)
 
 
 def test_center_around_zero_sparse(y: np.ndarray, x_sparse: sps.csc_matrix) -> None:
-    model = GlmnetGaussianModel(y, x_sparse, 0, 0)
+    model = GlmnetModel(y, x_sparse, "gaussian", 0, 0)
     model.center_around_zero()
     np.testing.assert_almost_equal(model.x.sum(0), 0)
 
@@ -197,8 +197,49 @@ def test_center_around_zero_sparse(y: np.ndarray, x_sparse: sps.csc_matrix) -> N
 def test_undo_center_around_zero_sparse(
     y: np.ndarray, x_sparse: sps.csc_matrix
 ) -> None:
-    model = GlmnetGaussianModel(y, x_sparse, 0, 0)
+    model = GlmnetModel(y, x_sparse, "gaussian", 0, 0)
     model.center_around_zero()
     model.x = sps.csc_matrix(model.x)
     model.shift_to_original_centering()
     np.testing.assert_almost_equal(model.x.mean(0), model.original_x_mean)
+
+
+def glmnet_poisson_tester(alpha: float, l1_ratio: float) -> None:
+    X = np.array([[-2, -1, 1, 2], [0, 0, 1, 1.0]]).T
+    y = np.array([0, 1, 1, 2.0])
+    glm = fit_glmnet(
+        y, X, alpha, l1_ratio, distribution="poisson", standardize=False, n_iters=20
+    )
+
+    from glmnet_python import glmnet
+
+    glmnet_m = glmnet(
+        x=X,
+        y=y,
+        family="poisson",
+        alpha=l1_ratio,
+        lambdau=np.array([alpha]),
+        standardize=False,
+        thresh=1e-7,
+    )
+
+    if False:
+        print("intercept: ", glm.intercept)
+        print("params: ", glm.params)
+        print("glmnet intercept: ", glmnet_m["a0"])
+        print("glmnet params: ", glmnet_m["beta"][:, 0])
+
+    np.testing.assert_almost_equal(glm.intercept, glmnet_m["a0"], 4)
+    np.testing.assert_almost_equal(glm.params, glmnet_m["beta"][:, 0], 4)
+
+
+def test_glmnet_poisson_ridge():
+    glmnet_poisson_tester(1.0, 0.0)
+
+
+def test_glmnet_poisson_lasso():
+    glmnet_poisson_tester(0.1, 1.0)
+
+
+def test_glmnet_poisson_enet():
+    glmnet_poisson_tester(0.1, 0.5)
