@@ -33,7 +33,8 @@ def sklearn_fork_bench(
         max_iter=10000,
         random_state=random_seed,
         copy_X=True,
-        tol=1e-3,
+        selection="random",
+        tol=1e-7,
     )
 
     result["runtime"], m = runtime(build_and_fit, model_args, fit_args)
