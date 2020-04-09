@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+from glmnet_python import glmnet
 from scipy import sparse as sps
 from scipy.sparse.linalg import lsqr
 
@@ -39,8 +40,20 @@ def test_predict(x: np.ndarray) -> None:
     np.testing.assert_almost_equal(prediction, np.zeros(n_rows))
 
 
+def test_predict_custom_link(x: np.ndarray):
+    model = GlmnetModel(np.zeros(n_rows), x, "gaussian", 0, 0, link_name="log")
+    prediction = model.predict()
+    np.testing.assert_almost_equal(prediction, np.ones(n_rows))
+
+
 def test_r2(x: np.ndarray, y: np.ndarray) -> None:
     model = GlmnetModel(y, x, "gaussian", 0, 0)
+    r2 = model.get_r2(y)
+    np.testing.assert_almost_equal(r2, 0)
+
+
+def test_r2_custom_link(x: np.ndarray, y: np.ndarray):
+    model = GlmnetModel(y, x, "gaussian", 0, 0, link_name="log")
     r2 = model.get_r2(y)
     np.testing.assert_almost_equal(r2, 0)
 
@@ -211,8 +224,6 @@ def glmnet_poisson_tester(alpha: float, l1_ratio: float) -> None:
         y, X, alpha, l1_ratio, distribution="poisson", standardize=False, n_iters=20
     )
 
-    from glmnet_python import glmnet
-
     glmnet_m = glmnet(
         x=X,
         y=y,
@@ -222,12 +233,6 @@ def glmnet_poisson_tester(alpha: float, l1_ratio: float) -> None:
         standardize=False,
         thresh=1e-7,
     )
-
-    if False:
-        print("intercept: ", glm.intercept)
-        print("params: ", glm.params)
-        print("glmnet intercept: ", glmnet_m["a0"])
-        print("glmnet params: ", glmnet_m["beta"][:, 0])
 
     np.testing.assert_almost_equal(glm.intercept, glmnet_m["a0"], 4)
     np.testing.assert_almost_equal(glm.params, glmnet_m["beta"][:, 0], 4)

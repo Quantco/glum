@@ -4,7 +4,7 @@ from typing import Any, Dict
 import numpy as np
 from scipy import sparse as sps
 
-from glm_benchmarks.glmnet_qc.glmnet_qc import fit_pathwise, get_r2
+from glm_benchmarks.glmnet_qc.glmnet_qc import fit_pathwise
 
 
 def sim_data(n_rows: int, n_cols: int, sparse: bool) -> Dict[str, Any]:
@@ -31,7 +31,7 @@ def test(sparse: bool):
     model = fit_pathwise(y, x, 0.5, n_iters=40, solver=solver)
     end = time.time()
     print("time", end - start)
-    print("r2", get_r2(model, y))
+    print("r2", model.get_r2(y))
     print("frac of coefs zero", (model.params == 0).mean())
 
 

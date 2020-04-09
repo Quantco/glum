@@ -8,7 +8,7 @@ and store the scaling and shifting params, and give it an 'unnormalize' method)
 - active set convergence
 - stopping criteria
 """
-from typing import Tuple, Union
+from typing import Callable, Tuple, Union
 
 import numpy as np
 from scipy import sparse as sps
@@ -29,6 +29,7 @@ class GlmnetModel:
         penalty_scaling: np.ndarray = None,
         is_x_zero_centered: bool = False,
         is_x_squared_mean_one: bool = False,
+        link_name: str = None,
     ):
         """
         Assume x does *not* include an intercept.
@@ -59,7 +60,8 @@ class GlmnetModel:
         elif (penalty_scaling < 0).any():
             raise ValueError("penalty_scaling must be non-negative.")
         self.penalty_scaling = penalty_scaling
-        self.link, self.inv_link = get_link_and_inverse(self.distribution)
+        self.link_name = default_links[distribution] if link_name is None else link_name
+        self.link, self.inv_link = get_link_and_inverse(self.link_name)
         self.is_x_zero_centered = is_x_zero_centered
         self.is_x_squared_mean_one = is_x_squared_mean_one
         self.original_x_mean = np.squeeze(np.asarray(self.x.mean(0)))
@@ -142,13 +144,41 @@ class GlmnetModel:
         return 1 - np.var(y - self.predict()) / np.var(y)
 
 
-def get_link_and_inverse(distribution):
-    if distribution == "gaussian":
-        return (lambda x: x, lambda x: x)
-    elif distribution == "poisson":
-        return (lambda x: np.log(x), lambda x: np.exp(x))
+def update_params(
+    model: GlmnetModel, params: np.ndarray = None, intercept: float = None
+) -> GlmnetModel:
+    new_intercept = model.intercept if intercept is None else intercept
+    new_params = model.params if params is None else params
+    return GlmnetModel(
+        model.y,
+        model.x,
+        model.distribution,
+        model.alpha,
+        model.l1_ratio,
+        new_intercept,
+        new_params,
+        model.penalty_scaling,
+        model.is_x_zero_centered,
+        model.is_x_squared_mean_one,
+        model.link_name,
+    )
+
+
+default_links = {"gaussian": "identity", "poisson": "log"}
+
+
+def get_link_and_inverse(link_name) -> Tuple[Callable, Callable]:
+    if link_name == "identity":
+
+        def identity(x):
+            return x
+
+        return identity, identity
+
+    elif link_name == "log":
+        return np.log, np.exp
     else:
-        raise NotImplementedError(f"{distribution} is not a supported distribution")
+        raise NotImplementedError(f"{link_name} is not a supported link function")
 
 
 def soft_threshold(z: float, threshold: float) -> Union[float, int]:
