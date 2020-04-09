@@ -2,6 +2,7 @@ import copy
 from typing import Tuple, Union
 
 import numpy as np
+import statsmodels.api as sm
 from glmnet_python import glmnet
 
 from glm_benchmarks.glmnet_qc.glmnet_qc import GlmnetModel, update_params
@@ -90,47 +91,71 @@ def get_hess(model: GlmnetModel) -> np.ndarray:
     n_length_parts = get_hess_wrt_mean(model) * get_d_inv_link_d_eta(
         model
     ) ** 2 + get_grad_wrt_mean(model) * get_d2_inv_link_d_eta(model)
+
     ll_hess = (model.x * n_length_parts[:, None]).T.dot(model.x)
+    print(np.diag(ll_hess)[:5])
+    assert (n_length_parts > 0).all()
+    assert (np.diag(ll_hess) > 0).all()
     return ll_hess / len(model.y) + get_penalty_hess(model)
 
 
 def get_irls_z_and_weights_unregularized(
     model: GlmnetModel,
 ) -> Tuple[np.ndarray, np.ndarray]:
-    if model.distribution == "gaussian":
-        w = np.ones_like(model.y)
-        z = model.y
-        return z, w
-    else:
-        raise NotImplementedError
+    w = (
+        get_hess_wrt_mean(model) * (get_d_inv_link_d_eta(model) ** 2)
+        + get_grad_wrt_mean(model) * get_d2_inv_link_d_eta(model)
+    ) / 2
+    assert (w > 0).all()
+    assert np.isfinite(w).all()
+
+    xb = model.x.dot(model.params) + model.intercept
+
+    z = xb - get_grad_wrt_mean(model) * get_d_inv_link_d_eta(model) / (2 * w)
+    return w, z
+
+
+def do_backtracking_line_search(
+    model: GlmnetModel, new_param: np.ndarray, max_n_tries: int = 10
+) -> np.ndarray:
+    old_obj = get_obj(model)
+    i = 0
+    while old_obj < get_obj(update_params(model, new_param)) and i < max_n_tries:
+        new_param = (model.params + new_param) / 2
+    return new_param
+
+
+def get_one_irls_step(model: GlmnetModel) -> np.ndarray:
+    w, z = get_irls_z_and_weights_unregularized(model)
+    nonzero = np.where(w != 0)
+    print(w.shape)
+    print(w[nonzero].shape)
+    assert np.isfinite(z[nonzero]).all()
+    new_param = sm.WLS(z[nonzero], model.x[nonzero], w[nonzero]).fit().params
+    return do_backtracking_line_search(model, new_param)
 
 
 def get_one_newton_update(model: GlmnetModel) -> np.ndarray:
     step = -np.linalg.lstsq(get_hess(model), get_grad(model), rcond=None)[0]
     new_param = model.params + step
-    old_obj = get_obj(model)
-
-    # backtracking line search
-    max_n_tries = 10
-    i = 0
-    while old_obj < get_obj(update_params(model, new_param)) and i < max_n_tries:
-        new_param = (model.params + new_param) / 2
-        i += 1
-
-    return new_param
+    return do_backtracking_line_search(model, new_param)
 
 
 def main():
     sim = True
+    distribution = "gaussian"
+    link_name = "log"
+
     if sim:
         n_cols = 100
         data = sim_data(1000, n_cols, False)
         np.random.seed(0)
-        true_params = np.random.normal(0, 1, n_cols)
+        if distribution == "poisson" or link_name == "log":
+            true_params = np.random.normal(0, 1, n_cols)
 
-        data["y"] = np.random.poisson(np.exp(data["x"].dot(true_params))).astype(
-            "float"
-        )
+            data["y"] = np.random.poisson(np.exp(data["x"].dot(true_params))).astype(
+                "float"
+            )
     else:
         data = {
             "x": np.array([[-2, -1, 1, 2], [0, 0, 1, 1.0]]).T,
@@ -139,31 +164,47 @@ def main():
 
     x = np.hstack([np.ones((len(data["y"]), 1)), data["x"]])
 
-    alpha = 1
+    alpha = 0
     l1_ratio = 0.5
 
-    model = GlmnetModel(data["y"], x, "poisson", alpha, l1_ratio)
-    for i in range(10):
-        model.params = get_one_newton_update(model)
-
-    glmnet_m = glmnet(
-        x=data["x"],
-        y=data["y"],
-        family="poisson",
-        alpha=l1_ratio,
-        lambdau=np.array([alpha]),
-        standardize=False,
-        thresh=1e-7,
+    model_one = GlmnetModel(
+        data["y"], x, distribution, alpha, l1_ratio, link_name=link_name
     )
 
-    print("obj with our params according to us")
+    print("initial")
+    print(get_obj(model_one))
+    model_one.params = get_one_newton_update(model_one)
+
+    print("newton")
+    print(get_obj(model_one))
+
+    model = GlmnetModel(
+        data["y"], x, distribution, alpha, l1_ratio, link_name=link_name
+    )
+    model.params = get_one_irls_step(model)
+
+    print("irls")
     print(get_obj(model))
 
-    theirs = np.squeeze(np.concatenate(([glmnet_m["a0"]], glmnet_m["beta"])))
-    print("obj with their params according to us")
-    new_model = copy.copy(model)
-    new_model.params = theirs
-    print(get_obj(new_model))
+    if False:
+        glmnet_m = glmnet(
+            x=data["x"],
+            y=data["y"],
+            family=distribution,
+            alpha=l1_ratio,
+            lambdau=np.array([alpha]),
+            standardize=False,
+            thresh=1e-7,
+        )
+
+        print("obj with our params according to us")
+        print(get_obj(model))
+
+        theirs = np.squeeze(np.concatenate(([glmnet_m["a0"]], glmnet_m["beta"])))
+        print("obj with their params according to us")
+        new_model = copy.copy(model)
+        new_model.params = theirs
+        print(get_obj(new_model))
 
 
 if __name__ == "__main__":
