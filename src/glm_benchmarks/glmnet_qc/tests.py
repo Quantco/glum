@@ -214,8 +214,8 @@ def glmnet_poisson_tester(alpha: float, l1_ratio: float) -> None:
     from glmnet_python import glmnet
 
     glmnet_m = glmnet(
-        x=X,
-        y=y,
+        x=X.copy(),
+        y=y.copy(),
         family="poisson",
         alpha=l1_ratio,
         lambdau=np.array([alpha]),

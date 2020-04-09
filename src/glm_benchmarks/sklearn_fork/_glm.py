@@ -1375,6 +1375,7 @@ def _cd_solver(
     # use L1-norm of minimum of norm of subgradient of F
     inner_tol = _min_norm_sugrad(coef=coef, grad=-score, P2=P2, P1=P1)
     inner_tol = linalg.norm(inner_tol, ord=1)
+
     # outer loop
     while n_iter < max_iter:
         n_iter += 1
