@@ -164,7 +164,7 @@ def update_params(
     )
 
 
-default_links = {"gaussian": "identity", "poisson": "log"}
+default_links = {"gaussian": "identity", "poisson": "log", "bernoulli": "logit"}
 
 
 def get_link_and_inverse(link_name) -> Tuple[Callable, Callable]:
@@ -175,10 +175,18 @@ def get_link_and_inverse(link_name) -> Tuple[Callable, Callable]:
 
         return identity, identity
 
-    elif link_name == "log":
+    if link_name == "log":
         return np.log, np.exp
-    else:
-        raise NotImplementedError(f"{link_name} is not a supported link function")
+    if link_name == "logit":
+
+        def inv_link(x):
+            return 1 / (1 + np.exp(x))
+
+        def link(x):
+            return np.log((1 - x) / x)
+
+        return link, inv_link
+    raise NotImplementedError(f"{link_name} is not a supported link function")
 
 
 def soft_threshold(z: float, threshold: float) -> Union[float, int]:

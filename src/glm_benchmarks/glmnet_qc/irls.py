@@ -1,12 +1,9 @@
-import copy
 from typing import Tuple, Union
 
 import numpy as np
 import statsmodels.api as sm
-from glmnet_python import glmnet
 
 from glm_benchmarks.glmnet_qc.glmnet_qc import GlmnetModel, update_params
-from glm_benchmarks.glmnet_qc.run_simulated_example import sim_data
 
 
 def get_penalty(model: GlmnetModel) -> float:
@@ -29,33 +26,43 @@ def get_penalty_hess(model: GlmnetModel) -> np.ndarray:
 
 
 def get_obj(model: GlmnetModel) -> float:
+    expected_y = model.predict()
     if model.distribution == "gaussian":
-        resids = model.y - model.predict()
+        resids = model.y - expected_y
         minus_ll = (resids ** 2).mean() / 2
     elif model.distribution == "poisson":
-        prediction = model.predict()
-        minus_ll = (prediction.sum() - model.y.dot(np.log(prediction))) / len(model.y)
+        minus_ll = (expected_y.sum() - model.y.dot(np.log(expected_y))) / len(model.y)
+    elif model.distribution == "bernoulli":
+        minus_ll = -(
+            model.y.dot(np.log(expected_y)) + (1 - model.y).dot(np.log(1 - expected_y))
+        ) / len(model.y)
     else:
         raise NotImplementedError
     return minus_ll + get_penalty(model)
 
 
 def get_grad_wrt_mean(model: GlmnetModel) -> np.ndarray:
-    """ returns length-N vector: - dLLi / d theta_i """
-    pred_mean = model.predict()
+    """ returns length-N vector: - dLLi / d mu_i """
+    expected_y = model.predict()
     if model.distribution == "gaussian":
-        return pred_mean - model.y
+        return (expected_y - model.y) / len(model.y)
     if model.distribution == "poisson":
-        return 1 - model.y / pred_mean
+        return (1 - model.y / expected_y) / len(model.y)
+    if model.distribution == "bernoulli":
+        return ((1 - model.y) / (1 - expected_y) - model.y / expected_y) / len(model.y)
     else:
         raise NotImplementedError
 
 
 def get_d_inv_link_d_eta(model: GlmnetModel) -> Union[np.ndarray, float]:
+    """ Returns length N vector: d mu / d eta """
     if model.link_name == "identity":
         return 1
     if model.link_name == "log":
         return model.predict()
+    if model.link_name == "logit":
+        expected_y = model.predict()
+        return -expected_y * (1 - expected_y)
     raise NotImplementedError
 
 
@@ -65,15 +72,20 @@ def get_grad(model: GlmnetModel) -> np.ndarray:
     sum_i grad_wrt_theta_i * grad_theta_wrt_eta_i * x_i
     """
     d_pred_mean_d_eta = get_d_inv_link_d_eta(model)
-    grad = model.x.T.dot(get_grad_wrt_mean(model) * d_pred_mean_d_eta) / len(model.y)
+    grad = model.x.T.dot(get_grad_wrt_mean(model) * d_pred_mean_d_eta)
     return grad + get_penalty_grad(model)
 
 
 def get_hess_wrt_mean(model: GlmnetModel) -> Union[float, np.ndarray]:
     if model.distribution == "gaussian":
-        return 1
+        return 1 / len(model.y)
     if model.distribution == "poisson":
-        return model.y / model.predict() ** 2
+        return model.y / (model.predict() ** 2 * len(model.y))
+    if model.distribution == "bernoulli":
+        expected_y = model.predict()
+        return (
+            model.y / expected_y ** 2 + (1 - model.y) / (1 - expected_y) ** 2
+        ) / len(model.y)
     raise NotImplementedError
 
 
@@ -83,6 +95,9 @@ def get_d2_inv_link_d_eta(model: GlmnetModel) -> Union[np.ndarray, float]:
         return 0
     if model.link_name == "log":
         return model.predict()
+    if model.link_name == "logit":
+        expected_y = model.predict()
+        return expected_y * (1 - expected_y) * (1 - 2 * expected_y)
     raise NotImplementedError
 
 
@@ -91,12 +106,8 @@ def get_hess(model: GlmnetModel) -> np.ndarray:
     n_length_parts = get_hess_wrt_mean(model) * get_d_inv_link_d_eta(
         model
     ) ** 2 + get_grad_wrt_mean(model) * get_d2_inv_link_d_eta(model)
-
     ll_hess = (model.x * n_length_parts[:, None]).T.dot(model.x)
-    print(np.diag(ll_hess)[:5])
-    assert (n_length_parts > 0).all()
-    assert (np.diag(ll_hess) > 0).all()
-    return ll_hess / len(model.y) + get_penalty_hess(model)
+    return ll_hess + get_penalty_hess(model)
 
 
 def get_irls_z_and_weights_unregularized(
@@ -106,11 +117,8 @@ def get_irls_z_and_weights_unregularized(
         get_hess_wrt_mean(model) * (get_d_inv_link_d_eta(model) ** 2)
         + get_grad_wrt_mean(model) * get_d2_inv_link_d_eta(model)
     ) / 2
-    assert (w > 0).all()
-    assert np.isfinite(w).all()
 
     xb = model.x.dot(model.params) + model.intercept
-
     z = xb - get_grad_wrt_mean(model) * get_d_inv_link_d_eta(model) / (2 * w)
     return w, z
 
@@ -127,11 +135,7 @@ def do_backtracking_line_search(
 
 def get_one_irls_step(model: GlmnetModel) -> np.ndarray:
     w, z = get_irls_z_and_weights_unregularized(model)
-    nonzero = np.where(w != 0)
-    print(w.shape)
-    print(w[nonzero].shape)
-    assert np.isfinite(z[nonzero]).all()
-    new_param = sm.WLS(z[nonzero], model.x[nonzero], w[nonzero]).fit().params
+    new_param = sm.WLS(z, model.x, w).fit().params
     return do_backtracking_line_search(model, new_param)
 
 
@@ -144,67 +148,53 @@ def get_one_newton_update(model: GlmnetModel) -> np.ndarray:
 def main():
     sim = True
     distribution = "gaussian"
-    link_name = "log"
+    link_name = None
 
     if sim:
-        n_cols = 100
-        data = sim_data(1000, n_cols, False)
+        n_cols = 20
+        n_rows = 1000
         np.random.seed(0)
-        if distribution == "poisson" or link_name == "log":
-            true_params = np.random.normal(0, 1, n_cols)
+        x = np.random.normal(0, 1, (n_rows, n_cols))
+        true_params = np.random.normal(0, 0.1, n_cols)
+        xb = x.dot(true_params)
 
-            data["y"] = np.random.poisson(np.exp(data["x"].dot(true_params))).astype(
-                "float"
-            )
+        if distribution == "gaussian":
+            y = np.random.normal(xb, 1)
+        elif distribution == "poisson":
+            y = np.random.poisson(np.exp(xb))
+            assert np.all(np.isfinite(y))
+        elif distribution == "bernoulli":
+            p = 1 / (1 + np.exp(xb))
+            y = np.random.uniform(0, 1, n_rows) < p
+        else:
+            raise NotImplementedError
+
     else:
-        data = {
-            "x": np.array([[-2, -1, 1, 2], [0, 0, 1, 1.0]]).T,
-            "y": np.array([0, 1, 1, 2.0]),
-        }
-
-    x = np.hstack([np.ones((len(data["y"]), 1)), data["x"]])
+        x = np.array([[-2, -1, 1, 2], [0, 0, 1, 1.0]]).T
+        y = np.array([0, 1, 1, 2.0])
 
     alpha = 0
     l1_ratio = 0.5
 
-    model_one = GlmnetModel(
-        data["y"], x, distribution, alpha, l1_ratio, link_name=link_name
-    )
+    model_one = GlmnetModel(y, x, distribution, alpha, l1_ratio, link_name=link_name)
+    n_iters = 4
 
     print("initial")
     print(get_obj(model_one))
-    model_one.params = get_one_newton_update(model_one)
+    for _ in range(n_iters):
+        model_one.params = get_one_newton_update(model_one)
 
     print("newton")
     print(get_obj(model_one))
+    print("dist from true params", np.abs(model_one.params - true_params))
 
-    model = GlmnetModel(
-        data["y"], x, distribution, alpha, l1_ratio, link_name=link_name
-    )
-    model.params = get_one_irls_step(model)
+    model = GlmnetModel(y, x, distribution, alpha, l1_ratio, link_name=link_name)
+    for _ in range(n_iters):
+        model.params = get_one_irls_step(model)
 
     print("irls")
     print(get_obj(model))
-
-    if False:
-        glmnet_m = glmnet(
-            x=data["x"],
-            y=data["y"],
-            family=distribution,
-            alpha=l1_ratio,
-            lambdau=np.array([alpha]),
-            standardize=False,
-            thresh=1e-7,
-        )
-
-        print("obj with our params according to us")
-        print(get_obj(model))
-
-        theirs = np.squeeze(np.concatenate(([glmnet_m["a0"]], glmnet_m["beta"])))
-        print("obj with their params according to us")
-        new_model = copy.copy(model)
-        new_model.params = theirs
-        print(get_obj(new_model))
+    print("dist from truth", np.abs(model.params - true_params))
 
 
 if __name__ == "__main__":
