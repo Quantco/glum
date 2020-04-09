@@ -9,16 +9,15 @@ from numpy.testing import assert_allclose
 from scipy import linalg, optimize, sparse
 from sklearn.datasets import make_classification, make_regression
 from sklearn.exceptions import ConvergenceWarning
-from sklearn.linear_model import (
-    ElasticNet,
-    GeneralizedLinearRegressor,
-    LogisticRegression,
-    Ridge,
-)
-from sklearn.linear_model._glm import (
+from sklearn.linear_model import ElasticNet, LogisticRegression, Ridge
+from sklearn.metrics import mean_absolute_error
+from sklearn.utils.testing import assert_array_equal
+
+from glm_benchmarks.sklearn_fork._glm import (
     BinomialDistribution,
     GammaDistribution,
     GeneralizedHyperbolicSecant,
+    GeneralizedLinearRegressor,
     IdentityLink,
     InverseGaussianDistribution,
     Link,
@@ -28,8 +27,6 @@ from sklearn.linear_model._glm import (
     PoissonDistribution,
     TweedieDistribution,
 )
-from sklearn.metrics import mean_absolute_error
-from sklearn.utils.testing import assert_array_equal
 
 GLM_SOLVERS = ["irls", "lbfgs", "newton-cg", "cd"]
 
