@@ -698,6 +698,8 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         # eta = linear predictor
         eta = _safe_lin_pred(X, coef)
         mu = link.inverse(eta)
+
+        # FOR TWEEDIE: sigma_inv = weights / (mu ** p) during optimization bc phi = 1
         sigma_inv = 1.0 / self.variance(mu, phi=phi, weights=weights)
         d1 = link.inverse_derivative(eta)  # = h'(eta)
         # Alternatively:
@@ -1378,6 +1380,7 @@ def _cd_solver(
 
     # outer loop
     while n_iter < max_iter:
+        print(inner_tol, n_iter, n_cycles)
         n_iter += 1
         # initialize search direction d (to be optimized) with zero
         d.fill(0)
@@ -1397,6 +1400,7 @@ def _cd_solver(
             random_state=random_state,
             diag_fisher=diag_fisher,
         )
+
         # line search by sequence beta^k, k=0, 1, ..
         # F(w + lambda d) - F(w) <= lambda * bound
         # bound = sigma * (f'(w)*d + w*P2*d
@@ -1424,6 +1428,7 @@ def _cd_solver(
                 break
         # update coefficients
         coef += la * d
+
         # calculate eta, mu, score, Fisher matrix for next iteration
         eta, mu, score, fisher = family._eta_mu_score_fisher(
             coef=coef,
@@ -1434,6 +1439,7 @@ def _cd_solver(
             link=link,
             diag_fisher=diag_fisher,
         )
+
         # stopping criterion for outer loop
         # sum_i(|minimum-norm of subgrad of F(w)_i|)
         # fp_wP2 = f'(w) + w*P2
@@ -1443,7 +1449,11 @@ def _cd_solver(
         if mn_subgrad <= tol:
             converged = True
             break
+
+        # update the inner tolerance for the next loop!
+        inner_tol = mn_subgrad
         # end of outer loop
+
     if not converged:
         warnings.warn(
             "Coordinate descent failed to converge. Increase"
