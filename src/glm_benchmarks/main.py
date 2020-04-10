@@ -46,10 +46,15 @@ def cli_run(problem_names: str, library_names: str, num_rows: int, output_dir: s
     for Pn, P in problems.items():
         for Ln, L in libraries.items():
             print(f"running problem={Pn} library={Ln}")
-            dat = P.data_loader(num_rows=num_rows)
-            result = L(dat, P.distribution, P.regularization_strength, P.l1_ratio)
+            result = execute_problem_library(P, L, num_rows)
             save_benchmark_results(output_dir, Pn, Ln, num_rows, result)
             print("ran")
+
+
+def execute_problem_library(P, L, num_rows=None):
+    dat = P.data_loader(num_rows=num_rows)
+    result = L(dat, P.distribution, P.regularization_strength, P.l1_ratio)
+    return result
 
 
 @click.command()
