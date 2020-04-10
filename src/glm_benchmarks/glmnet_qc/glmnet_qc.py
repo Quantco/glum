@@ -87,7 +87,9 @@ def _get_coordinate_wise_update_sparse(
     return new_param_j, resid
 
 
-def _do_cd(model: GaussianCanonicalModel, n_iters: int = 1) -> GaussianCanonicalModel:
+def _do_cd(
+    model: GaussianCanonicalModel, n_iters: int = 2, step_tol=1e-9
+) -> GaussianCanonicalModel:
     """
     The paper is not terribly clear on what to do in the sparse case. It sounds like the
     variables are scaled but not centered to as not to alter the sparsity.
@@ -96,11 +98,15 @@ def _do_cd(model: GaussianCanonicalModel, n_iters: int = 1) -> GaussianCanonical
     this takes about 44% of the time of the dense example, and does not reach quite
     as high an R-squared.
     """
+    step_size = np.inf
+
     model.set_optimal_intercept()
     resid = model.y - model.predict()
     initial_obj = get_obj(model)
 
-    for i in range(n_iters):
+    i = 0
+    while i < n_iters and step_size > step_tol:
+        initial_params = model.params.copy()
         for j in range(len(model.params)):
             if sps.isspmatrix(model.x):
                 model.params[j], resid = _get_coordinate_wise_update_sparse(
@@ -120,6 +126,9 @@ def _do_cd(model: GaussianCanonicalModel, n_iters: int = 1) -> GaussianCanonical
             if get_obj(model) > initial_obj + 1e-7:
                 raise RuntimeError
             resid -= resid.dot(model.weights) / model.weight_sum
+
+        step_size = np.max(np.abs(model.params - initial_params))
+        i += 1
 
     return model
 
@@ -206,6 +215,7 @@ def fit_glmnet_gaussian_canonical(
     n_iters: int = 10,
     start_params: np.ndarray = None,
     penalty_scaling: np.ndarray = None,
+    step_tol: float = 1e-9,
 ) -> GaussianCanonicalModel:
     """
     Parameters
@@ -233,7 +243,7 @@ def fit_glmnet_gaussian_canonical(
     model = GaussianCanonicalModel(
         y, x, alpha, l1_ratio, weights, start_params, penalty_scaling=penalty_scaling
     )
-    model = _do_cd(model, n_iters)
+    model = _do_cd(model, n_iters, step_tol)
     return model
 
 
@@ -248,6 +258,8 @@ def fit_glmnet(
     penalty_scaling: np.ndarray = None,
     distribution="gaussian",
     link_name: str = None,
+    outer_step_tol=1e-9,
+    inner_step_tol=1e-9,
 ) -> GlmnetModel:
     # TODO: allow for normalization
     model = GlmnetModel(
@@ -262,22 +274,24 @@ def fit_glmnet(
         link_name=link_name,
     )
 
-    for i in range(n_iters):
+    step_diff = np.inf
+
+    i = 0
+    while step_diff > outer_step_tol and i < n_iters:
         # Just for the likelihood part, not the penalty
         irls_weights, z = get_irls_z_and_weights_unregularized(model)
 
-        irls_model = fit_glmnet_gaussian_canonical(
+        new_params = fit_glmnet_gaussian_canonical(
             z,
             x,
             alpha,
             l1_ratio,
             weights=irls_weights,
             n_iters=10,
-            start_params=model.params,
+            start_params=model.params.copy(),
             penalty_scaling=penalty_scaling,
-        )
-
-        new_params = irls_model.params
+            step_tol=inner_step_tol,
+        ).params
 
         old_obj = get_obj(model)
         j = 0
@@ -287,8 +301,11 @@ def fit_glmnet(
             new_params = (new_params + model.params) / 2
             j += 1
 
+        step_diff = np.max(np.abs(new_params - model.params))
         model.params = new_params
         if get_obj(model) > old_obj + 1e-7:
             raise RuntimeError("did not converge")
+
+        i += 1
 
     return model
