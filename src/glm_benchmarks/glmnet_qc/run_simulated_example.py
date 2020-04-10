@@ -19,7 +19,7 @@ def sim_data(n_rows: int, n_cols: int, sparse: bool) -> Dict[str, Any]:
     return {"y": y, "x": x, "coefs": true_coefs}
 
 
-def test(sparse: bool):
+def run(sparse: bool):
     data = sim_data(10000, 1000, sparse)
     y = data["y"]
     print("\n\n")
@@ -28,7 +28,7 @@ def test(sparse: bool):
     x = data["x"]
 
     start = time.time()
-    model = fit_pathwise(y, x, 0.5, n_iters=40, solver=solver)
+    model = fit_pathwise(y, x, 0.5, n_iters=40)
     end = time.time()
     print("time", end - start)
     print("r2", model.get_r2(y))
@@ -36,4 +36,4 @@ def test(sparse: bool):
 
 
 if __name__ == "__main__":
-    test(sparse=True)
+    run(sparse=True)

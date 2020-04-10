@@ -1,12 +1,27 @@
+from typing import Callable, Tuple
+
 import numpy as np
-from scipy import sparse as sps
+
+default_links = {"gaussian": "identity", "poisson": "log", "bernoulli": "logit"}
 
 
-def spmatrix_col_var(x: sps.spmatrix) -> np.ndarray:
-    mean = x.mean(0)
-    sd = x.power(2).mean(0) - sps.csc_matrix(mean).power(2)
-    return np.squeeze(np.asarray(sd))
+def get_link_and_inverse(link_name) -> Tuple[Callable, Callable]:
+    if link_name == "identity":
 
+        def identity(x):
+            return x
 
-def spmatrix_col_sd(x: sps.spmatrix) -> np.ndarray:
-    return np.sqrt(spmatrix_col_var(x))
+        return identity, identity
+
+    if link_name == "log":
+        return np.log, np.exp
+    if link_name == "logit":
+
+        def inv_link(x):
+            return 1 / (1 + np.exp(x))
+
+        def link(x):
+            return np.log((1 - x) / x)
+
+        return link, inv_link
+    raise NotImplementedError(f"{link_name} is not a supported link function")
