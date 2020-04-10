@@ -2,54 +2,43 @@ from typing import Tuple, Union
 
 import numpy as np
 import statsmodels.api as sm
+from scipy import sparse as sps
 
-from glm_benchmarks.glmnet_qc.glmnet_qc import GlmnetModel, update_params
-
-
-def get_penalty(model: GlmnetModel) -> float:
-    l1_part = model.l1_ratio * np.abs(model.params).dot(model.penalty_scaling)
-    l2_part = (1 - model.l1_ratio) * (model.params ** 2).dot(model.penalty_scaling) / 2
-    penalty = model.alpha * (l1_part + l2_part)
-    return penalty
-
-
-def get_penalty_grad(model: GlmnetModel) -> np.ndarray:
-    l1_part = model.l1_ratio * np.sign(model.params) * model.penalty_scaling
-    l2_part = (1 - model.l1_ratio) * model.params * model.penalty_scaling
-    penalty_grad = model.alpha * (l1_part + l2_part)
-    return penalty_grad
-
-
-def get_penalty_hess(model: GlmnetModel) -> np.ndarray:
-    hess = np.diag(model.alpha * (1 - model.l1_ratio) * model.penalty_scaling)
-    return hess
+from glm_benchmarks.glmnet_qc.model import GlmnetModel, update_params
 
 
 def get_obj(model: GlmnetModel) -> float:
+    minus_ll = get_minus_ll(model)
+    penalty = model.alpha * (
+        model.l1_ratio * model.penalty_scaling.dot(np.abs(model.params))
+        + (1 - model.l1_ratio) * model.penalty_scaling.dot(model.params ** 2) / 2
+    )
+    return minus_ll + penalty
+
+
+def get_minus_ll(model: GlmnetModel) -> float:
     expected_y = model.predict()
     if model.distribution == "gaussian":
         resids = model.y - expected_y
-        minus_ll = (resids ** 2).mean() / 2
+        ll_i = (resids ** 2) / 2
     elif model.distribution == "poisson":
-        minus_ll = (expected_y.sum() - model.y.dot(np.log(expected_y))) / len(model.y)
+        ll_i = expected_y - model.y * np.log(expected_y)
     elif model.distribution == "bernoulli":
-        minus_ll = -(
-            model.y.dot(np.log(expected_y)) + (1 - model.y).dot(np.log(1 - expected_y))
-        ) / len(model.y)
+        ll_i = -model.y * np.log(expected_y) - (1 - model.y) * np.log(1 - expected_y)
     else:
         raise NotImplementedError
-    return minus_ll + get_penalty(model)
+    return model.weights.dot(ll_i)
 
 
 def get_grad_wrt_mean(model: GlmnetModel) -> np.ndarray:
     """ returns length-N vector: - dLLi / d mu_i """
     expected_y = model.predict()
     if model.distribution == "gaussian":
-        return (expected_y - model.y) / len(model.y)
+        return expected_y - model.y
     if model.distribution == "poisson":
-        return (1 - model.y / expected_y) / len(model.y)
+        return 1 - model.y / expected_y
     if model.distribution == "bernoulli":
-        return ((1 - model.y) / (1 - expected_y) - model.y / expected_y) / len(model.y)
+        return (1 - model.y) / (1 - expected_y) - model.y / expected_y
     else:
         raise NotImplementedError
 
@@ -72,20 +61,18 @@ def get_grad(model: GlmnetModel) -> np.ndarray:
     sum_i grad_wrt_theta_i * grad_theta_wrt_eta_i * x_i
     """
     d_pred_mean_d_eta = get_d_inv_link_d_eta(model)
-    grad = model.x.T.dot(get_grad_wrt_mean(model) * d_pred_mean_d_eta)
-    return grad + get_penalty_grad(model)
+    grad = model.x.T.dot(get_grad_wrt_mean(model) * d_pred_mean_d_eta * model.weights)
+    return grad
 
 
 def get_hess_wrt_mean(model: GlmnetModel) -> Union[float, np.ndarray]:
     if model.distribution == "gaussian":
-        return 1 / len(model.y)
+        return 1
     if model.distribution == "poisson":
-        return model.y / (model.predict() ** 2 * len(model.y))
+        return model.y / (model.predict() ** 2)
     if model.distribution == "bernoulli":
         expected_y = model.predict()
-        return (
-            model.y / expected_y ** 2 + (1 - model.y) / (1 - expected_y) ** 2
-        ) / len(model.y)
+        return model.y / expected_y ** 2 + (1 - model.y) / (1 - expected_y) ** 2
     raise NotImplementedError
 
 
@@ -106,29 +93,30 @@ def get_hess(model: GlmnetModel) -> np.ndarray:
     n_length_parts = get_hess_wrt_mean(model) * get_d_inv_link_d_eta(
         model
     ) ** 2 + get_grad_wrt_mean(model) * get_d2_inv_link_d_eta(model)
-    ll_hess = (model.x * n_length_parts[:, None]).T.dot(model.x)
-    return ll_hess + get_penalty_hess(model)
+    x = model.x.A if sps.issparse(model.x) else model.x
+    ll_hess = (x * (n_length_parts * model.weights)[:, None]).T.dot(x)
+    return ll_hess
 
 
 def get_irls_z_and_weights_unregularized(
     model: GlmnetModel,
 ) -> Tuple[np.ndarray, np.ndarray]:
-    w = (
-        get_hess_wrt_mean(model) * (get_d_inv_link_d_eta(model) ** 2)
-        + get_grad_wrt_mean(model) * get_d2_inv_link_d_eta(model)
-    ) / 2
+    """ TODO: write a test checking that this is a good likelihood approximation. """
+    w = get_hess_wrt_mean(model) * (
+        get_d_inv_link_d_eta(model) ** 2
+    ) + get_grad_wrt_mean(model) * get_d2_inv_link_d_eta(model)
 
-    xb = model.x.dot(model.params) + model.intercept
-    z = xb - get_grad_wrt_mean(model) * get_d_inv_link_d_eta(model) / (2 * w)
-    return w, z
+    xb = model.x.dot(model.params)
+    z = xb - get_grad_wrt_mean(model) * get_d_inv_link_d_eta(model) / w
+    return w * model.weights, z
 
 
 def do_backtracking_line_search(
     model: GlmnetModel, new_param: np.ndarray, max_n_tries: int = 10
 ) -> np.ndarray:
-    old_obj = get_obj(model)
+    old_obj = get_minus_ll(model)
     i = 0
-    while old_obj < get_obj(update_params(model, new_param)) and i < max_n_tries:
+    while old_obj < get_minus_ll(update_params(model, new_param)) and i < max_n_tries:
         new_param = (model.params + new_param) / 2
     return new_param
 
@@ -180,12 +168,12 @@ def main():
     n_iters = 4
 
     print("initial")
-    print(get_obj(model_one))
+    print(get_minus_ll(model_one))
     for _ in range(n_iters):
         model_one.params = get_one_newton_update(model_one)
 
     print("newton")
-    print(get_obj(model_one))
+    print(get_minus_ll(model_one))
     print("dist from true params", np.abs(model_one.params - true_params))
 
     model = GlmnetModel(y, x, distribution, alpha, l1_ratio, link_name=link_name)
@@ -193,7 +181,7 @@ def main():
         model.params = get_one_irls_step(model)
 
     print("irls")
-    print(get_obj(model))
+    print(get_minus_ll(model))
     print("dist from truth", np.abs(model.params - true_params))
 
 
