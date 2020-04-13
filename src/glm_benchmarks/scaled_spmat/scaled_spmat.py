@@ -1,4 +1,4 @@
-from abc import ABC, abstractclassmethod
+from abc import ABC, abstractclassmethod, abstractmethod
 from typing import Union
 
 import numpy as np
@@ -30,9 +30,12 @@ class ScaledMat(ABC):
     def scale_axis(self) -> int:
         return 0
 
-    @property
-    def A(self) -> np.ndarray:
+    def todense(self) -> np.ndarray:
         return self.mat.A + np.expand_dims(self.shift, 1 - self.scale_axis)
+
+    @property
+    def A(self):
+        return self.todense()
 
     def multiply(self, other: Union[np.ndarray, float]):
         """
@@ -56,6 +59,43 @@ class ScaledMat(ABC):
         shift_part = self.shift * np.squeeze(other)
         return type(self)(mat_part, shift_part)
 
+    def sum(self, axis: int = None) -> Union[np.ndarray, float]:
+        """
+        For col case:
+        axis = 0:
+            sum_i (mat[i, j] + shift[j]) = sum_i mat[i, j] + shift[j] * mat.shape[0]
+            = mat.sum(0) + shift * mat.shape[0]
+        axis = 1:
+            sum_j (mat[i, j] + shift[j]) = mat.sum(1) + shift.sum()
+        axis=None: mat.sum(None) + shift.sum(None)
+
+        Row case is symmetric.
+        """
+        mat_part = np.squeeze(np.asarray(self.mat.sum(axis=axis)))
+
+        if axis == self.scale_axis:
+            shift_part = self.shift.sum()
+        else:
+            shift_part = (
+                np.expand_dims(self.shift, 1 - self.scale_axis).sum(axis=axis)
+                * self.shape[1 - self.scale_axis]
+            )
+        return mat_part + shift_part
+
+    @abstractmethod
+    def transpose(self):
+        pass
+
+    @property
+    def T(self):
+        return self.transpose()
+
+    def mean(self, axis: int = None):
+        sum_ = self.sum(axis)
+        if axis is None:
+            return sum_ / (self.shape[0] * self.shape[1])
+        return sum_ / self.shape[axis]
+
 
 class ColScaledSpMat(ScaledMat):
     """
@@ -69,8 +109,7 @@ class ColScaledSpMat(ScaledMat):
     def scale_axis(self):
         return 1
 
-    @property
-    def T(self):
+    def transpose(self):
         return RowScaledSpMat(self.mat.T, self.shift)
 
     def dot(self, other_mat: Union[sps.spmatrix, np.ndarray]):
@@ -94,8 +133,7 @@ class ColScaledSpMat(ScaledMat):
         return ColScaledSpMat(mat_part, shifter)
 
     def power(self, p: float):
-        # TODO: check if tocsc already returns a copy
-        tmp = self.mat.copy().tocsc()
+        tmp = self.mat.tocsc(copy=True)
         shift_power = self.shift ** p
         # Update data, looping over columns
         for j in range(self.shape[1]):
@@ -117,8 +155,7 @@ class RowScaledSpMat(ScaledMat):
     def scale_axis(self):
         return 0
 
-    @property
-    def T(self) -> ColScaledSpMat:
+    def transpose(self) -> ColScaledSpMat:
         return ColScaledSpMat(self.mat.T, self.shift)
 
     def dot(self, other_mat: Union[sps.spmatrix, np.ndarray]) -> np.ndarray:

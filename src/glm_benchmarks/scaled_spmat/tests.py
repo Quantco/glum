@@ -145,3 +145,37 @@ def test_multiply_scalar(scaled_mat_builder):
     scaled_mat = scaled_mat_builder()
     result = scaled_mat.multiply(other)
     np.testing.assert_almost_equal(result.A, scaled_mat.A * other)
+
+
+@pytest.mark.parametrize("scaled_mat_builder", [col_scaled_mat, row_scaled_mat])
+@pytest.mark.parametrize("axis", [0, 1])
+def test_sum_axis(scaled_mat_builder, axis):
+    scaled_mat = scaled_mat_builder()
+    result = scaled_mat.sum(axis)
+    assert isinstance(result, np.ndarray)
+    np.testing.assert_almost_equal(result, scaled_mat.A.sum(axis))
+
+
+@pytest.mark.parametrize("scaled_mat_builder", [col_scaled_mat, row_scaled_mat])
+def test_sum_none(scaled_mat_builder):
+    scaled_mat = scaled_mat_builder()
+    result = scaled_mat.sum(None)
+    assert np.isscalar(result)
+    np.testing.assert_almost_equal(result, scaled_mat.A.sum(None))
+
+
+@pytest.mark.parametrize("scaled_mat_builder", [col_scaled_mat, row_scaled_mat])
+@pytest.mark.parametrize("axis", [0, 1])
+def test_mean_axis(scaled_mat_builder, axis):
+    scaled_mat = scaled_mat_builder()
+    result = scaled_mat.mean(axis)
+    assert isinstance(result, np.ndarray)
+    np.testing.assert_almost_equal(result, scaled_mat.A.mean(axis))
+
+
+@pytest.mark.parametrize("scaled_mat_builder", [col_scaled_mat, row_scaled_mat])
+def test_mean_none(scaled_mat_builder):
+    scaled_mat = scaled_mat_builder()
+    result = scaled_mat.mean(None)
+    assert np.isscalar(result)
+    np.testing.assert_almost_equal(result, scaled_mat.A.mean(None))
