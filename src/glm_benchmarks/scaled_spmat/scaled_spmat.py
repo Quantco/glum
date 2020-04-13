@@ -59,7 +59,7 @@ class ScaledMat(ABC):
 
 class ColScaledSpMat(ScaledMat):
     """
-    Matrix with ij element equal to (mat[i, j] + shift[j]) * mult[j]
+    Matrix with ij element equal to mat[i, j] + shift[j]
     """
 
     def __init__(self, mat: sps.spmatrix, shift: np.ndarray):
@@ -107,7 +107,7 @@ class ColScaledSpMat(ScaledMat):
 
 class RowScaledSpMat(ScaledMat):
     """
-    Matrix with ij element equal to (mat[i, j] + shift[i]) * mult[i]
+    Matrix with ij element equal to mat[i, j] + shift[i]
     """
 
     def __init__(self, mat: sps.spmatrix, shift: np.ndarray):
@@ -124,8 +124,15 @@ class RowScaledSpMat(ScaledMat):
     def dot(self, other_mat: Union[sps.spmatrix, np.ndarray]) -> np.ndarray:
         """
         if M = RowScaledSpMat(A, b),
-        M.dot(x)[i, j] = sum_k (M[i, k] * b[k, j] + shift[i] * b[k, j])
-        = M.dot(b)[i, j] + shift[i] * b[:, j].sum()
+        M.dot(x)[i, j] = sum_k (A[i, k] * b[k, j] + shift[i] * b[k, j])
+        = A.dot(b)[i, j] + shift[i] * b[:, j].sum()
+
+        If x is >1d, this will generate a dense matrix that cannot be represented as
+        a RowScaledSpMat or ColScaledSpMat since it involves an outer product of two
+        vectors. Therefore, this will return a dense matrix.
+
+        If x is a vector, the output is a vector, so this will also return
+        a dense matrix.
         """
         mat_part = self.mat.dot(other_mat)
         if other_mat.ndim == 1:
