@@ -5,3 +5,7 @@ services:
     volumes:
       - .:/app
     network_mode: host
+    pid: host
+    privileged: true
+    cap_add:
+      - SYS_PTRACE
