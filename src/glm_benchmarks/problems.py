@@ -17,37 +17,41 @@ class Problem:
     l1_ratio = attr.ib(type=float)
 
 
-def load_simple_insurance_data(num_rows=None,) -> Dict[str, np.ndarray]:
+def load_simple_insurance_data(
+    num_rows: int = None, noise: float = None
+) -> Dict[str, np.ndarray]:
     """
     Due to the way we have set up this problem, by rescaling the target variable, it
     is appropriate to pass what is modeled as an 'exposure' as a weight. Everywhere else,
     exposures will be referred to as weights.
     """
-    X, y, exposure = generate_simple_insurance_dataset(num_rows)
+    X, y, exposure = generate_simple_insurance_dataset(num_rows, noise)
     return dict(X=X, y=y, weights=exposure)
 
 
 def load_simple_insurance_data_no_weights(
-    num_rows: int = None,
+    num_rows: int = None, noise: float = None
 ) -> Dict[str, np.ndarray]:
-    X, y, _ = generate_simple_insurance_dataset(num_rows)
+    X, y, _ = generate_simple_insurance_dataset(num_rows, noise)
     return dict(X=X, y=y)
 
 
 def load_sparse_insurance_data(
-    num_rows=None,
+    num_rows: int = None, noise: float = None
 ) -> Dict[str, Union[np.ndarray, sps.spmatrix]]:
     """
     Due to the way we have set up this problem, by rescaling the target variable, it
     is appropriate to pass what is modeled as an 'exposure' as a weight. Everywhere else,
     exposures will be referred to as weights.
     """
-    X, y, exposure = generate_sparse_insurance_dataset(num_rows)
+    X, y, exposure = generate_sparse_insurance_dataset(num_rows, noise)
     return dict(X=X, y=y, weights=exposure)
 
 
-def load_sparse_insurance_data_no_weights(num_rows=None,) -> Dict[str, np.ndarray]:
-    X, y, _ = generate_sparse_insurance_dataset(num_rows)
+def load_sparse_insurance_data_no_weights(
+    num_rows: int = None, noise: float = None
+) -> Dict[str, np.ndarray]:
+    X, y, _ = generate_sparse_insurance_dataset(num_rows, noise)
     return dict(X=X, y=y)
 
 

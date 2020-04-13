@@ -300,16 +300,35 @@ def gen_col_trans(drop=True, standardize=False) -> Tuple[Any, List[str]]:
     return column_trans, column_trans_names
 
 
+def add_noise(df: pd.DataFrame, noise: float) -> pd.DataFrame:
+    """Add noise by swapping out data points."""
+    np.random.seed(43212)
+    for col in df.columns:
+        if col in ["ClaimNb", "Exposure"]:
+            continue
+        swap = np.random.uniform(size=len(df)) < noise
+        shuffle = np.random.choice(df[col], size=len(df))
+        df.loc[swap, col] = shuffle[swap]
+
+    return df
+
+
 def generate_simple_insurance_dataset(
-    nrows=None,
+    nrows=None, noise=None,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Generate the tutorial data set from the sklearn fork and save it to disk."""
 
     df = pd.read_parquet(git_root("data/insurance.parquet"))
 
-    # sample
     if nrows is not None:
+        # if we're oversampling, set default value for noise to 0.05
+        # can be turned off by setting noise to zero
+        if noise is None and nrows > len(df):
+            noise = 0.05
         df = df.sample(n=nrows, replace=True, random_state=12345)
+
+    if noise is not None:
+        df = add_noise(df, noise=noise)
 
     col_trans_GLM1, col_trans_GLM1_names = gen_col_trans(drop=True, standardize=False)
     z = df["ClaimNb"].values
@@ -321,16 +340,21 @@ def generate_simple_insurance_dataset(
 
 
 def generate_sparse_insurance_dataset(
-    nrows=None,
+    nrows=None, noise=None,
 ) -> Tuple[sps.spmatrix, np.ndarray, np.ndarray]:
     """Generate a version of the tutorial data set with many features."""
     df = pd.read_parquet(git_root("data/insurance.parquet"))
 
-    # sample
     if nrows is not None:
+        # if we're oversampling, set default value for noise to 0.05
+        # can be turned off by setting noise to zero
+        if noise is None and nrows > len(df):
+            noise = 0.05
         df = df.sample(n=nrows, replace=True, random_state=12345)
 
-    # %%
+    if noise is not None:
+        df = add_noise(df, noise=noise)
+
     transformer = ColumnTransformer(
         [
             (
