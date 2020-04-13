@@ -33,6 +33,7 @@ def sklearn_fork_bench(
         max_iter=10000,
         random_state=random_seed,
         copy_X=True,
+        selection="random",
         tol=1e-3,
     )
 
