@@ -124,11 +124,14 @@ class ColScaledSpMat(ScaledMat):
         If other_mat is a sparse matrix, return a ColScaledSpMat.
         """
         mat_part = self.mat.dot(other_mat)
+        if not sps.issparse(other_mat):
+            other_mat = np.asarray(other_mat)
+
         shifter = other_mat.T.dot(self.shift)
 
         if other_mat.ndim == 1:
             return mat_part + shifter
-        if isinstance(other_mat, np.ndarray):
+        if not sps.issparse(other_mat):
             return mat_part + shifter[None, :]
         return ColScaledSpMat(mat_part, shifter)
 
@@ -172,6 +175,8 @@ class RowScaledSpMat(ScaledMat):
         a dense matrix.
         """
         mat_part = self.mat.dot(other_mat)
+        if not sps.issparse(other_mat):
+            other_mat = np.asarray(other_mat)
         if other_mat.ndim == 1:
             shifter = self.shift * other_mat.sum()
         else:
