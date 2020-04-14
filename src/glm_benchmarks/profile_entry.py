@@ -1,11 +1,14 @@
 import os
 import pickle
+from typing import Dict
 
 import click
 import numpy as np
+import pandas as pd
 
 from glm_benchmarks.bench_sklearn_fork import sklearn_fork_bench
 from glm_benchmarks.main import execute_problem_library, get_limited_problems
+from glm_benchmarks.util import get_obj_val
 
 
 @click.command()
@@ -47,7 +50,7 @@ def main(num_rows, problem_names, sparsify, save_result, save_dir):
         if save_result:
             save_baseline(path, result)
         else:
-            test_against_baseline(path, result)
+            test_against_baseline(path, result, Pn, num_rows)
         print("")
 
 
@@ -58,10 +61,37 @@ def save_baseline(path, data):
         pickle.dump(data, f)
 
 
-def test_against_baseline(path, data):
+def test_against_baseline(path: str, data: Dict, prob_name: str, num_rows: int):
     print("loading baseline estimates for testing")
     with open(path, "rb") as f:
         baseline = pickle.load(f)
+
+    problem = get_limited_problems(prob_name)[prob_name]
+
+    def get_obj(intercept: float, coef: np.ndarray) -> float:
+        return get_obj_val(
+            problem.data_loader(num_rows),
+            problem.distribution,
+            problem.regularization_strength,
+            problem.l1_ratio,
+            intercept,
+            coef,
+        )
+
+    obj_val_baseline = get_obj(baseline["intercept"], baseline["coef"])
+    obj_val_new = get_obj(data["intercept"], data["coef"])
+    results = pd.DataFrame(
+        columns=["baseline", "new"],
+        index=["obj", "intercept", "last_coef", "runtime"],
+        data=[
+            [obj_val_baseline, obj_val_new],
+            [baseline["intercept"], data["intercept"]],
+            [baseline["coef"][-1], data["coef"][-1]],
+            [baseline["runtime"], data["runtime"]],
+        ],
+    )
+    results["diff"] = results["new"] - results["baseline"]
+    print(results)
     np.testing.assert_almost_equal(data["intercept"], baseline["intercept"])
     np.testing.assert_almost_equal(data["coef"], baseline["coef"])
     print("test passed")
