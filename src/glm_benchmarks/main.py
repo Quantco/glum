@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Tuple
 import click
 import numpy as np
 import pandas as pd
+import scipy.sparse
 
 from glm_benchmarks.bench_glmnet_python import glmnet_python_bench
 from glm_benchmarks.bench_h2o import h2o_bench
@@ -51,8 +52,10 @@ def cli_run(problem_names: str, library_names: str, num_rows: int, output_dir: s
             print("ran")
 
 
-def execute_problem_library(P, L, num_rows=None):
+def execute_problem_library(P, L, num_rows=None, sparsify=False):
     dat = P.data_loader(num_rows=num_rows)
+    if sparsify:
+        dat["X"] = scipy.sparse.csc_matrix(dat["X"])
     result = L(dat, P.distribution, P.regularization_strength, P.l1_ratio)
     return result
 
@@ -154,23 +157,30 @@ def extract_dict_results_to_pd_series(
 
     problem = get_all_problems()[prob_name]
     dat = problem.data_loader(None if n_rows == "None" else int(n_rows))
-    obj_val = get_obj_val(
-        dat,
-        problem.distribution,
-        problem.regularization_strength,
-        problem.l1_ratio,
-        results["intercept"],
-        coefs,
-    )
-    obj_2 = get_obj_val(
-        dat,
-        problem.distribution,
-        problem.regularization_strength,
-        problem.l1_ratio,
-        results["intercept"],
-        coefs,
-        True,
-    ) * len(dat["y"])
+    try:
+        obj_val = get_obj_val(
+            dat,
+            problem.distribution,
+            problem.regularization_strength,
+            problem.l1_ratio,
+            results["intercept"],
+            coefs,
+        )
+        obj_2 = get_obj_val(
+            dat,
+            problem.distribution,
+            problem.regularization_strength,
+            problem.l1_ratio,
+            results["intercept"],
+            coefs,
+            True,
+        ) * len(dat["y"])
+    except NotImplementedError:
+        obj_val = 0
+        obj_2 = 0
+        print(
+            "skipping objective calculation because this distribution is not implemented"
+        )
 
     formatted = {
         "problem": prob_name,
@@ -205,7 +215,6 @@ def get_n_rows_used_to_solve_this_problem(output_dir: str, prob_name: str) -> Li
 def get_limited_problems_libraries(
     problem_names: str, library_names: str
 ) -> Tuple[Dict, Dict]:
-    all_problems = get_all_problems()
     all_libraries = dict(
         sklearn_fork=sklearn_fork_bench,
         glmnet_python=glmnet_python_bench,
@@ -217,18 +226,23 @@ def get_limited_problems_libraries(
         pyglmnet=pyglmnet_bench,
     )
 
-    if len(problem_names) > 0:
-        problem_names_split = get_comma_sep_names(problem_names)
-        problems = {k: all_problems[k] for k in problem_names_split}
-    else:
-        problems = all_problems
-
     if len(library_names) > 0:
         library_names_split = get_comma_sep_names(library_names)
         libraries = {k: all_libraries[k] for k in library_names_split}
     else:
         libraries = all_libraries
-    return problems, libraries
+    return get_limited_problems(problem_names), libraries
+
+
+def get_limited_problems(problem_names):
+    all_problems = get_all_problems()
+
+    if len(problem_names) > 0:
+        problem_names_split = get_comma_sep_names(problem_names)
+        problems = {k: all_problems[k] for k in problem_names_split}
+    else:
+        problems = all_problems
+    return problems
 
 
 def get_comma_sep_names(xs: str) -> List[str]:
