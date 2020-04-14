@@ -24,6 +24,8 @@ class ScaledMat(ABC):
         self.mat = mat
         self.shift = np.squeeze(shift)
         self.shape = mat.shape
+        self.ndim = mat.ndim
+        self.dtype = mat.dtype
 
     @property  # type: ignore
     @abstractclassmethod
@@ -46,18 +48,29 @@ class ScaledMat(ABC):
         = (X.mat[i, j] + x.shift[j]) * Y[j]
         = ColScaledSpMat(X.mat.multiply(Y), x.shift * Y)
         """
-        if not np.isscalar(other):
-            other = np.squeeze(other)
-            if other.ndim > 1:
+        if isinstance(other, np.ndarray):
+            # Not a scalar
+            if not other.ndim == 2 and other.shape[self.scale_axis] == 1:
                 raise NotImplementedError(
                     """Elementwise multiplication by a >1d array is
                 not supported because the result would be dense."""
+                )
+
+            other = np.squeeze(other)
+            if not len(other) == self.shape[self.scale_axis]:
+                raise ValueError(
+                    f"""Expected a vector of shape ({self.shape[self.scale_axis]},),
+                but shape is {other.shape}."""
                 )
             other = np.expand_dims(other, 1 - self.scale_axis)
 
         mat_part = self.mat.multiply(other)
         shift_part = self.shift * np.squeeze(other)
         return type(self)(mat_part, shift_part)
+
+    def __mul__(self, other):
+        """ Defines the beahvior of "*". """
+        return self.multiply(other)
 
     def sum(self, axis: int = None) -> Union[np.ndarray, float]:
         """
@@ -86,6 +99,10 @@ class ScaledMat(ABC):
     def transpose(self):
         pass
 
+    @abstractmethod
+    def dot(self, other):
+        pass
+
     @property
     def T(self):
         return self.transpose()
@@ -95,6 +112,20 @@ class ScaledMat(ABC):
         if axis is None:
             return sum_ / (self.shape[0] * self.shape[1])
         return sum_ / self.shape[axis]
+
+    def __matmul__(self, other):
+        """ Defines the behavior of 'self @ other'. """
+        return self.dot(other)
+
+    def __rmatmul__(self, other):
+        """
+        other @ self = (self.T @ other.T).T
+        """
+        return (self.T @ other.T).T
+
+    # Higher priority than numpy arrays, so behavior for funcs like "@" defaults to the
+    # behavior of ScaledMat
+    __array_priority__ = 11
 
 
 class ColScaledSpMat(ScaledMat):
@@ -162,6 +193,7 @@ class RowScaledSpMat(ScaledMat):
         return ColScaledSpMat(self.mat.T, self.shift)
 
     def dot(self, other_mat: Union[sps.spmatrix, np.ndarray]) -> np.ndarray:
+        # TODO: rmult with certain matrices should return a sparse result, right?
         """
         if M = RowScaledSpMat(A, b),
         M.dot(x)[i, j] = sum_k (A[i, k] * b[k, j] + shift[i] * b[k, j])
