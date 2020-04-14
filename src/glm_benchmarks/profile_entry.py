@@ -7,13 +7,6 @@ import numpy as np
 from glm_benchmarks.bench_sklearn_fork import sklearn_fork_bench
 from glm_benchmarks.main import execute_problem_library, get_limited_problems
 
-# For line-by-line profiling, use line_profiler:
-# kernprof -lbv src/glm_benchmarks/profile_entry.py
-#
-# For stack sampling profiling, use py-spy:
-# py-spy py-spy record -o profile.svg -- python src/glm_benchmarks/profile_entry.py
-# py-spy top -- python src/glm_benchmarks/profile_entry.py
-
 
 @click.command()
 @click.option(
@@ -50,7 +43,7 @@ def main(num_rows, problem_names, sparsify, save_result, save_dir):
             problems[Pn], sklearn_fork_bench, num_rows, sparsify
         )
 
-        path = os.path.join(save_dir, Pn, str(num_rows) + ".npy")
+        path = os.path.join(save_dir, Pn, str(num_rows) + ".pkl")
         if save_result:
             save_baseline(path, result)
         else:

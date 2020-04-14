@@ -42,9 +42,4 @@ H2O: https://github.com/h2oai/h2o-tutorials/blob/master/tutorials/glm/glm_h2owor
 
 For line-by-line profiling, use line_profiler `kernprof -lbv src/glm_benchmarks/profile_entry.py`
 
-For stack sampling profiling, use py-spy:
-
-```
-py-spy record -o profile.svg -- python src/glm_benchmarks/profile_entry.py
-py-spy top -- python src/glm_benchmarks/profile_entry.py
-```
+For stack sampling profiling, use py-spy: `py-spy top -- python src/glm_benchmarks/profile_entry.py`
