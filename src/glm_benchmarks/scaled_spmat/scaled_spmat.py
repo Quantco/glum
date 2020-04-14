@@ -15,14 +15,21 @@ class ScaledMat(ABC):
         if not sps.issparse(mat):
             raise ValueError("mat should be a sparse matrix.")
 
-        if not np.squeeze(shift).shape == (mat.shape[self.scale_axis],):
-            raise ValueError(
-                f"""Shifter is of shape {shift.shape}; expected
-            {(mat.shape[self.scale_axis],)}"""
-            )
+        if shift.ndim == 1:
+            shift = np.expand_dims(shift, 1 - self.scale_axis)
+        else:
+            if self.scale_axis == 0:
+                expected_shape = (mat.shape[0], 1)
+            else:
+                expected_shape = (1, mat.shape[1])
+            if not shift.shape == expected_shape:
+                raise ValueError(
+                    f"""Expected shift to have shape {expected_shape},
+                but it has shape {shift.shape}"""
+                )
 
+        self.shift = shift
         self.mat = mat
-        self.shift = np.squeeze(shift)
         self.shape = mat.shape
         self.ndim = mat.ndim
         self.dtype = mat.dtype
@@ -33,7 +40,7 @@ class ScaledMat(ABC):
         return 0
 
     def todense(self) -> np.ndarray:
-        return self.mat.A + np.expand_dims(self.shift, 1 - self.scale_axis)
+        return self.mat.A + self.shift
 
     @property
     def A(self):
@@ -41,32 +48,36 @@ class ScaledMat(ABC):
 
     def multiply(self, other: Union[np.ndarray, float]):
         """
-        If other_mat is a matrix, result is potentially dense. Not supported.
-        If other_mat is a column vector,
+        Let self.shape = (n, k)
 
-        X.multiply(Y)[i, j] = X[i, j] * Y[j]
-        = (X.mat[i, j] + x.shift[j]) * Y[j]
-        = ColScaledSpMat(X.mat.multiply(Y), x.shift * Y)
+        Cases:
+        other.shape = (n, k):
+            result = self.mat * other + other * self.shift
+            sum of sparse matrices
+        other_mat.shape = (self.shape[0], 1) or (1, self.shape[1]):
+            Broadcast multiplication.
+            If axis not equal to 1 is same as self.scale_axis,
+            col case:
+            result[i, j] = self.mat[i, j] * other[0, j] + self.shift[0, j] * other[0, j]
+                         = self.mat * other + self.shift * other
+                         = ColScaledSpMat(self.mat * other, self.shift * other)
+            row case:
+            result[i, j] = self.mat[i, j] other[i, 0] + self.shift[i, 0] * other[i, 0]
+                         = self.mat * other + self.shift * other
+                         = RowScaledSpMat(self.mat * other, self.shift * other)
+            If axis not equal to 1 is not the same as self.scale_axis, result will be
+                dense. Not supported.
+        other_mat.shape = (self.shape[1],) or (self.shape[0],):
+            Expand dims to correct shape, as above.
+        other_mat is scalar:
+            Same as broadcast case.
         """
-        if isinstance(other, np.ndarray):
-            # Not a scalar
-            if not other.ndim == 2 and other.shape[self.scale_axis] == 1:
-                raise NotImplementedError(
-                    """Elementwise multiplication by a >1d array is
-                not supported because the result would be dense."""
-                )
-
-            other = np.squeeze(other)
-            if not len(other) == self.shape[self.scale_axis]:
-                raise ValueError(
-                    f"""Expected a vector of shape ({self.shape[self.scale_axis]},),
-                but shape is {other.shape}."""
-                )
-            other = np.expand_dims(other, 1 - self.scale_axis)
-
         mat_part = self.mat.multiply(other)
-        shift_part = self.shift * np.squeeze(other)
-        return type(self)(mat_part, shift_part)
+        shift_part = self.shift * other
+        if shift_part.shape == self.shift.shape:
+            return type(self)(mat_part, shift_part)
+        else:
+            return mat_part + shift_part
 
     def __mul__(self, other):
         """ Defines the beahvior of "*". """
@@ -76,24 +87,30 @@ class ScaledMat(ABC):
         """
         For col case:
         axis = 0:
-            sum_i (mat[i, j] + shift[j]) = sum_i mat[i, j] + shift[j] * mat.shape[0]
-            = mat.sum(0) + shift * mat.shape[0]
+            result[i, j] = sum_i (mat[i, j] + shift[1, j])
+                         = mat.sum(0)[1, j] + shift[j] * self.shape[0]
+            result = mat.sum() + shift * self.shape
         axis = 1:
             sum_j (mat[i, j] + shift[j]) = mat.sum(1) + shift.sum()
-        axis=None: mat.sum(None) + shift.sum(None)
+        axis=None:
+            col case:
+            mat.sum(None) + sum_i sum_j shift[1, j]
+            = mat.sum(None) + mat.shape[0] * shift.sum()
 
         Row case is symmetric.
         """
-        mat_part = np.squeeze(np.asarray(self.mat.sum(axis=axis)))
+        shift_sum = self.shift.sum(axis=axis)
 
-        if axis == self.scale_axis:
-            shift_part = self.shift.sum()
+        if axis is None:
+            shift_part = shift_sum * self.shape[1 - self.scale_axis]
+            assert np.isscalar(shift_part)
+        elif axis == self.scale_axis:
+            shift_part = shift_sum
         else:
-            shift_part = (
-                np.expand_dims(self.shift, 1 - self.scale_axis).sum(axis=axis)
-                * self.shape[1 - self.scale_axis]
+            shift_part = np.expand_dims(
+                shift_sum * self.shape[axis], 1 - self.scale_axis
             )
-        return mat_part + shift_part
+        return self.mat.sum(axis) + shift_part
 
     @abstractmethod
     def transpose(self):
@@ -108,10 +125,11 @@ class ScaledMat(ABC):
         return self.transpose()
 
     def mean(self, axis: int = None):
-        sum_ = self.sum(axis)
         if axis is None:
-            return sum_ / (self.shape[0] * self.shape[1])
-        return sum_ / self.shape[axis]
+            denominator = self.shape[0] * self.shape[1]
+        else:
+            denominator = self.shape[axis]
+        return self.sum(axis) / denominator
 
     def __matmul__(self, other):
         """ Defines the behavior of 'self @ other'. """
@@ -141,30 +159,38 @@ class ColScaledSpMat(ScaledMat):
         return 1
 
     def transpose(self):
-        return RowScaledSpMat(self.mat.T, self.shift)
+        return RowScaledSpMat(self.mat.T, self.shift.T)
 
     def dot(self, other_mat: Union[sps.spmatrix, np.ndarray]):
         """
-        self.mat.dot(x)[i, j] = self.mat.dot(x)[i, j] + sum_k self.shift[k] * x[k, j]
-        = self.mat.dot(x)[i, j] + x.dot(self.shift)[j]
-        = ColScaledSpMat(self.mat.dot(x), x.dot(self.shift))[i, j]
+        Let self.shape = (n, k).
 
-        If other_mat is a 1d numpy array, return a 1d numpy array.
-        If other_mat is a >1d ndarray, return a numpy ndarray (because
-        the dot product of a sparse matrix and dense matrix is dense).
-        If other_mat is a sparse matrix, return a ColScaledSpMat.
+        If other.shape = (k, m):
+
+            result[i, j] = sum_k self[i, k] @ other_mat[k, j]
+                         = sum_k (self.mat[i, k] + self.shift[0, k]) @ other_mat[k, j]
+            result       = self.mat @ other_mat + self.shift @ other_mat
+                           (n, m)                  (1, m)
+
+            If other is sparse, result = ColScaledSpMat(self.mat @ other_mat,
+                                                         self.shift @other_mat)
+            If other is dense, result = self.mat @ other_mat + self.shift @ other_mat
+
+        If other.shape = (k,):
+
+            result = self.mat @ other_mat + self.shift @ other_mat
+                           (n,)                  (1,)
         """
         mat_part = self.mat.dot(other_mat)
-        if not sps.issparse(other_mat):
-            other_mat = np.asarray(other_mat)
+        if sps.issparse(other_mat):
+            # np.dot doesn't work well with a sparse matrix right argument
+            shifter = other_mat.T.dot(self.shift.T).T
+        else:
+            shifter = self.shift.dot(other_mat)
 
-        shifter = other_mat.T.dot(self.shift)
-
-        if other_mat.ndim == 1:
-            return mat_part + shifter
-        if not sps.issparse(other_mat):
-            return mat_part + shifter[None, :]
-        return ColScaledSpMat(mat_part, shifter)
+        if sps.issparse(mat_part):
+            return ColScaledSpMat(mat_part, shifter)
+        return mat_part + shifter
 
     def power(self, p: float):
         tmp = self.mat.tocsc(copy=True)
@@ -173,7 +199,8 @@ class ColScaledSpMat(ScaledMat):
         for j in range(self.shape[1]):
             start, end = tmp.indptr[j : j + 2]
             data = tmp.data[start:end]
-            tmp.data[start:end] = (data + self.shift[j]) ** p - shift_power[j]
+            pow = shift_power[0, j]
+            tmp.data[start:end] = (data + self.shift[0, j]) ** p - pow
         return ColScaledSpMat(tmp, shift_power)
 
 
@@ -190,30 +217,32 @@ class RowScaledSpMat(ScaledMat):
         return 0
 
     def transpose(self) -> ColScaledSpMat:
-        return ColScaledSpMat(self.mat.T, self.shift)
+        return ColScaledSpMat(self.mat.T, self.shift.T)
 
     def dot(self, other_mat: Union[sps.spmatrix, np.ndarray]) -> np.ndarray:
-        # TODO: rmult with certain matrices should return a sparse result, right?
         """
-        if M = RowScaledSpMat(A, b),
-        M.dot(x)[i, j] = sum_k (A[i, k] * b[k, j] + shift[i] * b[k, j])
-        = A.dot(b)[i, j] + shift[i] * b[:, j].sum()
+        Let self.shape = (n, k).
 
-        If x is >1d, this will generate a dense matrix that cannot be represented as
-        a RowScaledSpMat or ColScaledSpMat since it involves an outer product of two
-        vectors. Therefore, this will return a dense matrix.
+        If other.shape = (k, m):
 
-        If x is a vector, the output is a vector, so this will also return
-        a dense matrix.
+            result[i, j] = sum_k self[i, k] @ other_mat[k, j]
+                         = sum_k (self.mat[i, k] + self.shift[i, 1]) @ other_mat[k, j]
+            result = self.mat @ other_mat + self.shift @ other_mat.sum(0)
+                      (n, m)                 (n, 1) @ (1, m) = (n, m)
+            This is dense!
+
+        If other.shape = (k,):
+
+            result[i, j] = self.mat @ other_mat + self.shift @ other_mat.sum(0)
+                           (n,)                  (n, 1) @ (1,) = (n,)
         """
         mat_part = self.mat.dot(other_mat)
+        other_sum = other_mat.sum(0)
         if not sps.issparse(other_mat):
-            other_mat = np.asarray(other_mat)
-        if other_mat.ndim == 1:
-            shifter = self.shift * other_mat.sum()
-        else:
-            shifter = self.shift[:, None] * other_mat.sum(0)[None, :]
-        return mat_part + shifter
+            # with numpy, sum is of shape (k,); with scipy it is of shape (1, k)
+            other_sum = np.expand_dims(other_sum, 0)
+        shift_part = self.shift.dot(other_sum)
+        return mat_part + shift_part
 
     def power(self, p: float):
         return self.T.power(p).T
