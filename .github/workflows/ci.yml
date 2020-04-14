@@ -1,0 +1,24 @@
+name: CI
+on: [push, pull_request]
+
+jobs:
+    linux:
+      name: "Linux"
+      runs-on: ubuntu-latest
+      env:
+        CI: True
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      strategy:
+        fail-fast: false
+      steps:
+        - name: Checkout branch
+          uses: actions/checkout@v2.1.0
+          with:
+            ref: ${{ github.head_ref }}
+        # - name: Fetch tags
+        #   run: git fetch --depth=1 origin +refs/tags/*:refs/tags/*
+        # - name: Fetch all
+        #   run: git fetch --prune --unshallow
+        - name: Run CI
+          shell: bash -l {0}
+          run: ./.github/workflows/test.sh
