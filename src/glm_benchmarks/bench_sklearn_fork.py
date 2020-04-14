@@ -4,7 +4,7 @@ from typing import Dict, Union
 import numpy as np
 from scipy import sparse as sps
 
-from .sklearn_fork import GeneralizedLinearRegressor
+from .sklearn_fork import GeneralizedLinearRegressor, TweedieDistribution
 from .util import runtime
 
 random_seed = 110
@@ -26,8 +26,15 @@ def sklearn_fork_bench(
     if "weights" in dat.keys():
         fit_args.update({"sample_weight": dat["weights"]})
 
+    family = distribution
+    if family == "gaussian":
+        family = "normal"
+    elif "tweedie" in family:
+        tweedie_p = float(family.split("_p=")[1])
+        family = TweedieDistribution(tweedie_p)  # type: ignore
+
     model_args = dict(
-        family="normal" if distribution == "gaussian" else distribution,
+        family=family,
         alpha=alpha,
         l1_ratio=l1_ratio,
         max_iter=10000,
