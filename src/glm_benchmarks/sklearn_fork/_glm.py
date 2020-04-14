@@ -52,8 +52,6 @@ from sklearn.utils import check_array, check_X_y
 from sklearn.utils.optimize import newton_cg
 from sklearn.utils.validation import check_is_fitted, check_random_state
 
-from glm_benchmarks.scaled_spmat import ColScaledSpMat
-
 
 def _check_weights(sample_weight, n_samples):
     """Check that sample weights are non-negative and have the right shape."""
@@ -112,16 +110,12 @@ def _safe_sandwich_dot(X, d, intercept=False):
         temp = X.transpose() @ X.multiply(d[:, np.newaxis])
         # for older versions of numpy and scipy, temp may be a np.matrix
         temp = _safe_toarray(temp)
-    elif isinstance(X, ColScaledSpMat):
-        temp = X.T @ (sparse.diags(d) @ X)
     else:
         temp = (X.T * d) @ X
     if intercept:
         dim = X.shape[1] + 1
         if sparse.issparse(X):
             order = "F" if sparse.isspmatrix_csc(X) else "C"
-        elif isinstance(X, ColScaledSpMat):
-            order = "F" if sparse.isspmatrix_csc(X.mat) else "C"
         else:
             order = "F" if X.flags["F_CONTIGUOUS"] else "C"
         res = np.empty((dim, dim), dtype=max(X.dtype, d.dtype), order=order)
@@ -1073,7 +1067,6 @@ def _irls_solver(coef, X, y, weights, P2, fit_intercept, family, link, max_iter,
     return coef, n_iter
 
 
-# @profile
 def _cd_cycle(
     d,
     X,
@@ -1109,7 +1102,6 @@ def _cd_cycle(
     idx = 1 if intercept else 0  # offset if coef[0] is intercept
     # ES: This is weird. Should this be B = fisher.copy()? Why would you do this?
     B = fisher
-
     if P2.ndim == 1:
         coef_P2 = coef[idx:] * P2
         if not diag_fisher:
@@ -1197,7 +1189,6 @@ def _cd_cycle(
                 # B is symmetric, C- or F-contiguous, but never sparse
                 if B.flags["F_CONTIGUOUS"]:
                     # slice columns like for sparse csc
-                    # ES: slow
                     A += B[:, jdx] * z
                 else:  # B.flags['C_CONTIGUOUS'] might be true
                     # slice rows
@@ -1235,7 +1226,6 @@ def _cd_cycle(
     return d, coef_P2, n_cycles, inner_tol
 
 
-# @profile
 def _cd_solver(
     coef,
     X,
@@ -1254,7 +1244,6 @@ def _cd_solver(
     diag_fisher=False,
     copy_X=True,
 ):
-    # 92% of time is in _cd_cycle
     """Solve GLM with L1 and L2 penalty by coordinate descent algorithm.
 
     The objective being minimized in the coefficients w=coef is::
@@ -1356,10 +1345,7 @@ def _cd_solver(
     Journal of Machine Learning Research 13 (2012) 1999-2030
     https://www.csie.ntu.edu.tw/~cjlin/papers/l1_glmnet/long-glmnet.pdf
     """
-    if not isinstance(X, ColScaledSpMat):
-        X = check_array(
-            X, "csc", dtype=[np.float64, np.float32], order="F", copy=copy_X
-        )
+    X = check_array(X, "csc", dtype=[np.float64, np.float32], order="F", copy=copy_X)
     if P2.ndim == 2:
         P2 = check_array(
             P2, "csc", dtype=[np.float64, np.float32], order="F", copy=copy_X
@@ -2143,8 +2129,11 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         # 2b Potentially rescale predictors
         ###
         if self.center_predictors:
-            col_means = X.T.dot(weights)
-            X = ColScaledSpMat(X, -col_means)
+            col_means = X.T.dot(weights)[None, :]
+            if sparse.issparse(X):
+                raise NotImplementedError
+            else:
+                X -= col_means
 
         #######################################################################
         # 3. initialization of coef = (intercept_, coef_)                     #
@@ -2156,15 +2145,11 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         if self.warm_start and hasattr(self, "coef_"):
             if self.fit_intercept:
                 # TODO: make sure to test warm-start functionality
-                # If we have subtracted v[j] from column j when centering predictors, we
-                # that will decrease the mean by v[j] mean(col(j)), so we need to
-                # add that back to the intercept
                 if self.center_predictors:
                     self.intercept_ += col_means * self.coef_
                 coef = np.concatenate((np.array([self.intercept_]), self.coef_))
             else:
                 coef = self.coef_
-
         elif isinstance(start_params, str):
             if start_params == "guess":
                 # Set mu=starting_mu of the family and do one Newton step
@@ -2177,10 +2162,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                     d1 = link.inverse_derivative(eta)
                     temp = sigma_inv * d1 * (y - mu)
                     if self.fit_intercept:
-                        # Hack: Second argument used to be "temp @ X" but this currently
-                        # doesn't work
                         score = np.concatenate(([temp.sum()], temp @ X))
-                        # score = np.concatenate(([temp.sum()], (X.T @ temp.T).T))
                     else:
                         score = temp @ X  # same as X.T @ temp
 
@@ -2394,12 +2376,18 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 family=family,
                 link=link,
                 max_iter=self.max_iter,
-                tol=self.tol,
+                # tol=self.tol,
+                tol=1e-9,
                 selection=self.selection,
                 random_state=random_state,
                 diag_fisher=self.diag_fisher,
                 copy_X=self.copy_X,
             )
+
+        # If we centered predictors, undo it
+        if self.center_predictors:
+            X += col_means
+            coef[0] -= np.squeeze(col_means).dot(coef[1:])
 
         #######################################################################
         # 5. postprocessing                                                   #
