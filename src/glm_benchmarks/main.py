@@ -13,7 +13,7 @@ from glm_benchmarks.bench_qc_glmnet import glmnet_qc_bench
 from glm_benchmarks.bench_sklearn_fork import sklearn_fork_bench
 from glm_benchmarks.bench_statsmodels import statsmodels_bench
 from glm_benchmarks.bench_tensorflow import tensorflow_bench
-from glm_benchmarks.problems import get_all_problems
+from glm_benchmarks.problems import Problem, get_all_problems
 
 from .bench_pyglmnet import pyglmnet_bench
 from .util import get_obj_val
@@ -224,7 +224,7 @@ def get_limited_problems_libraries(
     return get_limited_problems(problem_names), libraries
 
 
-def get_limited_problems(problem_names):
+def get_limited_problems(problem_names: str) -> Dict[str, Problem]:
     all_problems = get_all_problems()
 
     if len(problem_names) > 0:
