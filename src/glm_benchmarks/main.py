@@ -157,23 +157,30 @@ def extract_dict_results_to_pd_series(
 
     problem = get_all_problems()[prob_name]
     dat = problem.data_loader(None if n_rows == "None" else int(n_rows))
-    obj_val = get_obj_val(
-        dat,
-        problem.distribution,
-        problem.regularization_strength,
-        problem.l1_ratio,
-        results["intercept"],
-        coefs,
-    )
-    obj_2 = get_obj_val(
-        dat,
-        problem.distribution,
-        problem.regularization_strength,
-        problem.l1_ratio,
-        results["intercept"],
-        coefs,
-        True,
-    ) * len(dat["y"])
+    try:
+        obj_val = get_obj_val(
+            dat,
+            problem.distribution,
+            problem.regularization_strength,
+            problem.l1_ratio,
+            results["intercept"],
+            coefs,
+        )
+        obj_2 = get_obj_val(
+            dat,
+            problem.distribution,
+            problem.regularization_strength,
+            problem.l1_ratio,
+            results["intercept"],
+            coefs,
+            True,
+        ) * len(dat["y"])
+    except NotImplementedError:
+        obj_val = 0
+        obj_2 = 0
+        print(
+            "skipping objective calculation because this distribution is not implemented"
+        )
 
     formatted = {
         "problem": prob_name,

@@ -58,16 +58,19 @@ def load_sparse_insurance_data_no_weights(
 
 def get_all_problems() -> Dict[str, Problem]:
     regularization_strength = 0.001
-    distributions = ["gaussian", "poisson", "gamma"]
+    distributions = ["gaussian", "poisson", "gamma", "tweedie_p=1.5"]
 
     problems = dict()
     for penalty_str, l1_ratio in [("l2", 0.0), ("net", 0.5), ("lasso", 1.0)]:
         for distribution in distributions:
             suffix = penalty_str + "_" + distribution
+            data_version = distribution
+            if "tweedie" in data_version:
+                data_version = "tweedie"
 
             problems["simple_insurance_" + suffix] = Problem(
                 data_loader=partial(
-                    load_simple_insurance_data, distribution=distribution
+                    load_simple_insurance_data, distribution=data_version
                 ),
                 distribution=distribution,
                 regularization_strength=regularization_strength,
@@ -76,7 +79,7 @@ def get_all_problems() -> Dict[str, Problem]:
 
             problems["simple_insurance_no_weights_" + suffix] = Problem(
                 data_loader=partial(
-                    load_simple_insurance_data_no_weights, distribution=distribution
+                    load_simple_insurance_data_no_weights, distribution=data_version
                 ),
                 distribution=distribution,
                 regularization_strength=regularization_strength,
@@ -85,7 +88,7 @@ def get_all_problems() -> Dict[str, Problem]:
 
             problems["sparse_insurance_" + suffix] = Problem(
                 data_loader=partial(
-                    load_sparse_insurance_data, distribution=distribution
+                    load_sparse_insurance_data, distribution=data_version
                 ),
                 distribution=distribution,
                 regularization_strength=regularization_strength,
@@ -94,7 +97,7 @@ def get_all_problems() -> Dict[str, Problem]:
 
             problems["sparse_insurance_no_weights_" + suffix] = Problem(
                 data_loader=partial(
-                    load_sparse_insurance_data_no_weights, distribution=distribution
+                    load_sparse_insurance_data_no_weights, distribution=data_version
                 ),
                 distribution=distribution,
                 regularization_strength=regularization_strength,
