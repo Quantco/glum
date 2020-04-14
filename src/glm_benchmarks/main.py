@@ -125,21 +125,11 @@ def cli_analyze(problem_names: str, library_names: str, num_rows: str, output_di
     for col in ["obj_val", "obj_val_2"]:
         res_df["rel_" + col] = res_df[col] - res_df.groupby(level=[0, 1])[col].min()
 
-    problems = res_df.index.get_level_values("problem").values
-    # keeps = ["sparse" not in x and "no_weights" in x for x in problems]
-    keeps = [x in x for x in problems]
-    res_df.loc[keeps, :].reset_index().to_csv("results.csv")
+    res_df = res_df.reset_index()
+
     print(
         res_df.loc[
-            keeps,
-            [
-                "n_iter",
-                "runtime",
-                "intercept",
-                "obj_val",
-                "rel_obj_val",
-                "rel_obj_val_2",
-            ],
+            res_df["n_rows"] == 50000, ["problem", "n_iter", "runtime", "intercept"],
         ]
     )
 
