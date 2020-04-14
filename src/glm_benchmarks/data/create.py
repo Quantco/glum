@@ -304,7 +304,7 @@ def add_noise(df: pd.DataFrame, noise: float) -> pd.DataFrame:
     """Add noise by swapping out data points."""
     np.random.seed(43212)
     for col in df.columns:
-        if col in ["ClaimNb", "Exposure"]:
+        if col in ["ClaimNb", "Exposure", "ClaimAmountCut", "ClaimNb_pos"]:
             continue
         swap = np.random.uniform(size=len(df)) < noise
         shuffle = np.random.choice(df[col], size=len(df))
@@ -313,12 +313,34 @@ def add_noise(df: pd.DataFrame, noise: float) -> pd.DataFrame:
     return df
 
 
+def compute_y_exposure(df, distribution):
+    """Compute y and exposure depending on distribution."""
+    if distribution == "poisson":
+        exposure = df["Exposure"].values
+        y = df["ClaimNb"].values / exposure
+    elif distribution in ["gamma", "gaussian"]:
+        exposure = df["ClaimNb_pos"].values
+        y = df["ClaimAmountCut"].values / exposure
+    elif distribution == "tweedie":
+        exposure = df["Exposure"].values
+        y = df["ClaimAmountCut"].values / exposure
+    else:
+        raise ValueError(
+            f"distribution must be one of ['poisson', 'gamma', 'tweedie', 'gaussian'] not {distribution}."
+        )
+
+    return y, exposure
+
+
 def generate_simple_insurance_dataset(
-    nrows=None, noise=None,
+    nrows=None, noise=None, distribution="poisson"
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Generate the tutorial data set from the sklearn fork and save it to disk."""
 
     df = pd.read_parquet(git_root("data/insurance.parquet"))
+
+    if distribution in ["gamma", "gaussian"]:
+        df = df.query("ClaimAmountCut > 0")
 
     if nrows is not None:
         # if we're oversampling, set default value for noise to 0.05
@@ -331,19 +353,19 @@ def generate_simple_insurance_dataset(
         df = add_noise(df, noise=noise)
 
     col_trans_GLM1, col_trans_GLM1_names = gen_col_trans(drop=True, standardize=False)
-    z = df["ClaimNb"].values
-    exposure = df["Exposure"].values
-    # claims frequency
-    y = z / exposure
+    y, exposure = compute_y_exposure(df, distribution)
 
     return col_trans_GLM1.fit_transform(df), y, exposure
 
 
 def generate_sparse_insurance_dataset(
-    nrows=None, noise=None,
+    nrows=None, noise=None, distribution="poisson"
 ) -> Tuple[sps.spmatrix, np.ndarray, np.ndarray]:
     """Generate a version of the tutorial data set with many features."""
     df = pd.read_parquet(git_root("data/insurance.parquet"))
+
+    if distribution in ["gamma", "gaussian"]:
+        df = df.query("ClaimAmountCut > 0")
 
     if nrows is not None:
         # if we're oversampling, set default value for noise to 0.05
@@ -379,9 +401,6 @@ def generate_sparse_insurance_dataset(
         ],
         remainder="drop",
     )
-    z = df["ClaimNb"].values
-    exposure = df["Exposure"].values
-    # claims frequency
-    y = z / exposure
+    y, exposure = compute_y_exposure(df, distribution)
 
     return transformer.fit_transform(df), y, exposure
