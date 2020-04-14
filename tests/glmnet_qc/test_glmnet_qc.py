@@ -7,7 +7,7 @@ from scipy.sparse.linalg import lsqr
 
 from glm_benchmarks.glmnet_qc.model import GaussianCanonicalModel, GlmnetModel
 
-from .glmnet_qc import (
+from glm_benchmarks.glmnet_qc import (
     _get_coordinate_wise_update_naive,
     _get_coordinate_wise_update_sparse,
     fit_glmnet,
