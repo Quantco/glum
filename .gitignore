@@ -1,6 +1,5 @@
 # Project-specific folder
 benchmark_output/
-golden_master/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
