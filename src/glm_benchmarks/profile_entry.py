@@ -63,7 +63,7 @@ coef = np.array(
 # kernprof -lbv src/glm_benchmarks/profile_entry.py
 #
 # For stack sampling profiling, use py-spy:
-# py-spy py-spy record -o profile.svg -- python src/glm_benchmarks/profile_entry.py
+# py-spy record -o profile.svg -- python src/glm_benchmarks/profile_entry.py
 # py-spy top -- python src/glm_benchmarks/profile_entry.py
 
 
@@ -76,9 +76,9 @@ coef = np.array(
 )
 def main(num_rows):
     problems = get_all_problems()
-    Pn = "simple_insurance_no_weights_lasso_poisson"
+    Pn = "sparse_insurance_no_weights_lasso_poisson"
     result = execute_problem_library(problems[Pn], sklearn_fork_bench, num_rows)
-    if num_rows == 50000:
+    if num_rows == 50000 and Pn == "simple_insurance_no_weights_lasso_poisson":
         np.testing.assert_almost_equal(result["intercept"], intercept)
         np.testing.assert_almost_equal(result["coef"], coef)
 
