@@ -52,10 +52,12 @@ def cli_run(problem_names: str, library_names: str, num_rows: int, output_dir: s
             print("ran")
 
 
-def execute_problem_library(P, L, num_rows=None, sparsify=False):
+def execute_problem_library(P, L, num_rows=None, sparsify=False, densify=False):
     dat = P.data_loader(num_rows=num_rows)
     if sparsify:
         dat["X"] = scipy.sparse.csc_matrix(dat["X"])
+    if densify:
+        dat["X"] = dat["X"].toarray()
     result = L(dat, P.distribution, P.regularization_strength, P.l1_ratio)
     return result
 

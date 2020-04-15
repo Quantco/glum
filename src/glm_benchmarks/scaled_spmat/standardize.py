@@ -22,7 +22,7 @@ def zero_center(
     if weights is None:
         means = np.asarray(mat.mean(0))
     else:
-        means = mat.T.dot(weights) / np.sum(weights)
+        means = (mat.T.dot(weights) / np.sum(weights))[None, :]
     return ColScaledSpMat(mat, -means), means
 
 
