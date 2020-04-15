@@ -42,7 +42,7 @@ def sklearn_fork_bench(
         random_state=random_seed,
         copy_X=True,
         selection="random",
-        tol=1e-9,
+        tol=1e-5,
         standardize=True,
     )
 

@@ -38,22 +38,26 @@ from glm_benchmarks.util import get_obj_val
     help="Save the estimates for later golden master testing.",
 )
 @click.option(
+    "--no_test", is_flag=True, help="Skip the test against the baseline.",
+)
+@click.option(
     "--save_dir",
     default="golden_master",
     help="Where to find saved estimates for checking that estimates haven't changed.",
 )
-def main(num_rows, problem_names, sparsify, densify, save_result, save_dir):
+def main(num_rows, problem_names, sparsify, densify, save_result, no_test, save_dir):
     problems = get_limited_problems(problem_names)
     for Pn in problems:
         print(f"benchmarking {Pn}")
         result = execute_problem_library(
             problems[Pn], sklearn_fork_bench, num_rows, sparsify, densify
         )
+        print(f"took {result['runtime']}")
 
         path = os.path.join(save_dir, Pn, str(num_rows) + ".pkl")
         if save_result:
             save_baseline(path, result)
-        else:
+        elif not no_test:
             test_against_baseline(path, result, Pn, num_rows)
         print("")
 
