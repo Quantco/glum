@@ -67,6 +67,7 @@ def test_against_baseline(path: str, data: Dict, prob_name: str, num_rows: int):
     print(
         f'baseline intercept = {baseline["intercept"]}. new intercept = {data["intercept"]}.'
     )
+    print(f'intercept difference = {baseline["intercept"] - data["intercept"]}')
     diff = data["coef"] - baseline["coef"]
     msd = np.sqrt(np.mean(diff ** 2))
     print(f"root mean square difference between coef: {msd}")
