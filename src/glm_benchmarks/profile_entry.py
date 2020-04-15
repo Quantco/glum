@@ -62,9 +62,14 @@ def test_against_baseline(path, data):
     print("loading baseline estimates for testing")
     with open(path, "rb") as f:
         baseline = pickle.load(f)
-    np.testing.assert_almost_equal(data["intercept"], baseline["intercept"])
-    np.testing.assert_almost_equal(data["coef"], baseline["coef"])
-    print("test passed")
+
+    print(
+        f'baseline intercept = {baseline["intercept"]}. new intercept = {data["intercept"]}.'
+    )
+    diff = data["coef"] - baseline["coef"]
+    msd = np.sqrt(np.mean(diff ** 2))
+    print(f"root mean square difference between coef: {msd}")
+    print(f"max difference between coef: {np.max(np.abs(diff))}")
     print(f"baseline runtime = {baseline['runtime']}")
     print(f"current runtime = {data['runtime']}")
 
