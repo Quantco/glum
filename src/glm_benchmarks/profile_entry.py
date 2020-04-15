@@ -1,5 +1,6 @@
 import os
 import pickle
+from typing import Dict
 
 import click
 import numpy as np
@@ -47,7 +48,7 @@ def main(num_rows, problem_names, sparsify, save_result, save_dir):
         if save_result:
             save_baseline(path, result)
         else:
-            test_against_baseline(path, result)
+            test_against_baseline(path, result, Pn, num_rows)
         print("")
 
 
@@ -58,7 +59,7 @@ def save_baseline(path, data):
         pickle.dump(data, f)
 
 
-def test_against_baseline(path, data):
+def test_against_baseline(path: str, data: Dict, prob_name: str, num_rows: int):
     print("loading baseline estimates for testing")
     with open(path, "rb") as f:
         baseline = pickle.load(f)

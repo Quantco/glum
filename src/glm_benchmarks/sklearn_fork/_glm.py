@@ -1104,6 +1104,7 @@ def _cd_cycle(
     n_samples, n_features = X.shape
     intercept = coef.size == X.shape[1] + 1
     idx = 1 if intercept else 0  # offset if coef[0] is intercept
+    # ES: This is weird. Should this be B = fisher.copy()? Why would you do this?
     B = fisher
     if P2.ndim == 1:
         coef_P2 = coef[idx:] * P2
@@ -1751,6 +1752,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         copy_X=True,
         check_input=True,
         verbose=0,
+        center_predictors: bool = True,
     ):
         self.alpha = alpha
         self.l1_ratio = l1_ratio
@@ -1771,6 +1773,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         self.copy_X = copy_X
         self.check_input = check_input
         self.verbose = verbose
+        self.center_predictors = center_predictors
 
     def fit(self, X, y, sample_weight=None):
         """Fit a Generalized Linear Model.
@@ -1796,6 +1799,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         -------
         self : returns an instance of self.
         """
+        # 99.8% of time is in the _cd_solver function
         #######################################################################
         # 1. input validation                                                 #
         #######################################################################
@@ -2122,7 +2126,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             # TODO: what else to check?
 
         #######################################################################
-        # 2. rescaling of weights (sample_weight)                             #
+        # 2a. rescaling of weights (sample_weight)                             #
         #######################################################################
         # IMPORTANT NOTE: Since we want to minimize
         # 1/(2*sum(sample_weight)) * deviance + L1 + L2,
@@ -2132,6 +2136,16 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         weights_sum = np.sum(weights)
         weights = weights / weights_sum
 
+        ###
+        # 2b Potentially rescale predictors
+        ###
+        if self.center_predictors:
+            col_means = X.T.dot(weights)[None, :]
+            if sparse.issparse(X):
+                raise NotImplementedError
+            else:
+                X -= col_means
+
         #######################################################################
         # 3. initialization of coef = (intercept_, coef_)                     #
         #######################################################################
@@ -2139,9 +2153,11 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         #       of mu_i=E[y_i], set it to 1.
 
         # set start values for coef
-        coef = None
         if self.warm_start and hasattr(self, "coef_"):
             if self.fit_intercept:
+                # TODO: make sure to test warm-start functionality
+                if self.center_predictors:
+                    self.intercept_ += col_means * self.coef_
                 coef = np.concatenate((np.array([self.intercept_]), self.coef_))
             else:
                 coef = self.coef_
@@ -2371,12 +2387,18 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 family=family,
                 link=link,
                 max_iter=self.max_iter,
-                tol=self.tol,
+                # tol=self.tol,
+                tol=1e-9,
                 selection=self.selection,
                 random_state=random_state,
                 diag_fisher=self.diag_fisher,
                 copy_X=self.copy_X,
             )
+
+        # If we centered predictors, undo it
+        if self.center_predictors:
+            X += col_means
+            coef[0] -= np.squeeze(col_means).dot(coef[1:])
 
         #######################################################################
         # 5. postprocessing                                                   #
