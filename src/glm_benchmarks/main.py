@@ -13,7 +13,7 @@ from glm_benchmarks.bench_qc_glmnet import glmnet_qc_bench
 from glm_benchmarks.bench_sklearn_fork import sklearn_fork_bench
 from glm_benchmarks.bench_statsmodels import statsmodels_bench
 from glm_benchmarks.bench_tensorflow import tensorflow_bench
-from glm_benchmarks.problems import Problem, get_all_problems
+from glm_benchmarks.problems import get_all_problems
 
 from .bench_pyglmnet import pyglmnet_bench
 from .util import get_obj_val
@@ -128,11 +128,21 @@ def cli_analyze(problem_names: str, library_names: str, num_rows: str, output_di
     for col in ["obj_val", "obj_val_2"]:
         res_df["rel_" + col] = res_df[col] - res_df.groupby(level=[0, 1])[col].min()
 
-    res_df = res_df.reset_index()
-
+    problems = res_df.index.get_level_values("problem").values
+    # keeps = ["sparse" not in x and "no_weights" in x for x in problems]
+    keeps = [x in x for x in problems]
+    res_df.loc[keeps, :].reset_index().to_csv("results.csv")
     print(
         res_df.loc[
-            res_df["n_rows"] == 50000, ["problem", "n_iter", "runtime", "intercept"],
+            keeps,
+            [
+                "n_iter",
+                "runtime",
+                "intercept",
+                "obj_val",
+                "rel_obj_val",
+                "rel_obj_val_2",
+            ],
         ]
     )
 
@@ -224,7 +234,7 @@ def get_limited_problems_libraries(
     return get_limited_problems(problem_names), libraries
 
 
-def get_limited_problems(problem_names: str) -> Dict[str, Problem]:
+def get_limited_problems(problem_names):
     all_problems = get_all_problems()
 
     if len(problem_names) > 0:
