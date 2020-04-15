@@ -51,4 +51,4 @@ def standardize(
     else:
         avg_mat_squared = mat_squared.T.dot(weights) / np.sum(weights)
     st_devs = np.squeeze(np.array(np.sqrt(avg_mat_squared)))
-    return centered_mat.multiply(1 / st_devs), means, st_devs
+    return centered_mat @ sps.diags(1 / st_devs), means, st_devs
