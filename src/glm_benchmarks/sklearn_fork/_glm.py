@@ -1380,7 +1380,6 @@ def _cd_solver(
 
     # outer loop
     while n_iter < max_iter:
-        print(inner_tol, n_iter, n_cycles)
         n_iter += 1
         # initialize search direction d (to be optimized) with zero
         d.fill(0)
