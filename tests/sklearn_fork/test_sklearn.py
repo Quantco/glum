@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 import scipy as sp
 from numpy.testing import assert_allclose
-from scipy import linalg, optimize, sparse
+from scipy import optimize, sparse
 from sklearn.datasets import make_classification, make_regression
 from sklearn.exceptions import ConvergenceWarning
 from sklearn.linear_model import ElasticNet, LogisticRegression, Ridge
@@ -287,14 +287,12 @@ def test_glm_P2_argument(P2):
 
 def test_glm_P2_positive_semidefinite():
     """Test GLM for a positive semi-definite P2 argument."""
-    n_samples, n_features = 10, 5
+    n_samples, n_features = 10, 2
     y = np.arange(n_samples)
     X = np.zeros((n_samples, n_features))
-    P2 = np.diag([100, 10, 5, 0, -1e-5])
-    rng = np.random.RandomState(42)
-    # construct random orthogonal matrix Q
-    Q, R = linalg.qr(rng.randn(n_features, n_features))
-    P2 = Q.T @ P2 @ Q
+
+    # negative definite matrix
+    P2 = np.array([[1, 2], [2, 1]])
     glm = GeneralizedLinearRegressor(P2=P2, fit_intercept=False, check_input=True)
     with pytest.raises(ValueError, match="P2 must be positive semi-definite"):
         glm.fit(X, y)
