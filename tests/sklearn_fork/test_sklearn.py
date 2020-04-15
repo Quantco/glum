@@ -827,22 +827,47 @@ def test_convergence_warning(solver, regression_data):
 
 @pytest.mark.parametrize("use_sparse", [False, True])
 def test_standardize(use_sparse):
-    NR = 100
+
+    NR = 101
     NC = 10
-    M = np.random.rand(NR, NC)
+    col_mults = np.arange(1, NC + 1)
+    row_mults = np.linspace(0, 2, NR)
+    M = row_mults[:, None] * col_mults[None, :]
     if use_sparse:
         M = sparse.csc_matrix(M)
+
     X, P1, P2, col_means, col_stds = _standardize(
-        M, np.zeros(NC), np.zeros((NC, NC)), np.ones(NR)
+        M, np.ones(NC), np.ones((NC, NC)), np.ones(NR) / NR
     )
-    intercept_standardized = 1.0
-    coef_standardized = np.random.rand(NC)
+    np.testing.assert_almost_equal(col_means[0, :], col_mults)
+
+    # After standardization, all the columns will have the same values.
+    # To check that, just convert to dense first.
+    if use_sparse:
+        Xdense = X.A
+    else:
+        Xdense = X
+    for i in range(1, NC):
+        np.testing.assert_almost_equal(Xdense[:, 0], Xdense[:, i])
+
+    # The sample variance of row_mults is 0.34. This is scaled up by the col_mults
+    true_std = np.sqrt(0.34)
+    np.testing.assert_almost_equal(col_stds, true_std * col_mults)
+
+    np.testing.assert_almost_equal(P1, 1.0 / col_stds)
+    np.testing.assert_almost_equal(P2, 1.0 / (col_stds[:, None] * col_stds[None, :]))
+
+    intercept_standardized = 0.0
+    coef_standardized = col_stds
     X2, intercept, coef = _unstandardize(
         X, col_means, col_stds, intercept_standardized, coef_standardized
     )
+    np.testing.assert_almost_equal(intercept, -(NC + 1) * NC / 2)
+    np.testing.assert_almost_equal(coef, 1.0)
+
     if use_sparse:
         assert type(X.mat) is sparse.csc_matrix
-        assert type(X2.mat) is sparse.csc_matrix
+        assert type(X2) is sparse.csc_matrix
         np.testing.assert_almost_equal(M.indptr, X2.indptr)
         np.testing.assert_almost_equal(M.indices, X2.indices)
         np.testing.assert_almost_equal(M.data, X2.data)
