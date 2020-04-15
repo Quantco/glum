@@ -191,10 +191,12 @@ def _min_norm_sugrad(coef, grad, P2, P1):
 def _standardize(X, P1, P2, weights):
     # NOTE: Expects that sum(weights) == 1
     if sparse.issparse(X):
+        # TODO: avoid copying X
         X, col_means, col_stds = standardize(X, weights=weights)
     else:
         col_means = X.T.dot(weights)[None, :]
         X -= col_means
+        # TODO: avoid copying X -- the X ** 2 makes a copy
         col_stds = np.sqrt((X ** 2).T.dot(weights))
         X /= col_stds
 
@@ -212,12 +214,12 @@ def _standardize(X, P1, P2, weights):
 
 def _unstandardize(X, col_means, col_stds, intercept, coef):
     if type(X) is ColScaledSpMat:
+        # TODO: avoid copying X
         X = X.mat @ sparse.diags(col_stds)
     else:
         X += col_means
         X *= col_stds
 
-    # TODO: avoid copying X
     intercept -= np.squeeze(col_means / col_stds).dot(coef)
     coef /= col_stds
     return X, intercept, coef
