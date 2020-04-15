@@ -188,6 +188,41 @@ def _min_norm_sugrad(coef, grad, P2, P1):
         return res
 
 
+def _standardize(X, P1, P2, weights):
+    if sparse.issparse(X):
+        X, col_means, col_stds = standardize(X, weights=weights)
+    else:
+        col_means = X.T.dot(weights)[None, :]
+        X -= col_means
+        col_stds = np.sqrt((X ** 2).T.dot(weights))
+        X /= col_stds
+
+    # We need to scale penalties too so they are in terms of scaled
+    # variables.
+    P1 /= col_stds
+    if sparse.issparse(X) or type(X) is ColScaledSpMat:
+        inv_col_stds_mat = sparse.diags(col_stds)
+        P2 = inv_col_stds_mat @ P2 @ inv_col_stds_mat
+    else:
+        # TODO: I think this is wrong. Should divide both columns and rows.
+        P2 /= col_stds ** 2
+    return X, P1, P2, col_means, col_stds
+
+
+def _unstandardize(X, col_means, col_stds, intercept, coef):
+    if type(X) is ColScaledSpMat:
+        X = X.mat.multiply(col_stds)
+    else:
+        X += col_means
+        X *= col_stds
+
+    # TODO: assert that X is the same as before we modified it
+    # TODO: avoid copying X
+    intercept -= np.squeeze(col_means / col_stds).dot(coef)
+    coef /= col_stds
+    return X, intercept, coef
+
+
 class Link(metaclass=ABCMeta):
     """Abstract base class for Link functions."""
 
@@ -1768,7 +1803,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         copy_X=True,
         check_input=True,
         verbose=0,
-        standardize: bool = True,
+        standardize=False,
     ):
         self.alpha = alpha
         self.l1_ratio = l1_ratio
@@ -2156,23 +2191,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         # 2b. potentially rescale predictors
         #######################################################################
         if self.standardize:
-            if sparse.issparse(X):
-                X, col_means, col_stds = standardize(X)
-            else:
-                col_means = X.T.dot(weights)[None, :]
-                X -= col_means
-                col_stds = np.std(weights[:, np.newaxis] * X, axis=0) * weights_sum
-                X /= col_stds
-
-            # We need to scale penalties too so they are in terms of scaled
-            # variables.
-            P1 /= col_stds
-            if sparse.issparse(X) or type(X) is ColScaledSpMat:
-                inv_col_stds_mat = sparse.diags(col_stds)
-                P2 = inv_col_stds_mat @ P2 @ inv_col_stds_mat
-            else:
-                # TODO: I think this is wrong. Should divide both columns and rows.
-                P2 /= col_stds ** 2
+            X, P1, P2, col_means, col_stds = _standardize(X, P1, P2, weights)
 
         #######################################################################
         # 3. initialization of coef = (intercept_, coef_)                     #
@@ -2427,7 +2446,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             )
 
         #######################################################################
-        # 5. postprocessing                                                   #
+        # 5a. handle intercept
         #######################################################################
         if self.fit_intercept:
             self.intercept_ = coef[0]
@@ -2437,17 +2456,14 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             self.intercept_ = 0.0
             self.coef_ = coef
 
-        # If we centered predictors, undo it
+        #######################################################################
+        # 5a. undo standardization
+        #######################################################################
         if self.standardize:
-            if type(X) is ColScaledSpMat:
-                X = X.mat.multiply(col_stds)
-            else:
-                X += col_means
-                X *= col_stds
-            # TODO: assert that X is the same as before we modified it
-            # TODO: avoid copying X
-            self.intercept_ -= np.squeeze(col_means / col_stds).dot(self.coef_)
-            self.coef_ /= col_stds
+            # TODO: Make sure this doesn't copy X
+            X, self.intercept_, self.coef_ = _unstandardize(
+                X, col_means, col_stds, self.intercept_, self.coef_
+            )
 
         if self.fit_dispersion in ["chisqr", "deviance"]:
             # attention because of rescaling of weights

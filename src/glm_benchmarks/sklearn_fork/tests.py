@@ -26,6 +26,8 @@ from glm_benchmarks.sklearn_fork._glm import (
     NormalDistribution,
     PoissonDistribution,
     TweedieDistribution,
+    _standardize,
+    _unstandardize,
 )
 
 GLM_SOLVERS = ["irls", "lbfgs", "newton-cg", "cd"]
@@ -758,7 +760,7 @@ def test_binomial_enet(alpha):
     )
     glm.fit(X, y)
     assert_allclose(log.intercept_[0], glm.intercept_, rtol=1e-6)
-    assert_allclose(log.coef_[0, :], glm.coef_, rtol=5e-6)
+    assert_allclose(log.coef_[0, :], glm.coef_, rtol=5.1e-6)
 
 
 @pytest.mark.parametrize(
@@ -823,3 +825,28 @@ def test_convergence_warning(solver, regression_data):
     )
     with pytest.warns(ConvergenceWarning):
         est.fit(X, y)
+
+
+@pytest.mark.parametrize("use_sparse", [False, True])
+def test_standardize(use_sparse):
+    NR = 100
+    NC = 10
+    M = np.random.rand(NR, NC)
+    if use_sparse:
+        M = sparse.csc_matrix(M)
+    X, P1, P2, col_means, col_stds = _standardize(
+        M, np.zeros(NC), np.zeros((NC, NC)), np.ones(NR)
+    )
+    intercept_standardized = 1.0
+    coef_standardized = np.random.rand(NC)
+    X2, intercept, coef = _unstandardize(
+        X, col_means, col_stds, intercept_standardized, coef_standardized
+    )
+    if use_sparse:
+        assert type(X.mat) is sparse.csc_matrix
+        assert type(X2.mat) is sparse.csc_matrix
+        np.testing.assert_almost_equal(M.indptr, X2.indptr)
+        np.testing.assert_almost_equal(M.indices, X2.indices)
+        np.testing.assert_almost_equal(M.data, X2.data)
+    else:
+        np.testing.assert_almost_equal(M, X2)
