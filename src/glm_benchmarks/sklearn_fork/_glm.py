@@ -1432,14 +1432,22 @@ def _cd_solver(
     # set up space for search direction d for inner loop
     d = np.zeros_like(coef)
 
+    # minimum subgradient norm
+    def calc_mn_subgrad_norm():
+        return linalg.norm(
+            _min_norm_sugrad(coef=coef, grad=-score, P2=P2, P1=P1), ord=1
+        )
+
     # the ratio of inner _cd_cycle tolerance to the minimum subgradient norm
-    # TODO: consider values between 0.05 and 0.5
+    # probably should be between 0.01 and 0.5. 0.1 works well for many problems
     inner_tol_ratio = 0.1
+
+    def calc_inner_tol(mn_subgrad_norm):
+        return max(mn_subgrad_norm * inner_tol_ratio, tol)
 
     # initial stopping tolerance of inner loop
     # use L1-norm of minimum of norm of subgradient of F
-    inner_tol = _min_norm_sugrad(coef=coef, grad=-score, P2=P2, P1=P1)
-    inner_tol = linalg.norm(inner_tol, ord=1) * inner_tol_ratio
+    inner_tol = calc_inner_tol(calc_mn_subgrad_norm())
 
     # outer loop
     while n_iter < max_iter:
@@ -1512,14 +1520,13 @@ def _cd_solver(
         # sum_i(|minimum-norm of subgrad of F(w)_i|)
         # fp_wP2 = f'(w) + w*P2
         # Note: eta, mu and score are already updated
-        mn_subgrad = _min_norm_sugrad(coef=coef, grad=-score, P2=P2, P1=P1)
-        mn_subgrad = linalg.norm(mn_subgrad, ord=1)
-        if mn_subgrad <= tol:
+        # this also updates the inner tolerance for the next loop!
+        mn_subgrad_norm = calc_mn_subgrad_norm()
+        if mn_subgrad_norm <= tol:
             converged = True
             break
 
-        # update the inner tolerance for the next loop!
-        inner_tol = mn_subgrad * inner_tol_ratio
+        inner_tol = calc_inner_tol(mn_subgrad_norm)
         # end of outer loop
 
     if not converged:
