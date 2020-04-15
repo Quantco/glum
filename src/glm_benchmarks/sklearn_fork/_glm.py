@@ -1397,9 +1397,12 @@ def _cd_solver(
     Journal of Machine Learning Research 13 (2012) 1999-2030
     https://www.csie.ntu.edu.tw/~cjlin/papers/l1_glmnet/long-glmnet.pdf
     """
-    # TODO: because copy_X is being passed here and is also being passed in
-    # check_X_y in fit(...), X is being copied twice.
-    # X = check_array(X, "csc", dtype=[np.float64, np.float32], order="F", copy=copy_X)
+    if type(X) is not ColScaledSpMat:
+        # TODO: because copy_X is being passed here and is also being passed in
+        # check_X_y in fit(...), X is being copied twice. Check if this is true.
+        X = check_array(
+            X, "csc", dtype=[np.float64, np.float32], order="F", copy=copy_X
+        )
     if P2.ndim == 2:
         P2 = check_array(
             P2, "csc", dtype=[np.float64, np.float32], order="F", copy=copy_X
@@ -1476,9 +1479,9 @@ def _cd_solver(
         for k in range(20):
             la *= beta  # starts with la=1
             coef_wd = coef + la * d
-            # TODO: this line takes up a medium amount of time. The
+            # TODO - OPTIMIZE LATER: this line takes up a medium amount of time. The
             # X.dot(coef_wd) inside _safe_lin_pred could be factored out of the
-            # loop.
+            # loop. small peas optimization: worth only 2-5% of runtime. wait.
             mu_wd = link.inverse(_safe_lin_pred(X, coef_wd))
             Fwd = 0.5 * family.deviance(y, mu_wd, weights) + linalg.norm(
                 P1 * coef_wd[idx:], ord=1
@@ -1490,8 +1493,8 @@ def _cd_solver(
             if Fwd - Fw <= sigma * la * bound:
                 break
         # update coefficients
-        # TODO: can we store Fwd here to be used for Fw in the next iteration
-        # through the loop?
+        # TODO - OPTIMIZE LATER: can we store Fwd here to be used for Fw in the next iteration
+        # through the loop? not worth it yet, only 1-2% of runtime. wait.
         coef += la * d
 
         # calculate eta, mu, score, Fisher matrix for next iteration
@@ -2209,7 +2212,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             # TODO: make sure to test warm-start functionality
             if self.standardize:
                 coef *= col_stds
-                intercept += col_means * coef
+                intercept += np.squeeze(col_means / col_stds).dot(coef)
 
             if self.fit_intercept:
                 coef = np.concatenate((np.array([intercept]), coef))
