@@ -15,9 +15,13 @@ def glmnet_python_bench(
     l1_ratio: float,
 ) -> Dict[str, Any]:
     result: Dict = dict()
-    if isinstance(dat["X"], sps.spmatrix):
-        warnings.warn("glmnet_python does not support sparse matrices")
-        return result
+
+    X = dat["X"]
+    if isinstance(X, sps.spmatrix):
+        warnings.warn(
+            "glmnet_python does not support sparse matrices. Converting to a dense matrix."
+        )
+        X = X.toarray()
 
     if len(dat["y"]) <= 650:
         warnings.warn("glmnet_python does not work with too few rows")
@@ -27,7 +31,7 @@ def glmnet_python_bench(
         return result
 
     glmnet_kws = dict(
-        x=dat["X"].copy(),
+        x=X,
         y=dat["y"].copy(),
         family=distribution,
         alpha=l1_ratio,

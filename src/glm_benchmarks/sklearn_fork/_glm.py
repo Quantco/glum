@@ -107,6 +107,10 @@ def _safe_sandwich_dot(X, d, intercept=False):
     first column of X.
     X can be sparse, d must be an ndarray. Always returns a ndarray."""
     if sparse.issparse(X):
+        # TODO: There's a bit of room to accelerate this by avoiding the
+        # allocation of a new sparse matrix every time we pass through this
+        # step. The X.multiply creates a new matrix. Avoiding the allocation
+        # and updating the rows in place accelerates this line by ~20%.
         temp = X.transpose() @ X.multiply(d[:, np.newaxis])
         # for older versions of numpy and scipy, temp may be a np.matrix
         temp = _safe_toarray(temp)
@@ -1344,6 +1348,8 @@ def _cd_solver(
     Journal of Machine Learning Research 13 (2012) 1999-2030
     https://www.csie.ntu.edu.tw/~cjlin/papers/l1_glmnet/long-glmnet.pdf
     """
+    # TODO: because copy_X is being passed here and is also being passed in
+    # check_X_y in fit(...), X is being copied twice.
     X = check_array(X, "csc", dtype=[np.float64, np.float32], order="F", copy=copy_X)
     if P2.ndim == 2:
         P2 = check_array(
@@ -1416,6 +1422,9 @@ def _cd_solver(
         for k in range(20):
             la *= beta  # starts with la=1
             coef_wd = coef + la * d
+            # TODO: this line takes up a medium amount of time. The
+            # X.dot(coef_wd) inside _safe_lin_pred could be factored out of the
+            # loop.
             mu_wd = link.inverse(_safe_lin_pred(X, coef_wd))
             Fwd = 0.5 * family.deviance(y, mu_wd, weights) + linalg.norm(
                 P1 * coef_wd[idx:], ord=1
@@ -1427,6 +1436,8 @@ def _cd_solver(
             if Fwd - Fw <= sigma * la * bound:
                 break
         # update coefficients
+        # TODO: can we store Fwd here to be used for Fw in the next iteration
+        # through the loop?
         coef += la * d
 
         # calculate eta, mu, score, Fisher matrix for next iteration
@@ -1451,7 +1462,7 @@ def _cd_solver(
             break
 
         # update the inner tolerance for the next loop!
-        inner_tol = mn_subgrad
+        inner_tol = mn_subgrad / 10.0
         # end of outer loop
 
     if not converged:
