@@ -41,6 +41,7 @@ from __future__ import division
 import numbers
 import warnings
 from abc import ABCMeta, abstractmethod
+from typing import Union
 
 import numpy as np
 import scipy.sparse.linalg as splinalg
@@ -102,7 +103,11 @@ def _safe_toarray(X):
         return np.asarray(X)
 
 
-def _safe_sandwich_dot(X, d, intercept=False):
+def _safe_sandwich_dot(
+    X: Union[sparse.spmatrix, ColScaledSpMat, np.ndarray],
+    d: np.ndarray,
+    intercept: bool = False,
+) -> np.ndarray:
     """Compute sandwich product X.T @ diag(d) @ X.
 
     With ``intercept=True``, X is treated as if a column of 1 were appended as
@@ -127,7 +132,7 @@ def _safe_sandwich_dot(X, d, intercept=False):
         temp = (X.T * d) @ X
     if intercept:
         dim = X.shape[1] + 1
-        if type(X) is ColScaledSpMat:
+        if isinstance(X, ColScaledSpMat):
             order = "F"
         elif sparse.issparse(X):
             order = "F" if sparse.isspmatrix_csc(X) else "C"
@@ -1446,10 +1451,10 @@ def _cd_solver(
         )
 
     # the ratio of inner _cd_cycle tolerance to the minimum subgradient norm
-    # This wasn't explored in the newGLMNET paper linked above. 
-    # That paper essentially uses inner_tol_ratio = 1.0, but using a slightly 
+    # This wasn't explored in the newGLMNET paper linked above.
+    # That paper essentially uses inner_tol_ratio = 1.0, but using a slightly
     # lower value is much faster.
-    # By comparison, the original GLMNET paper uses inner_tol = tol. 
+    # By comparison, the original GLMNET paper uses inner_tol = tol.
     # So, inner_tol_ratio < 1 is sort of a compromise between the two papers.
     # The value should probably be between 0.01 and 0.5. 0.1 works well for many problems
     inner_tol_ratio = 0.1
@@ -1497,7 +1502,7 @@ def _cd_solver(
         # Note: coef_P2 already calculated and still valid
         bound = sigma * (-(score @ d) + coef_P2 @ d[idx:] + P1wd_1 - P1w_1)
 
-        # In the first iteration, we must compute Fw explicitly. 
+        # In the first iteration, we must compute Fw explicitly.
         # In later iterations, we just use Fwd from the previous iteration
         # as set after the line search loop below.
         if Fw is None:
@@ -1511,7 +1516,7 @@ def _cd_solver(
 
         X_dot_d = _safe_lin_pred(X, d)
 
-        # Try progressively shorter line search steps. 
+        # Try progressively shorter line search steps.
         for k in range(20):
             la *= beta  # starts with la=1
             coef_wd = coef + la * d
