@@ -203,9 +203,11 @@ def _standardize(X, P1, P2, weights):
     # We need to scale penalties too so they are in terms of scaled
     # variables.
     P1 /= col_stds
-    if sparse.issparse(X) or type(X) is ColScaledSpMat:
+    if sparse.issparse(P2):
         inv_col_stds_mat = sparse.diags(1.0 / col_stds)
         P2 = inv_col_stds_mat @ P2 @ inv_col_stds_mat
+    elif P2.ndim == 1:
+        P2 = P2 / (col_stds ** 2)
     else:
         # Divide both rows and columns
         P2 = (1.0 / col_stds)[:, None] * P2 * (1.0 / col_stds)[None, :]
@@ -223,6 +225,11 @@ def _unstandardize(X, col_means, col_stds, intercept, coef):
     intercept -= np.squeeze(col_means / col_stds).dot(coef)
     coef /= col_stds
     return X, intercept, coef
+
+
+def _standardize_warm_start(coef, col_means, col_stds):
+    coef[1:] *= col_stds
+    coef[0] += np.squeeze(col_means / col_stds).dot(coef[1:])
 
 
 class Link(metaclass=ABCMeta):
@@ -1620,6 +1627,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         Note that n_features = X.shape[1].
 
     P2 : {'identity', array-like, sparse matrix}, shape \
+
             (n_features,) or (n_features, n_features), optional \
             (default='identity')
         With this option, you can set the P2 matrix in the L2 penalty `w*P2*w`.
@@ -2235,17 +2243,12 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
 
         # set start values for coef
         if self.warm_start and hasattr(self, "coef_"):
-
             coef = self.coef_
             intercept = self.intercept_
-            # TODO: make sure to test warm-start functionality
-            if self.standardize:
-                coef *= col_stds
-                intercept += np.squeeze(col_means / col_stds).dot(coef)
-
             if self.fit_intercept:
                 coef = np.concatenate((np.array([intercept]), coef))
-
+            if self.standardize:
+                _standardize_warm_start(coef, col_means, col_stds)
         elif isinstance(start_params, str):
             if start_params == "guess":
                 # Set mu=starting_mu of the family and do one Newton step
@@ -2319,6 +2322,8 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                     coef = np.zeros(n_features)
         else:  # assign given array as start values
             coef = start_params
+            if self.standardize:
+                _standardize_warm_start(coef, col_means, col_stds)
 
         #######################################################################
         # 4. fit                                                              #
