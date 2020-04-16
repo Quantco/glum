@@ -1446,7 +1446,12 @@ def _cd_solver(
         )
 
     # the ratio of inner _cd_cycle tolerance to the minimum subgradient norm
-    # probably should be between 0.01 and 0.5. 0.1 works well for many problems
+    # This wasn't explored in the newGLMNET paper linked above. 
+    # That paper essentially uses inner_tol_ratio = 1.0, but using a slightly 
+    # lower value is much faster.
+    # By comparison, the original GLMNET paper uses inner_tol = tol. 
+    # So, inner_tol_ratio < 1 is sort of a compromise between the two papers.
+    # The value should probably be between 0.01 and 0.5. 0.1 works well for many problems
     inner_tol_ratio = 0.1
 
     def calc_inner_tol(mn_subgrad_norm):
