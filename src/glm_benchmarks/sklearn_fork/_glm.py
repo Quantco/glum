@@ -52,6 +52,8 @@ from sklearn.utils import check_array, check_X_y
 from sklearn.utils.optimize import newton_cg
 from sklearn.utils.validation import check_is_fitted, check_random_state
 
+from glm_benchmarks.scaled_spmat import ColScaledSpMat, standardize
+
 
 def _check_weights(sample_weight, n_samples):
     """Check that sample weights are non-negative and have the right shape."""
@@ -107,14 +109,27 @@ def _safe_sandwich_dot(X, d, intercept=False):
     first column of X.
     X can be sparse, d must be an ndarray. Always returns a ndarray."""
     if sparse.issparse(X):
+        # TODO: There's a bit of room to accelerate this by avoiding the
+        # allocation of a new sparse matrix every time we pass through this
+        # step. The X.multiply creates a new matrix. Avoiding the allocation
+        # and updating the rows in place accelerates this line by ~20%.
         temp = X.transpose() @ X.multiply(d[:, np.newaxis])
         # for older versions of numpy and scipy, temp may be a np.matrix
+        temp = _safe_toarray(temp)
+    elif type(X) is ColScaledSpMat:
+        term1 = X.mat.transpose() @ X.mat.multiply(d[:, np.newaxis])
+        term2 = X.mat.transpose().dot(d)[:, np.newaxis] * X.shift
+        term3 = term2.T
+        term4 = (X.shift.T * X.shift) * d.sum()
+        temp = term1 + term2 + term3 + term4
         temp = _safe_toarray(temp)
     else:
         temp = (X.T * d) @ X
     if intercept:
         dim = X.shape[1] + 1
-        if sparse.issparse(X):
+        if type(X) is ColScaledSpMat:
+            order = "F"
+        elif sparse.issparse(X):
             order = "F" if sparse.isspmatrix_csc(X) else "C"
         else:
             order = "F" if X.flags["F_CONTIGUOUS"] else "C"
@@ -171,6 +186,50 @@ def _min_norm_sugrad(coef, grad, P2, P1):
         return np.concatenate(([grad[0]], res))
     else:
         return res
+
+
+def _standardize(X, P1, P2, weights):
+    # NOTE: Expects that sum(weights) == 1
+    if sparse.issparse(X):
+        # TODO: avoid copying X
+        X, col_means, col_stds = standardize(X, weights=weights)
+    else:
+        col_means = X.T.dot(weights)[None, :]
+        X -= col_means
+        # TODO: avoid copying X -- the X ** 2 makes a copy
+        col_stds = np.sqrt((X ** 2).T.dot(weights))
+        X /= col_stds
+
+    # We need to scale penalties too so they are in terms of scaled
+    # variables.
+    P1 /= col_stds
+    if sparse.issparse(P2):
+        inv_col_stds_mat = sparse.diags(1.0 / col_stds)
+        P2 = inv_col_stds_mat @ P2 @ inv_col_stds_mat
+    elif P2.ndim == 1:
+        P2 = P2 / (col_stds ** 2)
+    else:
+        # Divide both rows and columns
+        P2 = (1.0 / col_stds)[:, None] * P2 * (1.0 / col_stds)[None, :]
+    return X, P1, P2, col_means, col_stds
+
+
+def _unstandardize(X, col_means, col_stds, intercept, coef):
+    if type(X) is ColScaledSpMat:
+        # TODO: avoid copying X
+        X = X.mat @ sparse.diags(col_stds)
+    else:
+        X += col_means
+        X *= col_stds
+
+    intercept -= np.squeeze(col_means / col_stds).dot(coef)
+    coef /= col_stds
+    return X, intercept, coef
+
+
+def _standardize_warm_start(coef, col_means, col_stds):
+    coef[1:] *= col_stds
+    coef[0] += np.squeeze(col_means / col_stds).dot(coef[1:])
 
 
 class Link(metaclass=ABCMeta):
@@ -734,7 +793,7 @@ class TweedieDistribution(ExponentialDispersionModel):
     ===== ================
     0     Normal
     1     Poisson
-    (0,1) Compound Poisson
+    (1,2) Compound Poisson
     2     Gamma
     3     Inverse Gaussian
 
@@ -1100,6 +1159,7 @@ def _cd_cycle(
     n_samples, n_features = X.shape
     intercept = coef.size == X.shape[1] + 1
     idx = 1 if intercept else 0  # offset if coef[0] is intercept
+    # ES: This is weird. Should this be B = fisher.copy()? Why would you do this?
     B = fisher
     if P2.ndim == 1:
         coef_P2 = coef[idx:] * P2
@@ -1344,7 +1404,12 @@ def _cd_solver(
     Journal of Machine Learning Research 13 (2012) 1999-2030
     https://www.csie.ntu.edu.tw/~cjlin/papers/l1_glmnet/long-glmnet.pdf
     """
-    X = check_array(X, "csc", dtype=[np.float64, np.float32], order="F", copy=copy_X)
+    if type(X) is not ColScaledSpMat:
+        # TODO: because copy_X is being passed here and is also being passed in
+        # check_X_y in fit(...), X is being copied twice. Check if this is true.
+        X = check_array(
+            X, "csc", dtype=[np.float64, np.float32], order="F", copy=copy_X
+        )
     if P2.ndim == 2:
         P2 = check_array(
             P2, "csc", dtype=[np.float64, np.float32], order="F", copy=copy_X
@@ -1373,13 +1438,36 @@ def _cd_solver(
     )
     # set up space for search direction d for inner loop
     d = np.zeros_like(coef)
+
+    # minimum subgradient norm
+    def calc_mn_subgrad_norm():
+        return linalg.norm(
+            _min_norm_sugrad(coef=coef, grad=-score, P2=P2, P1=P1), ord=1
+        )
+
+    # the ratio of inner _cd_cycle tolerance to the minimum subgradient norm
+    # This wasn't explored in the newGLMNET paper linked above.
+    # That paper essentially uses inner_tol_ratio = 1.0, but using a slightly
+    # lower value is much faster.
+    # By comparison, the original GLMNET paper uses inner_tol = tol.
+    # So, inner_tol_ratio < 1 is sort of a compromise between the two papers.
+    # The value should probably be between 0.01 and 0.5. 0.1 works well for many problems
+    inner_tol_ratio = 0.1
+
+    def calc_inner_tol(mn_subgrad_norm):
+        # Another potential rule limits the inner tol to be no smaller than tol
+        # return max(mn_subgrad_norm * inner_tol_ratio, tol)
+        return mn_subgrad_norm * inner_tol_ratio
+
     # initial stopping tolerance of inner loop
     # use L1-norm of minimum of norm of subgradient of F
-    inner_tol = _min_norm_sugrad(coef=coef, grad=-score, P2=P2, P1=P1)
-    inner_tol = linalg.norm(inner_tol, ord=1)
+    inner_tol = calc_inner_tol(calc_mn_subgrad_norm())
+
+    Fw = None
 
     # outer loop
     while n_iter < max_iter:
+        print(inner_tol, n_iter, n_cycles)
         n_iter += 1
         # initialize search direction d (to be optimized) with zero
         d.fill(0)
@@ -1408,14 +1496,37 @@ def _cd_solver(
         P1wd_1 = linalg.norm(P1 * (coef + d)[idx:], ord=1)
         # Note: coef_P2 already calculated and still valid
         bound = sigma * (-(score @ d) + coef_P2 @ d[idx:] + P1wd_1 - P1w_1)
-        Fw = (
-            0.5 * family.deviance(y, mu, weights) + 0.5 * (coef_P2 @ coef[idx:]) + P1w_1
-        )
+
+        # In the first iteration, we must compute Fw explicitly.
+        # In later iterations, we just use Fwd from the previous iteration
+        # as set after the line search loop below.
+        if Fw is None:
+            Fw = (
+                0.5 * family.deviance(y, mu, weights)
+                + 0.5 * (coef_P2 @ coef[idx:])
+                + P1w_1
+            )
+
         la = 1.0 / beta
+
+        X_dot_d = _safe_lin_pred(X, d)
+
+        # Try progressively shorter line search steps.
         for k in range(20):
             la *= beta  # starts with la=1
             coef_wd = coef + la * d
-            mu_wd = link.inverse(_safe_lin_pred(X, coef_wd))
+
+            # The simple version of the next line is:
+            # mu_wd = link.inverse(_safe_lin_pred(X, coef_wd))
+            # but because coef_wd can be factored as
+            # coef_wd = coef + la * d
+            # we can rewrite to only perform one dot product with the data
+            # matrix per loop which is substantially faster
+            mu_wd = link.inverse(eta + la * X_dot_d)
+
+            # TODO - optimize: for Tweedie that isn't one of the special cases
+            # (gaussian, poisson, gamma), family.deviance is quite slow! Can we
+            # fix that somehow?
             Fwd = 0.5 * family.deviance(y, mu_wd, weights) + linalg.norm(
                 P1 * coef_wd[idx:], ord=1
             )
@@ -1425,6 +1536,10 @@ def _cd_solver(
                 Fwd += 0.5 * (coef_wd[idx:] @ (P2 @ coef_wd[idx:]))
             if Fwd - Fw <= sigma * la * bound:
                 break
+
+        # Fw in the next iteration will be equal to Fwd this iteration.
+        Fw = Fwd
+
         # update coefficients
         coef += la * d
 
@@ -1443,14 +1558,13 @@ def _cd_solver(
         # sum_i(|minimum-norm of subgrad of F(w)_i|)
         # fp_wP2 = f'(w) + w*P2
         # Note: eta, mu and score are already updated
-        mn_subgrad = _min_norm_sugrad(coef=coef, grad=-score, P2=P2, P1=P1)
-        mn_subgrad = linalg.norm(mn_subgrad, ord=1)
-        if mn_subgrad <= tol:
+        # this also updates the inner tolerance for the next loop!
+        mn_subgrad_norm = calc_mn_subgrad_norm()
+        if mn_subgrad_norm <= tol:
             converged = True
             break
 
-        # update the inner tolerance for the next loop!
-        inner_tol = mn_subgrad
+        inner_tol = calc_inner_tol(mn_subgrad_norm)
         # end of outer loop
 
     if not converged:
@@ -1522,6 +1636,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         Note that n_features = X.shape[1].
 
     P2 : {'identity', array-like, sparse matrix}, shape \
+
             (n_features,) or (n_features, n_features), optional \
             (default='identity')
         With this option, you can set the P2 matrix in the L2 penalty `w*P2*w`.
@@ -1739,6 +1854,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         copy_X=True,
         check_input=True,
         verbose=0,
+        standardize=False,
     ):
         self.alpha = alpha
         self.l1_ratio = l1_ratio
@@ -1759,6 +1875,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         self.copy_X = copy_X
         self.check_input = check_input
         self.verbose = verbose
+        self.standardize = standardize
 
     def fit(self, X, y, sample_weight=None):
         """Fit a Generalized Linear Model.
@@ -1784,6 +1901,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         -------
         self : returns an instance of self.
         """
+        # 99.8% of time is in the _cd_solver function
         #######################################################################
         # 1. input validation                                                 #
         #######################################################################
@@ -2110,7 +2228,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             # TODO: what else to check?
 
         #######################################################################
-        # 2. rescaling of weights (sample_weight)                             #
+        # 2a. rescaling of weights (sample_weight)                             #
         #######################################################################
         # IMPORTANT NOTE: Since we want to minimize
         # 1/(2*sum(sample_weight)) * deviance + L1 + L2,
@@ -2121,18 +2239,25 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         weights = weights / weights_sum
 
         #######################################################################
+        # 2b. potentially rescale predictors
+        #######################################################################
+        if self.standardize:
+            X, P1, P2, col_means, col_stds = _standardize(X, P1, P2, weights)
+
+        #######################################################################
         # 3. initialization of coef = (intercept_, coef_)                     #
         #######################################################################
         # Note: Since phi=self.dispersion_ does not enter the estimation
         #       of mu_i=E[y_i], set it to 1.
 
         # set start values for coef
-        coef = None
         if self.warm_start and hasattr(self, "coef_"):
+            coef = self.coef_
+            intercept = self.intercept_
             if self.fit_intercept:
-                coef = np.concatenate((np.array([self.intercept_]), self.coef_))
-            else:
-                coef = self.coef_
+                coef = np.concatenate((np.array([intercept]), coef))
+            if self.standardize:
+                _standardize_warm_start(coef, col_means, col_stds)
         elif isinstance(start_params, str):
             if start_params == "guess":
                 # Set mu=starting_mu of the family and do one Newton step
@@ -2206,6 +2331,8 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                     coef = np.zeros(n_features)
         else:  # assign given array as start values
             coef = start_params
+            if self.standardize:
+                _standardize_warm_start(coef, col_means, col_stds)
 
         #######################################################################
         # 4. fit                                                              #
@@ -2367,7 +2494,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             )
 
         #######################################################################
-        # 5. postprocessing                                                   #
+        # 5a. handle intercept
         #######################################################################
         if self.fit_intercept:
             self.intercept_ = coef[0]
@@ -2376,6 +2503,15 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             # set intercept to zero as the other linear models do
             self.intercept_ = 0.0
             self.coef_ = coef
+
+        #######################################################################
+        # 5a. undo standardization
+        #######################################################################
+        if self.standardize:
+            # TODO: Make sure this doesn't copy X
+            X, self.intercept_, self.coef_ = _unstandardize(
+                X, col_means, col_stds, self.intercept_, self.coef_
+            )
 
         if self.fit_dispersion in ["chisqr", "deviance"]:
             # attention because of rescaling of weights

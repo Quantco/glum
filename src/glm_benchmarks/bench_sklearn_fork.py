@@ -22,7 +22,8 @@ def sklearn_fork_bench(
 ):
     result = dict()
 
-    fit_args = dict(X=dat["X"], y=dat["y"])
+    X = dat["X"]
+    fit_args = dict(X=X, y=dat["y"])
     if "weights" in dat.keys():
         fit_args.update({"sample_weight": dat["weights"]})
 
@@ -41,7 +42,8 @@ def sklearn_fork_bench(
         random_state=random_seed,
         copy_X=True,
         selection="random",
-        tol=1e-3,
+        tol=1e-5,
+        standardize=True,
     )
 
     result["runtime"], m = runtime(build_and_fit, model_args, fit_args)
