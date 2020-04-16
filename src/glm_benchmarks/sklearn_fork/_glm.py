@@ -124,7 +124,18 @@ def _safe_sandwich_dot(X, d, intercept=False):
         temp = term1 + term2 + term3 + term4
         temp = _safe_toarray(temp)
     else:
+        # from glm_benchmarks.fast_sandwich_dot import fast_sandwich_dot
+        # temp = fast_sandwich_dot(X, d)
         temp = (X.T * d) @ X
+        # X1 = np.sqrt(d)[:,None] * X
+        # temp = X1.T @ X1
+
+        # from scipy.linalg.blas import dsyrk
+        # out = np.zeros((X.shape[1], X.shape[1]))
+        # out = dsyrk(alpha=1.0, a=X1.T)
+
+        # # np.testing.assert_almost_equal(temp, out)
+        # temp = out
     if intercept:
         dim = X.shape[1] + 1
         if type(X) is ColScaledSpMat:
@@ -2500,6 +2511,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         #######################################################################
         if self.standardize:
             # TODO: Make sure this doesn't copy X
+            # TODO: don't unstandardize X?
             X, self.intercept_, self.coef_ = _unstandardize(
                 X, col_means, col_stds, self.intercept_, self.coef_
             )

@@ -1,5 +1,7 @@
 from os import path
 
+import numpy as np
+from Cython.Build import cythonize
 from setuptools import find_packages, setup
 
 here = path.abspath(path.dirname(__file__))
@@ -30,5 +32,7 @@ setup(
         glm_benchmarks_run = glm_benchmarks.main:cli_run
         glm_benchmarks_analyze = glm_benchmarks.main:cli_analyze
     """,
-    console_scripts={},
+    ext_modules=cythonize("src/glm_benchmarks/fast_sandwich_dot.pyx"),
+    include_dirs=[np.get_include()],
+    zip_safe=False,
 )
