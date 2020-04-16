@@ -786,7 +786,7 @@ class TweedieDistribution(ExponentialDispersionModel):
     ===== ================
     0     Normal
     1     Poisson
-    (0,1) Compound Poisson
+    (1,2) Compound Poisson
     2     Gamma
     3     Inverse Gaussian
 
@@ -1443,11 +1443,15 @@ def _cd_solver(
     inner_tol_ratio = 0.1
 
     def calc_inner_tol(mn_subgrad_norm):
-        return max(mn_subgrad_norm * inner_tol_ratio, tol)
+        # Another potential rule limits the inner tol to be no smaller than tol
+        # return max(mn_subgrad_norm * inner_tol_ratio, tol)
+        return mn_subgrad_norm * inner_tol_ratio
 
     # initial stopping tolerance of inner loop
     # use L1-norm of minimum of norm of subgradient of F
     inner_tol = calc_inner_tol(calc_mn_subgrad_norm())
+
+    Fw = None
 
     # outer loop
     while n_iter < max_iter:
@@ -1480,17 +1484,33 @@ def _cd_solver(
         P1wd_1 = linalg.norm(P1 * (coef + d)[idx:], ord=1)
         # Note: coef_P2 already calculated and still valid
         bound = sigma * (-(score @ d) + coef_P2 @ d[idx:] + P1wd_1 - P1w_1)
-        Fw = (
-            0.5 * family.deviance(y, mu, weights) + 0.5 * (coef_P2 @ coef[idx:]) + P1w_1
-        )
+
+        if Fw is None:
+            Fw = (
+                0.5 * family.deviance(y, mu, weights)
+                + 0.5 * (coef_P2 @ coef[idx:])
+                + P1w_1
+            )
+
         la = 1.0 / beta
+
+        X_dot_d = _safe_lin_pred(X, d)
+
         for k in range(20):
             la *= beta  # starts with la=1
             coef_wd = coef + la * d
-            # TODO - OPTIMIZE LATER: this line takes up a medium amount of time. The
-            # X.dot(coef_wd) inside _safe_lin_pred could be factored out of the
-            # loop. small peas optimization: worth only 2-5% of runtime. wait.
-            mu_wd = link.inverse(_safe_lin_pred(X, coef_wd))
+
+            # The simple version of the next line is:
+            # mu_wd = link.inverse(_safe_lin_pred(X, coef_wd))
+            # but because coef_wd can be factored as
+            # coef_wd = coef + la * d
+            # we can rewrite to only perform one dot product with the data
+            # matrix per loop which is substantially faster
+            mu_wd = link.inverse(eta + la * X_dot_d)
+
+            # TODO - optimize: for Tweedie that isn't one of the special cases
+            # (gaussian, poisson, gamma), family.deviance is quite slow! Can we
+            # fix that somehow?
             Fwd = 0.5 * family.deviance(y, mu_wd, weights) + linalg.norm(
                 P1 * coef_wd[idx:], ord=1
             )
@@ -1500,9 +1520,11 @@ def _cd_solver(
                 Fwd += 0.5 * (coef_wd[idx:] @ (P2 @ coef_wd[idx:]))
             if Fwd - Fw <= sigma * la * bound:
                 break
+
+        # Fw in the next iteration will be equal to Fwd this iteration.
+        Fw = Fwd
+
         # update coefficients
-        # TODO - OPTIMIZE LATER: can we store Fwd here to be used for Fw in the next iteration
-        # through the loop? not worth it yet, only 1-2% of runtime. wait.
         coef += la * d
 
         # calculate eta, mu, score, Fisher matrix for next iteration
