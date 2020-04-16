@@ -1492,6 +1492,9 @@ def _cd_solver(
         # Note: coef_P2 already calculated and still valid
         bound = sigma * (-(score @ d) + coef_P2 @ d[idx:] + P1wd_1 - P1w_1)
 
+        # In the first iteration, we must compute Fw explicitly. 
+        # In later iterations, we just use Fwd from the previous iteration
+        # as set after the line search loop below.
         if Fw is None:
             Fw = (
                 0.5 * family.deviance(y, mu, weights)
@@ -1503,6 +1506,7 @@ def _cd_solver(
 
         X_dot_d = _safe_lin_pred(X, d)
 
+        # Try progressively shorter line search steps. 
         for k in range(20):
             la *= beta  # starts with la=1
             coef_wd = coef + la * d
