@@ -1,6 +1,7 @@
 # Authors: Christian Lorentzen <lorentzen.ch@gmail.com>
 #
 # License: BSD 3 clause
+import copy
 
 import numpy as np
 import pytest
@@ -536,7 +537,9 @@ def test_normal_ridge_comparison(n_samples, n_features, fit_intercept, solver):
 @pytest.mark.parametrize(
     "solver, tol", [("irls", 1e-7), ("lbfgs", 1e-7), ("newton-cg", 1e-7), ("cd", 1e-7)]
 )
-def test_poisson_ridge(solver, tol):
+@pytest.mark.parametrize("standardize", [True, False])
+@pytest.mark.parametrize("use_sparse", [True, False])
+def test_poisson_ridge(solver, tol, standardize, use_sparse):
     """Test ridge regression with poisson family and LogLink.
 
     Compare to R's glmnet"""
@@ -552,6 +555,8 @@ def test_poisson_ridge(solver, tol):
     # a            0.29019207995
     # b            0.03741173122
     X = np.array([[-2, -1, 1, 2], [0, 0, 1, 1]]).T
+    if use_sparse:
+        X = sparse.csc_matrix(X)
     y = np.array([0, 1, 1, 2])
     rng = np.random.RandomState(42)
     glm = GeneralizedLinearRegressor(
@@ -564,10 +569,28 @@ def test_poisson_ridge(solver, tol):
         solver=solver,
         max_iter=300,
         random_state=rng,
+        copy_X=True,
+        standardize=standardize,
     )
-    glm.fit(X, y)
-    assert_allclose(glm.intercept_, -0.12889386979, rtol=1e-5)
-    assert_allclose(glm.coef_, [0.29019207995, 0.03741173122], rtol=1e-6)
+    glm2 = copy.deepcopy(glm)
+
+    def check(G):
+        G.fit(X, y)
+        assert_allclose(G.intercept_, -0.12889386979, rtol=1e-5)
+        assert_allclose(G.coef_, [0.29019207995, 0.03741173122], rtol=1e-5)
+
+    check(glm)
+
+    # Test warm starting a re-fit model.
+    glm.warm_start = True
+    check(glm)
+    assert glm.n_iter_ <= 1
+
+    # Test warm starting with start_params.
+    glm2.warm_start = True
+    glm2.start_params = np.concatenate(([glm.intercept_], glm.coef_))
+    check(glm2)
+    assert glm2.n_iter_ <= 1
 
 
 @pytest.mark.parametrize("diag_fisher", [False, True])
