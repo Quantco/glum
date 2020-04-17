@@ -273,7 +273,6 @@ def fit_glmnet(
         penalty_scaling=penalty_scaling,
         link_name=link_name,
     )
-
     step_diff = np.inf
 
     i = 0

@@ -22,32 +22,11 @@ except ImportError:
     GLMNET_PYTHON_INSTALLED = False
 
 try:
-    from glm_benchmarks.bench_statsmodels import statsmodels_bench  # isort:skip
-
-    STATSMODELS_INSTALLED = True
-except ImportError:
-    STATSMODELS_INSTALLED = False
-try:
-    from .bench_pyglmnet import pyglmnet_bench  # isort:skip
-
-    PYGLMNET_INSTALLED = True
-except ImportError:
-    PYGLMNET_INSTALLED = False
-
-try:
     from glm_benchmarks.bench_h2o import h2o_bench  # isort:skip
 
     H20_INSTALLED = True
 except ImportError:
     H20_INSTALLED = False
-
-
-try:
-    from glm_benchmarks.bench_tensorflow import tensorflow_bench  # isort:skip
-
-    TENSORFLOW_INSTALLED = True
-except ImportError:
-    TENSORFLOW_INSTALLED = False
 
 
 @click.command()
@@ -248,23 +227,11 @@ def get_limited_problems_libraries(
     problem_names: str, library_names: str
 ) -> Tuple[Dict, Dict]:
     all_libraries = dict(
-        sklearn_fork=sklearn_fork_bench,
-        glmnet_qc=glmnet_qc_bench,
-        statsmodels=statsmodels_bench,
-        zeros=zeros_bench,
+        sklearn_fork=sklearn_fork_bench, glmnet_qc=glmnet_qc_bench, zeros=zeros_bench,
     )
 
     if GLMNET_PYTHON_INSTALLED:
         all_libraries["glmnet_python"] = glmnet_python_bench
-
-    if STATSMODELS_INSTALLED:
-        all_libraries["statsmodels"] = statsmodels_bench
-
-    if PYGLMNET_INSTALLED:
-        all_libraries["pyglmnet"] = pyglmnet_bench
-
-    if TENSORFLOW_INSTALLED:
-        all_libraries["tensorflow"] = tensorflow_bench
 
     if H20_INSTALLED:
         all_libraries["h2o"] = h2o_bench
