@@ -403,4 +403,4 @@ def generate_sparse_insurance_dataset(
     )
     y, exposure = compute_y_exposure(df, distribution)
 
-    return transformer.fit_transform(df), y, exposure
+    return transformer.fit_transform(df).tocsc(), y, exposure
