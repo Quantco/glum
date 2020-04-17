@@ -7,17 +7,47 @@ import numpy as np
 import pandas as pd
 import scipy.sparse
 
-from glm_benchmarks.bench_glmnet_python import glmnet_python_bench
-from glm_benchmarks.bench_h2o import h2o_bench
 from glm_benchmarks.bench_qc_glmnet import glmnet_qc_bench
 from glm_benchmarks.bench_sklearn_fork import sklearn_fork_bench
-from glm_benchmarks.bench_statsmodels import statsmodels_bench
-from glm_benchmarks.bench_tensorflow import tensorflow_bench
 from glm_benchmarks.problems import get_all_problems
 
-from .bench_pyglmnet import pyglmnet_bench
 from .util import get_obj_val
 from .zeros_benchmark import zeros_bench
+
+try:
+    from glm_benchmarks.bench_glmnet_python import glmnet_python_bench  # isort:skip
+
+    GLMNET_PYTHON_INSTALLED = True
+except ImportError:
+    GLMNET_PYTHON_INSTALLED = False
+
+try:
+    from glm_benchmarks.bench_statsmodels import statsmodels_bench  # isort:skip
+
+    STATSMODELS_INSTALLED = True
+except ImportError:
+    STATSMODELS_INSTALLED = False
+try:
+    from .bench_pyglmnet import pyglmnet_bench  # isort:skip
+
+    PYGLMNET_INSTALLED = True
+except ImportError:
+    PYGLMNET_INSTALLED = False
+
+try:
+    from glm_benchmarks.bench_h2o import h2o_bench  # isort:skip
+
+    H20_INSTALLED = True
+except ImportError:
+    H20_INSTALLED = False
+
+
+try:
+    from glm_benchmarks.bench_tensorflow import tensorflow_bench  # isort:skip
+
+    TENSORFLOW_INSTALLED = True
+except ImportError:
+    TENSORFLOW_INSTALLED = False
 
 
 @click.command()
@@ -219,14 +249,25 @@ def get_limited_problems_libraries(
 ) -> Tuple[Dict, Dict]:
     all_libraries = dict(
         sklearn_fork=sklearn_fork_bench,
-        glmnet_python=glmnet_python_bench,
-        tensorflow=tensorflow_bench,
-        h2o=h2o_bench,
         glmnet_qc=glmnet_qc_bench,
         statsmodels=statsmodels_bench,
         zeros=zeros_bench,
-        pyglmnet=pyglmnet_bench,
     )
+
+    if GLMNET_PYTHON_INSTALLED:
+        all_libraries["glmnet_python"] = glmnet_python_bench
+
+    if STATSMODELS_INSTALLED:
+        all_libraries["statsmodels"] = statsmodels_bench
+
+    if PYGLMNET_INSTALLED:
+        all_libraries["pyglmnet"] = pyglmnet_bench
+
+    if TENSORFLOW_INSTALLED:
+        all_libraries["tensorflow"] = tensorflow_bench
+
+    if H20_INSTALLED:
+        all_libraries["h2o"] = h2o_bench
 
     if len(library_names) > 0:
         library_names_split = get_comma_sep_names(library_names)
