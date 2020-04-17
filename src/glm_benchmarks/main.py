@@ -11,11 +11,8 @@ from glm_benchmarks.bench_glmnet_python import glmnet_python_bench
 from glm_benchmarks.bench_h2o import h2o_bench
 from glm_benchmarks.bench_qc_glmnet import glmnet_qc_bench
 from glm_benchmarks.bench_sklearn_fork import sklearn_fork_bench
-from glm_benchmarks.bench_statsmodels import statsmodels_bench
-from glm_benchmarks.bench_tensorflow import tensorflow_bench
 from glm_benchmarks.problems import get_all_problems
 
-from .bench_pyglmnet import pyglmnet_bench
 from .util import get_obj_val
 from .zeros_benchmark import zeros_bench
 
@@ -220,12 +217,9 @@ def get_limited_problems_libraries(
     all_libraries = dict(
         sklearn_fork=sklearn_fork_bench,
         glmnet_python=glmnet_python_bench,
-        tensorflow=tensorflow_bench,
         h2o=h2o_bench,
         glmnet_qc=glmnet_qc_bench,
-        statsmodels=statsmodels_bench,
         zeros=zeros_bench,
-        pyglmnet=pyglmnet_bench,
     )
 
     if len(library_names) > 0:
