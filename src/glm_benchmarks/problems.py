@@ -1,11 +1,17 @@
 from functools import partial
+from os.path import isfile
 from typing import Callable, Dict, Optional, Union
 
 import attr
 import numpy as np
+from git_root import git_root
 from scipy import sparse as sps
 
-from .data import generate_simple_insurance_dataset, generate_sparse_insurance_dataset
+from .data import (
+    generate_real_dense_insurance_dataset,
+    generate_simple_insurance_dataset,
+    generate_sparse_insurance_dataset,
+)
 
 
 @attr.s
@@ -56,6 +62,34 @@ def load_sparse_insurance_data_no_weights(
     return dict(X=X, y=y)
 
 
+def load_real_dense_insurance_data(
+    num_rows: int = None, noise: float = None, distribution: str = "poisson",
+) -> Dict[str, np.ndarray]:
+    """
+    Due to the way we have set up this problem, by rescaling the target variable, it
+    is appropriate to pass what is modeled as an 'exposure' as a weight. Everywhere else,
+    exposures will be referred to as weights.
+    """
+    X, y, exposure = generate_real_dense_insurance_dataset(
+        num_rows, noise, distribution
+    )
+    return dict(X=X, y=y, weights=exposure)
+
+
+def load_real_sparse_insurance_data(
+    num_rows: int = None, noise: float = None, distribution: str = "poisson",
+) -> Dict[str, Union[np.ndarray, sps.spmatrix]]:
+    """
+    Due to the way we have set up this problem, by rescaling the target variable, it
+    is appropriate to pass what is modeled as an 'exposure' as a weight. Everywhere else,
+    exposures will be referred to as weights.
+    """
+    X, y, exposure = generate_real_dense_insurance_dataset(
+        num_rows, noise, distribution
+    )
+    return dict(X=sps.csc_matrix(X), y=y, weights=exposure)
+
+
 def get_all_problems() -> Dict[str, Problem]:
     regularization_strength = 0.001
     distributions = ["gaussian", "poisson", "gamma", "tweedie_p=1.5"]
@@ -103,5 +137,25 @@ def get_all_problems() -> Dict[str, Problem]:
                 regularization_strength=regularization_strength,
                 l1_ratio=l1_ratio,
             )
+
+            # only add these problems if you have the data
+            if isfile(git_root("data", "X.parquet")):
+                problems["real_dense_insurance_" + suffix] = Problem(
+                    data_loader=partial(
+                        load_real_dense_insurance_data, distribution=data_version
+                    ),
+                    distribution=distribution,
+                    regularization_strength=regularization_strength,
+                    l1_ratio=l1_ratio,
+                )
+
+                problems["real_sparse_insurance_" + suffix] = Problem(
+                    data_loader=partial(
+                        load_real_sparse_insurance_data, distribution=data_version
+                    ),
+                    distribution=distribution,
+                    regularization_strength=regularization_strength,
+                    l1_ratio=l1_ratio,
+                )
 
     return problems
