@@ -1,5 +1,3 @@
-tensorflow
-tensorflow-probability
 pre-commit
 black
 flake8
@@ -11,8 +9,7 @@ matplotlib
 ipython
 jupyterlab
 ipdb
-pyglmnet
 scikit-learn
 statsmodels
-compilers 
+compilers
 line_profiler
