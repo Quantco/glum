@@ -26,6 +26,13 @@ def zero_center(
     return ColScaledSpMat(mat, -means), means
 
 
+def one_over_var_inf_to_zero(arr: np.ndarray) -> np.ndarray:
+    zeros = np.where(arr == 0)
+    one_over = 1 / arr
+    one_over[zeros] = 0
+    return one_over
+
+
 def standardize(
     mat: sps.spmatrix, weights: np.ndarray = None
 ) -> Tuple[ColScaledSpMat, np.ndarray, np.ndarray]:
@@ -51,4 +58,9 @@ def standardize(
     else:
         avg_mat_squared = mat_squared.T.dot(weights) / np.sum(weights)
     st_devs = np.squeeze(np.array(np.sqrt(avg_mat_squared)))
-    return centered_mat @ sps.diags(1 / st_devs), means, st_devs
+
+    # Zero-variance columns can't be scaled to have a standard deviation of 1, so
+    # leave them as zeros
+    scaling_factor = one_over_var_inf_to_zero(st_devs)
+
+    return centered_mat @ sps.diags(scaling_factor), means, st_devs

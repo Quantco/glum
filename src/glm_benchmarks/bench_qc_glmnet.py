@@ -2,7 +2,6 @@ import warnings
 from typing import Any, Dict
 
 import numpy as np
-from scipy import sparse as sps
 
 from .glmnet_qc.glmnet_qc import fit_glmnet
 from .util import runtime
@@ -20,15 +19,13 @@ def glmnet_qc_bench(
         return result
 
     n_iters = 10
-    result["runtime"], model = runtime(
-        fit_glmnet,
-        dat["y"],
-        dat["X"],
-        alpha,
-        l1_ratio,
-        n_iters=n_iters,
-        solver="sparse" if sps.issparse(dat["X"]) else "naive",
-    )
+    try:
+        result["runtime"], model = runtime(
+            fit_glmnet, dat["y"], dat["X"], alpha, l1_ratio, n_iters=n_iters,
+        )
+    except RuntimeError:
+        warnings.warn("glmnet_qc did not converge.")
+        return result
     result["model_obj"] = model
     result["intercept"] = model.intercept
     assert np.isfinite(model.params).all()
