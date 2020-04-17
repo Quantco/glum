@@ -17,3 +17,5 @@ statsmodels
 compilers 
 line_profiler
 cython
+mkl
+mkl-include
