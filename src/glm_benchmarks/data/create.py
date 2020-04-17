@@ -13,6 +13,8 @@ from sklearn.preprocessing import (
     StandardScaler,
 )
 
+from ..util import exposure_correction
+
 # taken from https://github.com/lorentzenchr/Tutorial_freMTPL2/blob/master/glm_freMTPL2_example.ipynb
 
 
@@ -356,6 +358,39 @@ def generate_simple_insurance_dataset(
     y, exposure = compute_y_exposure(df, distribution)
 
     return col_trans_GLM1.fit_transform(df), y, exposure
+
+
+def generate_real_dense_insurance_dataset(
+    nrows=None, noise=None, distribution="poisson"
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Load real dense insurance data set."""
+
+    df = pd.read_parquet(git_root("data", "outcomes.parquet"))
+    X = pd.read_parquet(git_root("data", "X.parquet"))
+
+    if distribution != "poisson":
+        raise NotImplementedError("distibution must be poisson")
+
+    # subsample
+    if nrows is not None:
+        idx = df.sample(n=nrows).index
+        df = df.loc[idx].reset_index(drop=True)
+        X = X.loc[idx].reset_index(drop=True)
+
+    # restrict X and df to train set
+    train_set = df["sample"] == "train"
+    X = X.loc[train_set]
+    df = df.loc[train_set]
+
+    # account for exposure and offsets
+    y, weights = exposure_correction(
+        power=1,
+        y=df["sanzkh02"],
+        exposure=df["je"],
+        offset=df["offset_kh_sach_frequenz"],
+    )
+
+    return (X.to_numpy(), y, weights)
 
 
 def generate_sparse_insurance_dataset(
