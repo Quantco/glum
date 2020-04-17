@@ -2,12 +2,22 @@ from os import path
 
 import numpy as np
 from Cython.Build import cythonize
-from setuptools import find_packages, setup
+from setuptools import Extension, find_packages, setup
 
 here = path.abspath(path.dirname(__file__))
 
 with open(path.join(here, "README.md")) as f:
     long_description = f.read()
+
+ext_modules = [
+    Extension(
+        name="mkl_spblas",
+        sources=["mkl_spblas.pyx"],
+        include_dirs=[np.get_include(), "/wayfair/home/ms880e/miniconda3/include"],
+        libraries=["mkl_rt"],
+        library_dirs=["", "/wayfair/home/ms880e/miniconda3/lib"],
+    )
+]
 
 setup(
     name="glm_benchmarks",
