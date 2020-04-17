@@ -12,11 +12,16 @@ with open(path.join(here, "README.md")) as f:
 ext_modules = [
     Extension(
         name="mkl_spblas",
-        sources=["mkl_spblas.pyx"],
+        sources=["src/glm_benchmarks/spblas/mkl_spblas.pyx"],
         include_dirs=[np.get_include(), "/wayfair/home/ms880e/miniconda3/include"],
         libraries=["mkl_rt"],
         library_dirs=["", "/wayfair/home/ms880e/miniconda3/lib"],
-    )
+    ),
+    Extension(
+        name="fast_sandwich_dot",
+        sources=["src/glm_benchmarks/fast_sandwich_dot.pyx"],
+        include_dirs=[np.get_include()],
+    ),
 ]
 
 setup(
@@ -42,7 +47,6 @@ setup(
         glm_benchmarks_run = glm_benchmarks.main:cli_run
         glm_benchmarks_analyze = glm_benchmarks.main:cli_analyze
     """,
-    ext_modules=cythonize("src/glm_benchmarks/fast_sandwich_dot.pyx"),
-    include_dirs=[np.get_include()],
+    ext_modules=cythonize(ext_modules, annotate=True),
     zip_safe=False,
 )
