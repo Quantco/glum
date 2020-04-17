@@ -36,7 +36,7 @@ def glmnet_python_bench(
         family=distribution,
         alpha=l1_ratio,
         lambdau=np.array([alpha]),
-        standardize=False,
+        standardize=True,
         thresh=1e-7,
     )
     if "weights" in dat.keys():
