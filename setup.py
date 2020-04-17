@@ -13,14 +13,9 @@ ext_modules = [
     Extension(
         name="mkl_spblas",
         sources=["src/glm_benchmarks/spblas/mkl_spblas.pyx"],
-        include_dirs=[np.get_include(), "/wayfair/home/ms880e/miniconda3/include"],
+        include_dirs=[np.get_include(), "/opt/conda/include"],
         libraries=["mkl_rt"],
-        library_dirs=["", "/wayfair/home/ms880e/miniconda3/lib"],
-    ),
-    Extension(
-        name="fast_sandwich_dot",
-        sources=["src/glm_benchmarks/fast_sandwich_dot.pyx"],
-        include_dirs=[np.get_include()],
+        library_dirs=["", "/opt/conda/lib"],
     ),
 ]
 

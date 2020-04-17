@@ -43,7 +43,7 @@ def sklearn_fork_bench(
         copy_X=True,
         selection="random",
         tol=1e-5,
-        standardize=True,
+        standardize=False,
     )
 
     result["runtime"], m = runtime(build_and_fit, model_args, fit_args)
