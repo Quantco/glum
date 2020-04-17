@@ -44,6 +44,7 @@ from abc import ABCMeta, abstractmethod
 
 import numpy as np
 import scipy.sparse.linalg as splinalg
+from mkl_spblas import mkl_matmat
 from scipy import linalg, sparse, special
 from scipy.optimize import fmin_l_bfgs_b
 from sklearn.base import BaseEstimator, RegressorMixin
@@ -113,7 +114,7 @@ def _safe_sandwich_dot(X, d, intercept=False):
         # allocation of a new sparse matrix every time we pass through this
         # step. The X.multiply creates a new matrix. Avoiding the allocation
         # and updating the rows in place accelerates this line by ~20%.
-        temp = X.transpose() @ X.multiply(d[:, np.newaxis])
+        temp = mkl_matmat(X, (X.multiply(d[:, np.newaxis]).tocsr()), transpose=True)
         # for older versions of numpy and scipy, temp may be a np.matrix
         temp = _safe_toarray(temp)
     elif type(X) is ColScaledSpMat:
