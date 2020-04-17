@@ -1,4 +1,3 @@
 git+https://github.com/johnlees/glmnet_python.git@94101a0d88cc8a5505e61d97df552b6e5defab7a
 h2o
-pyglmnet
 py-spy
