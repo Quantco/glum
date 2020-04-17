@@ -57,7 +57,7 @@ def load_sparse_insurance_data(
 
 def load_sparse_insurance_data_no_weights(
     num_rows: int = None, noise: float = None, distribution: str = "poisson",
-) -> Dict[str, np.ndarray]:
+) -> Dict[str, Union[np.ndarray, sps.spmatrix]]:
     X, y, _ = generate_sparse_insurance_dataset(num_rows, noise, distribution)
     return dict(X=X, y=y)
 
