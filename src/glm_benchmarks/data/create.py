@@ -358,6 +358,29 @@ def generate_simple_insurance_dataset(
     return col_trans_GLM1.fit_transform(df), y, exposure
 
 
+def generate_real_dense_insurance_dataset(
+    nrows=None, noise=None, distribution="poisson"
+) -> Tuple[sps.spmatrix, np.ndarray, np.ndarray]:
+    """Load real dense insurance data set."""
+
+    df = pd.read_parquet(git_root("data", "outcomes.parquet"))
+    X = pd.read_parquet(git_root("data", "X.parquet"))
+
+    # subsample
+    if nrows is not None:
+        idx = df.sample(n=nrows).index
+        df = df.loc[idx].reset_index(drop=True)
+        X = X.loc[idx].reset_index(drop=True)
+
+    y = df["sanzkh02"].to_numpy()
+    exposure = df["je"].to_numpy()
+    train_set = (df["sample"] == "train").to_numpy()
+    offset = np.exp(df["offset_kh_sach_frequenz"].to_numpy())
+    y_adj = y / (exposure * offset)
+    sample_weight = exposure * offset
+    return X[train_set].to_numpy(), y_adj[train_set], sample_weight[train_set]
+
+
 def generate_sparse_insurance_dataset(
     nrows=None, noise=None, distribution="poisson"
 ) -> Tuple[sps.spmatrix, np.ndarray, np.ndarray]:
