@@ -368,6 +368,9 @@ def generate_real_dense_insurance_dataset(
     df = pd.read_parquet(git_root("data", "outcomes.parquet"))
     X = pd.read_parquet(git_root("data", "X.parquet"))
 
+    if distribution != "poisson":
+        raise NotImplementedError("distibution must be poisson")
+
     # subsample
     if nrows is not None:
         idx = df.sample(n=nrows).index
