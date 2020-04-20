@@ -110,13 +110,15 @@ def _safe_sandwich_dot(X, d, intercept=False):
     first column of X.
     X can be sparse, d must be an ndarray. Always returns a ndarray."""
     if sparse.issparse(X):
-        # TODO: There's a bit of room to accelerate this by avoiding the
-        # allocation of a new sparse matrix every time we pass through this
-        # step. The X.multiply creates a new matrix. Avoiding the allocation
-        # and updating the rows in place accelerates this line by ~20%.
-        temp = mkl_matmat(X, (X.multiply(d[:, np.newaxis]).tocsr()), transpose=True)
-        # for older versions of numpy and scipy, temp may be a np.matrix
-        temp = _safe_toarray(temp)
+        # weirdly, matrix multiplication of the diagonal is faster than
+        # element-wise multiplication
+        d2 = sparse.diags(d, format="csr")
+        temp = mkl_matmat(
+            mkl_matmat(X, d2, transpose=True, return_dense=False),
+            X,
+            transpose=False,
+            return_dense=True,
+        )
     elif type(X) is ColScaledSpMat:
         term1 = X.mat.transpose() @ X.mat.multiply(d[:, np.newaxis])
         term2 = X.mat.transpose().dot(d)[:, np.newaxis] * X.shift
@@ -125,18 +127,8 @@ def _safe_sandwich_dot(X, d, intercept=False):
         temp = term1 + term2 + term3 + term4
         temp = _safe_toarray(temp)
     else:
-        # from glm_benchmarks.fast_sandwich_dot import fast_sandwich_dot
-        # temp = fast_sandwich_dot(X, d)
         temp = (X.T * d) @ X
-        # X1 = np.sqrt(d)[:,None] * X
-        # temp = X1.T @ X1
 
-        # from scipy.linalg.blas import dsyrk
-        # out = np.zeros((X.shape[1], X.shape[1]))
-        # out = dsyrk(alpha=1.0, a=X1.T)
-
-        # # np.testing.assert_almost_equal(temp, out)
-        # temp = out
     if intercept:
         dim = X.shape[1] + 1
         if type(X) is ColScaledSpMat:
