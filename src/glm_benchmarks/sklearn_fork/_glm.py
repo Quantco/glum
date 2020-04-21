@@ -123,10 +123,12 @@ def _safe_sandwich_dot(X, d, intercept=False):
     elif type(X) is ColScaledSpMat:
         if X.mat.getformat() == "csr":
             X2mat = X.mat.multiply(d[:, np.newaxis]).tocsr()
+            term1 = mkl_matmat(X.mat, X2mat, transpose=True, return_dense=True)
         elif X.mat.getformat() == "csc":
-            X2mat = X.mat.multiply(d[:, np.newaxis]).tocsc()
-        term1 = mkl_matmat(X.mat, X2mat, transpose=True, return_dense=True)
-        # term1 = X.mat.transpose() @ X.mat.multiply(d[:, np.newaxis])
+            sqrtD = np.sqrt(d)
+            X.mat.data *= sqrtD[X.mat.indices]
+            term1 = mkl_matmat(X.mat, X.mat, transpose=True, return_dense=True)
+            X.mat.data /= sqrtD[X.mat.indices]
         term2 = X.mat.transpose().dot(d)[:, np.newaxis] * X.shift
         term3 = term2.T
         term4 = (X.shift.T * X.shift) * d.sum()
