@@ -125,12 +125,10 @@ def _safe_sandwich_dot(X, d, intercept=False):
         temp = term1 + term2 + term3 + term4
         temp = _safe_toarray(temp)
     else:
-        # if _safe_sandwich_dot.scratch is None:
-        #     _safe_sandwich_dot.scratch = np.empty((X.shape[1], X.shape[0]))
-        # _safe_sandwich_dot.scratch[:,:] = X.T[:,:]
-        # _safe_sandwich_dot.scratch *= d
-        # temp = _safe_sandwich_dot.scratch @ X
-        temp = (X.T * d) @ X
+        sqrtD = np.sqrt(d)[:, np.newaxis]
+        X *= sqrtD
+        temp = X.T @ X
+        X /= sqrtD
     if intercept:
         dim = X.shape[1] + 1
         if type(X) is ColScaledSpMat:
@@ -1393,16 +1391,6 @@ def _cd_solver(
     Journal of Machine Learning Research 13 (2012) 1999-2030
     https://www.csie.ntu.edu.tw/~cjlin/papers/l1_glmnet/long-glmnet.pdf
     """
-    if type(X) is not ColScaledSpMat:
-        # TODO: because copy_X is being passed here and is also being passed in
-        # check_X_y in fit(...), X is being copied twice. Check if this is true.
-        X = check_array(
-            X, "csc", dtype=[np.float64, np.float32], order="F", copy=copy_X
-        )
-    if P2.ndim == 2:
-        P2 = check_array(
-            P2, "csc", dtype=[np.float64, np.float32], order="F", copy=copy_X
-        )
     if sparse.issparse(X):
         if not sparse.isspmatrix_csc(P2):
             raise ValueError(
