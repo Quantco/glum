@@ -37,9 +37,11 @@ def h2o_bench(
 
     train_h2o = h2o.H2OFrame(train_mat)
 
+    tweedie = distribution == "tweedie_p=1.5"
     model_args = dict(
         model_id="glm",
-        family=distribution,
+        # not sure if this is right
+        family="tweedie" if tweedie else distribution,
         alpha=l1_ratio,
         lambda_=alpha,
         standardize=True,
@@ -48,6 +50,7 @@ def h2o_bench(
         objective_epsilon=1e-12,
         beta_epsilon=1e-12,
         gradient_epsilon=1e-12,
+        tweedie_variance_power=1.5 if tweedie else None,
     )
 
     if use_weights:
@@ -70,17 +73,14 @@ def h2o_bench(
 
     # un-standardize
     standardized_intercept = m.coef()["Intercept"]
+
     standardized_coefs = np.array(
         [
-            m.coef()[f"C{i + 1}"]
+            # h2o automatically removes zero-variance columns; impute to 1
+            m.coef().get(f"C{i + 1}", 0)
             for i in range(train_mat.shape[1] - (2 if use_weights else 1))
         ]
     )
-    # import ipdb
-    # ipdb.set_trace()
-    # coefs = standardized_coefs / (dat['X'].std(0))
-    # intercept = (standardized_x - unstandardized_x).dot(coefs)
-    # intercept = (dat['y'] - dat['X'].dot(coefs)).mean()
 
     result["intercept"] = standardized_intercept
     result["coef"] = standardized_coefs
