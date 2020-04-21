@@ -18,10 +18,9 @@ def glmnet_python_bench(
 
     X = dat["X"]
     if isinstance(X, sps.spmatrix):
-        warnings.warn(
-            "glmnet_python does not support sparse matrices. Converting to a dense matrix."
-        )
-        X = X.toarray()
+        if not isinstance(X, sps.csc.csc_matrix):
+            warnings.warn("sparse matrix will be converted to csc format")
+            X = X.tocsc()
 
     if len(dat["y"]) <= 650:
         warnings.warn("glmnet_python does not work with too few rows")
@@ -36,7 +35,7 @@ def glmnet_python_bench(
         family=distribution,
         alpha=l1_ratio,
         lambdau=np.array([alpha]),
-        standardize=False,
+        standardize=True,
         thresh=1e-7,
     )
     if "weights" in dat.keys():
