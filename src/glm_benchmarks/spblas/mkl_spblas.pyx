@@ -3,6 +3,7 @@ cimport numpy as np
 import scipy as sp
 import scipy.sparse
 from cython cimport view
+import warning
 
 
 cdef extern from "mkl.h":
@@ -369,6 +370,9 @@ def mkl_syrkd(A_py, transpose: bool=True):
     or
     C := beta*C + alpha*op(A)*A
     """
+    if A_py.getformat() != 'csr':
+        warning.warn('Input matrix not in CSR format. Converting.')
+        A_py = A_py.tocsr()
     cdef sparse_operation_t operation
     cdef sparse_matrix_t A = to_mkl_matrix(A_py)
     cdef double[:, :] C_view

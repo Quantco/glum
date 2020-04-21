@@ -3,7 +3,7 @@ from typing import Any, Callable, Dict, Tuple
 
 import numpy as np
 import pandas as pd
-from mkl_spblas import mkl_matmat
+from mkl_spblas import mkl_matmat, mkl_syrkd
 from scipy import sparse as sps
 
 from glm_benchmarks.problems import (
@@ -47,6 +47,22 @@ def whitened_sandwich(x, d):
     return res
 
 
+def _safe_sandwich_dot_syrk_whitened(X, d):
+    sqrt_d = np.sqrt(d)
+    if sps.isspmatrix(X):
+        sqrt_d_long = sqrt_d[X.indices]
+        X.data *= sqrt_d_long
+        temp = mkl_syrkd(X.tocsr(), transpose=True)
+        X.data /= sqrt_d_long
+        return temp
+
+    sqrt_d = sqrt_d[:, None]
+    X *= sqrt_d
+    res = X.T.dot(X)
+    X /= sqrt_d
+    return res
+
+
 def _safe_sandwich_dot_whitened(X, d):
     sqrt_d = np.sqrt(d)
     if sps.isspmatrix(X):
@@ -68,6 +84,8 @@ def run_one_problem_all_methods(n_rows: int, sparse: bool) -> pd.DataFrame:
     funcs: Dict[str, Callable[[Any, np.ndarray], Any]] = {
         "naive": naive_sandwich,
         "mkl": _safe_sandwich_dot,
+        "mkl_whiten": _safe_sandwich_dot_whitened,
+        "mkl_syrk": _safe_sandwich_dot_syrk_whitened,
         "whiten": whitened_sandwich,
     }
 
@@ -97,8 +115,8 @@ def run_one_problem_all_methods(n_rows: int, sparse: bool) -> pd.DataFrame:
 
 def main() -> None:
     # "killed" with 1e7 and 4 * 1e6
-    row_counts = [int(1e5), int(1e6), 2 * int(1e6)]
-    benchmarks = [(n_rows, sp) for n_rows in row_counts for sp in [False, True]]
+    row_counts = [int(1e5), int(1e6)]
+    benchmarks = [(n_rows, sp) for n_rows in row_counts for sp in [True, False]]
     result_df = pd.concat(
         [run_one_problem_all_methods(*bench) for bench in benchmarks]
     ).sort_values(["n_rows", "sparse", "method"])
