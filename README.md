@@ -48,8 +48,18 @@ For stack sampling profiling, use py-spy: `py-spy top -- python src/glm_benchmar
 
 ## Memory profiling
 
-An example of memory profiling:
+To do some memory profiling, first save a problem dataset. It's nice to avoid profiling the dataset creation.
 ```
-mprof run --python -o mprofresults.dat --interval 0.01 src/glm_benchmarks/profile_entry.py --problem_names simple_insurance_lasso_poisson --num_rows 1000000 --no_test
-mprof plot mprofresults.dat -o prof.png
+python src/glm_benchmarks/memory_profile.py --save
+```
+
+To create a graph of memory usage:
+```
+mprof run --python -o mprofresults.dat --interval 0.01 src/glm_benchmarks/memory_profile.py
+mprof plot mprofresults.dat -o prof2.png
+```
+
+To do line-by-line memory profiling, add a `@profile` decorator to the functions you care about and then run:
+```
+python -m memory_profiler src/glm_benchmarks/memory_profile.py
 ```
