@@ -145,6 +145,16 @@ cdef extern from "mkl.h":
         const sparse_request_t request
     )
 
+    sparse_status_t mkl_sparse_d_syrkd(
+        sparse_operation_t operation,
+        const sparse_matrix_t A,
+        double alpha,
+        double beta,
+        double *C,
+        sparse_layout_t layout,
+        MKL_INT ldc
+    )
+
 cdef struct matrix_descr:
     sparse_matrix_type_t type
     sparse_fill_mode_t mode  # upper or lower triangular part of the matrix ( for triangular / symmetric / hermitian case)
@@ -184,11 +194,11 @@ def mkl_matvec(A_py, x, transpose=False):
 
 def mkl_matmat(A_py, B_py, transpose=False, return_dense=False):
 
-    if A_py.getformat() != B_py.getformat():
-        raise TypeError(
-            'The storage formats of the two matrice must coincide. '
-            f'A: {A_py.getformat()}, B {B_py.getformat()}'
-        )
+#    if A_py.getformat() != B_py.getformat():
+#        raise TypeError(
+#            'The storage formats of the two matrice must coincide. '
+#            f'A: {A_py.getformat()}, B {B_py.getformat()}'
+#        )
 
     if A_py.shape[1 - int(transpose)] != B_py.shape[0]:
         raise TypeError("The matrices have incompatible dimensions.")
@@ -347,5 +357,42 @@ def mkl_sypr(A_py, B_py, transpose: bool=True):
     )
 
     C_py = to_scipy_matrix(C, A_py.getformat())
+
+    return C_py
+
+
+def mkl_syrkd(A_py, transpose: bool=True):
+    """Computes the product of sparse matrix with its transpose 
+    (or conjugate transpose) and stores the result as a dense matrix.
+
+    C := beta*C + alpha*A*op(A)
+    or
+    C := beta*C + alpha*op(A)*A
+    """
+    cdef sparse_operation_t operation
+    cdef sparse_matrix_t A = to_mkl_matrix(A_py)
+    cdef double[:, :] C_view
+    cdef MKL_INT zero = 0
+    cdef MKL_INT one = 1
+
+    if transpose:
+        operation = SPARSE_OPERATION_TRANSPOSE
+    else:
+        operation = SPARSE_OPERATION_NON_TRANSPOSE
+
+    layout = SPARSE_LAYOUT_ROW_MAJOR
+    C_py = np.zeros((A_py.shape[transpose], A_py.shape[transpose]))
+    nrow_C = C_py.shape[1]
+    C_view = C_py
+
+    res = mkl_sparse_d_syrkd(
+        operation, 
+        A,
+        one,
+        zero,
+        &C_view[0, 0],
+        layout,
+        nrow_C,
+    )
 
     return C_py
