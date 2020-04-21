@@ -18,6 +18,7 @@ COPY requirements/ /app/requirements
 RUN conda install --file requirements/anaconda-requirements.txt
 RUN conda install -c conda-forge --file requirements/conda-forge-requirements.txt
 RUN pip install -r requirements/pip-requirements.txt
+RUN conda config --add channels conda-forge
 
 # We wait to copy the full app folder until now so that image caching still
 # works for the previous slow-running install lines (conda and pip)
