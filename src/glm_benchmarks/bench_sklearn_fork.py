@@ -41,10 +41,9 @@ def sklearn_fork_bench(
         # was 10k for convergence, changing to ensure speedy testing
         max_iter=10,
         random_state=random_seed,
-        copy_X=True,
+        copy_X=False,
         selection="random",
         tol=1e-5,
-        standardize=True,
     )
 
     result["runtime"], m = runtime(build_and_fit, model_args, fit_args)
