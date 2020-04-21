@@ -64,7 +64,7 @@ def standardize(
     scaling_factor = one_over_var_inf_to_zero(st_devs)
 
     if sps.isspmatrix_csc(centered_mat.mat):
-        _scale_csc_columns(centered_mat.mat, scaling_factor)
+        _scale_csc_columns_inplace(centered_mat.mat, scaling_factor)
         centered_mat.shift *= scaling_factor
     else:
         centered_mat = centered_mat @ sps.diags(scaling_factor)
@@ -72,8 +72,8 @@ def standardize(
     return centered_mat, means, st_devs
 
 
-def _scale_csc_columns(mat: sps.spmatrix, v: np.ndarray):
-    assert type(mat) == sps.csc_matrix
+def _scale_csc_columns_inplace(mat: sps.spmatrix, v: np.ndarray):
+    assert isinstance(mat, sps.csc_matrix)
     for i in range(mat.shape[1]):
         start_idx = mat.indptr[i]
         end_idx = mat.indptr[i + 1]
