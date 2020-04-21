@@ -9,13 +9,16 @@ here = path.abspath(path.dirname(__file__))
 with open(path.join(here, "README.md")) as f:
     long_description = f.read()
 
+include_mkl = np.__config__.get_info("blas_mkl_info")["include_dirs"][0]
+libraries_mkl = np.__config__.get_info("blas_mkl_info")["include_dirs"]
+
 ext_modules = [
     Extension(
         name="mkl_spblas",
         sources=["src/glm_benchmarks/spblas/mkl_spblas.pyx"],
-        include_dirs=[np.get_include(), "/opt/conda/include"],
+        include_dirs=[np.get_include(), include_mkl],
         libraries=["mkl_rt"],
-        library_dirs=["", "/opt/conda/lib"],
+        library_dirs=["", libraries_mkl],
     ),
 ]
 
