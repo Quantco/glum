@@ -38,7 +38,8 @@ def sklearn_fork_bench(
         family=family,
         alpha=alpha,
         l1_ratio=l1_ratio,
-        max_iter=10000,
+        # was 10k for convergence, changing to ensure speedy testing
+        max_iter=10,
         random_state=random_seed,
         copy_X=True,
         selection="random",
