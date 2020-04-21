@@ -45,3 +45,11 @@ H2O: https://github.com/h2oai/h2o-tutorials/blob/master/tutorials/glm/glm_h2owor
 For line-by-line profiling, use line_profiler `kernprof -lbv src/glm_benchmarks/profile_entry.py`
 
 For stack sampling profiling, use py-spy: `py-spy top -- python src/glm_benchmarks/profile_entry.py`
+
+## Memory profiling
+
+An example of memory profiling:
+```
+mprof run --python -o mprofresults.dat --interval 0.01 src/glm_benchmarks/profile_entry.py --problem_names simple_insurance_lasso_poisson --num_rows 1000000 --no_test
+mprof plot mprofresults.dat -o prof.png
+```

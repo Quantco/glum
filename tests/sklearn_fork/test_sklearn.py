@@ -858,10 +858,16 @@ def test_standardize(use_sparse):
     M = row_mults[:, None] * col_mults[None, :]
     if use_sparse:
         M = sparse.csc_matrix(M)
+    MC = copy.deepcopy(M)
 
     X, P1, P2, col_means, col_stds = _standardize(
         M, np.ones(NC), np.ones((NC, NC)), np.ones(NR) / NR
     )
+    # Make sure we aren't copying M!
+    if use_sparse:
+        assert id(X.mat) == id(M)
+    else:
+        assert id(X) == id(M)
     np.testing.assert_almost_equal(col_means[0, :], col_mults)
 
     # After standardization, all the columns will have the same values.
@@ -885,14 +891,16 @@ def test_standardize(use_sparse):
     X2, intercept, coef = _unstandardize(
         X, col_means, col_stds, intercept_standardized, coef_standardized
     )
+    if use_sparse:
+        assert id(X2) == id(X.mat)
+    else:
+        assert id(X2) == id(X)
     np.testing.assert_almost_equal(intercept, -(NC + 1) * NC / 2)
     np.testing.assert_almost_equal(coef, 1.0)
 
     if use_sparse:
         assert type(X.mat) is sparse.csc_matrix
         assert type(X2) is sparse.csc_matrix
-        np.testing.assert_almost_equal(M.indptr, X2.indptr)
-        np.testing.assert_almost_equal(M.indices, X2.indices)
-        np.testing.assert_almost_equal(M.data, X2.data)
+        np.testing.assert_almost_equal(MC.toarray(), X2.toarray())
     else:
-        np.testing.assert_almost_equal(M, X2)
+        np.testing.assert_almost_equal(MC, X2)
