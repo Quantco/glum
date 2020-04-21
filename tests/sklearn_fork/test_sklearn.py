@@ -491,47 +491,44 @@ def test_normal_ridge_comparison(n_samples, n_features, fit_intercept, solver):
 
     Compare to test_ridge in test_ridge.py.
     """
-    alpha = 1.0
-    n_predict = 10
-    X, y, coef = make_regression(
-        n_samples=n_samples + n_predict,
-        n_features=n_features,
-        n_informative=n_features - 2,
-        noise=0.5,
-        coef=True,
-        random_state=42,
-    )
-    y = y[0:n_samples]
-    X, T = X[0:n_samples], X[n_samples:]
+    for i in range(10):
+        alpha = 1.0
+        n_predict = 10
+        X, y, coef = make_regression(
+            n_samples=n_samples + n_predict,
+            n_features=n_features,
+            n_informative=n_features - 2,
+            noise=0.5,
+            coef=True,
+        )
+        y = y[0:n_samples]
+        X, T = X[0:n_samples], X[n_samples:]
 
-    if n_samples > n_features:
-        ridge_params = {"solver": "svd"}
-    else:
-        ridge_params = {"solver": "sag", "max_iter": 10000, "tol": 1e-9}
+        if n_samples > n_features:
+            ridge_params = {"solver": "svd"}
+        else:
+            ridge_params = {"solver": "sag", "max_iter": 10000, "tol": 1e-9}
 
-    # GLM has 1/(2*n) * Loss + 1/2*L2, Ridge has Loss + L2
-    ridge = Ridge(
-        alpha=alpha * n_samples, normalize=False, random_state=42, **ridge_params
-    )
-    ridge.fit(X, y)
+        # GLM has 1/(2*n) * Loss + 1/2*L2, Ridge has Loss + L2
+        ridge = Ridge(alpha=alpha * n_samples, normalize=False, **ridge_params)
+        ridge.fit(X, y)
 
-    glm = GeneralizedLinearRegressor(
-        alpha=1.0,
-        l1_ratio=0,
-        family="normal",
-        link="identity",
-        fit_intercept=True,
-        max_iter=300,
-        solver=solver,
-        tol=1e-6,
-        check_input=False,
-        random_state=42,
-    )
-    glm.fit(X, y)
-    assert glm.coef_.shape == (X.shape[1],)
-    assert_allclose(glm.coef_, ridge.coef_, rtol=5e-6)
-    assert_allclose(glm.intercept_, ridge.intercept_, rtol=1e-6)
-    assert_allclose(glm.predict(T), ridge.predict(T), rtol=1e-5)
+        glm = GeneralizedLinearRegressor(
+            alpha=1.0,
+            l1_ratio=0,
+            family="normal",
+            link="identity",
+            fit_intercept=True,
+            max_iter=300,
+            solver=solver,
+            tol=1e-6,
+            check_input=False,
+        )
+        glm.fit(X, y)
+        assert glm.coef_.shape == (X.shape[1],)
+        assert_allclose(glm.coef_, ridge.coef_, rtol=5e-5)
+        assert_allclose(glm.intercept_, ridge.intercept_, rtol=1e-5)
+        assert_allclose(glm.predict(T), ridge.predict(T), rtol=1e-4)
 
 
 @pytest.mark.parametrize(
