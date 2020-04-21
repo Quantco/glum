@@ -53,7 +53,11 @@ from sklearn.utils import check_array, check_X_y
 from sklearn.utils.optimize import newton_cg
 from sklearn.utils.validation import check_is_fitted, check_random_state
 
-from glm_benchmarks.scaled_spmat import ColScaledSpMat, zero_center
+from glm_benchmarks.scaled_spmat import ColScaledSpMat, standardize, zero_center
+from glm_benchmarks.scaled_spmat.standardize import (
+    _scale_csc_columns,
+    one_over_var_inf_to_zero,
+)
 
 
 def _check_weights(sample_weight, n_samples):
@@ -189,28 +193,58 @@ def _min_norm_sugrad(coef, grad, P2, P1):
         return res
 
 
-def _standardize(X, weights):
+def _standardize(X, weights, center_predictors, scale_predictors):
     # NOTE: Expects that sum(weights) == 1
     if sparse.issparse(X):
-        X, col_means = zero_center(X, weights=weights)
+        return _standardize_sparse(X, weights, center_predictors, scale_predictors)
     else:
+        return _standardize_dense(X, weights, center_predictors, scale_predictors)
+
+
+def _standardize_sparse(X, weights, center_predictors, scale_predictors):
+    if center_predictors and scale_predictors:
+        return standardize(X, weights=weights)
+    elif center_predictors:
+        X, col_means = zero_center(X, weights=weights)
+        col_stds = np.ones(X.shape[1])
+        return X, col_means, col_stds
+
+
+def _standardize_dense(X, weights, center_predictors, scale_predictors):
+    if center_predictors:
         col_means = X.T.dot(weights)[None, :]
         X -= col_means
-    return X, col_means
+        if scale_predictors:
+            # TODO: avoid copying X -- the X ** 2 makes a copy
+            col_stds = np.sqrt((X ** 2).T.dot(weights))
+            X *= one_over_var_inf_to_zero(col_stds)
+        else:
+            col_stds = np.ones(X.shape[1])
+    else:
+        col_means = np.zeros(X.shape[1])
+        col_stds = np.ones(X.shape[1])
+    return X, col_means, col_stds
 
 
-def _unstandardize(X, col_means, intercept, coef):
+def _unstandardize(X, col_means, col_stds, intercept, coef):
     if type(X) is ColScaledSpMat:
-        X = X.mat
+        if sparse.isspmatrix_csc(X.mat):
+            _scale_csc_columns(X.mat, col_stds)
+            X = X.mat
+        else:
+            X = X.mat @ sparse.diags(col_stds)
     else:
         X += col_means
+        X *= col_stds
 
-    intercept -= np.squeeze(col_means).dot(coef)
-    return X, intercept
+    intercept -= np.squeeze(col_means / col_stds).dot(coef)
+    coef /= col_stds
+    return X, intercept, coef
 
 
-def _standardize_warm_start(coef, col_means):
-    coef[0] += np.squeeze(col_means).dot(coef[1:])
+def _standardize_warm_start(coef, col_means, col_stds):
+    coef[1:] *= col_stds
+    coef[0] += np.squeeze(col_means / col_stds).dot(coef[1:])
 
 
 class Link(metaclass=ABCMeta):
@@ -1839,7 +1873,8 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         copy_X=True,
         check_input=True,
         verbose=0,
-        standardize=False,
+        center_predictors=None,
+        scale_predictors=False,
     ):
         self.alpha = alpha
         self.l1_ratio = l1_ratio
@@ -1860,7 +1895,8 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         self.copy_X = copy_X
         self.check_input = check_input
         self.verbose = verbose
-        self.standardize = standardize
+        self.center_predictors = center_predictors
+        self.scale_predictors = scale_predictors
 
     def fit(self, X, y, sample_weight=None):
         """Fit a Generalized Linear Model.
@@ -1968,6 +2004,13 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 "The argument fit_intercept must be bool;"
                 " got {}".format(self.fit_intercept)
             )
+
+        if self.center_predictors is None:
+            # when fit_intercept is False, we can't center because that would
+            # substantially change estimates
+            # Also, currently, diag_fisher is not supported for ColScaledSpMat
+            self.center_predictors = not (not self.fit_intercept or self.diag_fisher)
+
         if self.solver not in ["auto", "irls", "lbfgs", "newton-cg", "cd"]:
             raise ValueError(
                 "GeneralizedLinearRegressor supports only solvers"
@@ -2023,6 +2066,15 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             raise ValueError(
                 "The argument check_input must be bool; got "
                 "(check_input={})".format(self.check_input)
+            )
+        if self.center_predictors and not self.fit_intercept:
+            raise ValueError(
+                "center_predictors=True is not supported when fit_intercept=False"
+                "because centering would substantially change the estimates."
+            )
+        if self.scale_predictors and self.center_predictors:
+            raise ValueError(
+                "scale_predictors=True is not supported when center_predictors=False"
             )
 
         family = self._family_instance
@@ -2226,8 +2278,10 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         #######################################################################
         # 2b. potentially rescale predictors
         #######################################################################
-        if self.standardize:
-            X, col_means = _standardize(X, weights)
+        if self.center_predictors or self.scale_predictors:
+            X, col_means, col_stds = _standardize(
+                X, weights, self.center_predictors, self.scale_predictors
+            )
 
         #######################################################################
         # 3. initialization of coef = (intercept_, coef_)                     #
@@ -2241,8 +2295,9 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             intercept = self.intercept_
             if self.fit_intercept:
                 coef = np.concatenate((np.array([intercept]), coef))
-            if self.standardize:
-                _standardize_warm_start(coef, col_means)
+            if self.center_predictors or self.scale_predictors:
+                _standardize_warm_start(coef, col_means, col_stds)
+
         elif isinstance(start_params, str):
             if start_params == "guess":
                 # Set mu=starting_mu of the family and do one Newton step
@@ -2316,8 +2371,8 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                     coef = np.zeros(n_features)
         else:  # assign given array as start values
             coef = start_params
-            if self.standardize:
-                _standardize_warm_start(coef, col_means)
+            if self.center_predictors or self.scale_predictors:
+                _standardize_warm_start(coef, col_means, col_stds)
 
         #######################################################################
         # 4. fit                                                              #
@@ -2492,9 +2547,9 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         #######################################################################
         # 5a. undo standardization
         #######################################################################
-        if self.standardize:
-            X, self.intercept_ = _unstandardize(
-                X, col_means, self.intercept_, self.coef_
+        if self.center_predictors or self.scale_predictors:
+            X, self.intercept_, self.coef_ = _unstandardize(
+                X, col_means, col_stds, self.intercept_, self.coef_
             )
 
         if self.fit_dispersion in ["chisqr", "deviance"]:
