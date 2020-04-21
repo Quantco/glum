@@ -537,9 +537,9 @@ def test_normal_ridge_comparison(n_samples, n_features, fit_intercept, solver):
 @pytest.mark.parametrize(
     "solver, tol", [("irls", 1e-7), ("lbfgs", 1e-7), ("newton-cg", 1e-7), ("cd", 1e-7)]
 )
-@pytest.mark.parametrize("standardize", [True, False])
+@pytest.mark.parametrize("center_predictors", [True, False])
 @pytest.mark.parametrize("use_sparse", [True, False])
-def test_poisson_ridge(solver, tol, standardize, use_sparse):
+def test_poisson_ridge(solver, tol, center_predictors, use_sparse):
     """Test ridge regression with poisson family and LogLink.
 
     Compare to R's glmnet"""
@@ -570,7 +570,7 @@ def test_poisson_ridge(solver, tol, standardize, use_sparse):
         max_iter=300,
         random_state=rng,
         copy_X=True,
-        standardize=standardize,
+        center_predictors=center_predictors,
     )
     glm2 = copy.deepcopy(glm)
 
@@ -849,8 +849,8 @@ def test_convergence_warning(solver, regression_data):
 
 
 @pytest.mark.parametrize("use_sparse", [False, True])
-def test_standardize(use_sparse):
-
+@pytest.mark.parametrize("scale_predictors", [False, True])
+def test_standardize(use_sparse, scale_predictors):
     NR = 101
     NC = 10
     col_mults = np.arange(1, NC + 1)
@@ -859,7 +859,7 @@ def test_standardize(use_sparse):
     if use_sparse:
         M = sparse.csc_matrix(M)
 
-    X, col_means = _standardize(M, np.ones(NR) / NR)
+    X, col_means, col_stds = _standardize(M, np.ones(NR) / NR, True, scale_predictors)
     np.testing.assert_almost_equal(col_means[0, :], col_mults)
 
     # After standardization, all the columns will have the same values.
@@ -869,14 +869,24 @@ def test_standardize(use_sparse):
     else:
         Xdense = X
     for i in range(1, NC):
-        np.testing.assert_almost_equal((i + 1) * Xdense[:, 0], Xdense[:, i])
+        if scale_predictors:
+            np.testing.assert_almost_equal(Xdense[:, 0], Xdense[:, i])
+        else:
+            np.testing.assert_almost_equal((i + 1) * Xdense[:, 0], Xdense[:, i])
+
+    if scale_predictors:
+        # The sample variance of row_mults is 0.34. This is scaled up by the col_mults
+        true_std = np.sqrt(0.34)
+        np.testing.assert_almost_equal(col_stds, true_std * col_mults)
 
     intercept_standardized = 0.0
-    coef_standardized = np.ones(NC)
-    X2, intercept = _unstandardize(
-        X, col_means, intercept_standardized, coef_standardized
+    coef_standardized = col_stds
+    X2, intercept, coef = _unstandardize(
+        X, col_means, col_stds, intercept_standardized, coef_standardized
     )
     np.testing.assert_almost_equal(intercept, -(NC + 1) * NC / 2)
+    if scale_predictors:
+        np.testing.assert_almost_equal(coef, 1.0)
 
     if use_sparse:
         assert type(X.mat) is sparse.csc_matrix
