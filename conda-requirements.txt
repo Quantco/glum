@@ -11,5 +11,7 @@ jupyterlab
 ipdb
 scikit-learn
 statsmodels
-compilers
+compilers 
+cython
 line_profiler
+memory_profiler
