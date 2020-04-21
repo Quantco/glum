@@ -110,17 +110,18 @@ def _safe_sandwich_dot(X, d, intercept=False):
     first column of X.
     X can be sparse, d must be an ndarray. Always returns a ndarray."""
     if sparse.issparse(X):
-        # weirdly, matrix multiplication of the diagonal is faster than
-        # element-wise multiplication
-        d2 = sparse.diags(d, format="csr")
-        temp = mkl_matmat(
-            mkl_matmat(X, d2, transpose=True, return_dense=False),
-            X,
-            transpose=False,
-            return_dense=True,
-        )
+        if X.getformat() == "csr":
+            X2 = X.multiply(d[:, np.newaxis]).tocsr()
+        elif X.getformat() == "csc":
+            X2 = X.multiply(d[:, np.newaxis]).tocsc()
+        temp = mkl_matmat(X, X2, transpose=True, return_dense=True,)
     elif type(X) is ColScaledSpMat:
-        term1 = X.mat.transpose() @ X.mat.multiply(d[:, np.newaxis])
+        if X.mat.getformat() == "csr":
+            X2mat = X.mat.multiply(d[:, np.newaxis]).tocsr()
+        elif X.mat.getformat() == "csc":
+            X2mat = X.mat.multiply(d[:, np.newaxis]).tocsc()
+        term1 = mkl_matmat(X.mat, X2mat, transpose=True, return_dense=True)
+        # term1 = X.mat.transpose() @ X.mat.multiply(d[:, np.newaxis])
         term2 = X.mat.transpose().dot(d)[:, np.newaxis] * X.shift
         term3 = term2.T
         term4 = (X.shift.T * X.shift) * d.sum()

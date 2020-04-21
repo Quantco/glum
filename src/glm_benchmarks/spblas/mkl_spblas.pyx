@@ -185,7 +185,10 @@ def mkl_matvec(A_py, x, transpose=False):
 def mkl_matmat(A_py, B_py, transpose=False, return_dense=False):
 
     if A_py.getformat() != B_py.getformat():
-        raise TypeError('The storage formats of the two matrice must coincide.')
+        raise TypeError(
+            'The storage formats of the two matrice must coincide. '
+            f'A: {A_py.getformat()}, B {B_py.getformat()}'
+        )
 
     if A_py.shape[1 - int(transpose)] != B_py.shape[0]:
         raise TypeError("The matrices have incompatible dimensions.")
