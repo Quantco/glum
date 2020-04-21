@@ -529,17 +529,18 @@ def test_normal_ridge_comparison(n_samples, n_features, fit_intercept, solver):
     )
     glm.fit(X, y)
     assert glm.coef_.shape == (X.shape[1],)
-    assert_allclose(glm.coef_, ridge.coef_, rtol=5e-6)
-    assert_allclose(glm.intercept_, ridge.intercept_, rtol=1e-6)
-    assert_allclose(glm.predict(T), ridge.predict(T), rtol=1e-5)
+    assert_allclose(glm.coef_, ridge.coef_, rtol=5e-5)
+    assert_allclose(glm.intercept_, ridge.intercept_, rtol=1e-5)
+    assert_allclose(glm.predict(T), ridge.predict(T), rtol=1e-4)
 
 
 @pytest.mark.parametrize(
     "solver, tol", [("irls", 1e-7), ("lbfgs", 1e-7), ("newton-cg", 1e-7), ("cd", 1e-7)]
 )
-@pytest.mark.parametrize("standardize", [True, False])
+@pytest.mark.parametrize("center_predictors", [True, False])
+@pytest.mark.parametrize("scale_predictors", [True, False])
 @pytest.mark.parametrize("use_sparse", [True, False])
-def test_poisson_ridge(solver, tol, standardize, use_sparse):
+def test_poisson_ridge(solver, tol, center_predictors, scale_predictors, use_sparse):
     """Test ridge regression with poisson family and LogLink.
 
     Compare to R's glmnet"""
@@ -554,10 +555,28 @@ def test_poisson_ridge(solver, tol, standardize, use_sparse):
     # (Intercept) -0.12889386979
     # a            0.29019207995
     # b            0.03741173122
-    X = np.array([[-2, -1, 1, 2], [0, 0, 1, 1]]).T
+    #
+    # fit <- glmnet(x=x, y=y, alpha=0, intercept=T, family="poisson",
+    #               standardize=T, thresh=1e-10, nlambda=10000)
+    # coef(fit, s=1)
+    # (Intercept) -0.21002571120839675
+    # a            0.16472093,
+    # b            0.27051971
+
+    # Alternately, for running from Python:
+    # from glmnet_python import glmnet
+    # model = glmnet(x=X_dense, y=y, alpha=0, family="poisson",
+    #               standardize=scale_predictors, thresh=1e-10, lambdau=np.array([1.0]))
+    # true_intercept = model["a0"][0]
+    # true_beta = model["beta"][:, 0]
+    # print(true_intercept, true_beta)
+
+    X_dense = np.array([[-2, -1, 1, 2], [0, 0, 1, 1]], dtype=np.float).T
     if use_sparse:
-        X = sparse.csc_matrix(X)
-    y = np.array([0, 1, 1, 2])
+        X = sparse.csc_matrix(X_dense)
+    else:
+        X = X_dense
+    y = np.array([0, 1, 1, 2], dtype=np.float)
     rng = np.random.RandomState(42)
     glm = GeneralizedLinearRegressor(
         alpha=1,
@@ -570,14 +589,25 @@ def test_poisson_ridge(solver, tol, standardize, use_sparse):
         max_iter=300,
         random_state=rng,
         copy_X=True,
-        standardize=standardize,
+        center_predictors=center_predictors,
+        scale_predictors=scale_predictors,
     )
+
+    if not center_predictors and scale_predictors:
+        with pytest.raises(ValueError):
+            glm.fit(X, y)
+        return
+
     glm2 = copy.deepcopy(glm)
 
     def check(G):
         G.fit(X, y)
-        assert_allclose(G.intercept_, -0.12889386979, rtol=1e-5)
-        assert_allclose(G.coef_, [0.29019207995, 0.03741173122], rtol=1e-5)
+        if scale_predictors:
+            assert_allclose(G.intercept_, -0.21002571120839675, rtol=1e-5)
+            assert_allclose(G.coef_, [0.16472093, 0.27051971], rtol=1e-5)
+        else:
+            assert_allclose(G.intercept_, -0.12889386979, rtol=1e-5)
+            assert_allclose(G.coef_, [0.29019207995, 0.03741173122], rtol=1e-5)
 
     check(glm)
 
@@ -849,8 +879,8 @@ def test_convergence_warning(solver, regression_data):
 
 
 @pytest.mark.parametrize("use_sparse", [False, True])
-def test_standardize(use_sparse):
-
+@pytest.mark.parametrize("scale_predictors", [False, True])
+def test_standardize(use_sparse, scale_predictors):
     NR = 101
     NC = 10
     col_mults = np.arange(1, NC + 1)
@@ -858,10 +888,13 @@ def test_standardize(use_sparse):
     M = row_mults[:, None] * col_mults[None, :]
     if use_sparse:
         M = sparse.csc_matrix(M)
+    MC = copy.deepcopy(M)
 
-    X, P1, P2, col_means, col_stds = _standardize(
-        M, np.ones(NC), np.ones((NC, NC)), np.ones(NR) / NR
-    )
+    X, col_means, col_stds = _standardize(M, np.ones(NR) / NR, scale_predictors)
+    if use_sparse:
+        assert id(X.mat) == id(M)
+    else:
+        assert id(X) == id(M)
     np.testing.assert_almost_equal(col_means[0, :], col_mults)
 
     # After standardization, all the columns will have the same values.
@@ -871,28 +904,32 @@ def test_standardize(use_sparse):
     else:
         Xdense = X
     for i in range(1, NC):
-        np.testing.assert_almost_equal(Xdense[:, 0], Xdense[:, i])
+        if scale_predictors:
+            np.testing.assert_almost_equal(Xdense[:, 0], Xdense[:, i])
+        else:
+            np.testing.assert_almost_equal((i + 1) * Xdense[:, 0], Xdense[:, i])
 
-    # The sample variance of row_mults is 0.34. This is scaled up by the col_mults
-    true_std = np.sqrt(0.34)
-    np.testing.assert_almost_equal(col_stds, true_std * col_mults)
-
-    np.testing.assert_almost_equal(P1, 1.0 / col_stds)
-    np.testing.assert_almost_equal(P2, 1.0 / (col_stds[:, None] * col_stds[None, :]))
+    if scale_predictors:
+        # The sample variance of row_mults is 0.34. This is scaled up by the col_mults
+        true_std = np.sqrt(0.34)
+        np.testing.assert_almost_equal(col_stds, true_std * col_mults)
 
     intercept_standardized = 0.0
     coef_standardized = col_stds
     X2, intercept, coef = _unstandardize(
         X, col_means, col_stds, intercept_standardized, coef_standardized
     )
+    if use_sparse:
+        assert id(X2) == id(X.mat)
+    else:
+        assert id(X2) == id(X)
     np.testing.assert_almost_equal(intercept, -(NC + 1) * NC / 2)
-    np.testing.assert_almost_equal(coef, 1.0)
+    if scale_predictors:
+        np.testing.assert_almost_equal(coef, 1.0)
 
     if use_sparse:
         assert type(X.mat) is sparse.csc_matrix
         assert type(X2) is sparse.csc_matrix
-        np.testing.assert_almost_equal(M.indptr, X2.indptr)
-        np.testing.assert_almost_equal(M.indices, X2.indices)
-        np.testing.assert_almost_equal(M.data, X2.data)
+        np.testing.assert_almost_equal(MC.toarray(), X2.toarray())
     else:
-        np.testing.assert_almost_equal(M, X2)
+        np.testing.assert_almost_equal(MC, X2)

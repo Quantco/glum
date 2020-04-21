@@ -12,14 +12,13 @@ RUN apt-get update && \
 RUN mkdir /app
 WORKDIR /app
 
-COPY conda-requirements.txt /app
-
-# Rather than using `-c conda-forge`, add it as a default channel.
+# To ensure we're installing anaconda package versions, let's install directly
+# from anaconda first, then afterwards, install from conda-forge and pip
+COPY requirements/ /app/requirements
+RUN conda install --file requirements/anaconda-requirements.txt
+RUN conda install -c conda-forge --file requirements/conda-forge-requirements.txt
+RUN pip install -r requirements/pip-requirements.txt
 RUN conda config --add channels conda-forge
-RUN conda install --file conda-requirements.txt
-
-COPY pip-requirements.txt /app
-RUN pip install -r pip-requirements.txt
 
 # We wait to copy the full app folder until now so that image caching still
 # works for the previous slow-running install lines (conda and pip)

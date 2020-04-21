@@ -39,11 +39,11 @@ Generalized Linear Models with Exponential Dispersion Family
 from __future__ import division
 
 import numbers
+import time
 import warnings
 from abc import ABCMeta, abstractmethod
 
 import numpy as np
-import pandas as pd
 import scipy.sparse.linalg as splinalg
 from mkl_spblas import mkl_matmat
 from scipy import linalg, sparse, special
@@ -54,8 +54,11 @@ from sklearn.utils import check_array, check_X_y
 from sklearn.utils.optimize import newton_cg
 from sklearn.utils.validation import check_is_fitted, check_random_state
 
-from glm_benchmarks.scaled_spmat import ColScaledSpMat, standardize
-from glm_benchmarks.scaled_spmat.standardize import one_over_var_inf_to_zero
+from glm_benchmarks.scaled_spmat import ColScaledSpMat, standardize, zero_center
+from glm_benchmarks.scaled_spmat.standardize import (
+    _scale_csc_columns_inplace,
+    one_over_var_inf_to_zero,
+)
 
 
 def _check_weights(sample_weight, n_samples):
@@ -130,8 +133,10 @@ def _safe_sandwich_dot(X, d, intercept=False):
         temp = term1 + term2 + term3 + term4
         temp = _safe_toarray(temp)
     else:
-        temp = (X.T * d) @ X
-
+        sqrtD = np.sqrt(d)[:, np.newaxis]
+        X *= sqrtD
+        temp = X.T @ X
+        X /= sqrtD
     if intercept:
         dim = X.shape[1] + 1
         if type(X) is ColScaledSpMat:
@@ -148,6 +153,9 @@ def _safe_sandwich_dot(X, d, intercept=False):
     else:
         res = temp
     return res
+
+
+# _safe_sandwich_dot.scratch = None
 
 
 def _min_norm_sugrad(coef, grad, P2, P1):
@@ -195,40 +203,45 @@ def _min_norm_sugrad(coef, grad, P2, P1):
         return res
 
 
-def _standardize(X, P1, P2, weights):
+def _standardize(X, weights, scale_predictors):
     # NOTE: Expects that sum(weights) == 1
     if sparse.issparse(X):
-        # TODO: avoid copying X
-        X, col_means, col_stds = standardize(X, weights=weights)
+        return _standardize_sparse(X, weights, scale_predictors)
     else:
-        col_means = X.T.dot(weights)[None, :]
-        X -= col_means
+        return _standardize_dense(X, weights, scale_predictors)
+
+
+def _standardize_sparse(X, weights, scale_predictors):
+    if scale_predictors:
+        return standardize(X, weights=weights)
+    else:
+        X, col_means = zero_center(X, weights=weights)
+        col_stds = np.ones(X.shape[1])
+        return X, col_means, col_stds
+
+
+def _standardize_dense(X, weights, scale_predictors):
+    col_means = X.T.dot(weights)[None, :]
+    X -= col_means
+    if scale_predictors:
         # TODO: avoid copying X -- the X ** 2 makes a copy
         col_stds = np.sqrt((X ** 2).T.dot(weights))
         X *= one_over_var_inf_to_zero(col_stds)
-
-    # We need to scale penalties too so they are in terms of scaled
-    # variables.
-    one_over_sd = one_over_var_inf_to_zero(col_stds)
-    P1 *= one_over_sd
-    if sparse.issparse(P2):
-        inv_col_stds_mat = sparse.diags(one_over_sd)
-        P2 = inv_col_stds_mat @ P2 @ inv_col_stds_mat
-    elif P2.ndim == 1:
-        P2 = P2 * one_over_sd ** 2
     else:
-        # Divide both rows and columns
-        P2 = one_over_sd[:, None] * P2 * (1.0 / col_stds)[None, :]
-    return X, P1, P2, col_means, col_stds
+        col_stds = np.ones(X.shape[1])
+    return X, col_means, col_stds
 
 
 def _unstandardize(X, col_means, col_stds, intercept, coef):
     if type(X) is ColScaledSpMat:
-        # TODO: avoid copying X
-        X = X.mat @ sparse.diags(col_stds)
+        if sparse.isspmatrix_csc(X.mat):
+            _scale_csc_columns_inplace(X.mat, col_stds)
+            X = X.mat
+        else:
+            X = X.mat @ sparse.diags(col_stds)
     else:
-        X += col_means
         X *= col_stds
+        X += col_means
 
     intercept -= np.squeeze(col_means / col_stds).dot(coef)
     coef /= col_stds
@@ -1413,15 +1426,10 @@ def _cd_solver(
     https://www.csie.ntu.edu.tw/~cjlin/papers/l1_glmnet/long-glmnet.pdf
     """
     if type(X) is not ColScaledSpMat:
-        # TODO: because copy_X is being passed here and is also being passed in
-        # check_X_y in fit(...), X is being copied twice. Check if this is true.
-        X = check_array(
-            X, "csc", dtype=[np.float64, np.float32], order="F", copy=copy_X
-        )
+        X = check_array(X, "csc", dtype=[np.float64, np.float32])
     if P2.ndim == 2:
-        P2 = check_array(
-            P2, "csc", dtype=[np.float64, np.float32], order="F", copy=copy_X
-        )
+        P2 = check_array(P2, "csc", dtype=[np.float64, np.float32])
+
     if sparse.issparse(X):
         if not sparse.isspmatrix_csc(P2):
             raise ValueError(
@@ -1441,6 +1449,7 @@ def _cd_solver(
     # some precalculations
     # Note: For diag_fisher=False, fisher = X.T @ fisher @ X and fisher is a
     #       1d array representing a diagonal matrix.
+    iteration_start = time.time()
     eta, mu, score, fisher = family._eta_mu_score_fisher(
         coef=coef, phi=1, X=X, y=y, weights=weights, link=link, diag_fisher=diag_fisher
     )
@@ -1476,7 +1485,6 @@ def _cd_solver(
     diagnostics = []
     # outer loop
     while n_iter < max_iter:
-        diagnostics.append([inner_tol, n_iter, n_cycles])
         n_iter += 1
         # initialize search direction d (to be optimized) with zero
         d.fill(0)
@@ -1552,6 +1560,10 @@ def _cd_solver(
         # update coefficients
         coef += la * d
 
+        iteration_runtime = time.time() - iteration_start
+        diagnostics.append([inner_tol, n_iter, n_cycles, iteration_runtime])
+        iteration_start = time.time()
+
         # calculate eta, mu, score, Fisher matrix for next iteration
         eta, mu, score, fisher = family._eta_mu_score_fisher(
             coef=coef,
@@ -1583,14 +1595,7 @@ def _cd_solver(
             " (currently {})".format(max_iter),
             ConvergenceWarning,
         )
-    print("diagnostics:")
-    print(
-        pd.DataFrame(
-            columns=["inner_tol", "n_iter", "n_cycles"], data=diagnostics[-5:]
-        ).set_index("n_iter", drop=True)
-    )
-
-    return coef, n_iter, n_cycles
+    return coef, n_iter, n_cycles, diagnostics
 
 
 class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
@@ -1794,6 +1799,12 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         sample_weight non-negative, P2 positive semi-definite.
         Don't use this parameter unless you know what you do.
 
+    center_predictors : boolean, optional (default=True)
+        Subtract the means from each column. Centering predictors can improve
+        performance of coordinate descent by a substantial amount. This
+        defaults to True, but will be False if fit_intercept is False or if
+        diag_fisher is True
+
     verbose : int, optional (default=0)
         For the lbfgs solver set verbose to any positive number for verbosity.
 
@@ -1869,7 +1880,8 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         copy_X=True,
         check_input=True,
         verbose=0,
-        standardize=False,
+        center_predictors=None,
+        scale_predictors=False,
     ):
         self.alpha = alpha
         self.l1_ratio = l1_ratio
@@ -1890,7 +1902,8 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         self.copy_X = copy_X
         self.check_input = check_input
         self.verbose = verbose
-        self.standardize = standardize
+        self.center_predictors = center_predictors
+        self.scale_predictors = scale_predictors
 
     def fit(self, X, y, sample_weight=None):
         """Fit a Generalized Linear Model.
@@ -1998,6 +2011,13 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 "The argument fit_intercept must be bool;"
                 " got {}".format(self.fit_intercept)
             )
+
+        if self.center_predictors is None:
+            # when fit_intercept is False, we can't center because that would
+            # substantially change estimates
+            # Also, currently, diag_fisher is not supported for ColScaledSpMat
+            self.center_predictors = not (not self.fit_intercept or self.diag_fisher)
+
         if self.solver not in ["auto", "irls", "lbfgs", "newton-cg", "cd"]:
             raise ValueError(
                 "GeneralizedLinearRegressor supports only solvers"
@@ -2053,6 +2073,15 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             raise ValueError(
                 "The argument check_input must be bool; got "
                 "(check_input={})".format(self.check_input)
+            )
+        if self.center_predictors and not self.fit_intercept:
+            raise ValueError(
+                "center_predictors=True is not supported when fit_intercept=False"
+                "because centering would substantially change the estimates."
+            )
+        if self.scale_predictors and not self.center_predictors:
+            raise ValueError(
+                "scale_predictors=True is not supported when center_predictors=False"
             )
 
         family = self._family_instance
@@ -2256,8 +2285,8 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         #######################################################################
         # 2b. potentially rescale predictors
         #######################################################################
-        if self.standardize:
-            X, P1, P2, col_means, col_stds = _standardize(X, P1, P2, weights)
+        if self.center_predictors:
+            X, col_means, col_stds = _standardize(X, weights, self.scale_predictors)
 
         #######################################################################
         # 3. initialization of coef = (intercept_, coef_)                     #
@@ -2271,8 +2300,9 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             intercept = self.intercept_
             if self.fit_intercept:
                 coef = np.concatenate((np.array([intercept]), coef))
-            if self.standardize:
+            if self.center_predictors:
                 _standardize_warm_start(coef, col_means, col_stds)
+
         elif isinstance(start_params, str):
             if start_params == "guess":
                 # Set mu=starting_mu of the family and do one Newton step
@@ -2281,6 +2311,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 eta = link.link(mu)  # linear predictor
                 if solver in ["cd", "lbfgs", "newton-cg"]:
                     # see function _cd_solver
+                    # TODO: why does this not use _eta_mu_score_fisher?
                     sigma_inv = 1 / family.variance(mu, phi=1, weights=weights)
                     d1 = link.inverse_derivative(eta)
                     temp = sigma_inv * d1 * (y - mu)
@@ -2346,7 +2377,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                     coef = np.zeros(n_features)
         else:  # assign given array as start values
             coef = start_params
-            if self.standardize:
+            if self.center_predictors:
                 _standardize_warm_start(coef, col_means, col_stds)
 
         #######################################################################
@@ -2490,7 +2521,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         # Note: we already set P2 = l2*P2, see above
         # Note: we already symmetrized P2 = 1/2 (P2 + P2')
         elif solver == "cd":
-            coef, self.n_iter_, self._n_cycles = _cd_solver(
+            coef, self.n_iter_, self._n_cycles, self.diagnostics = _cd_solver(
                 coef=coef,
                 X=X,
                 y=y,
@@ -2522,9 +2553,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         #######################################################################
         # 5a. undo standardization
         #######################################################################
-        if self.standardize:
-            # TODO: Make sure this doesn't copy X
-            # TODO: don't unstandardize X?
+        if self.center_predictors:
             X, self.intercept_, self.coef_ = _unstandardize(
                 X, col_means, col_stds, self.intercept_, self.coef_
             )
@@ -2534,6 +2563,20 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             self.dispersion_ = self.estimate_phi(X, y, weights) * weights_sum
 
         return self
+
+    def report_diagnostics(self):
+        if hasattr(self, "diagnostics"):
+            print("diagnostics:")
+            import pandas as pd
+
+            print(
+                pd.DataFrame(
+                    columns=["inner_tol", "n_iter", "n_cycles", "runtime"],
+                    data=self.diagnostics,
+                ).set_index("n_iter", drop=True)
+            )
+        else:
+            print("solver does not report diagnostics")
 
     def linear_predictor(self, X):
         """Compute the linear_predictor = X*coef_ + intercept_.
