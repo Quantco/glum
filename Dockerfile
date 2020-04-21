@@ -25,6 +25,6 @@ RUN pip install -r pip-requirements.txt
 # works for the previous slow-running install lines (conda and pip)
 COPY . /app
 # RUN pip install --no-use-pep517 --disable-pip-version-check -e .
-RUN python setup.py install
+# RUN python setup.py install
 
 CMD ["bash"]
