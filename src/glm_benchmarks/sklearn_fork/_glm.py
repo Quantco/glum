@@ -55,7 +55,7 @@ from sklearn.utils.validation import check_is_fitted, check_random_state
 
 from glm_benchmarks.scaled_spmat import ColScaledSpMat, standardize, zero_center
 from glm_benchmarks.scaled_spmat.standardize import (
-    _scale_csc_columns,
+    _scale_csc_columns_inplace,
     one_over_var_inf_to_zero,
 )
 
@@ -193,35 +193,31 @@ def _min_norm_sugrad(coef, grad, P2, P1):
         return res
 
 
-def _standardize(X, weights, center_predictors, scale_predictors):
+def _standardize(X, weights, scale_predictors):
     # NOTE: Expects that sum(weights) == 1
     if sparse.issparse(X):
-        return _standardize_sparse(X, weights, center_predictors, scale_predictors)
+        return _standardize_sparse(X, weights, scale_predictors)
     else:
-        return _standardize_dense(X, weights, center_predictors, scale_predictors)
+        return _standardize_dense(X, weights, scale_predictors)
 
 
-def _standardize_sparse(X, weights, center_predictors, scale_predictors):
-    if center_predictors and scale_predictors:
+def _standardize_sparse(X, weights, scale_predictors):
+    if scale_predictors:
         return standardize(X, weights=weights)
-    elif center_predictors:
+    else:
         X, col_means = zero_center(X, weights=weights)
         col_stds = np.ones(X.shape[1])
         return X, col_means, col_stds
 
 
-def _standardize_dense(X, weights, center_predictors, scale_predictors):
-    if center_predictors:
-        col_means = X.T.dot(weights)[None, :]
-        X -= col_means
-        if scale_predictors:
-            # TODO: avoid copying X -- the X ** 2 makes a copy
-            col_stds = np.sqrt((X ** 2).T.dot(weights))
-            X *= one_over_var_inf_to_zero(col_stds)
-        else:
-            col_stds = np.ones(X.shape[1])
+def _standardize_dense(X, weights, scale_predictors):
+    col_means = X.T.dot(weights)[None, :]
+    X -= col_means
+    if scale_predictors:
+        # TODO: avoid copying X -- the X ** 2 makes a copy
+        col_stds = np.sqrt((X ** 2).T.dot(weights))
+        X *= one_over_var_inf_to_zero(col_stds)
     else:
-        col_means = np.zeros(X.shape[1])
         col_stds = np.ones(X.shape[1])
     return X, col_means, col_stds
 
@@ -229,7 +225,7 @@ def _standardize_dense(X, weights, center_predictors, scale_predictors):
 def _unstandardize(X, col_means, col_stds, intercept, coef):
     if type(X) is ColScaledSpMat:
         if sparse.isspmatrix_csc(X.mat):
-            _scale_csc_columns(X.mat, col_stds)
+            _scale_csc_columns_inplace(X.mat, col_stds)
             X = X.mat
         else:
             X = X.mat @ sparse.diags(col_stds)
@@ -1798,6 +1794,12 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         sample_weight non-negative, P2 positive semi-definite.
         Don't use this parameter unless you know what you do.
 
+    center_predictors : boolean, optional (default=True)
+        Subtract the means from each column. Centering predictors can improve
+        performance of coordinate descent by a substantial amount. This
+        defaults to True, but will be False if fit_intercept is False or if
+        diag_fisher is True
+
     verbose : int, optional (default=0)
         For the lbfgs solver set verbose to any positive number for verbosity.
 
@@ -2072,7 +2074,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 "center_predictors=True is not supported when fit_intercept=False"
                 "because centering would substantially change the estimates."
             )
-        if self.scale_predictors and self.center_predictors:
+        if self.scale_predictors and not self.center_predictors:
             raise ValueError(
                 "scale_predictors=True is not supported when center_predictors=False"
             )
@@ -2278,10 +2280,8 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         #######################################################################
         # 2b. potentially rescale predictors
         #######################################################################
-        if self.center_predictors or self.scale_predictors:
-            X, col_means, col_stds = _standardize(
-                X, weights, self.center_predictors, self.scale_predictors
-            )
+        if self.center_predictors:
+            X, col_means, col_stds = _standardize(X, weights, self.scale_predictors)
 
         #######################################################################
         # 3. initialization of coef = (intercept_, coef_)                     #
@@ -2295,7 +2295,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             intercept = self.intercept_
             if self.fit_intercept:
                 coef = np.concatenate((np.array([intercept]), coef))
-            if self.center_predictors or self.scale_predictors:
+            if self.center_predictors:
                 _standardize_warm_start(coef, col_means, col_stds)
 
         elif isinstance(start_params, str):
@@ -2371,7 +2371,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                     coef = np.zeros(n_features)
         else:  # assign given array as start values
             coef = start_params
-            if self.center_predictors or self.scale_predictors:
+            if self.center_predictors:
                 _standardize_warm_start(coef, col_means, col_stds)
 
         #######################################################################
@@ -2547,7 +2547,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         #######################################################################
         # 5a. undo standardization
         #######################################################################
-        if self.center_predictors or self.scale_predictors:
+        if self.center_predictors:
             X, self.intercept_, self.coef_ = _unstandardize(
                 X, col_means, col_stds, self.intercept_, self.coef_
             )
