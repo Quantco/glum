@@ -599,7 +599,6 @@ def test_poisson_ridge(solver, tol, center_predictors, scale_predictors, use_spa
     def check(G):
         G.fit(X, y)
         if scale_predictors:
-            print(G.intercept_, G.coef_)
             assert_allclose(G.intercept_, -0.21002571120839675, rtol=1e-5)
             assert_allclose(G.coef_, [0.16472093, 0.27051971], rtol=1e-5)
         else:
