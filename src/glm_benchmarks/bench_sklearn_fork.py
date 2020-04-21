@@ -40,7 +40,7 @@ def sklearn_fork_bench(
         l1_ratio=l1_ratio,
         max_iter=10000,
         random_state=random_seed,
-        copy_X=True,
+        copy_X=False,
         selection="random",
         tol=1e-5,
         standardize=True,

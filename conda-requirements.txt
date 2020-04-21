@@ -15,4 +15,6 @@ pyglmnet
 scikit-learn
 statsmodels
 compilers 
+cython
 line_profiler
+memory_profiler

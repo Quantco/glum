@@ -45,10 +45,26 @@ def standardize(
            [-3.        ,  3.        ]])
     """
     centered_mat, means = zero_center(mat, weights)
+
+    # TODO: this copies!!
     mat_squared = centered_mat.power(2)
     if weights is None:
         avg_mat_squared = mat_squared.mean(0)
     else:
         avg_mat_squared = mat_squared.T.dot(weights) / np.sum(weights)
     st_devs = np.squeeze(np.array(np.sqrt(avg_mat_squared)))
-    return centered_mat @ sps.diags(1 / st_devs), means, st_devs
+
+    # NOTE: Scale the columns by st_devs.
+    # This only works correctly for a csc_matrix!!!!
+    _scale_csc_columns(centered_mat.mat, 1.0 / st_devs)
+    centered_mat.shift /= st_devs
+
+    return centered_mat, means, st_devs
+
+
+def _scale_csc_columns(mat: sps.spmatrix, v: np.ndarray):
+    assert type(mat) == sps.csc_matrix
+    for i in range(mat.shape[1]):
+        start_idx = mat.indptr[i]
+        end_idx = mat.indptr[i + 1]
+        mat.data[start_idx:end_idx] *= v[i]
