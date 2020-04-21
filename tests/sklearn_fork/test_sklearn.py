@@ -499,6 +499,7 @@ def test_normal_ridge_comparison(n_samples, n_features, fit_intercept, solver):
         n_informative=n_features - 2,
         noise=0.5,
         coef=True,
+        random_state=42,
     )
     y = y[0:n_samples]
     X, T = X[0:n_samples], X[n_samples:]
@@ -509,7 +510,9 @@ def test_normal_ridge_comparison(n_samples, n_features, fit_intercept, solver):
         ridge_params = {"solver": "sag", "max_iter": 10000, "tol": 1e-9}
 
     # GLM has 1/(2*n) * Loss + 1/2*L2, Ridge has Loss + L2
-    ridge = Ridge(alpha=alpha * n_samples, normalize=False, **ridge_params)
+    ridge = Ridge(
+        alpha=alpha * n_samples, normalize=False, random_state=42, **ridge_params
+    )
     ridge.fit(X, y)
 
     glm = GeneralizedLinearRegressor(
@@ -522,12 +525,13 @@ def test_normal_ridge_comparison(n_samples, n_features, fit_intercept, solver):
         solver=solver,
         tol=1e-6,
         check_input=False,
+        random_state=42,
     )
     glm.fit(X, y)
     assert glm.coef_.shape == (X.shape[1],)
-    assert_allclose(glm.coef_, ridge.coef_, rtol=5e-4)
-    assert_allclose(glm.intercept_, ridge.intercept_, rtol=1e-4)
-    assert_allclose(glm.predict(T), ridge.predict(T), rtol=1e-3)
+    assert_allclose(glm.coef_, ridge.coef_, rtol=5e-5)
+    assert_allclose(glm.intercept_, ridge.intercept_, rtol=1e-5)
+    assert_allclose(glm.predict(T), ridge.predict(T), rtol=1e-4)
 
 
 @pytest.mark.parametrize(
@@ -884,8 +888,13 @@ def test_standardize(use_sparse, scale_predictors):
     M = row_mults[:, None] * col_mults[None, :]
     if use_sparse:
         M = sparse.csc_matrix(M)
+    MC = copy.deepcopy(M)
 
     X, col_means, col_stds = _standardize(M, np.ones(NR) / NR, scale_predictors)
+    if use_sparse:
+        assert id(X.mat) == id(M)
+    else:
+        assert id(X) == id(M)
     np.testing.assert_almost_equal(col_means[0, :], col_mults)
 
     # After standardization, all the columns will have the same values.
@@ -910,6 +919,10 @@ def test_standardize(use_sparse, scale_predictors):
     X2, intercept, coef = _unstandardize(
         X, col_means, col_stds, intercept_standardized, coef_standardized
     )
+    if use_sparse:
+        assert id(X2) == id(X.mat)
+    else:
+        assert id(X2) == id(X)
     np.testing.assert_almost_equal(intercept, -(NC + 1) * NC / 2)
     if scale_predictors:
         np.testing.assert_almost_equal(coef, 1.0)
@@ -917,8 +930,6 @@ def test_standardize(use_sparse, scale_predictors):
     if use_sparse:
         assert type(X.mat) is sparse.csc_matrix
         assert type(X2) is sparse.csc_matrix
-        np.testing.assert_almost_equal(M.indptr, X2.indptr)
-        np.testing.assert_almost_equal(M.indices, X2.indices)
-        np.testing.assert_almost_equal(M.data, X2.data)
+        np.testing.assert_almost_equal(MC.toarray(), X2.toarray())
     else:
-        np.testing.assert_almost_equal(M, X2)
+        np.testing.assert_almost_equal(MC, X2)
