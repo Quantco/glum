@@ -43,6 +43,7 @@ import warnings
 from abc import ABCMeta, abstractmethod
 
 import numpy as np
+import pandas as pd
 import scipy.sparse.linalg as splinalg
 from mkl_spblas import mkl_matmat
 from scipy import linalg, sparse, special
@@ -54,6 +55,7 @@ from sklearn.utils.optimize import newton_cg
 from sklearn.utils.validation import check_is_fitted, check_random_state
 
 from glm_benchmarks.scaled_spmat import ColScaledSpMat, standardize
+from glm_benchmarks.scaled_spmat.standardize import one_over_var_inf_to_zero
 
 
 def _check_weights(sample_weight, n_samples):
@@ -203,19 +205,20 @@ def _standardize(X, P1, P2, weights):
         X -= col_means
         # TODO: avoid copying X -- the X ** 2 makes a copy
         col_stds = np.sqrt((X ** 2).T.dot(weights))
-        X /= col_stds
+        X *= one_over_var_inf_to_zero(col_stds)
 
     # We need to scale penalties too so they are in terms of scaled
     # variables.
-    P1 /= col_stds
+    one_over_sd = one_over_var_inf_to_zero(col_stds)
+    P1 *= one_over_sd
     if sparse.issparse(P2):
-        inv_col_stds_mat = sparse.diags(1.0 / col_stds)
+        inv_col_stds_mat = sparse.diags(one_over_sd)
         P2 = inv_col_stds_mat @ P2 @ inv_col_stds_mat
     elif P2.ndim == 1:
-        P2 = P2 / (col_stds ** 2)
+        P2 = P2 * one_over_sd ** 2
     else:
         # Divide both rows and columns
-        P2 = (1.0 / col_stds)[:, None] * P2 * (1.0 / col_stds)[None, :]
+        P2 = one_over_sd[:, None] * P2 * (1.0 / col_stds)[None, :]
     return X, P1, P2, col_means, col_stds
 
 
@@ -1451,7 +1454,12 @@ def _cd_solver(
         )
 
     # the ratio of inner _cd_cycle tolerance to the minimum subgradient norm
-    # probably should be between 0.01 and 0.5. 0.1 works well for many problems
+    # This wasn't explored in the newGLMNET paper linked above.
+    # That paper essentially uses inner_tol_ratio = 1.0, but using a slightly
+    # lower value is much faster.
+    # By comparison, the original GLMNET paper uses inner_tol = tol.
+    # So, inner_tol_ratio < 1 is sort of a compromise between the two papers.
+    # The value should probably be between 0.01 and 0.5. 0.1 works well for many problems
     inner_tol_ratio = 0.1
 
     def calc_inner_tol(mn_subgrad_norm):
@@ -1465,9 +1473,10 @@ def _cd_solver(
 
     Fw = None
 
+    diagnostics = []
     # outer loop
     while n_iter < max_iter:
-        print(inner_tol, n_iter, n_cycles)
+        diagnostics.append([inner_tol, n_iter, n_cycles])
         n_iter += 1
         # initialize search direction d (to be optimized) with zero
         d.fill(0)
@@ -1497,6 +1506,9 @@ def _cd_solver(
         # Note: coef_P2 already calculated and still valid
         bound = sigma * (-(score @ d) + coef_P2 @ d[idx:] + P1wd_1 - P1w_1)
 
+        # In the first iteration, we must compute Fw explicitly.
+        # In later iterations, we just use Fwd from the previous iteration
+        # as set after the line search loop below.
         if Fw is None:
             Fw = (
                 0.5 * family.deviance(y, mu, weights)
@@ -1508,6 +1520,7 @@ def _cd_solver(
 
         X_dot_d = _safe_lin_pred(X, d)
 
+        # Try progressively shorter line search steps.
         for k in range(20):
             la *= beta  # starts with la=1
             coef_wd = coef + la * d
@@ -1570,6 +1583,12 @@ def _cd_solver(
             " (currently {})".format(max_iter),
             ConvergenceWarning,
         )
+    print("diagnostics:")
+    print(
+        pd.DataFrame(
+            columns=["inner_tol", "n_iter", "n_cycles"], data=diagnostics[-5:]
+        ).set_index("n_iter", drop=True)
+    )
 
     return coef, n_iter, n_cycles
 
