@@ -3,6 +3,7 @@ from typing import Any, Callable, Dict, Tuple
 
 import numpy as np
 import pandas as pd
+from mkl_spblas import mkl_matmat
 from scipy import sparse as sps
 
 from glm_benchmarks.problems import (
@@ -43,6 +44,22 @@ def whitened_sandwich(x, d):
     x *= sqrt_d
     res = x.T.dot(x)
     x /= sqrt_d
+    return res
+
+
+def _safe_sandwich_dot_whitened(X, d):
+    sqrt_d = np.sqrt(d)
+    if sps.isspmatrix(X):
+        sqrt_d_long = sqrt_d[X.indices]
+        X.data *= sqrt_d_long
+        temp = mkl_matmat(X, X, transpose=True, return_dense=True)
+        X.data /= sqrt_d_long
+        return temp
+
+    sqrt_d = sqrt_d[:, None]
+    X *= sqrt_d
+    res = X.T.dot(X)
+    X /= sqrt_d
     return res
 
 
