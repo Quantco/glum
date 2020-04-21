@@ -1425,6 +1425,11 @@ def _cd_solver(
     Journal of Machine Learning Research 13 (2012) 1999-2030
     https://www.csie.ntu.edu.tw/~cjlin/papers/l1_glmnet/long-glmnet.pdf
     """
+    if type(X) is not ColScaledSpMat:
+        X = check_array(X, "csc", dtype=[np.float64, np.float32])
+    if P2.ndim == 2:
+        P2 = check_array(P2, "csc", dtype=[np.float64, np.float32])
+
     if sparse.issparse(X):
         if not sparse.isspmatrix_csc(P2):
             raise ValueError(
