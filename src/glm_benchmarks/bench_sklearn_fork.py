@@ -38,7 +38,8 @@ def sklearn_fork_bench(
         family=family,
         alpha=alpha,
         l1_ratio=l1_ratio,
-        max_iter=10000,
+        # was 10k for convergence, changing to ensure speedy testing
+        max_iter=10,
         random_state=random_seed,
         copy_X=False,
         selection="random",
@@ -51,6 +52,8 @@ def sklearn_fork_bench(
     result["intercept"] = m.intercept_
     result["coef"] = m.coef_
     result["n_iter"] = m.n_iter_
+
+    m.report_diagnostics()
 
     # import numpy as np
     # result["path"] = compute_path(m.n_iter_, model_args, fit_args)

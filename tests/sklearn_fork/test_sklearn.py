@@ -860,10 +860,7 @@ def test_standardize(use_sparse):
         M = sparse.csc_matrix(M)
     MC = copy.deepcopy(M)
 
-    X, P1, P2, col_means, col_stds = _standardize(
-        M, np.ones(NC), np.ones((NC, NC)), np.ones(NR) / NR
-    )
-    # Make sure we aren't copying M!
+    X, col_means = _standardize(M, np.ones(NR) / NR)
     if use_sparse:
         assert id(X.mat) == id(M)
     else:
@@ -877,26 +874,18 @@ def test_standardize(use_sparse):
     else:
         Xdense = X
     for i in range(1, NC):
-        np.testing.assert_almost_equal(Xdense[:, 0], Xdense[:, i])
-
-    # The sample variance of row_mults is 0.34. This is scaled up by the col_mults
-    true_std = np.sqrt(0.34)
-    np.testing.assert_almost_equal(col_stds, true_std * col_mults)
-
-    np.testing.assert_almost_equal(P1, 1.0 / col_stds)
-    np.testing.assert_almost_equal(P2, 1.0 / (col_stds[:, None] * col_stds[None, :]))
+        np.testing.assert_almost_equal((i + 1) * Xdense[:, 0], Xdense[:, i])
 
     intercept_standardized = 0.0
-    coef_standardized = col_stds
-    X2, intercept, coef = _unstandardize(
-        X, col_means, col_stds, intercept_standardized, coef_standardized
+    coef_standardized = np.ones(NC)
+    X2, intercept = _unstandardize(
+        X, col_means, intercept_standardized, coef_standardized
     )
     if use_sparse:
         assert id(X2) == id(X.mat)
     else:
         assert id(X2) == id(X)
     np.testing.assert_almost_equal(intercept, -(NC + 1) * NC / 2)
-    np.testing.assert_almost_equal(coef, 1.0)
 
     if use_sparse:
         assert type(X.mat) is sparse.csc_matrix
