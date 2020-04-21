@@ -115,11 +115,8 @@ def _safe_sandwich_dot(X, d, intercept=False):
     first column of X.
     X can be sparse, d must be an ndarray. Always returns a ndarray."""
     if sparse.issparse(X):
-        if X.getformat() == "csr":
-            X2 = X.multiply(d[:, np.newaxis]).tocsr()
-        elif X.getformat() == "csc":
-            X2 = X.multiply(d[:, np.newaxis]).tocsc()
-        temp = mkl_matmat(X, X2, transpose=True, return_dense=True,)
+        X2 = X.multiply(d[:, np.newaxis]).tocsc()
+        temp = mkl_matmat(X, X2, transpose=True, return_dense=True)
     elif type(X) is ColScaledSpMat:
         if X.mat.getformat() == "csr":
             X2mat = X.mat.multiply(d[:, np.newaxis]).tocsr()
