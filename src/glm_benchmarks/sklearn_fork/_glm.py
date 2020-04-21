@@ -53,6 +53,7 @@ from sklearn.utils.optimize import newton_cg
 from sklearn.utils.validation import check_is_fitted, check_random_state
 
 from glm_benchmarks.scaled_spmat import ColScaledSpMat, standardize
+from glm_benchmarks.scaled_spmat.standardize import _scale_csc_columns
 
 
 def _check_weights(sample_weight, n_samples):
@@ -124,6 +125,11 @@ def _safe_sandwich_dot(X, d, intercept=False):
         temp = term1 + term2 + term3 + term4
         temp = _safe_toarray(temp)
     else:
+        # if _safe_sandwich_dot.scratch is None:
+        #     _safe_sandwich_dot.scratch = np.empty((X.shape[1], X.shape[0]))
+        # _safe_sandwich_dot.scratch[:,:] = X.T[:,:]
+        # _safe_sandwich_dot.scratch *= d
+        # temp = _safe_sandwich_dot.scratch @ X
         temp = (X.T * d) @ X
     if intercept:
         dim = X.shape[1] + 1
@@ -141,6 +147,9 @@ def _safe_sandwich_dot(X, d, intercept=False):
     else:
         res = temp
     return res
+
+
+# _safe_sandwich_dot.scratch = None
 
 
 def _min_norm_sugrad(coef, grad, P2, P1):
@@ -214,13 +223,16 @@ def _standardize(X, P1, P2, weights):
     return X, P1, P2, col_means, col_stds
 
 
+# TODO: Should this be in the scaled_spmat.standardize module???
 def _unstandardize(X, col_means, col_stds, intercept, coef):
     if type(X) is ColScaledSpMat:
-        # TODO: avoid copying X
-        X = X.mat @ sparse.diags(col_stds)
+        # NOTE: Scale the columns by st_devs.
+        # This only works correctly for a csc_matrix!!!!
+        _scale_csc_columns(X.mat, col_stds)
+        X = X.mat
     else:
-        X += col_means
         X *= col_stds
+        X += col_means
 
     intercept -= np.squeeze(col_means / col_stds).dot(coef)
     coef /= col_stds
@@ -2266,6 +2278,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 eta = link.link(mu)  # linear predictor
                 if solver in ["cd", "lbfgs", "newton-cg"]:
                     # see function _cd_solver
+                    # TODO: why does this not use _eta_mu_score_fisher?
                     sigma_inv = 1 / family.variance(mu, phi=1, weights=weights)
                     d1 = link.inverse_derivative(eta)
                     temp = sigma_inv * d1 * (y - mu)
