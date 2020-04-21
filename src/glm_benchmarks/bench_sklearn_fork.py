@@ -53,6 +53,8 @@ def sklearn_fork_bench(
     result["coef"] = m.coef_
     result["n_iter"] = m.n_iter_
 
+    m.report_diagnostics()
+
     # import numpy as np
     # result["path"] = compute_path(m.n_iter_, model_args, fit_args)
     # np.testing.assert_almost_equal(
