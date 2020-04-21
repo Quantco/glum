@@ -52,6 +52,8 @@ def standardize(
            [-3.        ,  3.        ]])
     """
     centered_mat, means = zero_center(mat, weights)
+
+    # TODO: this copies!!
     mat_squared = centered_mat.power(2)
     if weights is None:
         avg_mat_squared = mat_squared.mean(0)
