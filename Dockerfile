@@ -25,4 +25,5 @@ RUN conda config --append channels conda-forge
 COPY . /app
 RUN /bin/bash -c "source ~/.bashrc && pip install --no-use-pep517 --disable-pip-version-check -e ."
 
+ENTRYPOINT ["/app/build_and_launch"]
 CMD ["bash"]
