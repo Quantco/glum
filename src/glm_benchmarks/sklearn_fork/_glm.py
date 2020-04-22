@@ -58,7 +58,7 @@ from glm_benchmarks.scaled_spmat.standardize import (
     _scale_csc_columns_inplace,
     one_over_var_inf_to_zero,
 )
-from glm_benchmarks.spblas.mkl_spblas import fast_matmul, mkl_matmat
+from glm_benchmarks.spblas.mkl_spblas import fast_matmul2, mkl_matmat
 
 
 def _check_weights(sample_weight, n_samples):
@@ -125,14 +125,25 @@ def _safe_sandwich_dot(X, d, intercept=False):
             X2mat = X.mat.multiply(d[:, np.newaxis]).tocsr()
             term1 = mkl_matmat(X.mat, X2mat, transpose=True, return_dense=True)
         elif X.mat.getformat() == "csc":
-            term1 = fast_matmul(X.mat.data, X.mat.indices, X.mat.indptr, d)
-            term1 += np.tril(term1, -1).T
+            if not hasattr(X.mat, "XT"):
+                X.mat.XT = X.mat.T.tocsc()
+            term1 = fast_matmul2(
+                X.mat.data,
+                X.mat.indices,
+                X.mat.indptr,
+                X.mat.XT.data,
+                X.mat.XT.indices,
+                X.mat.XT.indptr,
+                d,
+            )
 
             # sqrtD = np.sqrt(d)
             # fast_row_scale(X.mat.data, X.mat.indices, sqrtD, False)
             # term1 = mkl_syrkd(X.mat.transpose(), transpose=False)
             # term1 += np.triu(term1, 1).T
             # fast_row_scale(X.mat.data, X.mat.indices, sqrtD, True)
+
+            # from glm_benchmarks.spblas.mkl_spblas import fast_row_scale
 
             # sqrtD = np.sqrt(d)
             # fast_row_scale(X.mat.data, X.mat.indices, sqrtD, False)
