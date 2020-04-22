@@ -14,7 +14,7 @@ libraries_mkl = np.__config__.get_info("blas_mkl_info")["include_dirs"][0]
 
 ext_modules = [
     Extension(
-        name="mkl_spblas",
+        name="glm_benchmarks.spblas.mkl_spblas",
         sources=["src/glm_benchmarks/spblas/mkl_spblas.pyx"],
         include_dirs=[np.get_include(), include_mkl],
         libraries=["mkl_rt"],

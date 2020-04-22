@@ -1,8 +1,13 @@
+# distutils: extra_compile_args=-fopenmp
+# distutils: extra_link_args=-fopenmp
 import numpy as np
 cimport numpy as np
 import scipy as sp
 import scipy.sparse
 from cython cimport view
+import cython
+from cython.parallel import parallel, prange
+from libc.math cimport ceil, sqrt
 
 
 cdef extern from "mkl.h":
@@ -372,8 +377,8 @@ def mkl_syrkd(A_py, transpose: bool=True):
     cdef sparse_operation_t operation
     cdef sparse_matrix_t A = to_mkl_matrix(A_py)
     cdef double[:, :] C_view
-    cdef MKL_INT zero = 0
-    cdef MKL_INT one = 1
+    cdef double zero = 0
+    cdef double one = 1
 
     if transpose:
         operation = SPARSE_OPERATION_TRANSPOSE
@@ -396,3 +401,89 @@ def mkl_syrkd(A_py, transpose: bool=True):
     )
 
     return C_py
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+def fast_row_scale(double[:] data, int[:] indices, double[:] scaling, bint inv):
+    cdef int nnz = data.shape[0]
+    if inv:
+        for i in range(nnz):
+            data[i] /= scaling[indices[i]]
+    else:
+        for i in range(nnz):
+            data[i] *= scaling[indices[i]]
+
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+def fast_matmul(double[:] data, int[:] indices, int[:] indptr, double[:] d):
+    cdef int ncols = indptr.shape[0] - 1
+    cdef int nrows = d.shape[0]
+    cdef int nnz = data.shape[0]
+    out = np.zeros((ncols,ncols))
+    cdef double[:, :] out_view = out
+    cdef int AT_end, A_end, AT_idx, A_idx
+    cdef int AT_row, A_col
+    cdef int go
+    cdef int i, j
+    cdef int entry
+
+    for entry in prange(1, ncols * (ncols + 1) / 2 + 1, nogil=True):
+        i = int(ceil(sqrt(2 * entry + 0.25) - 0.5))
+        j = int(entry - (i-1) * i / 2)
+        i = i - 1
+        j = j - 1
+
+        AT_idx = indptr[i]
+        AT_end = indptr[i+1]
+        A_idx = indptr[j]
+        A_end = indptr[j+1]
+        
+        while True:
+            if AT_idx == AT_end:
+                break
+            if A_idx == A_end:
+                break
+            AT_row = indices[AT_idx]
+            A_col = indices[A_idx]
+            if AT_row == A_col:
+                out_view[i, j] += data[AT_idx] * d[AT_row] * data[A_idx]
+                AT_idx = AT_idx + 1
+                A_idx = A_idx + 1
+            elif AT_row < A_col:
+                AT_idx = AT_idx + 1
+            else:
+                A_idx = A_idx + 1
+
+
+            if AT_idx == AT_end:
+                break
+            if A_idx == A_end:
+                break
+            AT_row = indices[AT_idx]
+            A_col = indices[A_idx]
+            if AT_row == A_col:
+                out_view[i, j] += data[AT_idx] * d[AT_row] * data[A_idx]
+                AT_idx = AT_idx + 1
+                A_idx = A_idx + 1
+            elif AT_row < A_col:
+                AT_idx = AT_idx + 1
+            else:
+                A_idx = A_idx + 1
+
+
+            if AT_idx == AT_end:
+                break
+            if A_idx == A_end:
+                break
+            AT_row = indices[AT_idx]
+            A_col = indices[A_idx]
+            if AT_row == A_col:
+                out_view[i, j] += data[AT_idx] * d[AT_row] * data[A_idx]
+                AT_idx = AT_idx + 1
+                A_idx = A_idx + 1
+            elif AT_row < A_col:
+                AT_idx = AT_idx + 1
+            else:
+                A_idx = A_idx + 1
+    return out
