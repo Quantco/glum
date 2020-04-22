@@ -45,7 +45,6 @@ from abc import ABCMeta, abstractmethod
 
 import numpy as np
 import scipy.sparse.linalg as splinalg
-from mkl_spblas import mkl_matmat
 from scipy import linalg, sparse, special
 from scipy.optimize import fmin_l_bfgs_b
 from sklearn.base import BaseEstimator, RegressorMixin
@@ -59,6 +58,7 @@ from glm_benchmarks.scaled_spmat.standardize import (
     _scale_csc_columns_inplace,
     one_over_var_inf_to_zero,
 )
+from glm_benchmarks.spblas.mkl_spblas import fast_matmul, mkl_matmat
 
 
 def _check_weights(sample_weight, n_samples):
@@ -125,10 +125,21 @@ def _safe_sandwich_dot(X, d, intercept=False):
             X2mat = X.mat.multiply(d[:, np.newaxis]).tocsr()
             term1 = mkl_matmat(X.mat, X2mat, transpose=True, return_dense=True)
         elif X.mat.getformat() == "csc":
-            sqrtD = np.sqrt(d)
-            X.mat.data *= sqrtD[X.mat.indices]
-            term1 = mkl_matmat(X.mat, X.mat, transpose=True, return_dense=True)
-            X.mat.data /= sqrtD[X.mat.indices]
+            term1 = fast_matmul(X.mat.data, X.mat.indices, X.mat.indptr, d)
+            term1 += np.tril(term1, -1).T
+
+            # sqrtD = np.sqrt(d)
+            # fast_row_scale(X.mat.data, X.mat.indices, sqrtD, False)
+            # term1 = mkl_syrkd(X.mat.transpose(), transpose=False)
+            # term1 += np.triu(term1, 1).T
+            # fast_row_scale(X.mat.data, X.mat.indices, sqrtD, True)
+
+            # sqrtD = np.sqrt(d)
+            # fast_row_scale(X.mat.data, X.mat.indices, sqrtD, False)
+            # term1 = mkl_matmat(X.mat, X.mat, transpose=True, return_dense=True)
+            # fast_row_scale(X.mat.data, X.mat.indices, sqrtD, True)
+
+            # np.testing.assert_almost_equal(out, term1)
         term2 = X.mat.transpose().dot(d)[:, np.newaxis] * X.shift
         term3 = term2.T
         term4 = (X.shift.T * X.shift) * d.sum()

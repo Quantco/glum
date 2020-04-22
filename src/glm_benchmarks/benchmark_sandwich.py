@@ -3,19 +3,16 @@ from typing import Any, Callable, Dict, Tuple
 
 import numpy as np
 import pandas as pd
-from mkl_spblas import mkl_matmat
 from scipy import sparse as sps
 
-from glm_benchmarks.problems import (
-    load_simple_insurance_data,
-    load_sparse_insurance_data,
-)
+from glm_benchmarks.problems import load_simple_insurance_data
 from glm_benchmarks.sklearn_fork._glm import _safe_sandwich_dot
+from glm_benchmarks.spblas.mkl_spblas import fast_matmul, mkl_matmat
 
 
 def load_data(n_rows: int, sparse: bool) -> Tuple[Any, np.ndarray]:
     if sparse:
-        x = load_sparse_insurance_data(n_rows)["X"].tocsc()
+        x = sps.csc_matrix(load_simple_insurance_data(n_rows)["X"])
     else:
         x = load_simple_insurance_data(n_rows)["X"]
     np.random.seed(0)
@@ -63,12 +60,21 @@ def _safe_sandwich_dot_whitened(X, d):
     return res
 
 
+def _fast_matmul(X, d):
+    if sps.isspmatrix(X):
+        temp = fast_matmul(X.data, X.indices, X.indptr, d)
+        temp += np.tril(temp, -1).T
+        return temp
+    return whitened_sandwich(X, d)
+
+
 def run_one_problem_all_methods(n_rows: int, sparse: bool) -> pd.DataFrame:
     x, d = load_data(n_rows, sparse)
     funcs: Dict[str, Callable[[Any, np.ndarray], Any]] = {
         "naive": naive_sandwich,
         "mkl": _safe_sandwich_dot,
         "whiten": whitened_sandwich,
+        "fast_matmul": _fast_matmul,
     }
 
     info: Dict[str, Any] = {}
