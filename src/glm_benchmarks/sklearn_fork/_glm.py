@@ -42,6 +42,7 @@ import numbers
 import time
 import warnings
 from abc import ABCMeta, abstractmethod
+from typing import List, Tuple
 
 import numpy as np
 import scipy.sparse.linalg as splinalg
@@ -58,6 +59,7 @@ from glm_benchmarks.scaled_spmat.standardize import (
     _scale_csc_columns_inplace,
     one_over_var_inf_to_zero,
 )
+from glm_benchmarks.spblas.mkl_spblas import fast_sandwich
 
 
 def _check_weights(sample_weight, n_samples):
@@ -70,7 +72,7 @@ def _check_weights(sample_weight, n_samples):
         weights = sample_weight * np.ones(n_samples)
     else:
         _dtype = [np.float64, np.float32]
-        weights = check_array(
+        weights: np.ndarray = check_array(
             sample_weight,
             accept_sparse=False,
             force_all_finite=True,
@@ -107,33 +109,52 @@ def _safe_toarray(X):
         return np.asarray(X)
 
 
-def _safe_sandwich_dot(X, d, intercept=False):
+def _safe_sandwich_dot(
+    X, d: np.ndarray, intercept=False, center_predictors=True
+) -> np.ndarray:
     """Compute sandwich product X.T @ diag(d) @ X.
 
     With ``intercept=True``, X is treated as if a column of 1 were appended as
     first column of X.
     X can be sparse, d must be an ndarray. Always returns a ndarray."""
     if sparse.issparse(X):
-        # TODO: There's a bit of room to accelerate this by avoiding the
-        # allocation of a new sparse matrix every time we pass through this
-        # step. The X.multiply creates a new matrix. Avoiding the allocation
-        # and updating the rows in place accelerates this line by ~20%.
-        temp = X.transpose() @ X.multiply(d[:, np.newaxis])
-        # for older versions of numpy and scipy, temp may be a np.matrix
-        temp = _safe_toarray(temp)
+        if not hasattr(X, "XT"):
+            X.XT = X.T.tocsc()
+
+        # TODO: Clean out the code in the cython mkl_spblas.pyx file. We need
+        # two entry points: one for the sandwich products and one for
+        # matrix-vector products.
+        # Right now there's probably way more code than necessary.
+        # TODO: Factor out the MKL SParse Matrix creation via the MKLSparseMatrix object
+        #  so that we can benchmark just the matrix multiplication itself.
+        # TODO: Try writing a hand-written cython matrix-vector product. If this is as
+        #  fast as MKL, we can just delete all the MKL stuff. Maybe not though because I'm
+        #  guessing that the MKL version is more robust.
+        result = fast_sandwich(X, X.XT, d)
     elif type(X) is ColScaledSpMat:
-        term1 = X.mat.transpose() @ X.mat.multiply(d[:, np.newaxis])
-        term2 = X.mat.transpose().dot(d)[:, np.newaxis] * X.shift
+        if not hasattr(X.mat, "XT"):
+            X.mat.XT = X.mat.T.tocsc(copy=False)
+
+        term1 = fast_sandwich(X.mat.tocsc(copy=False), X.mat.XT, d,)
+
+        # TODO: Use MKL-based fast mat-vec product
+        if isinstance(X.mat, sparse.csc_matrix):
+            xd = X.mat.T.dot(d)
+        else:
+            xd = X.mat.XT.T.dot(d)
+        term2 = xd[:, np.newaxis] * X.shift
         term3 = term2.T
         term4 = (X.shift.T * X.shift) * d.sum()
-        temp = term1 + term2 + term3 + term4
-        temp = _safe_toarray(temp)
+        result = _safe_toarray(term1 + term2 + term3 + term4)
     else:
+        # The "multiply then divide" trick does not work because there may be zeros in
+        # d.
         sqrtD = np.sqrt(d)[:, np.newaxis]
-        X *= sqrtD
-        temp = X.T @ X
-        X /= sqrtD
+        # TODO: fix this; try writing a Cython function or using MKL
+        x_d = X * sqrtD
+        result = x_d.T @ x_d
     if intercept:
+        # TODO: shouldn't be dealing with the intercept with centered predictors
         dim = X.shape[1] + 1
         if type(X) is ColScaledSpMat:
             order = "F"
@@ -141,20 +162,24 @@ def _safe_sandwich_dot(X, d, intercept=False):
             order = "F" if sparse.isspmatrix_csc(X) else "C"
         else:
             order = "F" if X.flags["F_CONTIGUOUS"] else "C"
-        res = np.empty((dim, dim), dtype=max(X.dtype, d.dtype), order=order)
-        res[0, 0] = d.sum()
-        res[1:, 0] = d @ X
-        res[0, 1:] = res[1:, 0]
-        res[1:, 1:] = temp
+        res_including_intercept = np.empty(
+            (dim, dim), dtype=max(X.dtype, d.dtype), order=order
+        )
+        res_including_intercept[0, 0] = d.sum()
+        # TODO: Use MKL-based fast mat-vec product
+        # if center_predictors:
+        res_including_intercept[1:, 0] = d @ X
+        res_including_intercept[0, 1:] = res_including_intercept[1:, 0]
+
+        res_including_intercept[1:, 1:] = result
     else:
-        res = temp
-    return res
+        res_including_intercept = result
+    return res_including_intercept
 
 
-# _safe_sandwich_dot.scratch = None
-
-
-def _min_norm_sugrad(coef, grad, P2, P1):
+def _min_norm_sugrad(
+    coef: np.ndarray, grad: np.ndarray, P2: np.ndarray, P1: np.ndarray
+) -> np.ndarray:
     """Compute the gradient of all subgradients with minimal L2-norm.
 
     subgrad = grad + P2 * coef + P1 * subgrad(|coef|_1)
@@ -680,7 +705,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
             score = temp @ X  # sampe as X.T @ temp
         return score
 
-    def _fisher_matrix(self, coef, phi, X, y, weights, link):
+    def _fisher_matrix(self, coef, phi, X, weights, link):
         r"""Compute the Fisher information matrix.
 
         The Fisher information matrix, also known as expected information
@@ -1318,8 +1343,7 @@ def _cd_solver(
     selection="cyclic ",
     random_state=None,
     diag_fisher=False,
-    copy_X=True,
-):
+) -> Tuple[np.ndarray, int, int, List[List]]:
     """Solve GLM with L1 and L2 penalty by coordinate descent algorithm.
 
     The objective being minimized in the coefficients w=coef is::
@@ -1401,8 +1425,6 @@ def _cd_solver(
         s.t. fisher = X.T @ diag @ X. This saves storage but needs more
         matrix-vector multiplications.
 
-    copy_X : boolean, optional (default=True)
-        If ``True``, X will be copied; else, it may be overwritten.
 
     Returns
     -------
@@ -1438,7 +1460,6 @@ def _cd_solver(
     n_iter = 0  # number of outer iterations
     n_cycles = 0  # number of (complete) cycles over features
     converged = False
-    n_samples, n_features = X.shape
     idx = 1 if fit_intercept else 0  # offset if coef[0] is intercept
     # line search parameters
     (beta, sigma) = (0.5, 0.01)
@@ -1557,7 +1578,7 @@ def _cd_solver(
         coef += la * d
 
         iteration_runtime = time.time() - iteration_start
-        diagnostics.append([inner_tol, n_iter, n_cycles, iteration_runtime])
+        diagnostics.append([inner_tol, n_iter, n_cycles, iteration_runtime, coef[0]])
         iteration_start = time.time()
 
         # calculate eta, mu, score, Fisher matrix for next iteration
@@ -2524,6 +2545,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 weights=weights,
                 P1=P1,
                 P2=P2,
+                # fit_intercept=self.fit_intercept and not self.center_predictors,
                 fit_intercept=self.fit_intercept,
                 family=family,
                 link=link,
@@ -2532,7 +2554,6 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 selection=self.selection,
                 random_state=random_state,
                 diag_fisher=self.diag_fisher,
-                copy_X=self.copy_X,
             )
 
         #######################################################################
@@ -2567,7 +2588,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
 
             print(
                 pd.DataFrame(
-                    columns=["inner_tol", "n_iter", "n_cycles", "runtime"],
+                    columns=["inner_tol", "n_iter", "n_cycles", "runtime", "coef"],
                     data=self.diagnostics,
                 ).set_index("n_iter", drop=True)
             )
@@ -2893,7 +2914,6 @@ class PoissonRegressor(GeneralizedLinearRegressor):
         start_params="guess",
         random_state=None,
         copy_X=True,
-        check_input=True,
         verbose=0,
     ):
 
