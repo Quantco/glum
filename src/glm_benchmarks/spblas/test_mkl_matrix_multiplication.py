@@ -1,8 +1,9 @@
 # from sparse_matrix_multiplications import mkl_csr_matvec
-import mkl_spblas
 import numpy as np
 import scipy as sp
 import scipy.sparse
+
+import glm_benchmarks.spblas.mkl_spblas as mkl_spblas
 
 atol = 10e-12
 rtol = 10e-12
@@ -89,6 +90,20 @@ def test_transpose_matmat():
         if not return_dense:
             ATB = ATB.toarray()
         assert np.allclose(ATB, ATB_bench, atol=atol, rtol=rtol)
+
+
+def test_fast_matmul2():
+
+    shape = np.array([100, 50])
+    A = simulate_matrix(shape=shape, seed=0).tocsc()
+    d = np.ones(shape[0])
+    true = A.T.dot(A).toarray()
+    AT = A.T.tocsc()
+
+    out = mkl_spblas.fast_matmul2(
+        A.data, A.indices, A.indptr, AT.data, AT.indices, AT.indptr, d
+    )
+    np.testing.assert_almost_equal(true, out)
 
 
 def simulate_matrix(nonzero_frac=0.05, shape=[1000, 500], seed=0):
