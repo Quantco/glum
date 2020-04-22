@@ -6,12 +6,7 @@ import pandas as pd
 from scipy import sparse as sps
 
 from glm_benchmarks.problems import load_simple_insurance_data
-from glm_benchmarks.spblas.mkl_spblas import (
-    fast_matmul,
-    fast_matmul2,
-    fast_matmul3,
-    mkl_matmat,
-)
+from glm_benchmarks.spblas.mkl_spblas import fast_sandwich, mkl_matmat
 
 
 def load_data(n_rows: int, sparse: bool) -> Tuple[Any, np.ndarray]:
@@ -74,28 +69,10 @@ def _safe_sandwich_dot(X, d):
     return whitened_sandwich(X, d)
 
 
-def _fast_matmul(X, d):
-    if sps.isspmatrix(X):
-        temp = fast_matmul(X.data, X.indices, X.indptr, d)
-        temp += np.tril(temp, -1).T
-        return temp
-    return whitened_sandwich(X, d)
-
-
 def _fast_matmul2(X, d):
     # X.XT = X.T.tocsc()
     if sps.isspmatrix(X):
-        temp = fast_matmul2(
-            X.data, X.indices, X.indptr, X.XT.data, X.XT.indices, X.XT.indptr, d
-        )
-        return temp
-    return whitened_sandwich(X, d)
-
-
-def _fast_matmul3(X, d):
-    # X.XT = X.T.tocsc()
-    if sps.isspmatrix(X):
-        temp = fast_matmul3(
+        temp = fast_sandwich(
             X.data, X.indices, X.indptr, X.XT.data, X.XT.indices, X.XT.indptr, d
         )
         return temp
@@ -110,9 +87,7 @@ def run_one_problem_all_methods(n_rows: int, sparse: bool) -> pd.DataFrame:
         "mkl": _safe_sandwich_dot,
         "mkl_whitened": _safe_sandwich_dot_whitened,
         # "whiten": whitened_sandwich,
-        "fast_matmul": _fast_matmul,
         "fast_matmul2": _fast_matmul2,
-        # "fast_matmul3": _fast_matmul3,
     }
 
     info: Dict[str, Any] = {}
