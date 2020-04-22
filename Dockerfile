@@ -18,12 +18,11 @@ COPY requirements/ /app/requirements
 RUN conda install --file requirements/anaconda-requirements.txt
 RUN conda install -c conda-forge --file requirements/conda-forge-requirements.txt
 RUN pip install -r requirements/pip-requirements.txt
-RUN conda config --add channels conda-forge
+RUN conda config --append channels conda-forge
 
 # We wait to copy the full app folder until now so that image caching still
 # works for the previous slow-running install lines (conda and pip)
 COPY . /app
-# RUN pip install --no-use-pep517 --disable-pip-version-check -e .
-# RUN python setup.py install
+RUN /bin/bash -c "source ~/.bashrc && pip install --no-use-pep517 --disable-pip-version-check -e ."
 
 CMD ["bash"]
