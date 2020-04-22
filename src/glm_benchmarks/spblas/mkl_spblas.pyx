@@ -416,13 +416,18 @@ def fast_row_scale(double[:] data, int[:] indices, double[:] scaling, bint inv):
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-def fast_matmul2(double[:] Adata, int[:] Aindices, int[:] Aindptr, double[:] ATdata, int[:] ATindices, int[:] ATindptr, double[:] d):
+def fast_sandwich(A, AT, double[:] d):
     # AT is CSC
     # A is CSC
-    # Things I tried here:
-    # binary search to find first AT_idx that is >= j, slower, not worth it
-    # unrolling the innermost loop, no effect, deleted
-    # blocking the non-zeros in A so that the parallelism is more evenly divided. --> no effect, lots of complexity, deleted
+    # Computes AT @ diag(d) @ A
+
+    cdef double[:] Adata = A.data
+    cdef int[:] Aindices = A.indices
+    cdef int[:] Aindptr = A.indptr
+
+    cdef double[:] ATdata = AT.data
+    cdef int[:] ATindices = AT.indices
+    cdef int[:] ATindptr = AT.indptr
 
     cdef int ncols = Aindptr.shape[0] - 1
     cdef int nrows = d.shape[0]
