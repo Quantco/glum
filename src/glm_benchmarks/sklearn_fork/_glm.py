@@ -58,7 +58,7 @@ from glm_benchmarks.scaled_spmat.standardize import (
     _scale_csc_columns_inplace,
     one_over_var_inf_to_zero,
 )
-from glm_benchmarks.spblas.mkl_spblas import fast_matmul2, mkl_matmat
+from glm_benchmarks.spblas.mkl_spblas import dense_sandwich, fast_matmul2, mkl_matmat
 
 
 def _check_weights(sample_weight, n_samples):
@@ -161,6 +161,7 @@ def _safe_sandwich_dot(X, d, intercept=False):
         X *= sqrtD
         temp = X.T @ X
         X /= sqrtD
+        dense_sandwich(X, d)
     if intercept:
         dim = X.shape[1] + 1
         if type(X) is ColScaledSpMat:
