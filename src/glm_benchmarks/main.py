@@ -142,7 +142,7 @@ def cli_analyze(problem_names: str, library_names: str, num_rows: str, output_di
     problems = res_df.index.get_level_values("problem").values
     # keeps = ["sparse" not in x and "no_weights" in x for x in problems]
     keeps = [x in x for x in problems]
-    res_df.loc[keeps, :].reset_index().to_csv("results.csv")
+    # res_df.loc[keeps, :].reset_index().to_csv("results.csv")
     print(
         res_df.loc[
             keeps,

@@ -9,3 +9,4 @@ jupyterlab
 scikit-learn
 statsmodels
 cython
+mkl-include
