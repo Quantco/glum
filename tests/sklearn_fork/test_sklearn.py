@@ -140,9 +140,7 @@ def test_fisher_matrix(family, link):
     lin_pred = np.dot(X, coef)
     mu = link.inverse(lin_pred)
     weights = rng.randn(10) ** 2 + 1
-    fisher = family._fisher_matrix(
-        coef=coef, phi=phi, X=X, y=mu, weights=weights, link=link
-    )
+    fisher = family._fisher_matrix(coef=coef, phi=phi, X=X, weights=weights, link=link)
     # check that the Fisher matrix is square and positive definite
     assert fisher.ndim == 2
     assert fisher.shape[0] == fisher.shape[1]

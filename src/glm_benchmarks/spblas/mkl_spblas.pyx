@@ -416,13 +416,18 @@ def fast_row_scale(double[:] data, int[:] indices, double[:] scaling, bint inv):
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-def fast_matmul2(double[:] Adata, int[:] Aindices, int[:] Aindptr, double[:] ATdata, int[:] ATindices, int[:] ATindptr, double[:] d):
+def fast_sandwich(A, AT, double[:] d):
     # AT is CSC
     # A is CSC
-    # Things I tried here:
-    # binary search to find first AT_idx that is >= j, slower, not worth it
-    # unrolling the innermost loop, no effect, deleted
-    # blocking the non-zeros in A so that the parallelism is more evenly divided. --> no effect, lots of complexity, deleted
+    # Computes AT @ diag(d) @ A
+
+    cdef double[:] Adata = A.data
+    cdef int[:] Aindices = A.indices
+    cdef int[:] Aindptr = A.indptr
+
+    cdef double[:] ATdata = AT.data
+    cdef int[:] ATindices = AT.indices
+    cdef int[:] ATindptr = AT.indptr
 
     cdef int ncols = Aindptr.shape[0] - 1
     cdef int nrows = d.shape[0]
@@ -449,132 +454,3 @@ def fast_matmul2(double[:] Adata, int[:] Aindices, int[:] Aindptr, double[:] ATd
     out += np.tril(out, -1).T
     return out
 
-@cython.boundscheck(False)
-@cython.wraparound(False)
-def fast_matmul3(double[:] Adata, int[:] Aindices, int[:] Aindptr, double[:] ATdata, int[:] ATindices, int[:] ATindptr, double[:] d):
-    cdef int ncols = Aindptr.shape[0] - 1
-    cdef int nrows = d.shape[0]
-    cdef int nnz = Adata.shape[0]
-    out = np.zeros((ncols,ncols))
-    cdef double[:, :] out_view = out
-
-    cdef int AT_idx
-    cdef int AT_row, A_col
-    cdef int i, j
-    cdef double A_val, AT_val
-
-    cdef float blocksize = 1
-    cdef int nblocks = int(ceil(nrows / blocksize))
-    cdef int blockidx
-    cdef int k_start, k_end
-
-    cdef int[:] A_idx = Aindptr[:-1]
-    cdef int[:] A_end = Aindptr[1:]
-
-    # for blockidx in range(nblocks):
-    #     k_start = int(blockidx * blocksize)
-    #     k_end = int(min((blockidx + 1) * blocksize, nrows))
-    #     for j in range(ncols):
-    #         while True:
-    #             if A_idx[j] == A_end[j]:
-    #                 break
-    #             if k[j] >= k_end:
-    #                 break
-
-    #             for AT_idx in range(ATindptr[k[j]], ATindptr[k[j]+1]):
-    #                 i = ATindices[AT_idx]
-    #                 if i < j:
-    #                     continue
-    #                 AT_val = ATdata[AT_idx]
-    #                 out_view[i, j] = out_view[i, j] + AT_val * d[k[j]] * A_val
-
-    #             A_idx[j] = A_idx[j] + 1
-    #             k[j] = Aindices[A_idx[j]]
-    #             A_val[j] = Adata[A_idx[j]]
-
-    out += np.tril(out, -1).T
-    return out
-
-
-
-@cython.boundscheck(False)
-@cython.wraparound(False)
-def fast_matmul(double[:] data, int[:] indices, int[:] indptr, double[:] d):
-    cdef int ncols = indptr.shape[0] - 1
-    cdef int nrows = d.shape[0]
-    cdef int nnz = data.shape[0]
-    out = np.zeros((ncols,ncols))
-    cdef double[:, :] out_view = out
-    cdef int AT_end, A_end, AT_idx, A_idx
-    cdef int AT_col, A_row
-    cdef int go
-    cdef int i, j
-    cdef int entry
-
-    for i in prange(0, ncols, nogil=True):
-        for AT_idx in range(indptr[i], indptr[i+1]):
-            AT_col = indices[AT_idx]
-            out_view[i, i] = out_view[i, i] + data[AT_idx] * d[AT_col] * data[AT_idx]
-
-    for entry in prange(1, (ncols - 1) * (ncols) / 2 + 1, nogil=True):
-        i = int(ceil(sqrt(2 * entry + 0.25) - 0.5))
-        j = int(entry - (i-1) * i / 2)
-        i = i
-        j = j - 1
-
-        
-        AT_idx = indptr[i]
-        AT_end = indptr[i+1]
-        A_idx = indptr[j]
-        A_end = indptr[j+1]
-        while True:
-            # unroll loop #1
-            if AT_idx == AT_end:
-                break
-            if A_idx == A_end:
-                break
-            AT_col = indices[AT_idx]
-            A_row = indices[A_idx]
-            if AT_col == A_row:
-                out_view[i, j] = out_view[i, j] + data[AT_idx] * d[AT_col] * data[A_idx]
-                AT_idx = AT_idx + 1
-                A_idx = A_idx + 1
-            elif AT_col < A_row:
-                AT_idx = AT_idx + 1
-            else:
-                A_idx = A_idx + 1
-
-
-            # unroll loop #2
-            if AT_idx == AT_end:
-                break
-            if A_idx == A_end:
-                break
-            AT_col = indices[AT_idx]
-            A_row = indices[A_idx]
-            if AT_col == A_row:
-                out_view[i, j] = out_view[i, j] + data[AT_idx] * d[AT_col] * data[A_idx]
-                AT_idx = AT_idx + 1
-                A_idx = A_idx + 1
-            elif AT_col < A_row:
-                AT_idx = AT_idx + 1
-            else:
-                A_idx = A_idx + 1
-
-
-            # unroll loop #3
-            if AT_idx == AT_end:
-                break
-            if A_idx == A_end:
-                break
-            AT_col = indices[AT_idx]
-            A_row = indices[A_idx]
-            if AT_col == A_row:
-                out_view[i, j] = out_view[i, j] + data[AT_idx] * d[AT_col] * data[A_idx]
-                AT_idx = AT_idx + 1
-                A_idx = A_idx + 1
-            elif AT_col < A_row:
-                AT_idx = AT_idx + 1
-            else:
-                A_idx = A_idx + 1
-    return out

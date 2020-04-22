@@ -15,10 +15,6 @@ def test_matvec():
     x = np.random.randn(A.shape[1])
     Ax_bench = A.dot(x)
 
-    # For CSR format.
-    #    assert np.allclose(
-    #        mkl_csr_matvec(A, x), Ax_bench, atol=atol, rtol=rtol
-    #    )
     assert np.allclose(mkl_spblas.mkl_matvec(A, x), Ax_bench, atol=atol, rtol=rtol)
     # For CSC format.
     assert np.allclose(
@@ -32,10 +28,6 @@ def test_transpose_matvec():
     x = np.random.randn(A.shape[0])
     ATx_bench = A.T.dot(x)
 
-    # For CSR format.
-    #    assert np.allclose(
-    #        mkl_csr_matvec(A, x, transpose=True), ATx_bench, atol=atol, rtol=rtol
-    #    )
     assert np.allclose(
         mkl_spblas.mkl_matvec(A, x, transpose=True), ATx_bench, atol=atol, rtol=rtol
     )
@@ -92,7 +84,7 @@ def test_transpose_matmat():
         assert np.allclose(ATB, ATB_bench, atol=atol, rtol=rtol)
 
 
-def test_fast_matmul2():
+def test_fast_sandwich():
 
     shape = np.array([100, 50])
     A = simulate_matrix(shape=shape, seed=0).tocsc()
@@ -100,9 +92,7 @@ def test_fast_matmul2():
     true = A.T.dot(A).toarray()
     AT = A.T.tocsc()
 
-    out = mkl_spblas.fast_matmul2(
-        A.data, A.indices, A.indptr, AT.data, AT.indices, AT.indptr, d
-    )
+    out = mkl_spblas.fast_sandwich(A, AT, d)
     np.testing.assert_almost_equal(true, out)
 
 
