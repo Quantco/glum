@@ -42,7 +42,7 @@ import numbers
 import time
 import warnings
 from abc import ABCMeta, abstractmethod
-from typing import List, Tuple, Union
+from typing import Any, List, Tuple, Union
 
 import numpy as np
 import scipy.sparse.linalg as splinalg
@@ -249,7 +249,10 @@ def _standardize_dense(X, weights, scale_predictors):
     return X, col_means, col_stds
 
 
-def _unstandardize(X, col_means, col_stds, intercept, coef):
+def _unstandardize(
+    X, col_means: np.ndarray, col_stds: np.ndarray, intercept: float, coef
+) -> Tuple[Any, float, np.ndarray]:
+    assert isinstance(intercept, float)
     if type(X) is ColScaledSpMat:
         if sparse.isspmatrix_csc(X.mat):
             _scale_csc_columns_inplace(X.mat, col_stds)
@@ -260,7 +263,8 @@ def _unstandardize(X, col_means, col_stds, intercept, coef):
         X *= col_stds
         X += col_means
 
-    intercept -= np.squeeze(col_means / col_stds).dot(coef)
+    intercept -= float(np.squeeze(col_means / col_stds).dot(coef))
+    assert isinstance(intercept, float)
     coef /= col_stds
     return X, intercept, coef
 
@@ -1246,6 +1250,11 @@ def _cd_cycle(
                     Bj[idx:] = _safe_toarray(
                         X[:, j].transpose() @ X.multiply(fisher[:, np.newaxis])
                     ).ravel()
+                elif isinstance(X, ColScaledSpMat):
+                    # This will not be very efficient since the features get converted
+                    # to dense
+                    x_j = X.getcol(j).toarray()[:, 0]
+                    Bj[idx:] = _safe_toarray((fisher * x_j) @ X).ravel()
                 else:
                     Bj[idx:] = (fisher * X[:, j]) @ X
 
@@ -2084,8 +2093,8 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         P1="identity",
         P2="identity",
         fit_intercept=True,
-        family="normal",
-        link="auto",
+        family: Union[str, ExponentialDispersionModel] = "normal",
+        link: Union[str, Link] = "auto",
         fit_dispersion=None,
         solver="auto",
         max_iter=100,
@@ -2332,7 +2341,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             # when fit_intercept is False, we can't center because that would
             # substantially change estimates
             # Also, currently, diag_fisher is not supported for ColScaledSpMat
-            self.center_predictors = not (not self.fit_intercept or self.diag_fisher)
+            self.center_predictors = self.fit_intercept and not self.diag_fisher
 
         solver = self.solver
         if self.solver == "auto":
@@ -2340,6 +2349,12 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 solver = "irls"
             else:
                 solver = "cd"
+
+        # if solver == "cd" and self.diag_fisher and self.center_predictors:
+        #     raise NotImplementedError(
+        #         """Diag_fisher is not supported with centered predictors."""
+        #     )
+
         if self.alpha > 0 and self.l1_ratio > 0 and solver not in ["cd"]:
             raise ValueError(
                 "The chosen solver (solver={}) can't deal "
@@ -2521,7 +2536,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 warnings.warn("lbfgs failed for the reason: {}".format(info["task"]))
             self.n_iter_ = info["nit"]
 
-        # 4.4 coordinate descent ##############################################
+        # 4.3 coordinate descent ##############################################
         # Note: we already set P1 = l1*P1, see above
         # Note: we already set P2 = l2*P2, see above
         # Note: we already symmetrized P2 = 1/2 (P2 + P2')
@@ -2551,10 +2566,12 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         if self.fit_intercept:
             self.intercept_ = coef[0]
             self.coef_ = coef[1:]
+            assert isinstance(self.intercept_, float)
         else:
             # set intercept to zero as the other linear models do
             self.intercept_ = 0.0
             self.coef_ = coef
+            assert isinstance(self.intercept_, float)
 
         #######################################################################
         # 5a. undo standardization
@@ -2563,6 +2580,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             X, self.intercept_, self.coef_ = _unstandardize(
                 X, col_means, col_stds, self.intercept_, self.coef_
             )
+            assert isinstance(self.intercept_, float)
 
         if self.fit_dispersion in ["chisqr", "deviance"]:
             # attention because of rescaling of weights
