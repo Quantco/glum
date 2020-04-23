@@ -45,6 +45,6 @@ setup(
         glm_benchmarks_run = glm_benchmarks.main:cli_run
         glm_benchmarks_analyze = glm_benchmarks.main:cli_analyze
     """,
-    ext_modules=cythonize(ext_modules, annotate=False),
+    ext_modules=cythonize(ext_modules, annotate=False, language="c++"),
     zip_safe=False,
 )
