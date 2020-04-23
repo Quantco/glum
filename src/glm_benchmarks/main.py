@@ -143,19 +143,20 @@ def cli_analyze(problem_names: str, library_names: str, num_rows: str, output_di
     # keeps = ["sparse" not in x and "no_weights" in x for x in problems]
     keeps = [x in x for x in problems]
     # res_df.loc[keeps, :].reset_index().to_csv("results.csv")
-    print(
-        res_df.loc[
-            keeps,
-            [
-                "n_iter",
-                "runtime",
-                "intercept",
-                "obj_val",
-                "rel_obj_val",
-                "rel_obj_val_2",
-            ],
-        ]
-    )
+    with pd.option_context("display.expand_frame_repr", False, "max_columns", 10):
+        print(
+            res_df.loc[
+                keeps,
+                [
+                    "n_iter",
+                    "runtime",
+                    "intercept",
+                    "obj_val",
+                    "rel_obj_val",
+                    "rel_obj_val_2",
+                ],
+            ]
+        )
 
 
 def extract_dict_results_to_pd_series(
