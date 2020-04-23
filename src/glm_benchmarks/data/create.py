@@ -3,7 +3,6 @@ from typing import Any, List, Tuple
 import numpy as np
 import pandas as pd
 from git_root import git_root
-from scipy import sparse as sps
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import (
@@ -334,8 +333,8 @@ def compute_y_exposure(df, distribution):
     return y, exposure
 
 
-def generate_simple_insurance_dataset(
-    nrows=None, noise=None, distribution="poisson"
+def generate_narrow_insurance_dataset(
+    num_rows=None, noise=None, distribution="poisson"
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Generate the tutorial data set from the sklearn fork and save it to disk."""
 
@@ -344,12 +343,12 @@ def generate_simple_insurance_dataset(
     if distribution in ["gamma", "gaussian"]:
         df = df.query("ClaimAmountCut > 0")
 
-    if nrows is not None:
+    if num_rows is not None:
         # if we're oversampling, set default value for noise to 0.05
         # can be turned off by setting noise to zero
-        if noise is None and nrows > len(df):
+        if noise is None and num_rows > len(df):
             noise = 0.05
-        df = df.sample(n=nrows, replace=True, random_state=12345)
+        df = df.sample(n=num_rows, replace=True, random_state=12345)
 
     if noise is not None:
         df = add_noise(df, noise=noise)
@@ -360,10 +359,10 @@ def generate_simple_insurance_dataset(
     return col_trans_GLM1.fit_transform(df), y, exposure
 
 
-def generate_real_dense_insurance_dataset(
-    nrows=None, noise=None, distribution="poisson"
+def generate_real_insurance_dataset(
+    num_rows=None, noise=None, distribution="poisson"
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Load real dense insurance data set."""
+    """Load real insurance data set."""
 
     df = pd.read_parquet(git_root("data", "outcomes.parquet"))
     X = pd.read_parquet(git_root("data", "X.parquet"))
@@ -372,8 +371,8 @@ def generate_real_dense_insurance_dataset(
         raise NotImplementedError("distibution must be poisson")
 
     # subsample
-    if nrows is not None:
-        idx = df.sample(n=nrows).index
+    if num_rows is not None:
+        idx = df.sample(n=num_rows).index
         df = df.loc[idx].reset_index(drop=True)
         X = X.loc[idx].reset_index(drop=True)
 
@@ -393,21 +392,21 @@ def generate_real_dense_insurance_dataset(
     return (X.to_numpy(), y, weights)
 
 
-def generate_sparse_insurance_dataset(
-    nrows=None, noise=None, distribution="poisson"
-) -> Tuple[sps.spmatrix, np.ndarray, np.ndarray]:
+def generate_wide_insurance_dataset(
+    num_rows=None, noise=None, distribution="poisson"
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Generate a version of the tutorial data set with many features."""
     df = pd.read_parquet(git_root("data/insurance.parquet"))
 
     if distribution in ["gamma", "gaussian"]:
         df = df.query("ClaimAmountCut > 0")
 
-    if nrows is not None:
+    if num_rows is not None:
         # if we're oversampling, set default value for noise to 0.05
         # can be turned off by setting noise to zero
-        if noise is None and nrows > len(df):
+        if noise is None and num_rows > len(df):
             noise = 0.05
-        df = df.sample(n=nrows, replace=True, random_state=12345)
+        df = df.sample(n=num_rows, replace=True, random_state=12345)
 
     if noise is not None:
         df = add_noise(df, noise=noise)
@@ -438,4 +437,4 @@ def generate_sparse_insurance_dataset(
     )
     y, exposure = compute_y_exposure(df, distribution)
 
-    return transformer.fit_transform(df).tocsc(), y, exposure
+    return transformer.fit_transform(df), y, exposure
