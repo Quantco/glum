@@ -119,7 +119,7 @@ def _safe_sandwich_dot(
     X can be sparse, d must be an ndarray. Always returns a ndarray."""
     if sparse.issparse(X):
         if not hasattr(X, "XT"):
-            X.XT = X.T.tocsc()
+            X.XT = X.tocsr()
 
         # TODO: Clean out the code in the cython mkl_spblas.pyx file. We need
         # two entry points: one for the sandwich products and one for
@@ -133,9 +133,12 @@ def _safe_sandwich_dot(
         result = fast_sandwich(X, X.XT, d)
     elif type(X) is ColScaledSpMat:
         if not hasattr(X.mat, "XT"):
-            X.mat.XT = X.mat.T.tocsc(copy=False)
+            # TODO: What if the user passed in a CSR matrix? In fit, we
+            # converted to CSC, then here we convert back. We should store the
+            # CSR version in fit.
+            X.mat.XT = X.mat.tocsr(copy=False)
 
-        term1 = fast_sandwich(X.mat.tocsc(copy=False), X.mat.XT, d,)
+        term1 = fast_sandwich(X.mat.tocsc(copy=False), X.mat.XT, d)
 
         # TODO: Use MKL-based fast mat-vec product
         if isinstance(X.mat, sparse.csc_matrix):
@@ -153,7 +156,10 @@ def _safe_sandwich_dot(
         # TODO: fix this; try writing a Cython function or using MKL
         x_d = X * sqrtD
         result = x_d.T @ x_d
-        dense_sandwich(X, d)
+        XC = np.asfortranarray(X)
+        out = dense_sandwich(XC, d)
+        # out = dense_sandwich(X, d)
+        np.testing.assert_almost_equal(out, result)
     if intercept:
         # TODO: shouldn't be dealing with the intercept with centered predictors
         dim = X.shape[1] + 1
