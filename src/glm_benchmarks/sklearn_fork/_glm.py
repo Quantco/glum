@@ -1631,7 +1631,7 @@ def get_family_instance(family: str) -> ExponentialDispersionModel:
         )
 
 
-def get_link_instance(link: str, family_instance, family: str) -> Link:
+def get_link_instance(link: str, family_instance: ExponentialDispersionModel) -> Link:
     if link == "auto":
         if isinstance(family_instance, TweedieDistribution):
             # This is wrong, and it was wrong before I changed it. See Issue #67
@@ -1647,7 +1647,7 @@ def get_link_instance(link: str, family_instance, family: str) -> Link:
             "No default link known for the "
             "specified distribution family. Please "
             "set link manually, i.e. not to 'auto'; "
-            "got (link='auto', family={}".format(family)
+            "got (link='auto', family={}".format(family_instance.__class__.__name__)
         )
     if link == "identity":
         return IdentityLink()
@@ -2038,8 +2038,6 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         self.P1 = P1
         self.P2 = P2
         self.fit_intercept = fit_intercept
-        self.family = family
-        self.link = link
         self.fit_dispersion = fit_dispersion
         self.solver = solver
         self.max_iter = max_iter
@@ -2054,33 +2052,33 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         self.verbose = verbose
         self.center_predictors = center_predictors
         self.scale_predictors = scale_predictors
-        # validate arguments of __init__ ##################################
-        # Guarantee that self._family_instance is an instance of class
+        # validate arguments
+        # Guarantee that self._family_instance is an instance of
         # ExponentialDispersionModel
-        self._family_instance = (
-            self.family
-            if isinstance(self.family, ExponentialDispersionModel)
-            else get_family_instance(self.family)
+        self.family: ExponentialDispersionModel = (
+            family
+            if isinstance(family, ExponentialDispersionModel)
+            else get_family_instance(family)
         )
-        # Guarantee that self._link_instance is set to an instance of
-        # class Link
-        self._link_instance = (
-            self.link
-            if isinstance(self.link, Link)
-            else get_link_instance(self.link, self._family_instance, self.family)
+        # Guarantee that self._link_instance is set to an instance of class Link
+        self.link: Link = (
+            link if isinstance(link, Link) else get_link_instance(link, self.family)
         )
 
     # See PEP 484 on annotating with float rather than Number
     # https://www.python.org/dev/peps/pep-0484/#the-numeric-tower
     def _validate_inputs(self) -> None:
-        if not isinstance(self.alpha, float) or self.alpha < 0:
+        if (
+            not (isinstance(self.alpha, float) or isinstance(self.alpha, int))
+            or self.alpha < 0
+        ):
             raise ValueError(
                 "Penalty term must be a non-negative number;"
                 " got (alpha={})".format(self.alpha)
             )
 
         if (
-            not isinstance(self.l1_ratio, float)
+            not (isinstance(self.l1_ratio, float) or isinstance(self.l1_ratio, int))
             or self.l1_ratio < 0
             or self.l1_ratio > 1
         ):
@@ -2262,12 +2260,10 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
 
         # 1.4 additional validations ##########################################
         if self.check_input:
-            if not np.all(self._family_instance.in_y_range(y)):
+            if not np.all(self.family.in_y_range(y)):
                 raise ValueError(
                     "Some value(s) of y are out of the valid "
-                    "range for family {}".format(
-                        self._family_instance.__class__.__name__
-                    )
+                    "range for family {}".format(self.family.__class__.__name__)
                 )
             # check if P1 has only non-negative values, negative values might
             # indicate group lasso in the future.
@@ -2342,15 +2338,13 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             if start_params == "guess":
                 # Set mu=starting_mu of the family and do one Newton step
                 # If solver=cd use cd, else irls
-                mu = self._family_instance.starting_mu(y, weights=weights)
-                eta = self._link_instance.link(mu)  # linear predictor
+                mu = self.family.starting_mu(y, weights=weights)
+                eta = self.link.link(mu)  # linear predictor
                 if solver in ["cd", "lbfgs", "newton-cg"]:
                     # see function _cd_solver
                     # TODO: why does this not use _eta_mu_score_fisher?
-                    sigma_inv = 1 / self._family_instance.variance(
-                        mu, phi=1, weights=weights
-                    )
-                    d1 = self._link_instance.inverse_derivative(eta)
+                    sigma_inv = 1 / self.family.variance(mu, phi=1, weights=weights)
+                    d1 = self.link.inverse_derivative(eta)
                     temp = sigma_inv * d1 * (y - mu)
                     if self.fit_intercept:
                         score = np.concatenate(([temp.sum()], temp @ X))
@@ -2397,12 +2391,10 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 else:
                     # See _irls_solver
                     # h'(eta)
-                    hp = self._link_instance.inverse_derivative(eta)
+                    hp = self.link.inverse_derivative(eta)
                     # working weights W, in principle a diagonal matrix
                     # therefore here just as 1d array
-                    W = hp ** 2 / self._family_instance.variance(
-                        mu, phi=1, weights=weights
-                    )
+                    W = hp ** 2 / self.family.variance(mu, phi=1, weights=weights)
                     # working observations
                     z = eta + (y - mu) / hp
                     # solve A*coef = b
@@ -2411,7 +2403,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             else:  # start_params == 'zero'
                 if self.fit_intercept:
                     coef = np.zeros(n_features + 1)
-                    coef[0] = self._link_instance.link(np.average(y, weights=weights))
+                    coef[0] = self.link.link(np.average(y, weights=weights))
                 else:
                     coef = np.zeros(n_features)
         else:  # assign given array as start values
@@ -2436,8 +2428,8 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 weights=weights,
                 P2=P2,
                 fit_intercept=self.fit_intercept,
-                family=self._family_instance,
-                link=self._link_instance,
+                family=self.family,
+                link=self.link,
                 max_iter=self.max_iter,
                 tol=self.tol,
             )
@@ -2459,7 +2451,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 objp[idx:] += L2
                 return obj, objp
 
-            args = (X, y, weights, P2, self._family_instance, self._link_instance)
+            args = (X, y, weights, P2, self.family, self.link)
             coef, loss, info = fmin_l_bfgs_b(
                 func,
                 coef,
@@ -2544,7 +2536,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
 
                 return grad, Hs
 
-            args = (X, y, weights, P2, self._family_instance, self._link_instance)
+            args = (X, y, weights, P2, self.family, self.link)
             coef, self.n_iter_ = newton_cg(
                 grad_hess,
                 func,
@@ -2569,8 +2561,8 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 P2=P2,
                 # fit_intercept=self.fit_intercept and not self.center_predictors,
                 fit_intercept=self.fit_intercept,
-                family=self._family_instance,
-                link=self._link_instance,
+                family=self.family,
+                link=self.link,
                 max_iter=self.max_iter,
                 tol=self.tol,
                 selection=self.selection,
@@ -2669,7 +2661,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             allow_nd=False,
         )
         eta = self.linear_predictor(X)
-        mu = self._link_instance.inverse(eta)
+        mu = self.link.inverse(eta)
         weights = _check_weights(sample_weight, X.shape[0])
 
         return mu * weights
@@ -2717,14 +2709,12 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 " samples=X.shape[0]={} and"
                 " n_features=X.shape[1]+fit_intercept={}.".format(n_samples, n_features)
             )
-        mu = self._link_instance.inverse(eta)
+        mu = self.link.inverse(eta)
         if self.fit_dispersion == "chisqr":
-            chisq = np.sum(
-                weights * (y - mu) ** 2 / self._family_instance.unit_variance(mu)
-            )
+            chisq = np.sum(weights * (y - mu) ** 2 / self.family.unit_variance(mu))
             return chisq / (n_samples - n_features)
         elif self.fit_dispersion == "deviance":
-            dev = self._family_instance.deviance(y, mu, weights)
+            dev = self.family.deviance(y, mu, weights)
             return dev / (n_samples - n_features)
 
     # Note: check_estimator(GeneralizedLinearRegressor) might raise
@@ -2767,9 +2757,9 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         #       input validation and so on)
         weights = _check_weights(sample_weight, y.shape[0])
         mu = self.predict(X)
-        dev = self._family_instance.deviance(y, mu, weights=weights)
+        dev = self.family.deviance(y, mu, weights=weights)
         y_mean = np.average(y, weights=weights)
-        dev_null = self._family_instance.deviance(y, y_mean, weights=weights)
+        dev_null = self.family.deviance(y, y_mean, weights=weights)
         return 1.0 - dev / dev_null
 
     def _more_tags(self):
