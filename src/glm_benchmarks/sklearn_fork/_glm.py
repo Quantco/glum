@@ -51,7 +51,6 @@ from scipy.optimize import fmin_l_bfgs_b
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.exceptions import ConvergenceWarning
 from sklearn.utils import check_array, check_X_y
-from sklearn.utils.optimize import newton_cg
 from sklearn.utils.validation import check_is_fitted, check_random_state
 
 from glm_benchmarks.scaled_spmat import ColScaledSpMat, standardize, zero_center
@@ -1137,7 +1136,7 @@ def _irls_solver(coef, X, y, weights, P2, fit_intercept, family, link, max_iter,
         V = family.variance(mu, phi=1, weights=weights)
 
         # which tolerace? |coef - coef_old| or gradient?
-        # use gradient for compliance with newton-cg and lbfgs
+        # use gradient for compliance with lbfgs
         # gradient = -X' D (y-mu)/V(mu) + l2 P2 w
         temp = hp * (y - mu) / V
         if sparse.issparse(X):
@@ -1612,7 +1611,7 @@ def _cd_solver(
     return coef, n_iter, n_cycles, diagnostics
 
 
-def get_family_instance(family: str) -> ExponentialDispersionModel:
+def get_family(family_name: str) -> ExponentialDispersionModel:
     name_to_dist = {
         "normal": NormalDistribution,
         "poisson": PoissonDistribution,
@@ -1621,50 +1620,55 @@ def get_family_instance(family: str) -> ExponentialDispersionModel:
         "binomial": BinomialDistribution,
     }
     try:
-        return name_to_dist[family]()
+        return name_to_dist[family_name]()
     except KeyError:
         raise ValueError(
             "The family must be an instance of class"
             " ExponentialDispersionModel or an element of"
             " ['normal', 'poisson', 'gamma', 'inverse.gaussian', "
-            "'binomial']; got (family={})".format(family)
+            "'binomial']; got (family={})".format(family_name)
         )
 
 
-def get_link_instance(link: str, family_instance: ExponentialDispersionModel) -> Link:
-    if link == "auto":
-        if isinstance(family_instance, TweedieDistribution):
-            # This code follows actuarial best practices regarding link functions. Note
-            # that these links are sometimes non-canonical:
-            # Identity for normal (p=0)
-            # No convention for p < 0, so let's leave it as identity
-            # Log otherwise
-            if family_instance.power <= 0:
+def get_link(link_name: str, family: ExponentialDispersionModel) -> Link:
+    """
+    For the Tweedie distribution, this code follows actuarial best practices regarding
+    link functions. Note that these links are sometimes non-canonical:
+        - Identity for normal (p=0)
+        - No convention for p < 0, so let's leave it as identity
+        - Log otherwise
+    """
+    if link_name == "auto":
+        if isinstance(family, TweedieDistribution):
+            # This code
+            if family.power <= 0:
                 return IdentityLink()
-            if family_instance.power < 1:
+            if family.power < 1:
                 # TODO: move more detailed error here
                 raise ValueError("No distribution")
             return LogLink()
-        if isinstance(family_instance, GeneralizedHyperbolicSecant):
+        if isinstance(family, GeneralizedHyperbolicSecant):
             return IdentityLink()
-        if isinstance(family_instance, BinomialDistribution):
+        if isinstance(family, BinomialDistribution):
             return LogitLink()
         raise ValueError(
-            "No default link known for the "
-            "specified distribution family. Please "
-            "set link manually, i.e. not to 'auto'; "
-            "got (link='auto', family={}".format(family_instance.__class__.__name__)
+            """No default link known for the specified distribution family. Please
+            set link manually, i.e. not to 'auto';
+            got (link='auto', family={})""".format(
+                family.__class__.__name__
+            )
         )
-    if link == "identity":
+    if link_name == "identity":
         return IdentityLink()
-    if link == "log":
+    if link_name == "log":
         return LogLink()
-    if link == "logit":
+    if link_name == "logit":
         return LogitLink()
     raise ValueError(
-        "The link must be an instance of class Link or "
-        "an element of ['auto', 'identity', 'log', 'logit']; "
-        "got (link={})".format(link)
+        """The link must be an instance of class Link or an element of
+        ['auto', 'identity', 'log', 'logit']; got (link={})""".format(
+            link_name
+        )
     )
 
 
@@ -1912,7 +1916,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         the chi squared statistic or the deviance statistic. If None, the
         dispersion is not estimated.
 
-    solver : {'auto', 'cd', 'irls', 'lbfgs', 'newton-cg'}, \
+    solver : {'auto', 'cd', 'irls', 'lbfgs'}, \
             optional (default='auto')
         Algorithm to use in the optimization problem:
 
@@ -1933,9 +1937,6 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         'lbfgs'
             Calls scipy's L-BFGS-B optimizer. It cannot deal with L1 penalties.
 
-        'newton-cg', 'lbfgs'
-            Newton conjugate gradient algorithm cannot deal with L1 penalties.
-
         Note that all solvers except lbfgs use the fisher matrix, i.e. the
         expected Hessian instead of the Hessian matrix.
 
@@ -1943,7 +1944,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         The maximal number of iterations for solver algorithms.
 
     tol : float, optional (default=1e-4)
-        Stopping criterion. For the irls, newton-cg and lbfgs solvers,
+        Stopping criterion. For the irls and lbfgs solvers,
         the iteration will stop when ``max{|g_i|, i = 1, ..., n} <= tol``
         where ``g_i`` is the i-th component of the gradient (derivative) of
         the objective function. For the cd solver, convergence is reached
@@ -2125,11 +2126,11 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         self.family: ExponentialDispersionModel = (
             family
             if isinstance(family, ExponentialDispersionModel)
-            else get_family_instance(family)
+            else get_family(family)
         )
         # Guarantee that self._link_instance is set to an instance of class Link
         self.link: Link = (
-            link if isinstance(link, Link) else get_link_instance(link, self.family)
+            link if isinstance(link, Link) else get_link(link, self.family)
         )
 
     # See PEP 484 on annotating with float rather than Number
@@ -2159,10 +2160,20 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 " got {}".format(self.fit_intercept)
             )
 
-        if self.solver not in ["auto", "irls", "lbfgs", "newton-cg", "cd"]:
+        if self.solver == "newton-cg":
+            raise ValueError(
+                """
+                newton-cg solver is no longer supported because
+                sklearn.utils.optimize.newton_cg has been deprecated. If you need this
+                functionality, please use
+                https://github.com/scikit-learn/scikit-learn/pull/9405.
+                """
+            )
+
+        if self.solver not in ["auto", "irls", "lbfgs", "cd"]:
             raise ValueError(
                 "GeneralizedLinearRegressor supports only solvers"
-                " 'auto', 'irls', 'lbfgs', 'newton-cg' and 'cd';"
+                " 'auto', 'irls', 'lbfgs', and 'cd';"
                 " got {}".format(self.solver)
             )
         if not isinstance(self.max_iter, int) or self.max_iter <= 0:
@@ -2216,6 +2227,76 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             if not isinstance(self.P1, str):  # if self.P1 != 'identity':
                 if not np.all(self.P1 >= 0):
                     raise ValueError("P1 must not have negative values.")
+
+    def _guess_start_params(
+        self, y: np.ndarray, weights: np.ndarray, solver: str, X, P1, P2, random_state
+    ) -> np.ndarray:
+        """
+        Set mu=starting_mu of the family and do one Newton step
+        If solver=cd use cd, else irls
+        """
+        n_features = X.shape[1]
+        mu = self.family.starting_mu(y, weights=weights)
+        eta = self.link.link(mu)  # linear predictor
+        if solver in ["cd", "lbfgs"]:
+            # see function _cd_solver
+            # TODO: why does this not use _eta_mu_score_fisher?
+            sigma_inv = 1 / self.family.variance(mu, phi=1, weights=weights)
+            d1 = self.link.inverse_derivative(eta)
+            temp = sigma_inv * d1 * (y - mu)
+            if self.fit_intercept:
+                score = np.concatenate(([temp.sum()], temp @ X))
+            else:
+                score = temp @ X  # same as X.T @ temp
+
+            d2_sigma_inv = d1 * d1 * sigma_inv
+            diag_fisher = self.diag_fisher
+            if diag_fisher:
+                fisher = d2_sigma_inv
+            else:
+                fisher = _safe_sandwich_dot(X, d2_sigma_inv, self.fit_intercept)
+            # set up space for search direction d for inner loop
+            if self.fit_intercept:
+                coef = np.zeros(n_features + 1)
+            else:
+                coef = np.zeros(n_features)
+            d = np.zeros_like(coef)
+            # initial stopping tolerance of inner loop
+            # use L1-norm of minimum of norm of subgradient of F
+            # use less restrictive tolerance for initial guess
+            inner_tol = _min_norm_sugrad(coef=coef, grad=-score, P2=P2, P1=P1)
+            inner_tol = 4 * linalg.norm(inner_tol, ord=1)
+            # just one outer loop = Newton step
+            n_cycles = 0
+            d, coef_P2, n_cycles, inner_tol = _cd_cycle(
+                d,
+                X,
+                coef,
+                score,
+                fisher,
+                P1,
+                P2,
+                n_cycles,
+                inner_tol,
+                max_inner_iter=1000,
+                selection=self.selection,
+                random_state=random_state,
+                diag_fisher=self.diag_fisher,
+            )
+            coef += d  # for simplicity no line search here
+        else:
+            # See _irls_solver
+            # h'(eta)
+            hp = self.link.inverse_derivative(eta)
+            # working weights W, in principle a diagonal matrix
+            # therefore here just as 1d array
+            W = hp ** 2 / self.family.variance(mu, phi=1, weights=weights)
+            # working observations
+            z = eta + (y - mu) / hp
+            # solve A*coef = b
+            # A = X' W X + l2 P2, b = X' W z
+            coef = _irls_step(X, W, P2, z, fit_intercept=self.fit_intercept)
+        return coef
 
     def fit(self, X, y, sample_weight=None):
         """Fit a Generalized Linear Model.
@@ -2365,70 +2446,9 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
 
         elif isinstance(start_params, str):
             if start_params == "guess":
-                # Set mu=starting_mu of the family and do one Newton step
-                # If solver=cd use cd, else irls
-                mu = self.family.starting_mu(y, weights=weights)
-                eta = self.link.link(mu)  # linear predictor
-                if solver in ["cd", "lbfgs", "newton-cg"]:
-                    # see function _cd_solver
-                    # TODO: why does this not use _eta_mu_score_fisher?
-                    sigma_inv = 1 / self.family.variance(mu, phi=1, weights=weights)
-                    d1 = self.link.inverse_derivative(eta)
-                    temp = sigma_inv * d1 * (y - mu)
-                    if self.fit_intercept:
-                        score = np.concatenate(([temp.sum()], temp @ X))
-                    else:
-                        score = temp @ X  # same as X.T @ temp
-
-                    d2_sigma_inv = d1 * d1 * sigma_inv
-                    diag_fisher = self.diag_fisher
-                    if diag_fisher:
-                        fisher = d2_sigma_inv
-                    else:
-                        fisher = _safe_sandwich_dot(
-                            X, d2_sigma_inv, intercept=self.fit_intercept
-                        )
-                    # set up space for search direction d for inner loop
-                    if self.fit_intercept:
-                        coef = np.zeros(n_features + 1)
-                    else:
-                        coef = np.zeros(n_features)
-                    d = np.zeros_like(coef)
-                    # initial stopping tolerance of inner loop
-                    # use L1-norm of minimum of norm of subgradient of F
-                    # use less restrictive tolerance for initial guess
-                    inner_tol = _min_norm_sugrad(coef=coef, grad=-score, P2=P2, P1=P1)
-                    inner_tol = 4 * linalg.norm(inner_tol, ord=1)
-                    # just one outer loop = Newton step
-                    n_cycles = 0
-                    d, coef_P2, n_cycles, inner_tol = _cd_cycle(
-                        d,
-                        X,
-                        coef,
-                        score,
-                        fisher,
-                        P1,
-                        P2,
-                        n_cycles,
-                        inner_tol,
-                        max_inner_iter=1000,
-                        selection=self.selection,
-                        random_state=random_state,
-                        diag_fisher=self.diag_fisher,
-                    )
-                    coef += d  # for simplicity no line search here
-                else:
-                    # See _irls_solver
-                    # h'(eta)
-                    hp = self.link.inverse_derivative(eta)
-                    # working weights W, in principle a diagonal matrix
-                    # therefore here just as 1d array
-                    W = hp ** 2 / self.family.variance(mu, phi=1, weights=weights)
-                    # working observations
-                    z = eta + (y - mu) / hp
-                    # solve A*coef = b
-                    # A = X' W X + l2 P2, b = X' W z
-                    coef = _irls_step(X, W, P2, z, fit_intercept=self.fit_intercept)
+                coef = self._guess_start_params(
+                    y, weights, solver, X, P1, P2, random_state
+                )
             else:  # start_params == 'zero'
                 if self.fit_intercept:
                     coef = np.zeros(n_features + 1)
@@ -2442,9 +2462,10 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
 
         #######################################################################
         # 4. fit                                                              #
-        #######################################################################
         # algorithms for optimization
-        # TODO: Parallelize it?
+        #######################################################################
+
+        # If predictors are centered, fit the intercept here and then don't change it
 
         # 4.1 IRLS ############################################################
         # Note: we already set P2 = l2*P2, see above
@@ -2466,9 +2487,11 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         # 4.2 L-BFGS ##########################################################
         elif solver == "lbfgs":
 
-            def func(coef, X, y, weights, P2, family, link):
-                mu, devp = family._mu_deviance_derivative(coef, X, y, weights, link)
-                dev = family.deviance(y, mu, weights)
+            def get_obj_and_derivative(coef):
+                mu, devp = self.family._mu_deviance_derivative(
+                    coef, X, y, weights, self.link
+                )
+                dev = self.family.deviance(y, mu, weights)
                 intercept = coef.size == X.shape[1] + 1
                 idx = 1 if intercept else 0  # offset if coef[0] is intercept
                 if P2.ndim == 1:
@@ -2480,12 +2503,10 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 objp[idx:] += L2
                 return obj, objp
 
-            args = (X, y, weights, P2, self.family, self.link)
             coef, loss, info = fmin_l_bfgs_b(
-                func,
+                get_obj_and_derivative,
                 coef,
                 fprime=None,
-                args=args,
                 iprint=(self.verbose > 0) - 1,
                 pgtol=self.tol,
                 maxiter=self.max_iter,
@@ -2500,87 +2521,13 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 warnings.warn("lbfgs failed for the reason: {}".format(info["task"]))
             self.n_iter_ = info["nit"]
 
-        # 4.3 Newton-CG #######################################################
-        # We use again the fisher matrix instead of the hessian. More
-        # precisely, expected hessian of deviance.
-        elif solver == "newton-cg":
-
-            def func(coef, X, y, weights, P2, family, link):
-                intercept = coef.size == X.shape[1] + 1
-                idx = 1 if intercept else 0  # offset if coef[0] is intercept
-                if P2.ndim == 1:
-                    L2 = coef[idx:] @ (P2 * coef[idx:])
-                else:
-                    L2 = coef[idx:] @ (P2 @ coef[idx:])
-                mu = link.inverse(_safe_lin_pred(X, coef))
-                return 0.5 * family.deviance(y, mu, weights) + 0.5 * L2
-
-            def grad(coef, X, y, weights, P2, family, link):
-                mu, devp = family._mu_deviance_derivative(coef, X, y, weights, link)
-                intercept = coef.size == X.shape[1] + 1
-                idx = 1 if intercept else 0  # offset if coef[0] is intercept
-                if P2.ndim == 1:
-                    L2 = P2 * coef[idx:]
-                else:
-                    L2 = P2 @ coef[idx:]
-                objp = 0.5 * devp
-                objp[idx:] += L2
-                return objp
-
-            def grad_hess(coef, X, y, weights, P2, family, link):
-                intercept = coef.size == X.shape[1] + 1
-                idx = 1 if intercept else 0  # offset if coef[0] is intercept
-                if P2.ndim == 1:
-                    L2 = P2 * coef[idx:]
-                else:
-                    L2 = P2 @ coef[idx:]
-                eta = _safe_lin_pred(X, coef)
-                mu = link.inverse(eta)
-                d1 = link.inverse_derivative(eta)
-                temp = d1 * family.deviance_derivative(y, mu, weights)
-                if intercept:
-                    grad = np.concatenate(([0.5 * temp.sum()], 0.5 * temp @ X + L2))
-                else:
-                    grad = 0.5 * temp @ X + L2  # same as 0.5* X.T @ temp + L2
-
-                # expected hessian = fisher = X.T @ diag_matrix @ X
-                # calculate only diag_matrix
-                diag = d1 ** 2 / family.variance(mu, phi=1, weights=weights)
-                if intercept:
-                    h0i = np.concatenate(([diag.sum()], diag @ X))
-
-                def Hs(coef):
-                    # return (0.5 * fisher + P2) @ coef
-                    # ret = 0.5 * (X.T @ (diag * (X @ coef)))
-                    ret = 0.5 * ((diag * (X @ coef[idx:])) @ X)
-                    if P2.ndim == 1:
-                        ret += P2 * coef[idx:]
-                    else:
-                        ret += P2 @ coef[idx:]
-                    if intercept:
-                        ret = np.concatenate(
-                            ([0.5 * (h0i @ coef)], ret + 0.5 * coef[0] * h0i[1:])
-                        )
-                    return ret
-
-                return grad, Hs
-
-            args = (X, y, weights, P2, self.family, self.link)
-            coef, self.n_iter_ = newton_cg(
-                grad_hess,
-                func,
-                grad,
-                coef,
-                args=args,
-                maxiter=self.max_iter,
-                tol=self.tol,
-            )
-
         # 4.4 coordinate descent ##############################################
         # Note: we already set P1 = l1*P1, see above
         # Note: we already set P2 = l2*P2, see above
         # Note: we already symmetrized P2 = 1/2 (P2 + P2')
+
         elif solver == "cd":
+
             coef, self.n_iter_, self._n_cycles, self.diagnostics = _cd_solver(
                 coef=coef,
                 X=X,
@@ -2588,7 +2535,6 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 weights=weights,
                 P1=P1,
                 P2=P2,
-                # fit_intercept=self.fit_intercept and not self.center_predictors,
                 fit_intercept=self.fit_intercept,
                 family=self.family,
                 link=self.link,
@@ -2631,7 +2577,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
 
             print(
                 pd.DataFrame(
-                    columns=["inner_tol", "n_iter", "n_cycles", "runtime", "coef"],
+                    columns=["inner_tol", "n_iter", "n_cycles", "runtime", "intercept"],
                     data=self.diagnostics,
                 ).set_index("n_iter", drop=True)
             )
@@ -2828,7 +2774,7 @@ class PoissonRegressor(GeneralizedLinearRegressor):
         the chi squared statistic or the deviance statistic. If None, the
         dispersion is not estimated.
 
-    solver : {'irls', 'lbfgs', 'newton-cg'}, optional (default='irls')
+    solver : {'irls', 'lbfgs'}, optional (default='irls')
         Algorithm to use in the optimization problem:
 
         'irls'
@@ -2838,9 +2784,6 @@ class PoissonRegressor(GeneralizedLinearRegressor):
         'lbfgs'
             Calls scipy's L-BFGS-B optimizer.
 
-        'newton-cg'
-            Newton conjugate gradient algorithm.
-
         Note that all solvers except lbfgs use the fisher matrix, i.e. the
         expected Hessian instead of the Hessian matrix.
 
@@ -2848,7 +2791,7 @@ class PoissonRegressor(GeneralizedLinearRegressor):
         The maximal number of iterations for solver algorithms.
 
     tol : float, optional (default=1e-4)
-        Stopping criterion. For the irls, newton-cg and lbfgs solvers,
+        Stopping criterion. For the irls and lbfgs solvers,
         the iteration will stop when ``max{|g_i|, i = 1, ..., n} <= tol``
         where ``g_i`` is the i-th component of the gradient (derivative) of
         the objective function.
