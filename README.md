@@ -23,7 +23,7 @@ After installing the package, you should have two CLI tools: `glm_benchmarks_run
 
 To run the full benchmarking suite, just run `glm_benchmarks_run` with no flags. 
 
-For a more advanced example: `glm_benchmarks_run --problem_names simple_insurance_l2_poisson --library_names sklearn_fork --num_rows 100 --output_dir mydatadirname` will run just the first 100 rows of the `simple_insurance_l2_poisson` problem through the `sklearn_fork` library and save the output to `mydatadirname`. This demonstrates several capabilities that will speed development when you just want to run a subset of either data or problems or libraries. 
+For a more advanced example: `glm_benchmarks_run --problem_names narrow_insurance_l2_poisson --library_names sklearn_fork --storage dense --num_rows 100 --output_dir mydatadirname` will run just the first 100 rows of the `narrow_insurance_l2_poisson` problem through the `sklearn_fork` library and save the output to `mydatadirname`. This demonstrates several capabilities that will speed development when you just want to run a subset of either data or problems or libraries. 
 
 The `--problem_names` and `--library_names` flags take comma separated lists. This mean that if you want to run both `sklearn_fork` and `glmnet_python`, you could run `glm_benchmarks_run --library_names sklearn_fork,glmnet_python`.
 
