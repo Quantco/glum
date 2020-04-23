@@ -221,9 +221,8 @@ def test_glm_family_argument(f, fam):
     glm = GeneralizedLinearRegressor(family=f, alpha=0).fit(X, y)
     assert isinstance(glm._family_instance, fam.__class__)
 
-    glm = GeneralizedLinearRegressor(family="not a family", fit_intercept=False)
     with pytest.raises(ValueError, match="family must be"):
-        glm.fit(X, y)
+        GeneralizedLinearRegressor(family="not a family", fit_intercept=False)
 
 
 @pytest.mark.parametrize(
@@ -237,9 +236,8 @@ def test_glm_link_argument(l, link):
     glm = GeneralizedLinearRegressor(family="normal", link=l).fit(X, y)
     assert isinstance(glm._link_instance, link.__class__)
 
-    glm = GeneralizedLinearRegressor(family="normal", link="not a link")
     with pytest.raises(ValueError, match="link must be"):
-        glm.fit(X, y)
+        GeneralizedLinearRegressor(family="normal", link="not a link")
 
 
 @pytest.mark.parametrize("alpha", ["not a number", -4.2])

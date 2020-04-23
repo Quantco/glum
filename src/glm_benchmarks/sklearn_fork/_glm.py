@@ -42,7 +42,7 @@ import numbers
 import time
 import warnings
 from abc import ABCMeta, abstractmethod
-from typing import List, Tuple
+from typing import List, Tuple, Union
 
 import numpy as np
 import scipy.sparse.linalg as splinalg
@@ -109,9 +109,7 @@ def _safe_toarray(X):
         return np.asarray(X)
 
 
-def _safe_sandwich_dot(
-    X, d: np.ndarray, intercept=False, center_predictors=True
-) -> np.ndarray:
+def _safe_sandwich_dot(X, d: np.ndarray, intercept=False) -> np.ndarray:
     """Compute sandwich product X.T @ diag(d) @ X.
 
     With ``intercept=True``, X is treated as if a column of 1 were appended as
@@ -167,7 +165,6 @@ def _safe_sandwich_dot(
         )
         res_including_intercept[0, 0] = d.sum()
         # TODO: Use MKL-based fast mat-vec product
-        # if center_predictors:
         res_including_intercept[1:, 0] = d @ X
         res_including_intercept[0, 1:] = res_including_intercept[1:, 0]
 
@@ -1615,6 +1612,142 @@ def _cd_solver(
     return coef, n_iter, n_cycles, diagnostics
 
 
+def get_family_instance(family: str) -> ExponentialDispersionModel:
+    name_to_dist = {
+        "normal": NormalDistribution,
+        "poisson": PoissonDistribution,
+        "gamma": GammaDistribution,
+        "inverse.gaussian": InverseGaussianDistribution,
+        "binomial": BinomialDistribution,
+    }
+    try:
+        return name_to_dist[family]()
+    except KeyError:
+        raise ValueError(
+            "The family must be an instance of class"
+            " ExponentialDispersionModel or an element of"
+            " ['normal', 'poisson', 'gamma', 'inverse.gaussian', "
+            "'binomial']; got (family={})".format(family)
+        )
+
+
+def get_link_instance(link: str, family_instance, family: str) -> Link:
+    if link == "auto":
+        if isinstance(family_instance, TweedieDistribution):
+            # This is wrong, and it was wrong before I changed it. See Issue #67
+            if family_instance.power == 1:
+                return LogLink()
+            # should actually be a 'tweedie link', but that doesn't exist
+            return IdentityLink()
+        if isinstance(family_instance, GeneralizedHyperbolicSecant):
+            return IdentityLink()
+        if isinstance(family_instance, BinomialDistribution):
+            return LogitLink()
+        raise ValueError(
+            "No default link known for the "
+            "specified distribution family. Please "
+            "set link manually, i.e. not to 'auto'; "
+            "got (link='auto', family={}".format(family)
+        )
+    if link == "identity":
+        return IdentityLink()
+    if link == "log":
+        return LogLink()
+    if link == "logit":
+        return LogitLink()
+    raise ValueError(
+        "The link must be an instance of class Link or "
+        "an element of ['auto', 'identity', 'log', 'logit']; "
+        "got (link={})".format(link)
+    )
+
+
+def setup_penalties(
+    P1: Union[str, np.ndarray],
+    P2: Union[str, np.ndarray],
+    X: Union[np.ndarray, sparse.spmatrix],
+    _stype,
+    _dtype,
+    alpha: float,
+    l1_ratio: float,
+) -> Tuple[np.ndarray, np.ndarray]:
+    n_features = X.shape[1]
+    if isinstance(P1, str) and P1 == "identity":
+        P1 = np.ones(n_features)
+    else:
+        P1 = np.atleast_1d(P1)
+        try:
+            P1 = P1.astype(np.float64, casting="safe", copy=False)
+        except TypeError:
+            raise TypeError(
+                "The given P1 cannot be converted to a numeric"
+                "array; got (P1.dtype={}).".format(P1.dtype)
+            )
+        if (P1.ndim != 1) or (P1.shape[0] != n_features):
+            raise ValueError(
+                "P1 must be either 'identity' or a 1d array "
+                "with the length of X.shape[1]; "
+                "got (P1.shape[0]={}), "
+                "needed (X.shape[1]={}).".format(P1.shape[0], n_features)
+            )
+    # If X is sparse, make P2 sparse, too.
+    if isinstance(P2, str) and P2 == "identity":
+        if sparse.issparse(X):
+            P2 = (
+                sparse.dia_matrix(
+                    (np.ones(n_features), 0), shape=(n_features, n_features)
+                )
+            ).tocsc()
+        else:
+            P2 = np.ones(n_features)
+    else:
+        P2 = check_array(
+            P2, copy=True, accept_sparse=_stype, dtype=_dtype, ensure_2d=False
+        )
+        if P2.ndim == 1:
+            P2 = np.asarray(P2)
+            if P2.shape[0] != n_features:
+                raise ValueError(
+                    "P2 should be a 1d array of shape "
+                    "(n_features,) with "
+                    "n_features=X.shape[1]; "
+                    "got (P2.shape=({},)), needed ({},)".format(P2.shape[0], X.shape[1])
+                )
+            if sparse.issparse(X):
+                P2 = (
+                    sparse.dia_matrix((P2, 0), shape=(n_features, n_features))
+                ).tocsc()
+        elif P2.ndim == 2 and P2.shape[0] == P2.shape[1] and P2.shape[0] == X.shape[1]:
+            if sparse.issparse(X):
+                P2 = sparse.csc_matrix(P2)
+        else:
+            raise ValueError(
+                "P2 must be either None or an array of shape "
+                "(n_features, n_features) with "
+                "n_features=X.shape[1]; "
+                "got (P2.shape=({0}, {1})), needed ({2}, {2})".format(
+                    P2.shape[0], P2.shape[1], X.shape[1]
+                )
+            )
+
+    l1 = alpha * l1_ratio
+    l2 = alpha * (1 - l1_ratio)
+    # P1 and P2 are now for sure copies
+    P1 = l1 * P1
+    P2 = l2 * P2
+    # one only ever needs the symmetrized L2 penalty matrix 1/2 (P2 + P2')
+    # reason: w' P2 w = (w' P2 w)', i.e. it is symmetric
+    if P2.ndim == 2:
+        if sparse.issparse(P2):
+            if sparse.isspmatrix_csc(P2):
+                P2 = 0.5 * (P2 + P2.transpose()).tocsc()
+            else:
+                P2 = 0.5 * (P2 + P2.transpose()).tocsr()
+        else:
+            P2 = 0.5 * (P2 + P2.T)
+    return P1, P2
+
+
 class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
     """Regression via a Generalized Linear Model (GLM) with penalties.
 
@@ -1921,6 +2054,96 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         self.verbose = verbose
         self.center_predictors = center_predictors
         self.scale_predictors = scale_predictors
+        # validate arguments of __init__ ##################################
+        # Guarantee that self._family_instance is an instance of class
+        # ExponentialDispersionModel
+        self._family_instance = (
+            self.family
+            if isinstance(self.family, ExponentialDispersionModel)
+            else get_family_instance(self.family)
+        )
+        # Guarantee that self._link_instance is set to an instance of
+        # class Link
+        self._link_instance = (
+            self.link
+            if isinstance(self.link, Link)
+            else get_link_instance(self.link, self._family_instance, self.family)
+        )
+
+    # See PEP 484 on annotating with float rather than Number
+    # https://www.python.org/dev/peps/pep-0484/#the-numeric-tower
+    def _validate_inputs(self) -> None:
+        if not isinstance(self.alpha, float) or self.alpha < 0:
+            raise ValueError(
+                "Penalty term must be a non-negative number;"
+                " got (alpha={})".format(self.alpha)
+            )
+
+        if (
+            not isinstance(self.l1_ratio, float)
+            or self.l1_ratio < 0
+            or self.l1_ratio > 1
+        ):
+            raise ValueError(
+                "l1_ratio must be a number in interval [0, 1];"
+                " got (l1_ratio={})".format(self.l1_ratio)
+            )
+        if not isinstance(self.fit_intercept, bool):
+            raise ValueError(
+                "The argument fit_intercept must be bool;"
+                " got {}".format(self.fit_intercept)
+            )
+
+        if self.solver not in ["auto", "irls", "lbfgs", "newton-cg", "cd"]:
+            raise ValueError(
+                "GeneralizedLinearRegressor supports only solvers"
+                " 'auto', 'irls', 'lbfgs', 'newton-cg' and 'cd';"
+                " got {}".format(self.solver)
+            )
+        if not isinstance(self.max_iter, int) or self.max_iter <= 0:
+            raise ValueError(
+                "Maximum number of iteration must be a positive "
+                "integer;"
+                " got (max_iter={!r})".format(self.max_iter)
+            )
+        if not isinstance(self.tol, float) or self.tol <= 0:
+            raise ValueError(
+                "Tolerance for stopping criteria must be "
+                "positive; got (tol={!r})".format(self.tol)
+            )
+        if not isinstance(self.warm_start, bool):
+            raise ValueError(
+                "The argument warm_start must be bool;"
+                " got {}".format(self.warm_start)
+            )
+        if self.selection not in ["cyclic", "random"]:
+            raise ValueError(
+                "The argument selection must be 'cyclic' or "
+                "'random'; got (selection={})".format(self.selection)
+            )
+        if not isinstance(self.diag_fisher, bool):
+            raise ValueError(
+                "The argument diag_fisher must be bool;"
+                " got {}".format(self.diag_fisher)
+            )
+        if not isinstance(self.copy_X, bool):
+            raise ValueError(
+                "The argument copy_X must be bool;" " got {}".format(self.copy_X)
+            )
+        if not isinstance(self.check_input, bool):
+            raise ValueError(
+                "The argument check_input must be bool; got "
+                "(check_input={})".format(self.check_input)
+            )
+        if self.center_predictors and not self.fit_intercept:
+            raise ValueError(
+                "center_predictors=True is not supported when fit_intercept=False"
+                "because centering would substantially change the estimates."
+            )
+        if self.scale_predictors and not self.center_predictors:
+            raise ValueError(
+                "scale_predictors=True is not supported when center_predictors=False"
+            )
 
     def fit(self, X, y, sample_weight=None):
         """Fit a Generalized Linear Model.
@@ -1946,88 +2169,11 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         -------
         self : returns an instance of self.
         """
-        # 99.8% of time is in the _cd_solver function
         #######################################################################
         # 1. input validation                                                 #
         #######################################################################
-        # 1.1 validate arguments of __init__ ##################################
-        # Guarantee that self._family_instance is an instance of class
-        # ExponentialDispersionModel
-        if isinstance(self.family, ExponentialDispersionModel):
-            self._family_instance = self.family
-        else:
-            if self.family == "normal":
-                self._family_instance = NormalDistribution()
-            elif self.family == "poisson":
-                self._family_instance = PoissonDistribution()
-            elif self.family == "gamma":
-                self._family_instance = GammaDistribution()
-            elif self.family == "inverse.gaussian":
-                self._family_instance = InverseGaussianDistribution()
-            elif self.family == "binomial":
-                self._family_instance = BinomialDistribution()
-            else:
-                raise ValueError(
-                    "The family must be an instance of class"
-                    " ExponentialDispersionModel or an element of"
-                    " ['normal', 'poisson', 'gamma', 'inverse.gaussian', "
-                    "'binomial']; got (family={})".format(self.family)
-                )
-
-        # Guarantee that self._link_instance is set to an instance of
-        # class Link
-        if isinstance(self.link, Link):
-            self._link_instance = self.link
-        else:
-            if self.link == "auto":
-                if isinstance(self._family_instance, TweedieDistribution):
-                    if self._family_instance.power <= 0:
-                        self._link_instance = IdentityLink()
-                    if self._family_instance.power >= 1:
-                        self._link_instance = LogLink()
-                elif isinstance(self._family_instance, GeneralizedHyperbolicSecant):
-                    self._link_instance = IdentityLink()
-                elif isinstance(self._family_instance, BinomialDistribution):
-                    self._link_instance = LogitLink()
-                else:
-                    raise ValueError(
-                        "No default link known for the "
-                        "specified distribution family. Please "
-                        "set link manually, i.e. not to 'auto'; "
-                        "got (link='auto', family={}".format(self.family)
-                    )
-            elif self.link == "identity":
-                self._link_instance = IdentityLink()
-            elif self.link == "log":
-                self._link_instance = LogLink()
-            elif self.link == "logit":
-                self._link_instance = LogitLink()
-            else:
-                raise ValueError(
-                    "The link must be an instance of class Link or "
-                    "an element of ['auto', 'identity', 'log', 'logit']; "
-                    "got (link={})".format(self.link)
-                )
-
-        if not isinstance(self.alpha, numbers.Number) or self.alpha < 0:
-            raise ValueError(
-                "Penalty term must be a non-negative number;"
-                " got (alpha={})".format(self.alpha)
-            )
-        if (
-            not isinstance(self.l1_ratio, numbers.Number)
-            or self.l1_ratio < 0
-            or self.l1_ratio > 1
-        ):
-            raise ValueError(
-                "l1_ratio must be a number in interval [0, 1];"
-                " got (l1_ratio={})".format(self.l1_ratio)
-            )
-        if not isinstance(self.fit_intercept, bool):
-            raise ValueError(
-                "The argument fit_intercept must be bool;"
-                " got {}".format(self.fit_intercept)
-            )
+        # 1.1
+        self._validate_inputs()
 
         if self.center_predictors is None:
             # when fit_intercept is False, we can't center because that would
@@ -2035,12 +2181,6 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             # Also, currently, diag_fisher is not supported for ColScaledSpMat
             self.center_predictors = not (not self.fit_intercept or self.diag_fisher)
 
-        if self.solver not in ["auto", "irls", "lbfgs", "newton-cg", "cd"]:
-            raise ValueError(
-                "GeneralizedLinearRegressor supports only solvers"
-                " 'auto', 'irls', 'lbfgs', 'newton-cg' and 'cd';"
-                " got {}".format(self.solver)
-            )
         solver = self.solver
         if self.solver == "auto":
             if self.l1_ratio == 0:
@@ -2055,54 +2195,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                     solver, self.alpha, self.l1_ratio
                 )
             )
-        if not isinstance(self.max_iter, int) or self.max_iter <= 0:
-            raise ValueError(
-                "Maximum number of iteration must be a positive "
-                "integer;"
-                " got (max_iter={!r})".format(self.max_iter)
-            )
-        if not isinstance(self.tol, numbers.Number) or self.tol <= 0:
-            raise ValueError(
-                "Tolerance for stopping criteria must be "
-                "positive; got (tol={!r})".format(self.tol)
-            )
-        if not isinstance(self.warm_start, bool):
-            raise ValueError(
-                "The argument warm_start must be bool;"
-                " got {}".format(self.warm_start)
-            )
-        if self.selection not in ["cyclic", "random"]:
-            raise ValueError(
-                "The argument selection must be 'cyclic' or "
-                "'random'; got (selection={})".format(self.selection)
-            )
         random_state = check_random_state(self.random_state)
-        if not isinstance(self.diag_fisher, bool):
-            raise ValueError(
-                "The argument diag_fisher must be bool;"
-                " got {}".format(self.diag_fisher)
-            )
-        if not isinstance(self.copy_X, bool):
-            raise ValueError(
-                "The argument copy_X must be bool;" " got {}".format(self.copy_X)
-            )
-        if not isinstance(self.check_input, bool):
-            raise ValueError(
-                "The argument check_input must be bool; got "
-                "(check_input={})".format(self.check_input)
-            )
-        if self.center_predictors and not self.fit_intercept:
-            raise ValueError(
-                "center_predictors=True is not supported when fit_intercept=False"
-                "because centering would substantially change the estimates."
-            )
-        if self.scale_predictors and not self.center_predictors:
-            raise ValueError(
-                "scale_predictors=True is not supported when center_predictors=False"
-            )
-
-        family = self._family_instance
-        link = self._link_instance
 
         # 1.2 validate arguments of fit #######################################
         _dtype = [np.float64, np.float32]
@@ -2123,76 +2216,19 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         # ValueError: Integers to negative integer powers are not allowed.
         # Also, y must not be sparse.
         y = np.asarray(y, dtype=np.float64)
-
         weights = _check_weights(sample_weight, y.shape[0])
-
         n_samples, n_features = X.shape
 
         # 1.3 arguments to take special care ##################################
         # P1, P2, start_params
-        if isinstance(self.P1, str) and self.P1 == "identity":
-            P1 = np.ones(n_features)
-        else:
-            P1 = np.atleast_1d(self.P1)
-            try:
-                P1 = P1.astype(np.float64, casting="safe", copy=False)
-            except TypeError:
-                raise TypeError(
-                    "The given P1 cannot be converted to a numeric"
-                    "array; got (P1.dtype={}).".format(P1.dtype)
-                )
-            if (P1.ndim != 1) or (P1.shape[0] != n_features):
-                raise ValueError(
-                    "P1 must be either 'identity' or a 1d array "
-                    "with the length of X.shape[1]; "
-                    "got (P1.shape[0]={}), "
-                    "needed (X.shape[1]={}).".format(P1.shape[0], n_features)
-                )
-        # If X is sparse, make P2 sparse, too.
-        if isinstance(self.P2, str) and self.P2 == "identity":
-            if sparse.issparse(X):
-                P2 = (
-                    sparse.dia_matrix(
-                        (np.ones(n_features), 0), shape=(n_features, n_features)
-                    )
-                ).tocsc()
-            else:
-                P2 = np.ones(n_features)
-        else:
-            P2 = check_array(
-                self.P2, copy=True, accept_sparse=_stype, dtype=_dtype, ensure_2d=False
-            )
-            if P2.ndim == 1:
-                P2 = np.asarray(P2)
-                if P2.shape[0] != n_features:
-                    raise ValueError(
-                        "P2 should be a 1d array of shape "
-                        "(n_features,) with "
-                        "n_features=X.shape[1]; "
-                        "got (P2.shape=({},)), needed ({},)".format(
-                            P2.shape[0], X.shape[1]
-                        )
-                    )
-                if sparse.issparse(X):
-                    P2 = (
-                        sparse.dia_matrix((P2, 0), shape=(n_features, n_features))
-                    ).tocsc()
-            elif (
-                P2.ndim == 2
-                and P2.shape[0] == P2.shape[1]
-                and P2.shape[0] == X.shape[1]
-            ):
-                if sparse.issparse(X):
-                    P2 = sparse.csc_matrix(P2)
-            else:
-                raise ValueError(
-                    "P2 must be either None or an array of shape "
-                    "(n_features, n_features) with "
-                    "n_features=X.shape[1]; "
-                    "got (P2.shape=({0}, {1})), needed ({2}, {2})".format(
-                        P2.shape[0], P2.shape[1], X.shape[1]
-                    )
-                )
+        P1, P2 = setup_penalties(
+            self.P1, self.P2, X, _stype, _dtype, self.alpha, self.l1_ratio
+        )
+
+        # For coordinate descent, if X is sparse, P2 must also be csc
+        # ES: I think this  might already have been handled by check_array
+        if solver == "cd" and sparse.issparse(X):
+            P2 = sparse.csc_matrix(P2)
 
         start_params = self.start_params
         if isinstance(start_params, str):
@@ -2224,32 +2260,14 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                     )
                 )
 
-        l1 = self.alpha * self.l1_ratio
-        l2 = self.alpha * (1 - self.l1_ratio)
-        # P1 and P2 are now for sure copies
-        P1 = l1 * P1
-        P2 = l2 * P2
-        # one only ever needs the symmetrized L2 penalty matrix 1/2 (P2 + P2')
-        # reason: w' P2 w = (w' P2 w)', i.e. it is symmetric
-        if P2.ndim == 2:
-            if sparse.issparse(P2):
-                if sparse.isspmatrix_csc(P2):
-                    P2 = 0.5 * (P2 + P2.transpose()).tocsc()
-                else:
-                    P2 = 0.5 * (P2 + P2.transpose()).tocsr()
-            else:
-                P2 = 0.5 * (P2 + P2.T)
-
-        # For coordinate descent, if X is sparse, P2 must also be csc
-        if solver == "cd" and sparse.issparse(X):
-            P2 = sparse.csc_matrix(P2)
-
         # 1.4 additional validations ##########################################
         if self.check_input:
-            if not np.all(family.in_y_range(y)):
+            if not np.all(self._family_instance.in_y_range(y)):
                 raise ValueError(
                     "Some value(s) of y are out of the valid "
-                    "range for family {}".format(family.__class__.__name__)
+                    "range for family {}".format(
+                        self._family_instance.__class__.__name__
+                    )
                 )
             # check if P1 has only non-negative values, negative values might
             # indicate group lasso in the future.
@@ -2324,13 +2342,15 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             if start_params == "guess":
                 # Set mu=starting_mu of the family and do one Newton step
                 # If solver=cd use cd, else irls
-                mu = family.starting_mu(y, weights=weights)
-                eta = link.link(mu)  # linear predictor
+                mu = self._family_instance.starting_mu(y, weights=weights)
+                eta = self._link_instance.link(mu)  # linear predictor
                 if solver in ["cd", "lbfgs", "newton-cg"]:
                     # see function _cd_solver
                     # TODO: why does this not use _eta_mu_score_fisher?
-                    sigma_inv = 1 / family.variance(mu, phi=1, weights=weights)
-                    d1 = link.inverse_derivative(eta)
+                    sigma_inv = 1 / self._family_instance.variance(
+                        mu, phi=1, weights=weights
+                    )
+                    d1 = self._link_instance.inverse_derivative(eta)
                     temp = sigma_inv * d1 * (y - mu)
                     if self.fit_intercept:
                         score = np.concatenate(([temp.sum()], temp @ X))
@@ -2377,10 +2397,12 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 else:
                     # See _irls_solver
                     # h'(eta)
-                    hp = link.inverse_derivative(eta)
+                    hp = self._link_instance.inverse_derivative(eta)
                     # working weights W, in principle a diagonal matrix
                     # therefore here just as 1d array
-                    W = hp ** 2 / family.variance(mu, phi=1, weights=weights)
+                    W = hp ** 2 / self._family_instance.variance(
+                        mu, phi=1, weights=weights
+                    )
                     # working observations
                     z = eta + (y - mu) / hp
                     # solve A*coef = b
@@ -2389,7 +2411,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             else:  # start_params == 'zero'
                 if self.fit_intercept:
                     coef = np.zeros(n_features + 1)
-                    coef[0] = link.link(np.average(y, weights=weights))
+                    coef[0] = self._link_instance.link(np.average(y, weights=weights))
                 else:
                     coef = np.zeros(n_features)
         else:  # assign given array as start values
@@ -2414,8 +2436,8 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 weights=weights,
                 P2=P2,
                 fit_intercept=self.fit_intercept,
-                family=family,
-                link=link,
+                family=self._family_instance,
+                link=self._link_instance,
                 max_iter=self.max_iter,
                 tol=self.tol,
             )
@@ -2437,7 +2459,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 objp[idx:] += L2
                 return obj, objp
 
-            args = (X, y, weights, P2, family, link)
+            args = (X, y, weights, P2, self._family_instance, self._link_instance)
             coef, loss, info = fmin_l_bfgs_b(
                 func,
                 coef,
@@ -2522,7 +2544,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
 
                 return grad, Hs
 
-            args = (X, y, weights, P2, family, link)
+            args = (X, y, weights, P2, self._family_instance, self._link_instance)
             coef, self.n_iter_ = newton_cg(
                 grad_hess,
                 func,
@@ -2547,8 +2569,8 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 P2=P2,
                 # fit_intercept=self.fit_intercept and not self.center_predictors,
                 fit_intercept=self.fit_intercept,
-                family=family,
-                link=link,
+                family=self._family_instance,
+                link=self._link_instance,
                 max_iter=self.max_iter,
                 tol=self.tol,
                 selection=self.selection,
