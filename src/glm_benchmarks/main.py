@@ -119,45 +119,45 @@ def cli_analyze(
         results[Pn] = dict()
 
         # Find the row counts that have been used on this problem
-        n_rows_used = (
-            get_n_rows_used_to_solve_this_problem(output_dir, Pn)
+        num_rows_used = (
+            get_num_rows_used_to_solve_this_problem(output_dir, Pn)
             if num_rows is None
             else [str(num_rows)]
         )
 
-        for n_rows in n_rows_used:
-            results[Pn][n_rows] = dict()
+        for num_rows_ in num_rows_used:
+            results[Pn][num_rows_] = dict()
 
             # Find the storage formats that have been used on this problem
             storage_used = (
-                get_storage_used_to_solve_this_problem(output_dir, Pn, n_rows)
+                get_storage_used_to_solve_this_problem(output_dir, Pn, num_rows_)
                 if storage is None
                 else [storage]
             )
 
             for storage_ in storage_used:
 
-                results[Pn][n_rows][storage_] = dict()
+                results[Pn][num_rows_][storage_] = dict()
                 for Ln in libraries:
                     try:
                         res = load_benchmark_results(
-                            output_dir, Pn, Ln, n_rows, storage_
+                            output_dir, Pn, Ln, num_rows_, storage_
                         )
                     except FileNotFoundError:
                         continue
                     if len(res) > 0:
-                        results[Pn][n_rows][storage_][Ln] = res
+                        results[Pn][num_rows_][storage_][Ln] = res
 
     formatted_results = (
-        extract_dict_results_to_pd_series(prob_name, lib_name, n_rows, storage, res)
+        extract_dict_results_to_pd_series(prob_name, lib_name, num_rows, storage, res)
         for prob_name in results.keys()
-        for n_rows in results[prob_name].keys()
-        for storage in results[prob_name][n_rows].keys()
-        for lib_name, res in results[prob_name][n_rows][storage].items()
+        for num_rows in results[prob_name].keys()
+        for storage in results[prob_name][num_rows].keys()
+        for lib_name, res in results[prob_name][num_rows][storage].items()
     )
     res_df = (
         pd.concat(formatted_results, axis=1)
-        .T.set_index(["problem", "n_rows", "storage", "library"])
+        .T.set_index(["problem", "num_rows", "storage", "library"])
         .sort_index()
     )
 
@@ -189,7 +189,7 @@ def cli_analyze(
 
 
 def extract_dict_results_to_pd_series(
-    prob_name: str, lib_name: str, n_rows: str, storage: str, results: Dict[str, Any]
+    prob_name: str, lib_name: str, num_rows: str, storage: str, results: Dict[str, Any]
 ) -> pd.Series:
     coefs = results["coef"]
     runtime_per_iter = results["runtime"] / results["n_iter"]
@@ -197,7 +197,7 @@ def extract_dict_results_to_pd_series(
     l2_norm = np.sum(coefs ** 2)
 
     problem = get_all_problems()[prob_name]
-    dat = problem.data_loader(None if n_rows == "None" else int(n_rows))
+    dat = problem.data_loader(None if num_rows == "None" else int(num_rows))
     try:
         obj_val = get_obj_val(
             dat,
@@ -227,7 +227,7 @@ def extract_dict_results_to_pd_series(
         "problem": prob_name,
         "library": lib_name,
         "storage": storage,
-        "n_rows": dat["y"].shape[0] if n_rows == "None" else int(n_rows),
+        "num_rows": dat["y"].shape[0] if num_rows == "None" else int(num_rows),
         "n_iter": results["n_iter"],
         "runtime": results["runtime"],
         "runtime per iter": runtime_per_iter,
@@ -240,10 +240,12 @@ def extract_dict_results_to_pd_series(
     return pd.Series(formatted)
 
 
-def get_n_rows_used_to_solve_this_problem(output_dir: str, prob_name: str) -> List[str]:
+def get_num_rows_used_to_solve_this_problem(
+    output_dir: str, prob_name: str
+) -> List[str]:
     prob_dir = os.path.join(output_dir, prob_name)
-    n_rows_used = os.listdir(prob_dir)
-    if not all(os.path.isdir(os.path.join(prob_dir, x)) for x in n_rows_used):
+    num_rows_used = os.listdir(prob_dir)
+    if not all(os.path.isdir(os.path.join(prob_dir, x)) for x in num_rows_used):
         raise RuntimeError(
             f"""
             Everything in {prob_dir} should be a directory, but this is not the
@@ -251,7 +253,7 @@ def get_n_rows_used_to_solve_this_problem(output_dir: str, prob_name: str) -> Li
             under an older storage scheme. Please delete them.
             """
         )
-    return n_rows_used
+    return num_rows_used
 
 
 def get_storage_used_to_solve_this_problem(
@@ -310,14 +312,14 @@ def save_benchmark_results(
     output_dir: str,
     problem_name: str,
     library_name: str,
-    n_rows: int,
+    num_rows: int,
     storage: str,
     result,
 ) -> None:
     problem_dir = os.path.join(output_dir, problem_name)
     if not os.path.exists(problem_dir):
         os.makedirs(problem_dir)
-    problem_nrow_dir_storage = os.path.join(problem_dir, str(n_rows), storage)
+    problem_nrow_dir_storage = os.path.join(problem_dir, str(num_rows), storage)
     if not os.path.exists(problem_nrow_dir_storage):
         os.makedirs(problem_nrow_dir_storage)
     with open(
@@ -327,9 +329,9 @@ def save_benchmark_results(
 
 
 def load_benchmark_results(
-    output_dir: str, problem_name: str, library_name: str, n_rows: str, storage
+    output_dir: str, problem_name: str, library_name: str, num_rows: str, storage
 ):
-    problem_nrow_dir_storage = os.path.join(output_dir, problem_name, n_rows, storage)
+    problem_nrow_dir_storage = os.path.join(output_dir, problem_name, num_rows, storage)
     with open(
         os.path.join(problem_nrow_dir_storage, library_name + "-results.pkl"), "rb"
     ) as f:
