@@ -1634,11 +1634,17 @@ def get_family_instance(family: str) -> ExponentialDispersionModel:
 def get_link_instance(link: str, family_instance: ExponentialDispersionModel) -> Link:
     if link == "auto":
         if isinstance(family_instance, TweedieDistribution):
-            # This is wrong, and it was wrong before I changed it. See Issue #67
-            if family_instance.power == 1:
-                return LogLink()
-            # should actually be a 'tweedie link', but that doesn't exist
-            return IdentityLink()
+            # This code follows actuarial best practices regarding link functions. Note
+            # that these links are sometimes non-canonical:
+            # Identity for normal (p=0)
+            # No convention for p < 0, so let's leave it as identity
+            # Log otherwise
+            if family_instance.power <= 0:
+                return IdentityLink()
+            if family_instance.power < 1:
+                # TODO: move more detailed error here
+                raise ValueError("No distribution")
+            return LogLink()
         if isinstance(family_instance, GeneralizedHyperbolicSecant):
             return IdentityLink()
         if isinstance(family_instance, BinomialDistribution):
@@ -1746,6 +1752,67 @@ def setup_penalties(
         else:
             P2 = 0.5 * (P2 + P2.T)
     return P1, P2
+
+
+def initialize_start_params(
+    start_params: Union[str, np.ndarray], n_cols: int, fit_intercept: bool, _dtype
+) -> np.ndarray:
+    if isinstance(start_params, str):
+        if start_params not in ["guess", "zero"]:
+            raise ValueError(
+                "The argument start_params must be 'guess', "
+                "'zero' or an array of correct length; "
+                "got(start_params={})".format(start_params)
+            )
+    else:
+        start_params = check_array(
+            start_params,
+            accept_sparse=False,
+            force_all_finite=True,
+            ensure_2d=False,
+            dtype=_dtype,
+            copy=True,
+        )
+        if (start_params.shape[0] != n_cols + fit_intercept) or (
+            start_params.ndim != 1
+        ):
+            raise ValueError(
+                "Start values for parameters must have the"
+                "right length and dimension; required (length"
+                "={}, ndim=1); got (length={}, ndim={}).".format(
+                    n_cols + fit_intercept, start_params.shape[0], start_params.ndim,
+                )
+            )
+    return start_params
+
+
+def is_pos_semidef(p: Union[np.ndarray, sparse.spmatrix]) -> bool:
+    """
+    Checks for positive semidefiniteness of p if p is a matrix, or diag(p) if p is a
+    vector.
+
+    np.linalg.cholesky(P2) 'only' asserts positive definite due to numerical precision,
+    we allow eigenvalues to be a tiny bit negative
+    """
+    epsneg = -10 * np.finfo(p.dtype).epsneg
+    if p.ndim == 1 or p.shape[0] == 1:
+        any_negative = (p < 0).max() if sparse.isspmatrix(p) else (p < 0).any()
+        return not any_negative
+    if sparse.issparse(p):
+        # for sparse matrices, not all eigenvals can be computed
+        # efficiently, use only half of n_features
+        # k = how many eigenvals to compute
+        k = np.min([10, p.shape[0] // 10 + 1])
+        sigma = -1000 * epsneg  # start searching near this value
+        which = "SA"  # find smallest algebraic eigenvalues first
+        eigenvalues = splinalg.eigsh(
+            p, k=k, sigma=sigma, which=which, return_eigenvectors=False
+        )
+        pos_semidef = np.all(eigenvalues >= epsneg)
+        return pos_semidef
+    # Otherwise, it must be a dense matrix
+    pos_semidef = np.all(linalg.eigvalsh(p) >= epsneg)
+    return pos_semidef
 
 
 class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
@@ -2142,6 +2209,13 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             raise ValueError(
                 "scale_predictors=True is not supported when center_predictors=False"
             )
+        if self.check_input:
+
+            # check if P1 has only non-negative values, negative values might
+            # indicate group lasso in the future.
+            if not isinstance(self.P1, str):  # if self.P1 != 'identity':
+                if not np.all(self.P1 >= 0):
+                    raise ValueError("P1 must not have negative values.")
 
     def fit(self, X, y, sample_weight=None):
         """Fit a Generalized Linear Model.
@@ -2228,77 +2302,32 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         if solver == "cd" and sparse.issparse(X):
             P2 = sparse.csc_matrix(P2)
 
-        start_params = self.start_params
-        if isinstance(start_params, str):
-            if start_params not in ["guess", "zero"]:
-                raise ValueError(
-                    "The argument start_params must be 'guess', "
-                    "'zero' or an array of correct length; "
-                    "got(start_params={})".format(start_params)
-                )
-        else:
-            start_params = check_array(
-                start_params,
-                accept_sparse=False,
-                force_all_finite=True,
-                ensure_2d=False,
-                dtype=_dtype,
-                copy=True,
-            )
-            if (start_params.shape[0] != X.shape[1] + self.fit_intercept) or (
-                start_params.ndim != 1
-            ):
-                raise ValueError(
-                    "Start values for parameters must have the"
-                    "right length and dimension; required (length"
-                    "={}, ndim=1); got (length={}, ndim={}).".format(
-                        X.shape[1] + self.fit_intercept,
-                        start_params.shape[0],
-                        start_params.ndim,
-                    )
-                )
+        start_params = initialize_start_params(
+            self.start_params,
+            n_cols=n_features,
+            fit_intercept=self.fit_intercept,
+            _dtype=_dtype,
+        )
 
         # 1.4 additional validations ##########################################
         if self.check_input:
+
             if not np.all(self.family.in_y_range(y)):
                 raise ValueError(
                     "Some value(s) of y are out of the valid "
                     "range for family {}".format(self.family.__class__.__name__)
                 )
-            # check if P1 has only non-negative values, negative values might
-            # indicate group lasso in the future.
-            if not isinstance(self.P1, str):  # if self.P1 != 'identity':
-                if not np.all(P1 >= 0):
-                    raise ValueError("P1 must not have negative values.")
+
             # check if P2 is positive semidefinite
-            # np.linalg.cholesky(P2) 'only' asserts positive definite
             if not isinstance(self.P2, str):  # self.P2 != 'identity'
-                # due to numerical precision, we allow eigenvalues to be a
-                # tiny bit negative
-                epsneg = -10 * np.finfo(P2.dtype).epsneg
-                if P2.ndim == 1 or P2.shape[0] == 1:
-                    p2 = P2
-                    if sparse.issparse(P2):
-                        p2 = P2.toarray()
-                    if not np.all(p2 >= 0):
-                        raise ValueError(
-                            "1d array P2 must not have negative " "values."
-                        )
-                elif sparse.issparse(P2):
-                    # for sparse matrices, not all eigenvals can be computed
-                    # efficiently, use only half of n_features
-                    # k = how many eigenvals to compute
-                    k = np.min([10, n_features // 10 + 1])
-                    sigma = -1000 * epsneg  # start searching near this value
-                    which = "SA"  # find smallest algebraic eigenvalues first
-                    eigenvalues = splinalg.eigsh(
-                        P2, k=k, sigma=sigma, which=which, return_eigenvectors=False
-                    )
-                    if not np.all(eigenvalues >= epsneg):
-                        raise ValueError("P2 must be positive semi-definite.")
-                else:
-                    if not np.all(linalg.eigvalsh(P2) >= epsneg):
-                        raise ValueError("P2 must be positive semi-definite.")
+
+                if not is_pos_semidef(P2):
+                    if P2.ndim == 1 or P2.shape[0] == 1:
+                        error = "1d array P2 must not have negative values."
+                    else:
+                        error = "P2 must be positive semi-definite."
+                    raise ValueError(error)
+
             # TODO: if alpha=0 check that X is not rank deficient
             # TODO: what else to check?
 
@@ -2311,7 +2340,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         # we rescale weights such that sum(weights) = 1 and this becomes
         # 1/2*deviance + L1 + L2 with deviance=sum(weights * unit_deviance)
         weights_sum = np.sum(weights)
-        weights = weights / weights_sum
+        weights /= weights_sum
 
         #######################################################################
         # 2b. potentially rescale predictors
