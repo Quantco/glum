@@ -3,7 +3,6 @@ from typing import Any, List, Tuple
 import numpy as np
 import pandas as pd
 from git_root import git_root
-from scipy import sparse as sps
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import (
@@ -334,7 +333,7 @@ def compute_y_exposure(df, distribution):
     return y, exposure
 
 
-def generate_simple_insurance_dataset(
+def generate_narrow_insurance_dataset(
     nrows=None, noise=None, distribution="poisson"
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Generate the tutorial data set from the sklearn fork and save it to disk."""
@@ -360,10 +359,10 @@ def generate_simple_insurance_dataset(
     return col_trans_GLM1.fit_transform(df), y, exposure
 
 
-def generate_real_dense_insurance_dataset(
+def generate_real_insurance_dataset(
     nrows=None, noise=None, distribution="poisson"
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Load real dense insurance data set."""
+    """Load real insurance data set."""
 
     df = pd.read_parquet(git_root("data", "outcomes.parquet"))
     X = pd.read_parquet(git_root("data", "X.parquet"))
@@ -393,9 +392,9 @@ def generate_real_dense_insurance_dataset(
     return (X.to_numpy(), y, weights)
 
 
-def generate_sparse_insurance_dataset(
+def generate_wide_insurance_dataset(
     nrows=None, noise=None, distribution="poisson"
-) -> Tuple[sps.spmatrix, np.ndarray, np.ndarray]:
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Generate a version of the tutorial data set with many features."""
     df = pd.read_parquet(git_root("data/insurance.parquet"))
 
@@ -438,4 +437,4 @@ def generate_sparse_insurance_dataset(
     )
     y, exposure = compute_y_exposure(df, distribution)
 
-    return transformer.fit_transform(df).tocsc(), y, exposure
+    return transformer.fit_transform(df), y, exposure
