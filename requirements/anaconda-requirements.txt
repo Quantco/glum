@@ -6,7 +6,7 @@ pyarrow
 matplotlib
 ipython
 jupyterlab
-scikit-learn==0.22.1
+scikit-learn
 statsmodels
 cython
 mkl-include
