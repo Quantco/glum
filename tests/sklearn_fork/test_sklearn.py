@@ -219,7 +219,7 @@ def test_glm_family_argument(f, fam):
     y = np.array([0.1, 0.5])  # in range of all distributions
     X = np.array([[1], [2]])
     glm = GeneralizedLinearRegressor(family=f, alpha=0).fit(X, y)
-    assert isinstance(glm._family_instance, fam.__class__)
+    assert isinstance(glm.family, fam.__class__)
 
     with pytest.raises(ValueError, match="family must be"):
         GeneralizedLinearRegressor(family="not a family", fit_intercept=False)
@@ -234,7 +234,7 @@ def test_glm_link_argument(l, link):
     y = np.array([0.1, 0.5])  # in range of all distributions
     X = np.array([[1], [2]])
     glm = GeneralizedLinearRegressor(family="normal", link=l).fit(X, y)
-    assert isinstance(glm._link_instance, link.__class__)
+    assert isinstance(glm.link, link.__class__)
 
     with pytest.raises(ValueError, match="link must be"):
         GeneralizedLinearRegressor(family="normal", link="not a link")
