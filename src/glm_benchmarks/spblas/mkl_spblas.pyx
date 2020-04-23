@@ -204,7 +204,7 @@ def fast_sandwich(A, AT, double[:] d):
 #     out += np.tril(out, -1).T
 #     return out
 
-cdef extern from "dense.h":
+cdef extern from "dense.c":
     void dense_C(double*, double*, double*, int, int) nogil
 
 def dense_sandwich(double[:,:] X, double[:] d):
@@ -218,4 +218,5 @@ def dense_sandwich(double[:,:] X, double[:] d):
     cdef double* Xp = &X[0,0]
     cdef double* dp = &d[0]
     dense_C(Xp, dp, outp, m, n)
+    out += np.tril(out, -1).T
     return out
