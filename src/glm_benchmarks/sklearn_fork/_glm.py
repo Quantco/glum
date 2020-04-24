@@ -153,15 +153,15 @@ def _safe_sandwich_dot(
     else:
         # The "multiply then divide" trick does not work because there may be zeros in
         # d.
-        sqrtD = np.sqrt(d)[:, np.newaxis]
-        # TODO: fix this; try writing a Cython function or using MKL
-        x_d = X * sqrtD
-        result = x_d.T @ x_d
+        # sqrtD = np.sqrt(d)[:, np.newaxis]
+        # # TODO: fix this; try writing a Cython function or using MKL
+        # x_d = X * sqrtD
+        # result = x_d.T @ x_d
         # np.save("file.npz", np.hstack((X, d[:, np.newaxis])))
         if not hasattr(_safe_sandwich_dot, "XF"):
             _safe_sandwich_dot.XF = np.asfortranarray(X)  # type: ignore
-        out = dense_sandwich(_safe_sandwich_dot.XF, d)  # type: ignore
-        np.testing.assert_almost_equal(out, result)
+        result = dense_sandwich(_safe_sandwich_dot.XF, d)  # type: ignore
+        # np.testing.assert_almost_equal(out, result)
     if intercept:
         # TODO: shouldn't be dealing with the intercept with centered predictors
         dim = X.shape[1] + 1
