@@ -78,6 +78,38 @@ def test_col_dot_dense_vec(scaled_mat_builder):
     np.testing.assert_almost_equal(result, expected)
 
 
+def test_col_scaled_get_col():
+    scaled_mat = col_scaled_mat()
+    i = 1
+    result = scaled_mat.getcol(i)
+    expected = scaled_mat.A[:, [i]]
+    np.testing.assert_allclose(result.toarray(), expected)
+
+
+def test_row_scaled_get_row():
+    scaled_mat = row_scaled_mat()
+    i = 1
+    result = scaled_mat.getrow(i)
+    expected = scaled_mat.A[[i], :]
+    np.testing.assert_allclose(result.toarray(), expected)
+
+
+def test_col_scaled_mat_get_row():
+    scaled_mat = col_scaled_mat()
+    i = 1
+    result = scaled_mat.getrow(i)
+    expected = scaled_mat.A[i, :]
+    np.testing.assert_allclose(result, expected)
+
+
+def test_row_sccaled_mat_get_col():
+    scaled_mat = row_scaled_mat()
+    i = 1
+    result = scaled_mat.getcol(i)
+    expected = scaled_mat.A[:, i]
+    np.testing.assert_allclose(result, expected)
+
+
 @pytest.mark.parametrize("scaled_mat_builder", [col_scaled_mat, row_scaled_mat])
 def test_col_dot_dense_mat(scaled_mat_builder):
 

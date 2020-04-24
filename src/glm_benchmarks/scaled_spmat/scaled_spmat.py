@@ -15,6 +15,7 @@ class ScaledMat(ABC):
         if not sps.issparse(mat):
             raise ValueError("mat should be a sparse matrix.")
 
+        shift = np.asarray(shift)
         if shift.ndim == 1:
             shift = np.expand_dims(shift, 1 - self.scale_axis)
         else:
@@ -41,6 +42,9 @@ class ScaledMat(ABC):
 
     def todense(self) -> np.ndarray:
         return self.mat.A + self.shift
+
+    def toarray(self) -> np.ndarray:
+        return self.todense()
 
     @property
     def A(self):
@@ -148,7 +152,7 @@ class ScaledMat(ABC):
 
 class ColScaledSpMat(ScaledMat):
     """
-    Matrix with ij element equal to mat[i, j] + shift[j]
+    Matrix with ij element equal to mat[i, j] + shift[1, j]
     """
 
     def __init__(self, mat: sps.spmatrix, shift: np.ndarray):
@@ -203,6 +207,30 @@ class ColScaledSpMat(ScaledMat):
             tmp.data[start:end] = (data + self.shift[0, j]) ** p - pow
         return ColScaledSpMat(tmp, shift_power)
 
+    def getcol(self, i: int) -> ScaledMat:
+        """
+        Returns a ColScaledSpMat.
+
+        >>> x = ColScaledSpMat(sps.eye(3), shift=[0, 1, -2])
+        >>> col_1 = x.getcol(1)
+        >>> isinstance(col_1, ColScaledSpMat)
+        True
+        >>> col_1.A
+        array([[1.],
+               [2.],
+               [1.]])
+        """
+        return ColScaledSpMat(self.mat.getcol(i), [self.shift[0, i]])
+        # return np.squeeze(self.mat.getcol(i).toarray()) + self.shift[0, i]
+
+    def getrow(self, i: int) -> np.ndarray:
+        """
+        >>> x = ColScaledSpMat(sps.eye(3), shift=[0, 1, -2])
+        >>> x.getrow(1)
+        array([ 0.,  2., -2.])
+        """
+        return np.squeeze(self.mat.getrow(i).toarray()) + np.squeeze(self.shift)
+
 
 class RowScaledSpMat(ScaledMat):
     """
@@ -246,3 +274,23 @@ class RowScaledSpMat(ScaledMat):
 
     def power(self, p: float):
         return self.T.power(p).T
+
+    def getcol(self, i: int) -> np.ndarray:
+        """
+        >>> x = RowScaledSpMat(sps.eye(3), shift=[0, 1, -2])
+        >>> x.getcol(1)
+        array([ 0.,  2., -2.])
+        """
+        return np.squeeze(self.mat.getcol(i).toarray()) + np.squeeze(self.shift)
+
+    def getrow(self, i: int) -> ScaledMat:
+        """
+        Returns a RowScaledSpMat.
+        >>> x = RowScaledSpMat(sps.eye(3), shift=[0, 1, -2])
+        >>> row_i = x.getrow(1)
+        >>> isinstance(row_i, RowScaledSpMat)
+        True
+        >>> row_i.A
+        array([[1., 2., 1.]])
+        """
+        return RowScaledSpMat(self.mat.getrow(i), [self.shift[i, 0]])
