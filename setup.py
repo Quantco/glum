@@ -13,31 +13,30 @@ here = path.abspath(path.dirname(__file__))
 with open(path.join(here, "README.md")) as f:
     long_description = f.read()
 
-include_mkl = np.__config__.get_info("blas_mkl_info")["include_dirs"][0]
-libraries_mkl = np.__config__.get_info("blas_mkl_info")["include_dirs"][0]
-
 # TODO: this should be moved inside the compilation of the extension
 print('templating C source')
-buf = io.StringIO()
-ctx = mako.runtime.Context(buf)
-tmpl = mako.template.Template(filename = 'src/glm_benchmarks/spblas/dense-tmpl.c')
-try:
-    rendered_src = tmpl.render_context(ctx)
-except:
-    print(mako.exceptions.text_error_template().render())
-    raise
-with open('src/glm_benchmarks/spblas/dense.c', 'w') as f:
-    f.write(buf.getvalue())
+for fn in ['src/glm_benchmarks/sandwich/dense-tmpl.c', 'src/glm_benchmarks/sandwich/sparse-tmpl.c']:
+    tmpl = mako.template.Template(filename=fn)
+
+    buf = io.StringIO()
+    try:
+        ctx = mako.runtime.Context(buf)
+        rendered_src = tmpl.render_context(ctx)
+    except:
+        print(mako.exceptions.text_error_template().render())
+        raise
+
+    out_fn = fn.split('-tmpl')[0] + '.c'
+    with open(out_fn, 'w') as f:
+        f.write(buf.getvalue())
 
 ext_modules = [
     Extension(
-        name="glm_benchmarks.spblas.mkl_spblas",
+        name="glm_benchmarks.sandwich.sandwich",
         sources=[
-            "src/glm_benchmarks/spblas/mkl_spblas.pyx"
-        ],  # "src/glm_benchmarks/spblas/dense.c"],
-        include_dirs=[np.get_include(), include_mkl],
-        libraries=["mkl_rt"],
-        library_dirs=["", libraries_mkl],
+            "src/glm_benchmarks/sandwich/sandwich.pyx"
+        ],
+        include_dirs=[np.get_include()],
     ),
 ]
 

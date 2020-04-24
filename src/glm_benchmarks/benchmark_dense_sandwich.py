@@ -27,7 +27,6 @@ def mn_run(m, n, iter):
     mkl = np.min(ts)
     print('numpy_mkl', mkl)
 
-
     ts, out = bench(lambda: dense_sandwich(XF,d), iter)
     ds = np.min(ts)
     print('dense_sandwich', ds)
