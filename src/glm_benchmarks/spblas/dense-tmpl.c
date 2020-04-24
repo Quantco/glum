@@ -41,7 +41,6 @@ double hsum_double_avx(__m256d v)
 </%def>
 
 #define KVECTOR 4
-#define JBLOCK 4
 void dense_base(double* restrict X, double* restrict d, double* restrict out,
                 int m, int n,
                 int imin, int imax,
@@ -55,7 +54,7 @@ void dense_base(double* restrict X, double* restrict d, double* restrict out,
         }
         int kmaxavx = kmin + ((kmax - kmin) / KVECTOR) * KVECTOR;
         int j = jmin;
-        % for JBLOCK in [4, 2, 1]:
+        % for JBLOCK in [8, 4, 2, 1]:
             for (; j < jmin + ((jmaxinner - jmin) / ${JBLOCK}) * ${JBLOCK}; j += ${JBLOCK}) {
                 ${inner_kj_avx(JBLOCK)}
             }
@@ -70,9 +69,9 @@ void recurse_ij(double* restrict X, double* restrict d, double* restrict out,
                 int kmin, int kmax) 
 {
     int size = (imax - imin) * (jmax - jmin);
-    bool parallel = size >= 2048;
+    bool parallel = size >= 256;
     if (!parallel) {
-        int kstep = 50;
+        int kstep = 200;
         for (int kstart = kmin; kstart < kmax; kstart += kstep) {
             int kend = kstart + kstep;
             if (kend > kmax) {
@@ -85,31 +84,24 @@ void recurse_ij(double* restrict X, double* restrict d, double* restrict out,
 
     int isplit = (imax + imin) / 2;
     int jsplit = (jmax + jmin) / 2;
+    int ksplit = (kmax + kmin) / 2;
     {
+        // guaranteed to be partially in lower triangle
         #pragma omp task if(parallel)
-        {
-            // guaranteed to be partially in lower triangle
-            recurse_ij(X, d, out, m, n, imin, isplit, jmin, jsplit, kmin, kmax);
-        }
+        recurse_ij(X, d, out, m, n, imin, isplit, jmin, jsplit, kmin, kmax);
 
+        // guaranteed to be partially in lower triangle
         #pragma omp task if(parallel)
-        {
-            // guaranteed to be partially in lower triangle
-            recurse_ij(X, d, out, m, n, imin, isplit, jsplit, jmax, kmin, kmax);
-        }
+        recurse_ij(X, d, out, m, n, imin, isplit, jsplit, jmax, kmin, kmax);
 
+        // guaranteed to be partially in lower triangle
         #pragma omp task if(parallel)
-        {
-            // guaranteed to be partially in lower triangle
-            recurse_ij(X, d, out, m, n, isplit, imax, jmin, jsplit, kmin, kmax);
-        }
+        recurse_ij(X, d, out, m, n, isplit, imax, jmin, jsplit, kmin, kmax);
 
         // check if any of the entries are in the lower triangle
         if (jsplit <= imax) {
             #pragma omp task if(parallel)
-            {
-                recurse_ij(X, d, out, m, n, isplit, imax, jsplit, jmax, kmin, kmax);
-            }
+            recurse_ij(X, d, out, m, n, isplit, imax, jsplit, jmax, kmin, kmax);
         }
     }
 }

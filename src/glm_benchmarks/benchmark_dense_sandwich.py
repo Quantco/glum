@@ -36,18 +36,25 @@ def mn_run(m, n, iter):
     return mkl, ds
 
 def main():
-    iter = 4
+    iter = 1
     ms = []
     ns = []
     mklt = []
     dst = []
     # for m in [10, 30, 100, 300,  1000]:
     #     for p in np.arange(4, 6):
+            # n = int(10 ** p)
     # for m in [10, 48, 100, 1000]:
     #     for p in np.arange(4, 6):
-    for m in [1000]:
-        for p in [3.5]:
-            n = int(10 ** p)
+            # n = int(10 ** p)
+    # for m in [1000]:
+    #     for p in [3.5]:
+            # n = int(10 ** p)
+    # for m in [10, 30, 100, 300, 1000]:
+    # for m in [300]:
+    #     for n in [100000]:#, 1000000]:
+    for m in [2048]:
+        for n in [2048]:
             mkl, ds = mn_run(m, n, iter)
             ms.append(m)
             ns.append(n)
