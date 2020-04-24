@@ -11,10 +11,12 @@ from libc.math cimport ceil, sqrt
 cimport openmp
 from libc.stdlib cimport malloc, free
 
+cdef extern from "sparse.c":
+    void _sparse_sandwich(double*, int*, int*, double*, int*, int*, double*, double*, int, int, int) nogil
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-def fast_sandwich(A, AT, double[:] d):
+def sparse_sandwich(A, AT, double[:] d):
     # AT is CSC
     # A is CSC
     # Computes AT @ diag(d) @ A
@@ -27,29 +29,18 @@ def fast_sandwich(A, AT, double[:] d):
     cdef int[:] ATindices = AT.indices
     cdef int[:] ATindptr = AT.indptr
 
-    cdef int ncols = Aindptr.shape[0] - 1
-    cdef int nrows = d.shape[0]
+    cdef int m = Aindptr.shape[0] - 1
+    cdef int n = d.shape[0]
     cdef int nnz = Adata.shape[0]
-    out = np.zeros((ncols,ncols))
+    out = np.zeros((m,m))
     cdef double[:, :] out_view = out
-
-    cdef int AT_idx, A_idx
-    cdef int AT_row, A_col
-    cdef int i, j, k
-    cdef double A_val, AT_val
-
-    for j in prange(ncols, nogil=True):
-        for A_idx in range(Aindptr[j], Aindptr[j+1]):
-            k = Aindices[A_idx]
-            A_val = Adata[A_idx] * d[k]
-            for AT_idx in range(ATindptr[k], ATindptr[k+1]):
-                i = ATindices[AT_idx]
-                if i < j:
-                    continue
-                AT_val = ATdata[AT_idx]
-                out_view[i, j] = out_view[i, j] + AT_val * A_val
-
-    out += np.tril(out, -1).T
+    cdef double* outp = &out_view[0,0]
+    _sparse_sandwich(
+        &Adata[0], &Aindices[0], &Aindptr[0],
+        &ATdata[0], &ATindices[0], &ATindptr[0],
+        &d[0], outp, m, n, nnz
+    );
+    out += np.triu(out, 1).T
     return out
 
 cdef extern from "dense.c":
@@ -60,11 +51,27 @@ def dense_sandwich(double[:,:] X, double[:] d):
     cdef int n = X.shape[0]
 
     out = np.zeros((m,m))
-    cdef double[:, :] out_view2 = out
-    cdef double* outp = &out_view2[0,0]
+    cdef double[:, :] out_view = out
+    cdef double* outp = &out_view[0,0]
 
     cdef double* Xp = &X[0,0]
     cdef double* dp = &d[0]
     _dense_sandwich(Xp, dp, outp, m, n)
     out += np.tril(out, -1).T
     return out
+
+#  OLD
+#                            time
+# n_rows  method
+# 10000   fast_sandwich  0.001677
+#         naive          0.004520
+# 100000  fast_sandwich  0.010822
+#         naive          0.040298
+# 300000  fast_sandwich  0.021473
+#         naive          0.151977
+# 1000000 fast_sandwich  0.077476
+#         naive          0.550102
+# 2000000 fast_sandwich  0.159175
+#         naive          1.116225
+# 4000000 fast_sandwich  0.320003
+#         naive          2.248568
