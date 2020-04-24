@@ -1,8 +1,12 @@
 from os import path
+import io
 
 import numpy as np
 from Cython.Build import cythonize
 from setuptools import Extension, find_packages, setup
+
+import mako.template
+import mako.runtime
 
 here = path.abspath(path.dirname(__file__))
 
@@ -11,6 +15,19 @@ with open(path.join(here, "README.md")) as f:
 
 include_mkl = np.__config__.get_info("blas_mkl_info")["include_dirs"][0]
 libraries_mkl = np.__config__.get_info("blas_mkl_info")["include_dirs"][0]
+
+# TODO: this should be moved inside the compilation of the extension
+print('templating C source')
+buf = io.StringIO()
+ctx = mako.runtime.Context(buf)
+tmpl = mako.template.Template(filename = 'src/glm_benchmarks/spblas/dense-tmpl.c')
+try:
+    rendered_src = tmpl.render_context(ctx)
+except:
+    print(mako.exceptions.text_error_template().render())
+    raise
+with open('src/glm_benchmarks/spblas/dense.c', 'w') as f:
+    f.write(buf.getvalue())
 
 ext_modules = [
     Extension(

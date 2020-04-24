@@ -59,7 +59,7 @@ from glm_benchmarks.scaled_spmat.standardize import (
     _scale_csc_columns_inplace,
     one_over_var_inf_to_zero,
 )
-from glm_benchmarks.spblas.mkl_spblas import dense_sandwich2, fast_sandwich
+from glm_benchmarks.spblas.mkl_spblas import dense_sandwich, fast_sandwich
 
 
 def _check_weights(sample_weight, n_samples):
@@ -109,6 +109,7 @@ def _safe_toarray(X):
         return np.asarray(X)
 
 
+@profile
 def _safe_sandwich_dot(
     X, d: np.ndarray, intercept=False, center_predictors=True
 ) -> np.ndarray:
@@ -156,9 +157,10 @@ def _safe_sandwich_dot(
         # TODO: fix this; try writing a Cython function or using MKL
         x_d = X * sqrtD
         result = x_d.T @ x_d
+        # np.save("file.npz", np.hstack((X, d[:, np.newaxis])))
         if not hasattr(_safe_sandwich_dot, "XF"):
             _safe_sandwich_dot.XF = np.asfortranarray(X)  # type: ignore
-        out = dense_sandwich2(_safe_sandwich_dot.XF, d)  # type: ignore
+        out = dense_sandwich(_safe_sandwich_dot.XF, d)  # type: ignore
         np.testing.assert_almost_equal(out, result)
     if intercept:
         # TODO: shouldn't be dealing with the intercept with centered predictors
