@@ -138,7 +138,7 @@ def _safe_sandwich_dot(X, d: np.ndarray, intercept=False) -> np.ndarray:
         if isinstance(X.mat, sparse.csc_matrix):
             xd = X.mat.T.dot(d)
         else:
-            xd = X.mat.XT.T.dot(d)
+            xd = X.mat.XT.dot(d)
         term2 = xd[:, np.newaxis] * X.shift
         term3 = term2.T
         term4 = (X.shift.T * X.shift) * d.sum()
@@ -1089,7 +1089,18 @@ def _irls_step(X, W, P2, z, fit_intercept=True):
     return coef
 
 
-def _irls_solver(coef, X, y, weights, P2, fit_intercept, family, link, max_iter, tol):
+def _irls_solver(
+    coef,
+    X,
+    y: np.ndarray,
+    weights: np.ndarray,
+    P2: Union[np.ndarray, sparse.spmatrix],
+    fit_intercept: bool,
+    family: ExponentialDispersionModel,
+    link: Link,
+    max_iter: int,
+    tol: float,
+):
     """Solve GLM with L2 penalty by IRLS algorithm.
 
     Note: If X is sparse, P2 must also be sparse.
@@ -1139,7 +1150,7 @@ def _irls_solver(coef, X, y, weights, P2, fit_intercept, family, link, max_iter,
         hp = link.inverse_derivative(eta)
         V = family.variance(mu, phi=1, weights=weights)
 
-        # which tolerace? |coef - coef_old| or gradient?
+        # which tolerance? |coef - coef_old| or gradient?
         # use gradient for compliance with lbfgs
         # gradient = -X' D (y-mu)/V(mu) + l2 P2 w
         temp = hp * (y - mu) / V
@@ -1335,16 +1346,16 @@ def _cd_cycle(
 def _cd_solver(
     coef,
     X,
-    y,
-    weights,
-    P1,
-    P2,
-    fit_intercept,
-    family,
-    link,
-    max_iter=100,
-    max_inner_iter=1000,
-    tol=1e-4,
+    y: np.ndarray,
+    weights: np.ndarray,
+    P1: Union[np.ndarray, sparse.spmatrix],
+    P2: Union[np.ndarray, sparse.spmatrix],
+    fit_intercept: bool,
+    family: ExponentialDispersionModel,
+    link: Link,
+    max_iter: int = 100,
+    max_inner_iter: int = 1000,
+    tol: float = 1e-4,
     selection="cyclic ",
     random_state=None,
     diag_fisher=False,
@@ -1620,7 +1631,11 @@ def _cd_solver(
     return coef, n_iter, n_cycles, diagnostics
 
 
-def get_family(family_name: str) -> ExponentialDispersionModel:
+def get_family(
+    family: Union[str, ExponentialDispersionModel]
+) -> ExponentialDispersionModel:
+    if isinstance(family, ExponentialDispersionModel):
+        return family
     name_to_dist = {
         "normal": NormalDistribution,
         "poisson": PoissonDistribution,
@@ -1629,17 +1644,17 @@ def get_family(family_name: str) -> ExponentialDispersionModel:
         "binomial": BinomialDistribution,
     }
     try:
-        return name_to_dist[family_name]()
+        return name_to_dist[family]()
     except KeyError:
         raise ValueError(
             "The family must be an instance of class"
             " ExponentialDispersionModel or an element of"
             " ['normal', 'poisson', 'gamma', 'inverse.gaussian', "
-            "'binomial']; got (family={})".format(family_name)
+            "'binomial']; got (family={})".format(family)
         )
 
 
-def get_link(link_name: str, family: ExponentialDispersionModel) -> Link:
+def get_link(link: Union[str, Link], family: ExponentialDispersionModel) -> Link:
     """
     For the Tweedie distribution, this code follows actuarial best practices regarding
     link functions. Note that these links are sometimes non-canonical:
@@ -1647,7 +1662,9 @@ def get_link(link_name: str, family: ExponentialDispersionModel) -> Link:
         - No convention for p < 0, so let's leave it as identity
         - Log otherwise
     """
-    if link_name == "auto":
+    if isinstance(link, Link):
+        return link
+    if link == "auto":
         if isinstance(family, TweedieDistribution):
             # This code
             if family.power <= 0:
@@ -1667,16 +1684,16 @@ def get_link(link_name: str, family: ExponentialDispersionModel) -> Link:
                 family.__class__.__name__
             )
         )
-    if link_name == "identity":
+    if link == "identity":
         return IdentityLink()
-    if link_name == "log":
+    if link == "log":
         return LogLink()
-    if link_name == "logit":
+    if link == "logit":
         return LogitLink()
     raise ValueError(
         """The link must be an instance of class Link or an element of
         ['auto', 'identity', 'log', 'logit']; got (link={})""".format(
-            link_name
+            link
         )
     )
 
@@ -1689,7 +1706,7 @@ def setup_penalties(
     _dtype,
     alpha: float,
     l1_ratio: float,
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> Tuple[np.ndarray, Union[np.ndarray, sparse.spmatrix]]:
     n_features = X.shape[1]
     if isinstance(P1, str) and P1 == "identity":
         P1 = np.ones(n_features)
@@ -1807,24 +1824,34 @@ def is_pos_semidef(p: Union[np.ndarray, sparse.spmatrix]) -> bool:
     np.linalg.cholesky(P2) 'only' asserts positive definite due to numerical precision,
     we allow eigenvalues to be a tiny bit negative
     """
-    epsneg = -10 * np.finfo(p.dtype).epsneg
+    # 1d case
     if p.ndim == 1 or p.shape[0] == 1:
         any_negative = (p < 0).max() if sparse.isspmatrix(p) else (p < 0).any()
         return not any_negative
+
+    # 2d case
+    # About -6e-7 for 32-bit, -1e-15 for 64-bit
+    epsneg = -10 * np.finfo(np.result_type(float, p.dtype)).epsneg
     if sparse.issparse(p):
-        # for sparse matrices, not all eigenvals can be computed
-        # efficiently, use only half of n_features
-        # k = how many eigenvals to compute
-        k = np.min([10, p.shape[0] // 10 + 1])
-        sigma = -1000 * epsneg  # start searching near this value
-        which = "SA"  # find smallest algebraic eigenvalues first
-        eigenvalues = splinalg.eigsh(
-            p, k=k, sigma=sigma, which=which, return_eigenvectors=False
-        )
-        pos_semidef = np.all(eigenvalues >= epsneg)
-        return pos_semidef
-    # Otherwise, it must be a dense matrix
-    pos_semidef = np.all(linalg.eigvalsh(p) >= epsneg)
+        # Computing eigenvalues for sparse matrices is inefficient. If the matrix is
+        # not huge, convert to dense. Otherwise, calculate 10% of its eigenvalues.
+        if p.shape[0] < 2000:
+            eigenvalues = linalg.eigvalsh(p.toarray())
+        else:
+            n_evals_to_compuate = p.shape[0] // 10 + 1
+            sigma = -1000 * epsneg  # start searching near this value
+            which = "SA"  # find smallest algebraic eigenvalues first
+            eigenvalues = splinalg.eigsh(
+                p,
+                k=n_evals_to_compuate,
+                sigma=sigma,
+                which=which,
+                return_eigenvectors=False,
+            )
+    else:
+        # dense
+        eigenvalues = linalg.eigvalsh(p)
+    pos_semidef = np.all(eigenvalues >= epsneg)
     return pos_semidef
 
 
@@ -2115,6 +2142,8 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         self.P1 = P1
         self.P2 = P2
         self.fit_intercept = fit_intercept
+        self.family = family
+        self.link = link
         self.fit_dispersion = fit_dispersion
         self.solver = solver
         self.max_iter = max_iter
@@ -2129,18 +2158,6 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         self.verbose = verbose
         self.center_predictors = center_predictors
         self.scale_predictors = scale_predictors
-        # validate arguments
-        # Guarantee that self._family_instance is an instance of
-        # ExponentialDispersionModel
-        self.family: ExponentialDispersionModel = (
-            family
-            if isinstance(family, ExponentialDispersionModel)
-            else get_family(family)
-        )
-        # Guarantee that self._link_instance is set to an instance of class Link
-        self.link: Link = (
-            link if isinstance(link, Link) else get_link(link, self.family)
-        )
 
     # See PEP 484 on annotating with float rather than Number
     # https://www.python.org/dev/peps/pep-0484/#the-numeric-tower
@@ -2245,13 +2262,15 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         If solver=cd use cd, else irls
         """
         n_features = X.shape[1]
-        mu = self.family.starting_mu(y, weights=weights)
-        eta = self.link.link(mu)  # linear predictor
+        family = get_family(self.family)
+        link = get_link(self.link, family)
+        mu = family.starting_mu(y, weights=weights)
+        eta = link.link(mu)  # linear predictor
         if solver in ["cd", "lbfgs"]:
             # see function _cd_solver
             # TODO: why does this not use _eta_mu_score_fisher?
-            sigma_inv = 1 / self.family.variance(mu, phi=1, weights=weights)
-            d1 = self.link.inverse_derivative(eta)
+            sigma_inv = 1 / family.variance(mu, phi=1, weights=weights)
+            d1 = link.inverse_derivative(eta)
             temp = sigma_inv * d1 * (y - mu)
             if self.fit_intercept:
                 score = np.concatenate(([temp.sum()], temp @ X))
@@ -2296,10 +2315,10 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         else:
             # See _irls_solver
             # h'(eta)
-            hp = self.link.inverse_derivative(eta)
+            hp = link.inverse_derivative(eta)
             # working weights W, in principle a diagonal matrix
             # therefore here just as 1d array
-            W = hp ** 2 / self.family.variance(mu, phi=1, weights=weights)
+            W = hp ** 2 / family.variance(mu, phi=1, weights=weights)
             # working observations
             z = eta + (y - mu) / hp
             # solve A*coef = b
@@ -2336,12 +2355,21 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         #######################################################################
         # 1.1
         self._validate_inputs()
+        # self.family and self.link are user-provided inputs and may be strings or
+        #  ExponentialDispersonModel/Link objects
+        # self.family_instance_ and self.link_instance_ are cleaned by 'fit' to be
+        # ExponentialDispersionModel and Link arguments
+        self._family_instance: ExponentialDispersionModel = get_family(self.family)
+        # Guarantee that self._link_instance is set to an instance of class Link
+        self._link_instance: Link = get_link(self.link, self._family_instance)
 
-        if self.center_predictors is None:
-            # when fit_intercept is False, we can't center because that would
-            # substantially change estimates
-            # Also, currently, diag_fisher is not supported for ColScaledSpMat
-            self.center_predictors = self.fit_intercept and not self.diag_fisher
+        # when fit_intercept is False, we can't center because that would
+        # substantially change estimates
+        self.center_predictors_: bool = (
+            self.center_predictors
+            if self.center_predictors is not None
+            else self.fit_intercept
+        )
 
         solver = self.solver
         if self.solver == "auto":
@@ -2349,11 +2377,6 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 solver = "irls"
             else:
                 solver = "cd"
-
-        # if solver == "cd" and self.diag_fisher and self.center_predictors:
-        #     raise NotImplementedError(
-        #         """Diag_fisher is not supported with centered predictors."""
-        #     )
 
         if self.alpha > 0 and self.l1_ratio > 0 and solver not in ["cd"]:
             raise ValueError(
@@ -2408,10 +2431,12 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         # 1.4 additional validations ##########################################
         if self.check_input:
 
-            if not np.all(self.family.in_y_range(y)):
+            if not np.all(self._family_instance.in_y_range(y)):
                 raise ValueError(
                     "Some value(s) of y are out of the valid "
-                    "range for family {}".format(self.family.__class__.__name__)
+                    "range for family {}".format(
+                        self._family_instance.__class__.__name__
+                    )
                 )
 
             # check if P2 is positive semidefinite
@@ -2441,7 +2466,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         #######################################################################
         # 2b. potentially rescale predictors
         #######################################################################
-        if self.center_predictors:
+        if self.center_predictors_:
             X, col_means, col_stds = _standardize(X, weights, self.scale_predictors)
 
         #######################################################################
@@ -2456,7 +2481,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             intercept = self.intercept_
             if self.fit_intercept:
                 coef = np.concatenate((np.array([intercept]), coef))
-            if self.center_predictors:
+            if self.center_predictors_:
                 _standardize_warm_start(coef, col_means, col_stds)
 
         elif isinstance(start_params, str):
@@ -2467,20 +2492,18 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             else:  # start_params == 'zero'
                 if self.fit_intercept:
                     coef = np.zeros(n_features + 1)
-                    coef[0] = self.link.link(np.average(y, weights=weights))
+                    coef[0] = self._link_instance.link(np.average(y, weights=weights))
                 else:
                     coef = np.zeros(n_features)
         else:  # assign given array as start values
             coef = start_params
-            if self.center_predictors:
+            if self.center_predictors_:
                 _standardize_warm_start(coef, col_means, col_stds)
 
         #######################################################################
         # 4. fit                                                              #
-        # algorithms for optimization
         #######################################################################
-
-        # If predictors are centered, fit the intercept here and then don't change it
+        # algorithms for optimization
 
         # 4.1 IRLS ############################################################
         # Note: we already set P2 = l2*P2, see above
@@ -2493,8 +2516,8 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 weights=weights,
                 P2=P2,
                 fit_intercept=self.fit_intercept,
-                family=self.family,
-                link=self.link,
+                family=self._family_instance,
+                link=self._link_instance,
                 max_iter=self.max_iter,
                 tol=self.tol,
             )
@@ -2503,10 +2526,10 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         elif solver == "lbfgs":
 
             def get_obj_and_derivative(coef):
-                mu, devp = self.family._mu_deviance_derivative(
-                    coef, X, y, weights, self.link
+                mu, devp = self._family_instance._mu_deviance_derivative(
+                    coef, X, y, weights, self._link_instance
                 )
-                dev = self.family.deviance(y, mu, weights)
+                dev = self._family_instance.deviance(y, mu, weights)
                 intercept = coef.size == X.shape[1] + 1
                 idx = 1 if intercept else 0  # offset if coef[0] is intercept
                 if P2.ndim == 1:
@@ -2540,9 +2563,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         # Note: we already set P1 = l1*P1, see above
         # Note: we already set P2 = l2*P2, see above
         # Note: we already symmetrized P2 = 1/2 (P2 + P2')
-
         elif solver == "cd":
-
             coef, self.n_iter_, self._n_cycles, self.diagnostics = _cd_solver(
                 coef=coef,
                 X=X,
@@ -2551,8 +2572,8 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 P1=P1,
                 P2=P2,
                 fit_intercept=self.fit_intercept,
-                family=self.family,
-                link=self.link,
+                family=self._family_instance,
+                link=self._link_instance,
                 max_iter=self.max_iter,
                 tol=self.tol,
                 selection=self.selection,
@@ -2566,21 +2587,18 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         if self.fit_intercept:
             self.intercept_ = coef[0]
             self.coef_ = coef[1:]
-            assert isinstance(self.intercept_, float)
         else:
             # set intercept to zero as the other linear models do
             self.intercept_ = 0.0
             self.coef_ = coef
-            assert isinstance(self.intercept_, float)
 
         #######################################################################
         # 5a. undo standardization
         #######################################################################
-        if self.center_predictors:
+        if self.center_predictors_:
             X, self.intercept_, self.coef_ = _unstandardize(
                 X, col_means, col_stds, self.intercept_, self.coef_
             )
-            assert isinstance(self.intercept_, float)
 
         if self.fit_dispersion in ["chisqr", "deviance"]:
             # attention because of rescaling of weights
@@ -2654,7 +2672,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             allow_nd=False,
         )
         eta = self.linear_predictor(X)
-        mu = self.link.inverse(eta)
+        mu = self._link_instance.inverse(eta)
         weights = _check_weights(sample_weight, X.shape[0])
 
         return mu * weights
@@ -2702,12 +2720,14 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 " samples=X.shape[0]={} and"
                 " n_features=X.shape[1]+fit_intercept={}.".format(n_samples, n_features)
             )
-        mu = self.link.inverse(eta)
+        mu = self._link_instance.inverse(eta)
         if self.fit_dispersion == "chisqr":
-            chisq = np.sum(weights * (y - mu) ** 2 / self.family.unit_variance(mu))
+            chisq = np.sum(
+                weights * (y - mu) ** 2 / self._family_instance.unit_variance(mu)
+            )
             return chisq / (n_samples - n_features)
         elif self.fit_dispersion == "deviance":
-            dev = self.family.deviance(y, mu, weights)
+            dev = self._family_instance.deviance(y, mu, weights)
             return dev / (n_samples - n_features)
 
     # Note: check_estimator(GeneralizedLinearRegressor) might raise
@@ -2750,9 +2770,9 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         #       input validation and so on)
         weights = _check_weights(sample_weight, y.shape[0])
         mu = self.predict(X)
-        dev = self.family.deviance(y, mu, weights=weights)
+        dev = self._family_instance.deviance(y, mu, weights=weights)
         y_mean = np.average(y, weights=weights)
-        dev_null = self.family.deviance(y, y_mean, weights=weights)
+        dev_null = self._family_instance.deviance(y, y_mean, weights=weights)
         return 1.0 - dev / dev_null
 
     def _more_tags(self):
