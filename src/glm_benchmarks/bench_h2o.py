@@ -46,7 +46,7 @@ def h2o_bench(
         family="tweedie" if tweedie else distribution,
         alpha=l1_ratio,
         lambda_=alpha,
-        standardize=True,
+        standardize=False,
         # solver='COORDINATE_DESCENT',
         solver="IRLSM",
         objective_epsilon=1e-12,

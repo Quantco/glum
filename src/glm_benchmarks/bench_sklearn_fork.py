@@ -38,12 +38,11 @@ def sklearn_fork_bench(
         family=family,
         alpha=alpha,
         l1_ratio=l1_ratio,
-        # was 10k for convergence, changing to ensure speedy testing
-        max_iter=10,
+        max_iter=100,
         random_state=random_seed,
         copy_X=False,
         selection="random",
-        tol=1e-5,
+        tol=1e-7,
     )
 
     result["runtime"], m = runtime(build_and_fit, model_args, fit_args)
@@ -53,12 +52,6 @@ def sklearn_fork_bench(
     result["n_iter"] = m.n_iter_
 
     m.report_diagnostics()
-
-    # import numpy as np
-    # result["path"] = compute_path(m.n_iter_, model_args, fit_args)
-    # np.testing.assert_almost_equal(
-    #     result["path"][-1], result["coef"], -np.log10(model_args["tol"]) - 1
-    # )
     return result
 
 
