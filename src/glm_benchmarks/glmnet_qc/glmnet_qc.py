@@ -88,7 +88,7 @@ def _get_coordinate_wise_update_sparse(
 
 
 def _do_cd(
-    model: GaussianCanonicalModel, n_iters: int = 2, step_tol=1e-9
+    model: GaussianCanonicalModel, n_iters: int, step_tol=1e-7
 ) -> GaussianCanonicalModel:
     """
     The paper is not terribly clear on what to do in the sparse case. It sounds like the
@@ -125,7 +125,7 @@ def _do_cd(
             model.set_optimal_intercept()
             if get_obj(model) > initial_obj + 1e-7:
                 raise RuntimeError
-            resid -= resid.dot(model.weights) / model.weight_sum
+            resid -= resid.dot(model.weights)
 
         step_size = np.max(np.abs(model.params - initial_params))
         i += 1
@@ -212,7 +212,7 @@ def fit_glmnet_gaussian_canonical(
     alpha: float,
     l1_ratio: float,
     weights: np.ndarray = None,
-    n_iters: int = 10,
+    n_iters: int = 200,
     start_params: np.ndarray = None,
     penalty_scaling: np.ndarray = None,
     step_tol: float = 1e-9,
@@ -286,7 +286,7 @@ def fit_glmnet(
             alpha,
             l1_ratio,
             weights=irls_weights,
-            n_iters=10,
+            n_iters=40,
             start_params=model.params.copy(),
             penalty_scaling=penalty_scaling,
             step_tol=inner_step_tol,
@@ -305,6 +305,8 @@ def fit_glmnet(
         if get_obj(model) > old_obj + 1e-7:
             raise RuntimeError("did not converge")
 
+        if distribution in ["gaussian", "poisson"]:
+            model.set_optimal_intercept()
         i += 1
 
     return model

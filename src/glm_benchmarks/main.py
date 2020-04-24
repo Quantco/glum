@@ -202,7 +202,7 @@ def cli_analyze(
     for col in ["runtime", "runtime per iter", "intercept", "l1", "l2"]:
         res_df[col] = res_df[col].astype(float)
 
-    for col in ["obj_val", "obj_val_2"]:
+    for col in ["obj_val"]:
         res_df["rel_" + col] = (
             res_df[col]
             - res_df.groupby(["problem", "num_rows", "storage", "threads"])[col].min()
@@ -215,15 +215,7 @@ def cli_analyze(
     with pd.option_context("display.expand_frame_repr", False, "max_columns", 10):
         print(
             res_df.loc[
-                keeps,
-                [
-                    "n_iter",
-                    "runtime",
-                    "intercept",
-                    "obj_val",
-                    "rel_obj_val",
-                    "rel_obj_val_2",
-                ],
+                keeps, ["n_iter", "runtime", "intercept", "obj_val", "rel_obj_val"],
             ]
         )
 
@@ -252,18 +244,9 @@ def extract_dict_results_to_pd_series(
             results["intercept"],
             coefs,
         )
-        obj_2 = get_obj_val(
-            dat,
-            problem.distribution,
-            problem.regularization_strength,
-            problem.l1_ratio,
-            results["intercept"],
-            coefs,
-            True,
-        ) * len(dat["y"])
+
     except NotImplementedError:
         obj_val = 0
-        obj_2 = 0
         print(
             "skipping objective calculation because this distribution is not implemented"
         )
@@ -271,7 +254,7 @@ def extract_dict_results_to_pd_series(
     formatted = {
         "problem": prob_name,
         "library": lib_name,
-        "threads": int(threads),
+        "threads": "None" if threads == "None" else int(threads),
         "storage": storage,
         "num_rows": dat["y"].shape[0] if num_rows == "None" else int(num_rows),
         "n_iter": results["n_iter"],
@@ -281,7 +264,6 @@ def extract_dict_results_to_pd_series(
         "l1": l1_norm,
         "l2": l2_norm,
         "obj_val": obj_val,
-        "obj_val_2": obj_2,
     }
     return pd.Series(formatted)
 
