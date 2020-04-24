@@ -52,6 +52,11 @@ except ImportError:
     help="Specify the storage format. Currently supported: dense, sparse. Leaving this black will default to dense.",
 )
 @click.option(
+    "--threads",
+    type=int,
+    help="Specify the number of threads. If not set, it will use OMP_NUM_THREADS. If that's not set either, it will default to os.cpu_count().",
+)
+@click.option(
     "--output_dir",
     default="benchmark_output",
     help="The directory to store benchmarking output.",
@@ -61,6 +66,7 @@ def cli_run(
     library_names: str,
     num_rows: int,
     storage: str,
+    threads: int,
     output_dir: str,
 ):
     problems, libraries = get_limited_problems_libraries(problem_names, library_names)
@@ -68,13 +74,18 @@ def cli_run(
     for Pn, P in problems.items():
         for Ln, L in libraries.items():
             print(f"running problem={Pn} library={Ln}")
-            result = execute_problem_library(P, L, num_rows, storage)
-            save_benchmark_results(output_dir, Pn, Ln, num_rows, storage, result)
+            result = execute_problem_library(P, L, num_rows, storage, threads)
+            save_benchmark_results(
+                output_dir, Pn, Ln, num_rows, storage, threads, result
+            )
             print("ran")
 
 
-def execute_problem_library(P, L, num_rows=None, storage="dense"):
+def execute_problem_library(P, L, num_rows=None, storage="dense", threads=None):
     dat = P.data_loader(num_rows=num_rows)
+    if threads is None:
+        threads = os.environ.get("OMP_NUM_THREADS", os.cpu_count())
+    os.environ["OMP_NUM_THREADS"] = str(threads)
     if storage == "sparse":
         dat["X"] = scipy.sparse.csc_matrix(dat["X"])
     result = L(dat, P.distribution, P.regularization_strength, P.l1_ratio)
@@ -101,12 +112,22 @@ def execute_problem_library(P, L, num_rows=None, storage="dense"):
     "--storage", type=str, help="Can be dense or sparse. Leave blank to analyze all.",
 )
 @click.option(
+    "--threads",
+    type=int,
+    help="Specify the number of threads. Leave blank to analyze all.",
+)
+@click.option(
     "--output_dir",
     default="benchmark_output",
     help="The directory where we load benchmarking output.",
 )
 def cli_analyze(
-    problem_names: str, library_names: str, num_rows: str, storage: str, output_dir: str
+    problem_names: str,
+    library_names: str,
+    num_rows: str,
+    storage: str,
+    threads: str,
+    output_dir: str,
 ):
     display_precision = 4
     np.set_printoptions(precision=display_precision, suppress=True)
@@ -138,26 +159,42 @@ def cli_analyze(
             for storage_ in storage_used:
 
                 results[Pn][num_rows_][storage_] = dict()
-                for Ln in libraries:
-                    try:
-                        res = load_benchmark_results(
-                            output_dir, Pn, Ln, num_rows_, storage_
-                        )
-                    except FileNotFoundError:
-                        continue
-                    if len(res) > 0:
-                        results[Pn][num_rows_][storage_][Ln] = res
+
+                # Find the storage formats that have been used on this problem
+                threads_used = (
+                    get_threads_used_to_solve_this_problem(
+                        output_dir, Pn, num_rows_, storage_
+                    )
+                    if threads is None
+                    else [str(threads)]
+                )
+
+                for threads_ in threads_used:
+
+                    results[Pn][num_rows_][storage_][threads_] = dict()
+                    for Ln in libraries:
+                        try:
+                            res = load_benchmark_results(
+                                output_dir, Pn, Ln, num_rows_, storage_, threads_
+                            )
+                        except FileNotFoundError:
+                            continue
+                        if len(res) > 0:
+                            results[Pn][num_rows_][storage_][threads_][Ln] = res
 
     formatted_results = (
-        extract_dict_results_to_pd_series(prob_name, lib_name, num_rows, storage, res)
+        extract_dict_results_to_pd_series(
+            prob_name, lib_name, num_rows, storage, threads, res
+        )
         for prob_name in results.keys()
         for num_rows in results[prob_name].keys()
         for storage in results[prob_name][num_rows].keys()
-        for lib_name, res in results[prob_name][num_rows][storage].items()
+        for threads in results[prob_name][num_rows][storage].keys()
+        for lib_name, res in results[prob_name][num_rows][storage][threads].items()
     )
     res_df = (
         pd.concat(formatted_results, axis=1)
-        .T.set_index(["problem", "num_rows", "storage", "library"])
+        .T.set_index(["problem", "num_rows", "storage", "threads", "library"])
         .sort_index()
     )
 
@@ -166,7 +203,10 @@ def cli_analyze(
         res_df[col] = res_df[col].astype(float)
 
     for col in ["obj_val", "obj_val_2"]:
-        res_df["rel_" + col] = res_df[col] - res_df.groupby(level=[0, 1])[col].min()
+        res_df["rel_" + col] = (
+            res_df[col]
+            - res_df.groupby(["problem", "num_rows", "storage", "threads"])[col].min()
+        )
 
     problems = res_df.index.get_level_values("problem").values
     # keeps = ["sparse" not in x and "no_weights" in x for x in problems]
@@ -189,7 +229,12 @@ def cli_analyze(
 
 
 def extract_dict_results_to_pd_series(
-    prob_name: str, lib_name: str, num_rows: str, storage: str, results: Dict[str, Any]
+    prob_name: str,
+    lib_name: str,
+    num_rows: str,
+    storage: str,
+    threads: str,
+    results: Dict[str, Any],
 ) -> pd.Series:
     coefs = results["coef"]
     runtime_per_iter = results["runtime"] / results["n_iter"]
@@ -226,6 +271,7 @@ def extract_dict_results_to_pd_series(
     formatted = {
         "problem": prob_name,
         "library": lib_name,
+        "threads": int(threads),
         "storage": storage,
         "num_rows": dat["y"].shape[0] if num_rows == "None" else int(num_rows),
         "n_iter": results["n_iter"],
@@ -272,6 +318,22 @@ def get_storage_used_to_solve_this_problem(
     return storage_used
 
 
+def get_threads_used_to_solve_this_problem(
+    output_dir: str, prob_name: str, num_rows: str, storage: str
+) -> List[str]:
+    prob_dir = os.path.join(output_dir, prob_name, num_rows, storage)
+    threads_used = os.listdir(prob_dir)
+    if not all(os.path.isdir(os.path.join(prob_dir, x)) for x in threads_used):
+        raise RuntimeError(
+            f"""
+            Everything in {prob_dir} should be a directory, but this is not the
+            case. This likely happened because you have benchmarks generated
+            under an older storage scheme. Please delete them.
+            """
+        )
+    return threads_used
+
+
 def get_limited_problems_libraries(
     problem_names: str, library_names: str
 ) -> Tuple[Dict, Dict]:
@@ -314,25 +376,27 @@ def save_benchmark_results(
     library_name: str,
     num_rows: int,
     storage: str,
+    threads: int,
     result,
 ) -> None:
     problem_dir = os.path.join(output_dir, problem_name)
     if not os.path.exists(problem_dir):
         os.makedirs(problem_dir)
-    problem_nrow_dir_storage = os.path.join(problem_dir, str(num_rows), storage)
-    if not os.path.exists(problem_nrow_dir_storage):
-        os.makedirs(problem_nrow_dir_storage)
-    with open(
-        os.path.join(problem_nrow_dir_storage, library_name + "-results.pkl"), "wb"
-    ) as f:
+    results_dir = os.path.join(problem_dir, str(num_rows), storage, str(threads))
+    if not os.path.exists(results_dir):
+        os.makedirs(results_dir)
+    with open(os.path.join(results_dir, library_name + "-results.pkl"), "wb") as f:
         pickle.dump(result, f)
 
 
 def load_benchmark_results(
-    output_dir: str, problem_name: str, library_name: str, num_rows: str, storage
+    output_dir: str,
+    problem_name: str,
+    library_name: str,
+    num_rows: str,
+    storage: str,
+    threads: str,
 ):
-    problem_nrow_dir_storage = os.path.join(output_dir, problem_name, num_rows, storage)
-    with open(
-        os.path.join(problem_nrow_dir_storage, library_name + "-results.pkl"), "rb"
-    ) as f:
+    results_dir = os.path.join(output_dir, problem_name, num_rows, storage, threads)
+    with open(os.path.join(results_dir, library_name + "-results.pkl"), "rb") as f:
         return pickle.load(f)
