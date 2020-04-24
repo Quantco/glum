@@ -227,6 +227,7 @@ def gen_col_trans(drop=True, standardize=False) -> Tuple[Any, List[str]]:
             ),
         ],
         remainder="drop",
+        sparse_threshold=0.0,
     )
     column_trans_names = [
         "VehPower_4",
@@ -434,6 +435,7 @@ def generate_wide_insurance_dataset(
             ),
         ],
         remainder="drop",
+        sparse_threshold=0.0,
     )
     y, exposure = compute_y_exposure(df, distribution)
 
