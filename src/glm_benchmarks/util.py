@@ -12,31 +12,25 @@ def runtime(f, *args, **kwargs):
     return end - start, out
 
 
-def _get_poisson_ll(
+def _get_poisson_ll_by_obs(
     dat: Dict[str, Union[np.ndarray, sps.spmatrix]], intercept: float, coefs: np.ndarray
-) -> float:
+) -> np.ndarray:
     """
     Only up to a constant!
     """
     ln_e_y = _get_linear_prediction_part(dat["X"], coefs, intercept)
-    w_ln_e_y = dat["weights"] * ln_e_y if "weights" in dat.keys() else ln_e_y
-    ll = w_ln_e_y.dot(dat["y"]) - np.exp(w_ln_e_y).sum()
-    return ll
+    return ln_e_y * dat["y"] - np.exp(ln_e_y)
 
 
-def _get_minus_ssr(
+def _get_minus_gaussian_ll_by_obs(
     dat: Dict[str, Union[np.ndarray, sps.spmatrix]], intercept: float, coefs: np.ndarray
-) -> float:
+) -> np.ndarray:
     """
     The normal log-likelihood, up to a constant.
     """
     resids = dat["y"] - _get_linear_prediction_part(dat["X"], coefs, intercept)
     squared_resids = resids ** 2
-
-    if "weights" in dat.keys():
-        return -dat["weights"].dot(squared_resids)
-    else:
-        return -squared_resids.sum()
+    return squared_resids / 2
 
 
 def _get_linear_prediction_part(
@@ -59,20 +53,20 @@ def get_obj_val(
     l1_ratio: float,
     intercept: float,
     coefs: np.ndarray,
-    one_over_n_likelihood: bool = False,
 ) -> float:
+    weights = dat.get("weights", np.ones_like(dat["y"]))
+    weights /= weights.sum()
+
     if distribution == "poisson":
-        log_like = _get_poisson_ll(dat, intercept, coefs)
+        log_like_by_ob = _get_poisson_ll_by_obs(dat, intercept, coefs)
     elif distribution == "gaussian":
-        log_like = _get_minus_ssr(dat, intercept, coefs)
+        log_like_by_ob = _get_minus_gaussian_ll_by_obs(dat, intercept, coefs)
     else:
         raise NotImplementedError
 
     penalty = _get_penalty(alpha, l1_ratio, coefs)
-    if one_over_n_likelihood:
-        log_like /= len(dat["y"])
 
-    return -log_like + penalty
+    return -log_like_by_ob.dot(weights) + penalty
 
 
 def exposure_correction(
