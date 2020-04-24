@@ -6,13 +6,14 @@ import copy
 import numpy as np
 import pytest
 import scipy as sp
-from numpy.testing import assert_allclose
+from numpy.testing import assert_allclose, assert_array_equal
 from scipy import optimize, sparse
+from sklearn.base import clone
 from sklearn.datasets import make_classification, make_regression
 from sklearn.exceptions import ConvergenceWarning
 from sklearn.linear_model import ElasticNet, LogisticRegression, Ridge
 from sklearn.metrics import mean_absolute_error
-from sklearn.utils.testing import assert_array_equal
+from sklearn.utils.estimator_checks import check_estimator
 
 from glm_benchmarks.sklearn_fork._glm import (
     BinomialDistribution,
@@ -26,12 +27,14 @@ from glm_benchmarks.sklearn_fork._glm import (
     LogLink,
     NormalDistribution,
     PoissonDistribution,
+    PoissonRegressor,
     TweedieDistribution,
     _standardize,
     _unstandardize,
+    is_pos_semidef,
 )
 
-GLM_SOLVERS = ["irls", "lbfgs", "newton-cg", "cd"]
+GLM_SOLVERS = ["irls", "lbfgs", "cd"]
 
 
 @pytest.fixture(scope="module")
@@ -40,6 +43,17 @@ def regression_data():
         n_samples=107, n_features=10, n_informative=80, noise=0.5, random_state=2
     )
     return X, y
+
+
+@pytest.fixture
+def y():
+    """In range of all distributions"""
+    return np.array([0.1, 0.5])
+
+
+@pytest.fixture
+def X():
+    return np.array([[1], [2]])
 
 
 @pytest.mark.parametrize("link", Link.__subclasses__())
@@ -214,13 +228,13 @@ def test_sample_weights_validation():
         ("binomial", BinomialDistribution()),
     ],
 )
-def test_glm_family_argument(f, fam):
+def test_glm_family_argument(f, fam, y, X):
     """Test GLM family argument set as string."""
-    y = np.array([0.1, 0.5])  # in range of all distributions
-    X = np.array([[1], [2]])
     glm = GeneralizedLinearRegressor(family=f, alpha=0).fit(X, y)
     assert isinstance(glm._family_instance, fam.__class__)
 
+
+def test_glm_family_argument_invalid_input(y, X):
     glm = GeneralizedLinearRegressor(family="not a family", fit_intercept=False)
     with pytest.raises(ValueError, match="family must be"):
         glm.fit(X, y)
@@ -230,43 +244,37 @@ def test_glm_family_argument(f, fam):
     "l, link",
     [("identity", IdentityLink()), ("log", LogLink()), ("logit", LogitLink())],
 )
-def test_glm_link_argument(l, link):
+def test_glm_link_argument(l, link, y, X):
     """Test GLM link argument set as string."""
-    y = np.array([0.1, 0.5])  # in range of all distributions
-    X = np.array([[1], [2]])
     glm = GeneralizedLinearRegressor(family="normal", link=l).fit(X, y)
     assert isinstance(glm._link_instance, link.__class__)
 
+
+def test_glm_link_argument_invalid_input(y, X):
     glm = GeneralizedLinearRegressor(family="normal", link="not a link")
     with pytest.raises(ValueError, match="link must be"):
         glm.fit(X, y)
 
 
 @pytest.mark.parametrize("alpha", ["not a number", -4.2])
-def test_glm_alpha_argument(alpha):
+def test_glm_alpha_argument(alpha, y, X):
     """Test GLM for invalid alpha argument."""
-    y = np.array([1, 2])
-    X = np.array([[1], [2]])
     glm = GeneralizedLinearRegressor(family="normal", alpha=alpha)
     with pytest.raises(ValueError, match="Penalty term must be a non-negative"):
         glm.fit(X, y)
 
 
 @pytest.mark.parametrize("l1_ratio", ["not a number", -4.2, 1.1, [1]])
-def test_glm_l1_ratio_argument(l1_ratio):
+def test_glm_l1_ratio_argument(l1_ratio, y, X):
     """Test GLM for invalid l1_ratio argument."""
-    y = np.array([1, 2])
-    X = np.array([[1], [2]])
     glm = GeneralizedLinearRegressor(family="normal", l1_ratio=l1_ratio)
     with pytest.raises(ValueError, match="l1_ratio must be a number in interval.*0, 1"):
         glm.fit(X, y)
 
 
 @pytest.mark.parametrize("P1", [["a string", "a string"], [1, [2]], [1, 2, 3], [-1]])
-def test_glm_P1_argument(P1):
+def test_glm_P1_argument(P1, y, X):
     """Test GLM for invalid P1 argument."""
-    y = np.array([1, 2])
-    X = np.array([[1], [2]])
     glm = GeneralizedLinearRegressor(P1=P1, l1_ratio=0.5, check_input=True)
     with pytest.raises((ValueError, TypeError)):
         glm.fit(X, y)
@@ -275,10 +283,8 @@ def test_glm_P1_argument(P1):
 @pytest.mark.parametrize(
     "P2", ["a string", [1, 2, 3], [[2, 3]], sparse.csr_matrix([1, 2, 3]), [-1]]
 )
-def test_glm_P2_argument(P2):
+def test_glm_P2_argument(P2, y, X):
     """Test GLM for invalid P2 argument."""
-    y = np.array([1, 2])
-    X = np.array([[1], [2]])
     glm = GeneralizedLinearRegressor(P2=P2, check_input=True)
     with pytest.raises(ValueError):
         glm.fit(X, y)
@@ -302,11 +308,22 @@ def test_glm_P2_positive_semidefinite():
         glm.fit(X, y)
 
 
+def test_positive_semidefinite():
+    """Test GLM for a positive semi-definite P2 argument."""
+    # negative definite matrix
+    P2 = np.array([[1, 2], [2, 1]])
+    assert not is_pos_semidef(P2)
+
+    P2 = sparse.csr_matrix(P2)
+    assert not is_pos_semidef(P2)
+
+    assert is_pos_semidef(np.eye(2))
+    assert is_pos_semidef(sparse.eye(2))
+
+
 @pytest.mark.parametrize("fit_intercept", ["not bool", 1, 0, [True]])
-def test_glm_fit_intercept_argument(fit_intercept):
+def test_glm_fit_intercept_argument(fit_intercept, y, X):
     """Test GLM for invalid fit_intercept argument."""
-    y = np.array([1, 2])
-    X = np.array([[1], [1]])
     glm = GeneralizedLinearRegressor(fit_intercept=fit_intercept)
     with pytest.raises(ValueError, match="fit_intercept must be bool"):
         glm.fit(X, y)
@@ -314,49 +331,34 @@ def test_glm_fit_intercept_argument(fit_intercept):
 
 @pytest.mark.parametrize(
     "solver, l1_ratio",
-    [
-        ("not a solver", 0),
-        (1, 0),
-        ([1], 0),
-        ("irls", 0.5),
-        ("lbfgs", 0.5),
-        ("newton-cg", 0.5),
-    ],
+    [("not a solver", 0), (1, 0), ([1], 0), ("irls", 0.5), ("lbfgs", 0.5)],
 )
-def test_glm_solver_argument(solver, l1_ratio):
+def test_glm_solver_argument(solver, l1_ratio, y, X):
     """Test GLM for invalid solver argument."""
-    y = np.array([1, 2])
-    X = np.array([[1], [2]])
     glm = GeneralizedLinearRegressor(solver=solver, l1_ratio=l1_ratio)
     with pytest.raises(ValueError):
         glm.fit(X, y)
 
 
 @pytest.mark.parametrize("max_iter", ["not a number", 0, -1, 5.5, [1]])
-def test_glm_max_iter_argument(max_iter):
+def test_glm_max_iter_argument(max_iter, y, X):
     """Test GLM for invalid max_iter argument."""
-    y = np.array([1, 2])
-    X = np.array([[1], [2]])
     glm = GeneralizedLinearRegressor(max_iter=max_iter)
     with pytest.raises(ValueError, match="must be a positive integer"):
         glm.fit(X, y)
 
 
 @pytest.mark.parametrize("tol", ["not a number", 0, -1.0, [1e-3]])
-def test_glm_tol_argument(tol):
+def test_glm_tol_argument(tol, y, X):
     """Test GLM for invalid tol argument."""
-    y = np.array([1, 2])
-    X = np.array([[1], [2]])
     glm = GeneralizedLinearRegressor(tol=tol)
     with pytest.raises(ValueError, match="stopping criteria must be positive"):
         glm.fit(X, y)
 
 
 @pytest.mark.parametrize("warm_start", ["not bool", 1, 0, [True]])
-def test_glm_warm_start_argument(warm_start):
+def test_glm_warm_start_argument(warm_start, y, X):
     """Test GLM for invalid warm_start argument."""
-    y = np.array([1, 2])
-    X = np.array([[1], [1]])
     glm = GeneralizedLinearRegressor(warm_start=warm_start)
     with pytest.raises(ValueError, match="warm_start must be bool"):
         glm.fit(X, y)
@@ -365,67 +367,58 @@ def test_glm_warm_start_argument(warm_start):
 @pytest.mark.parametrize(
     "start_params", ["not a start_params", ["zero"], [0, 0, 0], [[0, 0]], ["a", "b"]]
 )
-def test_glm_start_params_argument(start_params):
+def test_glm_start_params_argument(start_params, y, X):
     """Test GLM for invalid start_params argument."""
-    y = np.array([1, 2])
-    X = np.array([[1], [1]])
     glm = GeneralizedLinearRegressor(start_params=start_params)
     with pytest.raises(ValueError):
         glm.fit(X, y)
 
 
 @pytest.mark.parametrize("selection", ["not a selection", 1, 0, ["cyclic"]])
-def test_glm_selection_argument(selection):
+def test_glm_selection_argument(selection, y, X):
     """Test GLM for invalid selection argument"""
-    y = np.array([1, 2])
-    X = np.array([[1], [1]])
     glm = GeneralizedLinearRegressor(selection=selection)
     with pytest.raises(ValueError, match="argument selection must be"):
         glm.fit(X, y)
 
 
 @pytest.mark.parametrize("random_state", ["a string", 0.5, [0]])
-def test_glm_random_state_argument(random_state):
+def test_glm_random_state_argument(random_state, y, X):
     """Test GLM for invalid random_state argument."""
-    y = np.array([1, 2])
-    X = np.array([[1], [1]])
     glm = GeneralizedLinearRegressor(random_state=random_state)
     with pytest.raises(ValueError, match="cannot be used to seed"):
         glm.fit(X, y)
 
 
 @pytest.mark.parametrize("diag_fisher", ["not bool", 1, 0, [True]])
-def test_glm_diag_fisher_argument(diag_fisher):
+def test_glm_diag_fisher_argument(diag_fisher, y, X):
     """Test GLM for invalid diag_fisher arguments."""
-    y = np.array([1, 2])
-    X = np.array([[1], [1]])
     glm = GeneralizedLinearRegressor(diag_fisher=diag_fisher)
     with pytest.raises(ValueError, match="diag_fisher must be bool"):
         glm.fit(X, y)
 
 
 @pytest.mark.parametrize("copy_X", ["not bool", 1, 0, [True]])
-def test_glm_copy_X_argument(copy_X):
+def test_glm_copy_X_argument(copy_X, y, X):
     """Test GLM for invalid copy_X arguments."""
-    y = np.array([1, 2])
-    X = np.array([[1], [1]])
     glm = GeneralizedLinearRegressor(copy_X=copy_X)
     with pytest.raises(ValueError, match="copy_X must be bool"):
         glm.fit(X, y)
 
 
 @pytest.mark.parametrize("check_input", ["not bool", 1, 0, [True]])
-def test_glm_check_input_argument(check_input):
+def test_glm_check_input_argument(check_input, y, X):
     """Test GLM for invalid check_input argument."""
-    y = np.array([1, 2])
-    X = np.array([[1], [1]])
     glm = GeneralizedLinearRegressor(check_input=check_input)
     with pytest.raises(ValueError, match="check_input must be bool"):
         glm.fit(X, y)
 
 
 @pytest.mark.parametrize("solver", GLM_SOLVERS)
-def test_glm_identity_regression(solver):
+@pytest.mark.parametrize(
+    "fit_intercept, center_predictors", [(False, False), (True, False), (True, True)]
+)
+def test_glm_identity_regression(solver, fit_intercept, center_predictors):
     """Test GLM regression with identity link on a simple dataset."""
     coef = [1.0, 2.0]
     X = np.array([[1, 1, 1, 1, 1], [0, 1, 2, 3, 4]]).T
@@ -434,13 +427,20 @@ def test_glm_identity_regression(solver):
         alpha=0,
         family="normal",
         link="identity",
-        fit_intercept=False,
+        fit_intercept=fit_intercept,
+        center_predictors=center_predictors,
         solver=solver,
         start_params="zero",
         tol=1e-7,
     )
+    if fit_intercept:
+        X = X[:, 1:]
     res = glm.fit(X, y)
-    assert_allclose(res.coef_, coef, rtol=1e-6)
+    if fit_intercept:
+        fit_coef = np.concatenate([[res.intercept_], res.coef_])
+    else:
+        fit_coef = res.coef_
+    assert_allclose(fit_coef, coef, rtol=1e-6)
 
 
 @pytest.mark.parametrize(
@@ -455,10 +455,11 @@ def test_glm_identity_regression(solver):
         GeneralizedHyperbolicSecant(),
     ],
 )
+@pytest.mark.parametrize("solver, tol", [("irls", 1e-6), ("lbfgs", 1e-6), ("cd", 1e-7)])
 @pytest.mark.parametrize(
-    "solver, tol", [("irls", 1e-6), ("lbfgs", 1e-6), ("newton-cg", 1e-7), ("cd", 1e-7)]
+    "fit_intercept, center_predictors", [(False, False), (True, False), (True, True)]
 )
-def test_glm_log_regression(family, solver, tol):
+def test_glm_log_regression(family, solver, tol, fit_intercept, center_predictors):
     """Test GLM regression with log link on a simple dataset."""
     coef = [0.2, -0.1]
     X = np.array([[1, 1, 1, 1, 1], [0, 1, 2, 3, 4]]).T
@@ -467,22 +468,29 @@ def test_glm_log_regression(family, solver, tol):
         alpha=0,
         family=family,
         link="log",
-        fit_intercept=False,
+        fit_intercept=fit_intercept,
+        center_predictors=center_predictors,
         solver=solver,
         start_params="guess",
         tol=tol,
     )
+    if fit_intercept:
+        X = X[:, 1:]
     res = glm.fit(X, y)
-    assert_allclose(res.coef_, coef, rtol=5e-6)
+    if fit_intercept:
+        assert isinstance(res.intercept_, float)
+        fit_coef = np.concatenate([[res.intercept_], res.coef_])
+    else:
+        fit_coef = res.coef_
+    assert_allclose(fit_coef, coef, rtol=5e-6)
 
 
-# newton-cg may issue a LineSearchWarning, which we filter out
 @pytest.mark.filterwarnings("ignore:The line search algorithm")
 @pytest.mark.filterwarnings("ignore:Line Search failed")
 @pytest.mark.parametrize("n_samples, n_features", [(100, 10), (10, 100)])
-@pytest.mark.parametrize("fit_intercept", [True, False])
+@pytest.mark.parametrize("center_predictors", [False, True])
 @pytest.mark.parametrize("solver", GLM_SOLVERS)
-def test_normal_ridge_comparison(n_samples, n_features, fit_intercept, solver):
+def test_normal_ridge_comparison(n_samples, n_features, center_predictors, solver):
     """Test ridge regression for Normal distributions.
 
     Case n_samples >> n_features
@@ -519,6 +527,7 @@ def test_normal_ridge_comparison(n_samples, n_features, fit_intercept, solver):
         family="normal",
         link="identity",
         fit_intercept=True,
+        center_predictors=center_predictors,
         max_iter=300,
         solver=solver,
         tol=1e-6,
@@ -532,9 +541,7 @@ def test_normal_ridge_comparison(n_samples, n_features, fit_intercept, solver):
     assert_allclose(glm.predict(T), ridge.predict(T), rtol=1e-4)
 
 
-@pytest.mark.parametrize(
-    "solver, tol", [("irls", 1e-7), ("lbfgs", 1e-7), ("newton-cg", 1e-7), ("cd", 1e-7)]
-)
+@pytest.mark.parametrize("solver, tol", [("irls", 1e-7), ("lbfgs", 1e-7), ("cd", 1e-7)])
 @pytest.mark.parametrize("center_predictors", [True, False])
 @pytest.mark.parametrize("scale_predictors", [True, False])
 @pytest.mark.parametrize("use_sparse", [True, False])
@@ -622,7 +629,8 @@ def test_poisson_ridge(solver, tol, center_predictors, scale_predictors, use_spa
 
 
 @pytest.mark.parametrize("diag_fisher", [False, True])
-def test_normal_enet(diag_fisher):
+@pytest.mark.parametrize("center_predictors", [False, True])
+def test_normal_enet(diag_fisher, center_predictors):
     """Test elastic net regression with normal/gaussian family."""
     alpha, l1_ratio = 0.3, 0.7
     n_samples, n_features = 20, 2
@@ -638,6 +646,7 @@ def test_normal_enet(diag_fisher):
         family="normal",
         link="identity",
         fit_intercept=True,
+        center_predictors=center_predictors,
         tol=1e-8,
         max_iter=100,
         selection="cyclic",
@@ -668,7 +677,8 @@ def test_normal_enet(diag_fisher):
     assert_allclose(glm.coef_, enet.coef_, rtol=5e-5)
 
 
-def test_poisson_enet():
+@pytest.mark.parametrize("center_predictors", [False, True])
+def test_poisson_enet(center_predictors):
     """Test elastic net regression with poisson family and LogLink.
 
     Compare to R's glmnet"""
@@ -698,6 +708,7 @@ def test_poisson_enet():
         selection="random",
         random_state=rng,
         start_params="guess",
+        center_predictors=center_predictors,
     )
     glm.fit(X, y)
     assert_allclose(glm.intercept_, glmnet_intercept, rtol=2e-6)
@@ -819,7 +830,6 @@ def test_binomial_enet(alpha):
         {"solver": "irls", "start_params": "zero"},
         {"solver": "lbfgs", "start_params": "guess"},
         {"solver": "lbfgs", "start_params": "zero"},
-        {"solver": "newton-cg"},
         {"solver": "cd", "selection": "cyclic", "diag_fisher": False},
         {"solver": "cd", "selection": "cyclic", "diag_fisher": True},
         {"solver": "cd", "selection": "random", "diag_fisher": False},
@@ -828,12 +838,15 @@ def test_binomial_enet(alpha):
         "{}={}".format(key, val) for key, val in params.items()
     ),
 )
-def test_solver_equivalence(params, regression_data):
+@pytest.mark.parametrize("center_predictors", [False, True])
+def test_solver_equivalence(params, regression_data, center_predictors):
     X, y = regression_data
     est_ref = GeneralizedLinearRegressor(random_state=2)
     est_ref.fit(X, y)
 
-    estimator = GeneralizedLinearRegressor(**params)
+    estimator = GeneralizedLinearRegressor(
+        center_predictors=center_predictors, **params
+    )
     estimator.set_params(random_state=2)
 
     estimator.fit(X, y)
@@ -931,3 +944,13 @@ def test_standardize(use_sparse, scale_predictors):
         np.testing.assert_almost_equal(MC.toarray(), X2.toarray())
     else:
         np.testing.assert_almost_equal(MC, X2)
+
+
+@pytest.mark.parametrize("estimator", [GeneralizedLinearRegressor, PoissonRegressor])
+def test_check_estimator(estimator):
+    check_estimator(estimator)
+
+
+@pytest.mark.parametrize("estimator", [GeneralizedLinearRegressor, PoissonRegressor])
+def test_clonable(estimator):
+    clone(estimator())
