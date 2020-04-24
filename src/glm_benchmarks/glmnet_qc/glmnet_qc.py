@@ -129,7 +129,6 @@ def _do_cd(
 
         step_size = np.max(np.abs(model.params - initial_params))
         i += 1
-    print(i)
 
     return model
 
