@@ -63,6 +63,75 @@ from glm_benchmarks.scaled_spmat.standardize import (
 # from glm_benchmarks.sandwich.sandwich import dense_sandwich
 
 
+class GLMDataMatrix(metaclass=ABCMeta):
+    @abstractmethod
+    def sandwich(self, d):
+        pass
+
+    @abstractmethod
+    def dot(self, v):
+        pass
+
+    @abstractmethod
+    def ldot(self, v):
+        pass
+
+    @abstractmethod
+    def get_column(self, j):
+        pass
+
+class DenseGLMDataMatrix(GLMDataMatrix):
+    def __init__(self, X):
+        self.X = X
+        # TODO: add as abstract base class attributes
+        self.shape = self.X.shape
+        self.dtype = self.X.dtype
+        self.sandwich_order = 'C'
+
+    @profile
+    def sandwich(self, d):
+        sqrtD = np.sqrt(d)[:, np.newaxis]
+        xd = self.X * sqrtD
+        return xd.T @ xd
+
+    def dot(self, v):
+        return self.X.dot(v)
+
+    def ldot(self, v):
+        return v.dot(self.X)
+
+    def get_column(self, j):
+        return self.X[:, j]
+
+class ColScaledGLMDataMatrix(GLMDataMatrix):
+    def __init__(self, X):
+        self.X = X
+        self.XmatMKL = MklSparseMatrix(self.X.mat)
+        self.X_mat_csr = X.mat.tocsr()
+
+        # TODO: add as abstract base class attributes
+        self.shape = self.X.shape
+        self.dtype = self.X.dtype
+        self.sandwich_order = 'C'
+
+    def sandwich(self, d):
+        term1 = sparse_sandwich(self.X.mat.tocsc(copy=False), self.X_mat_csr, d)
+        xd = self.XmatMKL.dot(d, transpose=True)
+        term2 = xd[:, np.newaxis] * self.X.shift
+        term3 = term2.T
+        term4 = (self.X.shift.T * self.X.shift) * d.sum()
+        return term1 + term2 + term3 + term4
+
+    def dot(self, v):
+        return self.XmatMKL.dot(v) + self.X.shift.dot(v)
+
+    def ldot(self, v):
+        return np.squeeze(self.XmatMKL.dot(v, transpose=True) + np.sum(v) * self.X.shift)
+
+    def get_column(self, j):
+        return self.X.getcol(j)
+
+
 def _check_weights(sample_weight, n_samples):
     """Check that sample weights are non-negative and have the right shape."""
     if sample_weight is None:
@@ -97,9 +166,9 @@ def _check_weights(sample_weight, n_samples):
 def _safe_lin_pred(X, coef):
     """Compute the linear predictor taking care if intercept is present."""
     if coef.size == X.shape[1] + 1:
-        return X @ coef[1:] + coef[0]
+        return X.dot(coef[1:]) + coef[0]
     else:
-        return X @ coef
+        return X.dot(coef)
 
 
 def _safe_toarray(X):
@@ -123,48 +192,17 @@ def _safe_sandwich_dot(X, d: np.ndarray, intercept=False) -> np.ndarray:
             X.XTMkl = MklSparseMatrix(X.T)
 
         result = sparse_sandwich(X, X.XT, d)
-    elif type(X) is ColScaledSpMat:
-        if not hasattr(X.mat, "XT"):
-            # TODO: What if the user passed in a CSR matrix? In fit, we
-            # converted to CSC, then here we convert back. We should store the
-            # CSR version in fit.
-            X.mat.XT = X.mat.tocsr(copy=False)
-            X.mat.XTMkl = MklSparseMatrix(X.mat.T)
-
-        term1 = sparse_sandwich(X.mat.tocsc(copy=False), X.mat.XT, d)
-
-        if isinstance(X.mat, sparse.csc_matrix):
-            from sparse_dot_mkl import dot_product_mkl
-            DIDX = d[:,np.newaxis]
-            xd2 = np.squeeze(dot_product_mkl(X.mat.T, DIDX))
-            xd3 = X.mat.XTMkl.dot(d)
-            xd = X.mat.T.dot(d)
-            np.testing.assert_almost_equal(xd, xd2)
-            np.testing.assert_almost_equal(xd, xd3)
-        else:
-            xd = X.mat.XT.T.dot(d)
-        term2 = xd[:, np.newaxis] * X.shift
-        term3 = term2.T
-        term4 = (X.shift.T * X.shift) * d.sum()
-        result = _safe_toarray(term1 + term2 + term3 + term4)
     else:
-        # The "multiply then divide" trick does not work because there may be zeros in
-        # d.
-        sqrtD = np.sqrt(d)[:, np.newaxis]
-        x_d = X * sqrtD
-        result = x_d.T @ x_d
-        # np.save("file.npz", np.hstack((X, d[:, np.newaxis])))
-        # if not hasattr(_safe_sandwich_dot, "XF"):
-        #     _safe_sandwich_dot.XF = np.asfortranarray(X)  # type: ignore
-        # result = dense_sandwich(_safe_sandwich_dot.XF, d)  # type: ignore
-        # np.testing.assert_almost_equal(out, result)
+        assert(isinstance(X, GLMDataMatrix))
+        result = X.sandwich(d)
+
     if intercept:
         # TODO: shouldn't be dealing with the intercept with centered predictors
         dim = X.shape[1] + 1
-        if type(X) is ColScaledSpMat:
-            order = "F"
-        elif sparse.issparse(X):
+        if sparse.issparse(X):
             order = "F" if sparse.isspmatrix_csc(X) else "C"
+        elif isinstance(X, GLMDataMatrix):
+            order = X.sandwich_order
         else:
             order = "F" if X.flags["F_CONTIGUOUS"] else "C"
         res_including_intercept = np.empty(
@@ -172,7 +210,10 @@ def _safe_sandwich_dot(X, d: np.ndarray, intercept=False) -> np.ndarray:
         )
         res_including_intercept[0, 0] = d.sum()
         # TODO: Use MKL-based fast mat-vec product
-        res_including_intercept[1:, 0] = d @ X
+        if isinstance(X, GLMDataMatrix):
+            res_including_intercept[1:, 0] = X.ldot(d)
+        else:
+            res_including_intercept[1:, 0] = d @ X
         res_including_intercept[0, 1:] = res_including_intercept[1:, 0]
 
         res_including_intercept[1:, 1:] = result
@@ -383,6 +424,25 @@ class LogLink(Link):
 
     def inverse_derivative2(self, lin_pred):
         return np.exp(lin_pred)
+
+import numexpr
+class NumExprLogLink(Link):
+    """The log link function g(x)=log(x)."""
+
+    def link(self, mu):
+        return numexpr.evaluate('log(mu)')
+
+    def derivative(self, mu):
+        return numexpr.evaluate('1.0 / mu')
+
+    def inverse(self, lin_pred):
+        return numexpr.evaluate('exp(lin_pred)')
+
+    def inverse_derivative(self, lin_pred):
+        return numexpr.evaluate('exp(lin_pred)')
+
+    def inverse_derivative2(self, lin_pred):
+        return numexpr.evaluate('exp(lin_pred)')
 
 
 class LogitLink(Link):
@@ -776,6 +836,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         observed_information = _safe_sandwich_dot(X, temp, intercept=intercept)
         return observed_information
 
+    @profile
     def _eta_mu_score_fisher(self, coef, phi, X, y, weights, link, diag_fisher=False):
         """Compute linear predictor, mean, score function and fisher matrix.
 
@@ -817,7 +878,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         d1_sigma_inv = d1 * sigma_inv
         temp = d1_sigma_inv * (y - mu)
         if intercept:
-            score = np.concatenate(([temp.sum()], temp @ X))
+            score = np.concatenate(([temp.sum()], X.ldot(temp)))
         else:
             score = temp @ X
 
@@ -918,7 +979,8 @@ class TweedieDistribution(ExponentialDispersionModel):
         mu : array, shape (n_samples,)
             Predicted mean.
         """
-        return np.power(mu, self.power)
+        p = self.power
+        return numexpr.evaluate('mu ** p')
 
     def unit_variance_derivative(self, mu):
         """Compute the derivative of the unit variance of a Tweedie
@@ -929,7 +991,8 @@ class TweedieDistribution(ExponentialDispersionModel):
         mu : array, shape (n_samples,)
             Predicted mean.
         """
-        return self.power * np.power(mu, self.power - 1)
+        p = self.power
+        return numexpr.evaluate('p * mu ** (p - 1)')
 
     def unit_deviance(self, y, mu):
         p = self.power
@@ -1186,7 +1249,7 @@ def _irls_solver(
 
     return coef, n_iter
 
-
+@profile
 def _cd_cycle(
     d,
     X,
@@ -1351,6 +1414,7 @@ def _cd_cycle(
     return d, coef_P2, n_cycles, inner_tol
 
 
+@profile
 def _cd_solver(
     coef,
     X,
@@ -1467,8 +1531,8 @@ def _cd_solver(
     Journal of Machine Learning Research 13 (2012) 1999-2030
     https://www.csie.ntu.edu.tw/~cjlin/papers/l1_glmnet/long-glmnet.pdf
     """
-    if type(X) is not ColScaledSpMat:
-        X = check_array(X, "csc", dtype=[np.float64, np.float32])
+    # if type(X) is not ColScaledSpMat:
+    #     X = check_array(X, "csc", dtype=[np.float64, np.float32])
     if P2.ndim == 2:
         P2 = check_array(P2, "csc", dtype=[np.float64, np.float32])
 
@@ -1478,6 +1542,8 @@ def _cd_solver(
                 "If X is sparse, P2 must also be sparse csc"
                 "format. Got P2 not sparse."
             )
+
+
     random_state = check_random_state(random_state)
     # Note: we already set P2 = l2*P2, P1 = l1*P1
     # Note: we already symmetrized P2 = 1/2 (P2 + P2')
@@ -1567,6 +1633,8 @@ def _cd_solver(
 
         la = 1.0 / beta
 
+        # TODO: if we keep track of X_dot_coef, we can add this to avoid a
+        # _safe_lin_pred in _eta_mu_score_fisher every loop
         X_dot_d = _safe_lin_pred(X, d)
 
         # Try progressively shorter line search steps.
@@ -1680,7 +1748,7 @@ def get_link(link: Union[str, Link], family: ExponentialDispersionModel) -> Link
             if family.power < 1:
                 # TODO: move more detailed error here
                 raise ValueError("No distribution")
-            return LogLink()
+            return NumExprLogLink()
         if isinstance(family, GeneralizedHyperbolicSecant):
             return IdentityLink()
         if isinstance(family, BinomialDistribution):
@@ -1695,7 +1763,7 @@ def get_link(link: Union[str, Link], family: ExponentialDispersionModel) -> Link
     if link == "identity":
         return IdentityLink()
     if link == "log":
-        return LogLink()
+        return NumExprLogLink()
     if link == "logit":
         return LogitLink()
     raise ValueError(
@@ -2281,7 +2349,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             d1 = link.inverse_derivative(eta)
             temp = sigma_inv * d1 * (y - mu)
             if self.fit_intercept:
-                score = np.concatenate(([temp.sum()], temp @ X))
+                score = np.concatenate(([temp.sum()], X.ldot(temp)))
             else:
                 score = temp @ X  # same as X.T @ temp
 
@@ -2334,6 +2402,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             coef = _irls_step(X, W, P2, z, fit_intercept=self.fit_intercept)
         return coef
 
+    @profile
     def fit(self, X, y, sample_weight=None):
         """Fit a Generalized Linear Model.
 
@@ -2402,15 +2471,17 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             _stype = ["csc"]
         else:
             _stype = ["csc", "csr"]
-        X, y = check_X_y(
-            X,
-            y,
-            accept_sparse=_stype,
-            dtype=_dtype,
-            y_numeric=True,
-            multi_output=False,
-            copy=self.copy_X,
-        )
+
+        # X, y = check_X_y(
+        #     X,
+        #     y,
+        #     accept_sparse=_stype,
+        #     dtype=_dtype,
+        #     y_numeric=True,
+        #     multi_output=False,
+        #     copy=self.copy_X,
+        # )
+
         # Without converting y to float, deviance might raise
         # ValueError: Integers to negative integer powers are not allowed.
         # Also, y must not be sparse.
@@ -2476,6 +2547,17 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         #######################################################################
         if self.center_predictors_:
             X, col_means, col_stds = _standardize(X, weights, self.scale_predictors)
+
+
+        #######################################################################
+        # 2c. convert to GLMDataMatrix
+        #######################################################################
+        if type(X) is np.ndarray:
+            X = DenseGLMDataMatrix(X)
+        elif type(X) is ColScaledSpMat:
+            X = ColScaledGLMDataMatrix(X)
+        # elif sparse.issparse(X):
+        #     X = SparseGLMDataMatrix(X)
 
         #######################################################################
         # 3. initialization of coef = (intercept_, coef_)                     #
@@ -2604,8 +2686,12 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         # 5a. undo standardization
         #######################################################################
         if self.center_predictors_:
+            if isinstance(X, GLMDataMatrix):
+                orig_X = X.X
+            else:
+                orig_X = X
             X, self.intercept_, self.coef_ = _unstandardize(
-                X, col_means, col_stds, self.intercept_, self.coef_
+                orig_X, col_means, col_stds, self.intercept_, self.coef_
             )
 
         if self.fit_dispersion in ["chisqr", "deviance"]:
