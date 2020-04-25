@@ -80,22 +80,3 @@ def dense_sandwich(double[:,:] X, double[:] d):
     _dense_sandwich(Xp, dp, outp, m, n)
     out += np.tril(out, -1).T
     return out
-
-#  OLD
-#                            time
-# n_rows  method
-# 10000   fast_sandwich  0.001677
-# 100000  fast_sandwich  0.010822
-# 300000  fast_sandwich  0.021473
-# 1000000 fast_sandwich  0.077476
-# 2000000 fast_sandwich  0.159175
-# 4000000 fast_sandwich  0.320003
-# 
-# NEW
-# 10000    fast_sandwich  0.000329
-# 100000   fast_sandwich  0.002943
-# 300000   fast_sandwich  0.011041
-# 1000000  fast_sandwich  0.042850
-# 2000000  fast_sandwich  0.088717
-# 4000000  fast_sandwich  0.190790
-# 10000000 fast_sandwich  0.463217

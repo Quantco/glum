@@ -19,18 +19,14 @@ from glm_benchmarks.util import get_obj_val
 )
 @click.option(
     "--problem_names",
-    default="simple_insurance_no_weights_lasso_poisson",
+    default="narrow_insurance_no_weights_lasso_poisson",
     help="Specify a comma-separated list of benchmark problems you want to run.",
 )
 @click.option(
-    "--sparsify",
-    is_flag=True,
-    help="Convert an originally dense problem into a sparse one.",
-)
-@click.option(
-    "--densify",
-    is_flag=True,
-    help="Convert an originally dense problem into a sparse one.",
+    "--storage",
+    type=str,
+    default="dense",
+    help="Specify the storage format. Currently supported: dense, sparse. Leaving this black will default to dense.",
 )
 @click.option(
     "--save_result",
@@ -45,12 +41,12 @@ from glm_benchmarks.util import get_obj_val
     default="golden_master",
     help="Where to find saved estimates for checking that estimates haven't changed.",
 )
-def main(num_rows, problem_names, sparsify, densify, save_result, no_test, save_dir):
+def main(num_rows, problem_names, storage, save_result, no_test, save_dir):
     problems = get_limited_problems(problem_names)
     for Pn in problems:
         print(f"benchmarking {Pn}")
         result = execute_problem_library(
-            problems[Pn], sklearn_fork_bench, num_rows, sparsify, densify
+            problems[Pn], sklearn_fork_bench, num_rows=num_rows, storage=storage
         )
         print(f"took {result['runtime']}")
 
