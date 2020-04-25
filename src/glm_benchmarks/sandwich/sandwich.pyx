@@ -4,7 +4,7 @@ import numpy as np
 cimport numpy as np
 import scipy as sp
 import scipy.sparse
-from cython cimport view
+from cython cimport view, floating
 import cython
 from cython.parallel import parallel, prange
 from libc.math cimport ceil, sqrt
@@ -179,41 +179,40 @@ cdef mkl_plain_matvec(
     )
     return status
 
-
 @cython.boundscheck(False)
 @cython.wraparound(False)
-def sparse_sandwich(A, AT, double[:] d):
+def sparse_sandwich(A, AT, floating[:] d):
     # AT is CSC
     # A is CSC
     # Computes AT @ diag(d) @ A
 
-    cdef double[:] Adata = A.data
+    cdef floating[:] Adata = A.data
     cdef int[:] Aindices = A.indices
     cdef int[:] Aindptr = A.indptr
 
-    cdef double[:] ATdata = AT.data
+    cdef floating[:] ATdata = AT.data
     cdef int[:] ATindices = AT.indices
     cdef int[:] ATindptr = AT.indptr
 
-    cdef double* Adatap = &Adata[0]
+    cdef floating* Adatap = &Adata[0]
     cdef int* Aindicesp = &Aindices[0]
-    cdef double* ATdatap = &ATdata[0]
+    cdef floating* ATdatap = &ATdata[0]
     cdef int* ATindicesp = &ATindices[0]
     cdef int* ATindptrp = &ATindptr[0]
 
-    cdef double* dp = &d[0]
+    cdef floating* dp = &d[0]
 
     cdef int m = Aindptr.shape[0] - 1
     cdef int n = d.shape[0]
     cdef int nnz = Adata.shape[0]
-    out = np.zeros((m,m))
-    cdef double[:, :] out_view = out
-    cdef double* outp = &out_view[0,0]
+    out = np.zeros((m,m), dtype=A.dtype)
+    cdef floating[:, :] out_view = out
+    cdef floating* outp = &out_view[0,0]
 
     cdef int AT_idx, A_idx
     cdef int AT_row, A_col
     cdef int i, j, k
-    cdef double A_val, AT_val
+    cdef floating A_val, AT_val
 
     for j in prange(m, nogil=True):
         for A_idx in range(Aindptr[j], Aindptr[j+1]):
