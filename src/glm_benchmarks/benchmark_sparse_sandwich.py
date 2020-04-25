@@ -5,12 +5,12 @@ import numpy as np
 import pandas as pd
 from scipy import sparse as sps
 
-from glm_benchmarks.problems import load_simple_insurance_data
+from glm_benchmarks.problems import load_narrow_insurance_data
 from glm_benchmarks.sandwich.sandwich import sparse_sandwich
 
 
 def load_data(n_rows: int) -> Tuple[Any, np.ndarray]:
-    x = sps.csc_matrix(load_simple_insurance_data(n_rows)["X"])
+    x = sps.csc_matrix(load_narrow_insurance_data(n_rows)["X"])
     np.random.seed(0)
     d = np.random.uniform(0, 1, n_rows)
     return x, d
