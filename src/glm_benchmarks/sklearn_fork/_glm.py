@@ -134,7 +134,7 @@ def _safe_sandwich_dot(X, d: np.ndarray, intercept=False) -> np.ndarray:
         if isinstance(X.mat, sparse.csc_matrix):
             xd = X.mat.T.dot(d)
         else:
-            xd = X.mat.XT.dot(d)
+            xd = X.mat.XT.T.dot(d)
         term2 = xd[:, np.newaxis] * X.shift
         term3 = term2.T
         term4 = (X.shift.T * X.shift) * d.sum()
