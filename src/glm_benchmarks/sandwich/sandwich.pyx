@@ -11,9 +11,6 @@ from libc.math cimport ceil, sqrt
 cimport openmp
 from libc.stdlib cimport malloc, free
 
-# cdef extern from "sparse.c":
-#     void _sparse_sandwich(double*, int*, int*, double*, int*, int*, double*, double*, int, int, int) nogil
-
 @cython.boundscheck(False)
 @cython.wraparound(False)
 def sparse_sandwich(A, AT, double[:] d):
