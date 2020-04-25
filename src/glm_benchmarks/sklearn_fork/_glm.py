@@ -53,7 +53,7 @@ from sklearn.exceptions import ConvergenceWarning
 from sklearn.utils import check_array, check_X_y
 from sklearn.utils.validation import check_is_fitted, check_random_state
 
-from glm_benchmarks.sandwich.sandwich import sparse_sandwich
+from glm_benchmarks.sandwich.sandwich import sparse_sandwich, MklSparseMatrix
 from glm_benchmarks.scaled_spmat import ColScaledSpMat, standardize, zero_center
 from glm_benchmarks.scaled_spmat.standardize import (
     _scale_csc_columns_inplace,
@@ -110,6 +110,7 @@ def _safe_toarray(X):
         return np.asarray(X)
 
 
+@profile
 def _safe_sandwich_dot(X, d: np.ndarray, intercept=False) -> np.ndarray:
     """Compute sandwich product X.T @ diag(d) @ X.
 
@@ -119,6 +120,7 @@ def _safe_sandwich_dot(X, d: np.ndarray, intercept=False) -> np.ndarray:
     if sparse.issparse(X):
         if not hasattr(X, "XT"):
             X.XT = X.tocsr()
+            X.XTMkl = MklSparseMatrix(X.T)
 
         result = sparse_sandwich(X, X.XT, d)
     elif type(X) is ColScaledSpMat:
@@ -127,12 +129,18 @@ def _safe_sandwich_dot(X, d: np.ndarray, intercept=False) -> np.ndarray:
             # converted to CSC, then here we convert back. We should store the
             # CSR version in fit.
             X.mat.XT = X.mat.tocsr(copy=False)
+            X.mat.XTMkl = MklSparseMatrix(X.mat.T)
 
         term1 = sparse_sandwich(X.mat.tocsc(copy=False), X.mat.XT, d)
 
-        # TODO: Use MKL-based fast mat-vec product via the sparse_dot package
         if isinstance(X.mat, sparse.csc_matrix):
+            from sparse_dot_mkl import dot_product_mkl
+            DIDX = d[:,np.newaxis]
+            xd2 = np.squeeze(dot_product_mkl(X.mat.T, DIDX))
+            xd3 = X.mat.XTMkl.dot(d)
             xd = X.mat.T.dot(d)
+            np.testing.assert_almost_equal(xd, xd2)
+            np.testing.assert_almost_equal(xd, xd3)
         else:
             xd = X.mat.XT.T.dot(d)
         term2 = xd[:, np.newaxis] * X.shift
@@ -143,7 +151,6 @@ def _safe_sandwich_dot(X, d: np.ndarray, intercept=False) -> np.ndarray:
         # The "multiply then divide" trick does not work because there may be zeros in
         # d.
         sqrtD = np.sqrt(d)[:, np.newaxis]
-        # TODO: fix this; try writing a Cython function or using MKL
         x_d = X * sqrtD
         result = x_d.T @ x_d
         # np.save("file.npz", np.hstack((X, d[:, np.newaxis])))

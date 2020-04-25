@@ -25,11 +25,17 @@ for fn in ["src/glm_benchmarks/sandwich/dense-tmpl.c"]:
     with open(out_fn, "w") as f:
         f.write(buf.getvalue())
 
+
+include_mkl = np.__config__.get_info("blas_mkl_info")["include_dirs"][0]
+libraries_mkl = np.__config__.get_info("blas_mkl_info")["include_dirs"][0]
+
 ext_modules = [
     Extension(
         name="glm_benchmarks.sandwich.sandwich",
         sources=["src/glm_benchmarks/sandwich/sandwich.pyx"],
-        include_dirs=[np.get_include()],
+        include_dirs=[np.get_include(), include_mkl],
+        libraries=["mkl_rt"],
+        library_dirs=["", libraries_mkl],
     ),
 ]
 
