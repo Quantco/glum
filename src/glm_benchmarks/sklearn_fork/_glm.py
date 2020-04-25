@@ -42,7 +42,7 @@ import numbers
 import time
 import warnings
 from abc import ABCMeta, abstractmethod
-from typing import List, Tuple
+from typing import Any, List, Tuple, Union
 
 import numpy as np
 import scipy.sparse.linalg as splinalg
@@ -51,7 +51,6 @@ from scipy.optimize import fmin_l_bfgs_b
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.exceptions import ConvergenceWarning
 from sklearn.utils import check_array, check_X_y
-from sklearn.utils.optimize import newton_cg
 from sklearn.utils.validation import check_is_fitted, check_random_state
 
 from glm_benchmarks.scaled_spmat import ColScaledSpMat, standardize, zero_center
@@ -109,10 +108,7 @@ def _safe_toarray(X):
         return np.asarray(X)
 
 
-@profile
-def _safe_sandwich_dot(
-    X, d: np.ndarray, intercept=False, center_predictors=True
-) -> np.ndarray:
+def _safe_sandwich_dot(X, d: np.ndarray, intercept=False) -> np.ndarray:
     """Compute sandwich product X.T @ diag(d) @ X.
 
     With ``intercept=True``, X is treated as if a column of 1 were appended as
@@ -145,7 +141,7 @@ def _safe_sandwich_dot(
         if isinstance(X.mat, sparse.csc_matrix):
             xd = X.mat.T.dot(d)
         else:
-            xd = X.mat.XT.T.dot(d)
+            xd = X.mat.XT.dot(d)
         term2 = xd[:, np.newaxis] * X.shift
         term3 = term2.T
         term4 = (X.shift.T * X.shift) * d.sum()
@@ -176,7 +172,6 @@ def _safe_sandwich_dot(
         )
         res_including_intercept[0, 0] = d.sum()
         # TODO: Use MKL-based fast mat-vec product
-        # if center_predictors:
         res_including_intercept[1:, 0] = d @ X
         res_including_intercept[0, 1:] = res_including_intercept[1:, 0]
 
@@ -262,7 +257,10 @@ def _standardize_dense(X, weights, scale_predictors):
     return X, col_means, col_stds
 
 
-def _unstandardize(X, col_means, col_stds, intercept, coef):
+def _unstandardize(
+    X, col_means: np.ndarray, col_stds: np.ndarray, intercept: float, coef
+) -> Tuple[Any, float, np.ndarray]:
+    assert isinstance(intercept, float)
     if type(X) is ColScaledSpMat:
         if sparse.isspmatrix_csc(X.mat):
             _scale_csc_columns_inplace(X.mat, col_stds)
@@ -273,7 +271,8 @@ def _unstandardize(X, col_means, col_stds, intercept, coef):
         X *= col_stds
         X += col_means
 
-    intercept -= np.squeeze(col_means / col_stds).dot(coef)
+    intercept -= float(np.squeeze(col_means / col_stds).dot(coef))
+    assert isinstance(intercept, float)
     coef /= col_stds
     return X, intercept, coef
 
@@ -1098,7 +1097,18 @@ def _irls_step(X, W, P2, z, fit_intercept=True):
     return coef
 
 
-def _irls_solver(coef, X, y, weights, P2, fit_intercept, family, link, max_iter, tol):
+def _irls_solver(
+    coef,
+    X,
+    y: np.ndarray,
+    weights: np.ndarray,
+    P2: Union[np.ndarray, sparse.spmatrix],
+    fit_intercept: bool,
+    family: ExponentialDispersionModel,
+    link: Link,
+    max_iter: int,
+    tol: float,
+):
     """Solve GLM with L2 penalty by IRLS algorithm.
 
     Note: If X is sparse, P2 must also be sparse.
@@ -1148,8 +1158,8 @@ def _irls_solver(coef, X, y, weights, P2, fit_intercept, family, link, max_iter,
         hp = link.inverse_derivative(eta)
         V = family.variance(mu, phi=1, weights=weights)
 
-        # which tolerace? |coef - coef_old| or gradient?
-        # use gradient for compliance with newton-cg and lbfgs
+        # which tolerance? |coef - coef_old| or gradient?
+        # use gradient for compliance with lbfgs
         # gradient = -X' D (y-mu)/V(mu) + l2 P2 w
         temp = hp * (y - mu) / V
         if sparse.issparse(X):
@@ -1259,6 +1269,11 @@ def _cd_cycle(
                     Bj[idx:] = _safe_toarray(
                         X[:, j].transpose() @ X.multiply(fisher[:, np.newaxis])
                     ).ravel()
+                elif isinstance(X, ColScaledSpMat):
+                    # This will not be very efficient since the features get converted
+                    # to dense
+                    x_j = X.getcol(j).toarray()[:, 0]
+                    Bj[idx:] = _safe_toarray((fisher * x_j) @ X).ravel()
                 else:
                     Bj[idx:] = (fisher * X[:, j]) @ X
 
@@ -1339,16 +1354,16 @@ def _cd_cycle(
 def _cd_solver(
     coef,
     X,
-    y,
-    weights,
-    P1,
-    P2,
-    fit_intercept,
-    family,
-    link,
-    max_iter=100,
-    max_inner_iter=1000,
-    tol=1e-4,
+    y: np.ndarray,
+    weights: np.ndarray,
+    P1: Union[np.ndarray, sparse.spmatrix],
+    P2: Union[np.ndarray, sparse.spmatrix],
+    fit_intercept: bool,
+    family: ExponentialDispersionModel,
+    link: Link,
+    max_iter: int = 100,
+    max_inner_iter: int = 1000,
+    tol: float = 1e-4,
     selection="cyclic ",
     random_state=None,
     diag_fisher=False,
@@ -1624,6 +1639,230 @@ def _cd_solver(
     return coef, n_iter, n_cycles, diagnostics
 
 
+def get_family(
+    family: Union[str, ExponentialDispersionModel]
+) -> ExponentialDispersionModel:
+    if isinstance(family, ExponentialDispersionModel):
+        return family
+    name_to_dist = {
+        "normal": NormalDistribution,
+        "poisson": PoissonDistribution,
+        "gamma": GammaDistribution,
+        "inverse.gaussian": InverseGaussianDistribution,
+        "binomial": BinomialDistribution,
+    }
+    try:
+        return name_to_dist[family]()
+    except KeyError:
+        raise ValueError(
+            "The family must be an instance of class"
+            " ExponentialDispersionModel or an element of"
+            " ['normal', 'poisson', 'gamma', 'inverse.gaussian', "
+            "'binomial']; got (family={})".format(family)
+        )
+
+
+def get_link(link: Union[str, Link], family: ExponentialDispersionModel) -> Link:
+    """
+    For the Tweedie distribution, this code follows actuarial best practices regarding
+    link functions. Note that these links are sometimes non-canonical:
+        - Identity for normal (p=0)
+        - No convention for p < 0, so let's leave it as identity
+        - Log otherwise
+    """
+    if isinstance(link, Link):
+        return link
+    if link == "auto":
+        if isinstance(family, TweedieDistribution):
+            # This code
+            if family.power <= 0:
+                return IdentityLink()
+            if family.power < 1:
+                # TODO: move more detailed error here
+                raise ValueError("No distribution")
+            return LogLink()
+        if isinstance(family, GeneralizedHyperbolicSecant):
+            return IdentityLink()
+        if isinstance(family, BinomialDistribution):
+            return LogitLink()
+        raise ValueError(
+            """No default link known for the specified distribution family. Please
+            set link manually, i.e. not to 'auto';
+            got (link='auto', family={})""".format(
+                family.__class__.__name__
+            )
+        )
+    if link == "identity":
+        return IdentityLink()
+    if link == "log":
+        return LogLink()
+    if link == "logit":
+        return LogitLink()
+    raise ValueError(
+        """The link must be an instance of class Link or an element of
+        ['auto', 'identity', 'log', 'logit']; got (link={})""".format(
+            link
+        )
+    )
+
+
+def setup_penalties(
+    P1: Union[str, np.ndarray],
+    P2: Union[str, np.ndarray],
+    X: Union[np.ndarray, sparse.spmatrix],
+    _stype,
+    _dtype,
+    alpha: float,
+    l1_ratio: float,
+) -> Tuple[np.ndarray, Union[np.ndarray, sparse.spmatrix]]:
+    n_features = X.shape[1]
+    if isinstance(P1, str) and P1 == "identity":
+        P1 = np.ones(n_features)
+    else:
+        P1 = np.atleast_1d(P1)
+        try:
+            P1 = P1.astype(np.float64, casting="safe", copy=False)
+        except TypeError:
+            raise TypeError(
+                "The given P1 cannot be converted to a numeric"
+                "array; got (P1.dtype={}).".format(P1.dtype)
+            )
+        if (P1.ndim != 1) or (P1.shape[0] != n_features):
+            raise ValueError(
+                "P1 must be either 'identity' or a 1d array "
+                "with the length of X.shape[1]; "
+                "got (P1.shape[0]={}), "
+                "needed (X.shape[1]={}).".format(P1.shape[0], n_features)
+            )
+    # If X is sparse, make P2 sparse, too.
+    if isinstance(P2, str) and P2 == "identity":
+        if sparse.issparse(X):
+            P2 = (
+                sparse.dia_matrix(
+                    (np.ones(n_features), 0), shape=(n_features, n_features)
+                )
+            ).tocsc()
+        else:
+            P2 = np.ones(n_features)
+    else:
+        P2 = check_array(
+            P2, copy=True, accept_sparse=_stype, dtype=_dtype, ensure_2d=False
+        )
+        if P2.ndim == 1:
+            P2 = np.asarray(P2)
+            if P2.shape[0] != n_features:
+                raise ValueError(
+                    "P2 should be a 1d array of shape "
+                    "(n_features,) with "
+                    "n_features=X.shape[1]; "
+                    "got (P2.shape=({},)), needed ({},)".format(P2.shape[0], X.shape[1])
+                )
+            if sparse.issparse(X):
+                P2 = (
+                    sparse.dia_matrix((P2, 0), shape=(n_features, n_features))
+                ).tocsc()
+        elif P2.ndim == 2 and P2.shape[0] == P2.shape[1] and P2.shape[0] == X.shape[1]:
+            if sparse.issparse(X):
+                P2 = sparse.csc_matrix(P2)
+        else:
+            raise ValueError(
+                "P2 must be either None or an array of shape "
+                "(n_features, n_features) with "
+                "n_features=X.shape[1]; "
+                "got (P2.shape=({0}, {1})), needed ({2}, {2})".format(
+                    P2.shape[0], P2.shape[1], X.shape[1]
+                )
+            )
+
+    l1 = alpha * l1_ratio
+    l2 = alpha * (1 - l1_ratio)
+    # P1 and P2 are now for sure copies
+    P1 = l1 * P1
+    P2 = l2 * P2
+    # one only ever needs the symmetrized L2 penalty matrix 1/2 (P2 + P2')
+    # reason: w' P2 w = (w' P2 w)', i.e. it is symmetric
+    if P2.ndim == 2:
+        if sparse.issparse(P2):
+            if sparse.isspmatrix_csc(P2):
+                P2 = 0.5 * (P2 + P2.transpose()).tocsc()
+            else:
+                P2 = 0.5 * (P2 + P2.transpose()).tocsr()
+        else:
+            P2 = 0.5 * (P2 + P2.T)
+    return P1, P2
+
+
+def initialize_start_params(
+    start_params: Union[str, np.ndarray], n_cols: int, fit_intercept: bool, _dtype
+) -> np.ndarray:
+    if isinstance(start_params, str):
+        if start_params not in ["guess", "zero"]:
+            raise ValueError(
+                "The argument start_params must be 'guess', "
+                "'zero' or an array of correct length; "
+                "got(start_params={})".format(start_params)
+            )
+    else:
+        start_params = check_array(
+            start_params,
+            accept_sparse=False,
+            force_all_finite=True,
+            ensure_2d=False,
+            dtype=_dtype,
+            copy=True,
+        )
+        if (start_params.shape[0] != n_cols + fit_intercept) or (
+            start_params.ndim != 1
+        ):
+            raise ValueError(
+                "Start values for parameters must have the"
+                "right length and dimension; required (length"
+                "={}, ndim=1); got (length={}, ndim={}).".format(
+                    n_cols + fit_intercept, start_params.shape[0], start_params.ndim,
+                )
+            )
+    return start_params
+
+
+def is_pos_semidef(p: Union[np.ndarray, sparse.spmatrix]) -> bool:
+    """
+    Checks for positive semidefiniteness of p if p is a matrix, or diag(p) if p is a
+    vector.
+
+    np.linalg.cholesky(P2) 'only' asserts positive definite due to numerical precision,
+    we allow eigenvalues to be a tiny bit negative
+    """
+    # 1d case
+    if p.ndim == 1 or p.shape[0] == 1:
+        any_negative = (p < 0).max() if sparse.isspmatrix(p) else (p < 0).any()
+        return not any_negative
+
+    # 2d case
+    # About -6e-7 for 32-bit, -1e-15 for 64-bit
+    epsneg = -10 * np.finfo(np.result_type(float, p.dtype)).epsneg
+    if sparse.issparse(p):
+        # Computing eigenvalues for sparse matrices is inefficient. If the matrix is
+        # not huge, convert to dense. Otherwise, calculate 10% of its eigenvalues.
+        if p.shape[0] < 2000:
+            eigenvalues = linalg.eigvalsh(p.toarray())
+        else:
+            n_evals_to_compuate = p.shape[0] // 10 + 1
+            sigma = -1000 * epsneg  # start searching near this value
+            which = "SA"  # find smallest algebraic eigenvalues first
+            eigenvalues = splinalg.eigsh(
+                p,
+                k=n_evals_to_compuate,
+                sigma=sigma,
+                which=which,
+                return_eigenvectors=False,
+            )
+    else:
+        # dense
+        eigenvalues = linalg.eigvalsh(p)
+    pos_semidef = np.all(eigenvalues >= epsneg)
+    return pos_semidef
+
+
 class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
     """Regression via a Generalized Linear Model (GLM) with penalties.
 
@@ -1721,7 +1960,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         the chi squared statistic or the deviance statistic. If None, the
         dispersion is not estimated.
 
-    solver : {'auto', 'cd', 'irls', 'lbfgs', 'newton-cg'}, \
+    solver : {'auto', 'cd', 'irls', 'lbfgs'}, \
             optional (default='auto')
         Algorithm to use in the optimization problem:
 
@@ -1742,9 +1981,6 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         'lbfgs'
             Calls scipy's L-BFGS-B optimizer. It cannot deal with L1 penalties.
 
-        'newton-cg', 'lbfgs'
-            Newton conjugate gradient algorithm cannot deal with L1 penalties.
-
         Note that all solvers except lbfgs use the fisher matrix, i.e. the
         expected Hessian instead of the Hessian matrix.
 
@@ -1752,7 +1988,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         The maximal number of iterations for solver algorithms.
 
     tol : float, optional (default=1e-4)
-        Stopping criterion. For the irls, newton-cg and lbfgs solvers,
+        Stopping criterion. For the irls and lbfgs solvers,
         the iteration will stop when ``max{|g_i|, i = 1, ..., n} <= tol``
         where ``g_i`` is the i-th component of the gradient (derivative) of
         the objective function. For the cd solver, convergence is reached
@@ -1892,8 +2128,8 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         P1="identity",
         P2="identity",
         fit_intercept=True,
-        family="normal",
-        link="auto",
+        family: Union[str, ExponentialDispersionModel] = "normal",
+        link: Union[str, Link] = "auto",
         fit_dispersion=None,
         solver="auto",
         max_iter=100,
@@ -1931,6 +2167,173 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         self.center_predictors = center_predictors
         self.scale_predictors = scale_predictors
 
+    # See PEP 484 on annotating with float rather than Number
+    # https://www.python.org/dev/peps/pep-0484/#the-numeric-tower
+    def _validate_inputs(self) -> None:
+        if (
+            not (isinstance(self.alpha, float) or isinstance(self.alpha, int))
+            or self.alpha < 0
+        ):
+            raise ValueError(
+                "Penalty term must be a non-negative number;"
+                " got (alpha={})".format(self.alpha)
+            )
+
+        if (
+            not (isinstance(self.l1_ratio, float) or isinstance(self.l1_ratio, int))
+            or self.l1_ratio < 0
+            or self.l1_ratio > 1
+        ):
+            raise ValueError(
+                "l1_ratio must be a number in interval [0, 1];"
+                " got (l1_ratio={})".format(self.l1_ratio)
+            )
+        if not isinstance(self.fit_intercept, bool):
+            raise ValueError(
+                "The argument fit_intercept must be bool;"
+                " got {}".format(self.fit_intercept)
+            )
+
+        if self.solver == "newton-cg":
+            raise ValueError(
+                """
+                newton-cg solver is no longer supported because
+                sklearn.utils.optimize.newton_cg has been deprecated. If you need this
+                functionality, please use
+                https://github.com/scikit-learn/scikit-learn/pull/9405.
+                """
+            )
+
+        if self.solver not in ["auto", "irls", "lbfgs", "cd"]:
+            raise ValueError(
+                "GeneralizedLinearRegressor supports only solvers"
+                " 'auto', 'irls', 'lbfgs', and 'cd';"
+                " got {}".format(self.solver)
+            )
+        if not isinstance(self.max_iter, int) or self.max_iter <= 0:
+            raise ValueError(
+                "Maximum number of iteration must be a positive "
+                "integer;"
+                " got (max_iter={!r})".format(self.max_iter)
+            )
+        if not isinstance(self.tol, float) or self.tol <= 0:
+            raise ValueError(
+                "Tolerance for stopping criteria must be "
+                "positive; got (tol={!r})".format(self.tol)
+            )
+        if not isinstance(self.warm_start, bool):
+            raise ValueError(
+                "The argument warm_start must be bool;"
+                " got {}".format(self.warm_start)
+            )
+        if self.selection not in ["cyclic", "random"]:
+            raise ValueError(
+                "The argument selection must be 'cyclic' or "
+                "'random'; got (selection={})".format(self.selection)
+            )
+        if not isinstance(self.diag_fisher, bool):
+            raise ValueError(
+                "The argument diag_fisher must be bool;"
+                " got {}".format(self.diag_fisher)
+            )
+        if not isinstance(self.copy_X, bool):
+            raise ValueError(
+                "The argument copy_X must be bool;" " got {}".format(self.copy_X)
+            )
+        if not isinstance(self.check_input, bool):
+            raise ValueError(
+                "The argument check_input must be bool; got "
+                "(check_input={})".format(self.check_input)
+            )
+        if self.center_predictors and not self.fit_intercept:
+            raise ValueError(
+                "center_predictors=True is not supported when fit_intercept=False"
+                "because centering would substantially change the estimates."
+            )
+        if self.scale_predictors and not self.center_predictors:
+            raise ValueError(
+                "scale_predictors=True is not supported when center_predictors=False"
+            )
+        if self.check_input:
+
+            # check if P1 has only non-negative values, negative values might
+            # indicate group lasso in the future.
+            if not isinstance(self.P1, str):  # if self.P1 != 'identity':
+                if not np.all(self.P1 >= 0):
+                    raise ValueError("P1 must not have negative values.")
+
+    def _guess_start_params(
+        self, y: np.ndarray, weights: np.ndarray, solver: str, X, P1, P2, random_state
+    ) -> np.ndarray:
+        """
+        Set mu=starting_mu of the family and do one Newton step
+        If solver=cd use cd, else irls
+        """
+        n_features = X.shape[1]
+        family = get_family(self.family)
+        link = get_link(self.link, family)
+        mu = family.starting_mu(y, weights=weights)
+        eta = link.link(mu)  # linear predictor
+        if solver in ["cd", "lbfgs"]:
+            # see function _cd_solver
+            # TODO: why does this not use _eta_mu_score_fisher?
+            sigma_inv = 1 / family.variance(mu, phi=1, weights=weights)
+            d1 = link.inverse_derivative(eta)
+            temp = sigma_inv * d1 * (y - mu)
+            if self.fit_intercept:
+                score = np.concatenate(([temp.sum()], temp @ X))
+            else:
+                score = temp @ X  # same as X.T @ temp
+
+            d2_sigma_inv = d1 * d1 * sigma_inv
+            diag_fisher = self.diag_fisher
+            if diag_fisher:
+                fisher = d2_sigma_inv
+            else:
+                fisher = _safe_sandwich_dot(X, d2_sigma_inv, self.fit_intercept)
+            # set up space for search direction d for inner loop
+            if self.fit_intercept:
+                coef = np.zeros(n_features + 1)
+            else:
+                coef = np.zeros(n_features)
+            d = np.zeros_like(coef)
+            # initial stopping tolerance of inner loop
+            # use L1-norm of minimum of norm of subgradient of F
+            # use less restrictive tolerance for initial guess
+            inner_tol = _min_norm_sugrad(coef=coef, grad=-score, P2=P2, P1=P1)
+            inner_tol = 4 * linalg.norm(inner_tol, ord=1)
+            # just one outer loop = Newton step
+            n_cycles = 0
+            d, coef_P2, n_cycles, inner_tol = _cd_cycle(
+                d,
+                X,
+                coef,
+                score,
+                fisher,
+                P1,
+                P2,
+                n_cycles,
+                inner_tol,
+                max_inner_iter=1000,
+                selection=self.selection,
+                random_state=random_state,
+                diag_fisher=self.diag_fisher,
+            )
+            coef += d  # for simplicity no line search here
+        else:
+            # See _irls_solver
+            # h'(eta)
+            hp = link.inverse_derivative(eta)
+            # working weights W, in principle a diagonal matrix
+            # therefore here just as 1d array
+            W = hp ** 2 / family.variance(mu, phi=1, weights=weights)
+            # working observations
+            z = eta + (y - mu) / hp
+            # solve A*coef = b
+            # A = X' W X + l2 P2, b = X' W z
+            coef = _irls_step(X, W, P2, z, fit_intercept=self.fit_intercept)
+        return coef
+
     def fit(self, X, y, sample_weight=None):
         """Fit a Generalized Linear Model.
 
@@ -1955,107 +2358,34 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         -------
         self : returns an instance of self.
         """
-        # 99.8% of time is in the _cd_solver function
         #######################################################################
         # 1. input validation                                                 #
         #######################################################################
-        # 1.1 validate arguments of __init__ ##################################
-        # Guarantee that self._family_instance is an instance of class
-        # ExponentialDispersionModel
-        if isinstance(self.family, ExponentialDispersionModel):
-            self._family_instance = self.family
-        else:
-            if self.family == "normal":
-                self._family_instance = NormalDistribution()
-            elif self.family == "poisson":
-                self._family_instance = PoissonDistribution()
-            elif self.family == "gamma":
-                self._family_instance = GammaDistribution()
-            elif self.family == "inverse.gaussian":
-                self._family_instance = InverseGaussianDistribution()
-            elif self.family == "binomial":
-                self._family_instance = BinomialDistribution()
-            else:
-                raise ValueError(
-                    "The family must be an instance of class"
-                    " ExponentialDispersionModel or an element of"
-                    " ['normal', 'poisson', 'gamma', 'inverse.gaussian', "
-                    "'binomial']; got (family={})".format(self.family)
-                )
+        # 1.1
+        self._validate_inputs()
+        # self.family and self.link are user-provided inputs and may be strings or
+        #  ExponentialDispersonModel/Link objects
+        # self.family_instance_ and self.link_instance_ are cleaned by 'fit' to be
+        # ExponentialDispersionModel and Link arguments
+        self._family_instance: ExponentialDispersionModel = get_family(self.family)
+        # Guarantee that self._link_instance is set to an instance of class Link
+        self._link_instance: Link = get_link(self.link, self._family_instance)
 
-        # Guarantee that self._link_instance is set to an instance of
-        # class Link
-        if isinstance(self.link, Link):
-            self._link_instance = self.link
-        else:
-            if self.link == "auto":
-                if isinstance(self._family_instance, TweedieDistribution):
-                    if self._family_instance.power <= 0:
-                        self._link_instance = IdentityLink()
-                    if self._family_instance.power >= 1:
-                        self._link_instance = LogLink()
-                elif isinstance(self._family_instance, GeneralizedHyperbolicSecant):
-                    self._link_instance = IdentityLink()
-                elif isinstance(self._family_instance, BinomialDistribution):
-                    self._link_instance = LogitLink()
-                else:
-                    raise ValueError(
-                        "No default link known for the "
-                        "specified distribution family. Please "
-                        "set link manually, i.e. not to 'auto'; "
-                        "got (link='auto', family={}".format(self.family)
-                    )
-            elif self.link == "identity":
-                self._link_instance = IdentityLink()
-            elif self.link == "log":
-                self._link_instance = LogLink()
-            elif self.link == "logit":
-                self._link_instance = LogitLink()
-            else:
-                raise ValueError(
-                    "The link must be an instance of class Link or "
-                    "an element of ['auto', 'identity', 'log', 'logit']; "
-                    "got (link={})".format(self.link)
-                )
+        # when fit_intercept is False, we can't center because that would
+        # substantially change estimates
+        self.center_predictors_: bool = (
+            self.center_predictors
+            if self.center_predictors is not None
+            else self.fit_intercept
+        )
 
-        if not isinstance(self.alpha, numbers.Number) or self.alpha < 0:
-            raise ValueError(
-                "Penalty term must be a non-negative number;"
-                " got (alpha={})".format(self.alpha)
-            )
-        if (
-            not isinstance(self.l1_ratio, numbers.Number)
-            or self.l1_ratio < 0
-            or self.l1_ratio > 1
-        ):
-            raise ValueError(
-                "l1_ratio must be a number in interval [0, 1];"
-                " got (l1_ratio={})".format(self.l1_ratio)
-            )
-        if not isinstance(self.fit_intercept, bool):
-            raise ValueError(
-                "The argument fit_intercept must be bool;"
-                " got {}".format(self.fit_intercept)
-            )
-
-        if self.center_predictors is None:
-            # when fit_intercept is False, we can't center because that would
-            # substantially change estimates
-            # Also, currently, diag_fisher is not supported for ColScaledSpMat
-            self.center_predictors = not (not self.fit_intercept or self.diag_fisher)
-
-        if self.solver not in ["auto", "irls", "lbfgs", "newton-cg", "cd"]:
-            raise ValueError(
-                "GeneralizedLinearRegressor supports only solvers"
-                " 'auto', 'irls', 'lbfgs', 'newton-cg' and 'cd';"
-                " got {}".format(self.solver)
-            )
         solver = self.solver
         if self.solver == "auto":
             if self.l1_ratio == 0:
                 solver = "irls"
             else:
                 solver = "cd"
+
         if self.alpha > 0 and self.l1_ratio > 0 and solver not in ["cd"]:
             raise ValueError(
                 "The chosen solver (solver={}) can't deal "
@@ -2064,54 +2394,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                     solver, self.alpha, self.l1_ratio
                 )
             )
-        if not isinstance(self.max_iter, int) or self.max_iter <= 0:
-            raise ValueError(
-                "Maximum number of iteration must be a positive "
-                "integer;"
-                " got (max_iter={!r})".format(self.max_iter)
-            )
-        if not isinstance(self.tol, numbers.Number) or self.tol <= 0:
-            raise ValueError(
-                "Tolerance for stopping criteria must be "
-                "positive; got (tol={!r})".format(self.tol)
-            )
-        if not isinstance(self.warm_start, bool):
-            raise ValueError(
-                "The argument warm_start must be bool;"
-                " got {}".format(self.warm_start)
-            )
-        if self.selection not in ["cyclic", "random"]:
-            raise ValueError(
-                "The argument selection must be 'cyclic' or "
-                "'random'; got (selection={})".format(self.selection)
-            )
         random_state = check_random_state(self.random_state)
-        if not isinstance(self.diag_fisher, bool):
-            raise ValueError(
-                "The argument diag_fisher must be bool;"
-                " got {}".format(self.diag_fisher)
-            )
-        if not isinstance(self.copy_X, bool):
-            raise ValueError(
-                "The argument copy_X must be bool;" " got {}".format(self.copy_X)
-            )
-        if not isinstance(self.check_input, bool):
-            raise ValueError(
-                "The argument check_input must be bool; got "
-                "(check_input={})".format(self.check_input)
-            )
-        if self.center_predictors and not self.fit_intercept:
-            raise ValueError(
-                "center_predictors=True is not supported when fit_intercept=False"
-                "because centering would substantially change the estimates."
-            )
-        if self.scale_predictors and not self.center_predictors:
-            raise ValueError(
-                "scale_predictors=True is not supported when center_predictors=False"
-            )
-
-        family = self._family_instance
-        link = self._link_instance
 
         # 1.2 validate arguments of fit #######################################
         _dtype = [np.float64, np.float32]
@@ -2132,168 +2415,48 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         # ValueError: Integers to negative integer powers are not allowed.
         # Also, y must not be sparse.
         y = np.asarray(y, dtype=np.float64)
-
         weights = _check_weights(sample_weight, y.shape[0])
-
         n_samples, n_features = X.shape
 
         # 1.3 arguments to take special care ##################################
         # P1, P2, start_params
-        if isinstance(self.P1, str) and self.P1 == "identity":
-            P1 = np.ones(n_features)
-        else:
-            P1 = np.atleast_1d(self.P1)
-            try:
-                P1 = P1.astype(np.float64, casting="safe", copy=False)
-            except TypeError:
-                raise TypeError(
-                    "The given P1 cannot be converted to a numeric"
-                    "array; got (P1.dtype={}).".format(P1.dtype)
-                )
-            if (P1.ndim != 1) or (P1.shape[0] != n_features):
-                raise ValueError(
-                    "P1 must be either 'identity' or a 1d array "
-                    "with the length of X.shape[1]; "
-                    "got (P1.shape[0]={}), "
-                    "needed (X.shape[1]={}).".format(P1.shape[0], n_features)
-                )
-        # If X is sparse, make P2 sparse, too.
-        if isinstance(self.P2, str) and self.P2 == "identity":
-            if sparse.issparse(X):
-                P2 = (
-                    sparse.dia_matrix(
-                        (np.ones(n_features), 0), shape=(n_features, n_features)
-                    )
-                ).tocsc()
-            else:
-                P2 = np.ones(n_features)
-        else:
-            P2 = check_array(
-                self.P2, copy=True, accept_sparse=_stype, dtype=_dtype, ensure_2d=False
-            )
-            if P2.ndim == 1:
-                P2 = np.asarray(P2)
-                if P2.shape[0] != n_features:
-                    raise ValueError(
-                        "P2 should be a 1d array of shape "
-                        "(n_features,) with "
-                        "n_features=X.shape[1]; "
-                        "got (P2.shape=({},)), needed ({},)".format(
-                            P2.shape[0], X.shape[1]
-                        )
-                    )
-                if sparse.issparse(X):
-                    P2 = (
-                        sparse.dia_matrix((P2, 0), shape=(n_features, n_features))
-                    ).tocsc()
-            elif (
-                P2.ndim == 2
-                and P2.shape[0] == P2.shape[1]
-                and P2.shape[0] == X.shape[1]
-            ):
-                if sparse.issparse(X):
-                    P2 = sparse.csc_matrix(P2)
-            else:
-                raise ValueError(
-                    "P2 must be either None or an array of shape "
-                    "(n_features, n_features) with "
-                    "n_features=X.shape[1]; "
-                    "got (P2.shape=({0}, {1})), needed ({2}, {2})".format(
-                        P2.shape[0], P2.shape[1], X.shape[1]
-                    )
-                )
-
-        start_params = self.start_params
-        if isinstance(start_params, str):
-            if start_params not in ["guess", "zero"]:
-                raise ValueError(
-                    "The argument start_params must be 'guess', "
-                    "'zero' or an array of correct length; "
-                    "got(start_params={})".format(start_params)
-                )
-        else:
-            start_params = check_array(
-                start_params,
-                accept_sparse=False,
-                force_all_finite=True,
-                ensure_2d=False,
-                dtype=_dtype,
-                copy=True,
-            )
-            if (start_params.shape[0] != X.shape[1] + self.fit_intercept) or (
-                start_params.ndim != 1
-            ):
-                raise ValueError(
-                    "Start values for parameters must have the"
-                    "right length and dimension; required (length"
-                    "={}, ndim=1); got (length={}, ndim={}).".format(
-                        X.shape[1] + self.fit_intercept,
-                        start_params.shape[0],
-                        start_params.ndim,
-                    )
-                )
-
-        l1 = self.alpha * self.l1_ratio
-        l2 = self.alpha * (1 - self.l1_ratio)
-        # P1 and P2 are now for sure copies
-        P1 = l1 * P1
-        P2 = l2 * P2
-        # one only ever needs the symmetrized L2 penalty matrix 1/2 (P2 + P2')
-        # reason: w' P2 w = (w' P2 w)', i.e. it is symmetric
-        if P2.ndim == 2:
-            if sparse.issparse(P2):
-                if sparse.isspmatrix_csc(P2):
-                    P2 = 0.5 * (P2 + P2.transpose()).tocsc()
-                else:
-                    P2 = 0.5 * (P2 + P2.transpose()).tocsr()
-            else:
-                P2 = 0.5 * (P2 + P2.T)
+        P1, P2 = setup_penalties(
+            self.P1, self.P2, X, _stype, _dtype, self.alpha, self.l1_ratio
+        )
 
         # For coordinate descent, if X is sparse, P2 must also be csc
+        # ES: I think this  might already have been handled by check_array
         if solver == "cd" and sparse.issparse(X):
             P2 = sparse.csc_matrix(P2)
 
+        start_params = initialize_start_params(
+            self.start_params,
+            n_cols=n_features,
+            fit_intercept=self.fit_intercept,
+            _dtype=_dtype,
+        )
+
         # 1.4 additional validations ##########################################
         if self.check_input:
-            if not np.all(family.in_y_range(y)):
+
+            if not np.all(self._family_instance.in_y_range(y)):
                 raise ValueError(
                     "Some value(s) of y are out of the valid "
-                    "range for family {}".format(family.__class__.__name__)
-                )
-            # check if P1 has only non-negative values, negative values might
-            # indicate group lasso in the future.
-            if not isinstance(self.P1, str):  # if self.P1 != 'identity':
-                if not np.all(P1 >= 0):
-                    raise ValueError("P1 must not have negative values.")
-            # check if P2 is positive semidefinite
-            # np.linalg.cholesky(P2) 'only' asserts positive definite
-            if not isinstance(self.P2, str):  # self.P2 != 'identity'
-                # due to numerical precision, we allow eigenvalues to be a
-                # tiny bit negative
-                epsneg = -10 * np.finfo(P2.dtype).epsneg
-                if P2.ndim == 1 or P2.shape[0] == 1:
-                    p2 = P2
-                    if sparse.issparse(P2):
-                        p2 = P2.toarray()
-                    if not np.all(p2 >= 0):
-                        raise ValueError(
-                            "1d array P2 must not have negative " "values."
-                        )
-                elif sparse.issparse(P2):
-                    # for sparse matrices, not all eigenvals can be computed
-                    # efficiently, use only half of n_features
-                    # k = how many eigenvals to compute
-                    k = np.min([10, n_features // 10 + 1])
-                    sigma = -1000 * epsneg  # start searching near this value
-                    which = "SA"  # find smallest algebraic eigenvalues first
-                    eigenvalues = splinalg.eigsh(
-                        P2, k=k, sigma=sigma, which=which, return_eigenvectors=False
+                    "range for family {}".format(
+                        self._family_instance.__class__.__name__
                     )
-                    if not np.all(eigenvalues >= epsneg):
-                        raise ValueError("P2 must be positive semi-definite.")
-                else:
-                    if not np.all(linalg.eigvalsh(P2) >= epsneg):
-                        raise ValueError("P2 must be positive semi-definite.")
+                )
+
+            # check if P2 is positive semidefinite
+            if not isinstance(self.P2, str):  # self.P2 != 'identity'
+
+                if not is_pos_semidef(P2):
+                    if P2.ndim == 1 or P2.shape[0] == 1:
+                        error = "1d array P2 must not have negative values."
+                    else:
+                        error = "P2 must be positive semi-definite."
+                    raise ValueError(error)
+
             # TODO: if alpha=0 check that X is not rank deficient
             # TODO: what else to check?
 
@@ -2306,12 +2469,12 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         # we rescale weights such that sum(weights) = 1 and this becomes
         # 1/2*deviance + L1 + L2 with deviance=sum(weights * unit_deviance)
         weights_sum = np.sum(weights)
-        weights = weights / weights_sum
+        weights /= weights_sum
 
         #######################################################################
         # 2b. potentially rescale predictors
         #######################################################################
-        if self.center_predictors:
+        if self.center_predictors_:
             X, col_means, col_stds = _standardize(X, weights, self.scale_predictors)
 
         #######################################################################
@@ -2326,91 +2489,29 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             intercept = self.intercept_
             if self.fit_intercept:
                 coef = np.concatenate((np.array([intercept]), coef))
-            if self.center_predictors:
+            if self.center_predictors_:
                 _standardize_warm_start(coef, col_means, col_stds)
 
         elif isinstance(start_params, str):
             if start_params == "guess":
-                # Set mu=starting_mu of the family and do one Newton step
-                # If solver=cd use cd, else irls
-                mu = family.starting_mu(y, weights=weights)
-                eta = link.link(mu)  # linear predictor
-                if solver in ["cd", "lbfgs", "newton-cg"]:
-                    # see function _cd_solver
-                    # TODO: why does this not use _eta_mu_score_fisher?
-                    sigma_inv = 1 / family.variance(mu, phi=1, weights=weights)
-                    d1 = link.inverse_derivative(eta)
-                    temp = sigma_inv * d1 * (y - mu)
-                    if self.fit_intercept:
-                        score = np.concatenate(([temp.sum()], temp @ X))
-                    else:
-                        score = temp @ X  # same as X.T @ temp
-
-                    d2_sigma_inv = d1 * d1 * sigma_inv
-                    diag_fisher = self.diag_fisher
-                    if diag_fisher:
-                        fisher = d2_sigma_inv
-                    else:
-                        fisher = _safe_sandwich_dot(
-                            X, d2_sigma_inv, intercept=self.fit_intercept
-                        )
-                    # set up space for search direction d for inner loop
-                    if self.fit_intercept:
-                        coef = np.zeros(n_features + 1)
-                    else:
-                        coef = np.zeros(n_features)
-                    d = np.zeros_like(coef)
-                    # initial stopping tolerance of inner loop
-                    # use L1-norm of minimum of norm of subgradient of F
-                    # use less restrictive tolerance for initial guess
-                    inner_tol = _min_norm_sugrad(coef=coef, grad=-score, P2=P2, P1=P1)
-                    inner_tol = 4 * linalg.norm(inner_tol, ord=1)
-                    # just one outer loop = Newton step
-                    n_cycles = 0
-                    d, coef_P2, n_cycles, inner_tol = _cd_cycle(
-                        d,
-                        X,
-                        coef,
-                        score,
-                        fisher,
-                        P1,
-                        P2,
-                        n_cycles,
-                        inner_tol,
-                        max_inner_iter=1000,
-                        selection=self.selection,
-                        random_state=random_state,
-                        diag_fisher=self.diag_fisher,
-                    )
-                    coef += d  # for simplicity no line search here
-                else:
-                    # See _irls_solver
-                    # h'(eta)
-                    hp = link.inverse_derivative(eta)
-                    # working weights W, in principle a diagonal matrix
-                    # therefore here just as 1d array
-                    W = hp ** 2 / family.variance(mu, phi=1, weights=weights)
-                    # working observations
-                    z = eta + (y - mu) / hp
-                    # solve A*coef = b
-                    # A = X' W X + l2 P2, b = X' W z
-                    coef = _irls_step(X, W, P2, z, fit_intercept=self.fit_intercept)
+                coef = self._guess_start_params(
+                    y, weights, solver, X, P1, P2, random_state
+                )
             else:  # start_params == 'zero'
                 if self.fit_intercept:
                     coef = np.zeros(n_features + 1)
-                    coef[0] = link.link(np.average(y, weights=weights))
+                    coef[0] = self._link_instance.link(np.average(y, weights=weights))
                 else:
                     coef = np.zeros(n_features)
         else:  # assign given array as start values
             coef = start_params
-            if self.center_predictors:
+            if self.center_predictors_:
                 _standardize_warm_start(coef, col_means, col_stds)
 
         #######################################################################
         # 4. fit                                                              #
         #######################################################################
         # algorithms for optimization
-        # TODO: Parallelize it?
 
         # 4.1 IRLS ############################################################
         # Note: we already set P2 = l2*P2, see above
@@ -2423,8 +2524,8 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 weights=weights,
                 P2=P2,
                 fit_intercept=self.fit_intercept,
-                family=family,
-                link=link,
+                family=self._family_instance,
+                link=self._link_instance,
                 max_iter=self.max_iter,
                 tol=self.tol,
             )
@@ -2432,9 +2533,11 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         # 4.2 L-BFGS ##########################################################
         elif solver == "lbfgs":
 
-            def func(coef, X, y, weights, P2, family, link):
-                mu, devp = family._mu_deviance_derivative(coef, X, y, weights, link)
-                dev = family.deviance(y, mu, weights)
+            def get_obj_and_derivative(coef):
+                mu, devp = self._family_instance._mu_deviance_derivative(
+                    coef, X, y, weights, self._link_instance
+                )
+                dev = self._family_instance.deviance(y, mu, weights)
                 intercept = coef.size == X.shape[1] + 1
                 idx = 1 if intercept else 0  # offset if coef[0] is intercept
                 if P2.ndim == 1:
@@ -2446,12 +2549,10 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 objp[idx:] += L2
                 return obj, objp
 
-            args = (X, y, weights, P2, family, link)
             coef, loss, info = fmin_l_bfgs_b(
-                func,
+                get_obj_and_derivative,
                 coef,
                 fprime=None,
-                args=args,
                 iprint=(self.verbose > 0) - 1,
                 pgtol=self.tol,
                 maxiter=self.max_iter,
@@ -2466,83 +2567,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 warnings.warn("lbfgs failed for the reason: {}".format(info["task"]))
             self.n_iter_ = info["nit"]
 
-        # 4.3 Newton-CG #######################################################
-        # We use again the fisher matrix instead of the hessian. More
-        # precisely, expected hessian of deviance.
-        elif solver == "newton-cg":
-
-            def func(coef, X, y, weights, P2, family, link):
-                intercept = coef.size == X.shape[1] + 1
-                idx = 1 if intercept else 0  # offset if coef[0] is intercept
-                if P2.ndim == 1:
-                    L2 = coef[idx:] @ (P2 * coef[idx:])
-                else:
-                    L2 = coef[idx:] @ (P2 @ coef[idx:])
-                mu = link.inverse(_safe_lin_pred(X, coef))
-                return 0.5 * family.deviance(y, mu, weights) + 0.5 * L2
-
-            def grad(coef, X, y, weights, P2, family, link):
-                mu, devp = family._mu_deviance_derivative(coef, X, y, weights, link)
-                intercept = coef.size == X.shape[1] + 1
-                idx = 1 if intercept else 0  # offset if coef[0] is intercept
-                if P2.ndim == 1:
-                    L2 = P2 * coef[idx:]
-                else:
-                    L2 = P2 @ coef[idx:]
-                objp = 0.5 * devp
-                objp[idx:] += L2
-                return objp
-
-            def grad_hess(coef, X, y, weights, P2, family, link):
-                intercept = coef.size == X.shape[1] + 1
-                idx = 1 if intercept else 0  # offset if coef[0] is intercept
-                if P2.ndim == 1:
-                    L2 = P2 * coef[idx:]
-                else:
-                    L2 = P2 @ coef[idx:]
-                eta = _safe_lin_pred(X, coef)
-                mu = link.inverse(eta)
-                d1 = link.inverse_derivative(eta)
-                temp = d1 * family.deviance_derivative(y, mu, weights)
-                if intercept:
-                    grad = np.concatenate(([0.5 * temp.sum()], 0.5 * temp @ X + L2))
-                else:
-                    grad = 0.5 * temp @ X + L2  # same as 0.5* X.T @ temp + L2
-
-                # expected hessian = fisher = X.T @ diag_matrix @ X
-                # calculate only diag_matrix
-                diag = d1 ** 2 / family.variance(mu, phi=1, weights=weights)
-                if intercept:
-                    h0i = np.concatenate(([diag.sum()], diag @ X))
-
-                def Hs(coef):
-                    # return (0.5 * fisher + P2) @ coef
-                    # ret = 0.5 * (X.T @ (diag * (X @ coef)))
-                    ret = 0.5 * ((diag * (X @ coef[idx:])) @ X)
-                    if P2.ndim == 1:
-                        ret += P2 * coef[idx:]
-                    else:
-                        ret += P2 @ coef[idx:]
-                    if intercept:
-                        ret = np.concatenate(
-                            ([0.5 * (h0i @ coef)], ret + 0.5 * coef[0] * h0i[1:])
-                        )
-                    return ret
-
-                return grad, Hs
-
-            args = (X, y, weights, P2, family, link)
-            coef, self.n_iter_ = newton_cg(
-                grad_hess,
-                func,
-                grad,
-                coef,
-                args=args,
-                maxiter=self.max_iter,
-                tol=self.tol,
-            )
-
-        # 4.4 coordinate descent ##############################################
+        # 4.3 coordinate descent ##############################################
         # Note: we already set P1 = l1*P1, see above
         # Note: we already set P2 = l2*P2, see above
         # Note: we already symmetrized P2 = 1/2 (P2 + P2')
@@ -2554,10 +2579,9 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 weights=weights,
                 P1=P1,
                 P2=P2,
-                # fit_intercept=self.fit_intercept and not self.center_predictors,
                 fit_intercept=self.fit_intercept,
-                family=family,
-                link=link,
+                family=self._family_instance,
+                link=self._link_instance,
                 max_iter=self.max_iter,
                 tol=self.tol,
                 selection=self.selection,
@@ -2579,7 +2603,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         #######################################################################
         # 5a. undo standardization
         #######################################################################
-        if self.center_predictors:
+        if self.center_predictors_:
             X, self.intercept_, self.coef_ = _unstandardize(
                 X, col_means, col_stds, self.intercept_, self.coef_
             )
@@ -2597,7 +2621,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
 
             print(
                 pd.DataFrame(
-                    columns=["inner_tol", "n_iter", "n_cycles", "runtime", "coef"],
+                    columns=["inner_tol", "n_iter", "n_cycles", "runtime", "intercept"],
                     data=self.diagnostics,
                 ).set_index("n_iter", drop=True)
             )
@@ -2796,7 +2820,7 @@ class PoissonRegressor(GeneralizedLinearRegressor):
         the chi squared statistic or the deviance statistic. If None, the
         dispersion is not estimated.
 
-    solver : {'irls', 'lbfgs', 'newton-cg'}, optional (default='irls')
+    solver : {'irls', 'lbfgs'}, optional (default='irls')
         Algorithm to use in the optimization problem:
 
         'irls'
@@ -2806,9 +2830,6 @@ class PoissonRegressor(GeneralizedLinearRegressor):
         'lbfgs'
             Calls scipy's L-BFGS-B optimizer.
 
-        'newton-cg'
-            Newton conjugate gradient algorithm.
-
         Note that all solvers except lbfgs use the fisher matrix, i.e. the
         expected Hessian instead of the Hessian matrix.
 
@@ -2816,7 +2837,7 @@ class PoissonRegressor(GeneralizedLinearRegressor):
         The maximal number of iterations for solver algorithms.
 
     tol : float, optional (default=1e-4)
-        Stopping criterion. For the irls, newton-cg and lbfgs solvers,
+        Stopping criterion. For the irls and lbfgs solvers,
         the iteration will stop when ``max{|g_i|, i = 1, ..., n} <= tol``
         where ``g_i`` is the i-th component of the gradient (derivative) of
         the objective function.

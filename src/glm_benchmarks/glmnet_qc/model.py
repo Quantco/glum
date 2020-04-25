@@ -35,10 +35,8 @@ class GlmnetModel:
         self.alpha = alpha
         self.l1_ratio = l1_ratio
         if weights is None:
-            self.weights = np.ones_like(y) / len(y)
-        else:
-            self.weights = weights
-        self.weight_sum = self.weights.sum()
+            weights = np.ones_like(y)
+        self.weights = weights / weights.sum()
         if params is None:
             params = np.zeros(x.shape[1])
         else:
@@ -63,6 +61,17 @@ class GlmnetModel:
     def get_r2(self, y: np.ndarray) -> float:
         return 1 - np.var(y - self.predict()) / np.var(y)
 
+    def set_optimal_intercept(self):
+        if self.distribution == "gaussian":
+            resid = self.y - self.predict()
+            self.params[0] += self.weights.dot(resid)
+        elif self.distribution == "poisson":
+            self.params[0] += np.log(
+                self.weights.dot(self.y) / self.weights.dot(self.predict())
+            )
+        else:
+            raise NotImplementedError
+
 
 class GaussianCanonicalModel(GlmnetModel):
     def __init__(
@@ -81,7 +90,7 @@ class GaussianCanonicalModel(GlmnetModel):
 
     def set_optimal_intercept(self):
         resid = self.y - self.predict()
-        self.params[0] += self.weights.dot(resid) / self.weight_sum
+        self.params[0] += self.weights.dot(resid)
 
 
 def update_params(model: GlmnetModel, params: np.ndarray = None) -> GlmnetModel:

@@ -1,3 +1,4 @@
+import os
 from typing import Dict, Union
 
 import h2o
@@ -27,7 +28,8 @@ def h2o_bench(
     alpha: float,
     l1_ratio: float,
 ):
-    h2o.init()
+
+    h2o.init(nthreads=int(os.environ.get("OMP_NUM_THREADS", os.cpu_count())))  # type: ignore
 
     train_mat = hstack_sparse_or_dense((dat["X"], dat["y"][:, np.newaxis]))
 
@@ -44,7 +46,7 @@ def h2o_bench(
         family="tweedie" if tweedie else distribution,
         alpha=l1_ratio,
         lambda_=alpha,
-        standardize=True,
+        standardize=False,
         # solver='COORDINATE_DESCENT',
         solver="IRLSM",
         objective_epsilon=1e-12,
