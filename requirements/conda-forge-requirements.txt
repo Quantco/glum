@@ -1,7 +1,0 @@
-git_root
-line_profiler
-memory_profiler
-ipdb
-pre-commit
-compilers 
-mako
