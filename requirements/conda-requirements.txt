@@ -20,4 +20,4 @@ scikit-learn
 setuptools_scm
 statsmodels
 mako
-sparse_dot>=0.4.0
+sparse_dot_mkl>=0.4.0
