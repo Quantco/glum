@@ -61,17 +61,17 @@ from glm_benchmarks.scaled_spmat.standardize import (
 from glm_benchmarks.spblas.mkl_spblas import fast_sandwich
 
 
-def _check_weights(sample_weight, n_samples):
+def _check_weights(sample_weight: Union[np.ndarray, None], n_samples: int, dtype):
     """Check that sample weights are non-negative and have the right shape."""
     if sample_weight is None:
-        weights = np.ones(n_samples)
+        weights = np.ones(n_samples, dtype=dtype)
     elif np.isscalar(sample_weight):
         if sample_weight <= 0:
             raise ValueError("Sample weights must be non-negative.")
-        weights = sample_weight * np.ones(n_samples)
+        weights = sample_weight * np.ones(n_samples, dtype=dtype)
     else:
         _dtype = [np.float64, np.float32]
-        weights: np.ndarray = check_array(
+        weights = check_array(
             sample_weight,
             accept_sparse=False,
             force_all_finite=True,
@@ -252,7 +252,6 @@ def _standardize_dense(X, weights, scale_predictors):
 def _unstandardize(
     X, col_means: np.ndarray, col_stds: np.ndarray, intercept: float, coef
 ) -> Tuple[Any, float, np.ndarray]:
-    assert isinstance(intercept, float)
     if type(X) is ColScaledSpMat:
         if sparse.isspmatrix_csc(X.mat):
             _scale_csc_columns_inplace(X.mat, col_stds)
@@ -413,7 +412,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
     unit variance :math:`v(\mu)` and
     unit deviance :math:`d(y,\mu)`.
 
-    Attributes
+    Properties
     ----------
     lower_bound
     upper_bound
@@ -2285,9 +2284,9 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 fisher = _safe_sandwich_dot(X, d2_sigma_inv, self.fit_intercept)
             # set up space for search direction d for inner loop
             if self.fit_intercept:
-                coef = np.zeros(n_features + 1)
+                coef = np.zeros(n_features + 1, dtype=X.dtype)
             else:
-                coef = np.zeros(n_features)
+                coef = np.zeros(n_features, dtype=X.dtype)
             d = np.zeros_like(coef)
             # initial stopping tolerance of inner loop
             # use L1-norm of minimum of norm of subgradient of F
@@ -2406,8 +2405,9 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         # Without converting y to float, deviance might raise
         # ValueError: Integers to negative integer powers are not allowed.
         # Also, y must not be sparse.
-        y = np.asarray(y, dtype=np.float64)
-        weights = _check_weights(sample_weight, y.shape[0])
+
+        y = np.asarray(y)
+        weights = _check_weights(sample_weight, y.shape[0], X.dtype)
         n_samples, n_features = X.shape
 
         # 1.3 arguments to take special care ##################################
@@ -2461,7 +2461,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         # we rescale weights such that sum(weights) = 1 and this becomes
         # 1/2*deviance + L1 + L2 with deviance=sum(weights * unit_deviance)
         weights_sum = np.sum(weights)
-        weights /= weights_sum
+        weights = weights / weights_sum
 
         #######################################################################
         # 2b. potentially rescale predictors
@@ -2673,7 +2673,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         )
         eta = self.linear_predictor(X)
         mu = self._link_instance.inverse(eta)
-        weights = _check_weights(sample_weight, X.shape[0])
+        weights = _check_weights(sample_weight, X.shape[0], X.dtype)
 
         return mu * weights
 
@@ -2708,7 +2708,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             multi_output=False,
         )
         n_samples, n_features = X.shape
-        weights = _check_weights(sample_weight, n_samples)
+        weights = _check_weights(sample_weight, n_samples, X.dtype)
         eta = X @ self.coef_
         if self.fit_intercept is True:
             eta += self.intercept_
@@ -2768,7 +2768,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         # Note, default score defined in RegressorMixin is R^2 score.
         # TODO: make D^2 a score function in module metrics (and thereby get
         #       input validation and so on)
-        weights = _check_weights(sample_weight, y.shape[0])
+        weights = _check_weights(sample_weight, y.shape[0], X.dtype)
         mu = self.predict(X)
         dev = self._family_instance.deviance(y, mu, weights=weights)
         y_mean = np.average(y, weights=weights)

@@ -42,11 +42,10 @@ def sklearn_fork_bench(
         random_state=random_seed,
         copy_X=False,
         selection="random",
-        tol=1e-7,
+        tol=1e-4,
     )
 
     result["runtime"], m = runtime(build_and_fit, model_args, fit_args)
-    result["model_obj"] = m
     result["intercept"] = m.intercept_
     result["coef"] = m.coef_
     result["n_iter"] = m.n_iter_
