@@ -71,7 +71,6 @@ def h2o_bench(
 
     result = dict()
     result["runtime"], m = runtime(build_and_fit, model_args, train_args)
-    result["model_obj"] = "h2o objects fail to pickle"
 
     # un-standardize
     standardized_intercept = m.coef()["Intercept"]

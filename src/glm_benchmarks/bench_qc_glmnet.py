@@ -33,7 +33,6 @@ def glmnet_qc_bench(
         weights=dat["weights"] if "weights" in dat.keys() else None,
     )
     # TODO: don't make a function an attribute of the model since it can't be pickled
-    result["model_obj"] = None
     result["intercept"] = model.params[0]
     assert np.isfinite(model.params).all()
     result["coef"] = model.params[1:]
