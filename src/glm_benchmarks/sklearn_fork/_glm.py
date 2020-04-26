@@ -54,12 +54,8 @@ from sklearn.exceptions import ConvergenceWarning
 from sklearn.utils import check_array, check_X_y
 from sklearn.utils.validation import check_is_fitted, check_random_state
 
-from glm_benchmarks.scaled_spmat import ColScaledSpMat, standardize, zero_center
 from glm_benchmarks.scaled_spmat.mkl_sparse_matrix import MKLSparseMatrix
-from glm_benchmarks.scaled_spmat.standardize import (
-    _scale_csc_columns_inplace,
-    one_over_var_inf_to_zero,
-)
+from glm_benchmarks.scaled_spmat.standardize import one_over_var_inf_to_zero
 
 
 class DenseGLMDataMatrix(np.ndarray):
@@ -82,7 +78,6 @@ class DenseGLMDataMatrix(np.ndarray):
         return obj
 
     def __array_finalize__(self, obj):
-        # see InfoArray.__array_finalize__ for comments
         if obj is None:
             return
 
@@ -96,6 +91,22 @@ class DenseGLMDataMatrix(np.ndarray):
         sqrtD = np.sqrt(d)[:, np.newaxis]
         xd = self * sqrtD
         return xd.T @ xd
+
+    def standardize(self, weights, scale_predictors):
+        col_means = self.T.dot(weights)[None, :]
+        self -= col_means
+        if scale_predictors:
+            # TODO: avoid copying X -- the X ** 2 makes a copy
+            col_stds = np.sqrt((self ** 2).T.dot(weights))
+            self *= one_over_var_inf_to_zero(col_stds)
+        else:
+            col_stds = np.ones(self.shape[1])
+        return self, col_means, col_stds
+
+    def unstandardize(self, col_means, col_stds):
+        self *= col_stds
+        self += col_means
+        return self
 
 
 def _check_weights(sample_weight, n_samples):
@@ -213,51 +224,11 @@ def _min_norm_sugrad(
         return res
 
 
-def _standardize(X, weights, scale_predictors):
-    # NOTE: Expects that sum(weights) == 1
-    if sparse.issparse(X):
-        return _standardize_sparse(X, weights, scale_predictors)
-    else:
-        return _standardize_dense(X, weights, scale_predictors)
-
-
-def _standardize_sparse(X, weights, scale_predictors):
-    if scale_predictors:
-        return standardize(X, weights=weights)
-    else:
-        X, col_means = zero_center(X, weights=weights)
-        col_stds = np.ones(X.shape[1])
-        return X, col_means, col_stds
-
-
-def _standardize_dense(X, weights, scale_predictors):
-    col_means = X.T.dot(weights)[None, :]
-    X -= col_means
-    if scale_predictors:
-        # TODO: avoid copying X -- the X ** 2 makes a copy
-        col_stds = np.sqrt((X ** 2).T.dot(weights))
-        X *= one_over_var_inf_to_zero(col_stds)
-    else:
-        col_stds = np.ones(X.shape[1])
-    return X, col_means, col_stds
-
-
 def _unstandardize(
     X, col_means: np.ndarray, col_stds: np.ndarray, intercept: float, coef
 ) -> Tuple[Any, float, np.ndarray]:
-    assert isinstance(intercept, float)
-    if type(X) is ColScaledSpMat:
-        if sparse.isspmatrix_csc(X.mat):
-            _scale_csc_columns_inplace(X.mat, col_stds)
-            X = X.mat
-        else:
-            X = X.mat @ sparse.diags(col_stds)
-    else:
-        X *= col_stds
-        X += col_means
-
+    X = X.unstandardize(col_means, col_stds)
     intercept -= float(np.squeeze(col_means / col_stds).dot(coef))
-    assert isinstance(intercept, float)
     coef /= col_stds
     return X, intercept, coef
 
@@ -2475,18 +2446,18 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         weights /= weights_sum
 
         #######################################################################
-        # 2b. potentially rescale predictors
-        #######################################################################
-        if self.center_predictors_:
-            X, col_means, col_stds = _standardize(X, weights, self.scale_predictors)
-
-        #######################################################################
-        # 2c. potentially add sandwich to numpy arrays
+        # 2b. convert to wrapper matrix types
         #######################################################################
         if isinstance(X, np.ndarray):
             X = DenseGLMDataMatrix(X)
         elif sparse.issparse(X):
             X = MKLSparseMatrix(X)
+
+        #######################################################################
+        # 2c. potentially rescale predictors
+        #######################################################################
+        if self.center_predictors_:
+            X, col_means, col_stds = X.standardize(weights, self.scale_predictors)
 
         #######################################################################
         # 3. initialization of coef = (intercept_, coef_)                     #

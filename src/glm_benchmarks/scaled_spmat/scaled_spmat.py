@@ -32,7 +32,7 @@ class ScaledMat(ABC):
                 )
 
         self.shift = shift
-        self.mat = MKLSparseMatrix(mat)
+        self.mat = mat
         self.shape = mat.shape
         self.ndim = mat.ndim
         self.dtype = mat.dtype
@@ -242,6 +242,15 @@ class ColScaledSpMat(ScaledMat):
         term3 = term2.T
         term4 = (self.shift.T * self.shift) * d.sum()
         return term1 + term2 + term3 + term4
+
+    def unstandardize(self, col_means, col_stds):
+        if sps.isspmatrix_csc(self.mat.X):
+            from .standardize import _scale_csc_columns_inplace
+
+            _scale_csc_columns_inplace(self.mat.X, col_stds)
+            return self.mat
+        else:
+            return self.mat @ sps.diags(col_stds)
 
 
 class RowScaledSpMat(ScaledMat):
