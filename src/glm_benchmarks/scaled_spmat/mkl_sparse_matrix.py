@@ -1,8 +1,9 @@
 from typing import Union
 
 import numpy as np
+from sparse_dot_mkl import dot_product_mkl
 
-from glm_benchmarks.sandwich.sandwich import _MKLSparseMatrix, sparse_sandwich
+from glm_benchmarks.sandwich.sandwich import sparse_sandwich
 
 
 class MKLSparseMatrix:
@@ -16,7 +17,6 @@ class MKLSparseMatrix:
         while isinstance(X, MKLSparseMatrix):
             X = X.X
         self.X = X
-        self.MKL_wrapper = _MKLSparseMatrix(self.X)
         self.shape = X.shape
         self.ndim = X.ndim
         self.dtype = X.dtype
@@ -42,6 +42,9 @@ class MKLSparseMatrix:
 
     def tocsr(self, *args, **kwargs):
         return MKLSparseMatrix(self.X.tocsr(*args, **kwargs))
+
+    def toarray(self):
+        return self.X.toarray()
 
     @property
     def T(self):
@@ -69,17 +72,27 @@ class MKLSparseMatrix:
 
     def dot(self, v):
         if len(v.shape) == 1:
-            return self.MKL_wrapper.dot(v)
+            return dot_product_mkl(self.X, v)
         else:
             return self.X.dot(v)
 
     def __matmul__(self, other):
         return self.dot(other)
 
-    def __rmatmul__(self, other):
-        if len(other.shape) == 1:
-            return self.MKL_wrapper.dot(other, transpose=True)
+    def __rmatmul__(self, v):
+        if len(v.shape) == 1:
+            return dot_product_mkl(self.X.T, v)
         else:
-            return other @ self.X
+            return v @ self.X
 
     __array_priority__ = 12
+
+    def standardize(self, weights, scale_predictors):
+        from glm_benchmarks.scaled_spmat.standardize import standardize, zero_center
+
+        if scale_predictors:
+            return standardize(self, weights=weights)
+        else:
+            X, col_means = zero_center(self, weights=weights)
+            col_stds = np.ones(self.shape[1])
+            return X, col_means, col_stds

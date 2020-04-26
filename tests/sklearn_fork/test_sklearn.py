@@ -26,12 +26,12 @@ from glm_benchmarks.sklearn_fork._glm import (
     Link,
     LogitLink,
     LogLink,
+    MKLSparseMatrix,
     NormalDistribution,
     NumExprLogLink,
     PoissonDistribution,
     PoissonRegressor,
     TweedieDistribution,
-    _standardize,
     _unstandardize,
     is_pos_semidef,
 )
@@ -900,12 +900,14 @@ def test_standardize(use_sparse, scale_predictors):
     row_mults = np.linspace(0, 2, NR)
     M = row_mults[:, None] * col_mults[None, :]
     if use_sparse:
-        M = sparse.csc_matrix(M)
+        M = MKLSparseMatrix(sparse.csc_matrix(M))
+    else:
+        M = DenseGLMDataMatrix(M)
     MC = copy.deepcopy(M)
 
-    X, col_means, col_stds = _standardize(M, np.ones(NR) / NR, scale_predictors)
+    X, col_means, col_stds = M.standardize(np.ones(NR) / NR, scale_predictors)
     if use_sparse:
-        assert id(X.mat.X) == id(M)
+        assert id(X.mat.X) == id(M.X)
     else:
         # Check that the underlying data pointer is the same
         assert X.__array_interface__["data"] == M.__array_interface__["data"]
@@ -934,7 +936,7 @@ def test_standardize(use_sparse, scale_predictors):
         X, col_means, col_stds, intercept_standardized, coef_standardized
     )
     if use_sparse:
-        assert id(X2) == id(X.mat.X)
+        assert id(X2.X) == id(X.mat.X)
     else:
         assert id(X2) == id(X)
     np.testing.assert_almost_equal(intercept, -(NC + 1) * NC / 2)
@@ -942,8 +944,8 @@ def test_standardize(use_sparse, scale_predictors):
         np.testing.assert_almost_equal(coef, 1.0)
 
     if use_sparse:
-        assert type(X.mat) is sparse.csc_matrix
-        assert type(X2) is sparse.csc_matrix
+        assert type(X.mat.X) is sparse.csc_matrix
+        assert type(X2.X) is sparse.csc_matrix
         np.testing.assert_almost_equal(MC.toarray(), X2.toarray())
     else:
         np.testing.assert_almost_equal(MC, X2)

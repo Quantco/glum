@@ -65,8 +65,8 @@ def standardize(
     # leave them as zeros
     scaling_factor = one_over_var_inf_to_zero(st_devs)
 
-    if sps.isspmatrix_csc(centered_mat.mat):
-        _scale_csc_columns_inplace(centered_mat.mat, scaling_factor)
+    if sps.isspmatrix_csc(centered_mat.mat.X):
+        _scale_csc_columns_inplace(centered_mat.mat.X, scaling_factor)
         centered_mat.shift *= scaling_factor
     else:
         centered_mat = centered_mat @ sps.diags(scaling_factor)
