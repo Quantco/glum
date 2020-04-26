@@ -43,7 +43,6 @@ def glmnet_python_bench(
 
     result["runtime"], m = runtime(glmnet, **glmnet_kws)
 
-    result["model_obj"] = m
     result["intercept"] = m["a0"][0]
     result["coef"] = m["beta"][:, 0]
     result["n_iter"] = m["npasses"]

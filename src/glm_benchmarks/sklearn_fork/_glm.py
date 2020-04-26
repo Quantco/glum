@@ -61,17 +61,18 @@ from glm_benchmarks.scaled_spmat.standardize import (
 from glm_benchmarks.spblas.mkl_spblas import fast_sandwich
 
 
-def _check_weights(sample_weight, n_samples):
+def _check_weights(
+    sample_weight: Union[np.ndarray, None], n_samples: int, _dtype
+) -> np.ndarray:
     """Check that sample weights are non-negative and have the right shape."""
     if sample_weight is None:
-        weights = np.ones(n_samples)
+        weights = np.ones(n_samples, dtype=_dtype)
     elif np.isscalar(sample_weight):
         if sample_weight <= 0:
             raise ValueError("Sample weights must be non-negative.")
-        weights = sample_weight * np.ones(n_samples)
+        weights = (sample_weight * np.ones(n_samples)).astype(_dtype)
     else:
-        _dtype = [np.float64, np.float32]
-        weights: np.ndarray = check_array(
+        weights = check_array(
             sample_weight,
             accept_sparse=False,
             force_all_finite=True,
@@ -92,7 +93,7 @@ def _check_weights(sample_weight, n_samples):
     return weights
 
 
-def _safe_lin_pred(X, coef):
+def _safe_lin_pred(X, coef: np.ndarray) -> np.ndarray:
     """Compute the linear predictor taking care if intercept is present."""
     if coef.size == X.shape[1] + 1:
         return X @ coef[1:] + coef[0]
@@ -100,7 +101,7 @@ def _safe_lin_pred(X, coef):
         return X @ coef
 
 
-def _safe_toarray(X):
+def _safe_toarray(X) -> np.ndarray:
     """Returns a numpy array."""
     if sparse.issparse(X):
         return X.toarray()
@@ -252,7 +253,6 @@ def _standardize_dense(X, weights, scale_predictors):
 def _unstandardize(
     X, col_means: np.ndarray, col_stds: np.ndarray, intercept: float, coef
 ) -> Tuple[Any, float, np.ndarray]:
-    assert isinstance(intercept, float)
     if type(X) is ColScaledSpMat:
         if sparse.isspmatrix_csc(X.mat):
             _scale_csc_columns_inplace(X.mat, col_stds)
@@ -768,7 +768,16 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         observed_information = _safe_sandwich_dot(X, temp, intercept=intercept)
         return observed_information
 
-    def _eta_mu_score_fisher(self, coef, phi, X, y, weights, link, diag_fisher=False):
+    def _eta_mu_score_fisher(
+        self,
+        coef: np.ndarray,
+        phi,
+        X,
+        y: np.ndarray,
+        weights,
+        link: Link,
+        diag_fisher: bool = False,
+    ):
         """Compute linear predictor, mean, score function and fisher matrix.
 
         It calculates the linear predictor, the mean, score function
@@ -2261,6 +2270,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         Set mu=starting_mu of the family and do one Newton step
         If solver=cd use cd, else irls
         """
+        preferred_dtype = X.dtype
         n_features = X.shape[1]
         family = get_family(self.family)
         link = get_link(self.link, family)
@@ -2285,9 +2295,9 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 fisher = _safe_sandwich_dot(X, d2_sigma_inv, self.fit_intercept)
             # set up space for search direction d for inner loop
             if self.fit_intercept:
-                coef = np.zeros(n_features + 1)
+                coef = np.zeros(n_features + 1, dtype=preferred_dtype)
             else:
-                coef = np.zeros(n_features)
+                coef = np.zeros(n_features, dtype=preferred_dtype)
             d = np.zeros_like(coef)
             # initial stopping tolerance of inner loop
             # use L1-norm of minimum of norm of subgradient of F
@@ -2356,7 +2366,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         # 1.1
         self._validate_inputs()
         # self.family and self.link are user-provided inputs and may be strings or
-        #  ExponentialDispersonModel/Link objects
+        #  ExponentialDispersionModel/Link objects
         # self.family_instance_ and self.link_instance_ are cleaned by 'fit' to be
         # ExponentialDispersionModel and Link arguments
         self._family_instance: ExponentialDispersionModel = get_family(self.family)
@@ -2390,6 +2400,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
 
         # 1.2 validate arguments of fit #######################################
         _dtype = [np.float64, np.float32]
+        preferred_dtype = X.dtype
         if solver == "cd":
             _stype = ["csc"]
         else:
@@ -2406,14 +2417,14 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         # Without converting y to float, deviance might raise
         # ValueError: Integers to negative integer powers are not allowed.
         # Also, y must not be sparse.
-        y = np.asarray(y, dtype=np.float64)
-        weights = _check_weights(sample_weight, y.shape[0])
+        y = np.asarray(y, dtype=preferred_dtype)
+        weights = _check_weights(sample_weight, y.shape[0], preferred_dtype)
         n_samples, n_features = X.shape
 
         # 1.3 arguments to take special care ##################################
         # P1, P2, start_params
         P1, P2 = setup_penalties(
-            self.P1, self.P2, X, _stype, _dtype, self.alpha, self.l1_ratio
+            self.P1, self.P2, X, _stype, preferred_dtype, self.alpha, self.l1_ratio
         )
 
         # For coordinate descent, if X is sparse, P2 must also be csc
@@ -2425,7 +2436,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             self.start_params,
             n_cols=n_features,
             fit_intercept=self.fit_intercept,
-            _dtype=_dtype,
+            _dtype=preferred_dtype,
         )
 
         # 1.4 additional validations ##########################################
@@ -2491,10 +2502,10 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 )
             else:  # start_params == 'zero'
                 if self.fit_intercept:
-                    coef = np.zeros(n_features + 1)
+                    coef = np.zeros(n_features + 1, dtype=preferred_dtype)
                     coef[0] = self._link_instance.link(np.average(y, weights=weights))
                 else:
-                    coef = np.zeros(n_features)
+                    coef = np.zeros(n_features, dtype=preferred_dtype)
         else:  # assign given array as start values
             coef = start_params
             if self.center_predictors_:
