@@ -17,6 +17,7 @@ from sklearn.utils.estimator_checks import check_estimator
 
 from glm_benchmarks.sklearn_fork._glm import (
     BinomialDistribution,
+    DenseGLMDataMatrix,
     GammaDistribution,
     GeneralizedHyperbolicSecant,
     GeneralizedLinearRegressor,
@@ -26,6 +27,7 @@ from glm_benchmarks.sklearn_fork._glm import (
     LogitLink,
     LogLink,
     NormalDistribution,
+    NumExprLogLink,
     PoissonDistribution,
     PoissonRegressor,
     TweedieDistribution,
@@ -150,7 +152,7 @@ def test_fisher_matrix(family, link):
     coef = np.array([-2, 1, 0, 1, 2.5])
     phi = 0.5
     rng = np.random.RandomState(42)
-    X = rng.randn(10, 5)
+    X = DenseGLMDataMatrix(rng.randn(10, 5))
     lin_pred = np.dot(X, coef)
     mu = link.inverse(lin_pred)
     weights = rng.randn(10) ** 2 + 1
@@ -242,7 +244,7 @@ def test_glm_family_argument_invalid_input(y, X):
 
 @pytest.mark.parametrize(
     "l, link",
-    [("identity", IdentityLink()), ("log", LogLink()), ("logit", LogitLink())],
+    [("identity", IdentityLink()), ("log", NumExprLogLink()), ("logit", LogitLink())],
 )
 def test_glm_link_argument(l, link, y, X):
     """Test GLM link argument set as string."""
@@ -903,9 +905,10 @@ def test_standardize(use_sparse, scale_predictors):
 
     X, col_means, col_stds = _standardize(M, np.ones(NR) / NR, scale_predictors)
     if use_sparse:
-        assert id(X.mat) == id(M)
+        assert id(X.mat.X) == id(M)
     else:
-        assert id(X) == id(M)
+        # Check that the underlying data pointer is the same
+        assert X.__array_interface__["data"] == M.__array_interface__["data"]
     np.testing.assert_almost_equal(col_means[0, :], col_mults)
 
     # After standardization, all the columns will have the same values.
@@ -931,7 +934,7 @@ def test_standardize(use_sparse, scale_predictors):
         X, col_means, col_stds, intercept_standardized, coef_standardized
     )
     if use_sparse:
-        assert id(X2) == id(X.mat)
+        assert id(X2) == id(X.mat.X)
     else:
         assert id(X2) == id(X)
     np.testing.assert_almost_equal(intercept, -(NC + 1) * NC / 2)
