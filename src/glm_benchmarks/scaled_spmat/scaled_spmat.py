@@ -4,6 +4,8 @@ from typing import Union
 import numpy as np
 from scipy import sparse as sps
 
+from .mkl_sparse_matrix import MKLSparseMatrix
+
 
 class ScaledMat(ABC):
     """
@@ -12,7 +14,7 @@ class ScaledMat(ABC):
 
     def __init__(self, mat: sps.spmatrix, shift: np.ndarray):
 
-        if not sps.issparse(mat):
+        if not (sps.issparse(mat) or isinstance(mat, MKLSparseMatrix)):
             raise ValueError("mat should be a sparse matrix.")
 
         shift = np.asarray(shift)
@@ -30,7 +32,7 @@ class ScaledMat(ABC):
                 )
 
         self.shift = shift
-        self.mat = mat
+        self.mat = MKLSparseMatrix(mat)
         self.shape = mat.shape
         self.ndim = mat.ndim
         self.dtype = mat.dtype
@@ -44,7 +46,7 @@ class ScaledMat(ABC):
         return self.mat.A + self.shift
 
     def toarray(self) -> np.ndarray:
-        return self.todense()
+        return np.array(self.todense())
 
     @property
     def A(self):
@@ -230,6 +232,16 @@ class ColScaledSpMat(ScaledMat):
         array([ 0.,  2., -2.])
         """
         return np.squeeze(self.mat.getrow(i).toarray()) + np.squeeze(self.shift)
+
+    def sandwich(self, d):
+        """
+        Performs a sandwich product: X.T @ diag(d) @ X
+        """
+        term1 = self.mat.sandwich(d)
+        term2 = (d @ self.mat)[:, np.newaxis] * self.shift
+        term3 = term2.T
+        term4 = (self.shift.T * self.shift) * d.sum()
+        return term1 + term2 + term3 + term4
 
 
 class RowScaledSpMat(ScaledMat):

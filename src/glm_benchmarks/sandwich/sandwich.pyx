@@ -107,7 +107,7 @@ cdef extern from "mkl.h":
         double *values
     )
 
-cdef class MklSparseMatrix:
+cdef class _MKLSparseMatrix:
     cdef sparse_matrix_t A
     cdef nrow, ncol
 

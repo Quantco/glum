@@ -44,6 +44,7 @@ import warnings
 from abc import ABCMeta, abstractmethod
 from typing import Any, List, Tuple, Union
 
+import numexpr
 import numpy as np
 import scipy.sparse.linalg as splinalg
 from scipy import linalg, sparse, special
@@ -53,83 +54,48 @@ from sklearn.exceptions import ConvergenceWarning
 from sklearn.utils import check_array, check_X_y
 from sklearn.utils.validation import check_is_fitted, check_random_state
 
-from glm_benchmarks.sandwich.sandwich import sparse_sandwich, MklSparseMatrix
 from glm_benchmarks.scaled_spmat import ColScaledSpMat, standardize, zero_center
+from glm_benchmarks.scaled_spmat.mkl_sparse_matrix import MKLSparseMatrix
 from glm_benchmarks.scaled_spmat.standardize import (
     _scale_csc_columns_inplace,
     one_over_var_inf_to_zero,
 )
 
-# from glm_benchmarks.sandwich.sandwich import dense_sandwich
 
+class DenseGLMDataMatrix(np.ndarray):
+    """
+    We want to add several function to a numpy ndarray so that it conforms to
+    the sparse matrix interface we expect for the GLM algorithms below:
 
-class GLMDataMatrix(metaclass=ABCMeta):
-    @abstractmethod
-    def sandwich(self, d):
-        pass
+    * sandwich product
+    * getcol
+    * toarray
 
-    @abstractmethod
-    def dot(self, v):
-        pass
+    np.ndarray subclassing is explained here: https://docs.scipy.org/doc/numpy/user/basics.subclassing.html#slightly-more-realistic-example-attribute-added-to-existing-array
+    """
 
-    @abstractmethod
-    def ldot(self, v):
-        pass
+    def __new__(cls, input_array):
+        # Input array is an already formed ndarray instance
+        # We first cast to be our class type
+        obj = np.asarray(input_array).view(cls)
+        # Finally, we must return the newly created object:
+        return obj
 
-    @abstractmethod
-    def get_column(self, j):
-        pass
+    def __array_finalize__(self, obj):
+        # see InfoArray.__array_finalize__ for comments
+        if obj is None:
+            return
 
-class DenseGLMDataMatrix(GLMDataMatrix):
-    def __init__(self, X):
-        self.X = X
-        # TODO: add as abstract base class attributes
-        self.shape = self.X.shape
-        self.dtype = self.X.dtype
-        self.sandwich_order = 'C'
+    def getcol(self, j):
+        return self[:, j]
 
-    @profile
+    def toarray(self):
+        return self
+
     def sandwich(self, d):
         sqrtD = np.sqrt(d)[:, np.newaxis]
-        xd = self.X * sqrtD
+        xd = self * sqrtD
         return xd.T @ xd
-
-    def dot(self, v):
-        return self.X.dot(v)
-
-    def ldot(self, v):
-        return v.dot(self.X)
-
-    def get_column(self, j):
-        return self.X[:, j]
-
-class ColScaledGLMDataMatrix(GLMDataMatrix):
-    def __init__(self, X):
-        self.X = X
-        self.XmatMKL = MklSparseMatrix(self.X.mat)
-        self.X_mat_csr = X.mat.tocsr()
-
-        # TODO: add as abstract base class attributes
-        self.shape = self.X.shape
-        self.dtype = self.X.dtype
-        self.sandwich_order = 'C'
-
-    def sandwich(self, d):
-        term1 = sparse_sandwich(self.X.mat.tocsc(copy=False), self.X_mat_csr, d)
-        xd = self.XmatMKL.dot(d, transpose=True)
-        term2 = xd[:, np.newaxis] * self.X.shift
-        term3 = term2.T
-        term4 = (self.X.shift.T * self.X.shift) * d.sum()
-        return term1 + term2 + term3 + term4
-
-    def dot(self, v):
-        return self.XmatMKL.dot(v) + self.X.shift.dot(v)
-
-    def ldot(self, v):
-        return np.squeeze(self.XmatMKL.dot(v, transpose=True) + np.sum(v) * self.X.shift)
-
-    def get_column(self, j):
-        return self.X.getcol(j)
 
 
 def _check_weights(sample_weight, n_samples):
@@ -179,43 +145,21 @@ def _safe_toarray(X):
         return np.asarray(X)
 
 
-@profile
 def _safe_sandwich_dot(X, d: np.ndarray, intercept=False) -> np.ndarray:
     """Compute sandwich product X.T @ diag(d) @ X.
 
     With ``intercept=True``, X is treated as if a column of 1 were appended as
     first column of X.
     X can be sparse, d must be an ndarray. Always returns a ndarray."""
-    if sparse.issparse(X):
-        if not hasattr(X, "XT"):
-            X.XT = X.tocsr()
-            X.XTMkl = MklSparseMatrix(X.T)
 
-        result = sparse_sandwich(X, X.XT, d)
-    else:
-        assert(isinstance(X, GLMDataMatrix))
-        result = X.sandwich(d)
+    result = X.sandwich(d)
 
     if intercept:
-        # TODO: shouldn't be dealing with the intercept with centered predictors
         dim = X.shape[1] + 1
-        if sparse.issparse(X):
-            order = "F" if sparse.isspmatrix_csc(X) else "C"
-        elif isinstance(X, GLMDataMatrix):
-            order = X.sandwich_order
-        else:
-            order = "F" if X.flags["F_CONTIGUOUS"] else "C"
-        res_including_intercept = np.empty(
-            (dim, dim), dtype=max(X.dtype, d.dtype), order=order
-        )
+        res_including_intercept = np.empty((dim, dim), dtype=max(X.dtype, d.dtype))
         res_including_intercept[0, 0] = d.sum()
-        # TODO: Use MKL-based fast mat-vec product
-        if isinstance(X, GLMDataMatrix):
-            res_including_intercept[1:, 0] = X.ldot(d)
-        else:
-            res_including_intercept[1:, 0] = d @ X
+        res_including_intercept[1:, 0] = d @ X
         res_including_intercept[0, 1:] = res_including_intercept[1:, 0]
-
         res_including_intercept[1:, 1:] = result
     else:
         res_including_intercept = result
@@ -425,24 +369,24 @@ class LogLink(Link):
     def inverse_derivative2(self, lin_pred):
         return np.exp(lin_pred)
 
-import numexpr
+
 class NumExprLogLink(Link):
     """The log link function g(x)=log(x)."""
 
     def link(self, mu):
-        return numexpr.evaluate('log(mu)')
+        return numexpr.evaluate("log(mu)")
 
     def derivative(self, mu):
-        return numexpr.evaluate('1.0 / mu')
+        return numexpr.evaluate("1.0 / mu")
 
     def inverse(self, lin_pred):
-        return numexpr.evaluate('exp(lin_pred)')
+        return numexpr.evaluate("exp(lin_pred)")
 
     def inverse_derivative(self, lin_pred):
-        return numexpr.evaluate('exp(lin_pred)')
+        return numexpr.evaluate("exp(lin_pred)")
 
     def inverse_derivative2(self, lin_pred):
-        return numexpr.evaluate('exp(lin_pred)')
+        return numexpr.evaluate("exp(lin_pred)")
 
 
 class LogitLink(Link):
@@ -836,7 +780,6 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         observed_information = _safe_sandwich_dot(X, temp, intercept=intercept)
         return observed_information
 
-    @profile
     def _eta_mu_score_fisher(self, coef, phi, X, y, weights, link, diag_fisher=False):
         """Compute linear predictor, mean, score function and fisher matrix.
 
@@ -878,7 +821,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         d1_sigma_inv = d1 * sigma_inv
         temp = d1_sigma_inv * (y - mu)
         if intercept:
-            score = np.concatenate(([temp.sum()], X.ldot(temp)))
+            score = np.concatenate(([temp.sum()], temp @ X))
         else:
             score = temp @ X
 
@@ -979,8 +922,8 @@ class TweedieDistribution(ExponentialDispersionModel):
         mu : array, shape (n_samples,)
             Predicted mean.
         """
-        p = self.power
-        return numexpr.evaluate('mu ** p')
+        p = self.power  # noqa: F841
+        return numexpr.evaluate("mu ** p")
 
     def unit_variance_derivative(self, mu):
         """Compute the derivative of the unit variance of a Tweedie
@@ -991,8 +934,8 @@ class TweedieDistribution(ExponentialDispersionModel):
         mu : array, shape (n_samples,)
             Predicted mean.
         """
-        p = self.power
-        return numexpr.evaluate('p * mu ** (p - 1)')
+        p = self.power  # noqa: F841
+        return numexpr.evaluate("p * mu ** (p - 1)")
 
     def unit_deviance(self, y, mu):
         p = self.power
@@ -1249,7 +1192,7 @@ def _irls_solver(
 
     return coef, n_iter
 
-@profile
+
 def _cd_cycle(
     d,
     X,
@@ -1328,17 +1271,9 @@ def _cd_cycle(
                 Bj = np.zeros_like(A)
                 if intercept:
                     Bj[0] = fisher.sum()
-                if sparse.issparse(X):
-                    Bj[idx:] = _safe_toarray(
-                        X[:, j].transpose() @ X.multiply(fisher[:, np.newaxis])
-                    ).ravel()
-                elif isinstance(X, ColScaledSpMat):
-                    # This will not be very efficient since the features get converted
-                    # to dense
-                    x_j = X.getcol(j).toarray()[:, 0]
-                    Bj[idx:] = _safe_toarray((fisher * x_j) @ X).ravel()
-                else:
-                    Bj[idx:] = (fisher * X[:, j]) @ X
+
+                x_j = np.squeeze(np.array(X.getcol(j).toarray()))
+                Bj[idx:] = _safe_toarray((fisher * x_j) @ X).ravel()
 
                 if P2.ndim == 1:
                     Bj[idx:] += P2[j]
@@ -1414,7 +1349,6 @@ def _cd_cycle(
     return d, coef_P2, n_cycles, inner_tol
 
 
-@profile
 def _cd_solver(
     coef,
     X,
@@ -1542,7 +1476,6 @@ def _cd_solver(
                 "If X is sparse, P2 must also be sparse csc"
                 "format. Got P2 not sparse."
             )
-
 
     random_state = check_random_state(random_state)
     # Note: we already set P2 = l2*P2, P1 = l1*P1
@@ -2349,7 +2282,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             d1 = link.inverse_derivative(eta)
             temp = sigma_inv * d1 * (y - mu)
             if self.fit_intercept:
-                score = np.concatenate(([temp.sum()], X.ldot(temp)))
+                score = np.concatenate(([temp.sum()], temp @ X))
             else:
                 score = temp @ X  # same as X.T @ temp
 
@@ -2402,7 +2335,6 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             coef = _irls_step(X, W, P2, z, fit_intercept=self.fit_intercept)
         return coef
 
-    @profile
     def fit(self, X, y, sample_weight=None):
         """Fit a Generalized Linear Model.
 
@@ -2472,15 +2404,15 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         else:
             _stype = ["csc", "csr"]
 
-        # X, y = check_X_y(
-        #     X,
-        #     y,
-        #     accept_sparse=_stype,
-        #     dtype=_dtype,
-        #     y_numeric=True,
-        #     multi_output=False,
-        #     copy=self.copy_X,
-        # )
+        X, y = check_X_y(
+            X,
+            y,
+            accept_sparse=_stype,
+            dtype=_dtype,
+            y_numeric=True,
+            multi_output=False,
+            copy=self.copy_X,
+        )
 
         # Without converting y to float, deviance might raise
         # ValueError: Integers to negative integer powers are not allowed.
@@ -2548,16 +2480,13 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         if self.center_predictors_:
             X, col_means, col_stds = _standardize(X, weights, self.scale_predictors)
 
-
         #######################################################################
-        # 2c. convert to GLMDataMatrix
+        # 2c. potentially add sandwich to numpy arrays
         #######################################################################
-        if type(X) is np.ndarray:
+        if isinstance(X, np.ndarray):
             X = DenseGLMDataMatrix(X)
-        elif type(X) is ColScaledSpMat:
-            X = ColScaledGLMDataMatrix(X)
-        # elif sparse.issparse(X):
-        #     X = SparseGLMDataMatrix(X)
+        elif sparse.issparse(X):
+            X = MKLSparseMatrix(X)
 
         #######################################################################
         # 3. initialization of coef = (intercept_, coef_)                     #
@@ -2686,12 +2615,8 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         # 5a. undo standardization
         #######################################################################
         if self.center_predictors_:
-            if isinstance(X, GLMDataMatrix):
-                orig_X = X.X
-            else:
-                orig_X = X
             X, self.intercept_, self.coef_ = _unstandardize(
-                orig_X, col_means, col_stds, self.intercept_, self.coef_
+                X, col_means, col_stds, self.intercept_, self.coef_
             )
 
         if self.fit_dispersion in ["chisqr", "deviance"]:
