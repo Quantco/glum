@@ -1,93 +1,52 @@
-from typing import Union
+from typing import Tuple
 
 import numpy as np
+from scipy import sparse as sps
 from sparse_dot_mkl import dot_product_mkl
 
 from glm_benchmarks.sandwich.sandwich import sparse_sandwich
 
 
-class MKLSparseMatrix:
+class MKLSparseMatrix(sps.csc_matrix):
     """
-    A wrapper around a scipy.sparse matrix that will use MKL for sparse
+    A scipy.sparse csc matrix subclass that will use MKL for sparse
     matrix-vector products and will use the fast sparse_sandwich function
     for sandwich products.
     """
 
-    def __init__(self, X):
-        while isinstance(X, MKLSparseMatrix):
-            X = X.X
-        self.X = X
-        self.shape = X.shape
-        self.ndim = X.ndim
-        self.dtype = X.dtype
+    def __init__(self, arg1, shape=None, dtype=None, copy=False):
+        """
+        Instantiate in the same way as scipy.sparse.csc_matrix
+        """
+        super().__init__(arg1, shape, dtype, copy)
+        self.as_csr = None
 
-    @property
-    def indptr(self):
-        return self.X.indptr
+    def to_scipy_sparse(self, copy: bool) -> sps.csc_matrix:
+        return sps.csc_matrix(self, copy=copy)
 
-    @property
-    def indices(self):
-        return self.X.indices
-
-    @property
-    def data(self):
-        return self.X.data
-
-    @property
-    def A(self):
-        return self.X.todense()
-
-    def tocsc(self, *args, **kwargs):
-        return MKLSparseMatrix(self.X.tocsc(*args, **kwargs))
-
-    def tocsr(self, *args, **kwargs):
-        return MKLSparseMatrix(self.X.tocsr(*args, **kwargs))
-
-    def toarray(self):
-        return self.X.toarray()
-
-    @property
-    def T(self):
-        return self.transpose()
-
-    def transpose(self):
-        return MKLSparseMatrix(self.X.T)
-
-    def getrow(self, i):
-        return self.X.getrow(i)
-
-    def getcol(self, j):
-        return self.X.getcol(j)
-
-    def sandwich(self, d):
+    def sandwich(self, d: np.ndarray) -> np.ndarray:
         if not hasattr(self, "X_csr"):
-            self.X_csr = self.X.tocsr()
-        return sparse_sandwich(self.X.tocsc(copy=False), self.X_csr, d)
+            self.x_csr = self.tocsr(copy=False)
 
-    def multiply(self, x):
-        raise Exception("NOT IMPLEMENTED")
-
-    def sum(self, axis: int = None) -> Union[np.ndarray, float]:
-        return self.X.sum(axis)
+        return sparse_sandwich(self.tocsc(copy=False), self.x_csr, d)
 
     def dot(self, v):
         if len(v.shape) == 1:
-            return dot_product_mkl(self.X, v)
-        else:
-            return self.X.dot(v)
-
-    def __matmul__(self, other):
-        return self.dot(other)
+            return dot_product_mkl(self, v)
+        if len(v.shape) == 2 and v.shape[1] == 1:
+            return dot_product_mkl(self, np.squeeze(v))[:, None]
+        return sps.csc_matrix.dot(self, v)
 
     def __rmatmul__(self, v):
         if len(v.shape) == 1:
-            return dot_product_mkl(self.X.T, v)
-        else:
-            return v @ self.X
+            return dot_product_mkl(self.T, v)
+        if len(v.shape) == 2 and v.shape[0] == 1:
+            return dot_product_mkl(self.T, np.squeeze(v))[None, :]
+        return sps.csc_matrix.__rmatmul__(self, v)
 
     __array_priority__ = 12
 
-    def standardize(self, weights, scale_predictors):
+    def standardize(self, weights, scale_predictors) -> Tuple:
         from glm_benchmarks.scaled_spmat.standardize import standardize, zero_center
 
         if scale_predictors:

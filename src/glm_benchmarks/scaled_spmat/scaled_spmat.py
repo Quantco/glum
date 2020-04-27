@@ -244,10 +244,13 @@ class ColScaledSpMat(ScaledMat):
         return term1 + term2 + term3 + term4
 
     def unstandardize(self, col_means, col_stds):
-        if sps.isspmatrix_csc(self.mat.X):
+        """
+        Doesn't need to use col_means because those are assumed to equal 'shift'.
+        """
+        if sps.isspmatrix_csc(self.mat):
             from .standardize import _scale_csc_columns_inplace
 
-            _scale_csc_columns_inplace(self.mat.X, col_stds)
+            _scale_csc_columns_inplace(self.mat, col_stds)
             return self.mat
         else:
             return self.mat @ sps.diags(col_stds)
