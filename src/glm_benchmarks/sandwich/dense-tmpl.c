@@ -1,14 +1,23 @@
+// AVX code for dense sandwich products. Uses Mako templating for inner loop unrolling.
+// Mako compiles this to C.
+// Algorithm pseudocode:
+// recurse_ij(X, d, out, i_min, i_max, j_min, j_max):
+//     base case, if (i_max - i_min) * (j_max - j_min) small:
+//         dense_base(...)
+//     else:
+//        split X into four blocks by changing i_min and i_max
+//        call recurse_ij on each block
 #include <stdbool.h>
 #include "immintrin.h"
 
-//TODO: copied pasted from dense
+// copied from https://stackoverflow.com/questions/49941645/get-sum-of-values-stored-in-m256d-with-sse-avx/49943540#49943540
+// a +  b + c + d = (a + b) + (c + d) = ((a) + (b)) + ((c) + (d))
 inline
 double hsum_double_avx(__m256d v) 
 {
-    __m128d vlow  = _mm256_castpd256_pd128(v);
-    __m128d vhigh = _mm256_extractf128_pd(v, 1); // high 128
-            vlow  = _mm_add_pd(vlow, vhigh);     // reduce down to 128
-
+    __m128d vlow  = _mm256_castpd256_pd128(v); // get (a,b)
+    __m128d vhigh = _mm256_extractf128_pd(v, 1); //get (c,d) // high 128
+            vlow  = _mm_add_pd(vlow, vhigh);     // compute (a+c,b+d)// reduce down to 128
     __m128d high64 = _mm_unpackhi_pd(vlow, vlow);
     return  _mm_cvtsd_f64(_mm_add_sd(vlow, high64));  // reduce to scalar
 }
@@ -111,5 +120,6 @@ void _dense_sandwich(double* restrict X, double* restrict d, double* restrict ou
 {
     #pragma omp parallel
     #pragma omp single nowait
+    //out[i,j] = sum_k X[k,i] * d[k] * X[k,j]
     recurse_ij(X, d, out, m, n, 0, m, 0, m, 0, n);
 }
