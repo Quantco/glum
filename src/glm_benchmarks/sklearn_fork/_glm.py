@@ -276,25 +276,6 @@ class LogLink(Link):
     """The log link function g(x)=log(x)."""
 
     def link(self, mu):
-        return np.log(mu)
-
-    def derivative(self, mu):
-        return 1.0 / mu
-
-    def inverse(self, lin_pred):
-        return np.exp(lin_pred)
-
-    def inverse_derivative(self, lin_pred):
-        return np.exp(lin_pred)
-
-    def inverse_derivative2(self, lin_pred):
-        return np.exp(lin_pred)
-
-
-class NumExprLogLink(Link):
-    """The log link function g(x)=log(x)."""
-
-    def link(self, mu):
         return numexpr.evaluate("log(mu)")
 
     def derivative(self, mu):
@@ -1386,8 +1367,6 @@ def _cd_solver(
     Journal of Machine Learning Research 13 (2012) 1999-2030
     https://www.csie.ntu.edu.tw/~cjlin/papers/l1_glmnet/long-glmnet.pdf
     """
-    # if type(X) is not ColScaledSpMat:
-    #     X = check_array(X, "csc", dtype=[np.float64, np.float32])
     if P2.ndim == 2:
         P2 = check_array(P2, "csc", dtype=[np.float64, np.float32])
 
@@ -1602,7 +1581,7 @@ def get_link(link: Union[str, Link], family: ExponentialDispersionModel) -> Link
             if family.power < 1:
                 # TODO: move more detailed error here
                 raise ValueError("No distribution")
-            return NumExprLogLink()
+            return LogLink()
         if isinstance(family, GeneralizedHyperbolicSecant):
             return IdentityLink()
         if isinstance(family, BinomialDistribution):
@@ -1617,7 +1596,7 @@ def get_link(link: Union[str, Link], family: ExponentialDispersionModel) -> Link
     if link == "identity":
         return IdentityLink()
     if link == "log":
-        return NumExprLogLink()
+        return LogLink()
     if link == "logit":
         return LogitLink()
     raise ValueError(

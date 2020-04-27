@@ -28,7 +28,6 @@ from glm_benchmarks.sklearn_fork._glm import (
     LogLink,
     MKLSparseMatrix,
     NormalDistribution,
-    NumExprLogLink,
     PoissonDistribution,
     PoissonRegressor,
     TweedieDistribution,
@@ -244,7 +243,7 @@ def test_glm_family_argument_invalid_input(y, X):
 
 @pytest.mark.parametrize(
     "l, link",
-    [("identity", IdentityLink()), ("log", NumExprLogLink()), ("logit", LogitLink())],
+    [("identity", IdentityLink()), ("log", LogLink()), ("logit", LogitLink())],
 )
 def test_glm_link_argument(l, link, y, X):
     """Test GLM link argument set as string."""
@@ -907,7 +906,7 @@ def test_standardize(use_sparse, scale_predictors):
 
     X, col_means, col_stds = M.standardize(np.ones(NR) / NR, scale_predictors)
     if use_sparse:
-        assert id(X.mat.X) == id(M.X)
+        assert id(X.mat) == id(M)
     else:
         # Check that the underlying data pointer is the same
         assert X.__array_interface__["data"] == M.__array_interface__["data"]
@@ -936,7 +935,7 @@ def test_standardize(use_sparse, scale_predictors):
         X, col_means, col_stds, intercept_standardized, coef_standardized
     )
     if use_sparse:
-        assert id(X2.X) == id(X.mat.X)
+        assert id(X2) == id(X.mat)
     else:
         assert id(X2) == id(X)
     np.testing.assert_almost_equal(intercept, -(NC + 1) * NC / 2)
@@ -944,8 +943,8 @@ def test_standardize(use_sparse, scale_predictors):
         np.testing.assert_almost_equal(coef, 1.0)
 
     if use_sparse:
-        assert type(X.mat.X) is sparse.csc_matrix
-        assert type(X2.X) is sparse.csc_matrix
+        assert type(X.mat) in [sparse.csc_matrix, MKLSparseMatrix]
+        assert type(X2) in [sparse.csc_matrix, MKLSparseMatrix]
         np.testing.assert_almost_equal(MC.toarray(), X2.toarray())
     else:
         np.testing.assert_almost_equal(MC, X2)
