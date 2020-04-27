@@ -19,8 +19,12 @@ from glm_benchmarks.util import get_obj_val
     default="narrow_insurance_no_weights_lasso_poisson",
     help="Specify a comma-separated list of benchmark problems you want to run.",
 )
+@click.option("--single_precision", is_flag=True)
 @click.option(
-    "--single_precision", is_flag=True,
+    "--storage",
+    type=str,
+    default="dense",
+    help="Specify the storage format. Currently supported: dense, sparse. Leaving this black will default to dense.",
 )
 @click.option(
     "--save_result",
@@ -35,9 +39,10 @@ from glm_benchmarks.util import get_obj_val
     default="golden_master",
     help="Where to find saved estimates for checking that estimates haven't changed.",
 )
-def main(num_rows, problem_names, single_precision, save_result, no_test, save_dir):
+def main(
+    num_rows, problem_names, single_precision, storage, save_result, no_test, save_dir
+):
     problems = get_limited_problems(problem_names)
-    storage = "dense"
     threads = None
 
     for Pn in problems:
@@ -65,7 +70,6 @@ def main(num_rows, problem_names, single_precision, save_result, no_test, save_d
             save_baseline(path, result)
         elif not no_test:
             test_against_baseline(path, result, Pn, num_rows)
-        print("")
 
 
 def save_baseline(path, data):
