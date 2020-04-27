@@ -53,12 +53,14 @@ from sklearn.exceptions import ConvergenceWarning
 from sklearn.utils import check_array, check_X_y
 from sklearn.utils.validation import check_is_fitted, check_random_state
 
+from glm_benchmarks.sandwich.sandwich import sparse_sandwich
 from glm_benchmarks.scaled_spmat import ColScaledSpMat, standardize, zero_center
 from glm_benchmarks.scaled_spmat.standardize import (
     _scale_csc_columns_inplace,
     one_over_var_inf_to_zero,
 )
-from glm_benchmarks.spblas.mkl_spblas import fast_sandwich
+
+# from glm_benchmarks.sandwich.sandwich import dense_sandwich
 
 
 def _check_weights(sample_weight, n_samples):
@@ -116,29 +118,23 @@ def _safe_sandwich_dot(X, d: np.ndarray, intercept=False) -> np.ndarray:
     X can be sparse, d must be an ndarray. Always returns a ndarray."""
     if sparse.issparse(X):
         if not hasattr(X, "XT"):
-            X.XT = X.T.tocsc()
+            X.XT = X.tocsr()
 
-        # TODO: Clean out the code in the cython mkl_spblas.pyx file. We need
-        # two entry points: one for the sandwich products and one for
-        # matrix-vector products.
-        # Right now there's probably way more code than necessary.
-        # TODO: Factor out the MKL SParse Matrix creation via the MKLSparseMatrix object
-        #  so that we can benchmark just the matrix multiplication itself.
-        # TODO: Try writing a hand-written cython matrix-vector product. If this is as
-        #  fast as MKL, we can just delete all the MKL stuff. Maybe not though because I'm
-        #  guessing that the MKL version is more robust.
-        result = fast_sandwich(X, X.XT, d)
+        result = sparse_sandwich(X, X.XT, d)
     elif type(X) is ColScaledSpMat:
         if not hasattr(X.mat, "XT"):
-            X.mat.XT = X.mat.T.tocsc(copy=False)
+            # TODO: What if the user passed in a CSR matrix? In fit, we
+            # converted to CSC, then here we convert back. We should store the
+            # CSR version in fit.
+            X.mat.XT = X.mat.tocsr(copy=False)
 
-        term1 = fast_sandwich(X.mat.tocsc(copy=False), X.mat.XT, d,)
+        term1 = sparse_sandwich(X.mat.tocsc(copy=False), X.mat.XT, d)
 
-        # TODO: Use MKL-based fast mat-vec product
+        # TODO: Use MKL-based fast mat-vec product via the sparse_dot package
         if isinstance(X.mat, sparse.csc_matrix):
             xd = X.mat.T.dot(d)
         else:
-            xd = X.mat.XT.dot(d)
+            xd = X.mat.XT.T.dot(d)
         term2 = xd[:, np.newaxis] * X.shift
         term3 = term2.T
         term4 = (X.shift.T * X.shift) * d.sum()
@@ -150,6 +146,11 @@ def _safe_sandwich_dot(X, d: np.ndarray, intercept=False) -> np.ndarray:
         # TODO: fix this; try writing a Cython function or using MKL
         x_d = X * sqrtD
         result = x_d.T @ x_d
+        # np.save("file.npz", np.hstack((X, d[:, np.newaxis])))
+        # if not hasattr(_safe_sandwich_dot, "XF"):
+        #     _safe_sandwich_dot.XF = np.asfortranarray(X)  # type: ignore
+        # result = dense_sandwich(_safe_sandwich_dot.XF, d)  # type: ignore
+        # np.testing.assert_almost_equal(out, result)
     if intercept:
         # TODO: shouldn't be dealing with the intercept with centered predictors
         dim = X.shape[1] + 1
