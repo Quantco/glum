@@ -65,9 +65,10 @@ def main() -> None:
         int(3e5),
         int(1e6),
     ]  # , int(2e6), int(4e6), int(10e6)]
-    dtype = np.float32
     benchmarks = []
+
     x, d = load_data(row_counts[-1])
+
     for i, n_rows in enumerate(row_counts):
         for dtype in [np.float32, np.float64]:
             benchmarks.append(
@@ -77,6 +78,7 @@ def main() -> None:
             )
             benchmarks[-1]["dtype"] = str(dtype)
             benchmarks[-1]["n_rows"] = n_rows
+
     result_df = pd.concat(benchmarks).sort_values(["n_rows", "method"])
     print(result_df.set_index(["n_rows", "method"]))
 

@@ -25,7 +25,6 @@ for fn in ["src/glm_benchmarks/sandwich/dense-tmpl.c"]:
     with open(out_fn, "w") as f:
         f.write(buf.getvalue())
 
-
 ext_modules = [
     Extension(
         name="glm_benchmarks.sandwich.sandwich",
