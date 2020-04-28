@@ -6,7 +6,7 @@ import numpy as np
 from h2o.estimators.glm import H2OGeneralizedLinearEstimator
 from scipy import sparse as sps
 
-from .util import runtime
+from .util import benchmark_convergence_tolerance, runtime
 
 
 def build_and_fit(model_args, train_args):
@@ -47,11 +47,10 @@ def h2o_bench(
         alpha=l1_ratio,
         lambda_=alpha,
         standardize=False,
-        # solver='COORDINATE_DESCENT',
         solver="IRLSM",
-        objective_epsilon=1e-12,
-        beta_epsilon=1e-12,
-        gradient_epsilon=1e-12,
+        objective_epsilon=benchmark_convergence_tolerance,
+        beta_epsilon=benchmark_convergence_tolerance,
+        gradient_epsilon=benchmark_convergence_tolerance,
         tweedie_variance_power=1.5 if tweedie else None,
     )
 
