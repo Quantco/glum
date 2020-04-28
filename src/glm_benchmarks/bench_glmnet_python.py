@@ -25,7 +25,12 @@ def glmnet_python_bench(
     if len(dat["y"]) <= 650:
         warnings.warn("glmnet_python does not work with too few rows")
         return result
-    if distribution == "gaussian":
+    if distribution == "gamma" or "tweedie" in distribution:
+        warnings.warn("glmnet_python does not support gamma")
+        return result
+    if distribution == "gaussian" or (
+        distribution == "poisson" and len(dat["y"]) == 1000 and dat["X"].shape[1] > 200
+    ):
         warnings.warn("This problem causes a mysterious crash. Skipping.")
         return result
 

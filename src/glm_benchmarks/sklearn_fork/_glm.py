@@ -44,6 +44,7 @@ import warnings
 from abc import ABCMeta, abstractmethod
 from typing import Any, List, Tuple, Union
 
+import numexpr
 import numpy as np
 import scipy.sparse.linalg as splinalg
 from scipy import linalg, sparse, special
@@ -53,14 +54,9 @@ from sklearn.exceptions import ConvergenceWarning
 from sklearn.utils import check_array, check_X_y
 from sklearn.utils.validation import check_is_fitted, check_random_state
 
-from glm_benchmarks.sandwich.sandwich import sparse_sandwich
-from glm_benchmarks.scaled_spmat import ColScaledSpMat, standardize, zero_center
-from glm_benchmarks.scaled_spmat.standardize import (
-    _scale_csc_columns_inplace,
-    one_over_var_inf_to_zero,
-)
+from glm_benchmarks.scaled_spmat.mkl_sparse_matrix import MKLSparseMatrix
 
-# from glm_benchmarks.sandwich.sandwich import dense_sandwich
+from .dense_glm_matrix import DenseGLMDataMatrix
 
 
 def _check_weights(sample_weight, n_samples):
@@ -97,9 +93,9 @@ def _check_weights(sample_weight, n_samples):
 def _safe_lin_pred(X, coef):
     """Compute the linear predictor taking care if intercept is present."""
     if coef.size == X.shape[1] + 1:
-        return X @ coef[1:] + coef[0]
+        return X.dot(coef[1:]) + coef[0]
     else:
-        return X @ coef
+        return X.dot(coef)
 
 
 def _safe_toarray(X):
@@ -116,58 +112,15 @@ def _safe_sandwich_dot(X, d: np.ndarray, intercept=False) -> np.ndarray:
     With ``intercept=True``, X is treated as if a column of 1 were appended as
     first column of X.
     X can be sparse, d must be an ndarray. Always returns a ndarray."""
-    if sparse.issparse(X):
-        if not hasattr(X, "XT"):
-            X.XT = X.tocsr()
 
-        result = sparse_sandwich(X, X.XT, d)
-    elif type(X) is ColScaledSpMat:
-        if not hasattr(X.mat, "XT"):
-            # TODO: What if the user passed in a CSR matrix? In fit, we
-            # converted to CSC, then here we convert back. We should store the
-            # CSR version in fit.
-            X.mat.XT = X.mat.tocsr(copy=False)
+    result = X.sandwich(d)
 
-        term1 = sparse_sandwich(X.mat.tocsc(copy=False), X.mat.XT, d)
-
-        # TODO: Use MKL-based fast mat-vec product via the sparse_dot package
-        if isinstance(X.mat, sparse.csc_matrix):
-            xd = X.mat.T.dot(d)
-        else:
-            xd = X.mat.XT.T.dot(d)
-        term2 = xd[:, np.newaxis] * X.shift
-        term3 = term2.T
-        term4 = (X.shift.T * X.shift) * d.sum()
-        result = _safe_toarray(term1 + term2 + term3 + term4)
-    else:
-        # The "multiply then divide" trick does not work because there may be zeros in
-        # d.
-        sqrtD = np.sqrt(d)[:, np.newaxis]
-        # TODO: fix this; try writing a Cython function or using MKL
-        x_d = X * sqrtD
-        result = x_d.T @ x_d
-        # np.save("file.npz", np.hstack((X, d[:, np.newaxis])))
-        # if not hasattr(_safe_sandwich_dot, "XF"):
-        #     _safe_sandwich_dot.XF = np.asfortranarray(X)  # type: ignore
-        # result = dense_sandwich(_safe_sandwich_dot.XF, d)  # type: ignore
-        # np.testing.assert_almost_equal(out, result)
     if intercept:
-        # TODO: shouldn't be dealing with the intercept with centered predictors
         dim = X.shape[1] + 1
-        if type(X) is ColScaledSpMat:
-            order = "F"
-        elif sparse.issparse(X):
-            order = "F" if sparse.isspmatrix_csc(X) else "C"
-        else:
-            order = "F" if X.flags["F_CONTIGUOUS"] else "C"
-        res_including_intercept = np.empty(
-            (dim, dim), dtype=max(X.dtype, d.dtype), order=order
-        )
+        res_including_intercept = np.empty((dim, dim), dtype=max(X.dtype, d.dtype))
         res_including_intercept[0, 0] = d.sum()
-        # TODO: Use MKL-based fast mat-vec product
         res_including_intercept[1:, 0] = d @ X
         res_including_intercept[0, 1:] = res_including_intercept[1:, 0]
-
         res_including_intercept[1:, 1:] = result
     else:
         res_including_intercept = result
@@ -221,51 +174,11 @@ def _min_norm_sugrad(
         return res
 
 
-def _standardize(X, weights, scale_predictors):
-    # NOTE: Expects that sum(weights) == 1
-    if sparse.issparse(X):
-        return _standardize_sparse(X, weights, scale_predictors)
-    else:
-        return _standardize_dense(X, weights, scale_predictors)
-
-
-def _standardize_sparse(X, weights, scale_predictors):
-    if scale_predictors:
-        return standardize(X, weights=weights)
-    else:
-        X, col_means = zero_center(X, weights=weights)
-        col_stds = np.ones(X.shape[1])
-        return X, col_means, col_stds
-
-
-def _standardize_dense(X, weights, scale_predictors):
-    col_means = X.T.dot(weights)[None, :]
-    X -= col_means
-    if scale_predictors:
-        # TODO: avoid copying X -- the X ** 2 makes a copy
-        col_stds = np.sqrt((X ** 2).T.dot(weights))
-        X *= one_over_var_inf_to_zero(col_stds)
-    else:
-        col_stds = np.ones(X.shape[1])
-    return X, col_means, col_stds
-
-
 def _unstandardize(
     X, col_means: np.ndarray, col_stds: np.ndarray, intercept: float, coef
 ) -> Tuple[Any, float, np.ndarray]:
-    assert isinstance(intercept, float)
-    if type(X) is ColScaledSpMat:
-        if sparse.isspmatrix_csc(X.mat):
-            _scale_csc_columns_inplace(X.mat, col_stds)
-            X = X.mat
-        else:
-            X = X.mat @ sparse.diags(col_stds)
-    else:
-        X *= col_stds
-        X += col_means
-
+    X = X.unstandardize(col_means, col_stds)
     intercept -= float(np.squeeze(col_means / col_stds).dot(coef))
-    assert isinstance(intercept, float)
     coef /= col_stds
     return X, intercept, coef
 
@@ -363,19 +276,19 @@ class LogLink(Link):
     """The log link function g(x)=log(x)."""
 
     def link(self, mu):
-        return np.log(mu)
+        return numexpr.evaluate("log(mu)")
 
     def derivative(self, mu):
-        return 1.0 / mu
+        return numexpr.evaluate("1.0 / mu")
 
     def inverse(self, lin_pred):
-        return np.exp(lin_pred)
+        return numexpr.evaluate("exp(lin_pred)")
 
     def inverse_derivative(self, lin_pred):
-        return np.exp(lin_pred)
+        return numexpr.evaluate("exp(lin_pred)")
 
     def inverse_derivative2(self, lin_pred):
-        return np.exp(lin_pred)
+        return numexpr.evaluate("exp(lin_pred)")
 
 
 class LogitLink(Link):
@@ -911,7 +824,8 @@ class TweedieDistribution(ExponentialDispersionModel):
         mu : array, shape (n_samples,)
             Predicted mean.
         """
-        return np.power(mu, self.power)
+        p = self.power  # noqa: F841
+        return numexpr.evaluate("mu ** p")
 
     def unit_variance_derivative(self, mu):
         """Compute the derivative of the unit variance of a Tweedie
@@ -922,7 +836,8 @@ class TweedieDistribution(ExponentialDispersionModel):
         mu : array, shape (n_samples,)
             Predicted mean.
         """
-        return self.power * np.power(mu, self.power - 1)
+        p = self.power  # noqa: F841
+        return numexpr.evaluate("p * mu ** (p - 1)")
 
     def unit_deviance(self, y, mu):
         p = self.power
@@ -1258,17 +1173,9 @@ def _cd_cycle(
                 Bj = np.zeros_like(A)
                 if intercept:
                     Bj[0] = fisher.sum()
-                if sparse.issparse(X):
-                    Bj[idx:] = _safe_toarray(
-                        X[:, j].transpose() @ X.multiply(fisher[:, np.newaxis])
-                    ).ravel()
-                elif isinstance(X, ColScaledSpMat):
-                    # This will not be very efficient since the features get converted
-                    # to dense
-                    x_j = X.getcol(j).toarray()[:, 0]
-                    Bj[idx:] = _safe_toarray((fisher * x_j) @ X).ravel()
-                else:
-                    Bj[idx:] = (fisher * X[:, j]) @ X
+
+                x_j = np.squeeze(np.array(X.getcol(j).toarray()))
+                Bj[idx:] = _safe_toarray((fisher * x_j) @ X).ravel()
 
                 if P2.ndim == 1:
                     Bj[idx:] += P2[j]
@@ -1460,8 +1367,6 @@ def _cd_solver(
     Journal of Machine Learning Research 13 (2012) 1999-2030
     https://www.csie.ntu.edu.tw/~cjlin/papers/l1_glmnet/long-glmnet.pdf
     """
-    if type(X) is not ColScaledSpMat:
-        X = check_array(X, "csc", dtype=[np.float64, np.float32])
     if P2.ndim == 2:
         P2 = check_array(P2, "csc", dtype=[np.float64, np.float32])
 
@@ -1471,6 +1376,7 @@ def _cd_solver(
                 "If X is sparse, P2 must also be sparse csc"
                 "format. Got P2 not sparse."
             )
+
     random_state = check_random_state(random_state)
     # Note: we already set P2 = l2*P2, P1 = l1*P1
     # Note: we already symmetrized P2 = 1/2 (P2 + P2')
@@ -1560,6 +1466,8 @@ def _cd_solver(
 
         la = 1.0 / beta
 
+        # TODO: if we keep track of X_dot_coef, we can add this to avoid a
+        # _safe_lin_pred in _eta_mu_score_fisher every loop
         X_dot_d = _safe_lin_pred(X, d)
 
         # Try progressively shorter line search steps.
@@ -2395,6 +2303,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             _stype = ["csc"]
         else:
             _stype = ["csc", "csr"]
+
         X, y = check_X_y(
             X,
             y,
@@ -2404,6 +2313,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             multi_output=False,
             copy=self.copy_X,
         )
+
         # Without converting y to float, deviance might raise
         # ValueError: Integers to negative integer powers are not allowed.
         # Also, y must not be sparse.
@@ -2465,10 +2375,18 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         weights /= weights_sum
 
         #######################################################################
-        # 2b. potentially rescale predictors
+        # 2b. convert to wrapper matrix types
+        #######################################################################
+        if isinstance(X, np.ndarray):
+            X = DenseGLMDataMatrix(X)
+        elif sparse.issparse(X):
+            X = MKLSparseMatrix(X)
+
+        #######################################################################
+        # 2c. potentially rescale predictors
         #######################################################################
         if self.center_predictors_:
-            X, col_means, col_stds = _standardize(X, weights, self.scale_predictors)
+            X, col_means, col_stds = X.standardize(weights, self.scale_predictors)
 
         #######################################################################
         # 3. initialization of coef = (intercept_, coef_)                     #
