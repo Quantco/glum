@@ -8,6 +8,7 @@ and store the scaling and shifting params, and give it an 'unnormalize' method)
 - active set convergence
 - stopping criteria
 """
+import warnings
 from typing import Tuple, Union
 
 import numpy as np
@@ -303,7 +304,7 @@ def fit_glmnet(
         step_diff = np.max(np.abs(new_params - model.params))
         model.params = new_params
         if get_obj(model) > old_obj + 1e-7:
-            raise RuntimeError("did not converge")
+            warnings.warn("did not converge")
 
         if distribution in ["gaussian", "poisson"]:
             model.set_optimal_intercept()
