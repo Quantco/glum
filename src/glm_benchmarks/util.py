@@ -56,7 +56,7 @@ def get_obj_val(
     intercept: float,
     coefs: np.ndarray,
 ) -> float:
-    weights = dat.get("weights", np.ones_like(dat["y"]))
+    weights = dat.get("weights", np.ones_like(dat["y"])).astype(np.float64)
     weights /= weights.sum()
 
     if distribution == "poisson":

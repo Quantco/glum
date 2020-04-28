@@ -7,7 +7,6 @@ import numpy as np
 import pandas as pd
 import scipy.sparse
 
-from glm_benchmarks.bench_qc_glmnet import glmnet_qc_bench
 from glm_benchmarks.bench_sklearn_fork import sklearn_fork_bench
 from glm_benchmarks.problems import get_all_problems
 
@@ -176,11 +175,18 @@ def cli_analyze(
                 except FileNotFoundError:
                     continue
 
-                formatted_results.append(
-                    extract_dict_results_to_pd_series(
-                        Pn, Ln, num_rows_, storage_, threads_, single_precision_, res,
+                if len(res) > 0:
+                    formatted_results.append(
+                        extract_dict_results_to_pd_series(
+                            Pn,
+                            Ln,
+                            num_rows_,
+                            storage_,
+                            threads_,
+                            single_precision_,
+                            res,
+                        )
                     )
-                )
 
     res_df = (
         pd.concat(formatted_results, axis=1)
@@ -301,9 +307,7 @@ def identify_parameter_directories(
 def get_limited_problems_libraries(
     problem_names: str, library_names: str
 ) -> Tuple[Dict, Dict]:
-    all_libraries = dict(
-        sklearn_fork=sklearn_fork_bench, glmnet_qc=glmnet_qc_bench, zeros=zeros_bench,
-    )
+    all_libraries = dict(sklearn_fork=sklearn_fork_bench, zeros=zeros_bench,)
 
     if GLMNET_PYTHON_INSTALLED:
         all_libraries["glmnet_python"] = glmnet_python_bench
