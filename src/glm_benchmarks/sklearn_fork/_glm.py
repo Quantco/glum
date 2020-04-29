@@ -1207,7 +1207,6 @@ def _cd_cycle(
     A[idx:] += coef_P2
     # A += d @ (H+P2) but so far d=0
     # inner loop
-
     for inner_iter in range(1, max_inner_iter + 1):
         inner_iter += 1
         n_cycles += 1
@@ -2385,7 +2384,9 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
 
         if hasattr(X, "dtype") and X.dtype == np.int64:
             # check_X_y will convert to float32 if we don't do this, which causes
-            # precision issues with the new handling of single precision.
+            # precision issues with the new handling of single precision. The new
+            # behavior is to give everything the precision of X, but we don't want to
+            # do that if X was intially int64.
             X = X.astype(np.float64)
 
         X, y = check_X_y(
@@ -2398,19 +2399,15 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             copy=self.copy_X,
         )
 
-        x_initial_precision = X.dtype.itemsize
-
-        # 1.2.1 fix dtypes
-
-        # Make sure everything has the same precision as X
-        # This will prevent accidental upcasting later and slow operations on
-        # mixed-precision numbers
         # Without converting y to float, deviance might raise
         # ValueError: Integers to negative integer powers are not allowed.
         # Also, y must not be sparse.
 
         y = np.asarray(y)
-        y = _to_precision(y, x_initial_precision)
+        # Make sure everything has the same precision as X
+        # This will prevent accidental upcasting later and slow operations on
+        # mixed-precision numbers
+        y = _to_precision(y, X.dtype.itemsize)
         weights = _check_weights(sample_weight, y.shape[0], X.dtype)
         n_samples, n_features = X.shape
 
