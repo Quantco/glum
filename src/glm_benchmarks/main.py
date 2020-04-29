@@ -207,13 +207,15 @@ def cli_analyze(
     # keeps = ["sparse" not in x and "no_weights" in x for x in problems]
     keeps = [x in x for x in problems]
     # res_df.loc[keeps, :].reset_index().to_csv("results.csv")
-    with pd.option_context("display.expand_frame_repr", False, "max_columns", 10):
+    with pd.option_context(
+        "display.expand_frame_repr", False, "max_columns", 10, "max_rows", None
+    ):
         print(
             res_df.loc[
                 keeps,
                 [
                     "storage",
-                    "threads",
+                    # "threads",
                     "single_precision",
                     "n_iter",
                     "runtime",
