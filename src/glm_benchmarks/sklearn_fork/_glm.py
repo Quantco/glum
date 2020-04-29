@@ -1005,7 +1005,6 @@ def _irls_step(X, W: np.ndarray, P2, z: np.ndarray, fit_intercept=True):
     # Note: X.T @ W @ X is not sparse, even when X is sparse.
     #      Sparse solver would splinalg.spsolve(A, b) or splinalg.lsmr(A, b)
     if fit_intercept:
-        assert W.dtype == X.dtype
         Wz = W * z
         if sparse.issparse(X):
             b = np.concatenate(([Wz.sum()], X.transpose() @ Wz))
@@ -1094,7 +1093,6 @@ def _irls_solver(
     # Note: P2 must be symmetrized
     # Note: ' denotes derivative, but also transpose for matrices
 
-    assert coef.dtype == X.dtype
     eta = _safe_lin_pred(X, coef)
     mu = link.inverse(eta)
     # D = h'(eta)
@@ -1110,19 +1108,15 @@ def _irls_solver(
         # working weights W, in principle a diagonal matrix
         # therefore here just as 1d array
         W = hp ** 2 / V
-        assert W.dtype == X.dtype
         # working observations
-        # z = eta + (y - mu) / hp
+        # float32 - int32 = float64, unless you specify dtype
         z = (
             eta
             + np.subtract(y, mu, dtype=get_float_dtype_of_size(X.dtype.itemsize)) / hp
         )
         # solve A*coef = b
         # A = X' W X + P2, b = X' W z
-        assert W.dtype == X.dtype
-        assert z.dtype == X.dtype
         coef = _irls_step(X, W, P2, z, fit_intercept=fit_intercept)
-        assert coef.dtype == X.dtype
         # updated linear predictor
         # do it here for updated values for tolerance
         eta = _safe_lin_pred(X, coef)
@@ -1191,7 +1185,6 @@ def _cd_cycle(
     #       => active set of features for featurelist, see paper
     #          of Improved GLMNET or Gap Safe Screening Rules
     #          https://arxiv.org/abs/1611.05780
-    assert P1.dtype == X.dtype
     n_samples, n_features = X.shape
     intercept = coef.size == X.shape[1] + 1
     idx = 1 if intercept else 0  # offset if coef[0] is intercept
@@ -1448,7 +1441,6 @@ def _cd_solver(
     Journal of Machine Learning Research 13 (2012) 1999-2030
     https://www.csie.ntu.edu.tw/~cjlin/papers/l1_glmnet/long-glmnet.pdf
     """
-    assert coef.dtype == get_float_dtype_of_size(y.dtype.itemsize)
     if P2.ndim == 2:
         P2 = check_array(P2, "csc", dtype=[np.float64, np.float32])
 
@@ -1619,7 +1611,6 @@ def _cd_solver(
             " (currently {})".format(max_iter),
             ConvergenceWarning,
         )
-    assert coef.dtype == X.dtype
     return coef, n_iter, n_cycles, diagnostics
 
 
@@ -2254,7 +2245,6 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         Set mu=starting_mu of the family and do one Newton step
         If solver=cd use cd, else irls
         """
-        assert y.dtype.itemsize == weights.dtype.itemsize
         n_features = X.shape[1]
         family = get_family(self.family)
         link = get_link(self.link, family)
@@ -2264,8 +2254,6 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             # see function _cd_solver
             # TODO: why does this not use _eta_mu_score_fisher?
             sigma_inv = 1 / family.variance(mu, phi=1, weights=weights)
-            if mu.dtype == weights.dtype:
-                assert sigma_inv.dtype == mu.dtype
             d1 = link.inverse_derivative(eta)
             temp = sigma_inv * d1 * (y - mu)
             if self.fit_intercept:
@@ -2308,30 +2296,22 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 diag_fisher=self.diag_fisher,
             )
             coef += d  # for simplicity no line search here
-            assert coef.dtype == X.dtype
         else:
             # See _irls_solver
             # h'(eta)
             hp = link.inverse_derivative(eta)
             # working weights W, in principle a diagonal matrix
             # therefore here just as 1d array
-            assert mu.dtype == weights.dtype
             W = hp ** 2 / family.variance(mu, phi=1, weights=weights)
-            assert family.variance(mu, phi=1, weights=weights).dtype == min(
-                mu.dtype, weights.dtype
-            )
             # working observations
             z = (
                 eta
                 + np.subtract(y, mu, dtype=get_float_dtype_of_size(X.dtype.itemsize))
                 / hp
             )
-            assert z.dtype == X.dtype
             # solve A*coef = b
             # A = X' W X + l2 P2, b = X' W z
-            assert W.dtype == X.dtype
             coef = _irls_step(X, W, P2, z, fit_intercept=self.fit_intercept)
-            assert coef.dtype == X.dtype
         return coef
 
     def fit(self, X, y, sample_weight=None):
@@ -2432,7 +2412,6 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         y = np.asarray(y)
         y = _to_precision(y, x_initial_precision)
         weights = _check_weights(sample_weight, y.shape[0], X.dtype)
-        assert y.dtype.itemsize == X.dtype.itemsize
         n_samples, n_features = X.shape
 
         # 1.3 arguments to take special care ##################################
@@ -2452,7 +2431,6 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             fit_intercept=self.fit_intercept,
             _dtype=_dtype,
         )
-        assert y.dtype.itemsize == X.dtype.itemsize
 
         # 1.4 additional validations ##########################################
         if self.check_input:
@@ -2490,9 +2468,6 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         weights = weights / weights_sum
         weights = _to_precision(weights, X.dtype.itemsize)
 
-        assert weights.dtype.itemsize == X.dtype.itemsize
-        assert y.dtype.itemsize == x_initial_precision
-
         #######################################################################
         # 2b. convert to wrapper matrix types
         #######################################################################
@@ -2501,16 +2476,12 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         elif sparse.issparse(X):
             X = MKLSparseMatrix(X)
 
-        assert weights.dtype.itemsize == X.dtype.itemsize
-        assert y.dtype.itemsize == X.dtype.itemsize
         #######################################################################
         # 2c. potentially rescale predictors
         #######################################################################
         if self.center_predictors_:
             X, col_means, col_stds = X.standardize(weights, self.scale_predictors)
 
-        assert weights.dtype.itemsize == X.dtype.itemsize
-        assert y.dtype.itemsize == X.dtype.itemsize
         #######################################################################
         # 3. initialization of coef = (intercept_, coef_)                     #
         #######################################################################
@@ -2525,14 +2496,12 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 coef = np.concatenate((np.array([intercept]), coef))
             if self.center_predictors_:
                 _standardize_warm_start(coef, col_means, col_stds)
-            assert coef.dtype == X.dtype
 
         elif isinstance(start_params, str):
             if start_params == "guess":
                 coef = self._guess_start_params(
                     y, weights, solver, X, P1, P2, random_state
                 )
-                assert coef.dtype == X.dtype
             else:  # start_params == 'zero'
                 if self.fit_intercept:
                     coef = np.zeros(
@@ -2543,14 +2512,10 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                     coef = np.zeros(
                         n_features, dtype=_float_itemsize_to_dtype[X.dtype.itemsize]
                     )
-                assert coef.dtype == X.dtype
-            assert coef.dtype == X.dtype
         else:  # assign given array as start values
             coef = start_params
             if self.center_predictors_:
                 _standardize_warm_start(coef, col_means, col_stds)
-            assert coef.dtype == X.dtype
-        assert coef.dtype.itemsize == X.dtype.itemsize
 
         #######################################################################
         # 4. fit                                                              #
