@@ -19,13 +19,13 @@ class MKLSparseMatrix(sps.csc_matrix):
         Instantiate in the same way as scipy.sparse.csc_matrix
         """
         super().__init__(arg1, shape, dtype, copy)
-        self.as_csr = None
+        self.x_csr = None
 
     def to_scipy_sparse(self, copy: bool) -> sps.csc_matrix:
         return sps.csc_matrix(self, copy=copy)
 
     def sandwich(self, d: np.ndarray) -> np.ndarray:
-        if not hasattr(self, "X_csr"):
+        if self.x_csr is None:
             self.x_csr = self.tocsr(copy=False)
 
         return sparse_sandwich(self.tocsc(copy=False), self.x_csr, d)
