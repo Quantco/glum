@@ -7,21 +7,27 @@ from glm_benchmarks.sandwich.sandwich import dense_sandwich, sparse_sandwich
 
 
 @pytest.mark.parametrize("dtype", [np.float64, np.float32])
-def test_fast_sandwich(dtype):
-    shape = (100, 50)
-    A = simulate_matrix(shape=shape, dtype=dtype).tocsc()
+def test_fast_sandwich_sparse(dtype):
+    A = simulate_matrix(dtype=dtype).tocsc()
 
-    d = np.ones(shape[0])
+    d = np.ones(A.shape[0], dtype=dtype)
     true = A.T.dot(A).toarray()
     AT = A.T.tocsc()
 
     out = sparse_sandwich(A, AT, d)
+    np.testing.assert_allclose(true, out, atol=np.sqrt(np.finfo(dtype).eps))
+
+
+def test_fast_sandwich_dense():
+    A = simulate_matrix().tocsc()
+    d = np.ones(A.shape[0])
+    true = A.T.dot(A).toarray()
+
     out2 = dense_sandwich(np.asfortranarray(A.toarray()), d)
-    np.testing.assert_almost_equal(true, out)
-    np.testing.assert_almost_equal(true, out2)
+    np.testing.assert_allclose(true, out2, atol=np.sqrt(np.finfo(np.float64).eps))
 
 
-def simulate_matrix(nonzero_frac=0.05, shape=(1000, 500), seed=0, dtype=np.float64):
+def simulate_matrix(nonzero_frac=0.05, shape=(100, 50), seed=0, dtype=np.float64):
 
     np.random.seed(seed)
     nnz = int(np.prod(shape) * nonzero_frac)
