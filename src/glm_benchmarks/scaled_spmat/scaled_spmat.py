@@ -233,10 +233,16 @@ class ColScaledSpMat(ScaledMat):
         """
         return np.squeeze(self.mat.getrow(i).toarray()) + np.squeeze(self.shift)
 
-    def sandwich(self, d):
+    def sandwich(self, d: np.ndarray) -> np.ndarray:
         """
         Performs a sandwich product: X.T @ diag(d) @ X
         """
+        if not self.mat.dtype == d.dtype:
+            raise TypeError(
+                f"""self.mat and d need to be of same dtype, either
+                np.float64 or np.float32. This matrix is of type {self.mat.dtype},
+                while d is of type {d.dtype}."""
+            )
         term1 = self.mat.sandwich(d)
         term2 = (d @ self.mat)[:, np.newaxis] * self.shift
         term3 = term2.T
