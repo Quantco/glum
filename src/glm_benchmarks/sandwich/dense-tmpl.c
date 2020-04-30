@@ -123,3 +123,105 @@ void _dense_sandwich(double* restrict X, double* restrict d, double* restrict ou
     //out[i,j] = sum_k X[k,i] * d[k] * X[k,j]
     recurse_ij(X, d, out, m, n, 0, m, 0, m, 0, n);
 }
+
+
+void _sparse_dense_sandwich(
+    double* restrict Adata, int* restrict Aindices, int* restrict Aindptr,
+    double* restrict B,
+    double* restrict d,
+    double* restrict out,
+    int m, int n, int r) 
+{
+    <% 
+        JBLOCK = 4
+        VECSIZE = 4
+        KBLOCK = 100
+    %>
+    int ravxmax = (r / ${JBLOCK}) * ${JBLOCK};
+    #pragma omp parallel for
+    for (int i = 0; i < m; i++) {
+        int A_start = Aindptr[i];
+        int A_start_max = Aindptr[i+1];
+        int A_start_max_block = A_start + ((A_start_max - A_start) / ${KBLOCK}) * ${KBLOCK};
+        for (; A_start < A_start_max_block; A_start += ${KBLOCK}) {
+            int j = 0;
+            for (; j < ravxmax; j += ${JBLOCK}) {
+                % for s in range(JBLOCK):
+                    __m256d outavx${s} = _mm256_set1_pd(0.0);
+                % endfor
+                for (int A_idx = A_start; A_idx < A_start + ${KBLOCK}; A_idx += ${VECSIZE}) {
+                    __m256d Aavx = _mm256_loadu_pd(&Adata[A_idx]);
+                    double dv[${VECSIZE}];
+                    % for vi in range(VECSIZE):
+                        int k${vi} = Aindices[A_idx+${vi}];
+                        dv[${vi}] = d[k${vi}];
+                    % endfor
+                    __m256d davx = _mm256_load_pd(dv);
+                    __m256d Adavx = _mm256_mul_pd(Aavx, davx);
+                    % for s in range(JBLOCK):
+                        double Bv${s}[${VECSIZE}];
+                        % for vi in range(VECSIZE):
+                            Bv${s}[${vi}] = B[(j+${s})*n+k${vi}];
+                        % endfor
+                        __m256d Bavx${s} = _mm256_load_pd(Bv${s});
+                        outavx${s} = _mm256_add_pd(_mm256_mul_pd(Bavx${s}, Adavx), outavx${s});
+                    % endfor
+                }
+                % for s in range(JBLOCK):
+                    out[i*r+j+${s}] += hsum_double_avx(outavx${s});
+                % endfor
+            }
+            for (; j < r; j++) {
+                for (int A_idx = A_start; A_idx < A_start + ${KBLOCK}; A_idx++) {
+                    int k = Aindices[A_idx];
+                    double Q = Adata[A_idx] * d[k];
+                    out[i * r + j] += Q * B[j*n+k];
+                }
+            }
+        }
+
+        int A_idx_max = Aindptr[i+1];
+        for (int A_idx = A_start; A_idx < A_idx_max; A_idx++) {
+            int k = Aindices[A_idx];
+            double Q = Adata[A_idx] * d[k];
+            for (int j = 0; j < r; j++) {
+                out[i * r + j] += Q * B[j*n+k];
+            }
+        }
+
+        /* int A_idx_max = Aindptr[i+1]; */
+        /* for (int A_idx = A_start; A_idx < A_idx_max; A_idx++) { */
+        /*     int k = Aindices[A_idx]; */
+        /*     double Q = Adata[A_idx] * d[k]; */
+        /*     __m256d Qavx = _mm256_set1_pd(Q); */
+        /*     int j = 0; */
+        /*     for (; j < ravxmax; j+=4) { */
+        /*         __m256d Bavx = _mm256_loadu_pd(&B[k*r+j]); */
+        /*         __m256d outavx = _mm256_loadu_pd(&out[i*r+j]); */
+        /*         outavx = _mm256_add_pd(outavx, (_mm256_mul_pd(Qavx, Bavx))); */
+        /*         _mm256_storeu_pd(&out[i*r+j], outavx); */
+        /*     } */
+        /*     for (; j < r; j++) { */
+        /*         out[i * r + j] += Q * B[k*r+j]; */
+        /*     } */
+        /* } */
+
+        /* int A_idx = Aindptr[i]; */
+        /* int A_idx_max = Aindptr[i+1]; */
+        /* for (; A_idx < A_idx_max; A_idx++) { */
+        /*     int k = Aindices[A_idx]; */
+        /*     double Q = Adata[A_idx] * d[k]; */
+        /*     __m256d Qavx = _mm256_set1_pd(Q); */
+        /*     int j = 0; */
+        /*     for (; j < ravxmax; j+=4) { */
+        /*         __m256d Bavx = _mm256_loadu_pd(&B[k*r+j]); */
+        /*         __m256d outavx = _mm256_loadu_pd(&out[i*r+j]); */
+        /*         outavx = _mm256_add_pd(outavx, (_mm256_mul_pd(Qavx, Bavx))); */
+        /*         _mm256_storeu_pd(&out[i*r+j], outavx); */
+        /*     } */
+        /*     for (; j < r; j++) { */
+        /*         out[i * r + j] += Q * B[k*r+j]; */
+        /*     } */
+        /* } */
+    }
+}
