@@ -5,7 +5,7 @@ import numexpr
 import numpy as np
 from scipy import special
 
-from .util import _safe_lin_pred, _safe_sandwich_dot
+from ._util import _safe_lin_pred, _safe_sandwich_dot
 
 
 class ExponentialDispersionModel(metaclass=ABCMeta):
