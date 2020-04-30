@@ -118,7 +118,7 @@ def _check_weights(
         if weights.ndim > 1:
             raise ValueError("Sample weight must be 1D array or scalar")
         elif weights.shape[0] != n_samples:
-            raise ValueError("Sample weights must have the same length as " "y")
+            raise ValueError("Sample weights must have the same length as y")
         if not np.all(weights >= 0):
             raise ValueError("Sample weights must be non-negative.")
         elif not np.sum(weights) > 0:
@@ -129,11 +129,25 @@ def _check_weights(
     return weights
 
 
-def _check_offset(offset: np.ndarray, dtype) -> np.ndarray:
+def _check_offset(offset: Union[np.ndarray, float], n_rows: int, dtype) -> np.ndarray:
     """
     Unlike weights, if the offset is given as None, it can stay None. So we only need
     to validate it when it is not none.
     """
+    if np.isscalar(offset):
+        offset = np.full((n_rows,), offset, dtype=dtype)
+    else:
+        offset = check_array(
+            offset,
+            accept_sparse=False,
+            force_all_finite=True,
+            ensure_2d=False,
+            dtype=dtype,
+        )
+        if offset.ndim > 1:
+            raise ValueError("Offset must be 1D array or scalar.")
+        elif offset.shape[0] != n_rows:
+            raise ValueError("offset must have the same length as y.")
     return offset
 
 
@@ -1551,9 +1565,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             coef = _irls_step(X, W, P2, z, fit_intercept=self.fit_intercept)
         return coef
 
-    def fit(
-        self, X, y, sample_weight=None,
-    ):
+    def fit(self, X, y, sample_weight=None, offset=None):
         """Fit a Generalized Linear Model.
 
         Parameters
@@ -1572,6 +1584,11 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             If Y_i ~ EDM(mu, phi/w_i), then
             sum(w*Y)/sum(w) ~ EDM(mu, phi/sum(w)), i.e. the mean of y is a
             weighted average with weights=sample_weight.
+
+        offset: {None, array-like}, shape (n_samples,), optional (default=None)
+            Added to linear predictor "eta". An offset of 3 will increase expected
+            y by 3 if the link is linear, and will multiply expected y by 3 if the
+            link is log.
 
         Returns
         -------
@@ -1649,6 +1666,9 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         # mixed-precision numbers
         y = _to_precision(y, X.dtype.itemsize)
         weights = _check_weights(sample_weight, y.shape[0], X.dtype)
+        if offset is not None:
+            offset = _check_offset(offset, y.shape[0], X.dtype)
+
         n_samples, n_features = X.shape
 
         # HERE
