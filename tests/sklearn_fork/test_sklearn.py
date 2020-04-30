@@ -441,6 +441,7 @@ def test_glm_identity_regression(solver, fit_intercept, center_predictors):
         fit_coef = np.concatenate([[res.intercept_], res.coef_])
     else:
         fit_coef = res.coef_
+    assert fit_coef.dtype.itemsize == X.dtype.itemsize
     assert_allclose(fit_coef, coef, rtol=1e-6)
 
 

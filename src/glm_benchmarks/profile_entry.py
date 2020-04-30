@@ -6,22 +6,20 @@ import click
 import numpy as np
 
 from glm_benchmarks.bench_sklearn_fork import sklearn_fork_bench
-from glm_benchmarks.main import execute_problem_library, get_limited_problems
+from glm_benchmarks.main import execute_problem_library, get_limited_problems, get_path
 from glm_benchmarks.util import get_obj_val
 
 
 @click.command()
 @click.option(
-    "--num_rows",
-    type=int,
-    default=50000,
-    help="Integer number of rows to run profiling on.",
+    "--num_rows", type=int, help="Integer number of rows to run profiling on.",
 )
 @click.option(
     "--problem_names",
     default="narrow_insurance_no_weights_lasso_poisson",
     help="Specify a comma-separated list of benchmark problems you want to run.",
 )
+@click.option("--single_precision", is_flag=True)
 @click.option(
     "--storage",
     type=str,
@@ -41,21 +39,37 @@ from glm_benchmarks.util import get_obj_val
     default="golden_master",
     help="Where to find saved estimates for checking that estimates haven't changed.",
 )
-def main(num_rows, problem_names, storage, save_result, no_test, save_dir):
+def main(
+    num_rows, problem_names, single_precision, storage, save_result, no_test, save_dir
+):
     problems = get_limited_problems(problem_names)
+    threads = None
+
     for Pn in problems:
         print(f"benchmarking {Pn}")
         result = execute_problem_library(
-            problems[Pn], sklearn_fork_bench, num_rows=num_rows, storage=storage
+            problems[Pn],
+            sklearn_fork_bench,
+            num_rows,
+            storage=storage,
+            threads=threads,
+            single_precision=single_precision,
         )
         print(f"took {result['runtime']}")
 
-        path = os.path.join(save_dir, Pn, str(num_rows) + ".pkl")
+        path = get_path(
+            save_dir,
+            Pn,
+            num_rows=num_rows,
+            storage=storage,
+            threads=threads,
+            single_precision=single_precision,
+        )
+
         if save_result:
             save_baseline(path, result)
         elif not no_test:
             test_against_baseline(path, result, Pn, num_rows)
-        print("")
 
 
 def save_baseline(path, data):

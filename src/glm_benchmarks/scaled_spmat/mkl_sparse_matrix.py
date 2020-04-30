@@ -25,6 +25,12 @@ class MKLSparseMatrix(sps.csc_matrix):
         return sps.csc_matrix(self, copy=copy)
 
     def sandwich(self, d: np.ndarray) -> np.ndarray:
+        if not self.dtype == d.dtype:
+            raise TypeError(
+                f"""self and d need to be of same dtype, either np.float64
+                or np.float32. self is of type {self.dtype}, while d is of type
+                {d.dtype}."""
+            )
         if self.x_csr is None:
             self.x_csr = self.tocsr(copy=False)
 
