@@ -4,6 +4,8 @@ from typing import Dict, Tuple, Union
 import numpy as np
 from scipy import sparse as sps
 
+benchmark_convergence_tolerance = 1e-4
+
 
 def runtime(f, *args, **kwargs):
     start = time.time()
@@ -54,7 +56,7 @@ def get_obj_val(
     intercept: float,
     coefs: np.ndarray,
 ) -> float:
-    weights = dat.get("weights", np.ones_like(dat["y"]))
+    weights = dat.get("weights", np.ones_like(dat["y"])).astype(np.float64)
     weights /= weights.sum()
 
     if distribution == "poisson":

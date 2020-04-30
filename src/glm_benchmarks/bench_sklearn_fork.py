@@ -5,7 +5,7 @@ import numpy as np
 from scipy import sparse as sps
 
 from .sklearn_fork import GeneralizedLinearRegressor, TweedieDistribution
-from .util import runtime
+from .util import benchmark_convergence_tolerance, runtime
 
 random_seed = 110
 
@@ -38,15 +38,19 @@ def sklearn_fork_bench(
         family=family,
         alpha=alpha,
         l1_ratio=l1_ratio,
-        max_iter=100,
+        max_iter=5,
         random_state=random_seed,
         copy_X=False,
         selection="random",
-        tol=1e-7,
+        tol=benchmark_convergence_tolerance,
     )
 
-    result["runtime"], m = runtime(build_and_fit, model_args, fit_args)
-    result["model_obj"] = m
+    try:
+        result["runtime"], m = runtime(build_and_fit, model_args, fit_args)
+    except ValueError as e:
+        print(f"Problem failed with this error: {e}")
+        return result
+
     result["intercept"] = m.intercept_
     result["coef"] = m.coef_
     result["n_iter"] = m.n_iter_
