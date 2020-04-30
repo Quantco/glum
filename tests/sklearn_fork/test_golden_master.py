@@ -1,16 +1,28 @@
 import pickle
 
 import numpy as np
+import pandas as pd
 import pytest
 from git_root import git_root
+from scipy import sparse
 
+from glm_benchmarks.scaled_spmat.mkl_sparse_matrix import MKLSparseMatrix
 from glm_benchmarks.sklearn_fork._glm import GeneralizedLinearRegressor
+from glm_benchmarks.sklearn_fork.dense_glm_matrix import DenseGLMDataMatrix
 
 
-def create_poisson_reg_data(n_rows=10000, n_features=10):
+def create_poisson_reg_data(n_rows=10000, n_features_dense=10, n_features_ohe=2):
     rand = np.random.default_rng(42)
-    X = rand.standard_normal(size=(n_rows, n_features))
+    X = rand.standard_normal(size=(n_rows, n_features_dense))
     coefs = np.array([1.0, 0.5, 0.1, -0.1, -0.5, -1.0, 0, 0, 0, 0])
+
+    for i in range(n_features_ohe):
+        X = np.concatenate(
+            [X, pd.get_dummies(rand.integers(0, 10, size=(n_rows)), drop_first=True)],
+            axis=1,
+        )
+        coefs = np.concatenate([coefs, rand.uniform(size=9)])
+
     intercept = 0.2
     y = rand.poisson(np.exp(intercept + X @ coefs))
     weights = rand.uniform(size=n_rows)
@@ -18,14 +30,21 @@ def create_poisson_reg_data(n_rows=10000, n_features=10):
     return data
 
 
-@pytest.fixture
-def poisson_reg_data():
-    return create_poisson_reg_data()
+@pytest.fixture(params=["sparse", "dense"])
+def poisson_data(request):
+    data = create_poisson_reg_data()
+
+    if request.param == "dense":
+        data["X"] = DenseGLMDataMatrix(data["X"])
+    else:
+        data["X"] = MKLSparseMatrix(sparse.csc_matrix(data["X"]))
+
+    return data
 
 
 def _make_P2():
     rand = np.random.default_rng(42)
-    a = rand.uniform(size=(10, 10)) - 0.5  # centered uniform distribution
+    a = rand.uniform(size=(28, 28)) - 0.5  # centered uniform distribution
     P2 = a.T @ a  # make sure P2 is positive semi-definite
     return P2
 
@@ -36,14 +55,17 @@ gm_model_parameters = {
     "half-regularization": {"alpha": 0.5},  # regularization (other than alpha = 1)
     "elastic-net": {"l1_ratio": 0.5},  # elastic-net
     "lasso": {"l1_ratio": 1},  # lasso
-    "variable_p1": {"l1_ratio": 1, "P1": np.arange(10)},  # lasso with variable penalty
+    "variable_p1": {
+        "l1_ratio": 1,
+        "P1": np.arange(28) / 10,
+    },  # lasso with variable penalty
     "variable_p2": {
         "l1_ratio": 0,
         "P2": _make_P2(),
     },  # ridge with Tikhonov regularization
     "variable_p1_p2": {
         "l1_ratio": 0.5,
-        "P1": np.arange(10),
+        "P1": np.arange(28) / 10,
         "P2": _make_P2(),
     },  # elastic net with P1 and P2 variable penalty
     "fit_intercept": {"fit_intercept": False},  # do not fit the intercept
@@ -56,18 +78,16 @@ gm_model_parameters = {
     gm_model_parameters.items(),
     ids=gm_model_parameters.keys(),
 )
-def test_poisson_golden_master(
-    model_parameters, run_name, use_weights, poisson_reg_data
-):
+def test_poisson_golden_master(model_parameters, run_name, use_weights, poisson_data):
     model = GeneralizedLinearRegressor(family="poisson", **model_parameters)
 
     fit_params = {
-        "X": poisson_reg_data["X"],
-        "y": poisson_reg_data["y"],
+        "X": poisson_data["X"],
+        "y": poisson_data["y"],
     }
 
     if use_weights:
-        fit_params.update({"sample_weight": poisson_reg_data["weights"]})
+        fit_params.update({"sample_weight": poisson_data["weights"]})
         run_name = f"{run_name}_weights"
 
     model.fit(**fit_params)
