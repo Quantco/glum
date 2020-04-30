@@ -477,11 +477,16 @@ def test_glm_identity_regression(solver, fit_intercept, center_predictors):
 @pytest.mark.parametrize(
     "fit_intercept, center_predictors", [(False, False), (True, False), (True, True)]
 )
-def test_glm_identity_regression_offset(solver, fit_intercept, center_predictors):
+@pytest.mark.parametrize("start_params", ["guess", "zero"])
+def test_glm_identity_regression_offset(
+    solver, fit_intercept, center_predictors, start_params
+):
     """Test GLM regression with identity link on a simple dataset."""
+    fit_intercept = True
+    center_predictors = True
     coef = [1.0, 2.0]
-    X = np.array([[1, 1, 1, 1, 1], [0, 1, 2, 3, 4]]).T
-    y = np.dot(X, coef)
+    full_x = np.array([[1, 1, 1, 1, 1], [0, 1, 2, 3, 4]]).T
+    y = np.dot(full_x, coef)
     glm = GeneralizedLinearRegressor(
         alpha=0,
         family="normal",
@@ -489,24 +494,25 @@ def test_glm_identity_regression_offset(solver, fit_intercept, center_predictors
         fit_intercept=fit_intercept,
         center_predictors=center_predictors,
         solver=solver,
-        start_params="zero",
+        start_params=start_params,
         tol=1e-7,
+        max_iter=200,
     )
     if fit_intercept:
-        X = X[:, 1:]
+        fit_x = full_x[:, 1:]
 
     # If the offset explains what one of the coefs would explain, the coef will be 0
     for i in [0, 1]:
-        offset = X[:, i] * coef[i]
-        res = glm.fit(X, y, offset=offset)
+        offset = full_x[:, i] * coef[i]
+        res = glm.fit(fit_x, y, offset=offset)
         if fit_intercept:
             fit_coef = np.concatenate([[res.intercept_], res.coef_])
         else:
             fit_coef = res.coef_
         expected = coef.copy()
         expected[i] = 0
-        assert fit_coef.dtype.itemsize == X.dtype.itemsize
-        assert_allclose(fit_coef, expected, rtol=1e-6)
+        assert fit_coef.dtype.itemsize == fit_x.dtype.itemsize
+        assert_allclose(fit_coef, expected, rtol=1e-6, atol=1e-7)
 
 
 @pytest.mark.parametrize(

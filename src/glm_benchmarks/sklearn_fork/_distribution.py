@@ -1,10 +1,12 @@
 import numbers
 from abc import ABCMeta, abstractmethod
+from typing import Tuple
 
 import numexpr
 import numpy as np
 from scipy import special
 
+from ._link import Link
 from ._util import _safe_lin_pred, _safe_sandwich_dot
 
 
@@ -278,19 +280,36 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
             1 - ind_weight, np.average(y, weights=weights), dtype=expected_dtype
         )
 
-    def _mu_deviance_derivative(self, coef, X, y, weights, link):
+    def _mu_deviance_derivative(
+        self,
+        coef: np.ndarray,
+        X,
+        y: np.ndarray,
+        weights: np.ndarray,
+        link: Link,
+        offset: np.ndarray = None,
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """Compute mu and the derivative of the deviance w.r.t coef."""
-        lin_pred = _safe_lin_pred(X, coef)
+        lin_pred = _safe_lin_pred(X, coef, offset)
         mu = link.inverse(lin_pred)
         d1 = link.inverse_derivative(lin_pred)
         temp = d1 * self.deviance_derivative(y, mu, weights)
         if coef.size == X.shape[1] + 1:
             devp = np.concatenate(([temp.sum()], temp @ X))
         else:
-            devp = temp @ X  # sampe as X.T @ temp
+            devp = temp @ X  # same as X.T @ temp
         return mu, devp
 
-    def _score(self, coef, phi, X, y, weights, link):
+    def _score(
+        self,
+        coef: np.ndarray,
+        phi,
+        X,
+        y: np.ndarray,
+        weights: np.ndarray,
+        link: Link,
+        offset: np.ndarray = None,
+    ) -> np.ndarray:
         r"""Compute the score function.
 
         The score function is the derivative of the
@@ -308,7 +327,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         :math:`\boldsymbol{\Sigma}=\mathrm{diag}(\mathbf{V}[y_1],\ldots)`.
         Note: The derivative of the deviance w.r.t. coef equals -2 * score.
         """
-        lin_pred = _safe_lin_pred(X, coef)
+        lin_pred = _safe_lin_pred(X, coef, offset)
         mu = link.inverse(lin_pred)
         sigma_inv = 1 / self.variance(mu, phi=phi, weights=weights)
         d = link.inverse_derivative(lin_pred)
@@ -316,10 +335,18 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         if coef.size == X.shape[1] + 1:
             score = np.concatenate(([temp.sum()], temp @ X))
         else:
-            score = temp @ X  # sampe as X.T @ temp
+            score = temp @ X  # same as X.T @ temp
         return score
 
-    def _fisher_matrix(self, coef, phi, X, weights, link):
+    def _fisher_matrix(
+        self,
+        coef: np.ndarray,
+        phi,
+        X,
+        weights: np.ndarray,
+        link: Link,
+        offset: np.ndarray = None,
+    ) -> np.ndarray:
         r"""Compute the Fisher information matrix.
 
         The Fisher information matrix, also known as expected information
@@ -338,7 +365,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         with :math:`\mathbf{W} = \mathbf{D}^2 \boldsymbol{\Sigma}^{-1}`,
         see func:`_score`.
         """
-        lin_pred = _safe_lin_pred(X, coef)
+        lin_pred = _safe_lin_pred(X, coef, offset)
         mu = link.inverse(lin_pred)
         sigma_inv = 1 / self.variance(mu, phi=phi, weights=weights)
         d = link.inverse_derivative(lin_pred)
@@ -347,7 +374,16 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         fisher_matrix = _safe_sandwich_dot(X, d2_sigma_inv, intercept=intercept)
         return fisher_matrix
 
-    def _observed_information(self, coef, phi, X, y, weights, link):
+    def _observed_information(
+        self,
+        coef: np.ndarray,
+        phi,
+        X,
+        y: np.ndarray,
+        weights: np.ndarray,
+        link: Link,
+        offset: np.ndarray = None,
+    ):
         r"""Compute the observed information matrix.
 
         The observed information matrix, also known as the negative of
@@ -370,7 +406,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         \right)`,
         see :func:`score_` function and :func:`_fisher_matrix`.
         """
-        lin_pred = _safe_lin_pred(X, coef)
+        lin_pred = _safe_lin_pred(X, coef, offset)
         mu = link.inverse(lin_pred)
         sigma_inv = 1 / self.variance(mu, phi=phi, weights=weights)
         dp = link.inverse_derivative2(lin_pred)
@@ -382,7 +418,17 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         observed_information = _safe_sandwich_dot(X, temp, intercept=intercept)
         return observed_information
 
-    def _eta_mu_score_fisher(self, coef, phi, X, y, weights, link, diag_fisher=False):
+    def _eta_mu_score_fisher(
+        self,
+        coef: np.ndarray,
+        phi,
+        X,
+        y: np.ndarray,
+        weights: np.ndarray,
+        link: Link,
+        diag_fisher: bool = False,
+        offset: np.ndarray = None,
+    ):
         """Compute linear predictor, mean, score function and fisher matrix.
 
         It calculates the linear predictor, the mean, score function
@@ -411,7 +457,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         """
         intercept = coef.size == X.shape[1] + 1
         # eta = linear predictor
-        eta = _safe_lin_pred(X, coef)
+        eta = _safe_lin_pred(X, coef, offset)
         mu = link.inverse(eta)
 
         # FOR TWEEDIE: sigma_inv = weights / (mu ** p) during optimization bc phi = 1
