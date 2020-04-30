@@ -48,6 +48,9 @@ def split(X):
         DD = dense_sandwich(X_dense, d)
         # DS2 = dot_product_mkl(X_sparse.T, d[:,np.newaxis] * X_dense)
         DS = sparse_dense_sandwich(X_sparse, X_dense_C, d)
+        import ipdb
+
+        ipdb.set_trace()
         # DS2 = sparse_dense_sandwich(X_sparse_csr, X_dense, d)
         # X_sparse_csr.data *= d[X_sparse_csr.indices]
         # DS3 = dot_product_mkl(X_sparse_csr.T, X_dense)
