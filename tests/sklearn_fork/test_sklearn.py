@@ -18,6 +18,7 @@ from sklearn.utils.estimator_checks import check_estimator
 from glm_benchmarks.sklearn_fork._glm import (
     BinomialDistribution,
     DenseGLMDataMatrix,
+    ExponentialDispersionModel,
     GammaDistribution,
     GeneralizedHyperbolicSecant,
     GeneralizedLinearRegressor,
@@ -57,6 +58,11 @@ def X():
     return np.array([[1], [2]])
 
 
+@pytest.fixture
+def offset():
+    return np.array([-0.3, 2])
+
+
 @pytest.mark.parametrize("link", Link.__subclasses__())
 def test_link_properties(link):
     """Test link inverse and derivative."""
@@ -72,10 +78,6 @@ def test_link_properties(link):
     assert_allclose(link.derivative(link.inverse(x)), 1.0 / link.inverse_derivative(x))
 
     assert link.inverse_derivative2(x).shape == link.inverse_derivative(x).shape
-
-    # for LogitLink, in the following x should be between 0 and 1.
-    # assert_almost_equal(link.inverse_derivative(link.link(x)),
-    #                     1./link.derivative(x), decimal=decimal)
 
 
 @pytest.mark.parametrize(
@@ -219,6 +221,26 @@ def test_sample_weights_validation():
         glm.fit(X, y, weights)
 
 
+def test_offset_validation():
+    X = [[1]]
+    y = [1]
+    glm = GeneralizedLinearRegressor(fit_intercept=False)
+
+    # Negatives are accepted (makes sense for log link)
+    glm.fit(X, y, offset=-1)
+
+    # Arrays of the right shape are accepted
+    glm.fit(X, y, offset=[1])
+
+    # 2d array
+    with pytest.raises(ValueError, match="must be 1D array or scalar"):
+        glm.fit(X, y, offset=[[0]])
+
+    # 1d but wrong length
+    with pytest.raises(ValueError, match="must have the same length as y"):
+        glm.fit(X, y, offset=[1, 0])
+
+
 @pytest.mark.parametrize(
     "f, fam",
     [
@@ -239,6 +261,12 @@ def test_glm_family_argument_invalid_input(y, X):
     glm = GeneralizedLinearRegressor(family="not a family", fit_intercept=False)
     with pytest.raises(ValueError, match="family must be"):
         glm.fit(X, y)
+
+
+@pytest.mark.parametrize("family", ExponentialDispersionModel.__subclasses__())
+def test_glm_family_argument_as_exponential_dispersion_model(y, X, family):
+    glm = GeneralizedLinearRegressor(family=family())
+    glm.fit(X, y)
 
 
 @pytest.mark.parametrize(
@@ -443,6 +471,42 @@ def test_glm_identity_regression(solver, fit_intercept, center_predictors):
         fit_coef = res.coef_
     assert fit_coef.dtype.itemsize == X.dtype.itemsize
     assert_allclose(fit_coef, coef, rtol=1e-6)
+
+
+@pytest.mark.parametrize("solver", GLM_SOLVERS)
+@pytest.mark.parametrize(
+    "fit_intercept, center_predictors", [(False, False), (True, False), (True, True)]
+)
+def test_glm_identity_regression_offset(solver, fit_intercept, center_predictors):
+    """Test GLM regression with identity link on a simple dataset."""
+    coef = [1.0, 2.0]
+    X = np.array([[1, 1, 1, 1, 1], [0, 1, 2, 3, 4]]).T
+    y = np.dot(X, coef)
+    glm = GeneralizedLinearRegressor(
+        alpha=0,
+        family="normal",
+        link="identity",
+        fit_intercept=fit_intercept,
+        center_predictors=center_predictors,
+        solver=solver,
+        start_params="zero",
+        tol=1e-7,
+    )
+    if fit_intercept:
+        X = X[:, 1:]
+
+    # If the offset explains what one of the coefs would explain, the coef will be 0
+    for i in [0, 1]:
+        offset = X[:, i] * coef[i]
+        res = glm.fit(X, y, offset=offset)
+        if fit_intercept:
+            fit_coef = np.concatenate([[res.intercept_], res.coef_])
+        else:
+            fit_coef = res.coef_
+        expected = coef.copy()
+        expected[i] = 0
+        assert fit_coef.dtype.itemsize == X.dtype.itemsize
+        assert_allclose(fit_coef, expected, rtol=1e-6)
 
 
 @pytest.mark.parametrize(
