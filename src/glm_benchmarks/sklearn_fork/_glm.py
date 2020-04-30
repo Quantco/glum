@@ -87,7 +87,9 @@ def get_float_dtype_of_size(itemsize: int):
     return _float_itemsize_to_dtype[itemsize]
 
 
-def _check_weights(sample_weight: Union[np.ndarray, None], n_samples: int, dtype):
+def _check_weights(
+    sample_weight: Union[float, np.ndarray, None], n_samples: int, dtype
+):
     """Check that sample weights are non-negative and have the right shape."""
     if sample_weight is None:
         weights = np.ones(n_samples, dtype=dtype)
@@ -116,6 +118,14 @@ def _check_weights(sample_weight: Union[np.ndarray, None], n_samples: int, dtype
             )
 
     return weights
+
+
+def _check_offset(offset: np.ndarray, dtype) -> np.ndarray:
+    """
+    Unlike weights, if the offset is given as None, it can stay None. So we only need
+    to validate it when it is not none.
+    """
+    return offset
 
 
 def _safe_lin_pred(X, coef):
@@ -2144,7 +2154,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
 
     # See PEP 484 on annotating with float rather than Number
     # https://www.python.org/dev/peps/pep-0484/#the-numeric-tower
-    def _validate_inputs(self) -> None:
+    def _validate_hyperparameters(self) -> None:
         if (
             not (isinstance(self.alpha, float) or isinstance(self.alpha, int))
             or self.alpha < 0
@@ -2313,7 +2323,9 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             coef = _irls_step(X, W, P2, z, fit_intercept=self.fit_intercept)
         return coef
 
-    def fit(self, X, y, sample_weight=None):
+    def fit(
+        self, X, y, sample_weight=None,
+    ):
         """Fit a Generalized Linear Model.
 
         Parameters
@@ -2341,7 +2353,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         # 1. input validation                                                 #
         #######################################################################
         # 1.1
-        self._validate_inputs()
+        self._validate_hyperparameters()
         # self.family and self.link are user-provided inputs and may be strings or
         #  ExponentialDispersonModel/Link objects
         # self.family_instance_ and self.link_instance_ are cleaned by 'fit' to be
@@ -2410,6 +2422,8 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         y = _to_precision(y, X.dtype.itemsize)
         weights = _check_weights(sample_weight, y.shape[0], X.dtype)
         n_samples, n_features = X.shape
+
+        # HERE
 
         # 1.3 arguments to take special care ##################################
         # P1, P2, start_params
