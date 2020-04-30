@@ -3,8 +3,6 @@ FROM continuumio/miniconda3:latest
 RUN mkdir /app
 WORKDIR /app
 
-# To ensure we're installing anaconda package versions, let's install directly
-# from anaconda first, then afterwards, install from conda-forge and pip
 COPY requirements/ /app/requirements
 RUN conda config --add channels conda-forge
 RUN conda config --set channel_priority strict
