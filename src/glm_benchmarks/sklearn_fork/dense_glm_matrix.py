@@ -1,3 +1,5 @@
+from typing import Tuple
+
 import numpy as np
 
 from glm_benchmarks.scaled_spmat.standardize import one_over_var_inf_to_zero
@@ -20,6 +22,10 @@ class DenseGLMDataMatrix(np.ndarray):
         # We first cast to be our class type
         obj = np.asarray(input_array).view(cls)
         # Finally, we must return the newly created object:
+        if not np.issubdtype(obj.dtype, np.floating):
+            raise NotImplementedError(
+                "DenseGLMDataMatrix is only implemented for float data"
+            )
         return obj
 
     def __array_finalize__(self, obj):
@@ -37,7 +43,7 @@ class DenseGLMDataMatrix(np.ndarray):
         xd = self * sqrtD
         return xd.T @ xd
 
-    def standardize(self, weights, scale_predictors):
+    def standardize(self, weights: np.ndarray, scale_predictors: bool) -> Tuple:
         col_means = self.T.dot(weights)[None, :]
         self -= col_means
         if scale_predictors:
@@ -45,7 +51,7 @@ class DenseGLMDataMatrix(np.ndarray):
             col_stds = np.sqrt((self ** 2).T.dot(weights))
             self *= one_over_var_inf_to_zero(col_stds)
         else:
-            col_stds = np.ones(self.shape[1])
+            col_stds = np.ones(self.shape[1], dtype=self.dtype)
         return self, col_means, col_stds
 
     def unstandardize(self, col_means, col_stds):
