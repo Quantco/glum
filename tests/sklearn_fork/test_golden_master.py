@@ -1,4 +1,7 @@
+import argparse
+import os
 import pickle
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -99,8 +102,9 @@ def test_poisson_golden_master(model_parameters, run_name, use_weights, poisson_
     np.testing.assert_allclose(model.intercept_, expected.intercept_, rtol=1e-5, atol=0)
 
 
-def run_and_store_golden_master(model_parameters, run_name, use_weights, data):
-    model = GeneralizedLinearRegressor(family="poisson", **model_parameters)
+def run_and_store_golden_master(
+    model_parameters, run_name, use_weights, data, overwrite=False
+):
 
     fit_params = {
         "X": data["X"],
@@ -111,15 +115,32 @@ def run_and_store_golden_master(model_parameters, run_name, use_weights, data):
         fit_params.update({"sample_weight": data["weights"]})
         run_name = f"{run_name}_weights"
 
+    if os.path.exists(git_root(f"golden_master/gm_{run_name}.pkl")):
+        if not overwrite:
+            warnings.warn("File exists and cannot overwrite. Skipping")
+            return
+        else:
+            warnings.warn("Overwriting existing file")
+
+    model = GeneralizedLinearRegressor(family="poisson", **model_parameters)
     model.fit(**fit_params)
 
     with open(git_root(f"golden_master/gm_{run_name}.pkl"), "wb") as fh:
         pickle.dump(model, fh)
 
+    return
+
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--overwrite", action="store_true", help="overwrite existing golden master"
+    )
+    args = parser.parse_args()
     data = create_poisson_reg_data()
 
     for mdl_param in gm_model_parameters.items():
         for use_weights in [True, False]:
-            run_and_store_golden_master(mdl_param[1], mdl_param[0], use_weights, data)
+            run_and_store_golden_master(
+                mdl_param[1], mdl_param[0], use_weights, data, args.overwrite
+            )
