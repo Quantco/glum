@@ -5,7 +5,7 @@ import numpy as np
 from glmnet_python import glmnet
 from scipy import sparse as sps
 
-from .util import runtime
+from .util import benchmark_convergence_tolerance, runtime
 
 
 def glmnet_python_bench(
@@ -41,14 +41,12 @@ def glmnet_python_bench(
         alpha=l1_ratio,
         lambdau=np.array([alpha]),
         standardize=False,
-        thresh=1e-7,
+        thresh=benchmark_convergence_tolerance,
     )
     if "weights" in dat.keys():
         glmnet_kws.update({"weights": dat["weights"]})
 
     result["runtime"], m = runtime(glmnet, **glmnet_kws)
-
-    result["model_obj"] = m
     result["intercept"] = m["a0"][0]
     result["coef"] = m["beta"][:, 0]
     result["n_iter"] = m["npasses"]
