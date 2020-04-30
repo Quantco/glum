@@ -58,18 +58,46 @@ from glm_benchmarks.scaled_spmat.mkl_sparse_matrix import MKLSparseMatrix
 
 from .dense_glm_matrix import DenseGLMDataMatrix
 
+_float_itemsize_to_dtype = {8: np.float64, 4: np.float32, 2: np.float16}
 
-def _check_weights(sample_weight, n_samples):
+
+def _to_precision(arr: np.ndarray, itemsize: int) -> np.ndarray:
+    """
+    >>> ones = np.ones(2)
+    >>> ones.dtype
+    dtype('float64')
+    >>> _to_precision(ones, itemsize=8).dtype
+    dtype('float64')
+    >>> _to_precision(ones, itemsize=np.dtype(np.int32).itemsize).dtype
+    dtype('float32')
+
+    Useful for getting floats and ints to have the same precision.
+    """
+    size = arr.dtype.itemsize
+    if size == itemsize:
+        return arr
+    if np.issubdtype(arr.dtype, np.signedinteger):
+        target_dtype = {8: np.int64, 4: np.int32, 2: np.int16}
+    if np.issubdtype(arr.dtype, np.floating):
+        target_dtype = _float_itemsize_to_dtype
+    return arr.astype(target_dtype[itemsize])
+
+
+def get_float_dtype_of_size(itemsize: int):
+    return _float_itemsize_to_dtype[itemsize]
+
+
+def _check_weights(sample_weight: Union[np.ndarray, None], n_samples: int, dtype):
     """Check that sample weights are non-negative and have the right shape."""
     if sample_weight is None:
-        weights = np.ones(n_samples)
+        weights = np.ones(n_samples, dtype=dtype)
     elif np.isscalar(sample_weight):
         if sample_weight <= 0:
             raise ValueError("Sample weights must be non-negative.")
-        weights = sample_weight * np.ones(n_samples)
+        weights = sample_weight * np.ones(n_samples, dtype=dtype)
     else:
         _dtype = [np.float64, np.float32]
-        weights: np.ndarray = check_array(
+        weights = check_array(
             sample_weight,
             accept_sparse=False,
             force_all_finite=True,
@@ -117,7 +145,7 @@ def _safe_sandwich_dot(X, d: np.ndarray, intercept=False) -> np.ndarray:
 
     if intercept:
         dim = X.shape[1] + 1
-        res_including_intercept = np.empty((dim, dim), dtype=max(X.dtype, d.dtype))
+        res_including_intercept = np.empty((dim, dim), dtype=X.dtype)
         res_including_intercept[0, 0] = d.sum()
         res_including_intercept[1:, 0] = d @ X
         res_including_intercept[0, 1:] = res_including_intercept[1:, 0]
@@ -327,7 +355,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
     unit variance :math:`v(\mu)` and
     unit deviance :math:`d(y,\mu)`.
 
-    Attributes
+    Properties
     ----------
     lower_bound
     upper_bound
@@ -441,7 +469,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         """
         pass
 
-    def variance(self, mu, phi=1, weights=1):
+    def variance(self, mu: np.ndarray, phi=1, weights=1) -> np.ndarray:
         r"""Compute the variance function.
 
         The variance of :math:`Y_i \sim \mathrm{EDM}(\mu_i,\phi/s_i)` is
@@ -559,7 +587,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         """
         return weights * self.unit_deviance_derivative(y, mu)
 
-    def starting_mu(self, y, weights=1, ind_weight=0.5):
+    def starting_mu(self, y: np.ndarray, weights=1, ind_weight=0.5) -> np.ndarray:
         """Set starting values for the mean mu.
 
         These may be good starting points for the (unpenalized) IRLS solver.
@@ -576,7 +604,11 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
             Must be between 0 and 1. Specifies how much weight is given to the
             individual observations instead of the mean of y.
         """
-        return ind_weight * y + (1.0 - ind_weight) * np.average(y, weights=weights)
+        expected_dtype = np.float64 if y.dtype.itemsize == 8 else np.float32
+        # Be careful: combining a 32-bit int and 32-bit float gives 64-bit answers
+        return np.multiply(ind_weight, y, dtype=expected_dtype) + np.multiply(
+            1 - ind_weight, np.average(y, weights=weights), dtype=expected_dtype
+        )
 
     def _mu_deviance_derivative(self, coef, X, y, weights, link):
         """Compute mu and the derivative of the deviance w.r.t coef."""
@@ -814,9 +846,10 @@ class TweedieDistribution(ExponentialDispersionModel):
             # this branch should be unreachable.
             raise ValueError
 
-        self._power = power
+        # Prevents upcasting when working with 32-bit data
+        self._power = power if isinstance(power, int) else np.float32(power)
 
-    def unit_variance(self, mu):
+    def unit_variance(self, mu: np.ndarray) -> np.ndarray:
         """Compute the unit variance of a Tweedie distribution v(mu)=mu**power.
 
         Parameters
@@ -827,7 +860,7 @@ class TweedieDistribution(ExponentialDispersionModel):
         p = self.power  # noqa: F841
         return numexpr.evaluate("mu ** p")
 
-    def unit_variance_derivative(self, mu):
+    def unit_variance_derivative(self, mu: np.ndarray) -> np.ndarray:
         """Compute the derivative of the unit variance of a Tweedie
         distribution v(mu)=power*mu**(power-1).
 
@@ -935,7 +968,7 @@ class BinomialDistribution(ExponentialDispersionModel):
         return 2 * (special.xlogy(y, y / mu) + special.xlogy(1 - y, (1 - y) / (1 - mu)))
 
 
-def _irls_step(X, W, P2, z, fit_intercept=True):
+def _irls_step(X, W: np.ndarray, P2, z: np.ndarray, fit_intercept=True):
     """Compute one step in iteratively reweighted least squares.
 
     Solve A w = b for w with
@@ -1001,7 +1034,28 @@ def _irls_step(X, W, P2, z, fit_intercept=True):
         else:
             A += P2
 
-    coef, *_ = linalg.lstsq(A, b, overwrite_a=True, overwrite_b=True)
+    coef, _, rank, sing_vals = linalg.lstsq(A, b, overwrite_a=True, overwrite_b=True)
+
+    expected_rank = A.shape[1]
+    if rank < expected_rank:  # rank deficient
+        # may have been rank deficient due to lack of precision
+        if X.dtype == np.float32:
+            warning = f"""
+                A matrix used for IRLS is poorly conditioned or rank deficient;
+                it has measued rank {rank} when rank {expected_rank} is required, and
+                condition_number {sing_vals[0] / sing_vals[1]}. Numerical failures are
+                likely. To avoid this problem, try using double precision
+                (X.dtype = np.float64) or increasing regularization.
+            """
+        else:  # unknown cause of rank deficiency
+            warning = f"""
+                A matrix used for IRLS is poorly conditioned or rank deficient;
+                it has measued rank {rank} when rank {expected_rank} is required, and
+                condition_number {sing_vals[0] / sing_vals[1]}. Numerical failures are
+                likely. Try increasing regularization.
+             """
+        warnings.warn(warning)
+
     return coef
 
 
@@ -1055,7 +1109,11 @@ def _irls_solver(
         # therefore here just as 1d array
         W = hp ** 2 / V
         # working observations
-        z = eta + (y - mu) / hp
+        # float32 - int32 = float64, unless you specify dtype
+        z = (
+            eta
+            + np.subtract(y, mu, dtype=get_float_dtype_of_size(X.dtype.itemsize)) / hp
+        )
         # solve A*coef = b
         # A = X' W X + P2, b = X' W z
         coef = _irls_step(X, W, P2, z, fit_intercept=fit_intercept)
@@ -1096,15 +1154,15 @@ def _irls_solver(
 
 
 def _cd_cycle(
-    d,
+    d: np.ndarray,
     X,
-    coef,
+    coef: np.ndarray,
     score,
     fisher,
     P1,
     P2,
-    n_cycles,
-    inner_tol,
+    n_cycles: int,
+    inner_tol: float,
     max_inner_iter=1000,
     selection="cyclic",
     random_state=None,
@@ -1121,6 +1179,8 @@ def _cd_cycle(
     B = H+P2
     Note: f'=-score and H=fisher are updated at the end of outer iteration.
     """
+    # TODO: split into diag_fisher and non diag_fisher cases to make optimization easier
+    # TODO: Cython/C++?
     # TODO: use sparsity (coefficient already 0 due to L1 penalty)
     #       => active set of features for featurelist, see paper
     #          of Improved GLMNET or Gap Safe Screening Rules
@@ -1128,21 +1188,21 @@ def _cd_cycle(
     n_samples, n_features = X.shape
     intercept = coef.size == X.shape[1] + 1
     idx = 1 if intercept else 0  # offset if coef[0] is intercept
-    # ES: This is weird. Should this be B = fisher.copy()? Why would you do this?
-    B = fisher
+    f_cont = fisher.flags["F_CONTIGUOUS"]
+
     if P2.ndim == 1:
         coef_P2 = coef[idx:] * P2
         if not diag_fisher:
-            idiag = np.arange(start=idx, stop=B.shape[0])
+            idiag = np.arange(start=idx, stop=fisher.shape[0])
             # B[np.diag_indices_from(B)] += P2
-            B[(idiag, idiag)] += P2
+            fisher[(idiag, idiag)] += P2
     else:
         coef_P2 = coef[idx:] @ P2
         if not diag_fisher:
             if sparse.issparse(P2):
-                B[idx:, idx:] += P2.toarray()
+                fisher[idx:, idx:] += P2.toarray()
             else:
-                B[idx:, idx:] += P2
+                fisher[idx:, idx:] += P2
     A = -score
     A[idx:] += coef_P2
     # A += d @ (H+P2) but so far d=0
@@ -1151,11 +1211,22 @@ def _cd_cycle(
         inner_iter += 1
         n_cycles += 1
         # cycle through features, update intercept separately at the end
+        # TODO: move a lot of this to outer loop
         if selection == "random":
             featurelist = random_state.permutation(n_features)
         else:
             featurelist = np.arange(n_features)
-        for j in featurelist:
+
+        # if selection is not random, only need to do this once
+        jdx_vec = featurelist + idx
+        if diag_fisher:
+            b_vec = fisher[jdx_vec]
+        else:
+            b_vec = np.diag(fisher)[jdx_vec]
+        b_less_than_zero_vec = b_vec <= 0
+        p1_is_zero_vec = P1[featurelist] == 0
+
+        for num, j in enumerate(featurelist):
             # minimize_z: a z + 1/2 b z^2 + c |d+z|
             # a = A_j
             # b = B_jj > 0
@@ -1165,7 +1236,8 @@ def _cd_cycle(
             # with beta = z+d, beta_hat = d-a/b and gamma = c/b
             # z = 1/b * S(bd-a,c) - d
             # S(a,b) = sign(a) max(|a|-b, 0) soft thresholding
-            jdx = j + idx  # index for arrays containing entries for intercept
+            # jdx = j + idx  # index for arrays containing entries for intercept
+            jdx = jdx_vec[num]
             a = A[jdx]
             if diag_fisher:
                 # Note: fisher is ndarray of shape (n_samples,) => no idx
@@ -1187,12 +1259,12 @@ def _cd_cycle(
                         Bj[idx:] += P2[:, j]
                 b = Bj[jdx]
             else:
-                b = B[jdx, jdx]
+                b = b_vec[num]
 
             # those ten lines are what it is all about
-            if b <= 0:
+            if b_less_than_zero_vec[num]:
                 z = 0
-            elif P1[j] == 0:
+            elif p1_is_zero_vec[num]:
                 z = -a / b
             elif a + P1[j] < b * (coef[jdx] + d[jdx]):
                 z = -(a + P1[j]) / b
@@ -1209,15 +1281,16 @@ def _cd_cycle(
             # Note: B is symmetric B = B.transpose
             if diag_fisher:
                 # Bj = B[:, j] calculated above, still valid
-                A += Bj * z
-            else:
-                # B is symmetric, C- or F-contiguous, but never sparse
-                if B.flags["F_CONTIGUOUS"]:
-                    # slice columns like for sparse csc
-                    A += B[:, jdx] * z
-                else:  # B.flags['C_CONTIGUOUS'] might be true
-                    # slice rows
-                    A += B[jdx, :] * z
+                bj = Bj
+            # otherwise, B is symmetric, C- or F-contiguous, but never sparse
+            elif f_cont:
+                # slice columns like for sparse csc
+                bj = fisher[:, jdx]
+            else:  # B.flags['C_CONTIGUOUS'] might be true
+                # slice rows
+                bj = fisher[jdx, :]
+            A += bj * z
+
             # end of cycle over features
         # update intercept
         if intercept:
@@ -1227,16 +1300,16 @@ def _cd_cycle(
                 Bj[1:] = fisher @ X
                 b = Bj[0]
             else:
-                b = B[0, 0]
+                b = fisher[0, 0]
             z = 0 if b <= 0 else -A[0] / b
             d[0] += z
             if diag_fisher:
                 A += Bj * z
             else:
-                if B.flags["F_CONTIGUOUS"]:
-                    A += B[:, 0] * z
+                if fisher.flags["F_CONTIGUOUS"]:
+                    A += fisher[:, 0] * z
                 else:
-                    A += B[0, :] * z
+                    A += fisher[0, :] * z
         # end of complete cycle
         # stopping criterion for inner loop
         # sum_i(|minimum of norm of subgrad of q(d)_i|)
@@ -1618,11 +1691,11 @@ def setup_penalties(
 ) -> Tuple[np.ndarray, Union[np.ndarray, sparse.spmatrix]]:
     n_features = X.shape[1]
     if isinstance(P1, str) and P1 == "identity":
-        P1 = np.ones(n_features)
+        P1 = np.ones(n_features, dtype=_dtype)
     else:
         P1 = np.atleast_1d(P1)
         try:
-            P1 = P1.astype(np.float64, casting="safe", copy=False)
+            P1 = P1.astype(_dtype, casting="safe", copy=False)
         except TypeError:
             raise TypeError(
                 "The given P1 cannot be converted to a numeric"
@@ -1640,11 +1713,12 @@ def setup_penalties(
         if sparse.issparse(X):
             P2 = (
                 sparse.dia_matrix(
-                    (np.ones(n_features), 0), shape=(n_features, n_features)
+                    (np.ones(n_features, dtype=_dtype), 0),
+                    shape=(n_features, n_features),
                 )
             ).tocsc()
         else:
-            P2 = np.ones(n_features)
+            P2 = np.ones(n_features, dtype=_dtype)
     else:
         P2 = check_array(
             P2, copy=True, accept_sparse=_stype, dtype=_dtype, ensure_2d=False
@@ -2194,10 +2268,10 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 fisher = _safe_sandwich_dot(X, d2_sigma_inv, self.fit_intercept)
             # set up space for search direction d for inner loop
             if self.fit_intercept:
-                coef = np.zeros(n_features + 1)
+                coef = np.zeros(n_features + 1, dtype=X.dtype)
             else:
-                coef = np.zeros(n_features)
-            d = np.zeros_like(coef)
+                coef = np.zeros(n_features, dtype=X.dtype)
+            d = np.zeros_like(coef, dtype=X.dtype)
             # initial stopping tolerance of inner loop
             # use L1-norm of minimum of norm of subgradient of F
             # use less restrictive tolerance for initial guess
@@ -2229,7 +2303,11 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             # therefore here just as 1d array
             W = hp ** 2 / family.variance(mu, phi=1, weights=weights)
             # working observations
-            z = eta + (y - mu) / hp
+            z = (
+                eta
+                + np.subtract(y, mu, dtype=get_float_dtype_of_size(X.dtype.itemsize))
+                / hp
+            )
             # solve A*coef = b
             # A = X' W X + l2 P2, b = X' W z
             coef = _irls_step(X, W, P2, z, fit_intercept=self.fit_intercept)
@@ -2304,6 +2382,13 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         else:
             _stype = ["csc", "csr"]
 
+        if hasattr(X, "dtype") and X.dtype == np.int64:
+            # check_X_y will convert to float32 if we don't do this, which causes
+            # precision issues with the new handling of single precision. The new
+            # behavior is to give everything the precision of X, but we don't want to
+            # do that if X was intially int64.
+            X = X.astype(np.float64)
+
         X, y = check_X_y(
             X,
             y,
@@ -2317,14 +2402,19 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         # Without converting y to float, deviance might raise
         # ValueError: Integers to negative integer powers are not allowed.
         # Also, y must not be sparse.
-        y = np.asarray(y, dtype=np.float64)
-        weights = _check_weights(sample_weight, y.shape[0])
+
+        y = np.asarray(y)
+        # Make sure everything has the same precision as X
+        # This will prevent accidental upcasting later and slow operations on
+        # mixed-precision numbers
+        y = _to_precision(y, X.dtype.itemsize)
+        weights = _check_weights(sample_weight, y.shape[0], X.dtype)
         n_samples, n_features = X.shape
 
         # 1.3 arguments to take special care ##################################
         # P1, P2, start_params
         P1, P2 = setup_penalties(
-            self.P1, self.P2, X, _stype, _dtype, self.alpha, self.l1_ratio
+            self.P1, self.P2, X, _stype, X.dtype, self.alpha, self.l1_ratio
         )
 
         # For coordinate descent, if X is sparse, P2 must also be csc
@@ -2372,7 +2462,8 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         # we rescale weights such that sum(weights) = 1 and this becomes
         # 1/2*deviance + L1 + L2 with deviance=sum(weights * unit_deviance)
         weights_sum = np.sum(weights)
-        weights /= weights_sum
+        weights = weights / weights_sum
+        weights = _to_precision(weights, X.dtype.itemsize)
 
         #######################################################################
         # 2b. convert to wrapper matrix types
@@ -2410,10 +2501,14 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 )
             else:  # start_params == 'zero'
                 if self.fit_intercept:
-                    coef = np.zeros(n_features + 1)
+                    coef = np.zeros(
+                        n_features + 1, dtype=_float_itemsize_to_dtype[X.dtype.itemsize]
+                    )
                     coef[0] = self._link_instance.link(np.average(y, weights=weights))
                 else:
-                    coef = np.zeros(n_features)
+                    coef = np.zeros(
+                        n_features, dtype=_float_itemsize_to_dtype[X.dtype.itemsize]
+                    )
         else:  # assign given array as start values
             coef = start_params
             if self.center_predictors_:
@@ -2592,7 +2687,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         )
         eta = self.linear_predictor(X)
         mu = self._link_instance.inverse(eta)
-        weights = _check_weights(sample_weight, X.shape[0])
+        weights = _check_weights(sample_weight, X.shape[0], X.dtype)
 
         return mu * weights
 
@@ -2627,7 +2722,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             multi_output=False,
         )
         n_samples, n_features = X.shape
-        weights = _check_weights(sample_weight, n_samples)
+        weights = _check_weights(sample_weight, n_samples, X.dtype)
         eta = X @ self.coef_
         if self.fit_intercept is True:
             eta += self.intercept_
@@ -2687,7 +2782,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         # Note, default score defined in RegressorMixin is R^2 score.
         # TODO: make D^2 a score function in module metrics (and thereby get
         #       input validation and so on)
-        weights = _check_weights(sample_weight, y.shape[0])
+        weights = _check_weights(sample_weight, y.shape[0], X.dtype)
         mu = self.predict(X)
         dev = self._family_instance.deviance(y, mu, weights=weights)
         y_mean = np.average(y, weights=weights)
