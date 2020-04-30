@@ -53,9 +53,7 @@ from sklearn.utils.validation import check_is_fitted, check_random_state
 
 from glm_benchmarks.scaled_spmat.mkl_sparse_matrix import MKLSparseMatrix
 
-from ._link import IdentityLink, Link, LogitLink, LogLink
-from .dense_glm_matrix import DenseGLMDataMatrix
-from .distribution import (
+from ._distribution import (
     BinomialDistribution,
     ExponentialDispersionModel,
     GammaDistribution,
@@ -65,7 +63,9 @@ from .distribution import (
     PoissonDistribution,
     TweedieDistribution,
 )
-from .util import _safe_lin_pred, _safe_sandwich_dot
+from ._link import IdentityLink, Link, LogitLink, LogLink
+from ._util import _safe_lin_pred, _safe_sandwich_dot
+from .dense_glm_matrix import DenseGLMDataMatrix
 
 _float_itemsize_to_dtype = {8: np.float64, 4: np.float32, 2: np.float16}
 
