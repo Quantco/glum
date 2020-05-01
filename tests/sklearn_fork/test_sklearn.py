@@ -445,7 +445,8 @@ def test_glm_check_input_argument(check_input, y, X):
 
 @pytest.mark.parametrize("solver", GLM_SOLVERS)
 @pytest.mark.parametrize("fit_intercept", [False, True])
-def test_glm_identity_regression(solver, fit_intercept):
+@pytest.mark.parametrize("offset", [None, np.array([-0.1, 0, 0.1, 0, -0.2])])
+def test_glm_identity_regression(solver, fit_intercept, offset):
     """Test GLM regression with identity link on a simple dataset."""
     coef = [1.0, 2.0]
     X = np.array([[1, 1, 1, 1, 1], [0, 1, 2, 3, 4]]).T
@@ -471,48 +472,6 @@ def test_glm_identity_regression(solver, fit_intercept):
     assert_allclose(fit_coef, coef, rtol=1e-6)
 
 
-@pytest.mark.parametrize("solver", GLM_SOLVERS)
-@pytest.mark.parametrize(
-    "fit_intercept, center_predictors", [(False, False), (True, False), (True, True)]
-)
-@pytest.mark.parametrize("start_params", ["guess", "zero"])
-def test_glm_identity_regression_offset(
-    solver, fit_intercept, center_predictors, start_params
-):
-    """Test GLM regression with identity link on a simple dataset."""
-    fit_intercept = True
-    center_predictors = True
-    coef = [1.0, 2.0]
-    full_x = np.array([[1, 1, 1, 1, 1], [0, 1, 2, 3, 4]]).T
-    y = np.dot(full_x, coef)
-    glm = GeneralizedLinearRegressor(
-        alpha=0,
-        family="normal",
-        link="identity",
-        fit_intercept=fit_intercept,
-        center_predictors=center_predictors,
-        solver=solver,
-        start_params=start_params,
-        tol=1e-7,
-        max_iter=200,
-    )
-    if fit_intercept:
-        fit_x = full_x[:, 1:]
-
-    # If the offset explains what one of the coefs would explain, the coef will be 0
-    for i in [0, 1]:
-        offset = full_x[:, i] * coef[i]
-        res = glm.fit(fit_x, y, offset=offset)
-        if fit_intercept:
-            fit_coef = np.concatenate([[res.intercept_], res.coef_])
-        else:
-            fit_coef = res.coef_
-        expected = coef.copy()
-        expected[i] = 0
-        assert fit_coef.dtype.itemsize == fit_x.dtype.itemsize
-        assert_allclose(fit_coef, expected, rtol=1e-6, atol=1e-7)
-
-
 @pytest.mark.parametrize(
     "family",
     [
@@ -527,80 +486,32 @@ def test_glm_identity_regression_offset(
 )
 @pytest.mark.parametrize("solver, tol", [("irls", 1e-6), ("lbfgs", 1e-6), ("cd", 1e-7)])
 @pytest.mark.parametrize("fit_intercept", [False, True])
-def test_glm_log_regression(family, solver, tol, fit_intercept):
+# tests pass with offset=None
+@pytest.mark.parametrize("offset", [None, np.array([-0.1, 0, 0.1, 0, -0.2])])
+@pytest.mark.parametrize("start_params", ["zero", "guess"])
+def test_glm_log_regression(family, solver, tol, fit_intercept, offset, start_params):
     """Test GLM regression with log link on a simple dataset."""
     coef = [0.2, -0.1]
     X = np.array([[1, 1, 1, 1, 1], [0, 1, 2, 3, 4]]).T
-    y = np.exp(np.dot(X, coef))
+    y = np.exp(np.dot(X, coef) + (0 if offset is None else offset))
     glm = GeneralizedLinearRegressor(
         alpha=0,
         family=family,
         link="log",
         fit_intercept=fit_intercept,
         solver=solver,
-        start_params="guess",
+        start_params=start_params,
         tol=tol,
     )
     if fit_intercept:
         X = X[:, 1:]
-    res = glm.fit(X, y)
+    res = glm.fit(X, y, offset=offset)
     if fit_intercept:
         assert isinstance(res.intercept_, float)
         fit_coef = np.concatenate([[res.intercept_], res.coef_])
     else:
         fit_coef = res.coef_
     assert_allclose(fit_coef, coef, rtol=5e-6)
-
-
-@pytest.mark.parametrize(
-    "family",
-    [
-        NormalDistribution(),
-        #        PoissonDistribution(),
-        #        GammaDistribution(),
-        #        InverseGaussianDistribution(),
-        #        TweedieDistribution(power=1.5),
-        #        TweedieDistribution(power=4.5),
-        #        GeneralizedHyperbolicSecant(),
-    ],
-)
-@pytest.mark.parametrize("solver, tol", [("irls", 1e-6), ("lbfgs", 1e-6), ("cd", 1e-7)])
-@pytest.mark.parametrize(
-    "fit_intercept, center_predictors", [(False, False), (True, False), (True, True)]
-)
-def test_glm_log_regression_offset(
-    family, solver, tol, fit_intercept, center_predictors
-):
-    """Test GLM regression with log link on a simple dataset."""
-    np.random.seed(0)
-    offset = np.random.random(5)
-    coef = np.array([0.2, -0.1])
-    full_x = np.array([[1, 1, 1, 1, 1], [0, 1, 2, 3, 4]]).T
-    xb = full_x.dot(coef) + offset
-    y = np.exp(xb)
-    glm = GeneralizedLinearRegressor(
-        alpha=0,
-        family=family,
-        link="log",
-        fit_intercept=fit_intercept,
-        center_predictors=center_predictors,
-        solver=solver,
-        start_params="guess",
-        tol=tol,
-        max_iter=400,
-    )
-    if fit_intercept:
-        fit_x = full_x[:, 1:]
-
-    res = glm.fit(fit_x, y, offset=offset)
-
-    if fit_intercept:
-        assert isinstance(res.intercept_, float)
-        fit_coef = np.concatenate([[res.intercept_], res.coef_])
-    else:
-        fit_coef = res.coef_
-
-    assert_allclose(fit_coef, coef, rtol=5e-6, atol=1e-6)
 
 
 @pytest.mark.filterwarnings("ignore:The line search algorithm")
