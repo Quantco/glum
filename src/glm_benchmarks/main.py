@@ -9,9 +9,8 @@ import scipy.sparse
 
 from glm_benchmarks.bench_sklearn_fork import sklearn_fork_bench
 from glm_benchmarks.problems import get_all_problems
-
-from .util import get_obj_val
-from .zeros_benchmark import zeros_bench
+from glm_benchmarks.util import get_obj_val
+from glm_benchmarks.zeros_benchmark import zeros_bench
 
 try:
     from glm_benchmarks.bench_glmnet_python import glmnet_python_bench  # isort:skip
@@ -82,7 +81,7 @@ def cli_run(
             save_benchmark_results(
                 output_dir, Pn, Ln, num_rows, storage, threads, single_precision, result
             )
-            print("ran")
+            print(f"ran in {result['runtime']}")
 
 
 def execute_problem_library(
@@ -394,3 +393,7 @@ def load_benchmark_results(
     )
     with open(os.path.join(results_dir, library_name + "-results.pkl"), "rb") as f:
         return pickle.load(f)
+
+
+if __name__ == "__main__":
+    cli_run()
