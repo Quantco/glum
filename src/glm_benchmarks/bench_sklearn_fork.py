@@ -19,6 +19,7 @@ def sklearn_fork_bench(
     distribution: str,
     alpha: float,
     l1_ratio: float,
+    iterations: int,
 ):
     result = dict()
 
@@ -46,11 +47,7 @@ def sklearn_fork_bench(
     )
 
     try:
-        runtimes = []
-        for i in range(1):
-            r, m = runtime(build_and_fit, model_args, fit_args)
-            runtimes.append(r)
-        result["runtime"] = np.min(runtimes)
+        result["runtime"], m = runtime(build_and_fit, iterations, model_args, fit_args)
     except ValueError as e:
         print(f"Problem failed with this error: {e}")
         return result
