@@ -60,6 +60,12 @@ except ImportError:
     help="The directory to store benchmarking output.",
 )
 @click.option("--single_precision", is_flag=True, help="Whether to use 32-bit data")
+@click.option(
+    "--iterations",
+    default=1,
+    type=int,
+    help="Number of times to re-run the benchmark. This can be useful for avoid performance noise.",
+)
 # TODO: where it calls data loader in main.py, convert x to the correct dtype
 def cli_run(
     problem_names: str,
@@ -69,6 +75,7 @@ def cli_run(
     threads: int,
     output_dir: str,
     single_precision: bool,
+    iterations: int,
 ):
     problems, libraries = get_limited_problems_libraries(problem_names, library_names)
 
@@ -76,7 +83,7 @@ def cli_run(
         for Ln, L in libraries.items():
             print(f"running problem={Pn} library={Ln}")
             result = execute_problem_library(
-                P, L, num_rows, storage, threads, single_precision
+                P, L, num_rows, storage, threads, single_precision, iterations
             )
             save_benchmark_results(
                 output_dir, Pn, Ln, num_rows, storage, threads, single_precision, result
@@ -85,7 +92,13 @@ def cli_run(
 
 
 def execute_problem_library(
-    P, L, num_rows=None, storage="dense", threads=None, single_precision: bool = False
+    P,
+    L,
+    num_rows=None,
+    storage="dense",
+    threads=None,
+    single_precision: bool = False,
+    iterations: int = 1,
 ):
     dat = P.data_loader(num_rows=num_rows)
     if threads is None:
@@ -103,7 +116,7 @@ def execute_problem_library(
         threshold = float(storage.split("split")[1])
         dat["X"] = SplitMatrix(scipy.sparse.csc_matrix(dat["X"]), threshold)
 
-    result = L(dat, P.distribution, P.regularization_strength, P.l1_ratio)
+    result = L(dat, P.distribution, P.regularization_strength, P.l1_ratio, iterations)
     return result
 
 
