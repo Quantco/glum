@@ -249,6 +249,20 @@ class ColScaledSpMat(ScaledMat):
         term4 = (self.shift.T * self.shift) * d.sum()
         return term1 + term2 + term3 + term4
 
+    def sandwich_dense(self, B: np.ndarray, d: np.ndarray) -> np.ndarray:
+        """
+        sandwich product: self.T @ diag(d) @ B
+        """
+        if self.mat.dtype != d.dtype or B.dtype != d.dtype:
+            raise TypeError(
+                f"""self.mat, B and d all need to be of same dtype, either
+                np.float64 or np.float32. This matrix is of type {self.mat.dtype},
+                B is of type {B.dtype}, while d is of type {d.dtype}."""
+            )
+        term1 = self.mat.sandwich_dense(B, d)
+        term2 = self.shift.T * (d @ B)[np.newaxis, :]
+        return term1 + term2
+
     def unstandardize(self, col_means, col_stds):
         """
         Doesn't need to use col_means because those are assumed to equal 'shift'.
