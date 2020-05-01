@@ -43,7 +43,6 @@ import warnings
 from typing import Any, List, Tuple, Union
 
 import numpy as np
-import pandas as pd
 import scipy.sparse.linalg as splinalg
 from scipy import linalg, sparse
 from scipy.optimize import fmin_l_bfgs_b
@@ -1618,11 +1617,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             # do that if X was intially int64.
             X = X.astype(np.float64)
 
-        if (
-            isinstance(X, np.ndarray)
-            or sparse.issparse(X)
-            or isinstance(X, pd.DataFrame)
-        ):
+        if not getattr(X, "skip_sklearn_check", False):
             X, y = check_X_y(
                 X,
                 y,
