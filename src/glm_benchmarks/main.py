@@ -91,15 +91,18 @@ def execute_problem_library(
     if threads is None:
         threads = os.environ.get("OMP_NUM_THREADS", os.cpu_count())
     os.environ["OMP_NUM_THREADS"] = str(threads)
-    if storage == "sparse":
-        dat["X"] = scipy.sparse.csc_matrix(dat["X"])
-    elif storage == "split":
-        from glm_benchmarks.scaled_spmat.split_matrix import SplitMatrix
-
-        dat["X"] = SplitMatrix(scipy.sparse.csc_matrix(dat["X"]), 0.05)
     if single_precision:
         for k, v in dat.items():
             dat[k] = v.astype(np.float32)
+
+    if storage == "sparse":
+        dat["X"] = scipy.sparse.csc_matrix(dat["X"])
+    elif storage.startswith("split"):
+        from glm_benchmarks.scaled_spmat.split_matrix import SplitMatrix
+
+        threshold = float(storage.split("split")[1])
+        dat["X"] = SplitMatrix(scipy.sparse.csc_matrix(dat["X"]), threshold)
+
     result = L(dat, P.distribution, P.regularization_strength, P.l1_ratio)
     return result
 
