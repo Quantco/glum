@@ -12,7 +12,7 @@ class ScaledMat(ABC):
     Base class for ColScaledSpMat and RowScaledSpMat. Do not instantiate.
     """
 
-    skip_check = True
+    skip_sklearn_check = True
 
     def __init__(self, mat: sps.spmatrix, shift: np.ndarray):
 
