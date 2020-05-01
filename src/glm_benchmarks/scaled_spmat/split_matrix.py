@@ -29,7 +29,6 @@ class SplitMatrix:
         self.X_sparse = MKLSparseMatrix(
             sps.csc_matrix(X.toarray()[:, self.sparse_indices])
         )
-        self.X_sparse_csr = self.X_sparse.tocsr()
 
     def sandwich(self, d):
         out = np.empty((self.shape[1], self.shape[1]))
@@ -66,7 +65,14 @@ class SplitMatrix:
 
         return self, col_means, col_stds
 
-    def unstandardize(self, *args, **kwargs):
+    def unstandardize(self, col_means, col_stds):
+        self.X_dense_F = self.X_dense_F.unstandardize(
+            col_means[self.dense_indices], col_stds[self.dense_indices]
+        )
+        self.X_dense_C = np.ascontiguousarray(self.X_dense_F)
+        self.X_sparse = self.X_sparse.unstandardize(
+            col_means[self.sparse_indices], col_stds[self.sparse_indices]
+        )
         return self
 
     def dot(self, v):

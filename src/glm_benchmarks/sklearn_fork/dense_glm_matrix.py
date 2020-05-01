@@ -17,7 +17,7 @@ class DenseGLMDataMatrix(np.ndarray):
     np.ndarray subclassing is explained here: https://docs.scipy.org/doc/numpy/user/basics.subclassing.html#slightly-more-realistic-example-attribute-added-to-existing-array
     """
 
-    skip_check = True
+    skip_sklearn_check = True
 
     def __new__(cls, input_array):
         # Input array is an already formed ndarray instance

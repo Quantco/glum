@@ -46,7 +46,11 @@ def sklearn_fork_bench(
     )
 
     try:
-        result["runtime"], m = runtime(build_and_fit, model_args, fit_args)
+        runtimes = []
+        for i in range(1):
+            r, m = runtime(build_and_fit, model_args, fit_args)
+            runtimes.append(r)
+        result["runtime"] = np.min(runtimes)
     except ValueError as e:
         print(f"Problem failed with this error: {e}")
         return result
