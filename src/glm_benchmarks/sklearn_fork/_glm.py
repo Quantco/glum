@@ -1381,7 +1381,6 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         copy_X=True,
         check_input=True,
         verbose=0,
-        center_predictors=None,
         scale_predictors=False,
     ):
         self.alpha = alpha
@@ -1403,7 +1402,6 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         self.copy_X = copy_X
         self.check_input = check_input
         self.verbose = verbose
-        self.center_predictors = center_predictors
         self.scale_predictors = scale_predictors
 
     # See PEP 484 on annotating with float rather than Number
@@ -1484,14 +1482,9 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 "The argument check_input must be bool; got "
                 "(check_input={})".format(self.check_input)
             )
-        if self.center_predictors and not self.fit_intercept:
+        if self.scale_predictors and not self.fit_intercept:
             raise ValueError(
-                "center_predictors=True is not supported when fit_intercept=False"
-                "because centering would substantially change the estimates."
-            )
-        if self.scale_predictors and not self.center_predictors:
-            raise ValueError(
-                "scale_predictors=True is not supported when center_predictors=False"
+                "scale_predictors=True is not supported when fit_intercept=False"
             )
         if self.check_input:
 
@@ -1621,11 +1614,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
 
         # when fit_intercept is False, we can't center because that would
         # substantially change estimates
-        self.center_predictors_: bool = (
-            self.center_predictors
-            if self.center_predictors is not None
-            else self.fit_intercept
-        )
+        self.center_predictors_: bool = self.fit_intercept
 
         solver = self.solver
         if self.solver == "auto":
