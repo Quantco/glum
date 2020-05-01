@@ -1,5 +1,6 @@
-# distutils: extra_compile_args=-fopenmp -O3 -ffast-math -march=native
+# distutils: extra_compile_args=-fopenmp -O3 -ffast-math -march=native -std=c++17
 # distutils: extra_link_args=-fopenmp
+# distutils: language = c++
 import numpy as np
 
 import cython
@@ -41,6 +42,7 @@ def sparse_sandwich(A, AT, floating[:] d):
     cdef int i, j, k
     cdef floating A_val, AT_val
 
+    #TODO: see what happens when we swap to having k as the outer loop here?
     for j in prange(m, nogil=True):
         for A_idx in range(Aindptr[j], Aindptr[j+1]):
             k = Aindicesp[A_idx]
@@ -55,14 +57,14 @@ def sparse_sandwich(A, AT, floating[:] d):
     out += np.tril(out, -1).T
     return out
 
-cdef extern from "dense.c":
-    void _dense_sandwich(double*, double*, double*, int, int) nogil
-    void _sparse_dense_sandwich(double*, int*, int*, double*, double*, double*, int, int, int) nogil
+cdef extern from "dense.cpp":
+    void _dense_sandwich[F](F*, F*, F*, int, int) nogil
+    void _sparse_dense_sandwich[F](F*, int*, int*, F*, F*, F*, int, int, int) nogil
 
-def sparse_dense_sandwich(A, double[:,:] B, double[:] d):
+def sparse_dense_sandwich(A, floating[:,:] B, floating[:] d):
     # computes where (A.T * d) @ B
     # assumes that A is in csr form
-    cdef double[:] Adata = A.data
+    cdef floating[:] Adata = A.data
     cdef int[:] Aindices = A.indices
     cdef int[:] Aindptr = A.indptr
 
@@ -73,59 +75,25 @@ def sparse_dense_sandwich(A, double[:,:] B, double[:] d):
     cdef int r = B.shape[1]
 
     out = np.zeros((m, r), dtype=A.dtype)
-    cdef double[:, :] out_view = out
-    cdef double* outp = &out_view[0,0]
+    cdef floating[:, :] out_view = out
+    cdef floating* outp = &out_view[0,0]
 
     _sparse_dense_sandwich(&Adata[0], &Aindices[0], &Aindptr[0], &B[0,0], &d[0], outp, m, n, r)
-
-    # cdef int i, j, k
-    # cdef int A_idx
-    # cdef double Q
-
-    # for i in range(m):
-    #     for j in range(r):
-    #         for A_idx in range(Aindptr[i], Aindptr[i+1]):
-    #             k = Aindices[A_idx]
-    #             Q = Adata[A_idx] * d[k]
-
-    #             out_view[i, j] = out_view[i, j] + Q * B[k, j]
-
-    # for i in range(m):
-    #     for A_idx in range(Aindptr[i], Aindptr[i+1]):
-    #         k = Aindices[A_idx]
-    #         Q = Adata[A_idx] * d[k]
-    #         for j in range(r):
-    #             out_view[i, j] = out_view[i, j] + Q * B[k, j]
-    
-    # for k in range(n):
-    #     for A_idx in range(Aindptr[k], Aindptr[k+1]):
-    #         i = Aindices[A_idx]
-    #         Q = d[k] * Adata[A_idx]
-    #         for j in range(r):
-    #             # TODO: i, j is lesss efficient
-    #             out_view[i, j] = out_view[i, j] + B[k, j] * Q
-
-    # for k in range(n):
-    #     for j in range(r):
-    #         for A_idx in range(Aindptr[k], Aindptr[k+1]):
-    #             i = Aindices[A_idx]
-    #             Q = d[k] * Adata[A_idx]
-    #             # TODO: i, j is lesss efficient
-    #             out_view[i, j] = out_view[i, j] + B[k, j] * Q
     return out
 
 
 
-def dense_sandwich(double[:,:] X, double[:] d):
+def dense_sandwich(X, floating[:] d):
     cdef int m = X.shape[1]
     cdef int n = X.shape[0]
 
-    out = np.zeros((m,m))
-    cdef double[:, :] out_view = out
-    cdef double* outp = &out_view[0,0]
+    out = np.zeros((m,m), dtype=X.dtype)
+    cdef floating[:, :] out_view = out
+    cdef floating* outp = &out_view[0,0]
 
-    cdef double* Xp = &X[0,0]
-    cdef double* dp = &d[0]
+    cdef floating[:, :] Xmemview = X;
+    cdef floating* Xp = &Xmemview[0,0]
+    cdef floating* dp = &d[0]
     _dense_sandwich(Xp, dp, outp, m, n)
     out += np.tril(out, -1).T
     return out
