@@ -382,7 +382,9 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         observed_information = _safe_sandwich_dot(X, temp, intercept=intercept)
         return observed_information
 
-    def _eta_mu_score_fisher(self, coef, phi, X, y, weights, link, diag_fisher=False):
+    def _eta_mu_score_fisher(
+        self, coef, phi, X, y, weights, link, diag_fisher=False, eta=None, mu=None
+    ):
         """Compute linear predictor, mean, score function and fisher matrix.
 
         It calculates the linear predictor, the mean, score function
@@ -411,8 +413,10 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         """
         intercept = coef.size == X.shape[1] + 1
         # eta = linear predictor
-        eta = _safe_lin_pred(X, coef)
-        mu = link.inverse(eta)
+        if eta is None:
+            eta = _safe_lin_pred(X, coef)
+        if mu is None:
+            mu = link.inverse(eta)
 
         # FOR TWEEDIE: sigma_inv = weights / (mu ** p) during optimization bc phi = 1
         sigma_inv = 1.0 / self.variance(mu, phi=phi, weights=weights)
