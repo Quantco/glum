@@ -6,11 +6,8 @@ import pandas as pd
 from scipy import sparse as sps
 
 from glm_benchmarks.problems import load_narrow_insurance_data, load_wide_insurance_data
-from glm_benchmarks.sandwich.sandwich import (
-    dense_sandwich,
-    sparse_dense_sandwich,
-    sparse_sandwich,
-)
+from glm_benchmarks.sandwich.sandwich import dense_sandwich, sparse_sandwich
+from glm_benchmarks.scaled_spmat.split_matrix import SplitMatrix
 
 
 def load_data(which: str, n_rows: int) -> Tuple[Any, np.ndarray]:
@@ -32,35 +29,8 @@ def _fast_sandwich(X, d):
 
 
 def split_sandwich(X, threshold):
-    # TODO: this splitting function is super inefficient. easy to optimize though...
-    densities = (X.indptr[1:] - X.indptr[:-1]) / X.shape[0]
-    sorted_indices = np.argsort(densities)[::-1]
-    sorted_densities = densities[sorted_indices]
-
-    dense_indices = sorted_indices[sorted_densities > threshold]
-    sparse_indices = np.setdiff1d(sorted_indices, dense_indices)
-
-    X_dense_C = X.toarray()[:, dense_indices].copy()
-    X_dense = np.asfortranarray(X_dense_C)
-    X_sparse = sps.csc_matrix(X.toarray()[:, sparse_indices])
-    X_sparse_csr = X_sparse.tocsr()
-
-    def f(_, d):
-        out = np.empty((X.shape[1], X.shape[1]))
-        if X_sparse.shape[1] > 0:
-            SS = sparse_sandwich(X_sparse, X_sparse_csr, d)
-            out[np.ix_(sparse_indices, sparse_indices)] = SS
-        if X_dense.shape[1] > 0:
-            DD = dense_sandwich(X_dense, d)
-            out[np.ix_(dense_indices, dense_indices)] = DD
-            if X_sparse.shape[1] > 0:
-                DS = sparse_dense_sandwich(X_sparse_csr, X_dense_C, d)
-                out[np.ix_(sparse_indices, dense_indices)] = DS
-                out[np.ix_(dense_indices, sparse_indices)] = DS.T
-
-        return out
-
-    return f
+    Xsplit = SplitMatrix(X, threshold)
+    return lambda _, d: Xsplit.sandwich(d)
 
 
 def _dense_sandwich(X, d):
@@ -74,7 +44,7 @@ def run_one_problem_all_methods(x, d, include_naive, dtype) -> pd.DataFrame:
     x.X_dense = np.asfortranarray(x.toarray())
     funcs: Dict[str, Callable[[Any, np.ndarray], Any]] = {
         "sparse_sandwich": _fast_sandwich,
-        # "dense_sandwich": _dense_sandwich,
+        "dense_sandwich": _dense_sandwich,
     }
     funcs["split_sandwich_0.05"] = split_sandwich(x, 0.05)
     funcs["split_sandwich_0.1"] = split_sandwich(x, 0.1)
@@ -114,8 +84,8 @@ def main() -> None:
         int(1e4),
         # int(1e5),
         # int(3e5),
-        # int(1e6),
-        int(2e6),
+        int(1e6),
+        # int(2e6),
     ]  # , int(2e6), int(4e6), int(10e6)]
     benchmarks = []
 

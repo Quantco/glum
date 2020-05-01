@@ -4,7 +4,7 @@ import numpy as np
 from scipy import sparse as sps
 from sparse_dot_mkl import dot_product_mkl
 
-from glm_benchmarks.sandwich.sandwich import sparse_sandwich
+from glm_benchmarks.sandwich.sandwich import sparse_dense_sandwich, sparse_sandwich
 
 
 class MKLSparseMatrix(sps.csc_matrix):
@@ -21,6 +21,10 @@ class MKLSparseMatrix(sps.csc_matrix):
         super().__init__(arg1, shape, dtype, copy)
         self.x_csr = None
 
+    def _check_csr(self):
+        if self.x_csr is None:
+            self.x_csr = self.tocsr(copy=False)
+
     def to_scipy_sparse(self, copy: bool) -> sps.csc_matrix:
         return sps.csc_matrix(self, copy=copy)
 
@@ -31,10 +35,24 @@ class MKLSparseMatrix(sps.csc_matrix):
                 or np.float32. self is of type {self.dtype}, while d is of type
                 {d.dtype}."""
             )
-        if self.x_csr is None:
-            self.x_csr = self.tocsr(copy=False)
 
+        self._check_csr()
         return sparse_sandwich(self.tocsc(copy=False), self.x_csr, d)
+
+    def sandwich_dense(self, B: np.ndarray, d: np.ndarray) -> np.ndarray:
+        """
+        sandwich product: self.T @ diag(d) @ B
+        """
+        if self.dtype != d.dtype or B.dtype != d.dtype:
+            raise TypeError(
+                f"""self, B and d all need to be of same dtype, either
+                np.float64 or np.float32. This matrix is of type {self.dtype},
+                B is of type {B.dtype}, while d is of type {d.dtype}."""
+            )
+        if not B.flags["C_CONTIGUOUS"]:
+            raise TypeError("""B is required to be a C-array.""")
+        self._check_csr()
+        return sparse_dense_sandwich(self.x_csr, B, d)
 
     def dot(self, v):
         if len(v.shape) == 1:

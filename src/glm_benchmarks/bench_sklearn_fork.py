@@ -38,7 +38,7 @@ def sklearn_fork_bench(
         family=family,
         alpha=alpha,
         l1_ratio=l1_ratio,
-        max_iter=5,
+        max_iter=100,
         random_state=random_seed,
         copy_X=False,
         selection="random",
