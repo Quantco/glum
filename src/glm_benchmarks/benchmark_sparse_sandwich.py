@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 from scipy import sparse as sps
 
-from glm_benchmarks.problems import load_narrow_insurance_data
+from glm_benchmarks.problems import load_narrow_insurance_data, load_wide_insurance_data
 from glm_benchmarks.sandwich.sandwich import (
     dense_sandwich,
     sparse_dense_sandwich,
@@ -13,8 +13,11 @@ from glm_benchmarks.sandwich.sandwich import (
 )
 
 
-def load_data(n_rows: int) -> Tuple[Any, np.ndarray]:
-    x = sps.csc_matrix(load_narrow_insurance_data(n_rows)["X"])
+def load_data(which: str, n_rows: int) -> Tuple[Any, np.ndarray]:
+    if which == "narrow":
+        x = sps.csc_matrix(load_narrow_insurance_data(n_rows)["X"])
+    else:
+        x = sps.csc_matrix(load_wide_insurance_data(n_rows)["X"])
     np.random.seed(0)
     d = np.random.uniform(0, 1, n_rows)
     return x, d
@@ -28,14 +31,13 @@ def _fast_sandwich(X, d):
     return sparse_sandwich(X, X.XT, d)
 
 
-def split(X):
+def split_sandwich(X, threshold):
     # TODO: this splitting function is super inefficient. easy to optimize though...
     densities = (X.indptr[1:] - X.indptr[:-1]) / X.shape[0]
     sorted_indices = np.argsort(densities)[::-1]
     sorted_densities = densities[sorted_indices]
 
-    threshold_density = 0.1
-    dense_indices = sorted_indices[sorted_densities > threshold_density]
+    dense_indices = sorted_indices[sorted_densities > threshold]
     sparse_indices = np.setdiff1d(sorted_indices, dense_indices)
 
     X_dense_C = X.toarray()[:, dense_indices].copy()
@@ -43,33 +45,22 @@ def split(X):
     X_sparse = sps.csc_matrix(X.toarray()[:, sparse_indices])
     X_sparse_csr = X_sparse.tocsr()
 
-    def f(d):
-        SS = sparse_sandwich(X_sparse, X_sparse_csr, d)
-        DD = dense_sandwich(X_dense, d)
-        # DS2 = dot_product_mkl(X_sparse.T, d[:,np.newaxis] * X_dense)
-        DS = sparse_dense_sandwich(X_sparse, X_dense_C, d)
-        import ipdb
-
-        ipdb.set_trace()
-        # DS2 = sparse_dense_sandwich(X_sparse_csr, X_dense, d)
-        # X_sparse_csr.data *= d[X_sparse_csr.indices]
-        # DS3 = dot_product_mkl(X_sparse_csr.T, X_dense)
-        # X_sparse_csr.data /= d[X_sparse_csr.indices]
-        # np.testing.assert_almost_equal(DS2, DS)
-
+    def f(_, d):
         out = np.empty((X.shape[1], X.shape[1]))
-        out[np.ix_(dense_indices, dense_indices)] = DD
-        out[np.ix_(sparse_indices, sparse_indices)] = SS
-        out[np.ix_(sparse_indices, dense_indices)] = DS
-        out[np.ix_(dense_indices, sparse_indices)] = DS.T
+        if X_sparse.shape[1] > 0:
+            SS = sparse_sandwich(X_sparse, X_sparse_csr, d)
+            out[np.ix_(sparse_indices, sparse_indices)] = SS
+        if X_dense.shape[1] > 0:
+            DD = dense_sandwich(X_dense, d)
+            out[np.ix_(dense_indices, dense_indices)] = DD
+            if X_sparse.shape[1] > 0:
+                DS = sparse_dense_sandwich(X_sparse_csr, X_dense_C, d)
+                out[np.ix_(sparse_indices, dense_indices)] = DS
+                out[np.ix_(dense_indices, sparse_indices)] = DS.T
 
         return out
 
-    X.split_sandwich = f
-
-
-def split_sandwich(X, d):
-    return X.split_sandwich(d)
+    return f
 
 
 def _dense_sandwich(X, d):
@@ -80,20 +71,24 @@ def run_one_problem_all_methods(x, d, include_naive, dtype) -> pd.DataFrame:
     x = x.astype(dtype)
     d = d.astype(dtype)
     x.XT = x.T.tocsc()
-    split(x)
     x.X_dense = np.asfortranarray(x.toarray())
     funcs: Dict[str, Callable[[Any, np.ndarray], Any]] = {
-        "fast_sandwich": _fast_sandwich,
-        "dense_sandwich": _dense_sandwich,
-        "split_sandwich": split_sandwich,
+        "sparse_sandwich": _fast_sandwich,
+        # "dense_sandwich": _dense_sandwich,
     }
+    funcs["split_sandwich_0.05"] = split_sandwich(x, 0.05)
+    funcs["split_sandwich_0.1"] = split_sandwich(x, 0.1)
+    # for threshold in [0.0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3,0.4,0.5,0.7,0.9,1.0]:
+    # for threshold in [0.01, 0.02, 0.03, 0.04, 0.05]:
+    #     funcs[f"split_sandwich_{threshold}"] = split_sandwich(x, threshold)
+
     if include_naive:
         funcs["naive"] = naive_sandwich
 
     info: Dict[str, Any] = {}
     for name, func in funcs.items():
         ts = []
-        for i in range(3):
+        for i in range(7):
             start = time.perf_counter()
             res = func(x, d)
             ts.append(time.perf_counter() - start)
@@ -118,16 +113,16 @@ def main() -> None:
     row_counts = [
         int(1e4),
         # int(1e5),
-        int(3e5),
-        int(1e6),
+        # int(3e5),
+        # int(1e6),
         int(2e6),
     ]  # , int(2e6), int(4e6), int(10e6)]
     benchmarks = []
 
-    x, d = load_data(row_counts[-1])
+    x, d = load_data("narrow", row_counts[-1])
 
     for i, n_rows in enumerate(row_counts):
-        for dtype in [np.float64]:
+        for dtype in [np.float32, np.float64]:
             benchmarks.append(
                 run_one_problem_all_methods(
                     x[:n_rows, :].copy(), d[:n_rows].copy(), i == 0, dtype

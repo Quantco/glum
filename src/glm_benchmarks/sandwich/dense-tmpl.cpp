@@ -7,40 +7,27 @@
 //     else:
 //        split X into four blocks by changing i_min and i_max
 //        call recurse_ij on each block
-#include <stdbool.h>
-#include "immintrin.h"
-
-// copied from https://stackoverflow.com/questions/49941645/get-sum-of-values-stored-in-m256d-with-sse-avx/49943540#49943540
-// a +  b + c + d = (a + b) + (c + d) = ((a) + (b)) + ((c) + (d))
-inline
-double hsum_double_avx(__m256d v) 
-{
-    __m128d vlow  = _mm256_castpd256_pd128(v); // get (a,b)
-    __m128d vhigh = _mm256_extractf128_pd(v, 1); //get (c,d) // high 128
-            vlow  = _mm_add_pd(vlow, vhigh);     // compute (a+c,b+d)// reduce down to 128
-    __m128d high64 = _mm_unpackhi_pd(vlow, vlow);
-    return  _mm_cvtsd_f64(_mm_add_sd(vlow, high64));  // reduce to scalar
-}
+#include "xsimd/xsimd.hpp"
+namespace xs = xsimd;
 
 <%def name="inner_kj_avx(JBLOCK)">
     % for r in range(JBLOCK):
-        __m256d accumavx${r};
-        accumavx${r} = _mm256_set1_pd(0.0);
+        auto accumsimd${r} = xs::set_simd(((F)0.0));
     % endfor
-    for(int k = kmin; k < kmaxavx; k += KVECTOR) {
-        __m256d XTavx = _mm256_loadu_pd(&X[i * n + k]);
-        __m256d davx = _mm256_loadu_pd(&d[k]);
-        __m256d Xtd = _mm256_mul_pd(XTavx, davx);
+    for(int k = kmin; k < kmaxavx; k += simd_size) {
+        auto XTsimd = xs::load_unaligned(&X[i * n + k]);
+        auto dsimd = xs::load_unaligned(&d[k]);
+        auto Xtd = XTsimd * dsimd;
         % for r in range(JBLOCK):
-            __m256d Xavx${r} = _mm256_loadu_pd(&X[(j + ${r}) * n + k]);
-            accumavx${r} = _mm256_add_pd(_mm256_mul_pd(Xtd, Xavx${r}), accumavx${r});
+            auto Xsimd${r} = xs::load_unaligned(&X[(j + ${r}) * n + k]);
+            accumsimd${r} = xs::fma(Xtd, Xsimd${r}, accumsimd${r});
         % endfor
     }
     % for r in range(JBLOCK):
-        double accum${r} = hsum_double_avx(accumavx${r});
+        F accum${r} = xs::hadd(accumsimd${r});
     % endfor
     for (int k = kmaxavx; k < kmax; k++) {
-        double Q = X[i * n + k] * d[k];
+        F Q = X[i * n + k] * d[k];
         % for r in range(JBLOCK):
             accum${r} += Q * X[(j + ${r}) * n + k];
         % endfor
@@ -50,19 +37,20 @@ double hsum_double_avx(__m256d v)
     % endfor
 </%def>
 
-#define KVECTOR 4
-void dense_base(double* restrict X, double* restrict d, double* restrict out,
+template <typename F>
+void dense_base(F* X, F* d, F* out,
                 int m, int n,
                 int imin, int imax,
                 int jmin, int jmax, 
                 int kmin, int kmax) 
 {
+    constexpr std::size_t simd_size = xsimd::simd_type<F>::size;
     for (int i = imin; i < imax; i++) {
         int jmaxinner = jmax;
         if (jmaxinner > i + 1) {
             jmaxinner = i + 1;
         }
-        int kmaxavx = kmin + ((kmax - kmin) / KVECTOR) * KVECTOR;
+        int kmaxavx = kmin + ((kmax - kmin) / simd_size) * simd_size;
         int j = jmin;
         % for JBLOCK in [8, 4, 2, 1]:
             for (; j < jmin + ((jmaxinner - jmin) / ${JBLOCK}) * ${JBLOCK}; j += ${JBLOCK}) {
@@ -72,7 +60,8 @@ void dense_base(double* restrict X, double* restrict d, double* restrict out,
     }
 }
 
-void recurse_ij(double* restrict X, double* restrict d, double* restrict out,
+template <typename F>
+void recurse_ij(F* X, F* d, F* out,
                 int m, int n,
                 int imin, int imax,
                 int jmin, int jmax, 
@@ -115,45 +104,65 @@ void recurse_ij(double* restrict X, double* restrict d, double* restrict out,
     }
 }
 
-void _dense_sandwich(double* restrict X, double* restrict d, double* restrict out,
+template <typename F>
+void _dense_sandwich(F* X, F* d, F* out,
         int m, int n) 
 {
     #pragma omp parallel
     #pragma omp single nowait
     //out[i,j] = sum_k X[k,i] * d[k] * X[k,j]
     recurse_ij(X, d, out, m, n, 0, m, 0, m, 0, n);
+    //TODO: try a new version with a block of k as the outermost loop and using
+    //the outtemp and pragma omp atomic trick from below.
 }
 
-
+template <typename F>
 void _sparse_dense_sandwich(
-    double* restrict Adata, int* restrict Aindices, int* restrict Aindptr,
-    double* restrict B,
-    double* restrict d,
-    double* restrict out,
+    F* Adata, int* Aindices, int* Aindptr,
+    F* B, F* d, F* out,
     int m, int n, int r) 
 {
-    <% 
-        JBLOCK = 4
-    %>
-    int ravxmax = (r / ${JBLOCK}) * ${JBLOCK};
-    #pragma omp parallel for
-    for (int i = 0; i < m; i++) {
-        int A_idx = Aindptr[i];
-        int A_idx_max = Aindptr[i+1];
-        for (; A_idx < A_idx_max; A_idx++) {
-            int k = Aindices[A_idx];
-            double Q = Adata[A_idx] * d[k];
-            __m256d Qavx = _mm256_set1_pd(Q);
-            int j = 0;
-            for (; j < ravxmax; j+=4) {
-                __m256d Bavx = _mm256_loadu_pd(&B[k*r+j]);
-                __m256d outavx = _mm256_loadu_pd(&out[i*r+j]);
-                outavx = _mm256_add_pd(outavx, (_mm256_mul_pd(Qavx, Bavx)));
-                _mm256_storeu_pd(&out[i*r+j], outavx);
-            }
-            for (; j < r; j++) {
-                out[i * r + j] += Q * B[k*r+j];
+    constexpr int simd_size = xsimd::simd_type<F>::size;
+
+    #pragma omp parallel
+    {
+        F* outtemp = new F[m*r];
+        for (int s = 0; s < m * r; s++) {
+            outtemp[s] = 0.0;
+        }
+
+        #pragma omp for
+        for (int k = 0; k < n; k++) {
+            int A_idx = Aindptr[k];
+            int A_idx_max = Aindptr[k+1];
+            for (; A_idx < A_idx_max; A_idx++) {
+                int i = Aindices[A_idx];
+                F Q = Adata[A_idx] * d[k];
+                auto Qsimd = xs::set_simd(Q);
+                int j = 0;
+                for (; j < (r / simd_size) * simd_size; j+=simd_size) {
+                    //TODO: look into memory alignment for numpy arrays
+                    auto Bsimd = xs::load_unaligned(&B[k*r+j]);
+                    auto outsimd = xs::load_unaligned(&outtemp[i*r+j]);
+                    outsimd = xs::fma(Qsimd, Bsimd, outsimd);
+                    outsimd.store_unaligned(&outtemp[i*r+j]);
+                }
+
+                // TODO: use a smaller simd type for the remainder? e.g. 8,4,2,1
+                // given that we often a fairly small number of dense columns,
+                // this could have a substantial effect. 4,2,1 is going to be
+                // faster than 4,1,1,1
+
+                for (; j < r; j++) {
+                    outtemp[i * r + j] += Q * B[k*r+j];
+                }
             }
         }
+
+        for (int s = 0; s < m * r; s++) {
+            #pragma omp atomic
+            out[s] += outtemp[s];
+        }
+        delete outtemp;
     }
 }
