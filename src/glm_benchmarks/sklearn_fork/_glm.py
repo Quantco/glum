@@ -825,8 +825,8 @@ def _cd_solver(
             weights=weights,
             link=link,
             diag_fisher=diag_fisher,
-            # eta=eta,
-            # mu=mu
+            eta=eta,
+            mu=mu,
         )
 
         # stopping criterion for outer loop
