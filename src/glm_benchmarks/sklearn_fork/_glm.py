@@ -782,6 +782,7 @@ def _cd_solver(
             # coef_wd = coef + la * d
             # we can rewrite to only perform one dot product with the data
             # matrix per loop which is substantially faster
+            eta_wd = eta + la * X_dot_d
             mu_wd = link.inverse(eta + la * X_dot_d)
 
             # TODO - optimize: for Tweedie that isn't one of the special cases
@@ -803,6 +804,14 @@ def _cd_solver(
         # update coefficients
         coef += la * d
 
+        # We can avoid a matrix-vector product inside _eta_mu_score_fisher by
+        # updating eta here.
+        # NOTE: This might accumulate some numerical error over a sufficient
+        # number of iterations, maybe we should completely recompute eta every
+        # N iterations?
+        eta = eta_wd
+        mu = mu_wd
+
         iteration_runtime = time.time() - iteration_start
         diagnostics.append([inner_tol, n_iter, n_cycles, iteration_runtime, coef[0]])
         iteration_start = time.time()
@@ -816,6 +825,8 @@ def _cd_solver(
             weights=weights,
             link=link,
             diag_fisher=diag_fisher,
+            # eta=eta,
+            # mu=mu
         )
 
         # stopping criterion for outer loop

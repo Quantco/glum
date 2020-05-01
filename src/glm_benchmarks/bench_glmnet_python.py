@@ -13,6 +13,7 @@ def glmnet_python_bench(
     distribution: str,
     alpha: float,
     l1_ratio: float,
+    iterations: int,
 ) -> Dict[str, Any]:
     result: Dict = dict()
 
@@ -46,7 +47,7 @@ def glmnet_python_bench(
     if "weights" in dat.keys():
         glmnet_kws.update({"weights": dat["weights"]})
 
-    result["runtime"], m = runtime(glmnet, **glmnet_kws)
+    result["runtime"], m = runtime(glmnet, iterations, **glmnet_kws)
     result["intercept"] = m["a0"][0]
     result["coef"] = m["beta"][:, 0]
     result["n_iter"] = m["npasses"]
