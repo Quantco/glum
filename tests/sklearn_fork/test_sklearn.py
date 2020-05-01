@@ -416,10 +416,8 @@ def test_glm_check_input_argument(check_input, y, X):
 
 
 @pytest.mark.parametrize("solver", GLM_SOLVERS)
-@pytest.mark.parametrize(
-    "fit_intercept, center_predictors", [(False, False), (True, False), (True, True)]
-)
-def test_glm_identity_regression(solver, fit_intercept, center_predictors):
+@pytest.mark.parametrize("fit_intercept", [False, True])
+def test_glm_identity_regression(solver, fit_intercept):
     """Test GLM regression with identity link on a simple dataset."""
     coef = [1.0, 2.0]
     X = np.array([[1, 1, 1, 1, 1], [0, 1, 2, 3, 4]]).T
@@ -429,7 +427,6 @@ def test_glm_identity_regression(solver, fit_intercept, center_predictors):
         family="normal",
         link="identity",
         fit_intercept=fit_intercept,
-        center_predictors=center_predictors,
         solver=solver,
         start_params="zero",
         tol=1e-7,
@@ -458,10 +455,8 @@ def test_glm_identity_regression(solver, fit_intercept, center_predictors):
     ],
 )
 @pytest.mark.parametrize("solver, tol", [("irls", 1e-6), ("lbfgs", 1e-6), ("cd", 1e-7)])
-@pytest.mark.parametrize(
-    "fit_intercept, center_predictors", [(False, False), (True, False), (True, True)]
-)
-def test_glm_log_regression(family, solver, tol, fit_intercept, center_predictors):
+@pytest.mark.parametrize("fit_intercept", [False, True])
+def test_glm_log_regression(family, solver, tol, fit_intercept):
     """Test GLM regression with log link on a simple dataset."""
     coef = [0.2, -0.1]
     X = np.array([[1, 1, 1, 1, 1], [0, 1, 2, 3, 4]]).T
@@ -471,7 +466,6 @@ def test_glm_log_regression(family, solver, tol, fit_intercept, center_predictor
         family=family,
         link="log",
         fit_intercept=fit_intercept,
-        center_predictors=center_predictors,
         solver=solver,
         start_params="guess",
         tol=tol,
@@ -490,9 +484,8 @@ def test_glm_log_regression(family, solver, tol, fit_intercept, center_predictor
 @pytest.mark.filterwarnings("ignore:The line search algorithm")
 @pytest.mark.filterwarnings("ignore:Line Search failed")
 @pytest.mark.parametrize("n_samples, n_features", [(100, 10), (10, 100)])
-@pytest.mark.parametrize("center_predictors", [False, True])
 @pytest.mark.parametrize("solver", GLM_SOLVERS)
-def test_normal_ridge_comparison(n_samples, n_features, center_predictors, solver):
+def test_normal_ridge_comparison(n_samples, n_features, solver):
     """Test ridge regression for Normal distributions.
 
     Case n_samples >> n_features
@@ -529,7 +522,6 @@ def test_normal_ridge_comparison(n_samples, n_features, center_predictors, solve
         family="normal",
         link="identity",
         fit_intercept=True,
-        center_predictors=center_predictors,
         max_iter=300,
         solver=solver,
         tol=1e-6,
@@ -544,10 +536,9 @@ def test_normal_ridge_comparison(n_samples, n_features, center_predictors, solve
 
 
 @pytest.mark.parametrize("solver, tol", [("irls", 1e-7), ("lbfgs", 1e-7), ("cd", 1e-7)])
-@pytest.mark.parametrize("center_predictors", [True, False])
 @pytest.mark.parametrize("scale_predictors", [True, False])
 @pytest.mark.parametrize("use_sparse", [True, False])
-def test_poisson_ridge(solver, tol, center_predictors, scale_predictors, use_sparse):
+def test_poisson_ridge(solver, tol, scale_predictors, use_sparse):
     """Test ridge regression with poisson family and LogLink.
 
     Compare to R's glmnet"""
@@ -596,14 +587,8 @@ def test_poisson_ridge(solver, tol, center_predictors, scale_predictors, use_spa
         max_iter=300,
         random_state=rng,
         copy_X=True,
-        center_predictors=center_predictors,
         scale_predictors=scale_predictors,
     )
-
-    if not center_predictors and scale_predictors:
-        with pytest.raises(ValueError):
-            glm.fit(X, y)
-        return
 
     glm2 = copy.deepcopy(glm)
 
@@ -631,8 +616,7 @@ def test_poisson_ridge(solver, tol, center_predictors, scale_predictors, use_spa
 
 
 @pytest.mark.parametrize("diag_fisher", [False, True])
-@pytest.mark.parametrize("center_predictors", [False, True])
-def test_normal_enet(diag_fisher, center_predictors):
+def test_normal_enet(diag_fisher):
     """Test elastic net regression with normal/gaussian family."""
     alpha, l1_ratio = 0.3, 0.7
     n_samples, n_features = 20, 2
@@ -648,7 +632,6 @@ def test_normal_enet(diag_fisher, center_predictors):
         family="normal",
         link="identity",
         fit_intercept=True,
-        center_predictors=center_predictors,
         tol=1e-8,
         max_iter=100,
         selection="cyclic",
@@ -679,8 +662,7 @@ def test_normal_enet(diag_fisher, center_predictors):
     assert_allclose(glm.coef_, enet.coef_, rtol=5e-5)
 
 
-@pytest.mark.parametrize("center_predictors", [False, True])
-def test_poisson_enet(center_predictors):
+def test_poisson_enet():
     """Test elastic net regression with poisson family and LogLink.
 
     Compare to R's glmnet"""
@@ -710,7 +692,6 @@ def test_poisson_enet(center_predictors):
         selection="random",
         random_state=rng,
         start_params="guess",
-        center_predictors=center_predictors,
     )
     glm.fit(X, y)
     assert_allclose(glm.intercept_, glmnet_intercept, rtol=2e-6)
@@ -840,15 +821,12 @@ def test_binomial_enet(alpha):
         "{}={}".format(key, val) for key, val in params.items()
     ),
 )
-@pytest.mark.parametrize("center_predictors", [False, True])
-def test_solver_equivalence(params, regression_data, center_predictors):
+def test_solver_equivalence(params, regression_data):
     X, y = regression_data
     est_ref = GeneralizedLinearRegressor(random_state=2)
     est_ref.fit(X, y)
 
-    estimator = GeneralizedLinearRegressor(
-        center_predictors=center_predictors, **params
-    )
+    estimator = GeneralizedLinearRegressor(**params)
     estimator.set_params(random_state=2)
 
     estimator.fit(X, y)
