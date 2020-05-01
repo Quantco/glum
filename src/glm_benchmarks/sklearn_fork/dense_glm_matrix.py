@@ -2,6 +2,7 @@ from typing import Tuple
 
 import numpy as np
 
+from glm_benchmarks.sandwich.sandwich import dense_sandwich
 from glm_benchmarks.scaled_spmat.standardize import one_over_var_inf_to_zero
 
 
@@ -41,9 +42,7 @@ class DenseGLMDataMatrix(np.ndarray):
         return self
 
     def sandwich(self, d):
-        sqrtD = np.sqrt(d)[:, np.newaxis]
-        xd = self * sqrtD
-        return xd.T @ xd
+        return dense_sandwich(self, d)
 
     def standardize(self, weights: np.ndarray, scale_predictors: bool) -> Tuple:
         col_means = self.T.dot(weights)[None, :]
