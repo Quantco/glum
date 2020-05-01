@@ -60,15 +60,15 @@ def get_obj_val(
     weights /= weights.sum()
 
     if distribution == "poisson":
-        log_like_by_ob = _get_poisson_ll_by_obs(dat, intercept, coefs)
+        minus_log_like_by_ob = -_get_poisson_ll_by_obs(dat, intercept, coefs)
     elif distribution == "gaussian":
-        log_like_by_ob = _get_minus_gaussian_ll_by_obs(dat, intercept, coefs)
+        minus_log_like_by_ob = _get_minus_gaussian_ll_by_obs(dat, intercept, coefs)
     else:
         raise NotImplementedError
 
     penalty = _get_penalty(alpha, l1_ratio, coefs)
 
-    return -log_like_by_ob.dot(weights) + penalty
+    return minus_log_like_by_ob.dot(weights) + penalty
 
 
 def exposure_correction(
