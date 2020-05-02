@@ -1,6 +1,6 @@
 import os
 import pickle
-from typing import Any, Dict, List, Tuple, Union, Optional
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import click
 import numpy as np
@@ -89,7 +89,7 @@ def cli_run(
     for Pn, P in problems.items():
         for Ln, L in libraries.items():
             print(f"running problem={Pn} library={Ln}")
-            result, regularization_strength = execute_problem_library(
+            result, regularization_strength_ = execute_problem_library(
                 P,
                 L,
                 num_rows,
@@ -107,7 +107,7 @@ def cli_run(
                 storage,
                 threads,
                 single_precision,
-                regularization_strength,
+                regularization_strength_,
                 result,
             )
             print(f"ran in {result['runtime']}")
@@ -464,7 +464,7 @@ def load_benchmark_results(
     storage: str,
     threads: str,
     single_precision: str,
-    regularization_strength: float,
+    regularization_strength: str,
 ):
     results_dir = os.path.join(
         output_dir,
