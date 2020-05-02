@@ -250,7 +250,7 @@ def cli_analyze(
 
     res_df = (
         pd.concat(formatted_results, axis=1)
-        .T.set_index(["problem", "num_rows", "library", "regularization_strength"])
+        .T.set_index(["problem", "num_rows", "regularization_strength", "library"])
         .sort_index()
     )
 
@@ -331,7 +331,7 @@ def extract_dict_results_to_pd_series(
         "threads": "None" if threads == "None" else int(threads),
         "storage": storage,
         "single_precision": single_precision,
-        "regularization_strength": regularization_strength,
+        "regularization_strength": float(regularization_strength),
         "num_rows": dat["y"].shape[0] if num_rows == "None" else int(num_rows),
         "n_iter": results["n_iter"],
         "runtime": results["runtime"],
