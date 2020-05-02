@@ -9,6 +9,7 @@ def zeros_bench(
     distribution: str,
     alpha: float,
     l1_ratio: float,
+    iterations: int,
 ) -> Dict[str, Any]:
 
     result = {
