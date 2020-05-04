@@ -58,11 +58,6 @@ def X():
     return np.array([[1], [2]])
 
 
-@pytest.fixture
-def offset():
-    return np.array([-0.3, 2])
-
-
 @pytest.mark.parametrize("link", Link.__subclasses__())
 def test_link_properties(link):
     """Test link inverse and derivative."""
@@ -459,7 +454,6 @@ def test_glm_identity_regression(solver, fit_intercept, offset):
         solver=solver,
         start_params="zero",
         tol=1e-7,
-        max_iter=3200,
     )
     if fit_intercept:
         X = X[:, 1:]
@@ -486,7 +480,6 @@ def test_glm_identity_regression(solver, fit_intercept, offset):
 )
 @pytest.mark.parametrize("solver, tol", [("irls", 1e-6), ("lbfgs", 1e-6), ("cd", 1e-7)])
 @pytest.mark.parametrize("fit_intercept", [False, True])
-# tests pass with offset=None
 @pytest.mark.parametrize("offset", [None, np.array([-0.1, 0, 0.1, 0, -0.2])])
 @pytest.mark.parametrize("start_params", ["zero", "guess"])
 def test_glm_log_regression(family, solver, tol, fit_intercept, offset, start_params):
@@ -511,14 +504,15 @@ def test_glm_log_regression(family, solver, tol, fit_intercept, offset, start_pa
         fit_coef = np.concatenate([[res.intercept_], res.coef_])
     else:
         fit_coef = res.coef_
-    assert_allclose(fit_coef, coef, rtol=5e-6)
+    assert_allclose(fit_coef, coef, rtol=8e-6)
 
 
 @pytest.mark.filterwarnings("ignore:The line search algorithm")
 @pytest.mark.filterwarnings("ignore:Line Search failed")
 @pytest.mark.parametrize("n_samples, n_features", [(100, 10), (10, 100)])
 @pytest.mark.parametrize("solver", GLM_SOLVERS)
-def test_normal_ridge_comparison(n_samples, n_features, solver):
+@pytest.mark.parametrize("use_offset", [False, True])
+def test_normal_ridge_comparison(n_samples, n_features, solver, use_offset):
     """Test ridge regression for Normal distributions.
 
     Case n_samples >> n_features
@@ -537,6 +531,12 @@ def test_normal_ridge_comparison(n_samples, n_features, solver):
     )
     y = y[0:n_samples]
     X, T = X[0:n_samples], X[n_samples:]
+    if use_offset:
+        np.random.seed(0)
+        offset = np.random.randn(n_samples)
+        y += offset
+    else:
+        offset = None
 
     if n_samples > n_features:
         ridge_params = {"solver": "svd"}
@@ -547,7 +547,7 @@ def test_normal_ridge_comparison(n_samples, n_features, solver):
     ridge = Ridge(
         alpha=alpha * n_samples, normalize=False, random_state=42, **ridge_params
     )
-    ridge.fit(X, y)
+    ridge.fit(X, y if offset is None else y - offset)
 
     glm = GeneralizedLinearRegressor(
         alpha=1.0,
@@ -561,7 +561,7 @@ def test_normal_ridge_comparison(n_samples, n_features, solver):
         check_input=False,
         random_state=42,
     )
-    glm.fit(X, y)
+    glm.fit(X, y, offset=offset)
     assert glm.coef_.shape == (X.shape[1],)
     assert_allclose(glm.coef_, ridge.coef_, rtol=5e-5)
     assert_allclose(glm.intercept_, ridge.intercept_, rtol=1e-5)
@@ -854,15 +854,21 @@ def test_binomial_enet(alpha):
         "{}={}".format(key, val) for key, val in params.items()
     ),
 )
-def test_solver_equivalence(params, regression_data):
+@pytest.mark.parametrize("use_offset", [False, True])
+def test_solver_equivalence(params, use_offset, regression_data):
     X, y = regression_data
+    if use_offset:
+        np.random.seed(0)
+        offset = np.random.random(len(y))
+    else:
+        offset = None
     est_ref = GeneralizedLinearRegressor(random_state=2)
-    est_ref.fit(X, y)
+    est_ref.fit(X, y, offset=offset)
 
     estimator = GeneralizedLinearRegressor(**params)
     estimator.set_params(random_state=2)
 
-    estimator.fit(X, y)
+    estimator.fit(X, y, offset=offset)
 
     assert_allclose(estimator.intercept_, est_ref.intercept_, rtol=1e-4)
     assert_allclose(estimator.coef_, est_ref.coef_, rtol=1e-4)

@@ -63,7 +63,7 @@ from ._distribution import (
     PoissonDistribution,
     TweedieDistribution,
 )
-from ._link import IdentityLink, Link, LogitLink, LogLink
+from ._link import IdentityLink, Link, LogitLink, LogLink, get_best_intercept
 from ._util import _safe_lin_pred, _safe_sandwich_dot
 from .dense_glm_matrix import DenseGLMDataMatrix
 
@@ -804,7 +804,7 @@ def _cd_solver(
 
         # TODO: if we keep track of X_dot_coef, we can add this to avoid a
         # _safe_lin_pred in _eta_mu_score_fisher every loop
-        X_dot_d = _safe_lin_pred(X, d, offset)
+        X_dot_d = _safe_lin_pred(X, d)
 
         # Try progressively shorter line search steps.
         for k in range(20):
@@ -1495,7 +1495,15 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                     raise ValueError("P1 must not have negative values.")
 
     def _guess_start_params(
-        self, y: np.ndarray, weights: np.ndarray, solver: str, X, P1, P2, random_state,
+        self,
+        y: np.ndarray,
+        weights: np.ndarray,
+        solver: str,
+        X,
+        P1,
+        P2,
+        random_state,
+        offset: np.ndarray = None,
     ) -> np.ndarray:
         """
         Set mu=starting_mu of the family and do one Newton step
@@ -1504,7 +1512,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         n_features = X.shape[1]
         family = get_family(self.family)
         link = get_link(self.link, family)
-        mu = family.starting_mu(y, weights=weights)
+        mu = family.starting_mu(y, weights=weights, offset=offset, link=link)
         eta = link.link(mu)  # linear predictor
         if solver in ["cd", "lbfgs"]:
             # see function _cd_solver
@@ -1524,22 +1532,22 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 fisher = _safe_sandwich_dot(X, d2_sigma_inv, self.fit_intercept)
             # set up space for search direction d for inner loop
             if self.fit_intercept:
-                coef = np.zeros(n_features + 1, dtype=X.dtype)
+                zero = np.zeros(n_features + 1, dtype=X.dtype)
             else:
-                coef = np.zeros(n_features, dtype=X.dtype)
+                zero = np.zeros(n_features, dtype=X.dtype)
             # initial stopping tolerance of inner loop
             # use L1-norm of minimum of norm of subgradient of F
             # use less restrictive tolerance for initial guess
             inner_tol = 4 * linalg.norm(
-                _min_norm_sugrad(coef=coef, grad=-score, P2=P2, P1=P1), ord=1
+                _min_norm_sugrad(coef=zero, grad=-score, P2=P2, P1=P1), ord=1
             )
 
             # just one outer loop = Newton step
             n_cycles = 0
-            d, coef_P2, n_cycles, inner_tol = _cd_cycle(
-                np.zeros_like(coef, dtype=X.dtype),
+            coef, coef_P2, n_cycles, inner_tol = _cd_cycle(
+                zero,
                 X,
-                coef,
+                np.zeros_like(zero),
                 score,
                 fisher,
                 P1,
@@ -1551,7 +1559,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 random_state=random_state,
                 diag_fisher=self.diag_fisher,
             )
-            coef += d  # for simplicity no line search here
+            # for simplicity no line search here
         else:
             # See _irls_solver
             # h'(eta)
@@ -1758,14 +1766,16 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         elif isinstance(start_params, str):
             if start_params == "guess":
                 coef = self._guess_start_params(
-                    y, weights, solver, X, P1, P2, random_state,
+                    y, weights, solver, X, P1, P2, random_state, offset
                 )
             else:  # start_params == 'zero'
                 if self.fit_intercept:
                     coef = np.zeros(
                         n_features + 1, dtype=_float_itemsize_to_dtype[X.dtype.itemsize]
                     )
-                    coef[0] = self._link_instance.link(np.average(y, weights=weights))
+                    coef[0] = get_best_intercept(
+                        y, weights, self._link_instance, offset
+                    )
                 else:
                     coef = np.zeros(
                         n_features, dtype=_float_itemsize_to_dtype[X.dtype.itemsize]
