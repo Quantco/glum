@@ -6,7 +6,7 @@ import numexpr
 import numpy as np
 from scipy import special
 
-from ._link import Link
+from ._link import Link, get_best_intercept
 from ._util import _safe_lin_pred, _safe_sandwich_dot
 
 
@@ -257,10 +257,27 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         """
         return weights * self.unit_deviance_derivative(y, mu)
 
-    def starting_mu(self, y: np.ndarray, weights=1, ind_weight=0.5) -> np.ndarray:
-        """Set starting values for the mean mu.
+    def starting_mu(
+        self,
+        y: np.ndarray,
+        weights=1,
+        ind_weight=0.5,
+        offset: np.ndarray = None,
+        link: Link = None,
+    ) -> np.ndarray:
+        """Set starting values for the mean mu by interpolating between a best-guess
+        case of where mu may end up, fitting y perfectly, and a worst-case guess,
+        where we can only fit an intercept.
+
+        In the worst case, we have worst_case_mu = link.inverse(eta + intercept),
+        where intercept is set so that
+        sum(y) = sum(link.inverse(eta + intercept))
+
+        When eta = 0, this simplifies to intercept = link.link(avg(y)), so we can
+        simply write the worse-case mu as avg(y).
 
         These may be good starting points for the (unpenalized) IRLS solver.
+
 
         Parameters
         ----------
@@ -274,11 +291,25 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
             Must be between 0 and 1. Specifies how much weight is given to the
             individual observations instead of the mean of y.
         """
+
         expected_dtype = np.float64 if y.dtype.itemsize == 8 else np.float32
+
         # Be careful: combining a 32-bit int and 32-bit float gives 64-bit answers
-        return np.multiply(ind_weight, y, dtype=expected_dtype) + np.multiply(
-            1 - ind_weight, np.average(y, weights=weights), dtype=expected_dtype
-        )
+        def _interpolate(vec1: np.ndarray, vec2: np.ndarray) -> np.ndarray:
+            return np.multiply(ind_weight, vec1, dtype=expected_dtype) + np.multiply(
+                1 - ind_weight, vec2, dtype=expected_dtype
+            )
+
+        if offset is None:
+            # If our predictors are bad, we can at least fit the mean
+            worst_case_pred = np.average(y, weights=weights)
+        else:
+            assert link is not None
+            # worst case: guess offset plus an intercept
+            best_intercept = get_best_intercept(y, weights, link, offset)
+            worst_case_pred = link.inverse(offset + best_intercept)
+
+        return _interpolate(y, worst_case_pred)
 
     def _mu_deviance_derivative(
         self,

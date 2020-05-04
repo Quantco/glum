@@ -36,6 +36,8 @@ def h2o_bench(
     use_weights = "weights" in dat.keys()
     if use_weights:
         train_mat = hstack_sparse_or_dense((train_mat, dat["weights"][:, np.newaxis]))
+    if "offset" in dat.keys():
+        train_mat = hstack_sparse_or_dense((train_mat, dat["offset"][:, np.newaxis]))
 
     train_h2o = h2o.H2OFrame(train_mat)
 
@@ -61,6 +63,13 @@ def h2o_bench(
             training_frame=train_h2o,
             weights_column=train_h2o.col_names[-1],
         )
+    elif "offset" in dat.keys():
+        train_args = dict(
+            x=train_h2o.col_names[:-2],
+            y=train_h2o.col_names[-2],
+            training_frame=train_h2o,
+            offset_column=train_h2o.col_names[-1],
+        )
     else:
         train_args = dict(
             x=train_h2o.col_names[:-1],
@@ -77,7 +86,9 @@ def h2o_bench(
         [
             # h2o automatically removes zero-variance columns; impute to 1
             m.coef().get(f"C{i + 1}", 0)
-            for i in range(train_mat.shape[1] - (2 if use_weights else 1))
+            for i in range(
+                train_mat.shape[1] - (2 if use_weights or "offset" in dat.keys() else 1)
+            )
         ]
     )
 

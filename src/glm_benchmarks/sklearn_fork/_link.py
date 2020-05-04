@@ -127,3 +127,17 @@ class LogitLink(Link):
     def inverse_derivative2(self, lin_pred):
         ep = special.expit(lin_pred)
         return ep * (1.0 - ep) * (1.0 - 2 * ep)
+
+
+def get_best_intercept(
+    y: np.ndarray, weights: np.ndarray, link: Link, offset: np.ndarray = None
+):
+    """
+    For the identity or log link functions, the solution can be written as
+    intercept = link.link(avg(y)) - link.link(avg(link.inverse(eta)))
+    """
+    if offset is None:
+        return link.link(np.average(y, weights=weights))
+    return link.link(np.average(y, weights=weights)) - link.link(
+        np.average(link.inverse(offset), weights=weights)
+    )
