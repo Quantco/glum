@@ -203,28 +203,17 @@ def cli_analyze(
             res_df[col] - res_df.groupby(["problem", "num_rows"])[col].min()
         )
 
-    problems = res_df.index.get_level_values("problem").values
-    # keeps = ["sparse" not in x and "no_weights" in x for x in problems]
-    keeps = [x in x for x in problems]
-    # res_df.loc[keeps, :].reset_index().to_csv("results.csv")
     with pd.option_context(
         "display.expand_frame_repr", False, "max_columns", 10, "max_rows", None
     ):
-        print(
-            res_df.loc[
-                keeps,
-                [
-                    "storage",
-                    # "threads",
-                    "single_precision",
-                    "n_iter",
-                    "runtime",
-                    "intercept",
-                    "obj_val",
-                    "rel_obj_val",
-                ],
-            ]
-        )
+        cols_to_show = [
+            "n_iter",
+            "runtime",
+            "intercept",
+            "obj_val",
+            "rel_obj_val",
+        ]
+        print(res_df[cols_to_show])
 
 
 def extract_dict_results_to_pd_series(
@@ -243,21 +232,19 @@ def extract_dict_results_to_pd_series(
 
     problem = get_all_problems()[prob_name]
     dat = problem.data_loader(None if num_rows == "None" else int(num_rows))
-    try:
-        obj_val = get_obj_val(
-            dat,
-            problem.distribution,
-            problem.regularization_strength,
-            problem.l1_ratio,
-            results["intercept"],
-            coefs,
-        )
+    tweedie = "tweedie" in prob_name
+    if tweedie:
+        tweedie_p = float(prob_name.split("=")[-1])
 
-    except NotImplementedError:
-        obj_val = 0
-        print(
-            "skipping objective calculation because this distribution is not implemented"
-        )
+    obj_val = get_obj_val(
+        dat,
+        problem.distribution,
+        problem.regularization_strength,
+        problem.l1_ratio,
+        results["intercept"],
+        coefs,
+        tweedie_p=tweedie_p if tweedie else None,
+    )
 
     formatted = {
         "problem": prob_name,
