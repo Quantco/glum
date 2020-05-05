@@ -41,7 +41,8 @@ def h2o_bench(
 
     train_h2o = h2o.H2OFrame(train_mat)
 
-    tweedie = distribution == "tweedie_p=1.5"
+    tweedie = "tweedie" in distribution
+
     model_args = dict(
         model_id="glm",
         # not sure if this is right
@@ -53,8 +54,13 @@ def h2o_bench(
         objective_epsilon=benchmark_convergence_tolerance,
         beta_epsilon=benchmark_convergence_tolerance,
         gradient_epsilon=benchmark_convergence_tolerance,
-        tweedie_variance_power=1.5 if tweedie else None,
     )
+    if tweedie:
+        p = float(distribution.split("=")[-1])
+        model_args["tweedie_variance_power"] = p
+        model_args["tweedie_link_power"] = 1 if p == 0 else 0
+    if "gamma" in distribution:
+        model_args["link"] = "Log"
 
     if use_weights:
         train_args = dict(
