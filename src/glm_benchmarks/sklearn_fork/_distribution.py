@@ -6,7 +6,7 @@ import numexpr
 import numpy as np
 from scipy import special
 
-from ._link import Link, get_best_intercept
+from ._link import IdentityLink, Link, LogitLink, LogLink
 from ._util import _safe_lin_pred, _safe_sandwich_dot
 
 
@@ -306,7 +306,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         else:
             assert link is not None
             # worst case: guess offset plus an intercept
-            best_intercept = get_best_intercept(y, weights, link, offset)
+            best_intercept = guess_intercept(y, weights, link, offset)
             worst_case_pred = link.inverse(offset + best_intercept)
 
         return _interpolate(y, worst_case_pred)
@@ -711,3 +711,53 @@ class BinomialDistribution(ExponentialDispersionModel):
 
     def unit_deviance(self, y, mu):
         return 2 * (special.xlogy(y, y / mu) + special.xlogy(1 - y, (1 - y) / (1 - mu)))
+
+
+def guess_intercept(
+    y: np.ndarray,
+    weights: np.ndarray,
+    link: Link,
+    distribution: ExponentialDispersionModel,
+    eta: np.ndarray = None,
+):
+    """
+    Say we want to find the scalar "b" that minimizes LL(eta + b), with eta fixed.
+
+    An exact solution exists for Tweedie distributions with a log link, and for the
+    normal distribution with identity link.
+
+    An exact solution also exists for the case of logit with no offset.
+
+    If the distribution and corresponding link are something else, we use the Tweedie
+    or normal solution, depending on the link function.
+    """
+    avg_y = np.average(y, weights=weights)
+
+    if isinstance(link, IdentityLink):
+        # This is only correct for normal. For other distributions, answer is unknown,
+        # but assume that we want sum(y) = sum(mu)
+        if eta is None:
+            return avg_y
+        return avg_y - np.average(eta, weights=weights)
+    elif isinstance(link, LogLink):
+        # This is only correct for Tweedie
+        log_avg_y = np.log(avg_y)
+        assert np.isfinite(log_avg_y).all()
+
+        if eta is None:
+            return log_avg_y
+        mu = np.exp(eta)
+        if isinstance(distribution, TweedieDistribution):
+            p = distribution.power
+        else:
+            p = 1  # Like Poisson
+        first = np.log((y * mu ** (1 - p)).dot(weights))
+        second = np.log((mu ** (2 - p)).dot(weights))
+        return first - second
+    elif isinstance(link, LogitLink):
+        log_odds = np.log(avg_y) - np.log(np.average(1 - y, weights=weights))
+        if eta is None:
+            return log_odds
+        return log_odds - np.average(eta, weights=weights)
+    else:
+        raise NotImplementedError
