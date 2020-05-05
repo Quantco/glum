@@ -3,7 +3,7 @@ import time
 import numpy as np
 import pandas as pd
 
-from glm_benchmarks.sandwich.sandwich import dense_sandwich, dense_sandwich2
+from glm_benchmarks.sandwich.sandwich import dense_sandwich
 
 
 def numpy_mklC(X, d):
@@ -28,11 +28,7 @@ def bench(f, iter):
 
 
 def _dense_sandwich(X, d):
-    return dense_sandwich(X[1], d)
-
-
-def _dense_sandwich2(X, d):
-    return dense_sandwich2(X[0], d)
+    return dense_sandwich(X[0], d)
 
 
 def mn_run(m, n, iter, dtype):
@@ -49,7 +45,7 @@ def mn_run(m, n, iter, dtype):
         "numpy_mklC",
         "numpy_mklF",
         "_dense_sandwich",
-    ]:  # , "_dense_sandwich2"]:
+    ]:
         ts, result = bench(lambda: globals()[name](X, d), iter)
         if name == "numpy_mklC":
             true = result
