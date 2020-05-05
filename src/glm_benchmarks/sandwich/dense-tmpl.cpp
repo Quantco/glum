@@ -116,31 +116,84 @@ void _dense_sandwich(F* X, F* d, F* out,
     //the outtemp and pragma omp atomic trick from below.
 }
 
+int calc_nblocks(int n, int blocksize) {
+    return ceil(((float)n) / ((float)blocksize));
+}
+
 template <typename F>
 void _dense_sandwich2(F* XC, F* XF, F* d, F* out,
         int m, int n) 
 {
     constexpr int simd_size = xsimd::simd_type<F>::size;
 
+    int kblocksize = 16;
+    int nkblocks = calc_nblocks(n, kblocksize);
+
+    int iblocksize = 16;
+    int niblocks = calc_nblocks(m, iblocksize);
+
+    int jblocksize = 16;
+    int njblocks = calc_nblocks(m, jblocksize);
+
     #pragma omp parallel
     {
         F* outtemp = new F[m * m];
-        for (int s = 0; s < m * m; s++) {
-            outtemp[s] = 0.0;
+        for (int i = 0; i < m; i++) {
+            for (int j = 0; j <= i; j++) {
+                outtemp[i*m+j] = 0.0;
+            }
         }
 
         #pragma omp for
-        for (int k = 0; k < n; k++) {
-            for (int i = 0; i < m; i++) {
-                for (int j = 0; j <= i; j++) {
-                    outtemp[i*m+j] += XC[k*m+i] * d[k] * XC[k*m+j];
+        for (int kb = 0; kb < nkblocks; kb++) {
+            int kmin = kb * kblocksize;
+            int kmax = kmin + kblocksize;
+            if (kmax > n) {
+                kmax = n;
+            }
+
+            for (int ib = 0; ib < niblocks; ib++) {
+                int imin = ib * iblocksize;
+                int imax = imin + iblocksize;
+                if (imax > m) {
+                    imax = m;
+                }
+
+                for (int jb = 0; jb < njblocks; jb++) {
+                    int jmin = jb * jblocksize;
+                    int jblockmax = jmin + jblocksize;
+
+                    for (int i = imin; i < imax; i++) {
+                        int jmax = jblockmax;
+                        if (jmax > i + 1) {
+                            jmax = i + 1;
+                        }
+                        int jmaxsimd = jmin + ((jmax - jmin) / simd_size) * simd_size;
+
+                        for (int k = kmin; k < kmax; k++) {
+                            F XTd = XC[k*m+i] * d[k];
+                            auto XTdsimd = xs::set_simd(XTd);
+                            int j = jmin;
+                            for (; j < jmaxsimd; j+=simd_size) {
+                                auto Xsimd = xs::load_unaligned(&XC[k*m+j]);
+                                auto outsimd = xs::load_unaligned(&outtemp[i*m+j]);
+                                outsimd = xs::fma(XTdsimd, Xsimd, outsimd);
+                                outsimd.store_unaligned(&outtemp[i*m+j]);
+                            }
+                            for (; j < jmax; j++) {
+                                outtemp[i*m+j] += XTd * XC[k*m+j];
+                            }
+                        }
+                    }
                 }
             }
         }
 
-        for (int s = 0; s < m * m; s++) {
-            #pragma omp atomic
-            out[s] += outtemp[s];
+        for (int i = 0; i < m; i++) {
+            for (int j = 0; j <= i; j++) {
+                #pragma omp atomic
+                out[i*m+j] += outtemp[i*m+j];
+            }
         }
         delete outtemp;
     }
