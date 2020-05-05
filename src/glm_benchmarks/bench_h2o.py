@@ -54,7 +54,9 @@ def h2o_bench(
         gradient_epsilon=benchmark_convergence_tolerance,
     )
     if tweedie:
-        model_args["tweedie_variance_power"] = float(distribution.split("=")[-1])
+        p = float(distribution.split("=")[-1])
+        model_args["tweedie_variance_power"] = p
+        model_args["tweedie_link_power"] = 1 if p == 0 else 0
     if "gamma" in distribution:
         model_args["link"] = "Log"
 
