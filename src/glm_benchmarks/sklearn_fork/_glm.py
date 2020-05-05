@@ -234,10 +234,13 @@ def _irls_step(X, W: np.ndarray, P2, z: np.ndarray, fit_intercept=True):
     #      Sparse solver would splinalg.spsolve(A, b) or splinalg.lsmr(A, b)
     if fit_intercept:
         Wz = W * z
+
+        # TODO: pretty sure this if statement is unnecessary.
         if sparse.issparse(X):
             b = np.concatenate(([Wz.sum()], X.transpose() @ Wz))
         else:
             b = np.concatenate(([Wz.sum()], X.T @ Wz))
+
         A = _safe_sandwich_dot(X, W, intercept=fit_intercept)
         if P2.ndim == 1:
             idx = np.arange(start=1, stop=A.shape[0])
@@ -247,6 +250,7 @@ def _irls_step(X, W: np.ndarray, P2, z: np.ndarray, fit_intercept=True):
         else:
             A[1:, 1:] += P2
     else:
+        # TODO: this should use _safe_sandwich_dot
         if sparse.issparse(X):
             XtW = X.transpose().multiply(W)
             # for older versions of numpy and scipy, A may be a np.matrix

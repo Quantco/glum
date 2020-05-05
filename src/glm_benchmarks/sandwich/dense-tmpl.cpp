@@ -116,88 +116,108 @@ void _dense_sandwich(F* X, F* d, F* out,
     //the outtemp and pragma omp atomic trick from below.
 }
 
-int calc_nblocks(int n, int blocksize) {
-    return ceil(((float)n) / ((float)blocksize));
+<%def name="inner_kj_avx(JBLOCK)">
+    % for r in range(JBLOCK):
+        auto accumsimd${r} = xs::set_simd(((F)0.0));
+    % endfor
+    for(int k = kmin; k < kmaxavx; k += simd_size) {
+        auto XTsimd = xs::load_unaligned(&X[i * n + k]);
+        auto dsimd = xs::load_unaligned(&d[k]);
+        auto Xtd = XTsimd * dsimd;
+        % for r in range(JBLOCK):
+            auto Xsimd${r} = xs::load_unaligned(&X[(j + ${r}) * n + k]);
+            accumsimd${r} = xs::fma(Xtd, Xsimd${r}, accumsimd${r});
+        % endfor
+    }
+    % for r in range(JBLOCK):
+        F accum${r} = xs::hadd(accumsimd${r});
+    % endfor
+    for (int k = kmaxavx; k < kmax; k++) {
+        F Q = X[i * n + k] * d[k];
+        % for r in range(JBLOCK):
+            accum${r} += Q * X[(j + ${r}) * n + k];
+        % endfor
+    }
+    % for r in range(JBLOCK):
+        out[i * m + (j + ${r})] += accum${r};
+    % endfor
+</%def>
+
+template <typename F>
+void dense_base2(F* X, F* d, F* out,
+                int m, int n,
+                int imin, int imax,
+                int jmin, int jmax, 
+                int kmin, int kmax) 
+{
+    constexpr std::size_t simd_size = xsimd::simd_type<F>::size;
+    for (int i = imin; i < imax; i++) {
+        int jmaxinner = jmax;
+        if (jmaxinner > i + 1) {
+            jmaxinner = i + 1;
+        }
+        int kmaxavx = kmin + ((kmax - kmin) / simd_size) * simd_size;
+        int j = jmin;
+        % for JBLOCK in [8, 4, 2, 1]:
+            for (; j < jmin + ((jmaxinner - jmin) / ${JBLOCK}) * ${JBLOCK}; j += ${JBLOCK}) {
+                ${inner_kj_avx(JBLOCK)}
+            }
+        % endfor
+    }
 }
 
 template <typename F>
-void _dense_sandwich2(F* XC, F* XF, F* d, F* out,
-        int m, int n) 
+void recurse_ij2(F* X, F* d, F* out,
+                int m, int n,
+                int imin, int imax,
+                int jmin, int jmax, 
+                int kmin, int kmax) 
 {
-    constexpr int simd_size = xsimd::simd_type<F>::size;
-
-    int kblocksize = 16;
-    int nkblocks = calc_nblocks(n, kblocksize);
-
-    int iblocksize = 16;
-    int niblocks = calc_nblocks(m, iblocksize);
-
-    int jblocksize = 16;
-    int njblocks = calc_nblocks(m, jblocksize);
-
-    #pragma omp parallel
-    {
-        F* outtemp = new F[m * m];
-        for (int i = 0; i < m; i++) {
-            for (int j = 0; j <= i; j++) {
-                outtemp[i*m+j] = 0.0;
+    int size = (imax - imin) * (jmax - jmin);
+    bool parallel = size >= 256;
+    if (!parallel) {
+        int kstep = 200;
+        for (int kstart = kmin; kstart < kmax; kstart += kstep) {
+            int kend = kstart + kstep;
+            if (kend > kmax) {
+                kend = kmax;
             }
+            dense_base2(X, d, out, m, n, imin, imax, jmin, jmax, kstart, kend);
         }
-
-        #pragma omp for
-        for (int kb = 0; kb < nkblocks; kb++) {
-            int kmin = kb * kblocksize;
-            int kmax = kmin + kblocksize;
-            if (kmax > n) {
-                kmax = n;
-            }
-
-            for (int ib = 0; ib < niblocks; ib++) {
-                int imin = ib * iblocksize;
-                int imax = imin + iblocksize;
-                if (imax > m) {
-                    imax = m;
-                }
-
-                for (int jb = 0; jb < njblocks; jb++) {
-                    int jmin = jb * jblocksize;
-                    int jblockmax = jmin + jblocksize;
-
-                    for (int i = imin; i < imax; i++) {
-                        int jmax = jblockmax;
-                        if (jmax > i + 1) {
-                            jmax = i + 1;
-                        }
-                        int jmaxsimd = jmin + ((jmax - jmin) / simd_size) * simd_size;
-
-                        for (int k = kmin; k < kmax; k++) {
-                            F XTd = XC[k*m+i] * d[k];
-                            auto XTdsimd = xs::set_simd(XTd);
-                            int j = jmin;
-                            for (; j < jmaxsimd; j+=simd_size) {
-                                auto Xsimd = xs::load_unaligned(&XC[k*m+j]);
-                                auto outsimd = xs::load_unaligned(&outtemp[i*m+j]);
-                                outsimd = xs::fma(XTdsimd, Xsimd, outsimd);
-                                outsimd.store_unaligned(&outtemp[i*m+j]);
-                            }
-                            for (; j < jmax; j++) {
-                                outtemp[i*m+j] += XTd * XC[k*m+j];
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        for (int i = 0; i < m; i++) {
-            for (int j = 0; j <= i; j++) {
-                #pragma omp atomic
-                out[i*m+j] += outtemp[i*m+j];
-            }
-        }
-        delete outtemp;
+        return;
     }
 
+    int isplit = (imax + imin) / 2;
+    int jsplit = (jmax + jmin) / 2;
+    {
+        // guaranteed to be partially in lower triangle
+        #pragma omp task if(parallel)
+        recurse_ij2(X, d, out, m, n, imin, isplit, jmin, jsplit, kmin, kmax);
+
+        // guaranteed to be partially in lower triangle
+        #pragma omp task if(parallel)
+        recurse_ij2(X, d, out, m, n, imin, isplit, jsplit, jmax, kmin, kmax);
+
+        // guaranteed to be partially in lower triangle
+        #pragma omp task if(parallel)
+        recurse_ij2(X, d, out, m, n, isplit, imax, jmin, jsplit, kmin, kmax);
+
+        // check if any of the entries are in the lower triangle
+        if (jsplit <= imax) {
+            #pragma omp task if(parallel)
+            recurse_ij2(X, d, out, m, n, isplit, imax, jsplit, jmax, kmin, kmax);
+        }
+    }
+}
+
+template <typename F>
+void _dense_sandwich2(F* X, F* d, F* out,
+        int m, int n) 
+{
+    #pragma omp parallel
+    #pragma omp single nowait
+    //out[i,j] = sum_k X[k,i] * d[k] * X[k,j]
+    recurse_ij2(X, d, out, m, n, 0, m, 0, m, 0, n);
 }
 
 template <typename F>
