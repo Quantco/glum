@@ -21,10 +21,7 @@ class DenseGLMDataMatrix(np.ndarray):
     skip_sklearn_check = True
 
     def __new__(cls, input_array):
-        # Input array is an already formed ndarray instance
-        # We first cast to be our class type
         obj = np.asarray(input_array).view(cls)
-        # Finally, we must return the newly created object:
         if not np.issubdtype(obj.dtype, np.floating):
             raise NotImplementedError(
                 "DenseGLMDataMatrix is only implemented for float data"
@@ -42,7 +39,12 @@ class DenseGLMDataMatrix(np.ndarray):
         return self
 
     def sandwich(self, d):
-        return dense_sandwich(self, d)
+        if self.flags["C_CONTIGUOUS"]:
+            sqrtD = np.sqrt(d)[:, np.newaxis]
+            xd = self * sqrtD
+            return xd.T @ xd
+        else:
+            return dense_sandwich(self, d)
 
     def standardize(self, weights: np.ndarray, scale_predictors: bool) -> Tuple:
         col_means = self.T.dot(weights)[None, :]

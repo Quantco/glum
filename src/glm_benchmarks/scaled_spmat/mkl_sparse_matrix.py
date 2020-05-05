@@ -4,7 +4,7 @@ import numpy as np
 from scipy import sparse as sps
 from sparse_dot_mkl import dot_product_mkl
 
-from glm_benchmarks.sandwich.sandwich import sparse_dense_sandwich, sparse_sandwich
+from glm_benchmarks.sandwich.sandwich import csr_dense_sandwich, sparse_sandwich
 
 
 class MKLSparseMatrix(sps.csc_matrix):
@@ -52,7 +52,7 @@ class MKLSparseMatrix(sps.csc_matrix):
         if not B.flags["C_CONTIGUOUS"]:
             raise TypeError("""B is required to be a C-array.""")
         self._check_csr()
-        return sparse_dense_sandwich(self.x_csr, B, d)
+        return csr_dense_sandwich(self.x_csr, B, d)
 
     def dot(self, v):
         if len(v.shape) == 1:
