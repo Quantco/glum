@@ -1,6 +1,6 @@
 import numbers
 from abc import ABCMeta, abstractmethod
-from typing import Tuple
+from typing import Tuple, Union
 
 import numexpr
 import numpy as np
@@ -718,7 +718,7 @@ def guess_intercept(
     weights: np.ndarray,
     link: Link,
     distribution: ExponentialDispersionModel,
-    eta: np.ndarray = None,
+    eta: Union[np.ndarray, float] = None,
 ):
     """
     Say we want to find the scalar "b" that minimizes LL(eta + b), with eta fixed.
@@ -738,7 +738,8 @@ def guess_intercept(
         # but assume that we want sum(y) = sum(mu)
         if eta is None:
             return avg_y
-        return avg_y - np.average(eta, weights=weights)
+        avg_eta = eta if np.isscalar(eta) else np.average(eta, weights=weights)
+        return avg_y - avg_eta
     elif isinstance(link, LogLink):
         # This is only correct for Tweedie
         log_avg_y = np.log(avg_y)
@@ -751,13 +752,18 @@ def guess_intercept(
             p = distribution.power
         else:
             p = 1  # Like Poisson
-        first = np.log((y * mu ** (1 - p)).dot(weights))
-        second = np.log((mu ** (2 - p)).dot(weights))
+        if np.isscalar(mu):
+            first = np.log(y.dot(weights) * mu ** (1 - p))
+            second = np.log(weights.sum() * mu ** (2 - p))
+        else:
+            first = np.log((y * mu ** (1 - p)).dot(weights))
+            second = np.log((mu ** (2 - p)).dot(weights))
         return first - second
     elif isinstance(link, LogitLink):
         log_odds = np.log(avg_y) - np.log(np.average(1 - y, weights=weights))
         if eta is None:
             return log_odds
-        return log_odds - np.average(eta, weights=weights)
+        avg_eta = eta if np.isscalar(eta) else np.average(eta, weights=weights)
+        return log_odds - avg_eta
     else:
         raise NotImplementedError

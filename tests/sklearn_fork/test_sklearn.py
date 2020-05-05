@@ -441,7 +441,7 @@ def test_glm_check_input_argument(check_input, y, X):
 
 @pytest.mark.parametrize("solver", GLM_SOLVERS)
 @pytest.mark.parametrize("fit_intercept", [False, True])
-@pytest.mark.parametrize("offset", [None, np.array([-0.1, 0, 0.1, 0, -0.2])])
+@pytest.mark.parametrize("offset", [None, np.array([-0.1, 0, 0.1, 0, -0.2]), 0.1])
 def test_glm_identity_regression(solver, fit_intercept, offset):
     """Test GLM regression with identity link on a simple dataset."""
     coef = [1.0, 2.0]
@@ -481,7 +481,7 @@ def test_glm_identity_regression(solver, fit_intercept, offset):
 )
 @pytest.mark.parametrize("solver, tol", [("irls", 1e-6), ("lbfgs", 1e-7), ("cd", 1e-7)])
 @pytest.mark.parametrize("fit_intercept", [False, True])
-@pytest.mark.parametrize("offset", [None, np.array([-0.1, 0, 0.1, 0, -0.2])])
+@pytest.mark.parametrize("offset", [None, np.array([-0.1, 0, 0.1, 0, -0.2]), 0.1])
 @pytest.mark.parametrize("start_params", ["zero", "guess"])
 def test_glm_log_regression(family, solver, tol, fit_intercept, offset, start_params):
     """Test GLM regression with log link on a simple dataset."""
@@ -993,7 +993,7 @@ def test_clonable(estimator):
         (IdentityLink(), GeneralizedHyperbolicSecant(), 1e-1),
     ],
 )
-@pytest.mark.parametrize("offset", [None, np.array([0.3, -0.1, 0, 0.1])])
+@pytest.mark.parametrize("offset", [None, np.array([0.3, -0.1, 0, 0.1]), 0.1])
 def test_get_best_intercept(
     link: Link, distribution: ExponentialDispersionModel, tol: float, offset
 ):

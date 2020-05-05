@@ -135,9 +135,7 @@ def _check_offset(offset: Union[np.ndarray, float], n_rows: int, dtype) -> np.nd
     Unlike weights, if the offset is given as None, it can stay None. So we only need
     to validate it when it is not none.
     """
-    if np.isscalar(offset):
-        offset = np.full((n_rows,), offset, dtype=dtype)
-    else:
+    if not np.isscalar(offset):
         offset = check_array(
             offset,
             accept_sparse=False,
