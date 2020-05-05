@@ -357,7 +357,7 @@ def generate_narrow_insurance_dataset(
     col_trans_GLM1, col_trans_GLM1_names = gen_col_trans(drop=True, standardize=False)
     y, exposure = compute_y_exposure(df, distribution)
 
-    return np.asfortranarray(col_trans_GLM1.fit_transform(df)), y, exposure
+    return col_trans_GLM1.fit_transform(df), y, exposure
 
 
 def generate_real_insurance_dataset(
