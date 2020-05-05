@@ -14,25 +14,40 @@ def runtime(f, *args, **kwargs):
     return end - start, out
 
 
-def _get_poisson_ll_by_obs(
-    dat: Dict[str, Union[np.ndarray, sps.spmatrix]], intercept: float, coefs: np.ndarray
-) -> np.ndarray:
+def _get_minus_tweedie_ll_by_obs(eta: np.ndarray, y: np.ndarray, p: float):
+    if p == 0:
+        expected_y = eta
+    else:
+        expected_y = np.exp(eta)
+
+    def _f(exp: float):
+        if exp == 0:
+            # equal to log expected y; limit as exp goes to 1 of below func
+            return eta
+        return expected_y ** exp / exp
+
+    return _f(2 - p) - y * _f(1 - p)
+
+
+def _get_minus_gamma_ll_by_obs(eta: np.ndarray, y: np.ndarray) -> np.ndarray:
+    """
+    Only up to a constant! From h2o documentation.
+    """
+    return _get_minus_tweedie_ll_by_obs(eta, y, 2)
+
+
+def _get_poisson_ll_by_obs(eta: np.ndarray, y: np.ndarray) -> np.ndarray:
     """
     Only up to a constant!
     """
-    ln_e_y = _get_linear_prediction_part(dat["X"], coefs, intercept)
-    return ln_e_y * dat["y"] - np.exp(ln_e_y)
+    return eta * y - np.exp(eta)
 
 
-def _get_minus_gaussian_ll_by_obs(
-    dat: Dict[str, Union[np.ndarray, sps.spmatrix]], intercept: float, coefs: np.ndarray
-) -> np.ndarray:
+def _get_minus_gaussian_ll_by_obs(eta: np.ndarray, y: np.ndarray) -> np.ndarray:
     """
     The normal log-likelihood, up to a constant.
     """
-    resids = dat["y"] - _get_linear_prediction_part(dat["X"], coefs, intercept)
-    squared_resids = resids ** 2
-    return squared_resids / 2
+    return (y - eta) ** 2 / 2
 
 
 def _get_linear_prediction_part(
@@ -55,14 +70,23 @@ def get_obj_val(
     l1_ratio: float,
     intercept: float,
     coefs: np.ndarray,
+    tweedie_p: float = None,
 ) -> float:
+    assert "offset" not in dat.keys()
     weights = dat.get("weights", np.ones_like(dat["y"])).astype(np.float64)
     weights /= weights.sum()
 
+    eta = _get_linear_prediction_part(dat["X"], coefs, intercept)
+
     if distribution == "poisson":
-        minus_log_like_by_ob = -_get_poisson_ll_by_obs(dat, intercept, coefs)
+        minus_log_like_by_ob = -_get_poisson_ll_by_obs(eta, dat["y"])
     elif distribution == "gaussian":
-        minus_log_like_by_ob = _get_minus_gaussian_ll_by_obs(dat, intercept, coefs)
+        minus_log_like_by_ob = _get_minus_gaussian_ll_by_obs(eta, dat["y"])
+    elif distribution == "gamma":
+        minus_log_like_by_ob = _get_minus_gamma_ll_by_obs(eta, dat["y"])
+    elif "tweedie" in distribution:
+        assert tweedie_p is not None
+        minus_log_like_by_ob = _get_minus_tweedie_ll_by_obs(eta, dat["y"], tweedie_p)
     else:
         raise NotImplementedError
 
