@@ -130,11 +130,15 @@ def _check_weights(
     return weights
 
 
-def _check_offset(offset: Union[np.ndarray, float], n_rows: int, dtype) -> np.ndarray:
+def _check_offset(
+    offset: Union[np.ndarray, float, None], n_rows: int, dtype
+) -> np.ndarray:
     """
     Unlike weights, if the offset is given as None, it can stay None. So we only need
     to validate it when it is not none.
     """
+    if offset is None:
+        return None
     if not np.isscalar(offset):
         offset = check_array(
             offset,
@@ -1546,7 +1550,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             coef, coef_P2, n_cycles, inner_tol = _cd_cycle(
                 zero,
                 X,
-                np.zeros_like(zero),
+                zero,
                 score,
                 fisher,
                 P1,
@@ -1674,8 +1678,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         # mixed-precision numbers
         y = _to_precision(y, X.dtype.itemsize)
         weights = _check_weights(sample_weight, y.shape[0], X.dtype)
-        if offset is not None:
-            offset = _check_offset(offset, y.shape[0], X.dtype)
+        offset = _check_offset(offset, y.shape[0], X.dtype)
 
         n_samples, n_features = X.shape
 
@@ -1864,7 +1867,6 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 diag_fisher=self.diag_fisher,
                 offset=offset,
             )
-        # HERE
 
         #######################################################################
         # 5a. handle intercept
