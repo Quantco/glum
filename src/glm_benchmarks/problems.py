@@ -72,7 +72,7 @@ def load_real_insurance_data(
 
 
 def get_all_problems() -> Dict[str, Problem]:
-    regularization_strength = 0.1
+    regularization_strength = 0.001
     distributions = ["gaussian", "poisson", "gamma", "tweedie_p=1.5"]
 
     problems = dict()

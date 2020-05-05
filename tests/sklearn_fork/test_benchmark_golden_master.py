@@ -36,7 +36,12 @@ all_test_problems = {
 )
 def test_gm_benchmarks(Pn, P):
     result = execute_problem_library(
-        P, sklearn_fork_bench, num_rows=10000, storage="dense", print_diagnostics=False
+        P,
+        sklearn_fork_bench,
+        num_rows=10000,
+        storage="dense",
+        print_diagnostics=False,
+        regularization_strength=0.1,
     )
 
     with open(git_root(f"golden_master/benchmarks_gm/{Pn}.pkl"), "rb") as fh:
@@ -67,6 +72,7 @@ def run_and_store_golden_master(overwrite=False):
             num_rows=10000,
             storage="dense",
             print_diagnostics=False,
+            regularization_strength=0.1,
         )
 
         with open(git_root(f"golden_master/benchmarks_gm/{Pn}.pkl"), "wb") as fh:
