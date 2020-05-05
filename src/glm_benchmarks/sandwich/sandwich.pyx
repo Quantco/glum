@@ -59,9 +59,10 @@ def sparse_sandwich(A, AT, floating[:] d):
 
 cdef extern from "dense.cpp":
     void _dense_sandwich[F](F*, F*, F*, int, int) nogil
-    void _sparse_dense_sandwich[F](F*, int*, int*, F*, F*, F*, int, int, int) nogil
+    void _dense_sandwich2[F](F*, F*, F*, F*, int, int) nogil
+    void _csr_dense_sandwich[F](F*, int*, int*, F*, F*, F*, int, int, int) nogil
 
-def sparse_dense_sandwich(A, floating[:,:] B, floating[:] d):
+def csr_dense_sandwich(A, floating[:,:] B, floating[:] d):
     # computes where (A.T * d) @ B
     # assumes that A is in csr form
     cdef floating[:] Adata = A.data
@@ -78,14 +79,14 @@ def sparse_dense_sandwich(A, floating[:,:] B, floating[:] d):
     cdef floating[:, :] out_view = out
     cdef floating* outp = &out_view[0,0]
 
-    _sparse_dense_sandwich(&Adata[0], &Aindices[0], &Aindptr[0], &B[0,0], &d[0], outp, m, n, r)
+    _csr_dense_sandwich(&Adata[0], &Aindices[0], &Aindptr[0], &B[0,0], &d[0], outp, m, n, r)
     return out
 
 
 
 def dense_sandwich(X, floating[:] d):
-    cdef int m = X.shape[1]
     cdef int n = X.shape[0]
+    cdef int m = X.shape[1]
 
     out = np.zeros((m,m), dtype=X.dtype)
     cdef floating[:, :] out_view = out
@@ -95,5 +96,24 @@ def dense_sandwich(X, floating[:] d):
     cdef floating* Xp = &Xmemview[0,0]
     cdef floating* dp = &d[0]
     _dense_sandwich(Xp, dp, outp, m, n)
+    out += np.tril(out, -1).T
+    return out
+
+def dense_sandwich2(XC, XF, floating[:] d):
+    cdef int n = XC.shape[0]
+    cdef int m = XC.shape[1]
+
+    out = np.zeros((m,m), dtype=XC.dtype)
+    cdef floating[:, :] out_view = out
+    cdef floating* outp = &out_view[0,0]
+
+    cdef floating[:, :] XCmemview = XC;
+    cdef floating* XCp = &XCmemview[0,0]
+
+    cdef floating[:, :] XFmemview = XF;
+    cdef floating* XFp = &XFmemview[0,0]
+
+    cdef floating* dp = &d[0]
+    _dense_sandwich2(XCp, XFp, dp, outp, m, n)
     out += np.tril(out, -1).T
     return out

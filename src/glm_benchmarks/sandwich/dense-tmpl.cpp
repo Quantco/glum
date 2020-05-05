@@ -117,7 +117,38 @@ void _dense_sandwich(F* X, F* d, F* out,
 }
 
 template <typename F>
-void _sparse_dense_sandwich(
+void _dense_sandwich2(F* XC, F* XF, F* d, F* out,
+        int m, int n) 
+{
+    constexpr int simd_size = xsimd::simd_type<F>::size;
+
+    #pragma omp parallel
+    {
+        F* outtemp = new F[m * m];
+        for (int s = 0; s < m * m; s++) {
+            outtemp[s] = 0.0;
+        }
+
+        #pragma omp for
+        for (int k = 0; k < n; k++) {
+            for (int i = 0; i < m; i++) {
+                for (int j = 0; j <= i; j++) {
+                    outtemp[i*m+j] += XC[k*m+i] * d[k] * XC[k*m+j];
+                }
+            }
+        }
+
+        for (int s = 0; s < m * m; s++) {
+            #pragma omp atomic
+            out[s] += outtemp[s];
+        }
+        delete outtemp;
+    }
+
+}
+
+template <typename F>
+void _csr_dense_sandwich(
     F* Adata, int* Aindices, int* Aindptr,
     F* B, F* d, F* out,
     int m, int n, int r) 
