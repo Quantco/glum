@@ -15,11 +15,11 @@ namespace xs = xsimd;
         auto accumsimd${r} = xs::set_simd(((F)0.0));
     % endfor
     for(int k = kmin; k < kmaxavx; k += simd_size) {
-        auto XTsimd = xs::load_unaligned(&X[i * n + k]);
+        auto XTsimd = xs::load_unaligned(&temp2[k - kmin]);
         auto dsimd = xs::load_unaligned(&d[k]);
         auto Xtd = XTsimd * dsimd;
         % for r in range(JBLOCK):
-            auto Xsimd${r} = xs::load_unaligned(&X[(j + ${r}) * n + k]);
+            auto Xsimd${r} = xs::load_unaligned(&temp[((j - jmin) + ${r}) * ksize + (k - kmin)]);
             accumsimd${r} = xs::fma(Xtd, Xsimd${r}, accumsimd${r});
         % endfor
     }
@@ -27,9 +27,9 @@ namespace xs = xsimd;
         F accum${r} = xs::hadd(accumsimd${r});
     % endfor
     for (int k = kmaxavx; k < kmax; k++) {
-        F Q = X[i * n + k] * d[k];
+        F Q = temp2[k - kmin] * d[k];
         % for r in range(JBLOCK):
-            accum${r} += Q * X[(j + ${r}) * n + k];
+            accum${r} += Q * temp[((j - jmin) + ${r}) * n + (k - kmin)];
         % endfor
     }
     % for r in range(JBLOCK):
@@ -37,6 +37,8 @@ namespace xs = xsimd;
     % endfor
 </%def>
 
+#define KSTEP 200
+#define IJTHRESHOLD 16
 template <typename F>
 void dense_base(F* X, F* d, F* out,
                 int m, int n,
@@ -45,6 +47,18 @@ void dense_base(F* X, F* d, F* out,
                 int kmin, int kmax) 
 {
     constexpr std::size_t simd_size = xsimd::simd_type<F>::size;
+    int ksize = kmax - kmin;
+
+    // Flip to be Fortran-ordered
+    F temp[KSTEP * IJTHRESHOLD];
+    for (int j = jmin; j < jmax; j++) {
+        for (int k = kmin; k < kmax; k++) {
+            temp[(j - jmin) * ksize + (k - kmin)] = X[k * m + j];
+        }
+    }
+
+    F temp2[KSTEP];
+
     for (int i = imin; i < imax; i++) {
         int jmaxinner = jmax;
         if (jmaxinner > i + 1) {
@@ -52,6 +66,9 @@ void dense_base(F* X, F* d, F* out,
         }
         int kmaxavx = kmin + ((kmax - kmin) / simd_size) * simd_size;
         int j = jmin;
+        for (int k = kmin; k < kmax; k++) {
+            temp2[k - kmin] = X[k * m + i];
+        }
         % for JBLOCK in [8, 4, 2, 1]:
             for (; j < jmin + ((jmaxinner - jmin) / ${JBLOCK}) * ${JBLOCK}; j += ${JBLOCK}) {
                 ${inner_kj_avx(JBLOCK)}
@@ -67,12 +84,10 @@ void recurse_ij(F* X, F* d, F* out,
                 int jmin, int jmax, 
                 int kmin, int kmax) 
 {
-    int size = (imax - imin) * (jmax - jmin);
-    bool parallel = size >= 256;
+    bool parallel = (imax - imin) > IJTHRESHOLD || (jmax - jmin) > IJTHRESHOLD;
     if (!parallel) {
-        int kstep = 200;
-        for (int kstart = kmin; kstart < kmax; kstart += kstep) {
-            int kend = kstart + kstep;
+        for (int kstart = kmin; kstart < kmax; kstart += KSTEP) {
+            int kend = kstart + KSTEP;
             if (kend > kmax) {
                 kend = kmax;
             }
@@ -90,7 +105,7 @@ void recurse_ij(F* X, F* d, F* out,
 
         // guaranteed to be partially in lower triangle
         #pragma omp task if(parallel)
-        recurse_ij(X, d, out, m, n, imin, isplit, jsplit, jmax, kmin, kmax);
+        recurse_ij(X, d, out,  m, n, imin, isplit, jsplit, jmax, kmin, kmax);
 
         // guaranteed to be partially in lower triangle
         #pragma omp task if(parallel)
@@ -109,115 +124,13 @@ void _dense_sandwich(F* X, F* d, F* out,
         int m, int n) 
 {
     #pragma omp parallel
-    #pragma omp single nowait
-    //out[i,j] = sum_k X[k,i] * d[k] * X[k,j]
-    recurse_ij(X, d, out, m, n, 0, m, 0, m, 0, n);
+    {
+        #pragma omp single nowait
+        //out[i,j] = sum_k X[k,i] * d[k] * X[k,j]
+        recurse_ij(X, d, out, m, n, 0, m, 0, m, 0, n);
+    }
     //TODO: try a new version with a block of k as the outermost loop and using
     //the outtemp and pragma omp atomic trick from below.
-}
-
-<%def name="inner_kj_avx(JBLOCK)">
-    % for r in range(JBLOCK):
-        auto accumsimd${r} = xs::set_simd(((F)0.0));
-    % endfor
-    for(int k = kmin; k < kmaxavx; k += simd_size) {
-        auto XTsimd = xs::load_unaligned(&X[i * n + k]);
-        auto dsimd = xs::load_unaligned(&d[k]);
-        auto Xtd = XTsimd * dsimd;
-        % for r in range(JBLOCK):
-            auto Xsimd${r} = xs::load_unaligned(&X[(j + ${r}) * n + k]);
-            accumsimd${r} = xs::fma(Xtd, Xsimd${r}, accumsimd${r});
-        % endfor
-    }
-    % for r in range(JBLOCK):
-        F accum${r} = xs::hadd(accumsimd${r});
-    % endfor
-    for (int k = kmaxavx; k < kmax; k++) {
-        F Q = X[i * n + k] * d[k];
-        % for r in range(JBLOCK):
-            accum${r} += Q * X[(j + ${r}) * n + k];
-        % endfor
-    }
-    % for r in range(JBLOCK):
-        out[i * m + (j + ${r})] += accum${r};
-    % endfor
-</%def>
-
-template <typename F>
-void dense_base2(F* X, F* d, F* out,
-                int m, int n,
-                int imin, int imax,
-                int jmin, int jmax, 
-                int kmin, int kmax) 
-{
-    constexpr std::size_t simd_size = xsimd::simd_type<F>::size;
-    for (int i = imin; i < imax; i++) {
-        int jmaxinner = jmax;
-        if (jmaxinner > i + 1) {
-            jmaxinner = i + 1;
-        }
-        int kmaxavx = kmin + ((kmax - kmin) / simd_size) * simd_size;
-        int j = jmin;
-        % for JBLOCK in [8, 4, 2, 1]:
-            for (; j < jmin + ((jmaxinner - jmin) / ${JBLOCK}) * ${JBLOCK}; j += ${JBLOCK}) {
-                ${inner_kj_avx(JBLOCK)}
-            }
-        % endfor
-    }
-}
-
-template <typename F>
-void recurse_ij2(F* X, F* d, F* out,
-                int m, int n,
-                int imin, int imax,
-                int jmin, int jmax, 
-                int kmin, int kmax) 
-{
-    int size = (imax - imin) * (jmax - jmin);
-    bool parallel = size >= 256;
-    if (!parallel) {
-        int kstep = 200;
-        for (int kstart = kmin; kstart < kmax; kstart += kstep) {
-            int kend = kstart + kstep;
-            if (kend > kmax) {
-                kend = kmax;
-            }
-            dense_base2(X, d, out, m, n, imin, imax, jmin, jmax, kstart, kend);
-        }
-        return;
-    }
-
-    int isplit = (imax + imin) / 2;
-    int jsplit = (jmax + jmin) / 2;
-    {
-        // guaranteed to be partially in lower triangle
-        #pragma omp task if(parallel)
-        recurse_ij2(X, d, out, m, n, imin, isplit, jmin, jsplit, kmin, kmax);
-
-        // guaranteed to be partially in lower triangle
-        #pragma omp task if(parallel)
-        recurse_ij2(X, d, out, m, n, imin, isplit, jsplit, jmax, kmin, kmax);
-
-        // guaranteed to be partially in lower triangle
-        #pragma omp task if(parallel)
-        recurse_ij2(X, d, out, m, n, isplit, imax, jmin, jsplit, kmin, kmax);
-
-        // check if any of the entries are in the lower triangle
-        if (jsplit <= imax) {
-            #pragma omp task if(parallel)
-            recurse_ij2(X, d, out, m, n, isplit, imax, jsplit, jmax, kmin, kmax);
-        }
-    }
-}
-
-template <typename F>
-void _dense_sandwich2(F* X, F* d, F* out,
-        int m, int n) 
-{
-    #pragma omp parallel
-    #pragma omp single nowait
-    //out[i,j] = sum_k X[k,i] * d[k] * X[k,j]
-    recurse_ij2(X, d, out, m, n, 0, m, 0, m, 0, n);
 }
 
 template <typename F>
