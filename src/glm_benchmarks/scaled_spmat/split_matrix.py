@@ -13,13 +13,11 @@ class SplitMatrix:
         self.threshold = threshold
         self.dtype = X.dtype
 
-        # TODO: this splitting function is super inefficient. easy to optimize though...
-        densities = (X.indptr[1:] - X.indptr[:-1]) / X.shape[0]
-        sorted_indices = np.argsort(densities)[::-1]
-        sorted_densities = densities[sorted_indices]
-
-        self.dense_indices = sorted_indices[sorted_densities > threshold]
-        self.sparse_indices = np.setdiff1d(sorted_indices, self.dense_indices)
+        densities = np.diff(X.indptr) / X.shape[0]
+        self.dense_indices = np.where(densities > threshold)[0]
+        self.sparse_indices = np.setdiff1d(
+            np.arange(densities.shape[0]), self.dense_indices
+        )
 
         self.X_dense_C = X.toarray()[:, self.dense_indices].copy()
 
@@ -55,9 +53,9 @@ class SplitMatrix:
             weights, scale_predictors
         )
 
-        col_means = np.empty(self.shape[1], dtype=self.dtype)
-        col_means[self.dense_indices] = dense_col_means
-        col_means[self.sparse_indices] = sparse_col_means
+        col_means = np.empty((1, self.shape[1]), dtype=self.dtype)
+        col_means[0, self.dense_indices] = dense_col_means
+        col_means[0, self.sparse_indices] = sparse_col_means
 
         col_stds = np.empty(self.shape[1], dtype=self.dtype)
         col_stds[self.dense_indices] = dense_col_stds
@@ -76,6 +74,8 @@ class SplitMatrix:
         return self
 
     def dot(self, v):
+        if v.shape[0] != self.shape[1]:
+            raise ValueError(f"shapes {self.shape} and {v.shape} not aligned")
         dense_out = self.X_dense_F.dot(v[self.dense_indices])
         sparse_out = self.X_sparse.dot(v[self.sparse_indices])
         return dense_out + sparse_out
@@ -86,11 +86,11 @@ class SplitMatrix:
     def __rmatmul__(self, v):
         dense_component = self.X_dense_F.__rmatmul__(v)
         sparse_component = self.X_sparse.__rmatmul__(v)
-        out = np.empty(
-            tuple([self.shape[1]] + list(dense_component.shape[1:])), dtype=v.dtype
-        )
-        out[self.dense_indices] = dense_component
-        out[self.sparse_indices] = sparse_component
+        out_shape = list(dense_component.shape)
+        out_shape[-1] = self.shape[1]
+        out = np.empty(out_shape, dtype=v.dtype)
+        out[..., self.dense_indices] = dense_component
+        out[..., self.sparse_indices] = sparse_component
         return out
 
     __array_priority__ = 13
