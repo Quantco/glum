@@ -6,9 +6,15 @@ import pandas as pd
 from glm_benchmarks.sandwich.sandwich import dense_sandwich, dense_sandwich2
 
 
-def numpy_mkl(X, d):
+def numpy_mklC(X, d):
     sqrtD = np.sqrt(d)[:, np.newaxis]
     x_d = X[0] * sqrtD
+    return x_d.T @ x_d
+
+
+def numpy_mklF(X, d):
+    sqrtD = np.sqrt(d)[:, np.newaxis]
+    x_d = X[1] * sqrtD
     return x_d.T @ x_d
 
 
@@ -29,22 +35,23 @@ def _dense_sandwich2(X, d):
     return dense_sandwich2(X[0], X[1], d)
 
 
-def mn_run(m, n, iter):
-    X = [np.random.rand(n, m)]
-    d = np.random.rand(n)
+def mn_run(m, n, iter, dtype):
+    precision = dtype().itemsize * 8
+    X = [np.random.rand(n, m).astype(dtype=dtype)]
+    d = np.random.rand(n).astype(dtype=dtype)
 
     X.append(np.asfortranarray(X[0]))
-    print(len(X))
 
     out = dict()
     out["name"] = []
     out["runtime"] = []
-    for name in ["numpy_mkl", "_dense_sandwich", "_dense_sandwich2"]:
+    for name in ["numpy_mklC", "numpy_mklF", "_dense_sandwich", "_dense_sandwich2"]:
         ts, result = bench(lambda: globals()[name](X, d), iter)
-        if name == "numpy_mkl":
+        if name == "numpy_mklC":
             true = result
         else:
-            np.testing.assert_almost_equal(result, true)
+            err = np.abs((true - result) / true)
+            np.testing.assert_almost_equal(err, 0, 4 if precision == 32 else 7)
         runtime = np.min(ts)
         out["name"].append(name)
         out["runtime"].append(runtime)
@@ -52,6 +59,7 @@ def mn_run(m, n, iter):
     out_df = pd.DataFrame(out)
     out_df["m"] = m
     out_df["n"] = n
+    out_df["precision"] = precision
     return out_df
 
 
@@ -72,15 +80,16 @@ def main():
     Rs = []
     for m, n in [
         (20, 1000000),
-        # (20, 1000000),
-        # (50, 500000),
-        # (150, 200000),
-        # (300, 100000),
+        (50, 500000),
+        (150, 200000),
+        (300, 100000),
         # (2048, 2048),
     ]:
-        Rs.append(mn_run(m, n, iter))
+        for dt in [np.float64]:
+            Rs.append(mn_run(m, n, iter, dt))
     df = pd.concat(Rs)
-    df.set_index(["m", "n"], inplace=True)
+    df.set_index(["m", "n", "name", "precision"], inplace=True)
+    df.sort_index(inplace=True)
     print(df)
 
 
