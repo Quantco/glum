@@ -62,8 +62,9 @@ from ._distribution import (
     NormalDistribution,
     PoissonDistribution,
     TweedieDistribution,
+    guess_intercept,
 )
-from ._link import IdentityLink, Link, LogitLink, LogLink, get_best_intercept
+from ._link import IdentityLink, Link, LogitLink, LogLink
 from ._util import _safe_lin_pred, _safe_sandwich_dot
 from .dense_glm_matrix import DenseGLMDataMatrix
 
@@ -1773,9 +1774,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                     coef = np.zeros(
                         n_features + 1, dtype=_float_itemsize_to_dtype[X.dtype.itemsize]
                     )
-                    coef[0] = get_best_intercept(
-                        y, weights, self._link_instance, offset
-                    )
+                    coef[0] = guess_intercept(y, weights, self._link_instance, offset)
                 else:
                     coef = np.zeros(
                         n_features, dtype=_float_itemsize_to_dtype[X.dtype.itemsize]
