@@ -40,7 +40,7 @@ from __future__ import division
 
 import time
 import warnings
-from typing import Any, List, Tuple, Union
+from typing import Any, Iterable, List, Tuple, Union
 
 import numpy as np
 import scipy.sparse.linalg as splinalg
@@ -1105,7 +1105,291 @@ def is_pos_semidef(p: Union[np.ndarray, sparse.spmatrix]) -> bool:
     return pos_semidef
 
 
-class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
+# TODO: abc
+class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
+    """
+    Base class for GeneralizedLinearRegressor and GeneralizedLinearRegressorCV.
+    """
+
+    def __init__(
+        self,
+        l1_ratio: Union[int, float] = 0,
+        P1="identity",
+        P2: Union[np.ndarray, Iterable, int, float] = "identity",
+        fit_intercept=True,
+        family: Union[str, ExponentialDispersionModel] = "normal",
+        link: Union[str, Link] = "auto",
+        fit_dispersion=None,
+        solver="auto",
+        max_iter=100,
+        tol=1e-4,
+        warm_start=False,
+        start_params="guess",
+        selection="cyclic",
+        random_state=None,
+        diag_fisher=False,
+        copy_X=True,
+        check_input=True,
+        verbose=0,
+        scale_predictors=False,
+    ):
+        self.l1_ratio = l1_ratio
+        self.P1 = P1
+        self.P2 = P2
+        self.fit_intercept = fit_intercept
+        self.family = family
+        self.link = link
+        self.fit_dispersion = fit_dispersion
+        self.solver = solver
+        self.max_iter = max_iter
+        self.tol = tol
+        self.warm_start = warm_start
+        self.start_params = start_params
+        self.selection = selection
+        self.random_state = random_state
+        self.diag_fisher = diag_fisher
+        self.copy_X = copy_X
+        self.check_input = check_input
+        self.verbose = verbose
+        self.scale_predictors = scale_predictors
+
+    def linear_predictor(self, X):
+        """Compute the linear_predictor = X*coef_ + intercept_.
+
+        Parameters
+        ----------
+        X : {array-like, sparse matrix}, shape (n_samples, n_features)
+            Samples.
+
+        Returns
+        -------
+        C : array, shape (n_samples,)
+            Returns predicted values of linear predictor.
+        """
+        check_is_fitted(self, "coef_")
+        X = check_array(
+            X,
+            accept_sparse=["csr", "csc", "coo"],
+            dtype="numeric",
+            copy=True,
+            ensure_2d=True,
+            allow_nd=False,
+        )
+        return X @ self.coef_ + self.intercept_
+
+    def predict(self, X, sample_weight=None):
+        """Predict using GLM with feature matrix X.
+
+        If sample_weight is given, returns prediction*sample_weight.
+
+        Parameters
+        ----------
+        X : {array-like, sparse matrix}, shape (n_samples, n_features)
+            Samples.
+
+        sample_weight : {None, array-like}, shape (n_samples,), optional \
+                (default=None)
+
+        Returns
+        -------
+        C : array, shape (n_samples,)
+            Returns predicted values times sample_weight.
+        """
+        # TODO: Is copy=True necessary?
+        X = check_array(
+            X,
+            accept_sparse=["csr", "csc", "coo"],
+            dtype="numeric",
+            copy=True,
+            ensure_2d=True,
+            allow_nd=False,
+        )
+        eta = self.linear_predictor(X)
+        mu = self._link_instance.inverse(eta)
+        weights = _check_weights(sample_weight, X.shape[0], X.dtype)
+
+        return mu * weights
+
+    def estimate_phi(self, X, y, sample_weight=None):
+        """Estimate/fit the dispersion parameter phi.
+
+        Parameters
+        ----------
+        X : {array-like, sparse matrix}, shape (n_samples, n_features)
+            Training data.
+
+        y : array-like, shape (n_samples,)
+            Target values.
+
+        sample_weight : {None, array-like}, shape (n_samples,), optional \
+                (default=None)
+            Sample weights.
+
+        Returns
+        -------
+        phi : float
+            Dispersion parameter.
+        """
+        check_is_fitted(self, "coef_")
+        _dtype = [np.float64, np.float32]
+        X, y = check_X_y(
+            X,
+            y,
+            accept_sparse=["csr", "csc", "coo"],
+            dtype=_dtype,
+            y_numeric=True,
+            multi_output=False,
+        )
+        n_samples, n_features = X.shape
+        weights = _check_weights(sample_weight, n_samples, X.dtype)
+        eta = X @ self.coef_
+        if self.fit_intercept is True:
+            eta += self.intercept_
+            n_features += 1
+        if n_samples <= n_features:
+            raise ValueError(
+                "Estimation of dispersion parameter phi requires"
+                " more samples than features, got"
+                " samples=X.shape[0]={} and"
+                " n_features=X.shape[1]+fit_intercept={}.".format(n_samples, n_features)
+            )
+        mu = self._link_instance.inverse(eta)
+        if self.fit_dispersion == "chisqr":
+            chisq = np.sum(
+                weights * (y - mu) ** 2 / self._family_instance.unit_variance(mu)
+            )
+            return chisq / (n_samples - n_features)
+        elif self.fit_dispersion == "deviance":
+            dev = self._family_instance.deviance(y, mu, weights)
+            return dev / (n_samples - n_features)
+
+    # Note: check_estimator(GeneralizedLinearRegressor) might raise
+    # "AssertionError: -0.28014056555724598 not greater than 0.5"
+    # unless GeneralizedLinearRegressor has a score which passes the test.
+    def score(self, X, y, sample_weight=None):
+        """Compute D^2, the percentage of deviance explained.
+
+        D^2 is a generalization of the coefficient of determination R^2.
+        R^2 uses squared error and D^2 deviance. Note that those two are equal
+        for family='normal'.
+
+        D^2 is defined as
+        :math:`D^2 = 1-\\frac{D(y_{true},y_{pred})}{D_{null}}`,
+        :math:`D_{null}` is the null deviance, i.e. the deviance of a model
+        with intercept alone, which corresponds to :math:`y_{pred} = \\bar{y}`.
+        The mean :math:`\\bar{y}` is averaged by sample_weight.
+        Best possible score is 1.0 and it can be negative (because the model
+        can be arbitrarily worse).
+
+        Parameters
+        ----------
+        X : {array-like, sparse matrix}, shape (n_samples, n_features)
+            Test samples.
+
+        y : array-like, shape (n_samples,)
+            True values of target.
+
+        sample_weight : {None, array-like}, shape (n_samples,), optional \
+                (default=None)
+            Sample weights.
+
+        Returns
+        -------
+        score : float
+            D^2 of self.predict(X) w.r.t. y.
+        """
+        # Note, default score defined in RegressorMixin is R^2 score.
+        # TODO: make D^2 a score function in module metrics (and thereby get
+        #       input validation and so on)
+        weights = _check_weights(sample_weight, y.shape[0], X.dtype)
+        mu = self.predict(X)
+        dev = self._family_instance.deviance(y, mu, weights=weights)
+        y_mean = np.average(y, weights=weights)
+        dev_null = self._family_instance.deviance(y, y_mean, weights=weights)
+        return 1.0 - dev / dev_null
+
+    def _validate_hyperparameters(self) -> None:
+
+        if (
+            not (isinstance(self.l1_ratio, float) or isinstance(self.l1_ratio, int))
+            or self.l1_ratio < 0
+            or self.l1_ratio > 1
+        ):
+            raise ValueError(
+                "l1_ratio must be a number in interval [0, 1];"
+                " got (l1_ratio={})".format(self.l1_ratio)
+            )
+        if not isinstance(self.fit_intercept, bool):
+            raise ValueError(
+                "The argument fit_intercept must be bool;"
+                " got {}".format(self.fit_intercept)
+            )
+
+        if self.solver == "newton-cg":
+            raise ValueError(
+                """
+                newton-cg solver is no longer supported because
+                sklearn.utils.optimize.newton_cg has been deprecated. If you need this
+                functionality, please use
+                https://github.com/scikit-learn/scikit-learn/pull/9405.
+                """
+            )
+
+        if self.solver not in ["auto", "irls", "lbfgs", "cd"]:
+            raise ValueError(
+                "GeneralizedLinearRegressor supports only solvers"
+                " 'auto', 'irls', 'lbfgs', and 'cd';"
+                " got {}".format(self.solver)
+            )
+        if not isinstance(self.max_iter, int) or self.max_iter <= 0:
+            raise ValueError(
+                "Maximum number of iteration must be a positive "
+                "integer;"
+                " got (max_iter={!r})".format(self.max_iter)
+            )
+        if not isinstance(self.tol, float) or self.tol <= 0:
+            raise ValueError(
+                "Tolerance for stopping criteria must be "
+                "positive; got (tol={!r})".format(self.tol)
+            )
+        if not isinstance(self.warm_start, bool):
+            raise ValueError(
+                "The argument warm_start must be bool;"
+                " got {}".format(self.warm_start)
+            )
+        if self.selection not in ["cyclic", "random"]:
+            raise ValueError(
+                "The argument selection must be 'cyclic' or "
+                "'random'; got (selection={})".format(self.selection)
+            )
+        if not isinstance(self.diag_fisher, bool):
+            raise ValueError(
+                "The argument diag_fisher must be bool;"
+                " got {}".format(self.diag_fisher)
+            )
+        if not isinstance(self.copy_X, bool):
+            raise ValueError(
+                "The argument copy_X must be bool;" " got {}".format(self.copy_X)
+            )
+        if not isinstance(self.check_input, bool):
+            raise ValueError(
+                "The argument check_input must be bool; got "
+                "(check_input={})".format(self.check_input)
+            )
+        if self.scale_predictors and not self.fit_intercept:
+            raise ValueError(
+                "scale_predictors=True is not supported when fit_intercept=False"
+            )
+        if self.check_input:
+
+            # check if P1 has only non-negative values, negative values might
+            # indicate group lasso in the future.
+            if not isinstance(self.P1, str):  # if self.P1 != 'identity':
+                if not np.all(self.P1 >= 0):
+                    raise ValueError("P1 must not have negative values.")
+
+
+class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     """Regression via a Generalized Linear Model (GLM) with penalties.
 
     GLMs based on a reproductive Exponential Dispersion Model (EDM) aim at
@@ -1387,28 +1671,28 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         scale_predictors=False,
     ):
         self.alpha = alpha
-        self.l1_ratio = l1_ratio
-        self.P1 = P1
-        self.P2 = P2
-        self.fit_intercept = fit_intercept
-        self.family = family
-        self.link = link
-        self.fit_dispersion = fit_dispersion
-        self.solver = solver
-        self.max_iter = max_iter
-        self.tol = tol
-        self.warm_start = warm_start
-        self.start_params = start_params
-        self.selection = selection
-        self.random_state = random_state
-        self.diag_fisher = diag_fisher
-        self.copy_X = copy_X
-        self.check_input = check_input
-        self.verbose = verbose
-        self.scale_predictors = scale_predictors
+        super().__init__(
+            l1_ratio,
+            P1,
+            P2,
+            fit_intercept,
+            family,
+            link,
+            fit_dispersion,
+            solver,
+            max_iter,
+            tol,
+            warm_start,
+            start_params,
+            selection,
+            random_state,
+            diag_fisher,
+            copy_X,
+            check_input,
+            verbose,
+            scale_predictors,
+        )
 
-    # See PEP 484 on annotating with float rather than Number
-    # https://www.python.org/dev/peps/pep-0484/#the-numeric-tower
     def _validate_hyperparameters(self) -> None:
         if (
             not (isinstance(self.alpha, float) or isinstance(self.alpha, int))
@@ -1418,84 +1702,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 "Penalty term must be a non-negative number;"
                 " got (alpha={})".format(self.alpha)
             )
-
-        if (
-            not (isinstance(self.l1_ratio, float) or isinstance(self.l1_ratio, int))
-            or self.l1_ratio < 0
-            or self.l1_ratio > 1
-        ):
-            raise ValueError(
-                "l1_ratio must be a number in interval [0, 1];"
-                " got (l1_ratio={})".format(self.l1_ratio)
-            )
-        if not isinstance(self.fit_intercept, bool):
-            raise ValueError(
-                "The argument fit_intercept must be bool;"
-                " got {}".format(self.fit_intercept)
-            )
-
-        if self.solver == "newton-cg":
-            raise ValueError(
-                """
-                newton-cg solver is no longer supported because
-                sklearn.utils.optimize.newton_cg has been deprecated. If you need this
-                functionality, please use
-                https://github.com/scikit-learn/scikit-learn/pull/9405.
-                """
-            )
-
-        if self.solver not in ["auto", "irls", "lbfgs", "cd"]:
-            raise ValueError(
-                "GeneralizedLinearRegressor supports only solvers"
-                " 'auto', 'irls', 'lbfgs', and 'cd';"
-                " got {}".format(self.solver)
-            )
-        if not isinstance(self.max_iter, int) or self.max_iter <= 0:
-            raise ValueError(
-                "Maximum number of iteration must be a positive "
-                "integer;"
-                " got (max_iter={!r})".format(self.max_iter)
-            )
-        if not isinstance(self.tol, float) or self.tol <= 0:
-            raise ValueError(
-                "Tolerance for stopping criteria must be "
-                "positive; got (tol={!r})".format(self.tol)
-            )
-        if not isinstance(self.warm_start, bool):
-            raise ValueError(
-                "The argument warm_start must be bool;"
-                " got {}".format(self.warm_start)
-            )
-        if self.selection not in ["cyclic", "random"]:
-            raise ValueError(
-                "The argument selection must be 'cyclic' or "
-                "'random'; got (selection={})".format(self.selection)
-            )
-        if not isinstance(self.diag_fisher, bool):
-            raise ValueError(
-                "The argument diag_fisher must be bool;"
-                " got {}".format(self.diag_fisher)
-            )
-        if not isinstance(self.copy_X, bool):
-            raise ValueError(
-                "The argument copy_X must be bool;" " got {}".format(self.copy_X)
-            )
-        if not isinstance(self.check_input, bool):
-            raise ValueError(
-                "The argument check_input must be bool; got "
-                "(check_input={})".format(self.check_input)
-            )
-        if self.scale_predictors and not self.fit_intercept:
-            raise ValueError(
-                "scale_predictors=True is not supported when fit_intercept=False"
-            )
-        if self.check_input:
-
-            # check if P1 has only non-negative values, negative values might
-            # indicate group lasso in the future.
-            if not isinstance(self.P1, str):  # if self.P1 != 'identity':
-                if not np.all(self.P1 >= 0):
-                    raise ValueError("P1 must not have negative values.")
+        super()._validate_hyperparameters()
 
     def _guess_start_params(
         self,
@@ -1907,164 +2114,6 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         else:
             print("solver does not report diagnostics")
 
-    def linear_predictor(self, X):
-        """Compute the linear_predictor = X*coef_ + intercept_.
-
-        Parameters
-        ----------
-        X : {array-like, sparse matrix}, shape (n_samples, n_features)
-            Samples.
-
-        Returns
-        -------
-        C : array, shape (n_samples,)
-            Returns predicted values of linear predictor.
-        """
-        check_is_fitted(self, "coef_")
-        X = check_array(
-            X,
-            accept_sparse=["csr", "csc", "coo"],
-            dtype="numeric",
-            copy=True,
-            ensure_2d=True,
-            allow_nd=False,
-        )
-        return X @ self.coef_ + self.intercept_
-
-    def predict(self, X, sample_weight=None):
-        """Predict using GLM with feature matrix X.
-
-        If sample_weight is given, returns prediction*sample_weight.
-
-        Parameters
-        ----------
-        X : {array-like, sparse matrix}, shape (n_samples, n_features)
-            Samples.
-
-        sample_weight : {None, array-like}, shape (n_samples,), optional \
-                (default=None)
-
-        Returns
-        -------
-        C : array, shape (n_samples,)
-            Returns predicted values times sample_weight.
-        """
-        # TODO: Is copy=True necessary?
-        X = check_array(
-            X,
-            accept_sparse=["csr", "csc", "coo"],
-            dtype="numeric",
-            copy=True,
-            ensure_2d=True,
-            allow_nd=False,
-        )
-        eta = self.linear_predictor(X)
-        mu = self._link_instance.inverse(eta)
-        weights = _check_weights(sample_weight, X.shape[0], X.dtype)
-
-        return mu * weights
-
-    def estimate_phi(self, X, y, sample_weight=None):
-        """Estimate/fit the dispersion parameter phi.
-
-        Parameters
-        ----------
-        X : {array-like, sparse matrix}, shape (n_samples, n_features)
-            Training data.
-
-        y : array-like, shape (n_samples,)
-            Target values.
-
-        sample_weight : {None, array-like}, shape (n_samples,), optional \
-                (default=None)
-            Sample weights.
-
-        Returns
-        -------
-        phi : float
-            Dispersion parameter.
-        """
-        check_is_fitted(self, "coef_")
-        _dtype = [np.float64, np.float32]
-        X, y = check_X_y(
-            X,
-            y,
-            accept_sparse=["csr", "csc", "coo"],
-            dtype=_dtype,
-            y_numeric=True,
-            multi_output=False,
-        )
-        n_samples, n_features = X.shape
-        weights = _check_weights(sample_weight, n_samples, X.dtype)
-        eta = X @ self.coef_
-        if self.fit_intercept is True:
-            eta += self.intercept_
-            n_features += 1
-        if n_samples <= n_features:
-            raise ValueError(
-                "Estimation of dispersion parameter phi requires"
-                " more samples than features, got"
-                " samples=X.shape[0]={} and"
-                " n_features=X.shape[1]+fit_intercept={}.".format(n_samples, n_features)
-            )
-        mu = self._link_instance.inverse(eta)
-        if self.fit_dispersion == "chisqr":
-            chisq = np.sum(
-                weights * (y - mu) ** 2 / self._family_instance.unit_variance(mu)
-            )
-            return chisq / (n_samples - n_features)
-        elif self.fit_dispersion == "deviance":
-            dev = self._family_instance.deviance(y, mu, weights)
-            return dev / (n_samples - n_features)
-
-    # Note: check_estimator(GeneralizedLinearRegressor) might raise
-    # "AssertionError: -0.28014056555724598 not greater than 0.5"
-    # unless GeneralizedLinearRegressor has a score which passes the test.
-    def score(self, X, y, sample_weight=None):
-        """Compute D^2, the percentage of deviance explained.
-
-        D^2 is a generalization of the coefficient of determination R^2.
-        R^2 uses squared error and D^2 deviance. Note that those two are equal
-        for family='normal'.
-
-        D^2 is defined as
-        :math:`D^2 = 1-\\frac{D(y_{true},y_{pred})}{D_{null}}`,
-        :math:`D_{null}` is the null deviance, i.e. the deviance of a model
-        with intercept alone, which corresponds to :math:`y_{pred} = \\bar{y}`.
-        The mean :math:`\\bar{y}` is averaged by sample_weight.
-        Best possible score is 1.0 and it can be negative (because the model
-        can be arbitrarily worse).
-
-        Parameters
-        ----------
-        X : {array-like, sparse matrix}, shape (n_samples, n_features)
-            Test samples.
-
-        y : array-like, shape (n_samples,)
-            True values of target.
-
-        sample_weight : {None, array-like}, shape (n_samples,), optional \
-                (default=None)
-            Sample weights.
-
-        Returns
-        -------
-        score : float
-            D^2 of self.predict(X) w.r.t. y.
-        """
-        # Note, default score defined in RegressorMixin is R^2 score.
-        # TODO: make D^2 a score function in module metrics (and thereby get
-        #       input validation and so on)
-        weights = _check_weights(sample_weight, y.shape[0], X.dtype)
-        mu = self.predict(X)
-        dev = self._family_instance.deviance(y, mu, weights=weights)
-        y_mean = np.average(y, weights=weights)
-        dev_null = self._family_instance.deviance(y, y_mean, weights=weights)
-        return 1.0 - dev / dev_null
-
-    def _more_tags(self):
-        return {"requires_positive_y": True}
-
 
 class PoissonRegressor(GeneralizedLinearRegressor):
     """Regression with the response variable y following a Poisson distribution
@@ -2241,3 +2290,6 @@ class PoissonRegressor(GeneralizedLinearRegressor):
             copy_X=copy_X,
             verbose=verbose,
         )
+
+    def _more_tags(self):
+        return {"requires_positive_y": True}
