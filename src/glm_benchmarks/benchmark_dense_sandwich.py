@@ -32,7 +32,7 @@ def _dense_sandwich(X, d):
 
 
 def _dense_sandwich2(X, d):
-    return dense_sandwich2(X[0], X[1], d)
+    return dense_sandwich2(X[0], d)
 
 
 def mn_run(m, n, iter, dtype):
@@ -45,7 +45,11 @@ def mn_run(m, n, iter, dtype):
     out = dict()
     out["name"] = []
     out["runtime"] = []
-    for name in ["numpy_mklC", "numpy_mklF", "_dense_sandwich", "_dense_sandwich2"]:
+    for name in [
+        "numpy_mklC",
+        "numpy_mklF",
+        "_dense_sandwich",
+    ]:  # , "_dense_sandwich2"]:
         ts, result = bench(lambda: globals()[name](X, d), iter)
         if name == "numpy_mklC":
             true = result
