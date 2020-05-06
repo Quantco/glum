@@ -7,7 +7,12 @@ from sklearn.linear_model._coordinate_descent import _alpha_grid
 from sklearn.model_selection._split import check_cv
 
 from ._distribution import ExponentialDispersionModel
-from ._glm import GeneralizedLinearRegressorBase
+from ._glm import (
+    GeneralizedLinearRegressor,
+    GeneralizedLinearRegressorBase,
+    get_family,
+    set_up_and_check_fit_args,
+)
 from ._link import Link
 
 
@@ -35,7 +40,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         List of alphas where to compute the models.
         If ``None`` alphas are set automatically. Setting 'None' is preferred.
 
-    l1_ratio : float, optional (default=0)
+    l1_ratio : float or array of floats, optional (default=0)
 
     P1 : {'identity', array-like}, shape (n_features,), optional \
             (default='identity')
@@ -78,10 +83,36 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
     center_predictors : boolean, optional (default=True)
     verbose : int, optional (default=0)
 
+    cv : int, cross-validation generator or an iterable, optional
+        Determines the cross-validation splitting strategy.
+        Possible inputs for cv are:
+
+        - None, to use the default 5-fold cross-validation,
+        - integer, to specify the number of folds.
+        - :term:`CV splitter`,
+        - An iterable yielding (train, test) splits as arrays of indices.
+
+        For integer/None inputs, :class:`KFold` is used.
+        Refer :ref:`User Guide <cross_validation>` for the various
+        cross-validation strategies that can be used here.
+
+        .. versionchanged:: 0.22
+            ``cv`` default value if None changed from 3-fold to 5-fold.
+
+     n_jobs : int or None, optional (default=None)
+        Number of CPUs to use during the cross validation.
+        ``None`` means 1 unless in a :obj:`joblib.parallel_backend` context.
+        ``-1`` means using all processors. See :term:`Glossary <n_jobs>`
+        for more details.
+
     Attributes
     ----------
     alpha_: float
         The amount of penalization chosen by cross validation
+
+    l1_ratio_: float
+        The compromise between l1 and l2 penalization chosen by
+        cross validation
 
     coef_ : array, shape (n_features,)
         Estimated coefficients for the linear predictor (X*coef_+intercept_) in
@@ -94,13 +125,12 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         The dispersion parameter :math:`\\phi` if ``fit_dispersion`` was set.
 
     n_iter_ : int
-        Actual number of iterations used in solver.
+        number of iterations run by the coordinate descent solver to reach
+        the specified tolerance for the optimal alpha.
 
     deviance_path_: array, shape(n_alphas, n_folds)
         Deviance for the test set on each fold, varying alpha
 
-    alphas_: numpy array, shape (n_alphas,)
-        The grid of alphas used for fitting
     """
 
     def __init__(
@@ -128,13 +158,13 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         verbose=0,
         scale_predictors=False,
         cv=None,
-        store_cv_values=False,
+        n_jobs: int = None,
     ):
         self.eps = eps
         self.n_alphas = n_alphas
         self.alphas = alphas
         self.cv = cv
-        self.store_cv_values = store_cv_values
+        self.n_jobs = n_jobs
         super().__init__(
             l1_ratio,
             P1,
@@ -158,39 +188,145 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         )
 
     def _validate_hyperparameters(self) -> None:
-        if self.n_alphas is not None:
+        if self.n_alphas is not None and self.alphas is not None:
             raise ValueError("You cannot specify both alphas and n_alphas.")
-        if self.eps is not None:
+        if self.eps is not None and self.alphas is not None:
             raise ValueError("You cannot specify both eps and n_alphas.")
-        if not (self.alphas > 0).all():
+        if self.alphas is None and self.n_alphas is None:
             raise ValueError
-        super()._validate_hyperparameters()
+        if self.alphas is None and self.eps is None:
+            raise ValueError
+        if self.alphas is not None and np.any(self.alphas < 0):
+            raise ValueError
+        l1_ratio = np.asarray(self.l1_ratio)
+        if (
+            not (np.isscalar(self.l1_ratio) or isinstance(self.l1_ratio, np.ndarray))
+            or not np.issubdtype(l1_ratio.dtype, np.number)
+            or np.any(l1_ratio < 0)
+            or np.any(l1_ratio > 1)
+        ):
+            raise ValueError(
+                "l1_ratio must be a number in interval [0, 1]; got l1_ratio={}".format(
+                    self.l1_ratio
+                )
+            )
 
     def fit(self, X, y, sample_weight=None, offset=None):
         # TODO:
         # 1) stuff from other fit
         # 2) cv stuff
-        # understand this: https://github.com/scikit-learn/scikit-learn/blob/95d4f0841d57e8b5f6b2a570312e9d832e69debc/sklearn/linear_model/_coordinate_descent.py#L1164
         self._validate_hyperparameters()
+        X, y, sample_weight, offset = set_up_and_check_fit_args(
+            X, y, sample_weight, offset, solver=self.solver, copy_X=self.copy_X
+        )
 
         if self.alphas is None:
-            alphas = _alpha_grid(
-                X,
-                y,
-                l1_ratio=self.l1_ratio,
-                fit_intercept=self.fit_intercept,
-                eps=self.eps,
-                n_alphas=self.n_alphas,
-                normalize=self.fit_intercept,
-                copy_X=self.copy_X,
-            )
+            if self.l1_ratio == 0:
+                self.alphas_ = [10.0, 1.0, 0.1]
+            else:
+                self.alphas_ = _alpha_grid(
+                    X,
+                    y,
+                    l1_ratio=self.l1_ratio,
+                    fit_intercept=self.fit_intercept,
+                    eps=self.eps,
+                    n_alphas=self.n_alphas,
+                    normalize=self.fit_intercept,
+                    copy_X=self.copy_X,
+                )
         else:
-            alphas = np.sort(self.alphas)[::-1]
+            self.alphas_ = np.sort(self.alphas)[::-1]
 
         cv = check_cv(self.cv)
-        folds = list(cv.split(X, y, sample_weight, offset))
 
-        best_mse = np.inf
-        print(alphas, folds, best_mse)
-        # For first value of alpha, fit with start_params = "guess"
-        # for successive ones, warm start with average of previous params
+        l1_ratio = (
+            self.l1_ratio
+            if isinstance(self.l1_ratio, np.ndarray)
+            else np.array([self.l1_ratio])
+        )
+
+        self.deviance_path_ = np.full(
+            (len(l1_ratio), len(self.alphas_), cv.get_n_splits()), np.nan
+        )
+
+        model = GeneralizedLinearRegressor(
+            self.alphas_[0],
+            l1_ratio[0],
+            self.P1,
+            self.P2,
+            self.fit_intercept,
+            self.family,
+            self.link,
+            self.fit_dispersion,
+            self.solver,
+            self.max_iter,
+            self.tol,
+            self.warm_start,
+            self.start_params,
+            self.selection,
+            self.random_state,
+            self.diag_fisher,
+            self.copy_X,
+            self.check_input,
+            self.verbose,
+            self.scale_predictors,
+            fit_args_reformat="unsafe",
+        )
+
+        for i, l1 in enumerate(l1_ratio):
+            for k, (train_idx, test_idx) in enumerate(cv.split(X)):
+                # Reset model - don't warm start
+                model.set_params(
+                    warm_start=False, check_input=self.check_input, l1_ratio=l1
+                )
+
+                x_train, y_train, w_train = (
+                    X[train_idx, :],
+                    y[train_idx],
+                    sample_weight[train_idx],
+                )
+                x_test, y_test, w_test = (
+                    X[test_idx, :],
+                    y[test_idx],
+                    sample_weight[test_idx],
+                )
+                if offset is not None:
+                    offset_train = offset[train_idx]
+                    offset_test = offset[test_idx]
+                else:
+                    offset_train, offset_test = None, None
+
+                def _get_deviance():
+                    return get_family(self.family).deviance(
+                        y_test,
+                        model.predict(x_test, offset=offset_test),
+                        weights=w_test,
+                    )
+
+                for j, alpha in enumerate(self.alphas_):
+                    model.set_params(alpha=alpha)
+                    if j > 0:
+                        model.set_params(warm_start=True, check_input=False)
+                    model.fit(x_train, y_train, w_train, offset_train)
+                    self.deviance_path_[i, j, k] = _get_deviance()
+
+        avg_deviance = self.deviance_path_.mean(2)
+        best_idx = np.argmin(avg_deviance)
+        # TODO: simplify
+        l1_ratios = np.array([[l1 for _ in self.alphas_] for l1 in l1_ratio])
+        alphas = np.array([self.alphas_ for _ in l1_ratio])
+        self.l1_ratio_ = l1_ratios.flatten()[best_idx]
+        self.alpha_ = alphas.flatten()[best_idx]
+
+        # Refit with full data and best alpha and lambda
+        model.set_params(
+            warm_start=self.warm_start,
+            check_input=self.check_input,
+            alpha=self.alpha_,
+            l1_ratio=self.l1_ratio_,
+        )
+        model.fit(X, y, sample_weight, offset)
+        self.intercept_ = model.intercept_
+        self.coef_ = model.coef_
+        self.n_iter_ = model.n_iter_
+        return self

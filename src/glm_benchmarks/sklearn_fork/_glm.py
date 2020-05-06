@@ -151,7 +151,7 @@ def _check_offset(
             raise ValueError("Offset must be 1D array or scalar.")
         elif offset.shape[0] != n_rows:
             raise ValueError("offset must have the same length as y.")
-    return offset
+    return np.full(n_rows, offset)
 
 
 def _safe_toarray(X):
@@ -259,6 +259,7 @@ def _irls_step(X, W: np.ndarray, P2, z: np.ndarray, fit_intercept=True):
     #       is more robust.
     # Note: X.T @ W @ X is not sparse, even when X is sparse.
     #      Sparse solver would splinalg.spsolve(A, b) or splinalg.lsmr(A, b)
+    assert np.all(np.isfinite(W))
     if fit_intercept:
         Wz = W * z
         if sparse.issparse(X):
@@ -1153,7 +1154,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self.verbose = verbose
         self.scale_predictors = scale_predictors
 
-    def linear_predictor(self, X):
+    def linear_predictor(self, X, offset: np.ndarray = None):
         """Compute the linear_predictor = X*coef_ + intercept_.
 
         Parameters
@@ -1175,9 +1176,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             ensure_2d=True,
             allow_nd=False,
         )
-        return X @ self.coef_ + self.intercept_
+        xb = X @ self.coef_ + self.intercept_
+        if offset is None:
+            return xb
+        return xb + offset
 
-    def predict(self, X, sample_weight=None):
+    def predict(self, X, sample_weight=None, offset: np.ndarray = None):
         """Predict using GLM with feature matrix X.
 
         If sample_weight is given, returns prediction*sample_weight.
@@ -1204,8 +1208,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             ensure_2d=True,
             allow_nd=False,
         )
-        eta = self.linear_predictor(X)
-        mu = self._link_instance.inverse(eta)
+        eta = self.linear_predictor(X, offset=offset)
+        mu = get_link(self.link, get_family(self.family)).inverse(eta)
         weights = _check_weights(sample_weight, X.shape[0], X.dtype)
 
         return mu * weights
@@ -1303,22 +1307,14 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         #       input validation and so on)
         weights = _check_weights(sample_weight, y.shape[0], X.dtype)
         mu = self.predict(X)
-        dev = self._family_instance.deviance(y, mu, weights=weights)
+        family = get_family(self.family)
+        dev = family.deviance(y, mu, weights=weights)
         y_mean = np.average(y, weights=weights)
-        dev_null = self._family_instance.deviance(y, y_mean, weights=weights)
+        dev_null = family.deviance(y, y_mean, weights=weights)
         return 1.0 - dev / dev_null
 
     def _validate_hyperparameters(self) -> None:
 
-        if (
-            not (isinstance(self.l1_ratio, float) or isinstance(self.l1_ratio, int))
-            or self.l1_ratio < 0
-            or self.l1_ratio > 1
-        ):
-            raise ValueError(
-                "l1_ratio must be a number in interval [0, 1];"
-                " got (l1_ratio={})".format(self.l1_ratio)
-            )
         if not isinstance(self.fit_intercept, bool):
             raise ValueError(
                 "The argument fit_intercept must be bool;"
@@ -1387,6 +1383,51 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             if not isinstance(self.P1, str):  # if self.P1 != 'identity':
                 if not np.all(self.P1 >= 0):
                     raise ValueError("P1 must not have negative values.")
+
+
+def set_up_and_check_fit_args(
+    X,
+    y: np.ndarray,
+    sample_weight: Union[np.ndarray, None],
+    offset: Union[np.ndarray, None],
+    solver: str,
+    copy_X: bool,
+):
+    _dtype = [np.float64, np.float32]
+    if solver == "cd":
+        _stype = ["csc"]
+    else:
+        _stype = ["csc", "csr"]
+
+    if hasattr(X, "dtype") and X.dtype == np.int64:
+        # check_X_y will convert to float32 if we don't do this, which causes
+        # precision issues with the new handling of single precision. The new
+        # behavior is to give everything the precision of X, but we don't want to
+        # do that if X was intially int64.
+        X = X.astype(np.float64)
+
+    X, y = check_X_y(
+        X,
+        y,
+        accept_sparse=_stype,
+        dtype=_dtype,
+        y_numeric=True,
+        multi_output=False,
+        copy=copy_X,
+    )
+
+    # Without converting y to float, deviance might raise
+    # ValueError: Integers to negative integer powers are not allowed.
+    # Also, y must not be sparse.
+
+    y = np.asarray(y)
+    # Make sure everything has the same precision as X
+    # This will prevent accidental upcasting later and slow operations on
+    # mixed-precision numbers
+    y = _to_precision(y, X.dtype.itemsize)
+    weights = _check_weights(sample_weight, y.shape[0], X.dtype)
+    offset = _check_offset(offset, y.shape[0], X.dtype)
+    return X, y, weights, offset
 
 
 class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
@@ -1669,8 +1710,10 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         check_input=True,
         verbose=0,
         scale_predictors=False,
+        fit_args_reformat="safe",
     ):
         self.alpha = alpha
+        self.fit_args_reformat = fit_args_reformat
         super().__init__(
             l1_ratio,
             P1,
@@ -1701,6 +1744,20 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             raise ValueError(
                 "Penalty term must be a non-negative number;"
                 " got (alpha={})".format(self.alpha)
+            )
+
+        if (
+            # can't be
+            not np.isscalar(self.l1_ratio)
+            # check for numeric, i.e. not a string
+            or not np.issubdtype(np.asarray(self.l1_ratio).dtype, np.number)
+            or self.l1_ratio < 0
+            or self.l1_ratio > 1
+        ):
+            raise ValueError(
+                "l1_ratio must be a number in interval [0, 1]; got l1_ratio={}".format(
+                    self.l1_ratio
+                )
             )
         super()._validate_hyperparameters()
 
@@ -1776,7 +1833,9 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             hp = link.inverse_derivative(eta)
             # working weights W, in principle a diagonal matrix
             # therefore here just as 1d array
+            assert np.all(np.isfinite(hp))
             W = hp ** 2 / family.variance(mu, phi=1, weights=weights)
+            assert np.all(np.isfinite(W))
             # working observations
             z = (
                 eta
@@ -1852,42 +1911,20 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         random_state = check_random_state(self.random_state)
 
         # 1.2 validate arguments of fit #######################################
-        _dtype = [np.float64, np.float32]
         if solver == "cd":
             _stype = ["csc"]
         else:
             _stype = ["csc", "csr"]
 
-        if hasattr(X, "dtype") and X.dtype == np.int64:
-            # check_X_y will convert to float32 if we don't do this, which causes
-            # precision issues with the new handling of single precision. The new
-            # behavior is to give everything the precision of X, but we don't want to
-            # do that if X was intially int64.
-            X = X.astype(np.float64)
-
-        X, y = check_X_y(
-            X,
-            y,
-            accept_sparse=_stype,
-            dtype=_dtype,
-            y_numeric=True,
-            multi_output=False,
-            copy=self.copy_X,
-        )
-
-        # Without converting y to float, deviance might raise
-        # ValueError: Integers to negative integer powers are not allowed.
-        # Also, y must not be sparse.
-
-        y = np.asarray(y)
-        # Make sure everything has the same precision as X
-        # This will prevent accidental upcasting later and slow operations on
-        # mixed-precision numbers
-        y = _to_precision(y, X.dtype.itemsize)
-        weights = _check_weights(sample_weight, y.shape[0], X.dtype)
-        offset = _check_offset(offset, y.shape[0], X.dtype)
+        if self.fit_args_reformat == "safe":
+            X, y, weights, offset = set_up_and_check_fit_args(
+                X, y, sample_weight, offset, solver=self.solver, copy_X=self.copy_X
+            )
+        else:
+            weights = sample_weight
 
         n_samples, n_features = X.shape
+        _dtype = [np.float64, np.float32]
 
         # 1.3 arguments to take special care ##################################
         # P1, P2, start_params

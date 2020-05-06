@@ -2,6 +2,7 @@
 #
 # License: BSD 3 clause
 import copy
+from typing import Tuple, Union
 
 import numpy as np
 import pytest
@@ -39,6 +40,18 @@ from glm_benchmarks.sklearn_fork._glm import (
 )
 
 GLM_SOLVERS = ["irls", "lbfgs", "cd"]
+
+
+def get_small_x_y(
+    estimator: Union[GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
+) -> Tuple[np.ndarray, np.ndarray]:
+    if isinstance(estimator, GeneralizedLinearRegressor):
+        n_rows = 1
+    else:
+        n_rows = 10
+    x = np.ones((n_rows, 1), dtype=int)
+    y = np.ones(n_rows) * 0.5
+    return x, y
 
 
 @pytest.fixture(scope="module")
@@ -188,8 +201,7 @@ def test_fisher_matrix(family, link):
 def test_sample_weights_validation(estimator):
     """Test the raised errors in the validation of sample_weight."""
     # scalar value but not positive
-    X = [[1]]
-    y = [1]
+    X, y = get_small_x_y(estimator)
     weights = 0
     glm = estimator(fit_intercept=False)
     with pytest.raises(ValueError, match="weights must be non-negative"):
@@ -225,28 +237,25 @@ def test_sample_weights_validation(estimator):
     "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
 )
 def test_offset_validation(estimator):
-    X = [[1]]
-    y = [1]
+    X, y = get_small_x_y(estimator)
     glm = estimator(fit_intercept=False)
 
     # Negatives are accepted (makes sense for log link)
     glm.fit(X, y, offset=-1)
 
     # Arrays of the right shape are accepted
-    glm.fit(X, y, offset=[1])
+    glm.fit(X, y, offset=y.copy())
 
     # 2d array
     with pytest.raises(ValueError, match="must be 1D array or scalar"):
-        glm.fit(X, y, offset=[[0]])
+        glm.fit(X, y, offset=np.zeros_like(X))
 
     # 1d but wrong length
     with pytest.raises(ValueError, match="must have the same length as y"):
         glm.fit(X, y, offset=[1, 0])
 
 
-@pytest.mark.parametrize(
-    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
-)
+# TODO: something for CV regressor
 @pytest.mark.parametrize(
     "f, fam",
     [
@@ -257,16 +266,17 @@ def test_offset_validation(estimator):
         ("binomial", BinomialDistribution()),
     ],
 )
-def test_glm_family_argument(estimator, f, fam, y, X):
+def test_glm_family_argument(X, y, f, fam):
     """Test GLM family argument set as string."""
-    glm = estimator(family=f, alpha=0).fit(X, y)
+    glm = GeneralizedLinearRegressor(family=f, alpha=0).fit(X, y)
     assert isinstance(glm._family_instance, fam.__class__)
 
 
 @pytest.mark.parametrize(
     "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
 )
-def test_glm_family_argument_invalid_input(y, X, estimator):
+def test_glm_family_argument_invalid_input(estimator):
+    X, y = get_small_x_y(estimator)
     glm = estimator(family="not a family", fit_intercept=False)
     with pytest.raises(ValueError, match="family must be"):
         glm.fit(X, y)
@@ -276,40 +286,36 @@ def test_glm_family_argument_invalid_input(y, X, estimator):
     "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
 )
 @pytest.mark.parametrize("family", ExponentialDispersionModel.__subclasses__())
-def test_glm_family_argument_as_exponential_dispersion_model(y, X, estimator, family):
+def test_glm_family_argument_as_exponential_dispersion_model(estimator, family):
+    X, y = get_small_x_y(estimator)
     glm = estimator(family=family())
     glm.fit(X, y)
 
 
 @pytest.mark.parametrize(
-    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
-)
-@pytest.mark.parametrize(
     "l, link",
     [("identity", IdentityLink()), ("log", LogLink()), ("logit", LogitLink())],
 )
-def test_glm_link_argument(estimator, l, link, y, X):
+def test_glm_link_argument(l, link, y, X):
     """Test GLM link argument set as string."""
-    glm = estimator(family="normal", link=l).fit(X, y)
+    glm = GeneralizedLinearRegressor(family="normal", link=l).fit(X, y)
     assert isinstance(glm._link_instance, link.__class__)
 
 
 @pytest.mark.parametrize(
     "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
 )
-def test_glm_link_argument_invalid_input(estimator, y, X):
+def test_glm_link_argument_invalid_input(estimator):
+    X, y = get_small_x_y(estimator)
     glm = estimator(family="normal", link="not a link")
     with pytest.raises(ValueError, match="link must be"):
         glm.fit(X, y)
 
 
-@pytest.mark.parametrize(
-    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
-)
 @pytest.mark.parametrize("alpha", ["not a number", -4.2])
-def test_glm_alpha_argument(estimator, alpha, y, X):
+def test_glm_alpha_argument(alpha, y, X):
     """Test GLM for invalid alpha argument."""
-    glm = estimator(family="normal", alpha=alpha)
+    glm = GeneralizedLinearRegressor(family="normal", alpha=alpha)
     with pytest.raises(ValueError, match="Penalty term must be a non-negative"):
         glm.fit(X, y)
 
@@ -318,8 +324,9 @@ def test_glm_alpha_argument(estimator, alpha, y, X):
     "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
 )
 @pytest.mark.parametrize("l1_ratio", ["not a number", -4.2, 1.1, [1]])
-def test_glm_l1_ratio_argument(estimator, l1_ratio, y, X):
+def test_glm_l1_ratio_argument(estimator, l1_ratio):
     """Test GLM for invalid l1_ratio argument."""
+    X, y = get_small_x_y(estimator)
     glm = estimator(family="normal", l1_ratio=l1_ratio)
     with pytest.raises(ValueError, match="l1_ratio must be a number in interval.*0, 1"):
         glm.fit(X, y)
@@ -387,8 +394,9 @@ def test_positive_semidefinite():
     "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
 )
 @pytest.mark.parametrize("fit_intercept", ["not bool", 1, 0, [True]])
-def test_glm_fit_intercept_argument(estimator, fit_intercept, y, X):
+def test_glm_fit_intercept_argument(estimator, fit_intercept):
     """Test GLM for invalid fit_intercept argument."""
+    X, y = get_small_x_y(estimator)
     glm = estimator(fit_intercept=fit_intercept)
     with pytest.raises(ValueError, match="fit_intercept must be bool"):
         glm.fit(X, y)
@@ -412,8 +420,9 @@ def test_glm_solver_argument(estimator, solver, l1_ratio, y, X):
     "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
 )
 @pytest.mark.parametrize("max_iter", ["not a number", 0, -1, 5.5, [1]])
-def test_glm_max_iter_argument(estimator, max_iter, y, X):
+def test_glm_max_iter_argument(estimator, max_iter):
     """Test GLM for invalid max_iter argument."""
+    X, y = get_small_x_y(estimator)
     glm = estimator(max_iter=max_iter)
     with pytest.raises(ValueError, match="must be a positive integer"):
         glm.fit(X, y)
@@ -423,8 +432,9 @@ def test_glm_max_iter_argument(estimator, max_iter, y, X):
     "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
 )
 @pytest.mark.parametrize("tol", ["not a number", 0, -1.0, [1e-3]])
-def test_glm_tol_argument(estimator, tol, y, X):
+def test_glm_tol_argument(estimator, tol):
     """Test GLM for invalid tol argument."""
+    X, y = get_small_x_y(estimator)
     glm = estimator(tol=tol)
     with pytest.raises(ValueError, match="stopping criteria must be positive"):
         glm.fit(X, y)
@@ -434,8 +444,9 @@ def test_glm_tol_argument(estimator, tol, y, X):
     "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
 )
 @pytest.mark.parametrize("warm_start", ["not bool", 1, 0, [True]])
-def test_glm_warm_start_argument(estimator, warm_start, y, X):
+def test_glm_warm_start_argument(estimator, warm_start):
     """Test GLM for invalid warm_start argument."""
+    X, y = get_small_x_y(estimator)
     glm = estimator(warm_start=warm_start)
     with pytest.raises(ValueError, match="warm_start must be bool"):
         glm.fit(X, y)
@@ -458,8 +469,9 @@ def test_glm_start_params_argument(estimator, start_params, y, X):
     "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
 )
 @pytest.mark.parametrize("selection", ["not a selection", 1, 0, ["cyclic"]])
-def test_glm_selection_argument(estimator, selection, y, X):
+def test_glm_selection_argument(estimator, selection):
     """Test GLM for invalid selection argument"""
+    X, y = get_small_x_y(estimator)
     glm = estimator(selection=selection)
     with pytest.raises(ValueError, match="argument selection must be"):
         glm.fit(X, y)
@@ -469,8 +481,9 @@ def test_glm_selection_argument(estimator, selection, y, X):
     "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
 )
 @pytest.mark.parametrize("random_state", ["a string", 0.5, [0]])
-def test_glm_random_state_argument(estimator, random_state, y, X):
+def test_glm_random_state_argument(estimator, random_state):
     """Test GLM for invalid random_state argument."""
+    X, y = get_small_x_y(estimator)
     glm = estimator(random_state=random_state)
     with pytest.raises(ValueError, match="cannot be used to seed"):
         glm.fit(X, y)
@@ -480,8 +493,9 @@ def test_glm_random_state_argument(estimator, random_state, y, X):
     "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
 )
 @pytest.mark.parametrize("diag_fisher", ["not bool", 1, 0, [True]])
-def test_glm_diag_fisher_argument(estimator, diag_fisher, y, X):
+def test_glm_diag_fisher_argument(estimator, diag_fisher):
     """Test GLM for invalid diag_fisher arguments."""
+    X, y = get_small_x_y(estimator)
     glm = estimator(diag_fisher=diag_fisher)
     with pytest.raises(ValueError, match="diag_fisher must be bool"):
         glm.fit(X, y)
@@ -491,8 +505,9 @@ def test_glm_diag_fisher_argument(estimator, diag_fisher, y, X):
     "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
 )
 @pytest.mark.parametrize("copy_X", ["not bool", 1, 0, [True]])
-def test_glm_copy_X_argument(estimator, copy_X, y, X):
+def test_glm_copy_X_argument(estimator, copy_X):
     """Test GLM for invalid copy_X arguments."""
+    X, y = get_small_x_y(estimator)
     glm = estimator(copy_X=copy_X)
     with pytest.raises(ValueError, match="copy_X must be bool"):
         glm.fit(X, y)
@@ -502,8 +517,9 @@ def test_glm_copy_X_argument(estimator, copy_X, y, X):
     "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
 )
 @pytest.mark.parametrize("check_input", ["not bool", 1, 0, [True]])
-def test_glm_check_input_argument(estimator, check_input, y, X):
+def test_glm_check_input_argument(estimator, check_input):
     """Test GLM for invalid check_input argument."""
+    X, y = get_small_x_y(estimator)
     glm = estimator(check_input=check_input)
     with pytest.raises(ValueError, match="check_input must be bool"):
         glm.fit(X, y)
