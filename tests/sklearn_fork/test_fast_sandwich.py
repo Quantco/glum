@@ -23,7 +23,7 @@ def test_fast_sandwich_dense():
     d = np.ones(A.shape[0])
     true = A.T.dot(A).toarray()
 
-    out2 = dense_sandwich(A.toarray(), d)
+    out2 = dense_sandwich(np.asfortranarray(A.toarray()), d)
     np.testing.assert_allclose(true, out2, atol=np.sqrt(np.finfo(np.float64).eps))
 
 
