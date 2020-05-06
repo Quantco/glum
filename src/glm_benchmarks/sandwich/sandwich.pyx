@@ -95,5 +95,4 @@ def dense_sandwich(X, floating[:] d):
     cdef floating* Xp = &Xmemview[0,0]
     cdef floating* dp = &d[0]
     _dense_sandwich(Xp, dp, outp, m, n)
-    out += np.tril(out, -1).T
     return out
