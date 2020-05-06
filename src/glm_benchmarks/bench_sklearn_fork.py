@@ -26,6 +26,8 @@ def sklearn_fork_bench(
     fit_args = dict(X=X, y=dat["y"])
     if "weights" in dat.keys():
         fit_args.update({"sample_weight": dat["weights"]})
+    if "offset" in dat.keys():
+        fit_args.update({"offset": dat["offset"]})
 
     family = distribution
     if family == "gaussian":
