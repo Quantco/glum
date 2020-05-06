@@ -19,7 +19,11 @@ class SplitMatrix:
             np.arange(densities.shape[0]), self.dense_indices
         )
 
-        self.X_dense = DenseGLMDataMatrix(X.toarray()[:, self.dense_indices])
+        self.X_dense_C = X.toarray()[:, self.dense_indices].copy()
+
+        # TODO: We shouldn't be storing both X in C ordering and X in F ordering. BAD!
+        # But not quite that bad because it's only a small subset of the full matrix.
+        self.X_dense_F = DenseGLMDataMatrix(np.asfortranarray(self.X_dense_C))
         self.X_sparse = MKLSparseMatrix(
             sps.csc_matrix(X.toarray()[:, self.sparse_indices])
         )
@@ -29,20 +33,21 @@ class SplitMatrix:
         if self.X_sparse.shape[1] > 0:
             SS = self.X_sparse.sandwich(d)
             out[np.ix_(self.sparse_indices, self.sparse_indices)] = SS
-        if self.X_dense.shape[1] > 0:
-            DD = self.X_dense.sandwich(d)
+        if self.X_dense_F.shape[1] > 0:
+            DD = self.X_dense_F.sandwich(d)
             out[np.ix_(self.dense_indices, self.dense_indices)] = DD
             if self.X_sparse.shape[1] > 0:
-                DS = self.X_sparse.sandwich_dense(self.X_dense, d)
+                DS = self.X_sparse.sandwich_dense(self.X_dense_C, d)
                 out[np.ix_(self.sparse_indices, self.dense_indices)] = DS
                 out[np.ix_(self.dense_indices, self.sparse_indices)] = DS.T
 
         return out
 
     def standardize(self, weights, scale_predictors):
-        self.X_dense, dense_col_means, dense_col_stds = self.X_dense.standardize(
+        self.X_dense_F, dense_col_means, dense_col_stds = self.X_dense_F.standardize(
             weights, scale_predictors
         )
+        self.X_dense_C = np.ascontiguousarray(self.X_dense_F)
 
         self.X_sparse, sparse_col_means, sparse_col_stds = self.X_sparse.standardize(
             weights, scale_predictors
@@ -59,9 +64,10 @@ class SplitMatrix:
         return self, col_means, col_stds
 
     def unstandardize(self, col_means, col_stds):
-        self.X_dense = self.X_dense.unstandardize(
+        self.X_dense_F = self.X_dense_F.unstandardize(
             col_means[self.dense_indices], col_stds[self.dense_indices]
         )
+        self.X_dense_C = np.ascontiguousarray(self.X_dense_F)
         self.X_sparse = self.X_sparse.unstandardize(
             col_means[self.sparse_indices], col_stds[self.sparse_indices]
         )
@@ -70,7 +76,7 @@ class SplitMatrix:
     def dot(self, v):
         if v.shape[0] != self.shape[1]:
             raise ValueError(f"shapes {self.shape} and {v.shape} not aligned")
-        dense_out = self.X_dense.dot(v[self.dense_indices])
+        dense_out = self.X_dense_F.dot(v[self.dense_indices])
         sparse_out = self.X_sparse.dot(v[self.sparse_indices])
         return dense_out + sparse_out
 
@@ -78,7 +84,7 @@ class SplitMatrix:
         return self.dot(v)
 
     def __rmatmul__(self, v):
-        dense_component = self.X_dense.__rmatmul__(v)
+        dense_component = self.X_dense_F.__rmatmul__(v)
         sparse_component = self.X_sparse.__rmatmul__(v)
         out_shape = list(dense_component.shape)
         out_shape[-1] = self.shape[1]
