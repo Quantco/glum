@@ -40,7 +40,7 @@ namespace xs = xsimd;
 </%def>
 
 template <typename F>
-void dense_base(F* X, F* d, F* out,
+void dense_base2(F* X, F* d, F* out,
                 int m, int n,
                 int imin, int imax,
                 int jmin, int jmax, 
@@ -62,6 +62,105 @@ void dense_base(F* X, F* d, F* out,
     }
 }
 
+<%def name="inner_kj_simd(IBLOCK, JBLOCK)">
+    int jmaxblock = jmin + 
+        ((jmaxinner - jmin) / (${JBLOCK} * simd_size)) 
+        * (${JBLOCK} * simd_size);
+    for (; j < jmaxblock; j += ${JBLOCK} * simd_size) {
+        % for ir in range(IBLOCK):
+            % for jr in range(JBLOCK):
+                auto sum${ir}_${jr} = xs::set_simd((F)0.0);
+            % endfor
+        % endfor
+        for (int k = kmin; k < kmax; k++) {
+            F dv = d[k];
+            % for ir in range(IBLOCK):
+                auto XTsimd${ir} = xs::set_simd(X[k * m + i + ${ir}] * dv);
+            % endfor
+            % for jr in range(JBLOCK):
+                auto Xsimd${jr} = xs::load_unaligned(&X[k * m + j + ${jr} * simd_size]);
+            % endfor
+            % for ir in range(IBLOCK):
+                % for jr in range(JBLOCK):
+                    sum${ir}_${jr} = xs::fma(XTsimd${ir}, Xsimd${jr}, sum${ir}_${jr});
+                % endfor
+            % endfor
+        }
+        % for ir in range(IBLOCK):
+            % for jr in range(JBLOCK):
+                sum${ir}_${jr}.store_unaligned(
+                    &outtemp[(i + ${ir} - imin) * jsize + (j - jmin) + ${jr} * simd_size]
+                );
+            % endfor
+        % endfor
+    }
+</%def>
+
+<%def name="outer_i_simd(IBLOCK, JBLOCKS)">
+    int imaxblock = imin + ((imax - imin) / ${IBLOCK}) * ${IBLOCK};
+    for (; i < imaxblock; i+=${IBLOCK}) {
+        int jmaxinner = jmax;
+        if (jmaxinner > i + ${IBLOCK}) {
+            jmaxinner = i + ${IBLOCK};
+        }
+
+        int j = jmin;
+        % for JBLOCK in JBLOCKS:
+        {
+            ${inner_kj_simd(IBLOCK, JBLOCK)}
+        }
+        % endfor
+
+        for (; j < jmaxinner; j++) {
+            % for ir in range(IBLOCK):
+                F sum${ir} = 0.0;
+            % endfor
+            for (int k = kmin; k < kmax; k++) {
+                % for ir in range(IBLOCK):
+                    sum${ir} += X[k * m + i + ${ir}] * d[k] * X[k * m + j];
+                % endfor
+            }
+            % for ir in range(IBLOCK):
+                outtemp[(i + ${ir} - imin) * jsize + (j - jmin)] = sum${ir};
+            % endfor
+        }
+    }
+</%def>
+
+template <typename F>
+void dense_base2(F* X, F* d, F* out,
+                int m, int n,
+                int imin, int imax,
+                int jmin, int jmax, 
+                int kmin, int kmax) 
+{
+    constexpr size_t simd_size = xsimd::simd_type<F>::size;
+    constexpr int outtempsize = 128 * 128;
+    F outtemp[outtempsize];
+    int jsize = jmax - jmin; //TODO: try setting to 128
+    if (jsize * (imax - imin) >= outtempsize) {
+        std::cout << "EEPS" << std::endl;
+    }
+
+    int i = imin;
+    % for IBLOCK in [32, 16, 8, 4, 2, 1]:
+    {
+        ${outer_i_simd(IBLOCK, [32, 16, 8, 4, 2, 1])}
+    }
+    % endfor
+
+    for (int i = imin; i < imax; i++) {
+        int jmaxinner = jmax;
+        if (jmaxinner > i + 1) {
+            jmaxinner = i + 1;
+        }
+        for (int j = jmin; j < jmaxinner; j++) {
+            #pragma omp atomic
+            out[i * m + j] += outtemp[(i - imin) * jsize + (j - jmin)];
+        }
+    }
+}
+
 template <typename F>
 void recurse_ij(F* X, F* d, F* out,
                 int m, int n,
@@ -74,8 +173,8 @@ void recurse_ij(F* X, F* d, F* out,
     size_t jsize = (jmax - jmin);
     size_t ksize = (kmax - kmin);
     size_t size = isize * jsize * ksize;
-    if (size < 16 * 4096) {
-        // std::stringstream stream; // #include <sstream> for this
+    if (size < 64 * 4096) {
+        // std::stringstream stream;
         // stream << isize << " " << jsize << " " << ksize << " " << level << std::endl;
         // std::cout << stream.str();
         dense_base(X, d, out, m, n, imin, imax, jmin, jmax, kmin, kmax);
@@ -83,7 +182,7 @@ void recurse_ij(F* X, F* d, F* out,
     }
 
     bool parallel = level < 7;
-    constexpr int kratio = 20;
+    constexpr int kratio = 1;
     if (kratio * isize >= ksize && isize >= jsize) {
         int isplit = (imax + imin) / 2;
 
