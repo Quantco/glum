@@ -1,12 +1,12 @@
 import numpy as np
 
 
-def _safe_lin_pred(X, coef):
+def _safe_lin_pred(X, coef: np.ndarray, offset: np.ndarray = None) -> np.ndarray:
     """Compute the linear predictor taking care if intercept is present."""
-    if coef.size == X.shape[1] + 1:
-        return X.dot(coef[1:]) + coef[0]
-    else:
-        return X.dot(coef)
+    res = X.dot(coef[1:]) + coef[0] if coef.size == X.shape[1] + 1 else X.dot(coef)
+    if offset is not None:
+        return res + offset
+    return res
 
 
 def _safe_sandwich_dot(X, d: np.ndarray, intercept=False) -> np.ndarray:

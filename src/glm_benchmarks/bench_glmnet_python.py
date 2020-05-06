@@ -45,6 +45,8 @@ def glmnet_python_bench(
     )
     if "weights" in dat.keys():
         glmnet_kws.update({"weights": dat["weights"]})
+    if "offset" in dat.keys():
+        glmnet_kws.update({"offset": dat["offset"]})
 
     result["runtime"], m = runtime(glmnet, **glmnet_kws)
     result["intercept"] = m["a0"][0]

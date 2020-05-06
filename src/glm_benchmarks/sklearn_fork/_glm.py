@@ -62,6 +62,7 @@ from ._distribution import (
     NormalDistribution,
     PoissonDistribution,
     TweedieDistribution,
+    guess_intercept,
 )
 from ._link import IdentityLink, Link, LogitLink, LogLink
 from ._util import _safe_lin_pred, _safe_sandwich_dot
@@ -96,7 +97,9 @@ def get_float_dtype_of_size(itemsize: int):
     return _float_itemsize_to_dtype[itemsize]
 
 
-def _check_weights(sample_weight: Union[np.ndarray, None], n_samples: int, dtype):
+def _check_weights(
+    sample_weight: Union[float, np.ndarray, None], n_samples: int, dtype
+):
     """Check that sample weights are non-negative and have the right shape."""
     if sample_weight is None:
         weights = np.ones(n_samples, dtype=dtype)
@@ -116,7 +119,7 @@ def _check_weights(sample_weight: Union[np.ndarray, None], n_samples: int, dtype
         if weights.ndim > 1:
             raise ValueError("Sample weight must be 1D array or scalar")
         elif weights.shape[0] != n_samples:
-            raise ValueError("Sample weights must have the same length as " "y")
+            raise ValueError("Sample weights must have the same length as y")
         if not np.all(weights >= 0):
             raise ValueError("Sample weights must be non-negative.")
         elif not np.sum(weights) > 0:
@@ -125,6 +128,30 @@ def _check_weights(sample_weight: Union[np.ndarray, None], n_samples: int, dtype
             )
 
     return weights
+
+
+def _check_offset(
+    offset: Union[np.ndarray, float, None], n_rows: int, dtype
+) -> np.ndarray:
+    """
+    Unlike weights, if the offset is given as None, it can stay None. So we only need
+    to validate it when it is not none.
+    """
+    if offset is None:
+        return None
+    if not np.isscalar(offset):
+        offset = check_array(
+            offset,
+            accept_sparse=False,
+            force_all_finite=True,
+            ensure_2d=False,
+            dtype=dtype,
+        )
+        if offset.ndim > 1:
+            raise ValueError("Offset must be 1D array or scalar.")
+        elif offset.shape[0] != n_rows:
+            raise ValueError("offset must have the same length as y.")
+    return offset
 
 
 def _safe_toarray(X):
@@ -298,6 +325,7 @@ def _irls_solver(
     link: Link,
     max_iter: int,
     tol: float,
+    offset: np.ndarray = None,
 ):
     """Solve GLM with L2 penalty by IRLS algorithm.
 
@@ -321,7 +349,8 @@ def _irls_solver(
     # Note: P2 must be symmetrized
     # Note: ' denotes derivative, but also transpose for matrices
 
-    eta = _safe_lin_pred(X, coef)
+    eta_no_offset = _safe_lin_pred(X, coef)
+    eta = eta_no_offset if offset is None else eta_no_offset + offset
     mu = link.inverse(eta)
     # D = h'(eta)
     hp = link.inverse_derivative(eta)
@@ -339,7 +368,7 @@ def _irls_solver(
         # working observations
         # float32 - int32 = float64, unless you specify dtype
         z = (
-            eta
+            eta_no_offset
             + np.subtract(y, mu, dtype=get_float_dtype_of_size(X.dtype.itemsize)) / hp
         )
         # solve A*coef = b
@@ -347,7 +376,8 @@ def _irls_solver(
         coef = _irls_step(X, W, P2, z, fit_intercept=fit_intercept)
         # updated linear predictor
         # do it here for updated values for tolerance
-        eta = _safe_lin_pred(X, coef)
+        eta_no_offset = _safe_lin_pred(X, coef)
+        eta = eta_no_offset if offset is None else eta_no_offset + offset
         mu = link.inverse(eta)
         hp = link.inverse_derivative(eta)
         V = family.variance(mu, phi=1, weights=weights)
@@ -568,6 +598,7 @@ def _cd_solver(
     selection="cyclic ",
     random_state=None,
     diag_fisher=False,
+    offset: np.ndarray = None,
 ) -> Tuple[np.ndarray, int, int, List[List]]:
     """Solve GLM with L1 and L2 penalty by coordinate descent algorithm.
 
@@ -692,7 +723,14 @@ def _cd_solver(
     #       1d array representing a diagonal matrix.
     iteration_start = time.time()
     eta, mu, score, fisher = family._eta_mu_score_fisher(
-        coef=coef, phi=1, X=X, y=y, weights=weights, link=link, diag_fisher=diag_fisher
+        coef=coef,
+        phi=1,
+        X=X,
+        y=y,
+        weights=weights,
+        link=link,
+        diag_fisher=diag_fisher,
+        offset=offset,
     )
     # set up space for search direction d for inner loop
     d = np.zeros_like(coef)
@@ -816,6 +854,7 @@ def _cd_solver(
             weights=weights,
             link=link,
             diag_fisher=diag_fisher,
+            offset=offset,
         )
 
         # stopping criterion for outer loop
@@ -1370,7 +1409,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
 
     # See PEP 484 on annotating with float rather than Number
     # https://www.python.org/dev/peps/pep-0484/#the-numeric-tower
-    def _validate_inputs(self) -> None:
+    def _validate_hyperparameters(self) -> None:
         if (
             not (isinstance(self.alpha, float) or isinstance(self.alpha, int))
             or self.alpha < 0
@@ -1459,7 +1498,15 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                     raise ValueError("P1 must not have negative values.")
 
     def _guess_start_params(
-        self, y: np.ndarray, weights: np.ndarray, solver: str, X, P1, P2, random_state
+        self,
+        y: np.ndarray,
+        weights: np.ndarray,
+        solver: str,
+        X,
+        P1,
+        P2,
+        random_state,
+        offset: np.ndarray = None,
     ) -> np.ndarray:
         """
         Set mu=starting_mu of the family and do one Newton step
@@ -1468,11 +1515,10 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         n_features = X.shape[1]
         family = get_family(self.family)
         link = get_link(self.link, family)
-        mu = family.starting_mu(y, weights=weights)
+        mu = family.starting_mu(y, weights=weights, offset=offset, link=link)
         eta = link.link(mu)  # linear predictor
         if solver in ["cd", "lbfgs"]:
             # see function _cd_solver
-            # TODO: why does this not use _eta_mu_score_fisher?
             sigma_inv = 1 / family.variance(mu, phi=1, weights=weights)
             d1 = link.inverse_derivative(eta)
             temp = sigma_inv * d1 * (y - mu)
@@ -1489,21 +1535,22 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 fisher = _safe_sandwich_dot(X, d2_sigma_inv, self.fit_intercept)
             # set up space for search direction d for inner loop
             if self.fit_intercept:
-                coef = np.zeros(n_features + 1, dtype=X.dtype)
+                zero = np.zeros(n_features + 1, dtype=X.dtype)
             else:
-                coef = np.zeros(n_features, dtype=X.dtype)
-            d = np.zeros_like(coef, dtype=X.dtype)
+                zero = np.zeros(n_features, dtype=X.dtype)
             # initial stopping tolerance of inner loop
             # use L1-norm of minimum of norm of subgradient of F
             # use less restrictive tolerance for initial guess
-            inner_tol = _min_norm_sugrad(coef=coef, grad=-score, P2=P2, P1=P1)
-            inner_tol = 4 * linalg.norm(inner_tol, ord=1)
+            inner_tol = 4 * linalg.norm(
+                _min_norm_sugrad(coef=zero, grad=-score, P2=P2, P1=P1), ord=1
+            )
+
             # just one outer loop = Newton step
             n_cycles = 0
-            d, coef_P2, n_cycles, inner_tol = _cd_cycle(
-                d,
+            coef, coef_P2, n_cycles, inner_tol = _cd_cycle(
+                zero,
                 X,
-                coef,
+                zero,
                 score,
                 fisher,
                 P1,
@@ -1515,7 +1562,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 random_state=random_state,
                 diag_fisher=self.diag_fisher,
             )
-            coef += d  # for simplicity no line search here
+            # for simplicity no line search here
         else:
             # See _irls_solver
             # h'(eta)
@@ -1534,7 +1581,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             coef = _irls_step(X, W, P2, z, fit_intercept=self.fit_intercept)
         return coef
 
-    def fit(self, X, y, sample_weight=None):
+    def fit(self, X, y, sample_weight=None, offset=None):
         """Fit a Generalized Linear Model.
 
         Parameters
@@ -1554,6 +1601,11 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             sum(w*Y)/sum(w) ~ EDM(mu, phi/sum(w)), i.e. the mean of y is a
             weighted average with weights=sample_weight.
 
+        offset: {None, array-like}, shape (n_samples,), optional (default=None)
+            Added to linear predictor "eta". An offset of 3 will increase expected
+            y by 3 if the link is linear, and will multiply expected y by 3 if the
+            link is log.
+
         Returns
         -------
         self : returns an instance of self.
@@ -1562,7 +1614,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         # 1. input validation                                                 #
         #######################################################################
         # 1.1
-        self._validate_inputs()
+        self._validate_hyperparameters()
         # self.family and self.link are user-provided inputs and may be strings or
         #  ExponentialDispersonModel/Link objects
         # self.family_instance_ and self.link_instance_ are cleaned by 'fit' to be
@@ -1626,6 +1678,8 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         # mixed-precision numbers
         y = _to_precision(y, X.dtype.itemsize)
         weights = _check_weights(sample_weight, y.shape[0], X.dtype)
+        offset = _check_offset(offset, y.shape[0], X.dtype)
+
         n_samples, n_features = X.shape
 
         # 1.3 arguments to take special care ##################################
@@ -1714,14 +1768,14 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         elif isinstance(start_params, str):
             if start_params == "guess":
                 coef = self._guess_start_params(
-                    y, weights, solver, X, P1, P2, random_state
+                    y, weights, solver, X, P1, P2, random_state, offset
                 )
             else:  # start_params == 'zero'
                 if self.fit_intercept:
                     coef = np.zeros(
                         n_features + 1, dtype=_float_itemsize_to_dtype[X.dtype.itemsize]
                     )
-                    coef[0] = self._link_instance.link(np.average(y, weights=weights))
+                    coef[0] = guess_intercept(y, weights, self._link_instance, offset)
                 else:
                     coef = np.zeros(
                         n_features, dtype=_float_itemsize_to_dtype[X.dtype.itemsize]
@@ -1751,6 +1805,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 link=self._link_instance,
                 max_iter=self.max_iter,
                 tol=self.tol,
+                offset=offset,
             )
 
         # 4.2 L-BFGS ##########################################################
@@ -1758,7 +1813,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
 
             def get_obj_and_derivative(coef):
                 mu, devp = self._family_instance._mu_deviance_derivative(
-                    coef, X, y, weights, self._link_instance
+                    coef, X, y, weights, self._link_instance, offset
                 )
                 dev = self._family_instance.deviance(y, mu, weights)
                 intercept = coef.size == X.shape[1] + 1
@@ -1810,6 +1865,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 selection=self.selection,
                 random_state=random_state,
                 diag_fisher=self.diag_fisher,
+                offset=offset,
             )
 
         #######################################################################
