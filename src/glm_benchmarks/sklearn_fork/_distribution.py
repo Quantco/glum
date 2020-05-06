@@ -628,17 +628,15 @@ class TweedieDistribution(ExponentialDispersionModel):
             return 2 * (special.xlogy(y, y / mu) - y + mu)
         elif p == 2:
             # GammaDistribution
-            a = np.log(mu / y)
-            b = y / mu
-            return 2 * (a + b - 1)
+            return 2 * (np.log(mu / y) + y / mu - 1)
         else:
             # return 2 * (np.maximum(y,0)**(2-p)/((1-p)*(2-p))
             #    - y*mu**(1-p)/(1-p) + mu**(2-p)/(2-p))
-            a = np.power(np.maximum(y, 0), 2 - p)
-            b = (1 - p) * (2 - p)
-            c = np.power(mu, 1 - p) / (1 - p)
-            d = np.power(mu, 2 - p) / (2 - p)
-            return 2 * (a / b - y * c + d)
+            return 2 * (
+                np.power(np.maximum(y, 0), 2 - p) / ((1 - p) * (2 - p))
+                - y * np.power(mu, 1 - p) / (1 - p)
+                + np.power(mu, 2 - p) / (2 - p)
+            )
 
 
 class NormalDistribution(TweedieDistribution):
