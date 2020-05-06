@@ -65,11 +65,11 @@ class SplitMatrix:
 
     def unstandardize(self, col_means, col_stds):
         self.X_dense_F = self.X_dense_F.unstandardize(
-            col_means[self.dense_indices], col_stds[self.dense_indices]
+            col_means[0, self.dense_indices], col_stds[self.dense_indices]
         )
         self.X_dense_C = np.ascontiguousarray(self.X_dense_F)
         self.X_sparse = self.X_sparse.unstandardize(
-            col_means[self.sparse_indices], col_stds[self.sparse_indices]
+            col_means[0, self.sparse_indices], col_stds[self.sparse_indices]
         )
         return self
 
