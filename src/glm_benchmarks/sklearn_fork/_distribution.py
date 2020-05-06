@@ -1,10 +1,12 @@
 import numbers
 from abc import ABCMeta, abstractmethod
+from typing import Tuple, Union
 
 import numexpr
 import numpy as np
 from scipy import special
 
+from ._link import IdentityLink, Link, LogitLink, LogLink
 from ._util import _safe_lin_pred, _safe_sandwich_dot
 
 
@@ -255,10 +257,27 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         """
         return weights * self.unit_deviance_derivative(y, mu)
 
-    def starting_mu(self, y: np.ndarray, weights=1, ind_weight=0.5) -> np.ndarray:
-        """Set starting values for the mean mu.
+    def starting_mu(
+        self,
+        y: np.ndarray,
+        weights=1,
+        ind_weight=0.5,
+        offset: np.ndarray = None,
+        link: Link = None,
+    ) -> np.ndarray:
+        """Set starting values for the mean mu by interpolating between a best-guess
+        case of where mu may end up, fitting y perfectly, and a worst-case guess,
+        where we can only fit an intercept.
+
+        In the worst case, we have worst_case_mu = link.inverse(eta + intercept),
+        where intercept is set so that
+        sum(y) = sum(link.inverse(eta + intercept))
+
+        When eta = 0, this simplifies to intercept = link.link(avg(y)), so we can
+        simply write the worse-case mu as avg(y).
 
         These may be good starting points for the (unpenalized) IRLS solver.
+
 
         Parameters
         ----------
@@ -272,25 +291,56 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
             Must be between 0 and 1. Specifies how much weight is given to the
             individual observations instead of the mean of y.
         """
-        expected_dtype = np.float64 if y.dtype.itemsize == 8 else np.float32
-        # Be careful: combining a 32-bit int and 32-bit float gives 64-bit answers
-        return np.multiply(ind_weight, y, dtype=expected_dtype) + np.multiply(
-            1 - ind_weight, np.average(y, weights=weights), dtype=expected_dtype
-        )
 
-    def _mu_deviance_derivative(self, coef, X, y, weights, link):
+        expected_dtype = np.float64 if y.dtype.itemsize == 8 else np.float32
+
+        # Be careful: combining a 32-bit int and 32-bit float gives 64-bit answers
+        def _interpolate(vec1: np.ndarray, vec2: np.ndarray) -> np.ndarray:
+            return np.multiply(ind_weight, vec1, dtype=expected_dtype) + np.multiply(
+                1 - ind_weight, vec2, dtype=expected_dtype
+            )
+
+        if offset is None:
+            # If our predictors are bad, we can at least fit the mean
+            worst_case_pred = np.average(y, weights=weights)
+        else:
+            assert link is not None
+            # worst case: guess offset plus an intercept
+            best_intercept = guess_intercept(y, weights, link, offset)
+            worst_case_pred = link.inverse(offset + best_intercept)
+
+        return _interpolate(y, worst_case_pred)
+
+    def _mu_deviance_derivative(
+        self,
+        coef: np.ndarray,
+        X,
+        y: np.ndarray,
+        weights: np.ndarray,
+        link: Link,
+        offset: np.ndarray = None,
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """Compute mu and the derivative of the deviance w.r.t coef."""
-        lin_pred = _safe_lin_pred(X, coef)
+        lin_pred = _safe_lin_pred(X, coef, offset)
         mu = link.inverse(lin_pred)
         d1 = link.inverse_derivative(lin_pred)
         temp = d1 * self.deviance_derivative(y, mu, weights)
         if coef.size == X.shape[1] + 1:
             devp = np.concatenate(([temp.sum()], temp @ X))
         else:
-            devp = temp @ X  # sampe as X.T @ temp
+            devp = temp @ X  # same as X.T @ temp
         return mu, devp
 
-    def _score(self, coef, phi, X, y, weights, link):
+    def _score(
+        self,
+        coef: np.ndarray,
+        phi,
+        X,
+        y: np.ndarray,
+        weights: np.ndarray,
+        link: Link,
+        offset: np.ndarray = None,
+    ) -> np.ndarray:
         r"""Compute the score function.
 
         The score function is the derivative of the
@@ -308,7 +358,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         :math:`\boldsymbol{\Sigma}=\mathrm{diag}(\mathbf{V}[y_1],\ldots)`.
         Note: The derivative of the deviance w.r.t. coef equals -2 * score.
         """
-        lin_pred = _safe_lin_pred(X, coef)
+        lin_pred = _safe_lin_pred(X, coef, offset)
         mu = link.inverse(lin_pred)
         sigma_inv = 1 / self.variance(mu, phi=phi, weights=weights)
         d = link.inverse_derivative(lin_pred)
@@ -316,10 +366,18 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         if coef.size == X.shape[1] + 1:
             score = np.concatenate(([temp.sum()], temp @ X))
         else:
-            score = temp @ X  # sampe as X.T @ temp
+            score = temp @ X  # same as X.T @ temp
         return score
 
-    def _fisher_matrix(self, coef, phi, X, weights, link):
+    def _fisher_matrix(
+        self,
+        coef: np.ndarray,
+        phi,
+        X,
+        weights: np.ndarray,
+        link: Link,
+        offset: np.ndarray = None,
+    ) -> np.ndarray:
         r"""Compute the Fisher information matrix.
 
         The Fisher information matrix, also known as expected information
@@ -338,7 +396,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         with :math:`\mathbf{W} = \mathbf{D}^2 \boldsymbol{\Sigma}^{-1}`,
         see func:`_score`.
         """
-        lin_pred = _safe_lin_pred(X, coef)
+        lin_pred = _safe_lin_pred(X, coef, offset)
         mu = link.inverse(lin_pred)
         sigma_inv = 1 / self.variance(mu, phi=phi, weights=weights)
         d = link.inverse_derivative(lin_pred)
@@ -347,7 +405,16 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         fisher_matrix = _safe_sandwich_dot(X, d2_sigma_inv, intercept=intercept)
         return fisher_matrix
 
-    def _observed_information(self, coef, phi, X, y, weights, link):
+    def _observed_information(
+        self,
+        coef: np.ndarray,
+        phi,
+        X,
+        y: np.ndarray,
+        weights: np.ndarray,
+        link: Link,
+        offset: np.ndarray = None,
+    ):
         r"""Compute the observed information matrix.
 
         The observed information matrix, also known as the negative of
@@ -370,7 +437,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         \right)`,
         see :func:`score_` function and :func:`_fisher_matrix`.
         """
-        lin_pred = _safe_lin_pred(X, coef)
+        lin_pred = _safe_lin_pred(X, coef, offset)
         mu = link.inverse(lin_pred)
         sigma_inv = 1 / self.variance(mu, phi=phi, weights=weights)
         dp = link.inverse_derivative2(lin_pred)
@@ -382,7 +449,17 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         observed_information = _safe_sandwich_dot(X, temp, intercept=intercept)
         return observed_information
 
-    def _eta_mu_score_fisher(self, coef, phi, X, y, weights, link, diag_fisher=False):
+    def _eta_mu_score_fisher(
+        self,
+        coef: np.ndarray,
+        phi,
+        X,
+        y: np.ndarray,
+        weights: np.ndarray,
+        link: Link,
+        diag_fisher: bool = False,
+        offset: np.ndarray = None,
+    ):
         """Compute linear predictor, mean, score function and fisher matrix.
 
         It calculates the linear predictor, the mean, score function
@@ -411,7 +488,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         """
         intercept = coef.size == X.shape[1] + 1
         # eta = linear predictor
-        eta = _safe_lin_pred(X, coef)
+        eta = _safe_lin_pred(X, coef, offset)
         mu = link.inverse(eta)
 
         # FOR TWEEDIE: sigma_inv = weights / (mu ** p) during optimization bc phi = 1
@@ -634,3 +711,59 @@ class BinomialDistribution(ExponentialDispersionModel):
 
     def unit_deviance(self, y, mu):
         return 2 * (special.xlogy(y, y / mu) + special.xlogy(1 - y, (1 - y) / (1 - mu)))
+
+
+def guess_intercept(
+    y: np.ndarray,
+    weights: np.ndarray,
+    link: Link,
+    distribution: ExponentialDispersionModel,
+    eta: Union[np.ndarray, float] = None,
+):
+    """
+    Say we want to find the scalar "b" that minimizes LL(eta + b), with eta fixed.
+
+    An exact solution exists for Tweedie distributions with a log link, and for the
+    normal distribution with identity link.
+
+    An exact solution also exists for the case of logit with no offset.
+
+    If the distribution and corresponding link are something else, we use the Tweedie
+    or normal solution, depending on the link function.
+    """
+    avg_y = np.average(y, weights=weights)
+
+    if isinstance(link, IdentityLink):
+        # This is only correct for normal. For other distributions, answer is unknown,
+        # but assume that we want sum(y) = sum(mu)
+        if eta is None:
+            return avg_y
+        avg_eta = eta if np.isscalar(eta) else np.average(eta, weights=weights)
+        return avg_y - avg_eta
+    elif isinstance(link, LogLink):
+        # This is only correct for Tweedie
+        log_avg_y = np.log(avg_y)
+        assert np.isfinite(log_avg_y).all()
+
+        if eta is None:
+            return log_avg_y
+        mu = np.exp(eta)
+        if isinstance(distribution, TweedieDistribution):
+            p = distribution.power
+        else:
+            p = 1  # Like Poisson
+        if np.isscalar(mu):
+            first = np.log(y.dot(weights) * mu ** (1 - p))
+            second = np.log(weights.sum() * mu ** (2 - p))
+        else:
+            first = np.log((y * mu ** (1 - p)).dot(weights))
+            second = np.log((mu ** (2 - p)).dot(weights))
+        return first - second
+    elif isinstance(link, LogitLink):
+        log_odds = np.log(avg_y) - np.log(np.average(1 - y, weights=weights))
+        if eta is None:
+            return log_odds
+        avg_eta = eta if np.isscalar(eta) else np.average(eta, weights=weights)
+        return log_odds - avg_eta
+    else:
+        raise NotImplementedError
