@@ -49,7 +49,7 @@ def test_gm_benchmarks(Pn, P):
 
     for thing_to_test in ["intercept", "coef"]:
         np.testing.assert_allclose(
-            result[thing_to_test], expected[thing_to_test], rtol=1e-4, atol=0
+            result[thing_to_test], expected[thing_to_test], rtol=1e-4, atol=1e-4
         )
 
 
