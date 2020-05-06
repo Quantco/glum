@@ -41,7 +41,7 @@ def run_one_problem_all_methods(x, d, include_naive, dtype) -> pd.DataFrame:
     x = x.astype(dtype)
     d = d.astype(dtype)
     x.XT = x.T.tocsc()
-    x.X_dense = x.toarray()
+    x.X_dense = np.asfortranarray(x.toarray())
     funcs: Dict[str, Callable[[Any, np.ndarray], Any]] = {
         "sparse_sandwich": _fast_sandwich,
         "dense_sandwich": _dense_sandwich,
