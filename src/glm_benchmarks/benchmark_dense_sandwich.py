@@ -28,7 +28,7 @@ def bench(f, iter):
 
 
 def _dense_sandwich(X, d):
-    return dense_sandwich(X[0], d)
+    return dense_sandwich(X[1], d)
 
 
 def mn_run(m, n, iter, dtype):
@@ -41,15 +41,16 @@ def mn_run(m, n, iter, dtype):
     out = dict()
     out["name"] = []
     out["runtime"] = []
-    for name in [
+    to_run = [
         "numpy_mklC",
         "numpy_mklF",
         "_dense_sandwich",
-    ]:
+    ]
+    for name in to_run:
         ts, result = bench(lambda: globals()[name](X, d), iter)
         if name == "numpy_mklC":
             true = result
-        else:
+        elif "numpy_mklC" in to_run:
             err = np.abs((true - result) / true)
             np.testing.assert_almost_equal(err, 0, 4 if precision == 32 else 7)
         runtime = np.min(ts)
@@ -82,8 +83,9 @@ def main():
         (20, 1000000),
         (50, 500000),
         (150, 200000),
-        (300, 100000),
+        # (300, 100000),
         # (2048, 2048),
+        # (1500, 1500),
     ]:
         for dt in [np.float64]:
             Rs.append(mn_run(m, n, iter, dt))
