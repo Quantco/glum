@@ -28,7 +28,7 @@ def bench(f, iter):
 
 
 def _dense_sandwich(X, d):
-    return dense_sandwich(X[0], d)
+    return dense_sandwich(X[1], d)
 
 
 def mn_run(m, n, iter, dtype):
@@ -65,7 +65,7 @@ def mn_run(m, n, iter, dtype):
 
 
 def main():
-    iter = 3
+    iter = 50
     # for m in [10, 30, 100, 300,  1000]:
     #     for p in np.arange(4, 6):
     # n = int(10 ** p)
