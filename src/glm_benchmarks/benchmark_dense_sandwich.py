@@ -28,7 +28,7 @@ def bench(f, iter):
 
 
 def _dense_sandwich(X, d):
-    return dense_sandwich(X[1], d)
+    return dense_sandwich(X[0], d)
 
 
 def mn_run(m, n, iter, dtype):
@@ -43,7 +43,7 @@ def mn_run(m, n, iter, dtype):
     out["runtime"] = []
     to_run = [
         "numpy_mklC",
-        "numpy_mklF",
+        # "numpy_mklF",
         "_dense_sandwich",
     ]
     for name in to_run:
@@ -65,7 +65,7 @@ def mn_run(m, n, iter, dtype):
 
 
 def main():
-    iter = 10
+    iter = 3
     # for m in [10, 30, 100, 300,  1000]:
     #     for p in np.arange(4, 6):
     # n = int(10 ** p)
@@ -82,10 +82,10 @@ def main():
     for m, n in [
         (20, 1000000),
         (50, 500000),
-        (150, 200000),
+        # (150, 200000),
         # (300, 100000),
         # (2048, 2048),
-        # (1500, 1500),
+        (1500, 1500),
     ]:
         for dt in [np.float64]:
             Rs.append(mn_run(m, n, iter, dt))
