@@ -323,11 +323,18 @@ def test_glm_alpha_argument(alpha, y, X):
 @pytest.mark.parametrize(
     "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
 )
-@pytest.mark.parametrize("l1_ratio", ["not a number", -4.2, 1.1, [1]])
+@pytest.mark.parametrize("l1_ratio", ["not a number", -4.2, 1.1])
 def test_glm_l1_ratio_argument(estimator, l1_ratio):
     """Test GLM for invalid l1_ratio argument."""
     X, y = get_small_x_y(estimator)
     glm = estimator(family="normal", l1_ratio=l1_ratio)
+    with pytest.raises(ValueError, match="l1_ratio must be a number in interval.*0, 1"):
+        glm.fit(X, y)
+
+
+def test_glm_ratio_argument_array():
+    X, y = get_small_x_y(GeneralizedLinearRegressor)
+    glm = GeneralizedLinearRegressor(family="normal", l1_ratio=[1])
     with pytest.raises(ValueError, match="l1_ratio must be a number in interval.*0, 1"):
         glm.fit(X, y)
 

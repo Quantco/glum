@@ -17,6 +17,7 @@ from ._link import Link
 
 
 class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
+    # TODO: add n_jobs
     """
     Generalized linear model like GeneralizedLinearRegressor with iterative fitting
     along a regularization path. See glossary entry for
@@ -200,8 +201,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             raise ValueError
         l1_ratio = np.asarray(self.l1_ratio)
         if (
-            not (np.isscalar(self.l1_ratio) or isinstance(self.l1_ratio, np.ndarray))
-            or not np.issubdtype(l1_ratio.dtype, np.number)
+            not np.issubdtype(l1_ratio.dtype, np.number)
             or np.any(l1_ratio < 0)
             or np.any(l1_ratio > 1)
         ):
@@ -220,33 +220,38 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             X, y, sample_weight, offset, solver=self.solver, copy_X=self.copy_X
         )
 
+        l1_ratio = np.atleast_1d(self.l1_ratio)
+
+        # From sklearn.linear_model.LinearModelCV.fit
         if self.alphas is None:
             if self.l1_ratio == 0:
-                self.alphas_ = [10.0, 1.0, 0.1]
+                alphas = [[10.0, 1.0, 0.1] for _ in l1_ratio]
             else:
-                self.alphas_ = _alpha_grid(
-                    X,
-                    y,
-                    l1_ratio=self.l1_ratio,
-                    fit_intercept=self.fit_intercept,
-                    eps=self.eps,
-                    n_alphas=self.n_alphas,
-                    normalize=self.fit_intercept,
-                    copy_X=self.copy_X,
-                )
+                # TODO: this is only valid for Gaussian
+                alphas = [
+                    _alpha_grid(
+                        X,
+                        y,
+                        l1_ratio=l1,
+                        fit_intercept=self.fit_intercept,
+                        eps=self.eps,
+                        n_alphas=self.n_alphas,
+                        copy_X=self.copy_X,
+                    )
+                    for l1 in l1_ratio
+                ]
+
+            self.alphas_ = np.asarray(alphas)
+            if len(l1_ratio) == 1:
+                self.alphas_ = self.alphas_[0]
         else:
-            self.alphas_ = np.sort(self.alphas)[::-1]
+            alphas = np.tile(np.sort(self.alphas)[::-1], (len(l1_ratio), 1))
+            self.alphas_ = np.asarray(alphas[0])
 
         cv = check_cv(self.cv)
 
-        l1_ratio = (
-            self.l1_ratio
-            if isinstance(self.l1_ratio, np.ndarray)
-            else np.array([self.l1_ratio])
-        )
-
         self.deviance_path_ = np.full(
-            (len(l1_ratio), len(self.alphas_), cv.get_n_splits()), np.nan
+            (len(l1_ratio), len(alphas[0]), cv.get_n_splits()), np.nan
         )
 
         model = GeneralizedLinearRegressor(
@@ -303,7 +308,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
                         weights=w_test,
                     )
 
-                for j, alpha in enumerate(self.alphas_):
+                for j, alpha in enumerate(alphas[i]):
                     model.set_params(alpha=alpha)
                     if j > 0:
                         model.set_params(warm_start=True, check_input=False)
@@ -313,10 +318,11 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         avg_deviance = self.deviance_path_.mean(2)
         best_idx = np.argmin(avg_deviance)
         # TODO: simplify
-        l1_ratios = np.array([[l1 for _ in self.alphas_] for l1 in l1_ratio])
-        alphas = np.array([self.alphas_ for _ in l1_ratio])
+        l1_ratios = np.repeat(l1_ratio[:, None], len(alphas[0]), axis=1)
+        assert l1_ratios.shape == avg_deviance.shape
+        assert np.asarray(alphas).shape == avg_deviance.shape
         self.l1_ratio_ = l1_ratios.flatten()[best_idx]
-        self.alpha_ = alphas.flatten()[best_idx]
+        self.alpha_ = np.asarray(alphas).flatten()[best_idx]
 
         # Refit with full data and best alpha and lambda
         model.set_params(
