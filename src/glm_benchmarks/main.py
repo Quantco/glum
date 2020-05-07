@@ -248,11 +248,13 @@ def cli_analyze(
                         )
                     )
 
-    res_df = (
-        pd.concat(formatted_results, axis=1)
-        .T.set_index(["problem", "num_rows", "regularization_strength", "library"])
-        .sort_index()
-    )
+    res_df = pd.concat(formatted_results, axis=1).T
+    res_df["offset"] = res_df["problem"].apply(lambda x: "offset" in x)
+    res_df["problem"] = ["weights".join(x.split("offset")) for x in res_df["problem"]]
+    res_df = res_df.set_index(
+        ["problem", "num_rows", "regularization_strength", "library"]
+    ).sort_index()
+    problems = res_df.index.get_level_values("problem").values
 
     res_df["n_iter"] = res_df["n_iter"].astype(int)
     for col in ["runtime", "runtime per iter", "intercept", "l1", "l2"]:
@@ -266,30 +268,21 @@ def cli_analyze(
             ].min()
         )
 
-    problems = res_df.index.get_level_values("problem").values
-    # keeps = ["sparse" not in x and "no_weights" in x for x in problems]
-    keeps = [x in x for x in problems]
-
-    # res_df.loc[keeps, :].reset_index().to_csv("results.csv")
     with pd.option_context(
         "display.expand_frame_repr", False, "max_columns", None, "max_rows", None
     ):
-
-        print(
-            res_df.loc[
-                keeps,
-                [
-                    "storage",
-                    # "threads",
-                    "single_precision",
-                    "n_iter",
-                    "runtime",
-                    "intercept",
-                    "obj_val",
-                    "rel_obj_val",
-                ],
-            ]
-        )
+        cols_to_show = [
+            "storage",
+            "threads",
+            "single_precision",
+            "n_iter",
+            "runtime",
+            "intercept",
+            "offset",
+            "obj_val",
+            "rel_obj_val",
+        ]
+        print(res_df[cols_to_show])
 
 
 def extract_dict_results_to_pd_series(
@@ -307,23 +300,25 @@ def extract_dict_results_to_pd_series(
     l1_norm = np.sum(np.abs(coefs))
     l2_norm = np.sum(coefs ** 2)
 
-    problem = get_all_problems()[prob_name]
+    # weights and offsets are solving the same problem, but the objective is set up to
+    # deal with weights, so load the data for the weights problem rather than the
+    # offset problem
+    prob_name_weights = "weights".join(prob_name.split("offset"))
+    problem = get_all_problems()[prob_name_weights]
     dat = problem.data_loader(None if num_rows == "None" else int(num_rows))
-    try:
-        obj_val = get_obj_val(
-            dat,
-            problem.distribution,
-            float(regularization_strength),
-            problem.l1_ratio,
-            results["intercept"],
-            coefs,
-        )
+    tweedie = "tweedie" in prob_name
+    if tweedie:
+        tweedie_p = float(prob_name.split("=")[-1])
 
-    except NotImplementedError:
-        obj_val = 0
-        print(
-            "skipping objective calculation because this distribution is not implemented"
-        )
+    obj_val = get_obj_val(
+        dat,
+        problem.distribution,
+        problem.regularization_strength,
+        problem.l1_ratio,
+        results["intercept"],
+        coefs,
+        tweedie_p=tweedie_p if tweedie else None,
+    )
 
     formatted = {
         "problem": prob_name,
@@ -348,7 +343,10 @@ def identify_parameter_directories(
     root_dir: str, constraints: List[str]
 ) -> List[List[str]]:
     if constraints[0] is None:
-        param_values = os.listdir(root_dir)
+        try:
+            param_values = os.listdir(root_dir)
+        except FileNotFoundError:
+            return []
         if not all(os.path.isdir(os.path.join(root_dir, x)) for x in param_values):
             raise RuntimeError(
                 f"""
