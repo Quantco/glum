@@ -239,7 +239,7 @@ def _irls_step(X, W: np.ndarray, P2, z: np.ndarray, fit_intercept=True):
         if sparse.issparse(X):
             b = np.concatenate(([Wz.sum()], X.transpose() @ Wz))
         else:
-            b = np.concatenate(([Wz.sum()], X.T @ Wz))
+            b = np.concatenate(([Wz.sum()], (Wz @ X).T))
 
         A = _safe_sandwich_dot(X, W, intercept=fit_intercept)
         if P2.ndim == 1:
@@ -363,7 +363,7 @@ def _irls_solver(
         if sparse.issparse(X):
             gradient = -(X.transpose() @ temp)
         else:
-            gradient = -(X.T @ temp)
+            gradient = -(temp @ X).T
         idx = 1 if fit_intercept else 0  # offset if coef[0] is intercept
         if P2.ndim == 1:
             gradient += P2 * coef[idx:]
