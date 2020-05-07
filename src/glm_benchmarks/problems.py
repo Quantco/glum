@@ -50,12 +50,6 @@ def load_data(
     return dict(X=x, y=y)
 
 
-def load_narrow_insurance_data(
-    num_rows: int = None, noise: float = None, distribution: str = "poisson",
-) -> Dict[str, np.ndarray]:
-    return load_data(generate_narrow_insurance_dataset, num_rows, noise, distribution,)
-
-
 def get_all_problems() -> Dict[str, Problem]:
     regularization_strength = 0.001
     distributions = ["gaussian", "poisson", "gamma", "tweedie_p=1.5"]
