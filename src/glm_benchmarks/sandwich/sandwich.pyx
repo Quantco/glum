@@ -58,11 +58,12 @@ def sparse_sandwich(A, AT, floating[:] d):
     return out
 
 cdef extern from "dense.cpp":
-    void _dense_sandwichC[F](F*, F*, F*, int, int, int, int, int, int) nogil
-    void _dense_sandwichF[F](F*, F*, F*, int, int, int, int, int, int) nogil
-    void _csr_dense_sandwich[F](F*, int*, int*, F*, F*, F*, int, int, int) nogil
+    void _denseC_sandwich[F](F*, F*, F*, int, int, int, int, int, int) nogil
+    void _denseF_sandwich[F](F*, F*, F*, int, int, int, int, int, int) nogil
+    void _csr_denseC_sandwich[F](F*, int*, int*, F*, F*, F*, int, int, int) nogil
+    void _csr_denseF_sandwich[F](F*, int*, int*, F*, F*, F*, int, int, int) nogil
 
-def csr_dense_sandwich(A, floating[:,:] B, floating[:] d):
+def csr_dense_sandwich(A, B, floating[:] d):
     # computes where (A.T * d) @ B
     # assumes that A is in csr form
     cdef floating[:] Adata = A.data
@@ -79,7 +80,15 @@ def csr_dense_sandwich(A, floating[:,:] B, floating[:] d):
     cdef floating[:, :] out_view = out
     cdef floating* outp = &out_view[0,0]
 
-    _csr_dense_sandwich(&Adata[0], &Aindices[0], &Aindptr[0], &B[0,0], &d[0], outp, m, n, r)
+    cdef floating[:, :] B_view = B;
+    cdef floating* Bp = &B_view[0, 0];
+
+    if B.flags['C_CONTIGUOUS']:
+        _csr_denseC_sandwich(&Adata[0], &Aindices[0], &Aindptr[0], Bp, &d[0], outp, m, n, r)
+    elif B.flags['F_CONTIGUOUS']:
+        _csr_denseF_sandwich(&Adata[0], &Aindices[0], &Aindptr[0], Bp, &d[0], outp, m, n, r)
+    else:
+        raise Exception()
     return out
 
 
@@ -97,9 +106,9 @@ def dense_sandwich(X, floating[:] d, int thresh1d = 32, int parlevel = 7, int kr
     cdef floating* dp = &d[0]
 
     if X.flags['C_CONTIGUOUS']:
-        _dense_sandwichC(Xp, dp, outp, m, n, thresh1d, parlevel, kratio, innerblock)
+        _denseC_sandwich(Xp, dp, outp, m, n, thresh1d, parlevel, kratio, innerblock)
     elif X.flags['F_CONTIGUOUS']:
-        _dense_sandwichF(Xp, dp, outp, m, n, thresh1d, parlevel, kratio, innerblock)
+        _denseF_sandwich(Xp, dp, outp, m, n, thresh1d, parlevel, kratio, innerblock)
     else:
         raise Exception()
     return out
