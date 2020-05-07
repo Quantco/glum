@@ -42,7 +42,7 @@ for(; k < kmaxblock; k += ${KBLOCK} * simd_size) {
 }
 </%def>
 
-<%def name="middle_j(IBLOCK, JBLOCK, KBLOCKS)">
+<%def name="middle_j2(IBLOCK, JBLOCK, KBLOCKS)">
     int jmaxblock = jmin + ((jmaxinner - jmin) / ${JBLOCK}) * ${JBLOCK};
     for (; j < jmaxblock; j += ${JBLOCK}) {
 
@@ -101,6 +101,118 @@ for(; k < kmaxblock; k += ${KBLOCK} * simd_size) {
     }
 </%def>
 
+<%def name="middle_j3(IBLOCK, JBLOCK, KBLOCKS)">
+    int jmaxblock = jmin + ((jmaxinner - jmin) / ${JBLOCK}) * ${JBLOCK};
+    for (; j < jmaxblock; j += ${JBLOCK}) {
+        % if JBLOCK >= 4:
+            <%
+                IN = IBLOCK;
+                JN = JBLOCK // 4;
+            %>
+            % for ir in range(IBLOCK):
+                % for jr in range(JN):
+                    auto accumsimd${ir}_${jr} = xs::load_unaligned(&out[(i+${ir}) * m + j+${jr}*simd_size]);
+                % endfor
+            % endfor
+            for (int k = kmin; k < kmax; k++) {
+                auto dsimd = xs::set_simd(d[k]);
+                % for jr in range(JN):
+                    auto Xsimd${jr} = dsimd * xs::load_unaligned(&X[k * m + j + ${jr} * simd_size]);
+                % endfor
+                % for ir in range(IBLOCK):
+                    F Xtd${ir} = X[k * m + (i + ${ir})];
+                    auto Xtdsimd${ir} = xs::set_simd(Xtd${ir});
+                    % for jr in range(JN):
+                        accumsimd${ir}_${jr} = xs::fma(Xtdsimd${ir}, Xsimd${jr}, accumsimd${ir}_${jr});
+                    % endfor
+                % endfor
+            }
+            % for ir in range(IBLOCK):
+                % for jr in range(JN):
+                {
+                    accumsimd${ir}_${jr}.store_unaligned(&out[(i+${ir}) * m + j+${jr}*simd_size]);
+                }
+                % endfor
+            % endfor
+        % else:
+            % for ir in range(IBLOCK):
+                % for jr in range(JBLOCK):
+                    F accum${ir}_${jr} = 0.0;
+                % endfor
+            % endfor
+            for (int k = kmin; k < kmax; k++) {
+                % for ir in range(IBLOCK):
+                    F Xtd${ir} = d[k] * X[k * m + (i + ${ir})];
+                    % for jr in range(JBLOCK):
+                        accum${ir}_${jr} += Xtd${ir} * X[k * m + (j + ${jr})];
+                    % endfor
+                % endfor
+            }
+            % for ir in range(IBLOCK):
+                % for jr in range(JBLOCK):
+                    out[(i+${ir}) * m + (j+${jr})] += accum${ir}_${jr};
+                % endfor
+            % endfor
+        % endif
+    }
+</%def>
+
+<%def name="middle_j(IBLOCK, JBLOCK, KBLOCKS)">
+    int jmaxblock = jmin + ((jmaxinner - jmin) / ${JBLOCK}) * ${JBLOCK};
+    for (; j < jmaxblock; j += ${JBLOCK}) {
+        % if IBLOCK >= 4:
+            <%
+                IN = IBLOCK // 4;
+                JN = JBLOCK;
+            %>
+            % for ir in range(IN):
+                % for jr in range(JN):
+                    auto accumsimd${ir}_${jr} = xs::load_unaligned(&out[(j+${jr}) * m + i+${ir*4}]);
+                % endfor
+            % endfor
+            for (int k = kmin; k < kmax; k++) {
+                auto dsimd = xs::set_simd(d[k]);
+                % for ir in range(IN):
+                    auto Xtdsimd${ir} = dsimd * xs::load_unaligned(&X[k * m + i + ${ir*4}]);
+                % endfor
+                % for jr in range(JN):
+                    F Xtd${jr} = X[k * m + (j + ${jr})];
+                    auto Xsimd${jr} = xs::set_simd(Xtd${jr});
+                    % for ir in range(IN):
+                        accumsimd${ir}_${jr} = xs::fma(Xtdsimd${ir}, Xsimd${jr}, accumsimd${ir}_${jr});
+                    % endfor
+                % endfor
+            }
+            % for ir in range(IN):
+                % for jr in range(JN):
+                {
+                    accumsimd${ir}_${jr}.store_unaligned(&out[(j+${jr}) * m + i+${ir*4}]);
+                }
+                % endfor
+            % endfor
+        % else:
+            % for ir in range(IBLOCK):
+                % for jr in range(JBLOCK):
+                    F accum${ir}_${jr} = 0.0;
+                % endfor
+            % endfor
+            for (int k = kmin; k < kmax; k++) {
+                % for ir in range(IBLOCK):
+                    F Xtd${ir} = d[k] * X[k * m + (i + ${ir})];
+                    % for jr in range(JBLOCK):
+                        accum${ir}_${jr} += Xtd${ir} * X[k * m + (j + ${jr})];
+                    % endfor
+                % endfor
+            }
+            % for ir in range(IBLOCK):
+                % for jr in range(JBLOCK):
+                    out[(i+${ir}) * m + (j+${jr})] += accum${ir}_${jr};
+                % endfor
+            % endfor
+        % endif
+    }
+</%def>
+
 <%def name="outer_i(IBLOCK, JBLOCKS, KBLOCKS)">
     int imaxblock = imin + ((imax - imin) / ${IBLOCK}) * ${IBLOCK};
     for (; i < imaxblock; i += ${IBLOCK}) {
@@ -126,9 +238,9 @@ void dense_base(F* X, F* d, F* out,
 {
     constexpr std::size_t simd_size = xsimd::simd_type<F>::size;
     int i = imin;
-    % for IBLOCK in [3, 1]:
+    % for IBLOCK in [8, 1]:
     {
-        ${outer_i(IBLOCK, [3, 1], [1])}
+        ${outer_i(IBLOCK, [8, 1], [1])}
     }
     % endfor
 }
@@ -148,14 +260,14 @@ void recurse(F* X, F* d, F* out,
     size_t size = isize * jsize * ksize;
     size_t thresh3d = thresh1d * thresh1d * thresh1d;
     if (size < thresh3d) {
-        // for (int kmininner = kmin; kmininner < kmax; kmininner += 128) {
-        //     int kmaxinner = kmininner + 128;
-        //     if (kmaxinner > kmax) {
-        //         kmaxinner = kmax;
-        //     }
-        //     dense_base(X, d, out, m, n, imin, imax, jmin, jmax, kmininner, kmaxinner);
-        // }
-        dense_base(X, d, out, m, n, imin, imax, jmin, jmax, kmin, kmax, kstep);
+        for (int kmininner = kmin; kmininner < kmax; kmininner += kstep) {
+            int kmaxinner = kmininner + kstep;
+            if (kmaxinner > kmax) {
+                kmaxinner = kmax;
+            }
+            dense_base(X, d, out, m, n, imin, imax, jmin, jmax, kmininner, kmaxinner, kstep);
+        }
+        // dense_base(X, d, out, m, n, imin, imax, jmin, jmax, kmin, kmax, kstep);
         return;
     }
 
