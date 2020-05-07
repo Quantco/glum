@@ -28,7 +28,7 @@ def bench(f, iter):
 
 
 def _dense_sandwich(X, d):
-    return dense_sandwich(X[0], d)
+    return dense_sandwich(X[1], d, 200, 10, 50, 100)
 
 
 def mn_run(m, n, iter, dtype):
@@ -43,7 +43,7 @@ def mn_run(m, n, iter, dtype):
     out["runtime"] = []
     to_run = [
         "numpy_mklC",
-        # "numpy_mklF",
+        "numpy_mklF",
         "_dense_sandwich",
     ]
     for name in to_run:
@@ -66,26 +66,15 @@ def mn_run(m, n, iter, dtype):
 
 def main():
     iter = 10
-    # for m in [10, 30, 100, 300,  1000]:
-    #     for p in np.arange(4, 6):
-    # n = int(10 ** p)
-    # for m in [10, 48, 100, 1000]:
-    #     for p in np.arange(4, 6):
-    # n = int(10 ** p)
-    # for m in [1000]:
-    #     for p in [3.5]:
-    # n = int(10 ** p)
-    # for m in [10, 30, 100, 300, 1000]:
-    # for m in [300]:
-    #     for n in [100000]:#, 1000000]:
     Rs = []
     for m, n in [
-        # (20, 1000000),
-        # (50, 500000),
-        # (150, 200000),
-        # (300, 100000),
-        # (2048, 2048),
+        (20, 1000000),
+        (50, 500000),
+        (150, 200000),
+        (300, 100000),
+        (2048, 2048),
         (1500, 1500),
+        (500, 500),
     ]:
         for dt in [np.float64]:
             Rs.append(mn_run(m, n, iter, dt))
@@ -93,6 +82,49 @@ def main():
     df.set_index(["m", "n", "name", "precision"], inplace=True)
     df.sort_index(inplace=True)
     print(df)
+
+
+def main2():
+    n = 500
+    m = 500
+    dtype = np.float64
+    X = np.asfortranarray(np.random.rand(n, m).astype(dtype=dtype))
+    d = np.random.rand(n).astype(dtype=dtype)
+    t1d = []
+    pls = []
+    krs = []
+    results = []
+    # for thresh1d in [16, 32, 64, 128]:
+    #     for parlevel in [5, 7, 10, 13]:
+    #         for kratio in [1, 10, 20, 80]:
+    for thresh1d in [200]:
+        for parlevel in [10]:
+            for kratio in [50]:
+                t1d.append(thresh1d)
+                pls.append(parlevel)
+                krs.append(kratio)
+                # results.append(np.min(bench(lambda: X.T @ X, 20)[0]))
+                results.append(
+                    np.min(
+                        bench(
+                            lambda: dense_sandwich(
+                                X, d, thresh1d, parlevel, kratio, int(1e7)
+                            ),
+                            20,
+                        )[0]
+                    )
+                )
+                print(results[-1])
+    df = pd.DataFrame(dict(thresh1d=t1d, parlevel=pls, kratio=krs, results=results))
+    df.set_index(["thresh1d", "parlevel", "kratio"], inplace=True)
+    df.sort_index(inplace=True)
+    with pd.option_context("display.max_rows", None, "display.max_columns", None):
+        print(df)
+
+
+#  841650213      L1-dcache-load-misses     #   12.01% of all L1-dcache hits    (71.87%)
+# 7006517280      L1-dcache-loads                                               (71.53%)
+# 1016757397      L1-dcache-stores                                              (69.82%)
 
 
 if __name__ == "__main__":

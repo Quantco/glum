@@ -9,170 +9,198 @@
 //        call recurse on each block
 #include "xsimd/xsimd.hpp"
 #include <iostream>
-#include <omp.h>
 namespace xs = xsimd;
 
+<%def name="inner_k(IBLOCK, JBLOCK, KBLOCK)">
+int kmaxblock = kmin + ((kmax - kmin) / (simd_size * ${KBLOCK})) * (simd_size * ${KBLOCK});
+for(; k < kmaxblock; k += ${KBLOCK} * simd_size) {
+    % for kr in range(KBLOCK):
+        auto dsimd${kr} = xs::load_unaligned(&d[k + ${kr} * simd_size]);
+    % endfor
+    % for ir in range(IBLOCK):
+        % for kr in range(KBLOCK):
+            auto XTsimd${ir}_${kr} = xs::load_unaligned(&X[basei${ir} + k + ${kr} * simd_size]);
+            auto Xtd${ir}_${kr} = XTsimd${ir}_${kr} * dsimd${kr};
+        % endfor
+    % endfor
+    % for jr in range(JBLOCK):
+        % for kr in range(KBLOCK):
+            auto Xsimd${jr}_${kr} = xs::load_unaligned(&X[basej${jr} + k + ${kr} * simd_size]);
+        % endfor
+    % endfor
+    % for ir in range(IBLOCK):
+        % for jr in range(JBLOCK):
+            % for kr in range(KBLOCK):
+                accumsimd${ir}_${jr} = xs::fma(
+                    Xtd${ir}_${kr},
+                    Xsimd${jr}_${kr},
+                    accumsimd${ir}_${jr}
+                );
+            % endfor
+        % endfor
+    % endfor
+}
+</%def>
 
-<%def name="simd_microkernel()">
-    for (int k = kk; k < kend; k++) {
-        F* Lptr = &L[(ii2-ii)*KBLOCK + (k-kk)*IBLOCK2];
+<%def name="middle_j(IBLOCK, JBLOCK, KBLOCKS)">
+    int jmaxblock = jmin + ((jmaxinner - jmin) / ${JBLOCK}) * ${JBLOCK};
+    for (; j < jmaxblock; j += ${JBLOCK}) {
 
-        for (int i = ii2; i < iend2; i++, Lptr++) {
-            int jend3 = jend2;
-            if (jend3 > i + 1) {
-                jend3 = i + 1;
-            }
+        // setup simd accumulators
+        % for ir in range(IBLOCK):
+            % for jr in range(JBLOCK):
+                auto accumsimd${ir}_${jr} = xs::set_simd(((F)0.0));
+            % endfor
+        % endfor
 
-            F* outptr = &outtemp[(i-ii2)*JBLOCK2];
-            F* Rptr = &R[(jj2-jj)*KBLOCK + (k-kk)*JBLOCK2];
+        % for ir in range(IBLOCK):
+            int basei${ir} = (i + ${ir}) * n;
+        % endfor
+        % for jr in range(JBLOCK):
+            int basej${jr} = (j + ${jr}) * n;
+        % endfor
 
-            int Rlen = jend3 - jj2;
-            const F* Rsimdend = Rptr + (Rlen / simd_size) * simd_size;
-            const F* Rend = Rptr + Rlen;
-
-            auto Lsimd = xs::set_simd(*Lptr);
-            for (; 
-                Rptr < Rsimdend;
-                Rptr+=simd_size, outptr+=simd_size) 
-            {
-                auto Rsimd = xs::load_aligned(Rptr);
-                auto outsimd = xs::load_aligned(outptr);
-                outsimd = xs::fma(Lsimd, Rsimd, outsimd);
-                outsimd.store_aligned(outptr);
-            }
-            for (;
-                Rptr < Rend;
-                Rptr++, outptr++)
-            {
-                (*outptr) += (*Lptr) * (*Rptr);
-            }
+        // main simd inner loop
+        int k = kmin;
+        % for KBLOCK in KBLOCKS:
+        {
+            ${inner_k(IBLOCK, JBLOCK, KBLOCK)}
         }
+        % endfor
+
+        // horizontal sum of the simd blocks
+        % for ir in range(IBLOCK):
+            % for jr in range(JBLOCK):
+                F accum${ir}_${jr} = xs::hadd(accumsimd${ir}_${jr});
+            % endfor
+        % endfor
+
+        // remainder loop
+        for (; k < kmax; k++) {
+            F dv = d[k];
+            % for ir in range(IBLOCK):
+                F Xtd${ir} = X[basei${ir} + k] * dv;
+            % endfor
+            % for jr in range(JBLOCK):
+                F Xv${jr} = X[basej${jr} + k];
+            % endfor
+            % for ir in range(IBLOCK):
+                % for jr in range(JBLOCK):
+                    accum${ir}_${jr} += Xtd${ir} * Xv${jr};
+                % endfor
+            % endfor
+        }
+
+        // add to the output array
+        % for ir in range(IBLOCK):
+            % for jr in range(JBLOCK):
+                #pragma omp atomic
+                out[(i + ${ir}) * m + (j + ${jr})] += accum${ir}_${jr};
+            % endfor
+        % endfor
     }
 </%def>
 
-<%def name="simple_microkernel(IEND, JEND)">
-    for (int k = kk; k < kend; k++) {
-        F* Lptr = &L[(ii2-ii)*KBLOCK + (k-kk)*IBLOCK2];
-
-        for (int i = ii2; i < ${IEND}; i++, Lptr++) {
-            int jend3 = ${JEND};
-            F* outptr = &out[i*m+jj2];
-            F* Rptr = &R[(jj2-jj)*KBLOCK + (k-kk)*JBLOCK2];
-            F* Rptrend = Rptr + jend3 - jj2;
-
-            for (; Rptr < Rptrend; Rptr++,outptr++) {
-                (*outptr) += (*Lptr) * (*Rptr);
-            }
+<%def name="outer_i(IBLOCK, JBLOCKS, KBLOCKS)">
+    int imaxblock = imin + ((imax - imin) / ${IBLOCK}) * ${IBLOCK};
+    for (; i < imaxblock; i += ${IBLOCK}) {
+        int jmaxinner = jmax;
+        if (jmaxinner > i + ${IBLOCK}) {
+            jmaxinner = i + ${IBLOCK};
         }
+        int j = jmin;
+        % for JBLOCK in JBLOCKS:
+        {
+            ${middle_j(IBLOCK, JBLOCK, KBLOCKS)}
+        }
+        % endfor
     }
 </%def>
-
-// TODO: choose KBLOCK, JBLOCK depending on m, n
-// TODO: aligned allocation
-#define KBLOCK 256
-#define JBLOCK 512
-#define IBLOCK 32
-#define JBLOCK2 4
-#define IBLOCK2 4 // IBLOCK % IBLOCK2 must be 0
 
 template <typename F>
-void _dense_i_outer_block(F* X, F* R, F* out, int m, int n, int jj, int jend, int kk, int kend) {
-    constexpr int simd_size = xsimd::simd_type<F>::size;
-    for (int ii = 0; ii < m; ii+=IBLOCK) {
+void dense_base(F* X, F* d, F* out,
+                int m, int n,
+                int imin, int imax,
+                int jmin, int jmax, 
+                int kmin, int kmax, int kstep) 
+{
+    constexpr std::size_t simd_size = xsimd::simd_type<F>::size;
+    int i = imin;
+    % for IBLOCK in [3, 1]:
+    {
+        ${outer_i(IBLOCK, [3, 1], [1])}
+    }
+    % endfor
+}
 
-        int iend = ii + IBLOCK;
-        if (iend > m) {
-            iend = m;
+template <typename F>
+void recurse(F* X, F* d, F* out,
+                int m, int n,
+                int imin, int imax,
+                int jmin, int jmax, 
+                int kmin, int kmax,
+                int level,
+                int thresh1d, int parlevel, int kratio, int kstep) 
+{
+    size_t isize = (imax - imin);
+    size_t jsize = (jmax - jmin);
+    size_t ksize = (kmax - kmin);
+    size_t size = isize * jsize * ksize;
+    size_t thresh3d = thresh1d * thresh1d * thresh1d;
+    if (size < thresh3d) {
+        // for (int kmininner = kmin; kmininner < kmax; kmininner += 128) {
+        //     int kmaxinner = kmininner + 128;
+        //     if (kmaxinner > kmax) {
+        //         kmaxinner = kmax;
+        //     }
+        //     dense_base(X, d, out, m, n, imin, imax, jmin, jmax, kmininner, kmaxinner);
+        // }
+        dense_base(X, d, out, m, n, imin, imax, jmin, jmax, kmin, kmax, kstep);
+        return;
+    }
+
+    bool parallel = level < parlevel;
+    if (kratio * isize >= ksize && isize >= jsize) {
+        int isplit = (imax + imin) / 2;
+
+        #pragma omp task if(parallel)
+        recurse(X, d, out, m, n, imin, isplit, jmin, jmax, kmin, kmax, level + 1, thresh1d, parlevel, kratio, kstep);
+
+        #pragma omp task if(parallel)
+        recurse(X, d, out, m, n, isplit, imax, jmin, jmax, kmin, kmax, level + 1, thresh1d, parlevel, kratio, kstep);
+
+    } else if (jsize >= isize && kratio * jsize >= ksize) {
+        int jsplit = (jmax + jmin) / 2;
+
+        #pragma omp task if(parallel)
+        recurse(X, d, out, m, n, imin, imax, jmin, jsplit, kmin, kmax, level + 1, thresh1d, parlevel, kratio, kstep);
+
+        // check if any of the entries are in the lower triangle
+        if (jsplit <= imax) {
+            #pragma omp task if(parallel)
+            recurse(X, d, out, m, n, imin, imax, jsplit, jmax, kmin, kmax, level + 1, thresh1d, parlevel, kratio, kstep);
         }
 
-        // Pack our left operand into L in the order that we'll access it later.
-        // 3d array indexed by (ii2-ii, k-kk, i-ii2)
-        F L[KBLOCK*IBLOCK];
-        for (int ii2 = ii; ii2 < iend; ii2+=IBLOCK2) {
-            int iend2 = ii2 + IBLOCK2;
-            if (iend2 > m) {
-                iend2 = m;
-            }
-            for (int k = kk; k < kend; k++) {
-                F* Lptr = &L[(ii2-ii)*KBLOCK + (k-kk)*IBLOCK2];
-                for (int i = ii2; i < iend2; i++, Lptr++) {
-                    (*Lptr) = X[k*m+i];
-                }
-            }
-        }
+    } else {
+        int ksplit = (kmax + kmin) / 2;
 
-        int jendblock = jj + ((jend - jj) / JBLOCK2) * JBLOCK2;
-        int iendblock = ii + ((iend - ii) * IBLOCK2) * IBLOCK2;
-        int jj2 = jj;
-        for (; jj2 < jendblock; jj2+=JBLOCK2) {
-            int jend2 = jj2 + JBLOCK2;
-            int ii2 = ii;
-            for (; ii2 < iendblock; ii2+=IBLOCK2) {
-                int iend2 = ii2 + IBLOCK2;
-                ${simple_microkernel("iend2", "jend2")}
-            }
-            ${simple_microkernel("iend", "jend2")}
-        }
-        int ii2 = ii;
-        for (; ii2 < iendblock; ii2+=IBLOCK2) {
-            int iend2 = ii2 + IBLOCK2;
-            ${simple_microkernel("iend2", "jend")}
-        }
-        ${simple_microkernel("iend", "jend")}
+        #pragma omp task if(parallel)
+        recurse(X, d, out, m, n, imin, imax, jmin, jmax, kmin, ksplit, level + 1, thresh1d, parlevel, kratio, kstep);
+
+        #pragma omp task if(parallel)
+        recurse(X, d, out, m, n, imin, imax, jmin, jmax, ksplit, kmax, level + 1, thresh1d, parlevel, kratio, kstep);
     }
 }
 
 template <typename F>
-void _dense_j_outer_block(F* X, F* d, F* out, int m, int n, int jj) {
-
-    int jend = jj + JBLOCK;
-    if (jend > m) {
-        jend = m;
-    }
-    for (int kk = 0; kk < n; kk+=KBLOCK) {
-        int kend = kk + KBLOCK;
-        if (kend > n) {
-            kend = n;
-        }
-
-        // Pack our right operand into R in the order that we'll access it later.
-        // 3d array indexed by (jj2-jj, k-kk, j-jj2)
-        F R[KBLOCK*JBLOCK];
-        for (int jj2 = jj; jj2 < jend; jj2+=JBLOCK2) {
-            int jend2 = jj2 + JBLOCK2;
-            if (jend2 > jend) {
-                jend2 = jend;
-            }
-            for (int k = kk; k < kend; k++) {
-                F dv = d[k];
-                F* Rptr = &R[(jj2-jj)*KBLOCK + (k-kk)*JBLOCK2];
-                F* Rptrend = Rptr + jend2 - jj2;
-                F* Xptr = &X[k*m+jj2];
-                for (; Rptr < Rptrend; Rptr++, Xptr++) {
-                    (*Rptr) = dv * (*Xptr);
-                }
-            }
-        }
-
-        _dense_i_outer_block(X, R, out, m, n, jj, jend, kk, kend);
-    }
-}
-
-template <typename F>
-void _dense_sandwich(F* X, F* d, F* out, int m, int n) 
+void _dense_sandwich(F* X, F* d, F* out,
+        int m, int n, int thresh1d, int parlevel, int kratio, int kstep) 
 {
     #pragma omp parallel
-    {
-        #pragma omp single nowait
-        {
-            for (int jj = 0; jj < m; jj+=JBLOCK) {
-                _dense_j_outer_block(X, d, out, m, n, jj);
-            }
-        }
-    }
+    #pragma omp single nowait
+    //out[i,j] = sum_k X[k,i] * d[k] * X[k,j]
+    recurse(X, d, out, m, n, 0, m, 0, m, 0, n, 0, thresh1d, parlevel, kratio, kstep);
 
-
-    // make symmetric!
     #pragma omp parallel if(m > 100)
     for (int i = 0; i < m; i++) {
         for (int j = 0; j <= i; j++) {

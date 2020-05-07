@@ -58,7 +58,7 @@ def sparse_sandwich(A, AT, floating[:] d):
     return out
 
 cdef extern from "dense.cpp":
-    void _dense_sandwich[F](F*, F*, F*, int, int) nogil
+    void _dense_sandwich[F](F*, F*, F*, int, int, int, int, int, int) nogil
     void _csr_dense_sandwich[F](F*, int*, int*, F*, F*, F*, int, int, int) nogil
 
 def csr_dense_sandwich(A, floating[:,:] B, floating[:] d):
@@ -83,7 +83,7 @@ def csr_dense_sandwich(A, floating[:,:] B, floating[:] d):
 
 
 
-def dense_sandwich(X, floating[:] d):
+def dense_sandwich(X, floating[:] d, int thresh1d, int parlevel, int kratio, int kstep):
     cdef int n = X.shape[0]
     cdef int m = X.shape[1]
 
@@ -94,5 +94,5 @@ def dense_sandwich(X, floating[:] d):
     cdef floating[:, :] Xmemview = X;
     cdef floating* Xp = &Xmemview[0,0]
     cdef floating* dp = &d[0]
-    _dense_sandwich(Xp, dp, outp, m, n)
+    _dense_sandwich(Xp, dp, outp, m, n, thresh1d, parlevel, kratio, kstep)
     return out
