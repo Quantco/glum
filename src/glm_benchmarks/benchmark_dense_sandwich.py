@@ -28,7 +28,7 @@ def bench(f, iter):
 
 
 def _dense_sandwich(X, d):
-    return dense_sandwich(X[1], d, 200, 10, 50, 100)
+    return dense_sandwich(X[0], d, 400, 10, 500000000, 64)
 
 
 def mn_run(m, n, iter, dtype):
@@ -68,11 +68,11 @@ def main():
     iter = 10
     Rs = []
     for m, n in [
-        (20, 1000000),
-        (50, 500000),
-        (150, 200000),
-        (300, 100000),
-        (2048, 2048),
+        # (20, 1000000),
+        # (50, 500000),
+        # (150, 200000),
+        # (300, 100000),
+        # (2048, 2048),
         (1500, 1500),
         (500, 500),
     ]:
@@ -85,38 +85,43 @@ def main():
 
 
 def main2():
-    n = 500
-    m = 500
+    n = 1000
+    m = 1000
     dtype = np.float64
     X = np.asfortranarray(np.random.rand(n, m).astype(dtype=dtype))
     d = np.random.rand(n).astype(dtype=dtype)
     t1d = []
     pls = []
     krs = []
+    kstps = []
     results = []
     # for thresh1d in [16, 32, 64, 128]:
     #     for parlevel in [5, 7, 10, 13]:
     #         for kratio in [1, 10, 20, 80]:
-    for thresh1d in [200]:
+    for thresh1d in [300, 400]:
         for parlevel in [10]:
-            for kratio in [50]:
-                t1d.append(thresh1d)
-                pls.append(parlevel)
-                krs.append(kratio)
-                # results.append(np.min(bench(lambda: X.T @ X, 20)[0]))
-                results.append(
-                    np.min(
-                        bench(
-                            lambda: dense_sandwich(
-                                X, d, thresh1d, parlevel, kratio, int(1e7)
-                            ),
-                            20,
-                        )[0]
+            for kratio in [1000]:
+                for kstep in [32, 64, 128]:
+                    t1d.append(thresh1d)
+                    pls.append(parlevel)
+                    krs.append(kratio)
+                    kstps.append(kstep)
+                    # results.append(np.min(bench(lambda: X.T @ X, 20)[0]))
+                    results.append(
+                        np.min(
+                            bench(
+                                lambda: dense_sandwich(
+                                    X, d, thresh1d, parlevel, kratio, kstep
+                                ),
+                                20,
+                            )[0]
+                        )
                     )
-                )
-                print(results[-1])
-    df = pd.DataFrame(dict(thresh1d=t1d, parlevel=pls, kratio=krs, results=results))
-    df.set_index(["thresh1d", "parlevel", "kratio"], inplace=True)
+                    print(results[-1])
+    df = pd.DataFrame(
+        dict(thresh1d=t1d, parlevel=pls, kratio=krs, ksteps=kstps, results=results)
+    )
+    df.set_index(["thresh1d", "parlevel", "kratio", "ksteps"], inplace=True)
     df.sort_index(inplace=True)
     with pd.option_context("display.max_rows", None, "display.max_columns", None):
         print(df)
