@@ -39,12 +39,7 @@ class DenseGLMDataMatrix(np.ndarray):
         return self
 
     def sandwich(self, d):
-        if self.flags["C_CONTIGUOUS"]:
-            sqrtD = np.sqrt(d)[:, np.newaxis]
-            xd = self * sqrtD
-            return xd.T @ xd
-        else:
-            return dense_sandwich(self, d)
+        return dense_sandwich(self, d)
 
     def standardize(self, weights: np.ndarray, scale_predictors: bool) -> Tuple:
         col_means = self.T.dot(weights)[None, :]

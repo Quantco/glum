@@ -1,12 +1,26 @@
-// simd code for dense sandwich products. Uses Mako templating for inner loop unrolling.
-// Mako compiles this to C which is included in the sandwich.pyx cython file.
-// Algorithm pseudocode:
-// recurse(X, d, out, i_min, i_max, j_min, j_max, k_min, k_max):
-//     base case, if (i_max - i_min) * (j_max - j_min) * (k_max - k_min) small:
-//         dense_base(...)
-//     else:
-//        split X into two block splitting on the largest dimension
-//        call recurse on each block
+// The dense_sandwich function below implement a BLIS/GotoBLAS-like sandwich
+// product for computing A.T @ diag(d) @ A
+// It works for both C-ordered and Fortran-ordered matrices.
+// It is parallelized to be fast for both narrow and square matrices
+//
+// A good intro to thinking about matrix-multiply optimization is here:
+// https://ocw.mit.edu/courses/electrical-engineering-and-computer-science/6-172-performance-engineering-of-software-systems-fall-2018/lecture-slides/MIT6_172F18_lec1.pdf
+//
+// For more reading, it'd be good to dig into the GotoBLAS and BLIS implementation. 
+// page 3 here has a good summary of the ordered of blocking/loops:
+// http://www.cs.utexas.edu/users/flame/pubs/blis3_ipdps14.pdf
+//
+// The innermost simd loop is parallelized using xsimd and should
+// use the largest vector instructions available on any given machine.
+//
+// There's a bit of added complexity here from the use of Mako templates.
+// It looks scary, but it makes the loop unrolling and generalization across
+// matrix orderings and parallelization schemes much simpler than it would be
+// if implemented directly.
+//
+//
+// Also included is a csr_dense_sandwich function for computing the
+// off-diagonal blocks when using a dense-sparse split matrix. 
 #include "xsimd/xsimd.hpp"
 #include <iostream>
 #include <omp.h>
@@ -69,7 +83,8 @@ namespace xs = xsimd;
             % endfor
         % endfor
 
-        // remainder loop
+        // remainder loop handling the entries that can't be handled in a
+        // simd_size stride
         for (int k = kblocksize; k < kmax - kmin; k++) {
             % for ir in range(IBLOCK):
                 F Xtd${ir} = L[basei${ir} + k];
@@ -88,6 +103,9 @@ namespace xs = xsimd;
         % for ir in range(IBLOCK):
             % for jr in range(JBLOCK):
                 % if kparallel:
+                    // we only need to be careful about parallelism when we're
+                    // parallelizing the k loop. if we're just parallelizing i
+                    // and j, the sum here is safe
                     #pragma omp atomic
                 % endif
                 out[(i + ${ir}) * m + (j + ${jr})] += accum${ir}_${jr};
@@ -216,7 +234,7 @@ ${dense_base_tmpl(False)}
 <%def name="dense_sandwich_tmpl(order)">
 template <typename F>
 void _dense${order}_sandwich(F* X, F* d, F* out,
-        int m, int n, int thresh1d, int parlevel, int kratio, int innerblock) 
+        int m, int n, int thresh1d, int kratio, int innerblock) 
 {
     constexpr std::size_t simd_size = xsimd::simd_type<F>::size;
     constexpr auto alignment = std::align_val_t{simd_size*sizeof(F)};
