@@ -825,7 +825,7 @@ def _cd_solver(
             # we can rewrite to only perform one dot product with the data
             # matrix per loop which is substantially faster
             eta_wd = eta + la * X_dot_d
-            mu_wd = link.inverse(eta + la * X_dot_d)
+            mu_wd = link.inverse(eta_wd)
 
             # TODO - optimize: for Tweedie that isn't one of the special cases
             # (gaussian, poisson, gamma), family.deviance is quite slow! Can we
