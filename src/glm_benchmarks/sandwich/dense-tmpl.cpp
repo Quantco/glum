@@ -215,7 +215,7 @@ ${dense_base_tmpl(False)}
 
 <%def name="dense_sandwich_tmpl(order)">
 template <typename F>
-void _dense_sandwich${order}(F* X, F* d, F* out,
+void _dense${order}_sandwich(F* X, F* d, F* out,
         int m, int n, int thresh1d, int parlevel, int kratio, int innerblock) 
 {
     constexpr std::size_t simd_size = xsimd::simd_type<F>::size;
@@ -255,53 +255,120 @@ ${dense_sandwich_tmpl('C')}
 ${dense_sandwich_tmpl('F')}
 
 
+<%def name="csr_dense_sandwich_tmpl(order)">
 template <typename F>
-void _csr_dense_sandwich(
+void _csr_dense${order}_sandwich(
     F* Adata, int* Aindices, int* Aindptr,
     F* B, F* d, F* out,
     int m, int n, int r) 
 {
     constexpr int simd_size = xsimd::simd_type<F>::size;
+    constexpr auto alignment = std::align_val_t{simd_size*sizeof(F)};
+
+    int kblock = 128;
+    int jblock = 128;
+    F* Rglobal = new (alignment) F[omp_get_max_threads()*kblock*jblock];
 
     #pragma omp parallel
     {
-        F* outtemp = new F[m*r];
-        for (int s = 0; s < m * r; s++) {
-            outtemp[s] = 0.0;
+        int r2 = ceil(((float)r) / ((float)simd_size)) * simd_size;
+        F* outtemp = new (alignment) F[m*r2];
+        for (int i = 0; i < m; i++) {
+            for (int j = 0; j < r; j++) {
+                outtemp[i*r2+j] = 0.0;
+            }
         }
 
         #pragma omp for
-        for (int k = 0; k < n; k++) {
-            int A_idx = Aindptr[k];
-            int A_idx_max = Aindptr[k+1];
-            for (; A_idx < A_idx_max; A_idx++) {
-                int i = Aindices[A_idx];
-                F Q = Adata[A_idx] * d[k];
-                auto Qsimd = xs::set_simd(Q);
-                int j = 0;
-                for (; j < (r / simd_size) * simd_size; j+=simd_size) {
-                    //TODO: look into memory alignment for numpy arrays
-                    auto Bsimd = xs::load_unaligned(&B[k*r+j]);
-                    auto outsimd = xs::load_unaligned(&outtemp[i*r+j]);
-                    outsimd = xs::fma(Qsimd, Bsimd, outsimd);
-                    outsimd.store_unaligned(&outtemp[i*r+j]);
+        for (int kk = 0; kk < n; kk+=kblock) {
+            int kmax = kk + kblock;
+            if (kmax > n) {
+                kmax = n;
+            }
+            for (int jj = 0; jj < r; jj+=jblock) {
+                int jmax = jj + jblock;
+                if (jmax > r) {
+                    jmax = r;
                 }
 
-                // TODO: use a smaller simd type for the remainder? e.g. 8,4,2,1
-                // given that we often a fairly small number of dense columns,
-                // this could have a substantial effect. 4,2,1 is going to be
-                // faster than 4,1,1,1
+                F* R = &Rglobal[omp_get_thread_num()*kblock*jblock];
+                for (int k = kk; k < kmax; k++) {
+                    for (int j = jj; j < jmax; j++) {
+                        %if order == 'C':
+                            F Bv = B[k * r + j];
+                        % else:
+                            F Bv = B[j * n + k];
+                        % endif
+                        R[(k-kk) * jblock + (j-jj)] = d[k] * Bv;
+                    }
+                }
 
-                for (; j < r; j++) {
-                    outtemp[i * r + j] += Q * B[k*r+j];
+                //TODO: try a csc matrix and then flip this inner loop
+                for (int k = kk; k < kmax; k++) {
+                    int A_idx = Aindptr[k];
+                    int A_idx_max = Aindptr[k+1];
+                    % for IBLOCK in [2, 1]:
+                    {
+                        int A_block_idx_end = A_idx + ((A_idx_max - A_idx) / ${IBLOCK}) * ${IBLOCK};
+                        for (; A_idx < A_block_idx_end; A_idx += ${IBLOCK}) {
+                            % for ir in range(IBLOCK):
+                                int i${ir} = Aindices[A_idx + ${ir}];
+                                F Q${ir} = Adata[A_idx + ${ir}];
+                                auto Qsimd${ir} = xs::set_simd(Q${ir});
+                                F* outtempptr${ir} = &outtemp[i${ir}*r2+jj];
+                            % endfor
+
+                            F* Rptrstart = &R[(k-kk)*jblock];
+                            F* Rptr = Rptrstart;
+                            int simd_len = ((jmax - jj) / simd_size) * simd_size;
+                            F* Rptrend = Rptrstart + simd_len;
+                            for (; Rptr < Rptrend; Rptr += simd_size,
+                                    % for ir in range(IBLOCK):
+                                        % if ir == IBLOCK - 1:
+                                        outtempptr${ir} += simd_size
+                                        % else:
+                                        outtempptr${ir} += simd_size,
+                                        % endif
+                                    % endfor
+                                    ) {
+                                auto Bsimd = xs::load_aligned(Rptr);
+                                % for ir in range(IBLOCK):
+                                {
+                                    auto outsimd = xs::load_aligned(outtempptr${ir});
+                                    outsimd = xs::fma(Qsimd${ir}, Bsimd, outsimd);
+                                    outsimd.store_aligned(outtempptr${ir});
+                                }
+                                % endfor
+                            }
+
+                            for (;Rptr < Rptrstart + (jmax - jj); Rptr++, 
+                                    % for ir in range(IBLOCK):
+                                        % if ir == IBLOCK - 1:
+                                        outtempptr${ir}++
+                                        % else:
+                                        outtempptr${ir}++,
+                                        % endif
+                                    % endfor
+                                    ) {
+                                (*outtempptr${ir}) += Q${ir} * (*Rptr);
+                            }
+                        }
+                    }
+                    % endfor
                 }
             }
         }
 
-        for (int s = 0; s < m * r; s++) {
-            #pragma omp atomic
-            out[s] += outtemp[s];
+        for (int i = 0; i < m; i++) {
+            for (int j = 0; j < r; j++) {
+                #pragma omp atomic
+                out[i*r+j] += outtemp[i*r2+j];
+            }
         }
-        delete outtemp;
+        ::operator delete(outtemp, alignment);
     }
 }
+</%def>
+
+${csr_dense_sandwich_tmpl('C')}
+${csr_dense_sandwich_tmpl('F')}
