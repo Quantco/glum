@@ -37,10 +37,13 @@ def h2o_bench(
     use_weights = "weights" in dat.keys()
     if use_weights:
         train_mat = hstack_sparse_or_dense((train_mat, dat["weights"][:, np.newaxis]))
+    if "offset" in dat.keys():
+        train_mat = hstack_sparse_or_dense((train_mat, dat["offset"][:, np.newaxis]))
 
     train_h2o = h2o.H2OFrame(train_mat)
 
-    tweedie = distribution == "tweedie_p=1.5"
+    tweedie = "tweedie" in distribution
+
     model_args = dict(
         model_id="glm",
         # not sure if this is right
@@ -52,8 +55,13 @@ def h2o_bench(
         objective_epsilon=benchmark_convergence_tolerance,
         beta_epsilon=benchmark_convergence_tolerance,
         gradient_epsilon=benchmark_convergence_tolerance,
-        tweedie_variance_power=1.5 if tweedie else None,
     )
+    if tweedie:
+        p = float(distribution.split("=")[-1])
+        model_args["tweedie_variance_power"] = p
+        model_args["tweedie_link_power"] = 1 if p == 0 else 0
+    if "gamma" in distribution:
+        model_args["link"] = "Log"
 
     if use_weights:
         train_args = dict(
@@ -61,6 +69,13 @@ def h2o_bench(
             y=train_h2o.col_names[-2],
             training_frame=train_h2o,
             weights_column=train_h2o.col_names[-1],
+        )
+    elif "offset" in dat.keys():
+        train_args = dict(
+            x=train_h2o.col_names[:-2],
+            y=train_h2o.col_names[-2],
+            training_frame=train_h2o,
+            offset_column=train_h2o.col_names[-1],
         )
     else:
         train_args = dict(
@@ -78,7 +93,9 @@ def h2o_bench(
         [
             # h2o automatically removes zero-variance columns; impute to 1
             m.coef().get(f"C{i + 1}", 0)
-            for i in range(train_mat.shape[1] - (2 if use_weights else 1))
+            for i in range(
+                train_mat.shape[1] - (2 if use_weights or "offset" in dat.keys() else 1)
+            )
         ]
     )
 
