@@ -5,16 +5,20 @@ import numpy as np
 import pandas as pd
 from scipy import sparse as sps
 
-from glm_benchmarks.problems import load_narrow_insurance_data, load_wide_insurance_data
+from glm_benchmarks.problems import (
+    generate_narrow_insurance_dataset,
+    generate_wide_insurance_dataset,
+    load_data,
+)
 from glm_benchmarks.sandwich.sandwich import dense_sandwich, sparse_sandwich
 from glm_benchmarks.scaled_spmat.split_matrix import SplitMatrix
 
 
-def load_data(which: str, n_rows: int) -> Tuple[Any, np.ndarray]:
+def load(which: str, n_rows: int) -> Tuple[Any, np.ndarray]:
     if which == "narrow":
-        x = sps.csc_matrix(load_narrow_insurance_data(n_rows)["X"])
+        x = sps.csc_matrix(load_data(generate_narrow_insurance_dataset, n_rows)["X"])
     else:
-        x = sps.csc_matrix(load_wide_insurance_data(n_rows)["X"])
+        x = sps.csc_matrix(load_data(generate_wide_insurance_dataset, n_rows)["X"])
     np.random.seed(0)
     d = np.random.uniform(0, 1, n_rows)
     return x, d
@@ -89,7 +93,7 @@ def main() -> None:
     ]  # , int(2e6), int(4e6), int(10e6)]
     benchmarks = []
 
-    x, d = load_data("narrow", row_counts[-1])
+    x, d = load("narrow", row_counts[-1])
 
     for i, n_rows in enumerate(row_counts):
         for dtype in [np.float32, np.float64]:
