@@ -49,8 +49,6 @@ class MKLSparseMatrix(sps.csc_matrix):
                 np.float64 or np.float32. This matrix is of type {self.dtype},
                 B is of type {B.dtype}, while d is of type {d.dtype}."""
             )
-        if not B.flags["C_CONTIGUOUS"]:
-            raise TypeError("""B is required to be a C-array.""")
         self._check_csr()
         return csr_dense_sandwich(self.x_csr, B, d)
 
