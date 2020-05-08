@@ -358,6 +358,9 @@ def _irls_solver(
 
     converged = False
     n_iter = 0
+    diagnostics = []
+    iteration_start = time.time()
+    old_coef = coef
     while n_iter < max_iter:
         n_iter += 1
         # coef_old not used so far.
@@ -373,7 +376,10 @@ def _irls_solver(
         )
         # solve A*coef = b
         # A = X' W X + P2, b = X' W z
+        old_coef = coef
         coef = _irls_step(X, W, P2, z, fit_intercept=fit_intercept)
+        step = coef - old_coef
+
         # updated linear predictor
         # do it here for updated values for tolerance
         eta_no_offset = _safe_lin_pred(X, coef)
@@ -397,18 +403,46 @@ def _irls_solver(
             gradient += P2 @ coef[idx:]
         if fit_intercept:
             gradient = np.concatenate(([-temp.sum()], gradient))
-        if np.max(np.abs(gradient)) <= tol:
+
+        gradient_linf = np.max(np.abs(gradient))
+        step_linf = np.max(np.abs(step))
+
+        iteration_runtime = time.time() - iteration_start
+        coef_l1 = np.sum(np.abs(coef))
+        coef_l2 = np.linalg.norm(coef)
+        step_l2 = np.linalg.norm(step)
+        diagnostics.append(
+            [
+                gradient_linf,
+                coef_l1,
+                coef_l2,
+                step_l2,
+                n_iter,
+                -1,
+                iteration_runtime,
+                coef[0],
+            ]
+        )
+        iteration_start = time.time()
+
+        if gradient_linf <= tol:
             converged = True
             break
 
     if not converged:
-        warnings.warn(
-            "irls failed to converge. Increase the number "
-            "of iterations (currently {})".format(max_iter),
-            ConvergenceWarning,
-        )
+        if step_linf <= tol:
+            warnings.warn(
+                "irls may have failed to converge. The gradient remains larger than tol, but the step size is less than tol. This may indicate a poorly conditioned problem.",
+                ConvergenceWarning,
+            )
+        else:
+            warnings.warn(
+                "irls failed to converge. Increase the number "
+                "of iterations (currently {})".format(max_iter),
+                ConvergenceWarning,
+            )
 
-    return coef, n_iter
+    return coef, n_iter, diagnostics
 
 
 def _cd_cycle(
@@ -842,7 +876,21 @@ def _cd_solver(
         coef += la * d
 
         iteration_runtime = time.time() - iteration_start
-        diagnostics.append([inner_tol, n_iter, n_cycles, iteration_runtime, coef[0]])
+        coef_l1 = np.sum(np.abs(coef))
+        coef_l2 = np.linalg.norm(coef)
+        step_l2 = np.linalg.norm(d)
+        diagnostics.append(
+            [
+                inner_tol,
+                coef_l1,
+                coef_l2,
+                step_l2,
+                n_iter,
+                n_cycles,
+                iteration_runtime,
+                coef[0],
+            ]
+        )
         iteration_start = time.time()
 
         # calculate eta, mu, score, Fisher matrix for next iteration
@@ -1629,6 +1677,9 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
 
         solver = self.solver
         if self.solver == "auto":
+            if self.family == "normal":
+                max_iter = 1
+
             if self.l1_ratio == 0:
                 solver = "irls"
             else:
@@ -1794,7 +1845,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         # Note: we already set P2 = l2*P2, see above
         # Note: we already symmetrized P2 = 1/2 (P2 + P2')
         if solver == "irls":
-            coef, self.n_iter_ = _irls_solver(
+            coef, self.n_iter_, self.diagnostics = _irls_solver(
                 coef=coef,
                 X=X,
                 y=y,
@@ -1803,7 +1854,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 fit_intercept=self.fit_intercept,
                 family=self._family_instance,
                 link=self._link_instance,
-                max_iter=self.max_iter,
+                max_iter=max_iter,
                 tol=self.tol,
                 offset=offset,
             )
@@ -1833,7 +1884,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 fprime=None,
                 iprint=(self.verbose > 0) - 1,
                 pgtol=self.tol,
-                maxiter=self.max_iter,
+                maxiter=max_iter,
                 factr=1e3,
             )
             if info["warnflag"] == 1:
@@ -1860,7 +1911,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 fit_intercept=self.fit_intercept,
                 family=self._family_instance,
                 link=self._link_instance,
-                max_iter=self.max_iter,
+                max_iter=max_iter,
                 tol=self.tol,
                 selection=self.selection,
                 random_state=random_state,
@@ -1900,7 +1951,16 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
 
             print(
                 pd.DataFrame(
-                    columns=["inner_tol", "n_iter", "n_cycles", "runtime", "intercept"],
+                    columns=[
+                        "convergence",
+                        "L1(coef)",
+                        "L2(coef)",
+                        "L2(step)",
+                        "n_iter",
+                        "n_cycles",
+                        "runtime",
+                        "intercept",
+                    ],
                     data=self.diagnostics,
                 ).set_index("n_iter", drop=True)
             )
