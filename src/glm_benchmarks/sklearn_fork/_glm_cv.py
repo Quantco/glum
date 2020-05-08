@@ -9,7 +9,9 @@ from sklearn.model_selection._split import check_cv
 from ._distribution import ExponentialDispersionModel
 from ._glm import (
     GeneralizedLinearRegressorBase,
+    get_family,
     initialize_start_params,
+    is_pos_semidef,
     set_up_and_check_fit_args,
     setup_p1,
     setup_p2,
@@ -211,6 +213,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
                     self.l1_ratio
                 )
             )
+        super()._validate_hyperparameters()
 
     def fit(self, X, y, sample_weight=None, offset=None):
         # TODO:
@@ -263,58 +266,72 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
 
         for i, l1 in enumerate(l1_ratio):
             for k, (train_idx, test_idx) in enumerate(cv.split(X)):
-                # # Reset model - don't warm start
-                # self.set_params(
-                #     warm_start=False, l1_ratio=l1
-                # )
+                x_train, y_train, w_train = (
+                    X[train_idx, :],
+                    y[train_idx],
+                    weights[train_idx],
+                )
+                x_test, y_test, w_test = (
+                    X[test_idx, :],
+                    y[test_idx],
+                    weights[test_idx],
+                )
 
-                # x_train, y_train, w_train = (
-                #     X[train_idx, :],
-                #     y[train_idx],
-                #     weights[train_idx],
-                # )
-                # x_test, y_test, w_test = (
-                #     X[test_idx, :],
-                #     y[test_idx],
-                #     weights[test_idx],
-                # )
+                if self._center_predictors:
+                    x_train, col_means, col_stds = x_train.standardize(
+                        w_train, self.scale_predictors
+                    )
+                else:
+                    col_means, col_stds = None, None
 
-                # if self._center_predictors:
-                #     x_train, col_means, col_stds = x_train.standardize(w_train, self.scale_predictors)
-                # else:
-                #     col_means, col_stds = None, None
+                if offset is not None:
+                    offset_train = offset[train_idx]
+                    offset_test = offset[test_idx]
+                else:
+                    offset_train, offset_test = None, None
 
-                # if offset is not None:
-                #     offset_train = offset[train_idx]
-                #     offset_test = offset[test_idx]
-                # else:
-                #     offset_train, offset_test = None, None
-
-                # def _get_deviance():
-                #     return get_family(self.family).deviance(
-                #         y_test,
-                #         self.predict(x_test, offset=offset_test),
-                #         weights=w_test,
-                #     )
+                def _get_deviance():
+                    return get_family(self.family).deviance(
+                        y_test,
+                        self.predict(x_test, offset=offset_test),
+                        weights=w_test,
+                    )
 
                 for j, alpha in enumerate(alphas[i]):
                     self.coef_ = np.zeros(X.shape[1])
                     self.intercept_ = y.mean()
-                    pass
-                    # P1 = setup_p1(self.P1, X, X.dtype, alpha, l1)
-                    # P2 = setup_p2(self.P2, X, _stype, X.dtype, alpha, l1)
+                    P1 = setup_p1(self.P1, X, X.dtype, alpha, l1)
+                    P2 = setup_p2(self.P2, X, _stype, X.dtype, alpha, l1)
+                    if self.check_input:
+                        # check if P2 is positive semidefinite
+                        if not isinstance(self.P2, str):  # self.P2 != 'identity'
 
-                    # if j == 0:
-                    #     coef = self.get_start_coef(self.start_params, x_train, y_train,
-                    #                                w_train, P1, P2, offset_train,
-                    #                                col_means, col_stds)
-                    # else:
-                    #     # self.coef_ should have been set by self.solve
-                    #     coef = self.coef_
+                            if not is_pos_semidef(P2):
+                                if P2.ndim == 1 or P2.shape[0] == 1:
+                                    error = "1d array P2 must not have negative values."
+                                else:
+                                    error = "P2 must be positive semi-definite."
+                                raise ValueError(error)
+                        # TODO: if alpha=0 check that X is not rank deficient
+                        # TODO: what else to check?
 
-                    # self.solve(x_train, y_train, w_train, P2, P1, coef,
-                    #            offset_train)
-                    # self.deviance_path_[i, j, k] = _get_deviance()
+                    if j == 0:
+                        coef = self.get_start_coef(
+                            self.start_params,
+                            x_train,
+                            y_train,
+                            w_train,
+                            P1,
+                            P2,
+                            offset_train,
+                            col_means,
+                            col_stds,
+                        )
+
+                    coef = self.solve(
+                        x_train, y_train, w_train, P2, P1, coef, offset_train
+                    )
+                    self.deviance_path_[i, j, k] = _get_deviance()
 
         avg_deviance = self.deviance_path_.mean(2)
         best_idx = np.argmin(avg_deviance)
@@ -346,8 +363,5 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         )
         self.solve(X, y, weights, P2, P1, coef, offset)
 
-        X = self.tear_down_from_fit(X, y, col_means, col_stds, weights, weights_sum)
-
-        print("score")
-        print(self.score(X, y))
+        self.tear_down_from_fit(X, y, col_means, col_stds, weights, weights_sum)
         return self
