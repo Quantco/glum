@@ -4,13 +4,19 @@ from typing import Dict, Union
 import numpy as np
 from scipy import sparse as sps
 
-from .sklearn_fork import GeneralizedLinearRegressor, TweedieDistribution
+from .sklearn_fork import (
+    GeneralizedLinearRegressor,
+    GeneralizedLinearRegressorCV,
+    TweedieDistribution,
+)
 from .util import benchmark_convergence_tolerance, runtime
 
 random_seed = 110
 
 
-def build_and_fit(model_args, fit_args):
+def build_and_fit(model_args, fit_args, cv: bool):
+    if cv:
+        return GeneralizedLinearRegressorCV(**model_args).fit(**fit_args)
     return GeneralizedLinearRegressor(**model_args).fit(**fit_args)
 
 
@@ -19,6 +25,7 @@ def sklearn_fork_bench(
     distribution: str,
     alpha: float,
     l1_ratio: float,
+    cv=True,
 ):
     result = dict()
 
@@ -38,17 +45,18 @@ def sklearn_fork_bench(
 
     model_args = dict(
         family=family,
-        alpha=alpha,
-        l1_ratio=l1_ratio,
         max_iter=40,
         random_state=random_seed,
         copy_X=False,
         selection="random",
         tol=benchmark_convergence_tolerance,
     )
+    if not cv:
+        model_args["alpha"] = alpha
+        model_args["l1_ratio"] = l1_ratio
 
     try:
-        result["runtime"], m = runtime(build_and_fit, model_args, fit_args)
+        result["runtime"], m = runtime(build_and_fit, model_args, fit_args, cv)
     except ValueError as e:
         print(f"Problem failed with this error: {e}")
         return result
@@ -57,7 +65,8 @@ def sklearn_fork_bench(
     result["coef"] = m.coef_
     result["n_iter"] = m.n_iter_
 
-    m.report_diagnostics()
+    if not cv:
+        m.report_diagnostics()
     return result
 
 
