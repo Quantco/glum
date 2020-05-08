@@ -8,10 +8,11 @@ from sklearn.model_selection._split import check_cv
 
 from ._distribution import ExponentialDispersionModel
 from ._glm import (
-    GeneralizedLinearRegressor,
     GeneralizedLinearRegressorBase,
-    get_family,
+    initialize_start_params,
     set_up_and_check_fit_args,
+    setup_p1,
+    setup_p2,
 )
 from ._link import Link
 
@@ -215,10 +216,12 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         # TODO:
         # 1) stuff from other fit
         # 2) cv stuff
-        self._validate_hyperparameters()
-        X, y, sample_weight, offset = set_up_and_check_fit_args(
+
+        X, y, weights, offset, weights_sum = set_up_and_check_fit_args(
             X, y, sample_weight, offset, solver=self.solver, copy_X=self.copy_X
         )
+
+        self.set_up_for_fit(X, y)
 
         l1_ratio = np.atleast_1d(self.l1_ratio)
 
@@ -253,86 +256,98 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         self.deviance_path_ = np.full(
             (len(l1_ratio), len(alphas[0]), cv.get_n_splits()), np.nan
         )
-
-        model = GeneralizedLinearRegressor(
-            self.alphas_[0],
-            l1_ratio[0],
-            self.P1,
-            self.P2,
-            self.fit_intercept,
-            self.family,
-            self.link,
-            self.fit_dispersion,
-            self.solver,
-            self.max_iter,
-            self.tol,
-            self.warm_start,
-            self.start_params,
-            self.selection,
-            self.random_state,
-            self.diag_fisher,
-            self.copy_X,
-            self.check_input,
-            self.verbose,
-            self.scale_predictors,
-            fit_args_reformat="unsafe",
-        )
+        if self._solver == "cd":
+            _stype = ["csc"]
+        else:
+            _stype = ["csc", "csr"]
 
         for i, l1 in enumerate(l1_ratio):
             for k, (train_idx, test_idx) in enumerate(cv.split(X)):
-                # Reset model - don't warm start
-                model.set_params(
-                    warm_start=False, check_input=self.check_input, l1_ratio=l1
-                )
+                # # Reset model - don't warm start
+                # self.set_params(
+                #     warm_start=False, l1_ratio=l1
+                # )
 
-                x_train, y_train, w_train = (
-                    X[train_idx, :],
-                    y[train_idx],
-                    sample_weight[train_idx],
-                )
-                x_test, y_test, w_test = (
-                    X[test_idx, :],
-                    y[test_idx],
-                    sample_weight[test_idx],
-                )
-                if offset is not None:
-                    offset_train = offset[train_idx]
-                    offset_test = offset[test_idx]
-                else:
-                    offset_train, offset_test = None, None
+                # x_train, y_train, w_train = (
+                #     X[train_idx, :],
+                #     y[train_idx],
+                #     weights[train_idx],
+                # )
+                # x_test, y_test, w_test = (
+                #     X[test_idx, :],
+                #     y[test_idx],
+                #     weights[test_idx],
+                # )
 
-                def _get_deviance():
-                    return get_family(self.family).deviance(
-                        y_test,
-                        model.predict(x_test, offset=offset_test),
-                        weights=w_test,
-                    )
+                # if self._center_predictors:
+                #     x_train, col_means, col_stds = x_train.standardize(w_train, self.scale_predictors)
+                # else:
+                #     col_means, col_stds = None, None
+
+                # if offset is not None:
+                #     offset_train = offset[train_idx]
+                #     offset_test = offset[test_idx]
+                # else:
+                #     offset_train, offset_test = None, None
+
+                # def _get_deviance():
+                #     return get_family(self.family).deviance(
+                #         y_test,
+                #         self.predict(x_test, offset=offset_test),
+                #         weights=w_test,
+                #     )
 
                 for j, alpha in enumerate(alphas[i]):
-                    model.set_params(alpha=alpha)
-                    if j > 0:
-                        model.set_params(warm_start=True, check_input=False)
-                    model.fit(x_train, y_train, w_train, offset_train)
-                    self.deviance_path_[i, j, k] = _get_deviance()
+                    self.coef_ = np.zeros(X.shape[1])
+                    self.intercept_ = y.mean()
+                    pass
+                    # P1 = setup_p1(self.P1, X, X.dtype, alpha, l1)
+                    # P2 = setup_p2(self.P2, X, _stype, X.dtype, alpha, l1)
+
+                    # if j == 0:
+                    #     coef = self.get_start_coef(self.start_params, x_train, y_train,
+                    #                                w_train, P1, P2, offset_train,
+                    #                                col_means, col_stds)
+                    # else:
+                    #     # self.coef_ should have been set by self.solve
+                    #     coef = self.coef_
+
+                    # self.solve(x_train, y_train, w_train, P2, P1, coef,
+                    #            offset_train)
+                    # self.deviance_path_[i, j, k] = _get_deviance()
 
         avg_deviance = self.deviance_path_.mean(2)
         best_idx = np.argmin(avg_deviance)
-        # TODO: simplify
+        # # TODO: simplify
         l1_ratios = np.repeat(l1_ratio[:, None], len(alphas[0]), axis=1)
-        assert l1_ratios.shape == avg_deviance.shape
-        assert np.asarray(alphas).shape == avg_deviance.shape
+        # assert l1_ratios.shape == avg_deviance.shape
+        # assert np.asarray(alphas).shape == avg_deviance.shape
         self.l1_ratio_ = l1_ratios.flatten()[best_idx]
         self.alpha_ = np.asarray(alphas).flatten()[best_idx]
 
+        P1 = setup_p1(self.P1, X, X.dtype, self.alpha_, self.l1_ratio_)
+        P2 = setup_p2(self.P2, X, _stype, X.dtype, self.alpha_, self.l1_ratio_)
+
         # Refit with full data and best alpha and lambda
-        model.set_params(
-            warm_start=self.warm_start,
-            check_input=self.check_input,
-            alpha=self.alpha_,
-            l1_ratio=self.l1_ratio_,
+        if self._center_predictors:
+            X, col_means, col_stds = X.standardize(weights, self.scale_predictors)
+        else:
+            col_means, col_stds = None, None
+
+        start_params = initialize_start_params(
+            self.start_params,
+            n_cols=X.shape[1],
+            fit_intercept=self.fit_intercept,
+            _dtype=X.dtype,
         )
-        model.fit(X, y, sample_weight, offset)
-        self.intercept_ = model.intercept_
-        self.coef_ = model.coef_
-        self.n_iter_ = model.n_iter_
+
+        coef = self.get_start_coef(
+            start_params, X, y, weights, P1, P2, offset, col_means, col_stds
+        )
+        self.solve(X, y, weights, P2, P1, coef, offset)
+
+        X = self.tear_down_from_fit(X, y, col_means, col_stds, weights, weights_sum)
+
+        print("score")
+        print(self.score(X, y))
         return self
