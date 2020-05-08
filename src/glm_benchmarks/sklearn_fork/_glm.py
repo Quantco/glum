@@ -627,8 +627,9 @@ def _cd_solver(
     family: ExponentialDispersionModel,
     link: Link,
     max_iter: int = 100,
-    max_inner_iter: int = 1000,
+    max_inner_iter: int = 10000,
     tol: float = 1e-4,
+    fixed_inner_tol: float = None,
     selection="cyclic ",
     random_state=None,
     diag_fisher=False,
@@ -785,19 +786,23 @@ def _cd_solver(
     inner_tol_ratio = 0.1
 
     def calc_inner_tol(mn_subgrad_norm):
-        # Another potential rule limits the inner tol to be no smaller than tol
-        # return max(mn_subgrad_norm * inner_tol_ratio, tol)
-        return mn_subgrad_norm * inner_tol_ratio
+        if fixed_inner_tol is None:
+            # Another potential rule limits the inner tol to be no smaller than tol
+            # return max(mn_subgrad_norm * inner_tol_ratio, tol)
+            return mn_subgrad_norm * inner_tol_ratio
+        else:
+            return fixed_inner_tol
 
-    # initial stopping tolerance of inner loop
-    # use L1-norm of minimum of norm of subgradient of F
-    inner_tol = calc_inner_tol(calc_mn_subgrad_norm())
+    mn_subgrad_norm = calc_mn_subgrad_norm()
 
     Fw = None
-
     diagnostics = []
     # outer loop
     while n_iter < max_iter:
+        # stopping tolerance of inner loop
+        # use L1-norm of minimum of norm of subgradient of F
+        inner_tol = calc_inner_tol(mn_subgrad_norm)
+
         n_iter += 1
         # initialize search direction d (to be optimized) with zero
         d.fill(0)
@@ -875,24 +880,6 @@ def _cd_solver(
         # update coefficients
         coef += la * d
 
-        iteration_runtime = time.time() - iteration_start
-        coef_l1 = np.sum(np.abs(coef))
-        coef_l2 = np.linalg.norm(coef)
-        step_l2 = np.linalg.norm(d)
-        diagnostics.append(
-            [
-                inner_tol,
-                coef_l1,
-                coef_l2,
-                step_l2,
-                n_iter,
-                n_cycles,
-                iteration_runtime,
-                coef[0],
-            ]
-        )
-        iteration_start = time.time()
-
         # calculate eta, mu, score, Fisher matrix for next iteration
         eta, mu, score, fisher = family._eta_mu_score_fisher(
             coef=coef,
@@ -905,17 +892,34 @@ def _cd_solver(
             offset=offset,
         )
 
+        mn_subgrad_norm = calc_mn_subgrad_norm()
+
+        iteration_runtime = time.time() - iteration_start
+        coef_l1 = np.sum(np.abs(coef))
+        coef_l2 = np.linalg.norm(coef)
+        step_l2 = np.linalg.norm(d)
+        diagnostics.append(
+            [
+                mn_subgrad_norm,
+                coef_l1,
+                coef_l2,
+                step_l2,
+                n_iter,
+                n_cycles,
+                iteration_runtime,
+                coef[0],
+            ]
+        )
+        iteration_start = time.time()
+
         # stopping criterion for outer loop
         # sum_i(|minimum-norm of subgrad of F(w)_i|)
         # fp_wP2 = f'(w) + w*P2
         # Note: eta, mu and score are already updated
         # this also updates the inner tolerance for the next loop!
-        mn_subgrad_norm = calc_mn_subgrad_norm()
         if mn_subgrad_norm <= tol:
             converged = True
             break
-
-        inner_tol = calc_inner_tol(mn_subgrad_norm)
         # end of outer loop
 
     if not converged:
@@ -1677,13 +1681,22 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
 
         solver = self.solver
         if self.solver == "auto":
-            if self.family == "normal":
-                max_iter = 1
-
             if self.l1_ratio == 0:
                 solver = "irls"
             else:
                 solver = "cd"
+
+        # All three solvers: IRLS, IRLS-CD, L-BFGS should solve a gaussian
+        # problem in one step! Also, the CD solver should use the outer
+        # tolerance for the inner CD loop since there's no benefit from
+        # starting with a looser tolerance if we're only doing one IRLS
+        # iteration.
+        max_iter = self.max_iter
+        fixed_inner_tol = None
+        if self.family == "normal":
+            max_iter = 1
+            if solver == "cd":
+                fixed_inner_tol = self.tol
 
         if self.alpha > 0 and self.l1_ratio > 0 and solver not in ["cd"]:
             raise ValueError(
@@ -1913,6 +1926,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 link=self._link_instance,
                 max_iter=max_iter,
                 tol=self.tol,
+                fixed_inner_tol=fixed_inner_tol,
                 selection=self.selection,
                 random_state=random_state,
                 diag_fisher=self.diag_fisher,
@@ -1941,6 +1955,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         if self.fit_dispersion in ["chisqr", "deviance"]:
             # attention because of rescaling of weights
             self.dispersion_ = self.estimate_phi(X, y, weights) * weights_sum
+        print(self.intercept_)
 
         return self
 
