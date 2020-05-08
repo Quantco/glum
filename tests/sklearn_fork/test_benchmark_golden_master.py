@@ -1,6 +1,5 @@
 import argparse
-import os
-import pickle
+import json
 import warnings
 
 import numpy as np
@@ -11,6 +10,13 @@ from glm_benchmarks.bench_sklearn_fork import sklearn_fork_bench
 from glm_benchmarks.main import execute_problem_library
 from glm_benchmarks.problems import get_all_problems
 
+bench_cfg = dict(
+    num_rows=10000,
+    regularization_strength=0.1,
+    storage="dense",
+    print_diagnostics=False,
+)
+
 do_not_test = [
     "wide_insurance_weights_l2_gamma",
     "wide_insurance_no_weights_l2_gamma",
@@ -18,21 +24,12 @@ do_not_test = [
     "wide_insurance_weights_l2_tweedie_p=1.5",
     "wide_insurance_no_weights_l2_tweedie_p=1.5",
     "wide_insurance_offset_l2_tweedie_p=1.5",
-    "wide_insurance_weights_net_poisson",
-    "wide_insurance_no_weights_net_poisson",
-    "wide_insurance_offset_net_poisson",
     "wide_insurance_weights_net_gamma",
     "wide_insurance_no_weights_net_gamma",
     "wide_insurance_offset_net_gamma",
     "wide_insurance_weights_net_tweedie_p=1.5",
     "wide_insurance_no_weights_net_tweedie_p=1.5",
     "wide_insurance_offset_net_tweedie_p=1.5",
-    "wide_insurance_weights_lasso_gaussian",
-    "wide_insurance_no_weights_lasso_gaussian",
-    "wide_insurance_offset_lasso_gaussian",
-    "wide_insurance_weights_lasso_poisson",
-    "wide_insurance_no_weights_lasso_poisson",
-    "wide_insurance_offset_lasso_poisson",
     "wide_insurance_weights_lasso_gamma",
     "wide_insurance_no_weights_lasso_gamma",
     "wide_insurance_offset_lasso_gamma",
@@ -46,21 +43,24 @@ all_test_problems = {
 }
 
 
+@pytest.fixture
+def bench_cfg_fix():
+    return bench_cfg
+
+
+@pytest.fixture
+def expected_all():
+    with open(git_root("golden_master/benchmark_gm.json"), "r") as fh:
+        return json.load(fh)
+
+
 @pytest.mark.parametrize(
     ["Pn", "P"], all_test_problems.items(), ids=all_test_problems.keys()
 )
-def test_gm_benchmarks(Pn, P):
-    result = execute_problem_library(
-        P,
-        sklearn_fork_bench,
-        num_rows=10000,
-        storage="dense",
-        print_diagnostics=False,
-        regularization_strength=0.1,
-    )
+def test_gm_benchmarks(Pn, P, bench_cfg_fix, expected_all):
+    result = execute_problem_library(P, sklearn_fork_bench, **bench_cfg_fix)
 
-    with open(git_root(f"golden_master/benchmarks_gm/{Pn}.pkl"), "rb") as fh:
-        expected = pickle.load(fh)
+    expected = expected_all[Pn]
 
     for thing_to_test in ["intercept", "coef"]:
         np.testing.assert_allclose(
@@ -69,29 +69,30 @@ def test_gm_benchmarks(Pn, P):
 
 
 def run_and_store_golden_master(overwrite=False):
+    try:
+        with open(git_root("golden_master/benchmark_gm.json"), "r") as fh:
+            gm_dict = json.load(fh)
+    except FileNotFoundError:
+        gm_dict = dict()
+
     for Pn, P in get_all_problems().items():
         if Pn in do_not_test:
             warnings.warn(f"Skipping {Pn} because it's not converging.")
             continue
 
-        if os.path.exists(git_root(f"golden_master/benchmarks_gm/{Pn}.pkl")):
-            if not overwrite:
-                warnings.warn("File exists and cannot overwrite. Skipping")
-                continue
+        if Pn in gm_dict.keys():
+            if overwrite:
+                warnings.warn("Overwriting existing result")
             else:
-                warnings.warn("Overwriting existing file")
+                warnings.warn("Result exists and cannot overwrite. Skipping")
+                continue
 
-        res = execute_problem_library(
-            P,
-            sklearn_fork_bench,
-            num_rows=10000,
-            storage="dense",
-            print_diagnostics=False,
-            regularization_strength=0.1,
-        )
+        res = execute_problem_library(P, sklearn_fork_bench, **bench_cfg)
 
-        with open(git_root(f"golden_master/benchmarks_gm/{Pn}.pkl"), "wb") as fh:
-            pickle.dump(res, fh)
+        gm_dict[Pn] = dict(coef=res["coef"].tolist(), intercept=res["intercept"],)
+
+    with open(git_root("golden_master/benchmark_gm.json"), "w") as fh:
+        json.dump(gm_dict, fh, indent=2)
 
 
 if __name__ == "__main__":

@@ -20,6 +20,7 @@ def sklearn_fork_bench(
     alpha: float,
     l1_ratio: float,
     print_diagnostics: bool = True,
+    model_kwargs: dict = {},
 ):
     result = dict()
 
@@ -41,14 +42,13 @@ def sklearn_fork_bench(
         family=family,
         alpha=alpha,
         l1_ratio=l1_ratio,
-        max_iter=30,
+        max_iter=40,
         random_state=random_seed,
-        start_params="zero",
-        solver="cd",
         copy_X=False,
         selection="random",
         tol=benchmark_convergence_tolerance,
     )
+    model_args.update(model_kwargs)
 
     try:
         result["runtime"], m = runtime(build_and_fit, model_args, fit_args)
