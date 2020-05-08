@@ -1355,6 +1355,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         Must be run after running set_up_for_fit and before running tear_down_from_fit.
         Sets self.coef_ and self.intercept_.
         """
+        # Check inputs
+        assert len(coef) == X.shape[1] + int(self.fit_intercept)
+
         # 4.1 IRLS ############################################################
         # Note: we already set P2 = l2*P2, see above
         # Note: we already symmetrized P2 = 1/2 (P2 + P2')
@@ -2154,7 +2157,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
                     else:
                         error = "P2 must be positive semi-definite."
                     raise ValueError(error)
-
             # TODO: if alpha=0 check that X is not rank deficient
             # TODO: what else to check?
 
