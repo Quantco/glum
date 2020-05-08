@@ -948,15 +948,13 @@ def get_link(link: Union[str, Link], family: ExponentialDispersionModel) -> Link
     )
 
 
-def setup_penalties(
+def setup_p1(
     P1: Union[str, np.ndarray],
-    P2: Union[str, np.ndarray],
     X: Union[np.ndarray, sparse.spmatrix],
-    _stype,
     _dtype,
     alpha: float,
     l1_ratio: float,
-) -> Tuple[np.ndarray, Union[np.ndarray, sparse.spmatrix]]:
+) -> np.ndarray:
     n_features = X.shape[1]
     if isinstance(P1, str) and P1 == "identity":
         P1 = np.ones(n_features, dtype=_dtype)
@@ -976,6 +974,22 @@ def setup_penalties(
                 "got (P1.shape[0]={}), "
                 "needed (X.shape[1]={}).".format(P1.shape[0], n_features)
             )
+
+    # P1 and P2 are now for sure copies
+    P1 = alpha * l1_ratio * P1
+    return P1
+
+
+def setup_p2(
+    P2: Union[str, np.ndarray],
+    X: Union[np.ndarray, sparse.spmatrix],
+    _stype,
+    _dtype,
+    alpha: float,
+    l1_ratio: float,
+) -> Union[np.ndarray, sparse.spmatrix]:
+    n_features = X.shape[1]
+
     # If X is sparse, make P2 sparse, too.
     if isinstance(P2, str) and P2 == "identity":
         if sparse.issparse(X):
@@ -1017,11 +1031,8 @@ def setup_penalties(
                 )
             )
 
-    l1 = alpha * l1_ratio
-    l2 = alpha * (1 - l1_ratio)
     # P1 and P2 are now for sure copies
-    P1 = l1 * P1
-    P2 = l2 * P2
+    P2 = alpha * (1 - l1_ratio) * P2
     # one only ever needs the symmetrized L2 penalty matrix 1/2 (P2 + P2')
     # reason: w' P2 w = (w' P2 w)', i.e. it is symmetric
     if P2.ndim == 2:
@@ -1032,7 +1043,7 @@ def setup_penalties(
                 P2 = 0.5 * (P2 + P2.transpose()).tocsr()
         else:
             P2 = 0.5 * (P2 + P2.T)
-    return P1, P2
+    return P2
 
 
 def initialize_start_params(
@@ -1153,6 +1164,286 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self.check_input = check_input
         self.verbose = verbose
         self.scale_predictors = scale_predictors
+
+    def _guess_start_params(
+        self,
+        y: np.ndarray,
+        weights: np.ndarray,
+        solver: str,
+        X,
+        P1,
+        P2,
+        random_state,
+        offset: np.ndarray = None,
+    ) -> np.ndarray:
+        """
+        Set mu=starting_mu of the family and do one Newton step
+        If solver=cd use cd, else irls
+        """
+        n_features = X.shape[1]
+        family = get_family(self.family)
+        link = get_link(self.link, family)
+        mu = family.starting_mu(y, weights=weights, offset=offset, link=link)
+        eta = link.link(mu)  # linear predictor
+        if solver in ["cd", "lbfgs"]:
+            # see function _cd_solver
+            sigma_inv = 1 / family.variance(mu, phi=1, weights=weights)
+            d1 = link.inverse_derivative(eta)
+            temp = sigma_inv * d1 * (y - mu)
+            if self.fit_intercept:
+                score = np.concatenate(([temp.sum()], temp @ X))
+            else:
+                score = temp @ X  # same as X.T @ temp
+
+            d2_sigma_inv = d1 * d1 * sigma_inv
+            diag_fisher = self.diag_fisher
+            if diag_fisher:
+                fisher = d2_sigma_inv
+            else:
+                fisher = _safe_sandwich_dot(X, d2_sigma_inv, self.fit_intercept)
+            # set up space for search direction d for inner loop
+            if self.fit_intercept:
+                zero = np.zeros(n_features + 1, dtype=X.dtype)
+            else:
+                zero = np.zeros(n_features, dtype=X.dtype)
+            # initial stopping tolerance of inner loop
+            # use L1-norm of minimum of norm of subgradient of F
+            # use less restrictive tolerance for initial guess
+            inner_tol = 4 * linalg.norm(
+                _min_norm_sugrad(coef=zero, grad=-score, P2=P2, P1=P1), ord=1
+            )
+
+            # just one outer loop = Newton step
+            n_cycles = 0
+            coef, coef_P2, n_cycles, inner_tol = _cd_cycle(
+                zero,
+                X,
+                zero,
+                score,
+                fisher,
+                P1,
+                P2,
+                n_cycles,
+                inner_tol,
+                max_inner_iter=1000,
+                selection=self.selection,
+                random_state=random_state,
+                diag_fisher=self.diag_fisher,
+            )
+            # for simplicity no line search here
+        else:
+            # See _irls_solver
+            # h'(eta)
+            hp = link.inverse_derivative(eta)
+            # working weights W, in principle a diagonal matrix
+            # therefore here just as 1d array
+            W = hp ** 2 / family.variance(mu, phi=1, weights=weights)
+            # working observations
+            z = (
+                eta
+                + np.subtract(y, mu, dtype=get_float_dtype_of_size(X.dtype.itemsize))
+                / hp
+            )
+            # solve A*coef = b
+            # A = X' W X + l2 P2, b = X' W z
+            coef = _irls_step(X, W, P2, z, fit_intercept=self.fit_intercept)
+        return coef
+
+    def get_start_coef(
+        self, start_params, X, y, weights, P1, P2, offset, col_means, col_stds
+    ) -> np.ndarray:
+
+        if self.warm_start and hasattr(self, "coef_"):
+            coef = self.coef_
+            intercept = self.intercept_
+            if self.fit_intercept:
+                coef = np.concatenate((np.array([intercept]), coef))
+            if self._center_predictors:
+                _standardize_warm_start(coef, col_means, col_stds)
+
+        elif isinstance(start_params, str):
+            if start_params == "guess":
+                coef = self._guess_start_params(
+                    y, weights, self._solver, X, P1, P2, self._random_state, offset
+                )
+            else:  # start_params == 'zero'
+                if self.fit_intercept:
+                    coef = np.zeros(
+                        X.shape[1] + 1, dtype=_float_itemsize_to_dtype[X.dtype.itemsize]
+                    )
+                    coef[0] = guess_intercept(y, weights, self._link_instance, offset)
+                else:
+                    coef = np.zeros(
+                        X.shape[1], dtype=_float_itemsize_to_dtype[X.dtype.itemsize]
+                    )
+        else:  # assign given array as start values
+            coef = start_params
+            if self._center_predictors:
+                _standardize_warm_start(coef, col_means, col_stds)
+        return coef
+
+    def set_up_for_fit(self, X, y) -> None:
+        #######################################################################
+        # 1. input validation                                                 #
+        #######################################################################
+        # 1.1
+        self._validate_hyperparameters()
+        # self.family and self.link are user-provided inputs and may be strings or
+        #  ExponentialDispersonModel/Link objects
+        # self.family_instance_ and self.link_instance_ are cleaned by 'fit' to be
+        # ExponentialDispersionModel and Link arguments
+        self._family_instance: ExponentialDispersionModel = get_family(self.family)
+        # Guarantee that self._link_instance is set to an instance of class Link
+        self._link_instance: Link = get_link(self.link, self._family_instance)
+
+        # when fit_intercept is False, we can't center because that would
+        # substantially change estimates
+        self._center_predictors: bool = self.fit_intercept
+
+        if self.solver == "auto":
+            if self.l1_ratio == 0:
+                self._solver = "irls"
+            else:
+                self._solver = "cd"
+        else:
+            self._solver = self.solver
+
+        self._random_state = check_random_state(self.random_state)
+
+        # 1.4 additional validations ##########################################
+        if self.check_input:
+            if not np.all(self._family_instance.in_y_range(y)):
+                raise ValueError(
+                    "Some value(s) of y are out of the valid "
+                    "range for family {}".format(
+                        self._family_instance.__class__.__name__
+                    )
+                )
+
+    def tear_down_from_fit(self, X, y, col_means, col_stds, weights, weights_sum):
+        """
+        Delete attributes that were only needed for the fit method.
+        """
+        #######################################################################
+        # 5a. undo standardization
+        #######################################################################
+        if self._center_predictors:
+            X, self.intercept_, self.coef_ = _unstandardize(
+                X, col_means, col_stds, self.intercept_, self.coef_
+            )
+
+        if self.fit_dispersion in ["chisqr", "deviance"]:
+            # attention because of rescaling of weights
+            self.dispersion_ = self.estimate_phi(X, y, weights) * weights_sum
+
+        del self._center_predictors
+        del self._solver
+        del self._random_state
+        return X
+
+    def solve(
+        self,
+        X: Union[DenseGLMDataMatrix, MKLSparseMatrix],
+        y: np.ndarray,
+        weights: np.ndarray,
+        P2,
+        P1: np.ndarray,
+        coef: np.ndarray,
+        offset: Union[np.ndarray, None],
+    ) -> None:
+        """
+        Must be run after running set_up_for_fit and before running tear_down_from_fit.
+        Sets self.coef_ and self.intercept_.
+        """
+        # 4.1 IRLS ############################################################
+        # Note: we already set P2 = l2*P2, see above
+        # Note: we already symmetrized P2 = 1/2 (P2 + P2')
+        if self._solver == "irls":
+            coef, self.n_iter_ = _irls_solver(
+                coef=coef,
+                X=X,
+                y=y,
+                weights=weights,
+                P2=P2,
+                fit_intercept=self.fit_intercept,
+                family=self._family_instance,
+                link=self._link_instance,
+                max_iter=self.max_iter,
+                tol=self.tol,
+                offset=offset,
+            )
+
+        # 4.2 L-BFGS ##########################################################
+        elif self._solver == "lbfgs":
+
+            def get_obj_and_derivative(coef):
+                mu, devp = self._family_instance._mu_deviance_derivative(
+                    coef, X, y, weights, self._link_instance, offset
+                )
+                dev = self._family_instance.deviance(y, mu, weights)
+                intercept = coef.size == X.shape[1] + 1
+                idx = 1 if intercept else 0  # offset if coef[0] is intercept
+                if P2.ndim == 1:
+                    L2 = P2 * coef[idx:]
+                else:
+                    L2 = P2 @ coef[idx:]
+                obj = 0.5 * dev + 0.5 * (coef[idx:] @ L2)
+                objp = 0.5 * devp
+                objp[idx:] += L2
+                return obj, objp
+
+            coef, loss, info = fmin_l_bfgs_b(
+                get_obj_and_derivative,
+                coef,
+                fprime=None,
+                iprint=(self.verbose > 0) - 1,
+                pgtol=self.tol,
+                maxiter=self.max_iter,
+                factr=1e3,
+            )
+            if info["warnflag"] == 1:
+                warnings.warn(
+                    "lbfgs failed to converge." " Increase the number of iterations.",
+                    ConvergenceWarning,
+                )
+            elif info["warnflag"] == 2:
+                warnings.warn("lbfgs failed for the reason: {}".format(info["task"]))
+            self.n_iter_ = info["nit"]
+
+        # 4.3 coordinate descent ##############################################
+        # Note: we already set P1 = l1*P1, see above
+        # Note: we already set P2 = l2*P2, see above
+        # Note: we already symmetrized P2 = 1/2 (P2 + P2')
+        elif self._solver == "cd":
+            coef, self.n_iter_, self._n_cycles, self.diagnostics = _cd_solver(
+                coef=coef,
+                X=X,
+                y=y,
+                weights=weights,
+                P1=P1,
+                P2=P2,
+                fit_intercept=self.fit_intercept,
+                family=self._family_instance,
+                link=self._link_instance,
+                max_iter=self.max_iter,
+                tol=self.tol,
+                selection=self.selection,
+                random_state=self._random_state,
+                diag_fisher=self.diag_fisher,
+                offset=offset,
+            )
+        #######################################################################
+        # 5a. handle intercept
+        #######################################################################
+        if self.fit_intercept:
+            self.intercept_ = coef[0]
+            self.coef_ = coef[1:]
+        else:
+            # set intercept to zero as the other linear models do
+            self.intercept_ = 0.0
+            self.coef_ = coef
+
+        return coef
 
     def linear_predictor(self, X, offset: np.ndarray = None):
         """Compute the linear_predictor = X*coef_ + intercept_.
@@ -1392,7 +1683,13 @@ def set_up_and_check_fit_args(
     offset: Union[np.ndarray, None],
     solver: str,
     copy_X: bool,
-):
+) -> Tuple[
+    Union[MKLSparseMatrix, DenseGLMDataMatrix],
+    np.ndarray,
+    np.ndarray,
+    Union[np.ndarray, None],
+    float,
+]:
     _dtype = [np.float64, np.float32]
     if solver == "cd":
         _stype = ["csc"]
@@ -1427,7 +1724,24 @@ def set_up_and_check_fit_args(
     y = _to_precision(y, X.dtype.itemsize)
     weights = _check_weights(sample_weight, y.shape[0], X.dtype)
     offset = _check_offset(offset, y.shape[0], X.dtype)
-    return X, y, weights, offset
+
+    # IMPORTANT NOTE: Since we want to minimize
+    # 1/(2*sum(sample_weight)) * deviance + L1 + L2,
+    # deviance = sum(sample_weight * unit_deviance),
+    # we rescale weights such that sum(weights) = 1 and this becomes
+    # 1/2*deviance + L1 + L2 with deviance=sum(weights * unit_deviance)
+    weights_sum: float = np.sum(weights)
+    weights = weights / weights_sum
+    weights = _to_precision(weights, X.dtype.itemsize)
+    #######################################################################
+    # 2b. convert to wrapper matrix types
+    #######################################################################
+    if sparse.issparse(X):
+        X = MKLSparseMatrix(X)
+    else:
+        X = DenseGLMDataMatrix(X)
+
+    return X, y, weights, offset, weights_sum
 
 
 class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
@@ -1747,7 +2061,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             )
 
         if (
-            # can't be
             not np.isscalar(self.l1_ratio)
             # check for numeric, i.e. not a string
             or not np.issubdtype(np.asarray(self.l1_ratio).dtype, np.number)
@@ -1755,99 +2068,12 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             or self.l1_ratio > 1
         ):
             raise ValueError(
-                "l1_ratio must be a number in interval [0, 1]; got l1_ratio={}".format(
-                    self.l1_ratio
-                )
+                "l1_ratio must be a number in interval [0, 1];"
+                " got (l1_ratio={})".format(self.l1_ratio)
             )
         super()._validate_hyperparameters()
 
-    def _guess_start_params(
-        self,
-        y: np.ndarray,
-        weights: np.ndarray,
-        solver: str,
-        X,
-        P1,
-        P2,
-        random_state,
-        offset: np.ndarray = None,
-    ) -> np.ndarray:
-        """
-        Set mu=starting_mu of the family and do one Newton step
-        If solver=cd use cd, else irls
-        """
-        n_features = X.shape[1]
-        family = get_family(self.family)
-        link = get_link(self.link, family)
-        mu = family.starting_mu(y, weights=weights, offset=offset, link=link)
-        eta = link.link(mu)  # linear predictor
-        if solver in ["cd", "lbfgs"]:
-            # see function _cd_solver
-            sigma_inv = 1 / family.variance(mu, phi=1, weights=weights)
-            d1 = link.inverse_derivative(eta)
-            temp = sigma_inv * d1 * (y - mu)
-            if self.fit_intercept:
-                score = np.concatenate(([temp.sum()], temp @ X))
-            else:
-                score = temp @ X  # same as X.T @ temp
-
-            d2_sigma_inv = d1 * d1 * sigma_inv
-            diag_fisher = self.diag_fisher
-            if diag_fisher:
-                fisher = d2_sigma_inv
-            else:
-                fisher = _safe_sandwich_dot(X, d2_sigma_inv, self.fit_intercept)
-            # set up space for search direction d for inner loop
-            if self.fit_intercept:
-                zero = np.zeros(n_features + 1, dtype=X.dtype)
-            else:
-                zero = np.zeros(n_features, dtype=X.dtype)
-            # initial stopping tolerance of inner loop
-            # use L1-norm of minimum of norm of subgradient of F
-            # use less restrictive tolerance for initial guess
-            inner_tol = 4 * linalg.norm(
-                _min_norm_sugrad(coef=zero, grad=-score, P2=P2, P1=P1), ord=1
-            )
-
-            # just one outer loop = Newton step
-            n_cycles = 0
-            coef, coef_P2, n_cycles, inner_tol = _cd_cycle(
-                zero,
-                X,
-                zero,
-                score,
-                fisher,
-                P1,
-                P2,
-                n_cycles,
-                inner_tol,
-                max_inner_iter=1000,
-                selection=self.selection,
-                random_state=random_state,
-                diag_fisher=self.diag_fisher,
-            )
-            # for simplicity no line search here
-        else:
-            # See _irls_solver
-            # h'(eta)
-            hp = link.inverse_derivative(eta)
-            # working weights W, in principle a diagonal matrix
-            # therefore here just as 1d array
-            assert np.all(np.isfinite(hp))
-            W = hp ** 2 / family.variance(mu, phi=1, weights=weights)
-            assert np.all(np.isfinite(W))
-            # working observations
-            z = (
-                eta
-                + np.subtract(y, mu, dtype=get_float_dtype_of_size(X.dtype.itemsize))
-                / hp
-            )
-            # solve A*coef = b
-            # A = X' W X + l2 P2, b = X' W z
-            coef = _irls_step(X, W, P2, z, fit_intercept=self.fit_intercept)
-        return coef
-
-    def fit(self, X, y, sample_weight=None, offset=None):
+    def fit(self, X, y, sample_weight=None, offset=None, weights_sum: float = None):
         """Fit a Generalized Linear Model.
 
         Parameters
@@ -1876,85 +2102,49 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         -------
         self : returns an instance of self.
         """
-        #######################################################################
-        # 1. input validation                                                 #
-        #######################################################################
-        # 1.1
-        self._validate_hyperparameters()
-        # self.family and self.link are user-provided inputs and may be strings or
-        #  ExponentialDispersonModel/Link objects
-        # self.family_instance_ and self.link_instance_ are cleaned by 'fit' to be
-        # ExponentialDispersionModel and Link arguments
-        self._family_instance: ExponentialDispersionModel = get_family(self.family)
-        # Guarantee that self._link_instance is set to an instance of class Link
-        self._link_instance: Link = get_link(self.link, self._family_instance)
-
-        # when fit_intercept is False, we can't center because that would
-        # substantially change estimates
-        self.center_predictors_: bool = self.fit_intercept
-
-        solver = self.solver
-        if self.solver == "auto":
-            if self.l1_ratio == 0:
-                solver = "irls"
-            else:
-                solver = "cd"
-
-        if self.alpha > 0 and self.l1_ratio > 0 and solver not in ["cd"]:
-            raise ValueError(
-                "The chosen solver (solver={}) can't deal "
-                "with L1 penalties, which are included with "
-                "(alpha={}) and (l1_ratio={}).".format(
-                    solver, self.alpha, self.l1_ratio
-                )
-            )
-        random_state = check_random_state(self.random_state)
-
-        # 1.2 validate arguments of fit #######################################
-        if solver == "cd":
-            _stype = ["csc"]
-        else:
-            _stype = ["csc", "csr"]
 
         if self.fit_args_reformat == "safe":
-            X, y, weights, offset = set_up_and_check_fit_args(
+            X, y, weights, offset, weights_sum = set_up_and_check_fit_args(
                 X, y, sample_weight, offset, solver=self.solver, copy_X=self.copy_X
             )
         else:
             weights = sample_weight
 
-        n_samples, n_features = X.shape
+        #######################################################################
+        # 2a. rescaling of weights (sample_weight)                             #
+        #######################################################################
+
+        self.set_up_for_fit(X, y)
+
+        if self.alpha > 0 and self.l1_ratio > 0 and self._solver not in ["cd"]:
+            raise ValueError(
+                "The chosen solver (solver={}) can't deal "
+                "with L1 penalties, which are included with "
+                "(alpha={}) and (l1_ratio={}).".format(
+                    self._solver, self.alpha, self.l1_ratio
+                )
+            )
+
         _dtype = [np.float64, np.float32]
+        if self._solver == "cd":
+            _stype = ["csc"]
+        else:
+            _stype = ["csc", "csr"]
 
         # 1.3 arguments to take special care ##################################
         # P1, P2, start_params
-        P1, P2 = setup_penalties(
-            self.P1, self.P2, X, _stype, X.dtype, self.alpha, self.l1_ratio
-        )
-
-        # For coordinate descent, if X is sparse, P2 must also be csc
-        # ES: I think this  might already have been handled by check_array
-        if solver == "cd" and sparse.issparse(X):
-            P2 = sparse.csc_matrix(P2)
+        P1 = setup_p1(self.P1, X, X.dtype, self.alpha, self.l1_ratio)
+        P2 = setup_p2(self.P2, X, _stype, X.dtype, self.alpha, self.l1_ratio)
 
         start_params = initialize_start_params(
             self.start_params,
-            n_cols=n_features,
+            n_cols=X.shape[1],
             fit_intercept=self.fit_intercept,
             _dtype=_dtype,
         )
 
         # 1.4 additional validations ##########################################
         if self.check_input:
-
-            if not np.all(self._family_instance.in_y_range(y)):
-                raise ValueError(
-                    "Some value(s) of y are out of the valid "
-                    "range for family {}".format(
-                        self._family_instance.__class__.__name__
-                    )
-                )
-
             # check if P2 is positive semidefinite
             if not isinstance(self.P2, str):  # self.P2 != 'identity'
 
@@ -1969,30 +2159,12 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             # TODO: what else to check?
 
         #######################################################################
-        # 2a. rescaling of weights (sample_weight)                             #
-        #######################################################################
-        # IMPORTANT NOTE: Since we want to minimize
-        # 1/(2*sum(sample_weight)) * deviance + L1 + L2,
-        # deviance = sum(sample_weight * unit_deviance),
-        # we rescale weights such that sum(weights) = 1 and this becomes
-        # 1/2*deviance + L1 + L2 with deviance=sum(weights * unit_deviance)
-        weights_sum = np.sum(weights)
-        weights = weights / weights_sum
-        weights = _to_precision(weights, X.dtype.itemsize)
-
-        #######################################################################
-        # 2b. convert to wrapper matrix types
-        #######################################################################
-        if isinstance(X, np.ndarray):
-            X = DenseGLMDataMatrix(X)
-        elif sparse.issparse(X):
-            X = MKLSparseMatrix(X)
-
-        #######################################################################
         # 2c. potentially rescale predictors
         #######################################################################
-        if self.center_predictors_:
+        if self._center_predictors:
             X, col_means, col_stds = X.standardize(weights, self.scale_predictors)
+        else:
+            col_means, col_stds = None, None
 
         #######################################################################
         # 3. initialization of coef = (intercept_, coef_)                     #
@@ -2001,139 +2173,16 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         #       of mu_i=E[y_i], set it to 1.
 
         # set start values for coef
-        if self.warm_start and hasattr(self, "coef_"):
-            coef = self.coef_
-            intercept = self.intercept_
-            if self.fit_intercept:
-                coef = np.concatenate((np.array([intercept]), coef))
-            if self.center_predictors_:
-                _standardize_warm_start(coef, col_means, col_stds)
-
-        elif isinstance(start_params, str):
-            if start_params == "guess":
-                coef = self._guess_start_params(
-                    y, weights, solver, X, P1, P2, random_state, offset
-                )
-            else:  # start_params == 'zero'
-                if self.fit_intercept:
-                    coef = np.zeros(
-                        n_features + 1, dtype=_float_itemsize_to_dtype[X.dtype.itemsize]
-                    )
-                    coef[0] = guess_intercept(y, weights, self._link_instance, offset)
-                else:
-                    coef = np.zeros(
-                        n_features, dtype=_float_itemsize_to_dtype[X.dtype.itemsize]
-                    )
-        else:  # assign given array as start values
-            coef = start_params
-            if self.center_predictors_:
-                _standardize_warm_start(coef, col_means, col_stds)
+        coef = self.get_start_coef(
+            start_params, X, y, weights, P1, P2, offset, col_means, col_stds
+        )
 
         #######################################################################
         # 4. fit                                                              #
         #######################################################################
-        # algorithms for optimization
+        self.solve(X, y, weights, P2, P1, coef, offset)
 
-        # 4.1 IRLS ############################################################
-        # Note: we already set P2 = l2*P2, see above
-        # Note: we already symmetrized P2 = 1/2 (P2 + P2')
-        if solver == "irls":
-            coef, self.n_iter_ = _irls_solver(
-                coef=coef,
-                X=X,
-                y=y,
-                weights=weights,
-                P2=P2,
-                fit_intercept=self.fit_intercept,
-                family=self._family_instance,
-                link=self._link_instance,
-                max_iter=self.max_iter,
-                tol=self.tol,
-                offset=offset,
-            )
-
-        # 4.2 L-BFGS ##########################################################
-        elif solver == "lbfgs":
-
-            def get_obj_and_derivative(coef):
-                mu, devp = self._family_instance._mu_deviance_derivative(
-                    coef, X, y, weights, self._link_instance, offset
-                )
-                dev = self._family_instance.deviance(y, mu, weights)
-                intercept = coef.size == X.shape[1] + 1
-                idx = 1 if intercept else 0  # offset if coef[0] is intercept
-                if P2.ndim == 1:
-                    L2 = P2 * coef[idx:]
-                else:
-                    L2 = P2 @ coef[idx:]
-                obj = 0.5 * dev + 0.5 * (coef[idx:] @ L2)
-                objp = 0.5 * devp
-                objp[idx:] += L2
-                return obj, objp
-
-            coef, loss, info = fmin_l_bfgs_b(
-                get_obj_and_derivative,
-                coef,
-                fprime=None,
-                iprint=(self.verbose > 0) - 1,
-                pgtol=self.tol,
-                maxiter=self.max_iter,
-                factr=1e3,
-            )
-            if info["warnflag"] == 1:
-                warnings.warn(
-                    "lbfgs failed to converge." " Increase the number of iterations.",
-                    ConvergenceWarning,
-                )
-            elif info["warnflag"] == 2:
-                warnings.warn("lbfgs failed for the reason: {}".format(info["task"]))
-            self.n_iter_ = info["nit"]
-
-        # 4.3 coordinate descent ##############################################
-        # Note: we already set P1 = l1*P1, see above
-        # Note: we already set P2 = l2*P2, see above
-        # Note: we already symmetrized P2 = 1/2 (P2 + P2')
-        elif solver == "cd":
-            coef, self.n_iter_, self._n_cycles, self.diagnostics = _cd_solver(
-                coef=coef,
-                X=X,
-                y=y,
-                weights=weights,
-                P1=P1,
-                P2=P2,
-                fit_intercept=self.fit_intercept,
-                family=self._family_instance,
-                link=self._link_instance,
-                max_iter=self.max_iter,
-                tol=self.tol,
-                selection=self.selection,
-                random_state=random_state,
-                diag_fisher=self.diag_fisher,
-                offset=offset,
-            )
-
-        #######################################################################
-        # 5a. handle intercept
-        #######################################################################
-        if self.fit_intercept:
-            self.intercept_ = coef[0]
-            self.coef_ = coef[1:]
-        else:
-            # set intercept to zero as the other linear models do
-            self.intercept_ = 0.0
-            self.coef_ = coef
-
-        #######################################################################
-        # 5a. undo standardization
-        #######################################################################
-        if self.center_predictors_:
-            X, self.intercept_, self.coef_ = _unstandardize(
-                X, col_means, col_stds, self.intercept_, self.coef_
-            )
-
-        if self.fit_dispersion in ["chisqr", "deviance"]:
-            # attention because of rescaling of weights
-            self.dispersion_ = self.estimate_phi(X, y, weights) * weights_sum
+        self.tear_down_from_fit(X, y, col_means, col_stds, weights, weights_sum)
 
         return self
 
