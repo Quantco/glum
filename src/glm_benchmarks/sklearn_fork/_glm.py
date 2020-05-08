@@ -627,7 +627,7 @@ def _cd_solver(
     family: ExponentialDispersionModel,
     link: Link,
     max_iter: int = 100,
-    max_inner_iter: int = 10000,
+    max_inner_iter: int = 1000,
     tol: float = 1e-4,
     fixed_inner_tol: float = None,
     selection="cyclic ",
