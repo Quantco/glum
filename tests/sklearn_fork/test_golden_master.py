@@ -1,6 +1,5 @@
 import argparse
-import os
-import pickle
+import json
 import warnings
 
 import numpy as np
@@ -10,14 +9,45 @@ from git_root import git_root
 from scipy import sparse
 
 from glm_benchmarks.scaled_spmat.mkl_sparse_matrix import MKLSparseMatrix
-from glm_benchmarks.sklearn_fork._glm import GeneralizedLinearRegressor
+from glm_benchmarks.sklearn_fork._glm import (
+    GeneralizedLinearRegressor,
+    TweedieDistribution,
+)
 from glm_benchmarks.sklearn_fork.dense_glm_matrix import DenseGLMDataMatrix
+
+distributions_to_test = ["normal", "poisson", "gamma", "tweedie_p=1.5"]
+
+# Do not create a golden master for the following because the problem does not converge
+problems_with_issue = [
+    ("gamma", "fit_intercept"),
+]
+
+
+def tweedie_rv(p, mu, sigma2=1):
+    """Generates draws from a tweedie distribution with power p.
+
+    mu is the location parameter and sigma2 is the dispersion coefficient.
+    """
+    n = len(mu)
+    rand = np.random.default_rng(1)
+
+    # transform tweedie parameters into poisson and gamma
+    lambda_ = (mu ** (2 - p)) / ((2 - p) * sigma2)
+    alpha_ = (2 - p) / (p - 1)
+    beta_ = (mu ** (1 - p)) / ((p - 1) * sigma2)
+
+    arr_N = rand.poisson(lambda_)
+    out = np.empty(n, dtype=np.float64)
+    for i, N in enumerate(arr_N):
+        out[i] = np.sum(rand.gamma(alpha_, 1 / beta_[i], size=N))
+
+    return out
 
 
 def create_reg_data(
-    distribution="poisson", n_rows=10000, n_features_dense=10, n_features_ohe=2
+    distribution="poisson", n_rows=5000, n_features_dense=10, n_features_ohe=2
 ):
-    rand = np.random.default_rng(42)
+    rand = np.random.default_rng(1)
     X = rand.standard_normal(size=(n_rows, n_features_dense))
     coefs = np.array([1.0, 0.5, 0.1, -0.1, -0.5, -1.0, 0, 0, 0, 0])
 
@@ -33,8 +63,13 @@ def create_reg_data(
         y = rand.poisson(np.exp(intercept + X @ coefs))
     elif distribution == "normal":
         y = intercept + X @ coefs + rand.standard_normal(size=n_rows)
+    elif distribution == "gamma":
+        y = rand.gamma(np.exp(intercept + X @ coefs))
+    elif "tweedie" in distribution:
+        p = float(distribution.split("=")[1])
+        y = tweedie_rv(p, np.exp(intercept + X @ coefs))
     else:
-        raise ValueError("Only poisson and normal are allowed currently")
+        raise ValueError(f"{distribution} not supported as distribution")
 
     weights = rand.uniform(size=n_rows)
     data = {"intercept": intercept, "X": X, "b": coefs, "y": y, "weights": weights}
@@ -42,34 +77,32 @@ def create_reg_data(
 
 
 def _make_P2():
-    rand = np.random.default_rng(42)
+    rand = np.random.default_rng(1)
     a = rand.uniform(size=(28, 28)) - 0.5  # centered uniform distribution
     P2 = a.T @ a  # make sure P2 is positive semi-definite
     return P2
 
 
 @pytest.fixture(params=["sparse", "dense"])
-def poisson_data(request):
-    data = create_reg_data(distribution="poisson")
+def data_all(request):
+    data = dict()
+    for dist in distributions_to_test:
+        data_dist = create_reg_data(distribution=dist)
 
-    if request.param == "dense":
-        data["X"] = DenseGLMDataMatrix(data["X"])
-    else:
-        data["X"] = MKLSparseMatrix(sparse.csc_matrix(data["X"]))
+        if request.param == "dense":
+            data_dist["X"] = DenseGLMDataMatrix(data_dist["X"])
+        else:
+            data_dist["X"] = MKLSparseMatrix(sparse.csc_matrix(data_dist["X"]))
 
-    return data
-
-
-@pytest.fixture(params=["sparse", "dense"])
-def normal_data(request):
-    data = create_reg_data(distribution="normal")
-
-    if request.param == "dense":
-        data["X"] = DenseGLMDataMatrix(data["X"])
-    else:
-        data["X"] = MKLSparseMatrix(sparse.csc_matrix(data["X"]))
+        data[dist] = data_dist
 
     return data
+
+
+@pytest.fixture
+def expected_all():
+    with open(git_root("golden_master/simulation_gm.json"), "r") as fh:
+        return json.load(fh)
 
 
 gm_model_parameters = {
@@ -96,7 +129,12 @@ gm_model_parameters = {
 
 
 def fit_model(family, model_parameters, use_weights, data):
-    model = GeneralizedLinearRegressor(family=family, **model_parameters)
+    if "tweedie" in family:
+        p = float(family.split("=")[1])
+        family = TweedieDistribution(power=p)
+    model = GeneralizedLinearRegressor(
+        family=family, **model_parameters, start_params="zero"
+    )
 
     fit_params = {
         "X": data["X"],
@@ -109,63 +147,69 @@ def fit_model(family, model_parameters, use_weights, data):
     return model
 
 
-@pytest.mark.parametrize("use_weights", [True, False], ids=["weights", "no_weights"])
+@pytest.mark.parametrize(
+    "distribution",
+    ["normal", "poisson", "gamma", "tweedie_p=1.5"],
+    ids=["normal", "poisson", "gamma", "tweedie"],
+)
 @pytest.mark.parametrize(
     ["run_name", "model_parameters"],
     gm_model_parameters.items(),
     ids=gm_model_parameters.keys(),
 )
-def test_poisson_golden_master(model_parameters, run_name, use_weights, poisson_data):
-    model = fit_model("poisson", model_parameters, use_weights, poisson_data)
-
-    if use_weights:
-        run_name = f"{run_name}_weights"
-
-    with open(git_root(f"golden_master/poisson/gm_{run_name}.pkl"), "rb") as fh:
-        expected = pickle.load(fh)
-
-    np.testing.assert_allclose(model.coef_, expected.coef_, rtol=1e-5, atol=0)
-    np.testing.assert_allclose(model.intercept_, expected.intercept_, rtol=1e-5, atol=0)
-
-
 @pytest.mark.parametrize("use_weights", [True, False], ids=["weights", "no_weights"])
-@pytest.mark.parametrize(
-    ["run_name", "model_parameters"],
-    gm_model_parameters.items(),
-    ids=gm_model_parameters.keys(),
-)
-def test_gaussian_golden_master(model_parameters, run_name, use_weights, normal_data):
-    model = fit_model("normal", model_parameters, use_weights, normal_data)
+def test_golden_master(
+    distribution, model_parameters, run_name, use_weights, data_all, expected_all
+):
+    if (distribution, run_name) in problems_with_issue:
+        pytest.skip("Problem does not converge")
+
+    data = data_all[distribution]
+    model = fit_model(distribution, model_parameters, use_weights, data)
 
     if use_weights:
         run_name = f"{run_name}_weights"
 
-    with open(git_root(f"golden_master/normal/gm_{run_name}.pkl"), "rb") as fh:
-        expected = pickle.load(fh)
+    expected = expected_all[distribution][run_name]
 
-    np.testing.assert_allclose(model.coef_, expected.coef_, rtol=1e-5, atol=0)
-    np.testing.assert_allclose(model.intercept_, expected.intercept_, rtol=1e-5, atol=0)
+    np.testing.assert_allclose(
+        model.coef_, np.array(expected["coef_"]), rtol=1e-5, atol=0
+    )
+    np.testing.assert_allclose(
+        model.intercept_, expected["intercept_"], rtol=1e-5, atol=0
+    )
 
 
 def run_and_store_golden_master(
-    distribution, model_parameters, run_name, use_weights, data, overwrite=False
+    distribution,
+    model_parameters,
+    run_name,
+    use_weights,
+    data,
+    gm_dict,
+    overwrite=False,
 ):
     if use_weights:
         run_name = f"{run_name}_weights"
 
-    if os.path.exists(git_root(f"golden_master/{distribution}/gm_{run_name}.pkl")):
-        if not overwrite:
-            warnings.warn("File exists and cannot overwrite. Skipping")
-            return
+    if distribution not in gm_dict.keys():
+        gm_dict[distribution] = dict()
+
+    if run_name in gm_dict[distribution].keys():
+        if overwrite:
+            warnings.warn("Overwriting existing result")
         else:
-            warnings.warn("Overwriting existing file")
+            warnings.warn("Result exists and cannot overwrite. Skipping")
+            return gm_dict
 
     model = fit_model(distribution, model_parameters, use_weights, data)
 
-    with open(git_root(f"golden_master/{distribution}/gm_{run_name}.pkl"), "wb") as fh:
-        pickle.dump(model, fh)
-
-    return
+    gm_dict[distribution][run_name] = dict(
+        coef_=model.coef_.tolist(),
+        intercept_=model.intercept_,
+        n_iter_=model.n_iter_,  # not used right now but could in the future
+    )
+    return gm_dict
 
 
 if __name__ == "__main__":
@@ -175,28 +219,27 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    # Poisson
-    poisson_dat = create_reg_data("poisson")
-    for mdl_param in gm_model_parameters.items():
-        for use_weights in [True, False]:
-            run_and_store_golden_master(
-                "poisson",
-                mdl_param[1],
-                mdl_param[0],
-                use_weights,
-                poisson_dat,
-                args.overwrite,
-            )
+    try:
+        with open(git_root("golden_master/simulation_gm.json"), "r") as fh:
+            gm_dict = json.load(fh)
+    except FileNotFoundError:
+        gm_dict = dict()
 
-    # Gaussian
-    normal_dat = create_reg_data("normal")
-    for mdl_param in gm_model_parameters.items():
-        for use_weights in [True, False]:
-            run_and_store_golden_master(
-                "normal",
-                mdl_param[1],
-                mdl_param[0],
-                use_weights,
-                normal_dat,
-                args.overwrite,
-            )
+    for dist in distributions_to_test:
+        data = create_reg_data(dist)
+        for mdl_param in gm_model_parameters.items():
+            for use_weights in [True, False]:
+                if (dist, mdl_param[0]) in problems_with_issue:
+                    continue
+                gm_dict = run_and_store_golden_master(
+                    dist,
+                    mdl_param[1],
+                    mdl_param[0],
+                    use_weights,
+                    data,
+                    gm_dict,
+                    args.overwrite,
+                )
+
+    with open(git_root("golden_master/simulation_gm.json"), "w") as fh:
+        json.dump(gm_dict, fh, indent=2)

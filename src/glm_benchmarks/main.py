@@ -94,6 +94,7 @@ def execute_problem_library(
     single_precision: bool = False,
     print_diagnostics: bool = True,
     regularization_strength: float = None,
+    model_kwargs: dict = {},
 ):
     dat = P.data_loader(num_rows=num_rows)
     if threads is None:
@@ -107,7 +108,12 @@ def execute_problem_library(
     if regularization_strength is None:
         regularization_strength = P.regularization_strength
     result = L(
-        dat, P.distribution, regularization_strength, P.l1_ratio, print_diagnostics
+        dat,
+        P.distribution,
+        regularization_strength,
+        P.l1_ratio,
+        print_diagnostics,
+        model_kwargs,
     )
     return result
 
