@@ -608,6 +608,7 @@ def _cd_cycle(
         # subgrad q(d) = A + subgrad ||P1*(w+d)||_1
         mn_subgrad = _min_norm_sugrad(coef=coef + d, grad=A, P2=None, P1=P1)
         mn_subgrad = linalg.norm(mn_subgrad, ord=1)
+        print(mn_subgrad, coef[0] + d[0])
         if mn_subgrad <= inner_tol:
             if inner_iter == 1:
                 inner_tol = inner_tol / 4.0
@@ -627,7 +628,7 @@ def _cd_solver(
     family: ExponentialDispersionModel,
     link: Link,
     max_iter: int = 100,
-    max_inner_iter: int = 1000,
+    max_inner_iter: int = 100000,
     tol: float = 1e-4,
     fixed_inner_tol: float = None,
     selection="cyclic ",
@@ -807,8 +808,18 @@ def _cd_solver(
         # initialize search direction d (to be optimized) with zero
         d.fill(0)
         # inner loop = _cd_cycle
-        d, coef_P2, n_cycles, inner_tol = _cd_cycle(
-            d,
+
+        # from sklearn.linear_model._cd_fast import enet_coordinate_descent_gram
+
+        # TODO: need to change cd_fast to support variable penalty
+        # new_coef = coef.copy()
+        # new_coef, _, inner_tol, n_cycles_ = enet_coordinate_descent_gram(new_coef, P1[1], P2[1], fisher, XTy, y, 100000, inner_tol, random_state, False, False)
+        # n_cycles += n_cycles_
+        # d = new_coef - coef
+
+        d2 = np.zeros_like(d)
+        d2, coef_P2, n_cycles, inner_tol = _cd_cycle(
+            d2,
             X,
             coef,
             score,
@@ -822,6 +833,13 @@ def _cd_solver(
             random_state=random_state,
             diag_fisher=diag_fisher,
         )
+        d = d2
+        # np.testing.assert_almost_equal(d, d2)
+
+        if P2.ndim == 1:
+            coef_P2 = coef[idx:] * P2
+        else:
+            coef_P2 = coef[idx:] @ P2
 
         # line search by sequence beta^k, k=0, 1, ..
         # F(w + lambda d) - F(w) <= lambda * bound
@@ -910,6 +928,7 @@ def _cd_solver(
                 coef[0],
             ]
         )
+        print(diagnostics[-1])
         iteration_start = time.time()
 
         # stopping criterion for outer loop
@@ -1955,7 +1974,6 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         if self.fit_dispersion in ["chisqr", "deviance"]:
             # attention because of rescaling of weights
             self.dispersion_ = self.estimate_phi(X, y, weights) * weights_sum
-        print(self.intercept_)
 
         return self
 
@@ -1964,21 +1982,22 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             print("diagnostics:")
             import pandas as pd
 
-            print(
-                pd.DataFrame(
-                    columns=[
-                        "convergence",
-                        "L1(coef)",
-                        "L2(coef)",
-                        "L2(step)",
-                        "n_iter",
-                        "n_cycles",
-                        "runtime",
-                        "intercept",
-                    ],
-                    data=self.diagnostics,
-                ).set_index("n_iter", drop=True)
-            )
+            with pd.option_context("max_rows", None):
+                print(
+                    pd.DataFrame(
+                        columns=[
+                            "convergence",
+                            "L1(coef)",
+                            "L2(coef)",
+                            "L2(step)",
+                            "n_iter",
+                            "n_cycles",
+                            "runtime",
+                            "intercept",
+                        ],
+                        data=self.diagnostics,
+                    ).set_index("n_iter", drop=True)
+                )
         else:
             print("solver does not report diagnostics")
 

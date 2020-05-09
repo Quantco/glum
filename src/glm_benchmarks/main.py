@@ -7,11 +7,11 @@ import numpy as np
 import pandas as pd
 import scipy.sparse
 
+from glm_benchmarks.bench_admm import admm_bench
 from glm_benchmarks.bench_sklearn_fork import sklearn_fork_bench
 from glm_benchmarks.problems import get_all_problems
-
-from .util import get_obj_val
-from .zeros_benchmark import zeros_bench
+from glm_benchmarks.util import get_obj_val
+from glm_benchmarks.zeros_benchmark import zeros_bench
 
 try:
     from glm_benchmarks.bench_glmnet_python import glmnet_python_bench  # isort:skip
@@ -303,7 +303,9 @@ def identify_parameter_directories(
 def get_limited_problems_libraries(
     problem_names: str, library_names: str
 ) -> Tuple[Dict, Dict]:
-    all_libraries = dict(sklearn_fork=sklearn_fork_bench, zeros=zeros_bench,)
+    all_libraries = dict(
+        sklearn_fork=sklearn_fork_bench, zeros=zeros_bench, admm=admm_bench
+    )
 
     if GLMNET_PYTHON_INSTALLED:
         all_libraries["glmnet_python"] = glmnet_python_bench
@@ -388,3 +390,7 @@ def load_benchmark_results(
     )
     with open(os.path.join(results_dir, library_name + "-results.pkl"), "rb") as f:
         return pickle.load(f)
+
+
+if __name__ == "__main__":
+    cli_run()
