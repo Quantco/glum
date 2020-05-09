@@ -45,21 +45,24 @@ def sklearn_fork_bench(
 
     model_args = dict(
         family=family,
+        l1_ratio=l1_ratio,
         max_iter=40,
         random_state=random_seed,
         copy_X=False,
         selection="random",
         tol=benchmark_convergence_tolerance,
+        link="identity",
     )
-    if not cv:
+    if cv:
+        model_args["alphas"] = 10.0 ** np.arange(6, 3, -0.25)
+    else:
         model_args["alpha"] = alpha
-        model_args["l1_ratio"] = l1_ratio
 
-    try:
-        result["runtime"], m = runtime(build_and_fit, model_args, fit_args, cv)
-    except ValueError as e:
-        print(f"Problem failed with this error: {e}")
-        return result
+    # try:
+    result["runtime"], m = runtime(build_and_fit, model_args, fit_args, cv)
+    # except ValueError as e:
+    #     print(f"Problem failed with this error: {e}")
+    #     return result
 
     result["intercept"] = m.intercept_
     result["coef"] = m.coef_

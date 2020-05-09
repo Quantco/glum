@@ -1350,7 +1350,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         P1: np.ndarray,
         coef: np.ndarray,
         offset: Union[np.ndarray, None],
-    ) -> None:
+    ) -> np.ndarray:
         """
         Must be run after running set_up_for_fit and before running tear_down_from_fit.
         Sets self.coef_ and self.intercept_.
@@ -1438,13 +1438,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         #######################################################################
         # 5a. handle intercept
         #######################################################################
-        if self.fit_intercept:
-            self.intercept_ = coef[0]
-            self.coef_ = coef[1:]
-        else:
-            # set intercept to zero as the other linear models do
-            self.intercept_ = 0.0
-            self.coef_ = coef
 
         return coef
 
@@ -2182,7 +2175,15 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         #######################################################################
         # 4. fit                                                              #
         #######################################################################
-        self.solve(X, y, weights, P2, P1, coef, offset)
+        coef = self.solve(X, y, weights, P2, P1, coef, offset)
+
+        if self.fit_intercept:
+            self.intercept_ = coef[0]
+            self.coef_ = coef[1:]
+        else:
+            # set intercept to zero as the other linear models do
+            self.intercept_ = 0.0
+            self.coef_ = coef
 
         self.tear_down_from_fit(X, y, col_means, col_stds, weights, weights_sum)
 
