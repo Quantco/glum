@@ -9,7 +9,10 @@ from sklearn.model_selection._split import check_cv
 from ._distribution import ExponentialDispersionModel
 from ._glm import (
     GeneralizedLinearRegressorBase,
+    _safe_lin_pred,
+    _unstandardize,
     get_family,
+    get_link,
     initialize_start_params,
     is_pos_semidef,
     set_up_and_check_fit_args,
@@ -139,8 +142,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
 
     def __init__(
         self,
-        eps: float = 1e-3,
-        n_alphas: int = 100,
+        eps: float = None,
+        n_alphas: int = None,
         alphas: np.ndarray = None,
         l1_ratio=0,
         P1="identity",
@@ -196,11 +199,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             raise ValueError("You cannot specify both alphas and n_alphas.")
         if self.eps is not None and self.alphas is not None:
             raise ValueError("You cannot specify both eps and n_alphas.")
-        if self.alphas is None and self.n_alphas is None:
-            raise ValueError
-        if self.alphas is None and self.eps is None:
-            raise ValueError
-        if self.alphas is not None and np.any(self.alphas < 0):
+        if self.alphas is not None and np.any(np.asarray(self.alphas) < 0):
             raise ValueError
         l1_ratio = np.asarray(self.l1_ratio)
         if (
@@ -214,6 +213,27 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
                 )
             )
         super()._validate_hyperparameters()
+
+    def _get_alpha_path(self, l1_ratio: float, X, y: np.ndarray) -> np.ndarray:
+        if l1_ratio == 0:
+            eps = float(1 if self.eps is None else self.eps)
+            n_alphas = 3 if self.n_alphas is None else self.n_alphas
+            alphas = 10 ** np.arange(1, 1 - n_alphas * eps, -eps)
+            return alphas
+        eps = 1e-3 if self.eps is None else self.eps
+        n_alphas = 100 if self.n_alphas is None else self.n_alphas
+        # TODO: this is only valid for Gaussian
+        # TODO: doesnt' work for l1 = 0
+        alphas = _alpha_grid(
+            X,
+            y,
+            l1_ratio=l1_ratio,
+            fit_intercept=self.fit_intercept,
+            eps=eps,
+            n_alphas=n_alphas,
+            copy_X=self.copy_X,
+        )
+        return alphas
 
     def fit(self, X, y, sample_weight=None, offset=None):
         # TODO:
@@ -229,48 +249,38 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         l1_ratio = np.atleast_1d(self.l1_ratio)
 
         # From sklearn.linear_model.LinearModelCV.fit
-        if self.alphas is None:
-            if self.l1_ratio == 0:
-                alphas = [[10.0, 1.0, 0.1] for _ in l1_ratio]
-            else:
-                # TODO: this is only valid for Gaussian
-                alphas = [
-                    _alpha_grid(
-                        X,
-                        y,
-                        l1_ratio=l1,
-                        fit_intercept=self.fit_intercept,
-                        eps=self.eps,
-                        n_alphas=self.n_alphas,
-                        copy_X=self.copy_X,
-                    )
-                    for l1 in l1_ratio
-                ]
 
-            self.alphas_ = np.asarray(alphas)
-            if len(l1_ratio) == 1:
-                self.alphas_ = self.alphas_[0]
+        if self.alphas is None:
+            alphas = [self._get_alpha_path(l1, X, y) for l1 in l1_ratio]
         else:
             alphas = np.tile(np.sort(self.alphas)[::-1], (len(l1_ratio), 1))
-            self.alphas_ = np.asarray(alphas[0])
+
+        if len(l1_ratio) == 1:
+            self.alphas_ = alphas[0]
+        else:
+            self.alphas_ = np.asarray(alphas)
 
         cv = check_cv(self.cv)
 
         self.deviance_path_ = np.full(
             (len(l1_ratio), len(alphas[0]), cv.get_n_splits()), np.nan
         )
+        self.mse_path_ = self.deviance_path_.copy()
         if self._solver == "cd":
             _stype = ["csc"]
         else:
             _stype = ["csc", "csr"]
 
         for i, l1 in enumerate(l1_ratio):
-            for k, (train_idx, test_idx) in enumerate(cv.split(X)):
+            for k, (train_idx, test_idx) in enumerate(cv.split(X, y)):
+
                 x_train, y_train, w_train = (
                     X[train_idx, :],
                     y[train_idx],
                     weights[train_idx],
                 )
+                w_train /= w_train.sum()
+
                 x_test, y_test, w_test = (
                     X[test_idx, :],
                     y[test_idx],
@@ -290,55 +300,71 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
                 else:
                     offset_train, offset_test = None, None
 
-                def _get_deviance():
-                    return get_family(self.family).deviance(
-                        y_test,
-                        self.predict(x_test, offset=offset_test),
-                        weights=w_test,
+                def _get_deviance(coef):
+                    mu = get_link(self.link, self.family).inverse(
+                        _safe_lin_pred(x_test, coef, offset_test)
                     )
 
+                    return get_family(self.family).deviance(y_test, mu, weights=w_test)
+
+                def _get_mse(coef):
+                    mu = get_link(self.link, self.family).inverse(
+                        _safe_lin_pred(x_test, coef, offset_test)
+                    )
+
+                    return w_test.dot((y_test - mu) ** 2) / w_test.sum()
+
+                # TODO: something has gone wrong, get_link won't work
+                P1 = setup_p1(self.P1, X, X.dtype, alphas[i][0], l1)
+                P2 = setup_p2(self.P2, X, _stype, X.dtype, alphas[i][0], l1)
+
+                coef = self.get_start_coef(
+                    self.start_params,
+                    x_train,
+                    y_train,
+                    w_train,
+                    P1,
+                    P2,
+                    offset_train,
+                    col_means,
+                    col_stds,
+                )
+                if self.check_input:
+                    # check if P2 is positive semidefinite
+                    if not isinstance(self.P2, str):  # self.P2 != 'identity'
+                        if not is_pos_semidef(P2):
+                            if P2.ndim == 1 or P2.shape[0] == 1:
+                                error = "1d array P2 must not have negative values."
+                            else:
+                                error = "P2 must be positive semi-definite."
+                            raise ValueError(error)
+
+                print()
                 for j, alpha in enumerate(alphas[i]):
-                    self.coef_ = np.zeros(X.shape[1])
-                    self.intercept_ = y.mean()
                     P1 = setup_p1(self.P1, X, X.dtype, alpha, l1)
                     P2 = setup_p2(self.P2, X, _stype, X.dtype, alpha, l1)
-                    if self.check_input:
-                        # check if P2 is positive semidefinite
-                        if not isinstance(self.P2, str):  # self.P2 != 'identity'
 
-                            if not is_pos_semidef(P2):
-                                if P2.ndim == 1 or P2.shape[0] == 1:
-                                    error = "1d array P2 must not have negative values."
-                                else:
-                                    error = "P2 must be positive semi-definite."
-                                raise ValueError(error)
-                        # TODO: if alpha=0 check that X is not rank deficient
-                        # TODO: what else to check?
-
-                    if j == 0:
-                        coef = self.get_start_coef(
-                            self.start_params,
-                            x_train,
-                            y_train,
-                            w_train,
-                            P1,
-                            P2,
-                            offset_train,
-                            col_means,
-                            col_stds,
-                        )
-
+                    # TODO: see if we need to deal with centering or something
+                    # use standardize_warm_start?
+                    # TODO: write simpler tests against sklearn ridge
                     coef = self.solve(
                         x_train, y_train, w_train, P2, P1, coef, offset_train
                     )
-                    self.deviance_path_[i, j, k] = _get_deviance()
+                    if self._center_predictors:
+                        _, intercept, coef_tmp = _unstandardize(
+                            x_train, col_means, col_stds, coef[0], coef[1:]
+                        )
+                        coef_uncentered = np.concatenate([[intercept], coef_tmp])
+                    else:
+                        coef_uncentered = coef
+
+                    self.deviance_path_[i, j, k] = _get_deviance(coef_uncentered)
+                    self.mse_path_[i, j, k] = _get_mse(coef_uncentered)
 
         avg_deviance = self.deviance_path_.mean(2)
         best_idx = np.argmin(avg_deviance)
         # # TODO: simplify
         l1_ratios = np.repeat(l1_ratio[:, None], len(alphas[0]), axis=1)
-        # assert l1_ratios.shape == avg_deviance.shape
-        # assert np.asarray(alphas).shape == avg_deviance.shape
         self.l1_ratio_ = l1_ratios.flatten()[best_idx]
         self.alpha_ = np.asarray(alphas).flatten()[best_idx]
 
@@ -361,7 +387,15 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         coef = self.get_start_coef(
             start_params, X, y, weights, P1, P2, offset, col_means, col_stds
         )
-        self.solve(X, y, weights, P2, P1, coef, offset)
+        coef = self.solve(X, y, weights, P2, P1, coef, offset)
+
+        if self.fit_intercept:
+            self.intercept_ = coef[0]
+            self.coef_ = coef[1:]
+        else:
+            # set intercept to zero as the other linear models do
+            self.intercept_ = 0.0
+            self.coef_ = coef
 
         self.tear_down_from_fit(X, y, col_means, col_stds, weights, weights_sum)
         return self
