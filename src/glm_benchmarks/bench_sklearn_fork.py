@@ -25,7 +25,7 @@ def sklearn_fork_bench(
     distribution: str,
     alpha: float,
     l1_ratio: float,
-    cv=True,
+    cv: bool,
 ):
     result = dict()
 
@@ -58,11 +58,11 @@ def sklearn_fork_bench(
     else:
         model_args["alpha"] = alpha
 
-    # try:
-    result["runtime"], m = runtime(build_and_fit, model_args, fit_args, cv)
-    # except ValueError as e:
-    #     print(f"Problem failed with this error: {e}")
-    #     return result
+    try:
+        result["runtime"], m = runtime(build_and_fit, model_args, fit_args, cv)
+    except ValueError as e:
+        print(f"Problem failed with this error: {e}")
+        return result
 
     result["intercept"] = m.intercept_
     result["coef"] = m.coef_

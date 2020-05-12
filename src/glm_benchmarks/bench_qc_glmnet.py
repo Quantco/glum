@@ -9,11 +9,18 @@ from .util import runtime
 
 
 def glmnet_qc_bench(
-    dat: Dict[str, np.ndarray], distribution: str, alpha: float, l1_ratio: float,
+    dat: Dict[str, np.ndarray],
+    distribution: str,
+    alpha: float,
+    l1_ratio: float,
+    cv: bool,
 ) -> Dict[str, Any]:
     result: Dict[str, Any] = dict()
     if distribution not in ["gaussian", "poisson", "binomial"]:
         warnings.warn(f"Distribution {distribution} is not supported.")
+        return result
+    if cv:
+        warnings.warn("Cross-validation is not supported.")
         return result
 
     n_iters = 10
