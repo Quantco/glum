@@ -28,6 +28,16 @@ except ImportError:
     H20_INSTALLED = False
 
 
+benchmark_params = [
+    "problem-name",
+    "library-name",
+    "num-rows",
+    "storage",
+    "single-precision",
+    "cv",
+]
+
+
 @click.command()
 @click.option(
     "--problem_names",
@@ -55,6 +65,7 @@ except ImportError:
     type=int,
     help="Specify the number of threads. If not set, it will use OMP_NUM_THREADS. If that's not set either, it will default to os.cpu_count().",
 )
+@click.option("--cv", is_flag=True, help="Cross-validation")
 @click.option(
     "--output_dir",
     default="benchmark_output",
@@ -68,6 +79,7 @@ def cli_run(
     num_rows: int,
     storage: str,
     threads: int,
+    cv: bool,
     output_dir: str,
     single_precision: bool,
 ):
@@ -77,16 +89,30 @@ def cli_run(
         for Ln, L in libraries.items():
             print(f"running problem={Pn} library={Ln}")
             result = execute_problem_library(
-                P, L, num_rows, storage, threads, single_precision
+                P, L, num_rows, storage, threads, single_precision, cv
             )
             save_benchmark_results(
-                output_dir, Pn, Ln, num_rows, storage, threads, single_precision, result
+                output_dir,
+                Pn,
+                Ln,
+                num_rows,
+                storage,
+                threads,
+                single_precision,
+                cv,
+                result,
             )
-            print("ran")
+            print(f"ran problem {Pn} with libray {Ln}")
 
 
 def execute_problem_library(
-    P, L, num_rows=None, storage="dense", threads=None, single_precision: bool = False
+    P,
+    L,
+    num_rows=None,
+    storage="dense",
+    threads=None,
+    single_precision: bool = False,
+    cv: bool = False,
 ):
     dat = P.data_loader(num_rows=num_rows)
     if threads is None:
@@ -97,7 +123,7 @@ def execute_problem_library(
     if single_precision:
         for k, v in dat.items():
             dat[k] = v.astype(np.float32)
-    result = L(dat, P.distribution, P.regularization_strength, P.l1_ratio)
+    result = L(dat, P.distribution, P.regularization_strength, P.l1_ratio, cv)
     return result
 
 
@@ -130,6 +156,7 @@ def execute_problem_library(
     type=bool,
     help="please help me i have been in a hole for 273 hours",
 )
+@click.option("--cv", is_flag=True, help="cross-validation")
 @click.option(
     "--output_dir",
     default="benchmark_output",
@@ -139,60 +166,40 @@ def cli_analyze(
     problem_names: str,
     library_names: str,
     num_rows: str,
-    storage: str,
-    threads: str,
-    single_precision: str,
+    storage: Union[str, None],
+    threads: Union[str, None],
+    single_precision: Union[str, None],
+    cv: bool,
     output_dir: str,
 ):
     display_precision = 4
     np.set_printoptions(precision=display_precision, suppress=True)
     pd.set_option("precision", display_precision)
 
-    problems, libraries = get_limited_problems_libraries(problem_names, library_names)
+    file_names = identify_parameter_directories(
+        output_dir,
+        library_names,
+        problem_names,
+        num_rows,
+        storage,
+        threads,
+        single_precision,
+        cv,
+    )
 
-    formatted_results = []
-    for Pn in problems:
-
-        # Find the row counts that have been used on this problem
-        dir_ = os.path.join(output_dir, Pn)
-        param_values = identify_parameter_directories(
-            dir_, [num_rows, storage, threads, single_precision]
-        )
-
-        for pv in param_values:
-            num_rows_, storage_, threads_, single_precision_ = pv
-            for Ln in libraries:
-                try:
-                    res = load_benchmark_results(
-                        output_dir,
-                        Pn,
-                        Ln,
-                        num_rows_,
-                        storage_,
-                        threads_,
-                        single_precision_,
-                    )
-                except FileNotFoundError:
-                    continue
-
-                if len(res) > 0:
-                    formatted_results.append(
-                        extract_dict_results_to_pd_series(
-                            Pn,
-                            Ln,
-                            num_rows_,
-                            storage_,
-                            threads_,
-                            single_precision_,
-                            res,
-                        )
-                    )
+    raw_results = {
+        fname: load_benchmark_results(output_dir, fname) for fname in file_names
+    }
+    formatted_results = [
+        extract_dict_results_to_pd_series(name, res)
+        for name, res in raw_results.items()
+        if len(res) > 0
+    ]
 
     res_df = pd.concat(formatted_results, axis=1).T
     res_df["offset"] = res_df["problem"].apply(lambda x: "offset" in x)
     res_df["problem"] = ["weights".join(x.split("offset")) for x in res_df["problem"]]
     res_df = res_df.set_index(["problem", "num_rows", "library"]).sort_index()
-    problems = res_df.index.get_level_values("problem").values
 
     res_df["n_iter"] = res_df["n_iter"].astype(int)
     for col in ["runtime", "runtime per iter", "intercept", "l1", "l2"]:
@@ -217,14 +224,12 @@ def cli_analyze(
 
 
 def extract_dict_results_to_pd_series(
-    prob_name: str,
-    lib_name: str,
-    num_rows: str,
-    storage: str,
-    threads: str,
-    single_precision: str,
-    results: Dict[str, Any],
+    fname: str, results: Dict[str, Any],
 ) -> pd.Series:
+    assert "coef" in results.keys()
+    prob_name, lib_name, num_rows, storage, threads, single_precision, cv = fname.split(
+        "_"
+    )
     coefs = results["coef"]
     runtime_per_iter = results["runtime"] / results["n_iter"]
     l1_norm = np.sum(np.abs(coefs))
@@ -269,44 +274,55 @@ def extract_dict_results_to_pd_series(
 
 
 def identify_parameter_directories(
-    root_dir: str, constraints: List[str]
-) -> List[List[str]]:
-    if constraints[0] is None:
-        try:
-            param_values = os.listdir(root_dir)
-        except FileNotFoundError:
-            return []
-        if not all(os.path.isdir(os.path.join(root_dir, x)) for x in param_values):
-            raise RuntimeError(
-                f"""
-                Everything in {root_dir} should be a directory, but this is not the
-                case. This likely happened because you have benchmarks generated
-                under an older storage scheme. Please delete them.
-                """
-            )
-    else:
-        param_values = [str(constraints[0])]
-    if len(constraints) == 1:
-        return [[pv] for pv in param_values]
-    else:
-        out = []
-        for pv in param_values:
-            sub_root_dir = os.path.join(root_dir, pv)
-            sub_param_values = identify_parameter_directories(
-                sub_root_dir, constraints[1:]
-            )
-            for spv in sub_param_values:
-                out.append([pv] + spv)
-        return out
+    root_dir: str,
+    library_name: str,
+    problem_name: Union[str, None],
+    num_rows: str,
+    storage: Union[str, None],
+    threads: Union[str, None],
+    single_precision: Union[str, None],
+    cv: bool,
+) -> List[str]:
+    def _to_dict(name):
+        return dict(zip(benchmark_params, name.split("_")))
+
+    constraints = dict(
+        zip(
+            benchmark_params,
+            [
+                problem_name,
+                library_name,
+                num_rows,
+                storage,
+                threads,
+                single_precision,
+                cv,
+            ],
+        )
+    )
+    constraints = {k: v for k, v in constraints.items() if k != "" and k is not None}
+
+    results_to_keep = []
+    for result_name in os.listdir(root_dir):
+        params = _to_dict(result_name.strip(".pkl"))
+        keep_this_problem = {
+            k: constraints[k] is None
+            or constraints[k] == ""
+            or params[k] in str(constraints[k])
+            for k in constraints.keys()
+        }
+        if all(keep_this_problem.values()):
+            results_to_keep.append(result_name)
+    return results_to_keep
 
 
 def get_limited_problems_libraries(
     problem_names: str, library_names: str
 ) -> Tuple[Dict, Dict]:
-    all_libraries = dict(sklearn_fork=sklearn_fork_bench, zeros=zeros_bench,)
+    all_libraries = {"sklearn-fork": sklearn_fork_bench, "zeros": zeros_bench}
 
     if GLMNET_PYTHON_INSTALLED:
-        all_libraries["glmnet_python"] = glmnet_python_bench
+        all_libraries["glmnet-python"] = glmnet_python_bench
 
     if H20_INSTALLED:
         all_libraries["h2o"] = h2o_bench
@@ -337,18 +353,27 @@ def get_comma_sep_names(xs: str) -> List[str]:
 def get_path(
     output_dir: str,
     problem_name: str,
+    library_name: str,
     num_rows: Union[int, str] = None,
     storage: str = None,
     threads: Union[int, str] = None,
     single_precision: bool = False,
+    cv: bool = False,
 ):
-    return os.path.join(
-        output_dir,
-        problem_name,
-        str(num_rows),
-        str(storage),
-        str(threads),
-        "single" if single_precision else "double",
+    return (
+        output_dir
+        + "/"
+        + "_".join(
+            [
+                problem_name,
+                library_name,
+                str(num_rows),
+                str(storage),
+                str(threads),
+                str(single_precision),
+                str(cv),
+            ]
+        )
     )
 
 
@@ -360,31 +385,28 @@ def save_benchmark_results(
     storage: str,
     threads: int,
     single_precision: bool,
+    cv: bool,
     result,
 ) -> None:
-    problem_dir = os.path.join(output_dir, problem_name)
-    if not os.path.exists(problem_dir):
-        os.makedirs(problem_dir)
-    results_dir = get_path(
-        output_dir, problem_name, num_rows, storage, threads, single_precision
-    )
-    if not os.path.exists(results_dir):
-        os.makedirs(results_dir)
-    with open(os.path.join(results_dir, library_name + "-results.pkl"), "wb") as f:
+    params_list = [
+        problem_name,
+        library_name,
+        num_rows,
+        storage,
+        threads,
+        single_precision,
+        cv,
+    ]
+
+    results_path = output_dir + "/" + "_".join([str(x) for x in params_list])
+
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+    with open(results_path + ".pkl", "wb") as f:
         pickle.dump(result, f)
 
 
-def load_benchmark_results(
-    output_dir: str,
-    problem_name: str,
-    library_name: str,
-    num_rows: str,
-    storage: str,
-    threads: str,
-    single_precision: str,
-):
-    results_dir = os.path.join(
-        output_dir, problem_name, num_rows, storage, threads, single_precision
-    )
-    with open(os.path.join(results_dir, library_name + "-results.pkl"), "rb") as f:
+def load_benchmark_results(output_dir: str, fname: str):
+    results_path = os.path.join(output_dir, fname)
+    with open(results_path, "rb") as f:
         return pickle.load(f)

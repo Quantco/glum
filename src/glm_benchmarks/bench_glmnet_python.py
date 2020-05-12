@@ -2,7 +2,7 @@ import warnings
 from typing import Any, Dict, Union
 
 import numpy as np
-from glmnet_python import glmnet
+from glmnet_python import cvglmnet, glmnet
 from scipy import sparse as sps
 
 from .util import benchmark_convergence_tolerance, runtime
@@ -13,6 +13,7 @@ def glmnet_python_bench(
     distribution: str,
     alpha: float,
     l1_ratio: float,
+    cv: bool,
 ) -> Dict[str, Any]:
     result: Dict = dict()
 
@@ -48,7 +49,10 @@ def glmnet_python_bench(
     if "offset" in dat.keys():
         glmnet_kws.update({"offset": dat["offset"]})
 
-    result["runtime"], m = runtime(glmnet, **glmnet_kws)
+    if cv:
+        result["runtime"], m = runtime(cvglmnet, **glmnet_kws)
+    else:
+        result["runtime"], m = runtime(glmnet, **glmnet_kws)
     result["intercept"] = m["a0"][0]
     result["coef"] = m["beta"][:, 0]
     result["n_iter"] = m["npasses"]
