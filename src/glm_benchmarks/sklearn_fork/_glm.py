@@ -425,6 +425,7 @@ def _cd_cycle(
     selection="cyclic",
     random_state=None,
     diag_fisher=False,
+    lower_bounds=None,
 ):
     """Compute inner loop of coordinate descent, i.e. cycles through features.
 
@@ -464,6 +465,9 @@ def _cd_cycle(
     A = -score
     A[idx:] += coef_P2
     # A += d @ (H+P2) but so far d=0
+
+    do_not_count_grad = np.ones_like(coef)
+
     # inner loop
     for inner_iter in range(1, max_inner_iter + 1):
         inner_iter += 1
@@ -533,6 +537,13 @@ def _cd_cycle(
 
             # update direction d
             d[jdx] += z
+
+            # bounds
+            if lower_bounds is not None:
+                if coef[jdx] + d[jdx] < lower_bounds[jdx - 1]:
+                    do_not_count_grad[jdx] = 0
+                    d[jdx] = coef[jdx] - lower_bounds[jdx - 1]
+
             # update A because d_j is now d_j+z
             # A = f'(w) + d*H(w) + (w+d)*P2
             # => A += (H+P2)*e_j z = B_j * z
@@ -573,13 +584,13 @@ def _cd_cycle(
         # sum_i(|minimum of norm of subgrad of q(d)_i|)
         # subgrad q(d) = A + subgrad ||P1*(w+d)||_1
         mn_subgrad = _min_norm_sugrad(coef=coef + d, grad=A, P2=None, P1=P1)
-        mn_subgrad = linalg.norm(mn_subgrad, ord=1)
+        mn_subgrad = linalg.norm(mn_subgrad * do_not_count_grad, ord=1)
         if mn_subgrad <= inner_tol:
             if inner_iter == 1:
                 inner_tol = inner_tol / 4.0
             break
         # end of inner loop
-    return d, coef_P2, n_cycles, inner_tol
+    return d, coef_P2, n_cycles, inner_tol, do_not_count_grad
 
 
 def _cd_solver(
@@ -599,6 +610,7 @@ def _cd_solver(
     random_state=None,
     diag_fisher=False,
     offset: np.ndarray = None,
+    lower_bounds: np.ndarray = None,
 ) -> Tuple[np.ndarray, int, int, List[List]]:
     """Solve GLM with L1 and L2 penalty by coordinate descent algorithm.
 
@@ -741,6 +753,10 @@ def _cd_solver(
             _min_norm_sugrad(coef=coef, grad=-score, P2=P2, P1=P1), ord=1
         )
 
+    def calc_mn_subgrad_norm_bounds(do_not_count_grad):
+        mn_subgrad = _min_norm_sugrad(coef=coef, grad=-score, P2=P2, P1=P1)
+        return linalg.norm(mn_subgrad * do_not_count_grad, ord=1)
+
     # the ratio of inner _cd_cycle tolerance to the minimum subgradient norm
     # This wasn't explored in the newGLMNET paper linked above.
     # That paper essentially uses inner_tol_ratio = 1.0, but using a slightly
@@ -748,7 +764,7 @@ def _cd_solver(
     # By comparison, the original GLMNET paper uses inner_tol = tol.
     # So, inner_tol_ratio < 1 is sort of a compromise between the two papers.
     # The value should probably be between 0.01 and 0.5. 0.1 works well for many problems
-    inner_tol_ratio = 0.1
+    inner_tol_ratio = 0.05
 
     def calc_inner_tol(mn_subgrad_norm):
         # Another potential rule limits the inner tol to be no smaller than tol
@@ -768,7 +784,7 @@ def _cd_solver(
         # initialize search direction d (to be optimized) with zero
         d.fill(0)
         # inner loop = _cd_cycle
-        d, coef_P2, n_cycles, inner_tol = _cd_cycle(
+        d, coef_P2, n_cycles, inner_tol, do_not_count_grad = _cd_cycle(
             d,
             X,
             coef,
@@ -782,6 +798,7 @@ def _cd_solver(
             selection=selection,
             random_state=random_state,
             diag_fisher=diag_fisher,
+            lower_bounds=lower_bounds,
         )
 
         # line search by sequence beta^k, k=0, 1, ..
@@ -862,12 +879,22 @@ def _cd_solver(
         # fp_wP2 = f'(w) + w*P2
         # Note: eta, mu and score are already updated
         # this also updates the inner tolerance for the next loop!
-        mn_subgrad_norm = calc_mn_subgrad_norm()
+        if lower_bounds is None:
+            mn_subgrad_norm = calc_mn_subgrad_norm()
+        else:
+            mn_subgrad_norm = calc_mn_subgrad_norm_bounds(do_not_count_grad)
+
         if mn_subgrad_norm <= tol:
             converged = True
             break
 
         inner_tol = calc_inner_tol(mn_subgrad_norm)
+
+        print(f"Outer loop #{n_iter}")
+        print(f"mn_subgrad: {mn_subgrad_norm}")
+        print(f"inner_tol: {inner_tol}")
+        print(f"n_cycles: {n_cycles}")
+
         # end of outer loop
 
     if not converged:
@@ -1385,6 +1412,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         check_input=True,
         verbose=0,
         scale_predictors=False,
+        lower_bounds=None,
     ):
         self.alpha = alpha
         self.l1_ratio = l1_ratio
@@ -1406,6 +1434,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         self.check_input = check_input
         self.verbose = verbose
         self.scale_predictors = scale_predictors
+        self.lower_bounds = lower_bounds
 
     # See PEP 484 on annotating with float rather than Number
     # https://www.python.org/dev/peps/pep-0484/#the-numeric-tower
@@ -1866,6 +1895,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 random_state=random_state,
                 diag_fisher=self.diag_fisher,
                 offset=offset,
+                lower_bounds=self.lower_bounds,
             )
 
         #######################################################################
