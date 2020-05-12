@@ -916,7 +916,6 @@ def get_link(link: Union[str, Link], family: ExponentialDispersionModel) -> Link
         return link
     if link == "auto":
         if isinstance(family, TweedieDistribution):
-            # This code
             if family.power <= 0:
                 return IdentityLink()
             if family.power < 1:

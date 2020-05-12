@@ -91,6 +91,6 @@ def test_normal_ridge_comparison(fit_intercept):
     glm_pred = glm.predict(T)
 
     np.testing.assert_allclose(glm.alpha_, ridge.alpha_)
-    np.testing.assert_allclose(glm_pred, el_pred)
-    np.testing.assert_allclose(glm.intercept_, ridge.intercept_)
-    np.testing.assert_allclose(glm.coef_, ridge.coef_)
+    np.testing.assert_allclose(glm_pred, el_pred, atol=4e-6)
+    np.testing.assert_allclose(glm.intercept_, ridge.intercept_, atol=4e-7)
+    np.testing.assert_allclose(glm.coef_, ridge.coef_, atol=3e-6)

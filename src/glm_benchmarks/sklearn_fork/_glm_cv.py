@@ -301,14 +301,14 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
                     offset_train, offset_test = None, None
 
                 def _get_deviance(coef):
-                    mu = get_link(self.link, self.family).inverse(
+                    mu = get_link(self.link, get_family(self.family)).inverse(
                         _safe_lin_pred(x_test, coef, offset_test)
                     )
 
                     return get_family(self.family).deviance(y_test, mu, weights=w_test)
 
                 def _get_mse(coef):
-                    mu = get_link(self.link, self.family).inverse(
+                    mu = get_link(self.link, get_family(self.family)).inverse(
                         _safe_lin_pred(x_test, coef, offset_test)
                     )
 
@@ -339,7 +339,6 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
                                 error = "P2 must be positive semi-definite."
                             raise ValueError(error)
 
-                print()
                 for j, alpha in enumerate(alphas[i]):
                     P1 = setup_p1(self.P1, X, X.dtype, alpha, l1)
                     P2 = setup_p2(self.P2, X, _stype, X.dtype, alpha, l1)
