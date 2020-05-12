@@ -86,7 +86,15 @@ def cli_run(
 
 
 def execute_problem_library(
-    P, L, num_rows=None, storage="dense", threads=None, single_precision: bool = False
+    P,
+    L,
+    num_rows=None,
+    storage="dense",
+    threads=None,
+    single_precision: bool = False,
+    print_diagnostics: bool = True,
+    regularization_strength: float = None,
+    **kwargs,
 ):
     dat = P.data_loader(num_rows=num_rows)
     if threads is None:
@@ -97,7 +105,16 @@ def execute_problem_library(
     if single_precision:
         for k, v in dat.items():
             dat[k] = v.astype(np.float32)
-    result = L(dat, P.distribution, P.regularization_strength, P.l1_ratio)
+    if regularization_strength is None:
+        regularization_strength = P.regularization_strength
+    result = L(
+        dat,
+        P.distribution,
+        regularization_strength,
+        P.l1_ratio,
+        print_diagnostics,
+        **kwargs,
+    )
     return result
 
 
