@@ -132,9 +132,7 @@ def fit_model(family, model_parameters, use_weights, data):
     if "tweedie" in family:
         p = float(family.split("=")[1])
         family = TweedieDistribution(power=p)
-    model = GeneralizedLinearRegressor(
-        family=family, **model_parameters, start_params="zero"
-    )
+    model = GeneralizedLinearRegressor(family=family, **model_parameters)
 
     fit_params = {
         "X": data["X"],
@@ -161,6 +159,7 @@ def fit_model(family, model_parameters, use_weights, data):
 def test_golden_master(
     distribution, model_parameters, run_name, use_weights, data_all, expected_all
 ):
+    print((distribution, run_name))
     if (distribution, run_name) in problems_with_issue:
         pytest.skip("Problem does not converge")
 
@@ -189,6 +188,7 @@ def run_and_store_golden_master(
     gm_dict,
     overwrite=False,
 ):
+    print((distribution, run_name))
     if use_weights:
         run_name = f"{run_name}_weights"
 

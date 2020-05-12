@@ -5,6 +5,7 @@ import warnings
 import numpy as np
 import pytest
 from git_root import git_root
+from sklearn.exceptions import ConvergenceWarning
 
 from glm_benchmarks.bench_sklearn_fork import sklearn_fork_bench
 from glm_benchmarks.main import execute_problem_library
@@ -17,26 +18,8 @@ bench_cfg = dict(
     print_diagnostics=False,
 )
 
-do_not_test = [
-    "wide_insurance_weights_l2_gamma",
-    "wide_insurance_no_weights_l2_gamma",
-    "wide_insurance_offset_l2_gamma",
-    "wide_insurance_weights_l2_tweedie_p=1.5",
-    "wide_insurance_no_weights_l2_tweedie_p=1.5",
-    "wide_insurance_offset_l2_tweedie_p=1.5",
-    "wide_insurance_weights_net_gamma",
-    "wide_insurance_no_weights_net_gamma",
-    "wide_insurance_offset_net_gamma",
-    "wide_insurance_weights_net_tweedie_p=1.5",
-    "wide_insurance_no_weights_net_tweedie_p=1.5",
-    "wide_insurance_offset_net_tweedie_p=1.5",
-    "wide_insurance_weights_lasso_gamma",
-    "wide_insurance_no_weights_lasso_gamma",
-    "wide_insurance_offset_lasso_gamma",
-    "wide_insurance_weights_lasso_tweedie_p=1.5",
-    "wide_insurance_no_weights_lasso_tweedie_p=1.5",
-    "wide_insurance_offset_lasso_tweedie_p=1.5",
-]
+with open(git_root("golden_master/skipped_benchmark_gm.json"), "r") as fh:
+    do_not_test = json.load(fh)
 
 all_test_problems = {
     key: value for key, value in get_all_problems().items() if key not in do_not_test
@@ -69,17 +52,18 @@ def test_gm_benchmarks(Pn, P, bench_cfg_fix, expected_all):
 
 
 def run_and_store_golden_master(overwrite=False):
-    try:
-        with open(git_root("golden_master/benchmark_gm.json"), "r") as fh:
-            gm_dict = json.load(fh)
-    except FileNotFoundError:
+    skipped_problems = []
+
+    if overwrite:
         gm_dict = dict()
+    else:
+        try:
+            with open(git_root("golden_master/benchmark_gm.json"), "r") as fh:
+                gm_dict = json.load(fh)
+        except FileNotFoundError:
+            gm_dict = dict()
 
     for Pn, P in get_all_problems().items():
-        if Pn in do_not_test:
-            warnings.warn(f"Skipping {Pn} because it's not converging.")
-            continue
-
         if Pn in gm_dict.keys():
             if overwrite:
                 warnings.warn("Overwriting existing result")
@@ -87,12 +71,21 @@ def run_and_store_golden_master(overwrite=False):
                 warnings.warn("Result exists and cannot overwrite. Skipping")
                 continue
 
-        res = execute_problem_library(P, sklearn_fork_bench, **bench_cfg)
+        warnings.simplefilter("error", ConvergenceWarning)
+        try:
+            res = execute_problem_library(P, sklearn_fork_bench, **bench_cfg)
+        except ConvergenceWarning:
+            warnings.warn("Problem does not converge. Not storing result.")
+            skipped_problems.append(Pn)
+            continue
 
         gm_dict[Pn] = dict(coef=res["coef"].tolist(), intercept=res["intercept"],)
 
     with open(git_root("golden_master/benchmark_gm.json"), "w") as fh:
         json.dump(gm_dict, fh, indent=2)
+
+    with open(git_root("golden_master/skipped_benchmark_gm.json"), "w") as fh:
+        json.dump(skipped_problems, fh, indent=2)
 
 
 if __name__ == "__main__":
