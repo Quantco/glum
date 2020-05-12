@@ -33,6 +33,7 @@ benchmark_params = [
     "library-name",
     "num-rows",
     "storage",
+    "threads",
     "single-precision",
     "cv",
 ]
@@ -197,9 +198,11 @@ def cli_analyze(
     ]
 
     res_df = pd.concat(formatted_results, axis=1).T
-    res_df["offset"] = res_df["problem"].apply(lambda x: "offset" in x)
-    res_df["problem"] = ["weights".join(x.split("offset")) for x in res_df["problem"]]
-    res_df = res_df.set_index(["problem", "num_rows", "library"]).sort_index()
+    res_df["offset"] = res_df["problem-name"].apply(lambda x: "offset" in x)
+    res_df["problem-name"] = [
+        "weights".join(x.split("offset")) for x in res_df["problem-name"]
+    ]
+    res_df = res_df.set_index(["problem-name", "num-rows", "library-name"]).sort_index()
 
     res_df["n_iter"] = res_df["n_iter"].astype(int)
     for col in ["runtime", "runtime per iter", "intercept", "l1", "l2"]:
@@ -207,7 +210,7 @@ def cli_analyze(
 
     for col in ["obj_val"]:
         res_df["rel_" + col] = (
-            res_df[col] - res_df.groupby(["problem", "num_rows"])[col].min()
+            res_df[col] - res_df.groupby(["problem-name", "num-rows"])[col].min()
         )
 
     with pd.option_context(
@@ -255,21 +258,26 @@ def extract_dict_results_to_pd_series(
         tweedie_p=tweedie_p if tweedie else None,
     )
 
-    formatted = {
-        "problem": prob_name,
-        "library": lib_name,
-        "threads": "None" if threads == "None" else int(threads),
-        "storage": storage,
-        "single_precision": single_precision,
-        "num_rows": dat["y"].shape[0] if num_rows == "None" else int(num_rows),
-        "n_iter": results["n_iter"],
-        "runtime": results["runtime"],
-        "runtime per iter": runtime_per_iter,
-        "intercept": results["intercept"],
-        "l1": l1_norm,
-        "l2": l2_norm,
-        "obj_val": obj_val,
-    }
+    formatted: Dict[str, Any] = dict(
+        zip(
+            benchmark_params,
+            [prob_name, lib_name, num_rows, storage, threads, single_precision, cv],
+        )
+    )
+
+    formatted.update(
+        {
+            "threads": "None" if threads == "None" else int(threads),
+            "num_rows": dat["y"].shape[0] if num_rows == "None" else int(num_rows),
+            "n_iter": results["n_iter"],
+            "runtime": results["runtime"],
+            "runtime per iter": runtime_per_iter,
+            "intercept": results["intercept"],
+            "l1": l1_norm,
+            "l2": l2_norm,
+            "obj_val": obj_val,
+        }
+    )
     return pd.Series(formatted)
 
 
@@ -348,33 +356,6 @@ def get_limited_problems(problem_names):
 
 def get_comma_sep_names(xs: str) -> List[str]:
     return [x.strip() for x in xs.split(",")]
-
-
-def get_path(
-    output_dir: str,
-    problem_name: str,
-    library_name: str,
-    num_rows: Union[int, str] = None,
-    storage: str = None,
-    threads: Union[int, str] = None,
-    single_precision: bool = False,
-    cv: bool = False,
-):
-    return (
-        output_dir
-        + "/"
-        + "_".join(
-            [
-                problem_name,
-                library_name,
-                str(num_rows),
-                str(storage),
-                str(threads),
-                str(single_precision),
-                str(cv),
-            ]
-        )
-    )
 
 
 def save_benchmark_results(
