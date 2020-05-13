@@ -26,7 +26,7 @@ def sklearn_fork_bench(
     result = dict()
 
     X = dat["X"]
-    fit_args = dict(X=X.copy(), y=dat["y"])
+    fit_args = dict(X=X, y=dat["y"])
     if "weights" in dat.keys():
         fit_args.update({"sample_weight": dat["weights"]})
     if "offset" in dat.keys():
@@ -43,7 +43,7 @@ def sklearn_fork_bench(
         family=family,
         alpha=alpha,
         l1_ratio=l1_ratio,
-        max_iter=500,
+        max_iter=40,
         random_state=random_seed,
         copy_X=False,
         selection="cyclic",
