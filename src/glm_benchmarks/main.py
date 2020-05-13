@@ -121,9 +121,9 @@ def execute_problem_library(
     threads=None,
     single_precision: bool = False,
     iterations: int = 1,
-    regularization_strength: Optional[float] = None
-    print_diagnostics: bool = True
-    **kwargs
+    regularization_strength: Optional[float] = None,
+    print_diagnostics: bool = True,
+    **kwargs,
 ):
     dat = P.data_loader(num_rows=num_rows)
     if threads is None:
@@ -131,8 +131,8 @@ def execute_problem_library(
     os.environ["OMP_NUM_THREADS"] = str(threads)
     if single_precision:
         for k, v in dat.items():
-            dat[k] = v.astype(np.float32
-                              
+            dat[k] = v.astype(np.float32)
+
     if storage == "sparse":
         dat["X"] = scipy.sparse.csc_matrix(dat["X"])
     elif storage.startswith("split"):
@@ -143,7 +143,15 @@ def execute_problem_library(
 
     if regularization_strength is None:
         regularization_strength = P.regularization_strength
-    result = L(dat, P.distribution, regularization_strength, P.l1_ratio, iterations, print_diagnostics, **kwargs)
+    result = L(
+        dat,
+        P.distribution,
+        regularization_strength,
+        P.l1_ratio,
+        iterations,
+        print_diagnostics,
+        **kwargs,
+    )
     return result, regularization_strength
 
 
