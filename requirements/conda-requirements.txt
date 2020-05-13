@@ -22,3 +22,5 @@ statsmodels
 mako
 numexpr
 sparse_dot_mkl>=0.4.0
+xsimd
+gdb

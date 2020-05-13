@@ -2,6 +2,7 @@ from typing import Tuple
 
 import numpy as np
 
+from glm_benchmarks.sandwich.sandwich import dense_sandwich
 from glm_benchmarks.scaled_spmat.standardize import one_over_var_inf_to_zero
 
 
@@ -17,11 +18,10 @@ class DenseGLMDataMatrix(np.ndarray):
     np.ndarray subclassing is explained here: https://docs.scipy.org/doc/numpy/user/basics.subclassing.html#slightly-more-realistic-example-attribute-added-to-existing-array
     """
 
+    skip_sklearn_check = True
+
     def __new__(cls, input_array):
-        # Input array is an already formed ndarray instance
-        # We first cast to be our class type
         obj = np.asarray(input_array).view(cls)
-        # Finally, we must return the newly created object:
         if not np.issubdtype(obj.dtype, np.floating):
             raise NotImplementedError(
                 "DenseGLMDataMatrix is only implemented for float data"
@@ -39,9 +39,7 @@ class DenseGLMDataMatrix(np.ndarray):
         return self
 
     def sandwich(self, d):
-        sqrtD = np.sqrt(d)[:, np.newaxis]
-        xd = self * sqrtD
-        return xd.T @ xd
+        return dense_sandwich(self, d)
 
     def standardize(self, weights: np.ndarray, scale_predictors: bool) -> Tuple:
         col_means = self.T.dot(weights)[None, :]
