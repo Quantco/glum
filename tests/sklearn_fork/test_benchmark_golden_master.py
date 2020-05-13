@@ -41,7 +41,7 @@ def expected_all():
     ["Pn", "P"], all_test_problems.items(), ids=all_test_problems.keys()
 )
 def test_gm_benchmarks(Pn, P, bench_cfg_fix, expected_all):
-    result = execute_problem_library(P, sklearn_fork_bench, **bench_cfg_fix)
+    result, _ = execute_problem_library(P, sklearn_fork_bench, **bench_cfg_fix)
 
     expected = expected_all[Pn]
 
