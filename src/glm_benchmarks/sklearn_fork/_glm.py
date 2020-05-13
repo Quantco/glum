@@ -466,10 +466,10 @@ def _cd_cycle(
     A[idx:] += coef_P2
     # A += d @ (H+P2) but so far d=0
 
-    do_not_count_grad = np.ones_like(coef)
+    not_binding = np.full(coef.shape, True, dtype=bool)
 
     # inner loop
-    for inner_iter in range(1, max_inner_iter + 1):
+    for inner_iter in range(0, max_inner_iter):
         inner_iter += 1
         n_cycles += 1
         # cycle through features, update intercept separately at the end
@@ -540,9 +540,9 @@ def _cd_cycle(
 
             # bounds
             if lower_bounds is not None:
-                if coef[jdx] + d[jdx] < lower_bounds[jdx - 1]:
-                    do_not_count_grad[jdx] = 0
-                    d[jdx] = coef[jdx] - lower_bounds[jdx - 1]
+                if coef[jdx] + d[jdx] < lower_bounds[jdx]:
+                    d[jdx] = lower_bounds[jdx] - coef[jdx]
+                    not_binding[jdx] = False
 
             # update A because d_j is now d_j+z
             # A = f'(w) + d*H(w) + (w+d)*P2
@@ -584,13 +584,13 @@ def _cd_cycle(
         # sum_i(|minimum of norm of subgrad of q(d)_i|)
         # subgrad q(d) = A + subgrad ||P1*(w+d)||_1
         mn_subgrad = _min_norm_sugrad(coef=coef + d, grad=A, P2=None, P1=P1)
-        mn_subgrad = linalg.norm(mn_subgrad * do_not_count_grad, ord=1)
+        mn_subgrad = linalg.norm(mn_subgrad * not_binding, ord=1)
         if mn_subgrad <= inner_tol:
             if inner_iter == 1:
                 inner_tol = inner_tol / 4.0
             break
         # end of inner loop
-    return d, coef_P2, n_cycles, inner_tol, do_not_count_grad
+    return d, coef_P2, n_cycles, inner_tol, not_binding
 
 
 def _cd_solver(
@@ -753,10 +753,6 @@ def _cd_solver(
             _min_norm_sugrad(coef=coef, grad=-score, P2=P2, P1=P1), ord=1
         )
 
-    def calc_mn_subgrad_norm_bounds(do_not_count_grad):
-        mn_subgrad = _min_norm_sugrad(coef=coef, grad=-score, P2=P2, P1=P1)
-        return linalg.norm(mn_subgrad * do_not_count_grad, ord=1)
-
     # the ratio of inner _cd_cycle tolerance to the minimum subgradient norm
     # This wasn't explored in the newGLMNET paper linked above.
     # That paper essentially uses inner_tol_ratio = 1.0, but using a slightly
@@ -764,7 +760,7 @@ def _cd_solver(
     # By comparison, the original GLMNET paper uses inner_tol = tol.
     # So, inner_tol_ratio < 1 is sort of a compromise between the two papers.
     # The value should probably be between 0.01 and 0.5. 0.1 works well for many problems
-    inner_tol_ratio = 0.05
+    inner_tol_ratio = 0.1
 
     def calc_inner_tol(mn_subgrad_norm):
         # Another potential rule limits the inner tol to be no smaller than tol
@@ -784,7 +780,7 @@ def _cd_solver(
         # initialize search direction d (to be optimized) with zero
         d.fill(0)
         # inner loop = _cd_cycle
-        d, coef_P2, n_cycles, inner_tol, do_not_count_grad = _cd_cycle(
+        d, coef_P2, n_cycles, inner_tol, not_binding = _cd_cycle(
             d,
             X,
             coef,
@@ -807,6 +803,7 @@ def _cd_solver(
         #                  +||P1 (w+d)||_1 - ||P1 w||_1)
         P1w_1 = linalg.norm(P1 * coef[idx:], ord=1)
         P1wd_1 = linalg.norm(P1 * (coef + d)[idx:], ord=1)
+
         # Note: coef_P2 already calculated and still valid
         bound = sigma * (-(score @ d) + coef_P2 @ d[idx:] + P1wd_1 - P1w_1)
 
@@ -845,6 +842,7 @@ def _cd_solver(
             Fwd = 0.5 * family.deviance(y, mu_wd, weights) + linalg.norm(
                 P1 * coef_wd[idx:], ord=1
             )
+
             if P2.ndim == 1:
                 Fwd += 0.5 * ((coef_wd[idx:] * P2) @ coef_wd[idx:])
             else:
@@ -882,7 +880,9 @@ def _cd_solver(
         if lower_bounds is None:
             mn_subgrad_norm = calc_mn_subgrad_norm()
         else:
-            mn_subgrad_norm = calc_mn_subgrad_norm_bounds(do_not_count_grad)
+            mn_subgrad_in = _min_norm_sugrad(coef=coef, grad=-score, P2=P2, P1=P1)
+            mn_subgrad_adj = mn_subgrad_in * not_binding
+            mn_subgrad_norm = linalg.norm(mn_subgrad_adj, ord=1)
 
         if mn_subgrad_norm <= tol:
             converged = True
@@ -890,12 +890,33 @@ def _cd_solver(
 
         inner_tol = calc_inner_tol(mn_subgrad_norm)
 
+        print("================================")
+        print(f"coef: {coef[0:5]}")
         print(f"Outer loop #{n_iter}")
         print(f"mn_subgrad: {mn_subgrad_norm}")
+        print(f"mn_subgrad_intercept: {mn_subgrad_adj[0]}")
         print(f"inner_tol: {inner_tol}")
         print(f"n_cycles: {n_cycles}")
+        print(f"line search iterations: {k}")
+        print(f"number of binding feat.: {sum(1-not_binding)}")
 
         # end of outer loop
+    print(mn_subgrad_norm)
+
+    if lower_bounds is not None:
+        import pandas as pd
+
+        res_df = pd.DataFrame(
+            data={
+                "coef": coef,
+                "d": d,
+                "score": score,
+                "mn_subgrad_in": mn_subgrad_in,
+                "mn_subgrad_adj": mn_subgrad_adj,
+                "nb": not_binding,
+            }
+        )
+        print(res_df)
 
     if not converged:
         warnings.warn(
@@ -1576,7 +1597,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
 
             # just one outer loop = Newton step
             n_cycles = 0
-            coef, coef_P2, n_cycles, inner_tol = _cd_cycle(
+            coef, coef_P2, n_cycles, inner_tol, _ = _cd_cycle(
                 zero,
                 X,
                 zero,
