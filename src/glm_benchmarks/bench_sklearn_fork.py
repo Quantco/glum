@@ -21,7 +21,7 @@ def sklearn_fork_bench(
     l1_ratio: float,
     iterations: int,
     print_diagnostics: bool = True,
-    **kwargs
+    **kwargs,
 ):
     result = dict()
 
