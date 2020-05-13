@@ -19,6 +19,7 @@ def sklearn_fork_bench(
     distribution: str,
     alpha: float,
     l1_ratio: float,
+    iterations: int,
     print_diagnostics: bool = True,
     **kwargs,
 ):
@@ -51,7 +52,7 @@ def sklearn_fork_bench(
     model_args.update(kwargs)
 
     try:
-        result["runtime"], m = runtime(build_and_fit, model_args, fit_args)
+        result["runtime"], m = runtime(build_and_fit, iterations, model_args, fit_args)
     except ValueError as e:
         print(f"Problem failed with this error: {e}")
         return result
