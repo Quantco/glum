@@ -40,7 +40,7 @@ def sklearn_fork_bench(
     if family == "gaussian":
         family = "normal"
     elif "tweedie" in family:
-        tweedie_p = float(family.split("_p=")[1])
+        tweedie_p = float(family.split("-p=")[1])
         family = TweedieDistribution(tweedie_p)  # type: ignore
 
     model_args = dict(
@@ -50,12 +50,13 @@ def sklearn_fork_bench(
         random_state=random_seed,
         copy_X=False,
         selection="random",
-        tol=benchmark_convergence_tolerance,
-        link="identity",
+        # TODO: try tightening this later
+        tol=1 if cv else benchmark_convergence_tolerance,
     )
-    if cv:
-        model_args["alphas"] = 10.0 ** np.arange(6, 3, -0.25)
-    else:
+    # start_params does not seem to work well for gamma and tweedie
+    if distribution == "gamma" or "tweedie" in distribution:
+        model_args["start_params"] = "zero"
+    if not cv:
         model_args["alpha"] = alpha
 
     try:
@@ -68,6 +69,12 @@ def sklearn_fork_bench(
     result["coef"] = m.coef_
     result["n_iter"] = m.n_iter_
 
+    if cv:
+        alphas: np.ndarray = m.alphas_
+        result["n_alphas"] = len(alphas)
+        result["max_alpha"] = alphas.max()
+        result["min_alpha"] = alphas.min()
+        result["best_alpha"] = m.alpha_
     if not cv:
         m.report_diagnostics()
     return result

@@ -934,9 +934,6 @@ def test_binomial_enet(alpha):
 
 
 @pytest.mark.parametrize(
-    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
-)
-@pytest.mark.parametrize(
     "params",
     [
         {"solver": "irls", "start_params": "guess"},
@@ -952,17 +949,17 @@ def test_binomial_enet(alpha):
     ),
 )
 @pytest.mark.parametrize("use_offset", [False, True])
-def test_solver_equivalence(estimator, params, use_offset, regression_data):
+def test_solver_equivalence(params, use_offset, regression_data):
     X, y = regression_data
     if use_offset:
         np.random.seed(0)
         offset = np.random.random(len(y))
     else:
         offset = None
-    est_ref = estimator(random_state=2)
+    est_ref = GeneralizedLinearRegressor(random_state=2)
     est_ref.fit(X, y, offset=offset)
 
-    est_2 = estimator(**params)
+    est_2 = GeneralizedLinearRegressor(**params)
     est_2.set_params(random_state=2)
 
     est_2.fit(X, y, offset=offset)
@@ -976,18 +973,80 @@ def test_solver_equivalence(estimator, params, use_offset, regression_data):
     )
 
 
-def test_fit_dispersion(regression_data):
+# TODO: different distributions
+# TODO: put diag_fisher back in after merging Ben's bug fix
+# Specify rtol since some are more accurate than others
+@pytest.mark.parametrize(
+    "params",
+    [
+        {"solver": "irls", "start_params": "guess", "rtol": 1e-6},
+        {"solver": "irls", "start_params": "zero", "rtol": 1e-6},
+        {"solver": "lbfgs", "start_params": "guess", "rtol": 2e-4},
+        {"solver": "lbfgs", "start_params": "zero", "rtol": 2e-4},
+        {"solver": "cd", "selection": "cyclic", "diag_fisher": False, "rtol": 2e-5},
+        {"solver": "cd", "selection": "random", "diag_fisher": False, "rtol": 6e-5},
+    ],
+    ids=lambda params: ", ".join(
+        "{}={}".format(key, val) for key, val in params.items()
+    ),
+)
+@pytest.mark.parametrize("use_offset", [False, True])
+def test_solver_equivalence_cv(params, use_offset):
+    n_alphas = 3
+    n_samples = 100
+    n_features = 10
+
+    X, y = make_regression(n_samples=n_samples, n_features=n_features, random_state=2)
+    if use_offset:
+        np.random.seed(0)
+        offset = np.random.random(len(y))
+    else:
+        offset = None
+
+    est_ref = GeneralizedLinearRegressorCV(random_state=2, n_alphas=n_alphas)
+    est_ref.fit(X, y, offset=offset)
+
+    est_2 = (
+        GeneralizedLinearRegressorCV(
+            n_alphas=n_alphas,
+            max_iter=1000,
+            **{k: v for k, v in params.items() if k != "rtol"},
+        )
+        .set_params(random_state=2)
+        .fit(X, y, offset=offset)
+    )
+
+    def _assert_all_close(x, y):
+        return assert_allclose(x, y, rtol=params["rtol"], atol=1e-7)
+
+    _assert_all_close(est_2.alphas_, est_ref.alphas_)
+    _assert_all_close(est_2.alpha_, est_ref.alpha_)
+    _assert_all_close(est_2.l1_ratio_, est_ref.l1_ratio_)
+    _assert_all_close(est_2.coef_path_, est_ref.coef_path_)
+    _assert_all_close(est_2.mse_path_, est_ref.mse_path_)
+    _assert_all_close(est_2.intercept_, est_ref.intercept_)
+    _assert_all_close(est_2.coef_, est_ref.coef_)
+    _assert_all_close(
+        mean_absolute_error(est_2.predict(X), y),
+        mean_absolute_error(est_ref.predict(X), y),
+    )
+
+
+@pytest.mark.parametrize(
+    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
+)
+def test_fit_dispersion(estimator, regression_data):
     X, y = regression_data
 
-    est1 = GeneralizedLinearRegressor(random_state=2)
+    est1 = estimator(random_state=2)
     est1.fit(X, y)
     assert not hasattr(est1, "dispersion_")
 
-    est2 = GeneralizedLinearRegressor(random_state=2, fit_dispersion="chisqr")
+    est2 = estimator(random_state=2, fit_dispersion="chisqr")
     est2.fit(X, y)
     assert isinstance(est2.dispersion_, float)
 
-    est3 = GeneralizedLinearRegressor(random_state=2, fit_dispersion="deviance")
+    est3 = estimator(random_state=2, fit_dispersion="deviance")
     est3.fit(X, y)
     assert isinstance(est3.dispersion_, float)
 
@@ -1013,6 +1072,7 @@ def test_standardize(use_sparse, scale_predictors):
     col_mults = np.arange(1, NC + 1)
     row_mults = np.linspace(0, 2, NR)
     M = row_mults[:, None] * col_mults[None, :]
+
     if use_sparse:
         M = MKLSparseMatrix(sparse.csc_matrix(M))
     else:

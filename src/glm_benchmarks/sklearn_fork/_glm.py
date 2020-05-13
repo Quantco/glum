@@ -259,7 +259,6 @@ def _irls_step(X, W: np.ndarray, P2, z: np.ndarray, fit_intercept=True):
     #       is more robust.
     # Note: X.T @ W @ X is not sparse, even when X is sparse.
     #      Sparse solver would splinalg.spsolve(A, b) or splinalg.lsmr(A, b)
-    assert np.all(np.isfinite(W))
     if fit_intercept:
         Wz = W * z
         if sparse.issparse(X):
@@ -718,7 +717,7 @@ def _cd_solver(
     converged = False
     idx = 1 if fit_intercept else 0  # offset if coef[0] is intercept
     # line search parameters
-    (beta, sigma) = (0.5, 0.01)
+    (ls_backtrack_amt, sigma) = (0.5, 0.01)
     # some precalculations
     # Note: For diag_fisher=False, fisher = X.T @ fisher @ X and fisher is a
     #       1d array representing a diagonal matrix.
@@ -760,7 +759,7 @@ def _cd_solver(
     # use L1-norm of minimum of norm of subgradient of F
     inner_tol = calc_inner_tol(calc_mn_subgrad_norm())
 
-    Fw = None
+    original_obj = None
 
     diagnostics = []
     # outer loop
@@ -797,14 +796,14 @@ def _cd_solver(
         # In the first iteration, we must compute Fw explicitly.
         # In later iterations, we just use Fwd from the previous iteration
         # as set after the line search loop below.
-        if Fw is None:
-            Fw = (
+        if original_obj is None:
+            original_obj = (
                 0.5 * family.deviance(y, mu, weights)
                 + 0.5 * (coef_P2 @ coef[idx:])
                 + P1w_1
             )
 
-        la = 1.0 / beta
+        la = 1.0 / ls_backtrack_amt
 
         # TODO: if we keep track of X_dot_coef, we can add this to avoid a
         # _safe_lin_pred in _eta_mu_score_fisher every loop
@@ -812,7 +811,7 @@ def _cd_solver(
 
         # Try progressively shorter line search steps.
         for k in range(20):
-            la *= beta  # starts with la=1
+            la *= ls_backtrack_amt  # starts with la=1
             coef_wd = coef + la * d
 
             # The simple version of the next line is:
@@ -833,11 +832,14 @@ def _cd_solver(
                 Fwd += 0.5 * ((coef_wd[idx:] * P2) @ coef_wd[idx:])
             else:
                 Fwd += 0.5 * (coef_wd[idx:] @ (P2 @ coef_wd[idx:]))
-            if Fwd - Fw <= sigma * la * bound:
+            # Fw is original point
+            # sigma is gradient term in taylor expansion
+            # la is step size, so la * bound is how far you've stepped
+            if Fwd - original_obj <= sigma * la * bound:
                 break
 
         # Fw in the next iteration will be equal to Fwd this iteration.
-        Fw = Fwd
+        original_obj = Fwd
 
         # update coefficients
         coef += la * d
@@ -1354,9 +1356,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         Must be run after running set_up_for_fit and before running tear_down_from_fit.
         Sets self.coef_ and self.intercept_.
         """
-        # Check inputs
-        assert len(coef) == X.shape[1] + int(self.fit_intercept)
-
         # 4.1 IRLS ############################################################
         # Note: we already set P2 = l2*P2, see above
         # Note: we already symmetrized P2 = 1/2 (P2 + P2')
@@ -1629,7 +1628,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 "integer;"
                 " got (max_iter={!r})".format(self.max_iter)
             )
-        if not isinstance(self.tol, float) or self.tol <= 0:
+        if (
+            not (isinstance(self.tol, float) or isinstance(self.tol, int))
+            or self.tol <= 0
+        ):
             raise ValueError(
                 "Tolerance for stopping criteria must be "
                 "positive; got (tol={!r})".format(self.tol)
@@ -1669,6 +1671,20 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             if not isinstance(self.P1, str):  # if self.P1 != 'identity':
                 if not np.all(self.P1 >= 0):
                     raise ValueError("P1 must not have negative values.")
+
+    def report_diagnostics(self):
+        if hasattr(self, "diagnostics"):
+            print("diagnostics:")
+            import pandas as pd
+
+            print(
+                pd.DataFrame(
+                    columns=["inner_tol", "n_iter", "n_cycles", "runtime", "intercept"],
+                    data=self.diagnostics,
+                ).set_index("n_iter", drop=True)
+            )
+        else:
+            print("solver does not report diagnostics")
 
 
 def set_up_and_check_fit_args(
@@ -2187,20 +2203,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         self.tear_down_from_fit(X, y, col_means, col_stds, weights, weights_sum)
 
         return self
-
-    def report_diagnostics(self):
-        if hasattr(self, "diagnostics"):
-            print("diagnostics:")
-            import pandas as pd
-
-            print(
-                pd.DataFrame(
-                    columns=["inner_tol", "n_iter", "n_cycles", "runtime", "intercept"],
-                    data=self.diagnostics,
-                ).set_index("n_iter", drop=True)
-            )
-        else:
-            print("solver does not report diagnostics")
 
 
 class PoissonRegressor(GeneralizedLinearRegressor):

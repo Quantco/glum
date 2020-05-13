@@ -40,20 +40,27 @@ def glmnet_python_bench(
         y=dat["y"].copy(),
         family=distribution,
         alpha=l1_ratio,
-        lambdau=np.array([alpha]),
         standardize=False,
         thresh=benchmark_convergence_tolerance,
     )
     if "weights" in dat.keys():
         glmnet_kws.update({"weights": dat["weights"]})
     if "offset" in dat.keys():
-        glmnet_kws.update({"offset": dat["offset"]})
+        glmnet_kws.update({"offset": dat["offset"][:, None]})
 
     if cv:
         result["runtime"], m = runtime(cvglmnet, **glmnet_kws)
+        fit_model = m["glmnet_fit"]
+        result["n_alphas"] = len(m["lambdau"])
+        result["max_alpha"] = m["lambdau"].max()
+        result["min_alpha"] = m["lambdau"].min()
+        result["best_alpha"] = m["lambda_min"][0]
     else:
+        glmnet_kws["lambdau"] = np.array([alpha])
         result["runtime"], m = runtime(glmnet, **glmnet_kws)
-    result["intercept"] = m["a0"][0]
-    result["coef"] = m["beta"][:, 0]
-    result["n_iter"] = m["npasses"]
+        fit_model = m
+
+    result["intercept"] = fit_model["a0"][0]
+    result["coef"] = fit_model["beta"][:, 0]
+    result["n_iter"] = fit_model["npasses"]
     return result

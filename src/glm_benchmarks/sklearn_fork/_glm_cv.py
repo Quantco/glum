@@ -1,12 +1,12 @@
 from __future__ import division
 
+import copy
 from typing import Union
 
 import numpy as np
-from sklearn.linear_model._coordinate_descent import _alpha_grid
 from sklearn.model_selection._split import check_cv
 
-from ._distribution import ExponentialDispersionModel
+from ._distribution import ExponentialDispersionModel, TweedieDistribution
 from ._glm import (
     GeneralizedLinearRegressorBase,
     _safe_lin_pred,
@@ -19,7 +19,7 @@ from ._glm import (
     setup_p1,
     setup_p2,
 )
-from ._link import Link
+from ._link import IdentityLink, Link, LogLink
 
 
 class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
@@ -142,8 +142,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
 
     def __init__(
         self,
-        eps: float = None,
-        n_alphas: int = None,
+        eps: float = 1e-3,
+        n_alphas: int = 100,
         alphas: np.ndarray = None,
         l1_ratio=0,
         P1="identity",
@@ -195,10 +195,6 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         )
 
     def _validate_hyperparameters(self) -> None:
-        if self.n_alphas is not None and self.alphas is not None:
-            raise ValueError("You cannot specify both alphas and n_alphas.")
-        if self.eps is not None and self.alphas is not None:
-            raise ValueError("You cannot specify both eps and n_alphas.")
         if self.alphas is not None and np.any(np.asarray(self.alphas) < 0):
             raise ValueError
         l1_ratio = np.asarray(self.l1_ratio)
@@ -214,26 +210,72 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             )
         super()._validate_hyperparameters()
 
-    def _get_alpha_path(self, l1_ratio: float, X, y: np.ndarray) -> np.ndarray:
+    def _get_alpha_path(
+        self,
+        l1_ratio: float,
+        X,
+        y: np.ndarray,
+        w: np.ndarray,
+        offset: np.ndarray = None,
+    ) -> np.ndarray:
+        """
+        If l1_ratio is positive, the highest alpha is the lowest alpha such that no
+        coefficients (other than the intercept) are nonzero.
+
+        If l1_ratio is zero, use the sklearn RidgeCV default path [10, 1, 0.1] or
+        whatever is specified by the input parameters eps and n_alphas..
+
+        eps is the length of the path, with 1e-3 as the default.
+        """
+
+        def _make_grid(max_alpha: float) -> np.ndarray:
+            min_alpha = max_alpha * self.eps
+            return np.logspace(
+                np.log(max_alpha), np.log(min_alpha), self.n_alphas, base=np.e
+            )
+
+        def _get_normal_identity_grad_at_zeros_with_optimal_intercept() -> np.ndarray:
+            if self.fit_intercept:
+                if offset is None:
+                    mu = y.dot(w)
+                else:
+                    mu = offset + (y - offset).dot(w)
+            else:
+                mu = 0
+            return X.T.dot(w * (y - mu))
+
+        def _get_tweedie_log_grad_at_zeros_with_optimal_intercept() -> np.ndarray:
+            if self.fit_intercept:
+                # if all non-intercept coefficients are zero and there is no offset,
+                # the best intercept makes the predicted mean the sample mean
+                mu = y.dot(w)
+            elif offset is not None:
+                mu = offset
+            else:
+                mu = 1
+
+            family = get_family(self.family)
+            if isinstance(family, TweedieDistribution):
+                p = family.power
+            else:
+                p = 0
+
+            # tweedie grad
+            return mu ** (1 - p) * X.T.dot(w * (y - mu))
+
         if l1_ratio == 0:
-            eps = float(1 if self.eps is None else self.eps)
-            n_alphas = 3 if self.n_alphas is None else self.n_alphas
-            alphas = 10 ** np.arange(1, 1 - n_alphas * eps, -eps)
-            return alphas
-        eps = 1e-3 if self.eps is None else self.eps
-        n_alphas = 100 if self.n_alphas is None else self.n_alphas
-        # TODO: this is only valid for Gaussian
-        # TODO: doesnt' work for l1 = 0
-        alphas = _alpha_grid(
-            X,
-            y,
-            l1_ratio=l1_ratio,
-            fit_intercept=self.fit_intercept,
-            eps=eps,
-            n_alphas=n_alphas,
-            copy_X=self.copy_X,
-        )
-        return alphas
+            alpha_max = 10
+            return _make_grid(alpha_max)
+
+        if isinstance(get_link(self.link, get_family(self.family)), IdentityLink):
+            # assume normal distribution
+            grad = _get_normal_identity_grad_at_zeros_with_optimal_intercept()
+        else:
+            # assume log link and tweedie distribution
+            grad = _get_tweedie_log_grad_at_zeros_with_optimal_intercept()
+
+        max_alpha = np.max(np.abs(grad)) / l1_ratio
+        return _make_grid(max_alpha)
 
     def fit(self, X, y, sample_weight=None, offset=None):
         # TODO:
@@ -245,13 +287,18 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         )
 
         self.set_up_for_fit(X, y)
+        if (
+            hasattr(self._family_instance, "_power")
+            and self._family_instance._power == 1.5
+        ):
+            assert isinstance(self._link_instance, LogLink)
 
         l1_ratio = np.atleast_1d(self.l1_ratio)
 
         # From sklearn.linear_model.LinearModelCV.fit
 
         if self.alphas is None:
-            alphas = [self._get_alpha_path(l1, X, y) for l1 in l1_ratio]
+            alphas = [self._get_alpha_path(l1, X, y, weights) for l1 in l1_ratio]
         else:
             alphas = np.tile(np.sort(self.alphas)[::-1], (len(l1_ratio), 1))
 
@@ -266,6 +313,15 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             (len(l1_ratio), len(alphas[0]), cv.get_n_splits()), np.nan
         )
         self.mse_path_ = self.deviance_path_.copy()
+        self.coef_path_ = np.full(
+            (
+                len(l1_ratio),
+                len(alphas[0]),
+                cv.get_n_splits(),
+                X.shape[1] + int(self.fit_intercept),
+            ),
+            np.nan,
+        )
         if self._solver == "cd":
             _stype = ["csc"]
         else:
@@ -273,7 +329,6 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
 
         for i, l1 in enumerate(l1_ratio):
             for k, (train_idx, test_idx) in enumerate(cv.split(X, y)):
-
                 x_train, y_train, w_train = (
                     X[train_idx, :],
                     y[train_idx],
@@ -301,14 +356,14 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
                     offset_train, offset_test = None, None
 
                 def _get_deviance(coef):
-                    mu = get_link(self.link, get_family(self.family)).inverse(
+                    mu = self._link_instance.inverse(
                         _safe_lin_pred(x_test, coef, offset_test)
                     )
 
-                    return get_family(self.family).deviance(y_test, mu, weights=w_test)
+                    return self._family_instance.deviance(y_test, mu, weights=w_test)
 
                 def _get_mse(coef):
-                    mu = get_link(self.link, get_family(self.family)).inverse(
+                    mu = self._link_instance.inverse(
                         _safe_lin_pred(x_test, coef, offset_test)
                     )
 
@@ -317,6 +372,12 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
                 # TODO: something has gone wrong, get_link won't work
                 P1 = setup_p1(self.P1, X, X.dtype, alphas[i][0], l1)
                 P2 = setup_p2(self.P2, X, _stype, X.dtype, alphas[i][0], l1)
+
+                if (
+                    hasattr(self._family_instance, "_power")
+                    and self._family_instance._power == 1.5
+                ):
+                    assert isinstance(self._link_instance, LogLink)
 
                 coef = self.get_start_coef(
                     self.start_params,
@@ -329,6 +390,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
                     col_means,
                     col_stds,
                 )
+
                 if self.check_input:
                     # check if P2 is positive semidefinite
                     if not isinstance(self.P2, str):  # self.P2 != 'identity'
@@ -349,9 +411,14 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
                     coef = self.solve(
                         x_train, y_train, w_train, P2, P1, coef, offset_train
                     )
+
                     if self._center_predictors:
                         _, intercept, coef_tmp = _unstandardize(
-                            x_train, col_means, col_stds, coef[0], coef[1:]
+                            copy.copy(x_train),
+                            col_means,
+                            col_stds,
+                            coef[0],
+                            coef[1:].copy(),
                         )
                         coef_uncentered = np.concatenate([[intercept], coef_tmp])
                     else:
@@ -359,6 +426,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
 
                     self.deviance_path_[i, j, k] = _get_deviance(coef_uncentered)
                     self.mse_path_[i, j, k] = _get_mse(coef_uncentered)
+                    self.coef_path_[i, j, k, :] = coef_uncentered
 
         avg_deviance = self.deviance_path_.mean(2)
         best_idx = np.argmin(avg_deviance)
@@ -397,4 +465,5 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             self.coef_ = coef
 
         self.tear_down_from_fit(X, y, col_means, col_stds, weights, weights_sum)
+        self.mse_path_ = np.squeeze(self.mse_path_)
         return self
