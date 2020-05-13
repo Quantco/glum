@@ -16,12 +16,12 @@ def test_normal_elastic_net_comparison(l1_ratio, fit_intercept):
     in ElasticNetCV for l1_ratio = 0.
     """
     n_samples = 100
-    n_alphas = 1
+    n_alphas = 2
     n_features = 10
     tol = 1e-9
 
     n_predict = 10
-    X, y, coef = make_regression(
+    X, y, _ = make_regression(
         n_samples=n_samples + n_predict,
         n_features=n_features,
         n_informative=n_features - 2,
@@ -33,7 +33,7 @@ def test_normal_elastic_net_comparison(l1_ratio, fit_intercept):
     X, T = X[0:n_samples], X[n_samples:]
 
     elastic_net = ElasticNetCV(
-        l1_ratio, n_alphas=n_alphas, fit_intercept=fit_intercept, tol=tol
+        l1_ratio, n_alphas=n_alphas, fit_intercept=fit_intercept, tol=tol,
     ).fit(X, y)
     el_pred = elastic_net.predict(T)
 
@@ -44,6 +44,7 @@ def test_normal_elastic_net_comparison(l1_ratio, fit_intercept):
         link="identity",
         tol=tol,
     ).fit(X, y)
+
     glm_pred = glm.predict(T)
 
     np.testing.assert_allclose(glm.l1_ratio_, elastic_net.l1_ratio_)
@@ -52,7 +53,7 @@ def test_normal_elastic_net_comparison(l1_ratio, fit_intercept):
     np.testing.assert_allclose(glm.intercept_, elastic_net.intercept_)
     np.testing.assert_allclose(glm.coef_, elastic_net.coef_)
     np.testing.assert_allclose(glm_pred, el_pred)
-    np.testing.assert_allclose(np.squeeze(glm.mse_path_), elastic_net.mse_path_)
+    np.testing.assert_allclose(glm.mse_path_, elastic_net.mse_path_)
 
 
 @pytest.mark.parametrize("fit_intercept", [False, True])

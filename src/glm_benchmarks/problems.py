@@ -58,7 +58,7 @@ def load_narrow_insurance_data(
 
 def get_all_problems() -> Dict[str, Problem]:
     regularization_strength = 0.001
-    distributions = ["gaussian", "poisson", "gamma", "tweedie_p=1.5"]
+    distributions = ["gaussian", "poisson", "gamma", "tweedie-p=1.5"]
     load_funcs = {
         "narrow-insurance": generate_narrow_insurance_dataset,
         "wide-insurance": generate_wide_insurance_dataset,

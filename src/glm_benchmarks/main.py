@@ -219,10 +219,13 @@ def cli_analyze(
         cols_to_show = [
             "n_iter",
             "runtime",
-            "intercept",
-            "obj_val",
-            "rel_obj_val",
+            "offset",
         ]
+        if res_df["cv"].any():
+            cols_to_show += ["n_alphas", "max_alpha", "min_alpha", "best_alpha"]
+        else:
+            cols_to_show += ["intercept", "obj_val", "rel_obj_val"]
+
         print(res_df[cols_to_show])
 
 
@@ -264,18 +267,27 @@ def extract_dict_results_to_pd_series(
             [prob_name, lib_name, num_rows, storage, threads, single_precision, cv],
         )
     )
+    items_to_use_from_results = ["n_iter", "runtime", "intercept"]
+    if cv:
+        items_to_use_from_results += [
+            "n_alphas",
+            "max_alpha",
+            "min_alpha",
+            "best_alpha",
+        ]
+    formatted.update(
+        {k: v for k, v in results.items() if k in items_to_use_from_results}
+    )
 
     formatted.update(
         {
             "threads": "None" if threads == "None" else int(threads),
             "num_rows": dat["y"].shape[0] if num_rows == "None" else int(num_rows),
-            "n_iter": results["n_iter"],
-            "runtime": results["runtime"],
             "runtime per iter": runtime_per_iter,
-            "intercept": results["intercept"],
             "l1": l1_norm,
             "l2": l2_norm,
             "obj_val": obj_val,
+            "offset": "offset" in prob_name,
         }
     )
     return pd.Series(formatted)

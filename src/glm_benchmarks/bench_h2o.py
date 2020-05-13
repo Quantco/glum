@@ -102,13 +102,12 @@ def h2o_bench(
             )
         ]
     )
+    if cv:
+        result["best_alpha"] = m._model_json["output"]["lambda_best"]
+        result["n_alphas"] = m.parms["nlambdas"]["actual_value"]
 
     result["intercept"] = standardized_intercept
     result["coef"] = standardized_coefs
-    if cv:
-        iter_key = "iteration"
-    else:
-        iter_key = "iterations"
 
-    result["n_iter"] = m.score_history().iloc[-1][iter_key]
+    result["n_iter"] = m.score_history().iloc[-1]["iteration" if cv else "iterations"]
     return result
