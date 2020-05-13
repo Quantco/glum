@@ -45,10 +45,9 @@ def test_gm_benchmarks(Pn, P, bench_cfg_fix, expected_all):
 
     expected = expected_all[Pn]
 
-    for thing_to_test in ["intercept", "coef"]:
-        np.testing.assert_allclose(
-            result[thing_to_test], expected[thing_to_test], rtol=1e-4, atol=1e-4
-        )
+    all_result = np.concatenate(([result["intercept"]], result["coef"]))
+    all_expected = np.concatenate(([expected["intercept"]], expected["coef"]))
+    np.testing.assert_allclose(all_result, all_expected, rtol=1e-4, atol=1e-4)
 
 
 def run_and_store_golden_master(overwrite=False):
