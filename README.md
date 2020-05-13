@@ -42,21 +42,21 @@ H2O: https://github.com/h2oai/h2o-tutorials/blob/master/tutorials/glm/glm_h2owor
 
 ## Profiling
 
-For line-by-line profiling, use line_profiler `kernprof -lbv src/glm_benchmarks/profile_entry.py`
+For line-by-line profiling, use line_profiler `kernprof -lbv src/glm_benchmarks/main.py --problem_names narrow_insurance_l2_poisson --library_names sklearn_fork`
 
-For stack sampling profiling, use py-spy: `py-spy top -- python src/glm_benchmarks/profile_entry.py`
+For stack sampling profiling, use py-spy: `py-spy top -- python src/glm_benchmarks/main.py --problem_names narrow_insurance_l2_poisson --library_names sklearn_fork`
 
 ## Memory profiling
 
 To create a graph of memory usage:
 ```
-mprof run --python -o mprofresults.dat --interval 0.01 src/glm_benchmarks/profile_entry.py --num_rows 1000000 --no_test
+mprof run --python -o mprofresults.dat --interval 0.01 src/glm_benchmarks/main.py --problem_names narrow_insurance_l2_poisson --library_names sklearn_fork --num_rows 100000
 mprof plot mprofresults.dat -o prof2.png
 ```
 
 To do line-by-line memory profiling, add a `@profile` decorator to the functions you care about and then run:
 ```
-python -m memory_profiler src/glm_benchmarks/profile_entry.py --num_rows 1000000 --no_test
+python -m memory_profiler src/glm_benchmarks/main.py --problem_names narrow_insurance_l2_poisson --library_names sklearn_fork --num_rows 100000
 ```
 
 ## Golden master tests
