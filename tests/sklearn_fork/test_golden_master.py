@@ -159,7 +159,6 @@ def fit_model(family, model_parameters, use_weights, data):
 def test_golden_master(
     distribution, model_parameters, run_name, use_weights, data_all, expected_all
 ):
-    print((distribution, run_name))
     if (distribution, run_name) in problems_with_issue:
         pytest.skip("Problem does not converge")
 
