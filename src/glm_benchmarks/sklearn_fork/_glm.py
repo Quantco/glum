@@ -890,18 +890,18 @@ def _cd_solver(
 
         inner_tol = calc_inner_tol(mn_subgrad_norm)
 
-        print("================================")
-        print(f"coef: {coef[0:5]}")
-        print(f"Outer loop #{n_iter}")
-        print(f"mn_subgrad: {mn_subgrad_norm}")
-        print(f"mn_subgrad_intercept: {mn_subgrad_adj[0]}")
-        print(f"inner_tol: {inner_tol}")
-        print(f"n_cycles: {n_cycles}")
-        print(f"line search iterations: {k}")
-        print(f"number of binding feat.: {sum(1-not_binding)}")
+        if lower_bounds is not None:
+            print("================================")
+            print(f"coef: {coef[0:5]}")
+            print(f"Outer loop #{n_iter}")
+            print(f"mn_subgrad: {mn_subgrad_norm}")
+            print(f"mn_subgrad_intercept: {mn_subgrad_adj[0]}")
+            print(f"inner_tol: {inner_tol}")
+            print(f"n_cycles: {n_cycles}")
+            print(f"line search iterations: {k}")
+            print(f"number of binding feat.: {sum(1-not_binding)}")
 
         # end of outer loop
-    print(mn_subgrad_norm)
 
     if lower_bounds is not None:
         import pandas as pd
