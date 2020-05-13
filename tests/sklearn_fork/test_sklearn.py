@@ -843,13 +843,13 @@ def test_binomial_enet(alpha):
 @pytest.mark.parametrize(
     "params",
     [
-        # {"solver": "irls", "start_params": "guess"},
-        # {"solver": "irls", "start_params": "zero"},
-        # {"solver": "lbfgs", "start_params": "guess"},
-        # {"solver": "lbfgs", "start_params": "zero"},
-        # {"solver": "cd", "selection": "cyclic", "diag_fisher": False},
+        {"solver": "irls", "start_params": "guess"},
+        {"solver": "irls", "start_params": "zero"},
+        {"solver": "lbfgs", "start_params": "guess"},
+        {"solver": "lbfgs", "start_params": "zero"},
+        {"solver": "cd", "selection": "cyclic", "diag_fisher": False},
         {"solver": "cd", "selection": "cyclic", "diag_fisher": True},
-        # {"solver": "cd", "selection": "random", "diag_fisher": False},
+        {"solver": "cd", "selection": "random", "diag_fisher": False},
     ],
     ids=lambda params: ", ".join(
         "{}={}".format(key, val) for key, val in params.items()
@@ -870,7 +870,6 @@ def test_solver_equivalence(params, use_offset, regression_data):
     estimator.set_params(random_state=2)
 
     estimator.fit(X, y, offset=offset)
-    estimator.report_diagnostics()
 
     assert_allclose(estimator.intercept_, est_ref.intercept_, rtol=1e-4)
     assert_allclose(estimator.coef_, est_ref.coef_, rtol=1e-4)

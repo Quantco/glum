@@ -460,7 +460,7 @@ def _cd_cycle(
     P2,
     n_cycles: int,
     inner_tol: float,
-    max_inner_iter=1000,
+    max_inner_iter=50000,
     selection="cyclic",
     random_state=None,
     diag_fisher=False,
@@ -539,15 +539,14 @@ def _cd_cycle(
             if diag_fisher:
                 # Note: fisher is ndarray of shape (n_samples,) => no idx
                 # Calculate Bj = B[j, :] = B[:, j] as it is needed later anyway
+                x_j = np.squeeze(np.array(X.getcol(j).toarray()))
                 Bj = np.zeros_like(A)
                 if intercept:
-                    Bj[0] = fisher.sum()
-
-                x_j = np.squeeze(np.array(X.getcol(j).toarray()))
+                    Bj[0] = fisher @ x_j
                 Bj[idx:] = _safe_toarray((fisher * x_j) @ X).ravel()
 
                 if P2.ndim == 1:
-                    Bj[idx:] += P2[j]
+                    Bj[idx + j] += P2[j]
                 else:
                     if sparse.issparse(P2):
                         # slice columns as P2 is csc
@@ -587,8 +586,8 @@ def _cd_cycle(
                 # slice rows
                 bj = fisher[jdx, :]
             A += bj * z
-
             # end of cycle over features
+
         # update intercept
         if intercept:
             if diag_fisher:
@@ -1711,9 +1710,11 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         max_iter = self.max_iter
         fixed_inner_tol = None
         if self.family == "normal":
-            # max_iter = 1
             if solver == "cd":
+                max_iter = 1
                 fixed_inner_tol = self.tol
+            elif solver == "irls":
+                max_iter = 1
 
         if self.alpha > 0 and self.l1_ratio > 0 and solver not in ["cd"]:
             raise ValueError(
