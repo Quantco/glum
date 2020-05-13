@@ -293,6 +293,11 @@ def _irls_step(X, W: np.ndarray, P2, z: np.ndarray, fit_intercept=True):
         else:
             A += P2
 
+    # TODO: open this up to use a wider range of least squares solvers:
+    # -- iterative lsqr
+    # -- iterative lsmr
+    # -- can it be generalized so we can have one IRLS implementation and this
+    #    can call CD or ADMM?
     coef, _, rank, sing_vals = linalg.lstsq(A, b, overwrite_a=True, overwrite_b=True)
 
     expected_rank = A.shape[1]
@@ -319,7 +324,7 @@ def _irls_step(X, W: np.ndarray, P2, z: np.ndarray, fit_intercept=True):
     return coef
 
 
-def _irls_solver(
+def _irls_ls_solver(
     coef,
     X,
     y: np.ndarray,
@@ -620,7 +625,7 @@ def _cd_cycle(
     return d, coef_P2, n_cycles, inner_tol
 
 
-def _cd_solver(
+def _irls_cd_solver(
     coef,
     X,
     y: np.ndarray,
@@ -1586,7 +1591,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         mu = family.starting_mu(y, weights=weights, offset=offset, link=link)
         eta = link.link(mu)  # linear predictor
         if solver in ["cd", "lbfgs"]:
-            # see function _cd_solver
+            # see function _irls_cd_solver
             sigma_inv = 1 / family.variance(mu, phi=1, weights=weights)
             d1 = link.inverse_derivative(eta)
             temp = sigma_inv * d1 * (y - mu)
@@ -1632,7 +1637,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             )
             # for simplicity no line search here
         else:
-            # See _irls_solver
+            # See _irls_ls_solver
             # h'(eta)
             hp = link.inverse_derivative(eta)
             # working weights W, in principle a diagonal matrix
@@ -1877,7 +1882,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         # Note: we already set P2 = l2*P2, see above
         # Note: we already symmetrized P2 = 1/2 (P2 + P2')
         if solver == "irls":
-            coef, self.n_iter_, self.diagnostics_ = _irls_solver(
+            coef, self.n_iter_, self.diagnostics_ = _irls_ls_solver(
                 coef=coef,
                 X=X,
                 y=y,
@@ -1933,7 +1938,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         # Note: we already set P2 = l2*P2, see above
         # Note: we already symmetrized P2 = 1/2 (P2 + P2')
         elif solver == "cd":
-            coef, self.n_iter_, self._n_cycles, self.diagnostics_ = _cd_solver(
+            coef, self.n_iter_, self._n_cycles, self.diagnostics_ = _irls_cd_solver(
                 coef=coef,
                 X=X,
                 y=y,
