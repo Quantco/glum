@@ -13,6 +13,7 @@ def glmnet_qc_bench(
     distribution: str,
     alpha: float,
     l1_ratio: float,
+    iterations: int,
     cv: bool,
 ) -> Dict[str, Any]:
     result: Dict[str, Any] = dict()
@@ -31,6 +32,7 @@ def glmnet_qc_bench(
 
     result["runtime"], model = runtime(
         fit_glmnet,
+        iterations,
         dat["y"],
         x,
         alpha,
