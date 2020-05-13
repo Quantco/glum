@@ -261,10 +261,13 @@ def _irls_step(X, W: np.ndarray, P2, z: np.ndarray, fit_intercept=True):
     #      Sparse solver would splinalg.spsolve(A, b) or splinalg.lsmr(A, b)
     if fit_intercept:
         Wz = W * z
+
+        # TODO: pretty sure this if statement is unnecessary.
         if sparse.issparse(X):
             b = np.concatenate(([Wz.sum()], X.transpose() @ Wz))
         else:
-            b = np.concatenate(([Wz.sum()], X.T @ Wz))
+            b = np.concatenate(([Wz.sum()], (Wz @ X).T))
+
         A = _safe_sandwich_dot(X, W, intercept=fit_intercept)
         if P2.ndim == 1:
             idx = np.arange(start=1, stop=A.shape[0])
@@ -274,6 +277,7 @@ def _irls_step(X, W: np.ndarray, P2, z: np.ndarray, fit_intercept=True):
         else:
             A[1:, 1:] += P2
     else:
+        # TODO: this should use _safe_sandwich_dot
         if sparse.issparse(X):
             XtW = X.transpose().multiply(W)
             # for older versions of numpy and scipy, A may be a np.matrix
@@ -300,14 +304,15 @@ def _irls_step(X, W: np.ndarray, P2, z: np.ndarray, fit_intercept=True):
                 it has measued rank {rank} when rank {expected_rank} is required, and
                 condition_number {sing_vals[0] / sing_vals[1]}. Numerical failures are
                 likely. To avoid this problem, try using double precision
-                (X.dtype = np.float64) or increasing regularization.
+                (X.dtype = np.float64), increasing regularization or avoiding
+                collinear columns.
             """
         else:  # unknown cause of rank deficiency
             warning = f"""
                 A matrix used for IRLS is poorly conditioned or rank deficient;
                 it has measued rank {rank} when rank {expected_rank} is required, and
                 condition_number {sing_vals[0] / sing_vals[1]}. Numerical failures are
-                likely. Try increasing regularization.
+                likely. Try increasing regularization or avoiding collinear columns.
              """
         warnings.warn(warning)
 
@@ -395,7 +400,7 @@ def _irls_solver(
         if sparse.issparse(X):
             gradient = -(X.transpose() @ temp)
         else:
-            gradient = -(X.T @ temp)
+            gradient = -(temp @ X).T
         idx = 1 if fit_intercept else 0  # offset if coef[0] is intercept
         if P2.ndim == 1:
             gradient += P2 * coef[idx:]
@@ -608,7 +613,6 @@ def _cd_cycle(
         # subgrad q(d) = A + subgrad ||P1*(w+d)||_1
         mn_subgrad = _min_norm_sugrad(coef=coef + d, grad=A, P2=None, P1=P1)
         mn_subgrad = linalg.norm(mn_subgrad, ord=1)
-        print(mn_subgrad, coef[0] + d[0])
         if mn_subgrad <= inner_tol:
             if inner_iter == 1:
                 inner_tol = inner_tol / 4.0
@@ -631,7 +635,7 @@ def _cd_solver(
     max_inner_iter: int = 100000,
     tol: float = 1e-4,
     fixed_inner_tol: float = None,
-    selection="cyclic ",
+    selection="cyclic",
     random_state=None,
     diag_fisher=False,
     offset: np.ndarray = None,
@@ -807,19 +811,10 @@ def _cd_solver(
         n_iter += 1
         # initialize search direction d (to be optimized) with zero
         d.fill(0)
+
         # inner loop = _cd_cycle
-
-        # from sklearn.linear_model._cd_fast import enet_coordinate_descent_gram
-
-        # TODO: need to change cd_fast to support variable penalty
-        # new_coef = coef.copy()
-        # new_coef, _, inner_tol, n_cycles_ = enet_coordinate_descent_gram(new_coef, P1[1], P2[1], fisher, XTy, y, 100000, inner_tol, random_state, False, False)
-        # n_cycles += n_cycles_
-        # d = new_coef - coef
-
-        d2 = np.zeros_like(d)
-        d2, coef_P2, n_cycles, inner_tol = _cd_cycle(
-            d2,
+        d, coef_P2, n_cycles, inner_tol = _cd_cycle(
+            d,
             X,
             coef,
             score,
@@ -833,13 +828,6 @@ def _cd_solver(
             random_state=random_state,
             diag_fisher=diag_fisher,
         )
-        d = d2
-        # np.testing.assert_almost_equal(d, d2)
-
-        if P2.ndim == 1:
-            coef_P2 = coef[idx:] * P2
-        else:
-            coef_P2 = coef[idx:] @ P2
 
         # line search by sequence beta^k, k=0, 1, ..
         # F(w + lambda d) - F(w) <= lambda * bound
@@ -877,7 +865,8 @@ def _cd_solver(
             # coef_wd = coef + la * d
             # we can rewrite to only perform one dot product with the data
             # matrix per loop which is substantially faster
-            mu_wd = link.inverse(eta + la * X_dot_d)
+            eta_wd = eta + la * X_dot_d
+            mu_wd = link.inverse(eta_wd)
 
             # TODO - optimize: for Tweedie that isn't one of the special cases
             # (gaussian, poisson, gamma), family.deviance is quite slow! Can we
@@ -898,6 +887,14 @@ def _cd_solver(
         # update coefficients
         coef += la * d
 
+        # We can avoid a matrix-vector product inside _eta_mu_score_fisher by
+        # updating eta here.
+        # NOTE: This might accumulate some numerical error over a sufficient
+        # number of iterations, maybe we should completely recompute eta every
+        # N iterations?
+        eta = eta_wd
+        mu = mu_wd
+
         # calculate eta, mu, score, Fisher matrix for next iteration
         eta, mu, score, fisher = family._eta_mu_score_fisher(
             coef=coef,
@@ -907,6 +904,8 @@ def _cd_solver(
             weights=weights,
             link=link,
             diag_fisher=diag_fisher,
+            eta=eta,
+            mu=mu,
             offset=offset,
         )
 
@@ -928,7 +927,6 @@ def _cd_solver(
                 coef[0],
             ]
         )
-        print(diagnostics[-1])
         iteration_start = time.time()
 
         # stopping criterion for outer loop
@@ -1713,7 +1711,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         max_iter = self.max_iter
         fixed_inner_tol = None
         if self.family == "normal":
-            max_iter = 1
+            # max_iter = 1
             if solver == "cd":
                 fixed_inner_tol = self.tol
 
@@ -1741,15 +1739,16 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             # do that if X was intially int64.
             X = X.astype(np.float64)
 
-        X, y = check_X_y(
-            X,
-            y,
-            accept_sparse=_stype,
-            dtype=_dtype,
-            y_numeric=True,
-            multi_output=False,
-            copy=self.copy_X,
-        )
+        if not getattr(X, "skip_sklearn_check", False):
+            X, y = check_X_y(
+                X,
+                y,
+                accept_sparse=_stype,
+                dtype=_dtype,
+                y_numeric=True,
+                multi_output=False,
+                copy=self.copy_X,
+            )
 
         # Without converting y to float, deviance might raise
         # ValueError: Integers to negative integer powers are not allowed.
@@ -1877,7 +1876,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         # Note: we already set P2 = l2*P2, see above
         # Note: we already symmetrized P2 = 1/2 (P2 + P2')
         if solver == "irls":
-            coef, self.n_iter_, self.diagnostics = _irls_solver(
+            coef, self.n_iter_, self.diagnostics_ = _irls_solver(
                 coef=coef,
                 X=X,
                 y=y,
@@ -1933,7 +1932,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         # Note: we already set P2 = l2*P2, see above
         # Note: we already symmetrized P2 = 1/2 (P2 + P2')
         elif solver == "cd":
-            coef, self.n_iter_, self._n_cycles, self.diagnostics = _cd_solver(
+            coef, self.n_iter_, self._n_cycles, self.diagnostics_ = _cd_solver(
                 coef=coef,
                 X=X,
                 y=y,
@@ -1978,7 +1977,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         return self
 
     def report_diagnostics(self):
-        if hasattr(self, "diagnostics"):
+        if hasattr(self, "diagnostics_"):
             print("diagnostics:")
             import pandas as pd
 
@@ -1995,7 +1994,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                             "runtime",
                             "intercept",
                         ],
-                        data=self.diagnostics,
+                        data=self.diagnostics_,
                     ).set_index("n_iter", drop=True)
                 )
         else:

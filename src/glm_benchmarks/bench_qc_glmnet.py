@@ -9,7 +9,11 @@ from .util import runtime
 
 
 def glmnet_qc_bench(
-    dat: Dict[str, np.ndarray], distribution: str, alpha: float, l1_ratio: float,
+    dat: Dict[str, np.ndarray],
+    distribution: str,
+    alpha: float,
+    l1_ratio: float,
+    iterations: int,
 ) -> Dict[str, Any]:
     result: Dict[str, Any] = dict()
     if distribution not in ["gaussian", "poisson", "binomial"]:
@@ -24,6 +28,7 @@ def glmnet_qc_bench(
 
     result["runtime"], model = runtime(
         fit_glmnet,
+        iterations,
         dat["y"],
         x,
         alpha,

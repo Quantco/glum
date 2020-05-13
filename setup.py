@@ -14,14 +14,14 @@ with open(path.join(here, "README.md")) as f:
 
 # TODO: this should be moved inside the compilation of the extension
 print("templating C source")
-for fn in ["src/glm_benchmarks/sandwich/dense-tmpl.c"]:
+for fn in ["src/glm_benchmarks/sandwich/dense-tmpl.cpp"]:
     tmpl = mako.template.Template(filename=fn)
 
     buf = io.StringIO()
     ctx = mako.runtime.Context(buf)
     rendered_src = tmpl.render_context(ctx)
 
-    out_fn = fn.split("-tmpl")[0] + ".c"
+    out_fn = fn.split("-tmpl")[0] + ".cpp"
     with open(out_fn, "w") as f:
         f.write(buf.getvalue())
 
