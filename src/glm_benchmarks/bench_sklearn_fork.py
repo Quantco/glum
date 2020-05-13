@@ -25,7 +25,10 @@ def sklearn_fork_bench(
     distribution: str,
     alpha: float,
     l1_ratio: float,
+    iterations: int,
     cv: bool,
+    print_diagnostics: bool = True,
+    **kwargs,
 ):
     result = dict()
 
@@ -58,9 +61,12 @@ def sklearn_fork_bench(
         model_args["start_params"] = "zero"
     if not cv:
         model_args["alpha"] = alpha
+    model_args.update(kwargs)
 
     try:
-        result["runtime"], m = runtime(build_and_fit, model_args, fit_args, cv)
+        result["runtime"], m = runtime(
+            build_and_fit, iterations, model_args, fit_args, cv
+        )
     except ValueError as e:
         print(f"Problem failed with this error: {e}")
         return result
@@ -68,14 +74,14 @@ def sklearn_fork_bench(
     result["intercept"] = m.intercept_
     result["coef"] = m.coef_
     result["n_iter"] = m.n_iter_
-
     if cv:
         alphas: np.ndarray = m.alphas_
         result["n_alphas"] = len(alphas)
         result["max_alpha"] = alphas.max()
         result["min_alpha"] = alphas.min()
         result["best_alpha"] = m.alpha_
-    if not cv:
+
+    if print_diagnostics:
         m.report_diagnostics()
     return result
 

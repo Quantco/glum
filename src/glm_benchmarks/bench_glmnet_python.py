@@ -13,6 +13,7 @@ def glmnet_python_bench(
     distribution: str,
     alpha: float,
     l1_ratio: float,
+    iterations: int,
     cv: bool,
 ) -> Dict[str, Any]:
     result: Dict = dict()
@@ -49,7 +50,7 @@ def glmnet_python_bench(
         glmnet_kws.update({"offset": dat["offset"][:, None]})
 
     if cv:
-        result["runtime"], m = runtime(cvglmnet, **glmnet_kws)
+        result["runtime"], m = runtime(cvglmnet, iterations, **glmnet_kws)
         fit_model = m["glmnet_fit"]
         result["n_alphas"] = len(m["lambdau"])
         result["max_alpha"] = m["lambdau"].max()
@@ -57,10 +58,11 @@ def glmnet_python_bench(
         result["best_alpha"] = m["lambda_min"][0]
     else:
         glmnet_kws["lambdau"] = np.array([alpha])
-        result["runtime"], m = runtime(glmnet, **glmnet_kws)
+        result["runtime"], m = runtime(glmnet, iterations, **glmnet_kws)
         fit_model = m
 
     result["intercept"] = fit_model["a0"][0]
     result["coef"] = fit_model["beta"][:, 0]
     result["n_iter"] = fit_model["npasses"]
+
     return result

@@ -261,10 +261,13 @@ def _irls_step(X, W: np.ndarray, P2, z: np.ndarray, fit_intercept=True):
     #      Sparse solver would splinalg.spsolve(A, b) or splinalg.lsmr(A, b)
     if fit_intercept:
         Wz = W * z
+
+        # TODO: pretty sure this if statement is unnecessary.
         if sparse.issparse(X):
             b = np.concatenate(([Wz.sum()], X.transpose() @ Wz))
         else:
-            b = np.concatenate(([Wz.sum()], X.T @ Wz))
+            b = np.concatenate(([Wz.sum()], (Wz @ X).T))
+
         A = _safe_sandwich_dot(X, W, intercept=fit_intercept)
         if P2.ndim == 1:
             idx = np.arange(start=1, stop=A.shape[0])
@@ -274,6 +277,7 @@ def _irls_step(X, W: np.ndarray, P2, z: np.ndarray, fit_intercept=True):
         else:
             A[1:, 1:] += P2
     else:
+        # TODO: this should use _safe_sandwich_dot
         if sparse.issparse(X):
             XtW = X.transpose().multiply(W)
             # for older versions of numpy and scipy, A may be a np.matrix
@@ -389,7 +393,7 @@ def _irls_solver(
         if sparse.issparse(X):
             gradient = -(X.transpose() @ temp)
         else:
-            gradient = -(X.T @ temp)
+            gradient = -(temp @ X).T
         idx = 1 if fit_intercept else 0  # offset if coef[0] is intercept
         if P2.ndim == 1:
             gradient += P2 * coef[idx:]
@@ -595,7 +599,7 @@ def _cd_solver(
     max_iter: int = 100,
     max_inner_iter: int = 1000,
     tol: float = 1e-4,
-    selection="cyclic ",
+    selection="cyclic",
     random_state=None,
     diag_fisher=False,
     offset: np.ndarray = None,
@@ -820,7 +824,8 @@ def _cd_solver(
             # coef_wd = coef + la * d
             # we can rewrite to only perform one dot product with the data
             # matrix per loop which is substantially faster
-            mu_wd = link.inverse(eta + la * X_dot_d)
+            eta_wd = eta + la * X_dot_d
+            mu_wd = link.inverse(eta_wd)
 
             # TODO - optimize: for Tweedie that isn't one of the special cases
             # (gaussian, poisson, gamma), family.deviance is quite slow! Can we
@@ -844,6 +849,14 @@ def _cd_solver(
         # update coefficients
         coef += la * d
 
+        # We can avoid a matrix-vector product inside _eta_mu_score_fisher by
+        # updating eta here.
+        # NOTE: This might accumulate some numerical error over a sufficient
+        # number of iterations, maybe we should completely recompute eta every
+        # N iterations?
+        eta = eta_wd
+        mu = mu_wd
+
         iteration_runtime = time.time() - iteration_start
         diagnostics.append([inner_tol, n_iter, n_cycles, iteration_runtime, coef[0]])
         iteration_start = time.time()
@@ -857,6 +870,8 @@ def _cd_solver(
             weights=weights,
             link=link,
             diag_fisher=diag_fisher,
+            eta=eta,
+            mu=mu,
             offset=offset,
         )
 

@@ -27,6 +27,7 @@ def h2o_bench(
     distribution: str,
     alpha: float,
     l1_ratio: float,
+    iterations: int,
     cv: bool,
 ):
 
@@ -89,7 +90,7 @@ def h2o_bench(
         )
 
     result = dict()
-    result["runtime"], m = runtime(build_and_fit, model_args, train_args)
+    result["runtime"], m = runtime(build_and_fit, iterations, model_args, train_args)
     # un-standardize
     standardized_intercept = m.coef()["Intercept"]
 
