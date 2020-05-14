@@ -310,7 +310,7 @@ def _irls_solver(
     link: Link,
     max_iter: int = 100,
     max_inner_iter: int = 100000,
-    tol: float = 1e-4,
+    tol: Tuple[float, float] = (1e-4, 1e-4),
     fixed_inner_tol: float = None,
     selection="cyclic",
     random_state=None,
@@ -475,7 +475,7 @@ def _irls_solver(
             # return max(mn_subgrad_norm * inner_tol_ratio, tol)
             return mn_subgrad_norm * inner_tol_ratio
         else:
-            return fixed_inner_tol
+            return fixed_inner_tol[0]
 
     mn_subgrad_norm = calc_mn_subgrad_norm()
 
@@ -564,7 +564,8 @@ def _irls_solver(
         Fw = Fwd
 
         # update coefficients
-        coef += la * d
+        step = la * d
+        coef += step
 
         # We can avoid a matrix-vector product inside _eta_mu_score_fisher by
         # updating eta here.
@@ -588,7 +589,7 @@ def _irls_solver(
             offset=offset,
         )
 
-        mn_subgrad_norm = calc_mn_subgrad_norm()
+        converged, mn_subgrad_norm = check_convergence(step, coef, -score, P2, P1, tol)
 
         iteration_runtime = time.time() - iteration_start
         coef_l1 = np.sum(np.abs(coef))
@@ -613,8 +614,7 @@ def _irls_solver(
         # fp_wP2 = f'(w) + w*P2
         # Note: eta, mu and score are already updated
         # this also updates the inner tolerance for the next loop!
-        if mn_subgrad_norm <= tol:
-            converged = True
+        if converged:
             break
         # end of outer loop
 
@@ -626,6 +626,22 @@ def _irls_solver(
             ConvergenceWarning,
         )
     return coef, n_iter, n_cycles, diagnostics
+
+
+def check_convergence(step, coef, grad, P2, P1, tol):
+    # minimum subgradient norm
+    mn_subgrad_norm = linalg.norm(
+        _min_norm_sugrad(coef=coef, grad=grad, P2=P2, P1=P1), ord=1
+    )
+    step_size = linalg.norm(step)
+    converged = False
+    if tol[0] is not None:
+        if mn_subgrad_norm < tol[0]:
+            converged = True
+    if tol[1] is not None:
+        if step_size < tol[1]:
+            converged = True
+    return converged, mn_subgrad_norm
 
 
 def _lbfgs_solver(

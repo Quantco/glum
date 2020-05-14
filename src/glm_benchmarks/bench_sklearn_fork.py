@@ -47,7 +47,8 @@ def sklearn_fork_bench(
         random_state=random_seed,
         copy_X=False,
         selection="cyclic",
-        tol=benchmark_convergence_tolerance,
+        gradient_tol=benchmark_convergence_tolerance,
+        step_size_tol=0.01 * benchmark_convergence_tolerance,
     )
     model_args.update(kwargs)
 
