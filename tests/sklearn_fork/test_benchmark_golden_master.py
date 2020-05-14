@@ -41,6 +41,8 @@ def expected_all():
     ["Pn", "P"], all_test_problems.items(), ids=all_test_problems.keys()
 )
 def test_gm_benchmarks(Pn, P, bench_cfg_fix, expected_all):
+    if bench_cfg_fix["print_diagnostics"]:
+        print(Pn)
     result, _ = execute_problem_library(P, sklearn_fork_bench, **bench_cfg_fix)
 
     expected = expected_all[Pn]
@@ -84,6 +86,7 @@ def run_and_store_golden_master(overwrite, problem_name):
         warnings.simplefilter("error", ConvergenceWarning)
         skipped = False
         try:
+            print(f"Running {Pn}")
             res, _ = execute_problem_library(P, sklearn_fork_bench, **bench_cfg)
         except ConvergenceWarning:
             warnings.warn("Problem does not converge. Not storing result.")
