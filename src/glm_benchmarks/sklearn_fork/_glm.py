@@ -808,10 +808,15 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         fixed_inner_tol = None
         if self.family == "normal":
             if solver == "irls-cd":
-                max_iter = 1
+                # IRLS-CD and IRLS-LS should converge in one iteration for any
+                # normal distribution problem. But, sometimes in very poorly
+                # conditioned problems, a second iteration can refine the
+                # solution.
+
+                max_iter = 2
                 fixed_inner_tol = self.tol
             elif solver == "irls-ls":
-                max_iter = 1
+                max_iter = 2
 
         if self.alpha > 0 and self.l1_ratio > 0 and solver not in ["irls-cd"]:
             raise ValueError(
