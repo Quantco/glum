@@ -40,7 +40,7 @@ from __future__ import division
 
 import time
 import warnings
-from typing import Any, List, Tuple, Union
+from typing import Any, Dict, List, Tuple, Union
 
 import numpy as np
 import scipy.sparse.linalg as splinalg
@@ -163,7 +163,12 @@ def _safe_toarray(X):
 
 
 def _min_norm_sugrad(
-    coef: np.ndarray, grad: np.ndarray, P2: np.ndarray, P1: np.ndarray
+    coef: np.ndarray,
+    grad: np.ndarray,
+    P2: np.ndarray,
+    P1: np.ndarray,
+    lb: np.ndarray,
+    ub: np.ndarray,
 ) -> np.ndarray:
     """Compute the gradient of all subgradients with minimal L2-norm.
 
@@ -198,15 +203,23 @@ def _min_norm_sugrad(
         grad_wP2 += coef[idx:] * P2
     else:
         grad_wP2 += coef[idx:] @ P2
-    res = np.where(
+
+    subgrad = np.where(
         coef[idx:] == 0,
         np.sign(grad_wP2) * np.maximum(np.abs(grad_wP2) - P1, 0),
         grad_wP2 + np.sign(coef[idx:]) * P1,
     )
+
+    # maybe use something else?
+    if lb is not None:
+        subgrad = np.where((coef[idx:] == lb[idx:]) & (subgrad > 0), 0, subgrad)
+    if ub is not None:
+        subgrad = np.where((coef[idx:] == ub[idx:]) & (subgrad < 0), 0, subgrad)
+
     if intercept:
-        return np.concatenate(([grad[0]], res))
+        return np.concatenate(([grad[0]], subgrad))
     else:
-        return res
+        return subgrad
 
 
 def _unstandardize(
@@ -426,6 +439,7 @@ def _cd_cycle(
     random_state=None,
     diag_fisher=False,
     lower_bounds=None,
+    upper_bounds=None,
 ):
     """Compute inner loop of coordinate descent, i.e. cycles through features.
 
@@ -465,8 +479,6 @@ def _cd_cycle(
     A = -score
     A[idx:] += coef_P2
     # A += d @ (H+P2) but so far d=0
-
-    not_binding = np.full(coef.shape, True, dtype=bool)
 
     # inner loop
     for inner_iter in range(0, max_inner_iter):
@@ -539,9 +551,9 @@ def _cd_cycle(
             if lower_bounds is not None:
                 if coef[jdx] + (d[jdx] + z) < lower_bounds[jdx]:
                     z = lower_bounds[jdx] - coef[jdx] - d[jdx]
-                    not_binding[jdx] = False
-                else:
-                    not_binding[jdx] = True
+            if upper_bounds is not None:
+                if coef[jdx] + (d[jdx] + z) > upper_bounds[jdx]:
+                    z = upper_bounds[jdx] - coef[jdx] - d[jdx]
 
             # update direction d
             d[jdx] += z
@@ -585,14 +597,16 @@ def _cd_cycle(
         # stopping criterion for inner loop
         # sum_i(|minimum of norm of subgrad of q(d)_i|)
         # subgrad q(d) = A + subgrad ||P1*(w+d)||_1
-        mn_subgrad = _min_norm_sugrad(coef=coef + d, grad=A, P2=None, P1=P1)
-        mn_subgrad = linalg.norm(mn_subgrad * not_binding, ord=1)
+        mn_subgrad = _min_norm_sugrad(
+            coef=coef + d, grad=A, P2=None, P1=P1, lb=lower_bounds, ub=upper_bounds
+        )
+        mn_subgrad = linalg.norm(mn_subgrad, ord=1)
         if mn_subgrad <= inner_tol:
             if inner_iter == 1:
                 inner_tol = inner_tol / 4.0
             break
         # end of inner loop
-    return d, coef_P2, n_cycles, inner_tol, not_binding
+    return d, coef_P2, n_cycles, inner_tol
 
 
 def _cd_solver(
@@ -613,7 +627,8 @@ def _cd_solver(
     diag_fisher=False,
     offset: np.ndarray = None,
     lower_bounds: np.ndarray = None,
-) -> Tuple[np.ndarray, int, int, List[List]]:
+    upper_bounds: np.ndarray = None,
+) -> Tuple[np.ndarray, int, int, List[Dict]]:
     """Solve GLM with L1 and L2 penalty by coordinate descent algorithm.
 
     The objective being minimized in the coefficients w=coef is::
@@ -752,7 +767,10 @@ def _cd_solver(
     # minimum subgradient norm
     def calc_mn_subgrad_norm():
         return linalg.norm(
-            _min_norm_sugrad(coef=coef, grad=-score, P2=P2, P1=P1), ord=1
+            _min_norm_sugrad(
+                coef=coef, grad=-score, P2=P2, P1=P1, lb=lower_bounds, ub=upper_bounds
+            ),
+            ord=1,
         )
 
     # the ratio of inner _cd_cycle tolerance to the minimum subgradient norm
@@ -782,7 +800,7 @@ def _cd_solver(
         # initialize search direction d (to be optimized) with zero
         d.fill(0)
         # inner loop = _cd_cycle
-        d, coef_P2, n_cycles, inner_tol, not_binding = _cd_cycle(
+        d, coef_P2, n_cycles, inner_tol = _cd_cycle(
             d,
             X,
             coef,
@@ -797,6 +815,7 @@ def _cd_solver(
             random_state=random_state,
             diag_fisher=diag_fisher,
             lower_bounds=lower_bounds,
+            upper_bounds=upper_bounds,
         )
 
         # line search by sequence beta^k, k=0, 1, ..
@@ -825,6 +844,7 @@ def _cd_solver(
         # _safe_lin_pred in _eta_mu_score_fisher every loop
         X_dot_d = _safe_lin_pred(X, d)
 
+        line_search_converged = False
         # Try progressively shorter line search steps.
         for k in range(20):
             la *= beta  # starts with la=1
@@ -850,6 +870,7 @@ def _cd_solver(
             else:
                 Fwd += 0.5 * (coef_wd[idx:] @ (P2 @ coef_wd[idx:]))
             if Fwd - Fw <= sigma * la * bound:
+                line_search_converged = True
                 break
 
         # Fw in the next iteration will be equal to Fwd this iteration.
@@ -859,7 +880,17 @@ def _cd_solver(
         coef += la * d
 
         iteration_runtime = time.time() - iteration_start
-        diagnostics.append([inner_tol, n_iter, n_cycles, iteration_runtime, coef[0]])
+        diagnostics.append(
+            dict(
+                inner_tol=inner_tol,
+                n_iter=n_iter,
+                n_cycles=n_cycles,
+                iteration_runtime=iteration_runtime,
+                intercept=coef[0],
+                line_search_converged=line_search_converged,
+                k=k,
+            )
+        )
         iteration_start = time.time()
 
         # calculate eta, mu, score, Fisher matrix for next iteration
@@ -879,16 +910,11 @@ def _cd_solver(
         # fp_wP2 = f'(w) + w*P2
         # Note: eta, mu and score are already updated
         # this also updates the inner tolerance for the next loop!
-        if lower_bounds is None:
-            mn_subgrad_norm = calc_mn_subgrad_norm()
-        else:
-            # TODO: not sure if this needs to be recalculated
-            for i in range(not_binding.shape[0]):
-                not_binding[i] = not (coef[i] == lower_bounds[i])
-
-            mn_subgrad_in = _min_norm_sugrad(coef=coef, grad=-score, P2=P2, P1=P1)
-            mn_subgrad_adj = mn_subgrad_in * not_binding
-            mn_subgrad_norm = linalg.norm(mn_subgrad_adj, ord=1)
+        # mn_subgrad_norm = calc_mn_subgrad_norm()
+        mn_subgrad_norm = _min_norm_sugrad(
+            coef=coef, grad=-score, P2=P2, P1=P1, lb=lower_bounds, ub=upper_bounds
+        )
+        mn_subgrad_norm = linalg.norm(mn_subgrad_norm, ord=1)
 
         if mn_subgrad_norm <= tol:
             converged = True
@@ -896,34 +922,7 @@ def _cd_solver(
 
         inner_tol = calc_inner_tol(mn_subgrad_norm)
 
-        if lower_bounds is not None:
-            print("================================")
-            print(f"coef: {coef[0:5]}")
-            print(f"score: {score[0:5]}")
-            print(f"Outer loop #{n_iter}")
-            print(f"mn_subgrad: {mn_subgrad_norm}")
-            print(f"mn_subgrad_intercept: {mn_subgrad_adj[0]}")
-            print(f"inner_tol: {inner_tol}")
-            print(f"n_cycles: {n_cycles}")
-            print(f"line search iterations: {k}")
-            print(f"number of binding feat.: {sum(1-not_binding)}")
-
         # end of outer loop
-
-    if lower_bounds is not None:
-        import pandas as pd
-
-        res_df = pd.DataFrame(
-            data={
-                "coef": coef,
-                "d": d,
-                "score": score,
-                "mn_subgrad_in": mn_subgrad_in,
-                "mn_subgrad_adj": mn_subgrad_adj,
-                "nb": not_binding,
-            }
-        )
-        print(res_df)
 
     if not converged:
         warnings.warn(
@@ -1441,6 +1440,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         verbose=0,
         scale_predictors=False,
         lower_bounds=None,
+        upper_bounds=None,
     ):
         self.alpha = alpha
         self.l1_ratio = l1_ratio
@@ -1463,6 +1463,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         self.verbose = verbose
         self.scale_predictors = scale_predictors
         self.lower_bounds = lower_bounds
+        self.upper_bounds = upper_bounds
 
     # See PEP 484 on annotating with float rather than Number
     # https://www.python.org/dev/peps/pep-0484/#the-numeric-tower
@@ -1564,6 +1565,8 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         P2,
         random_state,
         offset: np.ndarray = None,
+        lower_bounds: np.ndarray = None,
+        upper_bounds: np.ndarray = None,
     ) -> np.ndarray:
         """
         Set mu=starting_mu of the family and do one Newton step
@@ -1599,12 +1602,20 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             # use L1-norm of minimum of norm of subgradient of F
             # use less restrictive tolerance for initial guess
             inner_tol = 4 * linalg.norm(
-                _min_norm_sugrad(coef=zero, grad=-score, P2=P2, P1=P1), ord=1
+                _min_norm_sugrad(
+                    coef=zero,
+                    grad=-score,
+                    P2=P2,
+                    P1=P1,
+                    lb=lower_bounds,
+                    ub=upper_bounds,
+                ),
+                ord=1,
             )
 
             # just one outer loop = Newton step
             n_cycles = 0
-            coef, coef_P2, n_cycles, inner_tol, _ = _cd_cycle(
+            coef, coef_P2, n_cycles, inner_tol, = _cd_cycle(
                 zero,
                 X,
                 zero,
@@ -1636,7 +1647,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             # solve A*coef = b
             # A = X' W X + l2 P2, b = X' W z
             coef = _irls_step(X, W, P2, z, fit_intercept=self.fit_intercept)
-        return coef
+        return np.min(np.max(coef, lower_bounds), upper_bounds)
 
     def fit(self, X, y, sample_weight=None, offset=None):
         """Fit a Generalized Linear Model.
@@ -1825,7 +1836,16 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         elif isinstance(start_params, str):
             if start_params == "guess":
                 coef = self._guess_start_params(
-                    y, weights, solver, X, P1, P2, random_state, offset
+                    y,
+                    weights,
+                    solver,
+                    X,
+                    P1,
+                    P2,
+                    random_state,
+                    offset,
+                    self.lower_bounds,
+                    self.upper_bounds,
                 )
             else:  # start_params == 'zero'
                 if self.fit_intercept:
@@ -1924,6 +1944,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 diag_fisher=self.diag_fisher,
                 offset=offset,
                 lower_bounds=self.lower_bounds,
+                upper_bounds=self.upper_bounds,
             )
 
         #######################################################################
@@ -1956,12 +1977,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             print("diagnostics:")
             import pandas as pd
 
-            print(
-                pd.DataFrame(
-                    columns=["inner_tol", "n_iter", "n_cycles", "runtime", "intercept"],
-                    data=self.diagnostics,
-                ).set_index("n_iter", drop=True)
-            )
+            print(pd.DataFrame(self.diagnostics).set_index("n_iter", drop=True))
         else:
             print("solver does not report diagnostics")
 
