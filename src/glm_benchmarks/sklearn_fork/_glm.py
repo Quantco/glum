@@ -212,9 +212,9 @@ def _min_norm_sugrad(
 
     # maybe use something else?
     if lb is not None:
-        subgrad = np.where((coef[idx:] == lb[idx:]) & (subgrad > 0), 0, subgrad)
+        subgrad = np.where((coef[idx:] == lb) & (subgrad > 0), 0, subgrad)
     if ub is not None:
-        subgrad = np.where((coef[idx:] == ub[idx:]) & (subgrad < 0), 0, subgrad)
+        subgrad = np.where((coef[idx:] == ub) & (subgrad < 0), 0, subgrad)
 
     if intercept:
         return np.concatenate(([grad[0]], subgrad))
@@ -544,20 +544,20 @@ def _cd_cycle(
                 z = 0
             elif p1_is_zero_vec[num]:
                 z = -a / b
-            elif a + P1[j] < b * (coef[jdx] + d[jdx]):
+            elif a + P1[j] < b * (coef[jdx] + d[j]):
                 z = -(a + P1[j]) / b
-            elif a - P1[j] > b * (coef[jdx] + d[jdx]):
+            elif a - P1[j] > b * (coef[jdx] + d[j]):
                 z = -(a - P1[j]) / b
             else:
                 z = -(coef[jdx] + d[jdx])
 
             # bounds
             if lower_bounds is not None:
-                if coef[jdx] + (d[jdx] + z) < lower_bounds[jdx]:
-                    z = lower_bounds[jdx] - coef[jdx] - d[jdx]
+                if coef[jdx] + (d[jdx] + z) < lower_bounds[j]:
+                    z = lower_bounds[j] - coef[jdx] - d[jdx]
             if upper_bounds is not None:
-                if coef[jdx] + (d[jdx] + z) > upper_bounds[jdx]:
-                    z = upper_bounds[jdx] - coef[jdx] - d[jdx]
+                if coef[jdx] + (d[jdx] + z) > upper_bounds[j]:
+                    z = upper_bounds[j] - coef[jdx] - d[jdx]
 
             # update direction d
             d[jdx] += z
@@ -714,6 +714,10 @@ def _cd_solver(
         s.t. fisher = X.T @ diag @ X. This saves storage but needs more
         matrix-vector multiplications.
 
+    lower_bounds : ndarray, shape (n_features,), optional (default=None)
+        Set a lower bound on the estimated coefficients.
+
+    upper_bounds : see lower_bounds.
 
     Returns
     -------
@@ -1090,7 +1094,7 @@ def setup_penalties(
     # P1 and P2 are now for sure copies
     P1 = l1 * P1
     P2 = l2 * P2
-    # one only ever needs the symmetrized L2 penalty matrix 1/2 (P2 + P2')
+    # one only ever needs the symmetrized L2 penaer needs the symmetrized L2 penalty matrix 1/2 (P2 + P2')
     # reason: w' P2 w = (w' P2 w)', i.e. it is symmetric
     if P2.ndim == 2:
         if sparse.issparse(P2):
@@ -1381,6 +1385,11 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
     verbose : int, optional (default=0)
         For the lbfgs solver set verbose to any positive number for verbosity.
 
+    lower_bounds : ndarray, shape (n_features,), optional (default=None)
+        Set a lower bound on the estimated coefficients.
+
+    upper_bounds : see lower_bounds.
+
     Attributes
     ----------
     coef_ : array, shape (n_features,)
@@ -1563,7 +1572,6 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 "scale_predictors=True is not supported when fit_intercept=False"
             )
         if self.check_input:
-
             # check if P1 has only non-negative values, negative values might
             # indicate group lasso in the future.
             if not isinstance(self.P1, str):  # if self.P1 != 'identity':
@@ -1630,7 +1638,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
 
             # just one outer loop = Newton step
             n_cycles = 0
-            coef, coef_P2, n_cycles, inner_tol, = _cd_cycle(
+            coef, coef_P2, n_cycles, inner_tol = _cd_cycle(
                 zero,
                 X,
                 zero,
@@ -1662,7 +1670,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             # solve A*coef = b
             # A = X' W X + l2 P2, b = X' W z
             coef = _irls_step(X, W, P2, z, fit_intercept=self.fit_intercept)
-        return np.min(np.max(coef, lower_bounds), upper_bounds)
+        return coef
 
     def fit(self, X, y, sample_weight=None, offset=None):
         """Fit a Generalized Linear Model.
@@ -1726,6 +1734,21 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 )
             )
         random_state = check_random_state(self.random_state)
+
+        # bounds
+        for bounds in [self.lower_bounds, self.upper_bounds]:
+            if bounds is not None:
+                if (bounds.ndim != 1) or (bounds.shape[0] != X.shape[1]):
+                    raise ValueError(
+                        "[lower,upper]_bounds must be either None or a 1d array "
+                        "with the length of X.shape[1]; "
+                        "got ([lower,upper]_bounds.shape[0]={}), "
+                        "needed (X.shape[1]={}).".format(bounds.shape[0], X.shape[1])
+                    )
+
+        if (self.lower_bounds is not None) and (self.upper_bounds is not None):
+            if np.any(self.lower_bounds > self.upper_bounds):
+                raise ValueError("Lower bounds must be lower than upper bounds.")
 
         # 1.2 validate arguments of fit #######################################
         _dtype = [np.float64, np.float32]
@@ -1873,6 +1896,23 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                     coef = np.zeros(
                         n_features, dtype=_float_itemsize_to_dtype[X.dtype.itemsize]
                     )
+
+                idx = 1 if self.fit_intercept else 0
+                if self.lower_bounds is not None:
+                    if np.any(coef[1:] < self.lower_bounds):
+                        warnings.warn(
+                            "lower_bounds above zero. Setting the starting guess "
+                            "to max(0, lower_bounds)."
+                        )
+                        coef[idx:] = np.maximum(coef[idx:], self.lower_bounds)
+                if self.upper_bounds is not None:
+                    if np.any(coef[1:] > self.upper_bounds):
+                        warnings.warn(
+                            "upper_bounds below zero. Setting the starting guess "
+                            "to min(0, upper_bounds)."
+                        )
+                        coef[idx:] = np.minimum(coef[idx:], self.upper_bounds)
+
         else:  # assign given array as start values
             coef = start_params
             if self.center_predictors_:
