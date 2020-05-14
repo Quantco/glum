@@ -1,4 +1,5 @@
 import numpy as np
+from scipy import sparse
 
 
 def _safe_lin_pred(X, coef: np.ndarray, offset: np.ndarray = None) -> np.ndarray:
@@ -28,3 +29,11 @@ def _safe_sandwich_dot(X, d: np.ndarray, intercept=False) -> np.ndarray:
     else:
         res_including_intercept = result
     return res_including_intercept
+
+
+def _safe_toarray(X):
+    """Returns a numpy array."""
+    if sparse.issparse(X):
+        return X.toarray()
+    else:
+        return np.asarray(X)
