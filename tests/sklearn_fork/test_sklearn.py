@@ -37,7 +37,7 @@ from glm_benchmarks.sklearn_fork._glm import (
     is_pos_semidef,
 )
 
-GLM_SOLVERS = ["irls", "lbfgs", "cd"]
+GLM_SOLVERS = ["irls-ls", "lbfgs", "irls-cd"]
 
 
 @pytest.fixture(scope="module")
@@ -356,7 +356,7 @@ def test_glm_fit_intercept_argument(fit_intercept, y, X):
 
 @pytest.mark.parametrize(
     "solver, l1_ratio",
-    [("not a solver", 0), (1, 0), ([1], 0), ("irls", 0.5), ("lbfgs", 0.5)],
+    [("not a solver", 0), (1, 0), ([1], 0), ("irls-ls", 0.5), ("lbfgs", 0.5)],
 )
 def test_glm_solver_argument(solver, l1_ratio, y, X):
     """Test GLM for invalid solver argument."""
@@ -479,7 +479,9 @@ def test_glm_identity_regression(solver, fit_intercept, offset):
         GeneralizedHyperbolicSecant(),
     ],
 )
-@pytest.mark.parametrize("solver, tol", [("irls", 1e-6), ("lbfgs", 1e-7), ("cd", 1e-7)])
+@pytest.mark.parametrize(
+    "solver, tol", [("irls-ls", 1e-6), ("lbfgs", 1e-7), ("irls-cd", 1e-7)]
+)
 @pytest.mark.parametrize("fit_intercept", [False, True])
 @pytest.mark.parametrize("offset", [None, np.array([-0.1, 0, 0.1, 0, -0.2]), 0.1])
 @pytest.mark.parametrize("start_params", ["zero", "guess"])
@@ -569,7 +571,9 @@ def test_normal_ridge_comparison(n_samples, n_features, solver, use_offset):
     assert_allclose(glm.predict(T), ridge.predict(T), rtol=1e-4)
 
 
-@pytest.mark.parametrize("solver, tol", [("irls", 1e-7), ("lbfgs", 1e-7), ("cd", 1e-7)])
+@pytest.mark.parametrize(
+    "solver, tol", [("irls-ls", 1e-7), ("lbfgs", 1e-7), ("irls-cd", 1e-7)]
+)
 @pytest.mark.parametrize("scale_predictors", [True, False])
 @pytest.mark.parametrize("use_sparse", [True, False])
 def test_poisson_ridge(solver, tol, scale_predictors, use_sparse):
@@ -669,7 +673,7 @@ def test_normal_enet(diag_fisher):
         tol=1e-8,
         max_iter=100,
         selection="cyclic",
-        solver="cd",
+        solver="irls-cd",
         start_params="zero",
         check_input=False,
         diag_fisher=diag_fisher,
@@ -721,7 +725,7 @@ def test_poisson_enet():
         l1_ratio=0.5,
         family="poisson",
         link="log",
-        solver="cd",
+        solver="irls-cd",
         tol=1e-8,
         selection="random",
         random_state=rng,
@@ -764,7 +768,7 @@ def test_poisson_enet():
         l1_ratio=0.5,
         family="poisson",
         link="log",
-        solver="cd",
+        solver="irls-cd",
         tol=1e-5,
         selection="cyclic",
         start_params="zero",
@@ -780,7 +784,7 @@ def test_poisson_enet():
         family="poisson",
         max_iter=300,
         link="log",
-        solver="cd",
+        solver="irls-cd",
         tol=1e-5,
         selection="cyclic",
         start_params="zero",
@@ -831,7 +835,7 @@ def test_binomial_enet(alpha):
         fit_intercept=False,
         alpha=alpha,
         l1_ratio=l1_ratio,
-        solver="cd",
+        solver="irls-cd",
         selection="cyclic",
         tol=1e-7,
     )
@@ -843,13 +847,13 @@ def test_binomial_enet(alpha):
 @pytest.mark.parametrize(
     "params",
     [
-        {"solver": "irls", "start_params": "guess"},
-        {"solver": "irls", "start_params": "zero"},
+        {"solver": "irls-ls", "start_params": "guess"},
+        {"solver": "irls-ls", "start_params": "zero"},
         {"solver": "lbfgs", "start_params": "guess"},
         {"solver": "lbfgs", "start_params": "zero"},
-        {"solver": "cd", "selection": "cyclic", "diag_fisher": False},
-        {"solver": "cd", "selection": "cyclic", "diag_fisher": True},
-        {"solver": "cd", "selection": "random", "diag_fisher": False},
+        {"solver": "irls-cd", "selection": "cyclic", "diag_fisher": False},
+        {"solver": "irls-cd", "selection": "cyclic", "diag_fisher": True},
+        {"solver": "irls-cd", "selection": "random", "diag_fisher": False},
     ],
     ids=lambda params: ", ".join(
         "{}={}".format(key, val) for key, val in params.items()

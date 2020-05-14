@@ -15,7 +15,7 @@ bench_cfg = dict(
     num_rows=10000,
     regularization_strength=0.1,
     storage="dense",
-    print_diagnostics=True,
+    print_diagnostics=False,
 )
 
 with open(git_root("golden_master/skipped_benchmark_gm.json"), "r") as fh:
