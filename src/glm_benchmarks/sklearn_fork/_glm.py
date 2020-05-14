@@ -544,9 +544,9 @@ def _cd_cycle(
                 z = 0
             elif p1_is_zero_vec[num]:
                 z = -a / b
-            elif a + P1[j] < b * (coef[jdx] + d[j]):
+            elif a + P1[j] < b * (coef[jdx] + d[jdx]):
                 z = -(a + P1[j]) / b
-            elif a - P1[j] > b * (coef[jdx] + d[j]):
+            elif a - P1[j] > b * (coef[jdx] + d[jdx]):
                 z = -(a - P1[j]) / b
             else:
                 z = -(coef[jdx] + d[jdx])
