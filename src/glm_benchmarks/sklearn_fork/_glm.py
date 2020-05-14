@@ -535,14 +535,16 @@ def _cd_cycle(
             else:
                 z = -(coef[jdx] + d[jdx])
 
-            # update direction d
-            d[jdx] += z
-
             # bounds
             if lower_bounds is not None:
-                if coef[jdx] + d[jdx] < lower_bounds[jdx]:
-                    d[jdx] = lower_bounds[jdx] - coef[jdx]
+                if coef[jdx] + (d[jdx] + z) < lower_bounds[jdx]:
+                    z = lower_bounds[jdx] - coef[jdx] - d[jdx]
                     not_binding[jdx] = False
+                else:
+                    not_binding[jdx] = True
+
+            # update direction d
+            d[jdx] += z
 
             # update A because d_j is now d_j+z
             # A = f'(w) + d*H(w) + (w+d)*P2
@@ -880,6 +882,10 @@ def _cd_solver(
         if lower_bounds is None:
             mn_subgrad_norm = calc_mn_subgrad_norm()
         else:
+            # TODO: not sure if this needs to be recalculated
+            for i in range(not_binding.shape[0]):
+                not_binding[i] = not (coef[i] == lower_bounds[i])
+
             mn_subgrad_in = _min_norm_sugrad(coef=coef, grad=-score, P2=P2, P1=P1)
             mn_subgrad_adj = mn_subgrad_in * not_binding
             mn_subgrad_norm = linalg.norm(mn_subgrad_adj, ord=1)
@@ -893,6 +899,7 @@ def _cd_solver(
         if lower_bounds is not None:
             print("================================")
             print(f"coef: {coef[0:5]}")
+            print(f"score: {score[0:5]}")
             print(f"Outer loop #{n_iter}")
             print(f"mn_subgrad: {mn_subgrad_norm}")
             print(f"mn_subgrad_intercept: {mn_subgrad_adj[0]}")
