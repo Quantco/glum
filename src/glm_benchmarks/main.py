@@ -1,6 +1,6 @@
 import os
 import pickle
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import click
 import numpy as np
@@ -9,9 +9,8 @@ import scipy.sparse
 
 from glm_benchmarks.bench_sklearn_fork import sklearn_fork_bench
 from glm_benchmarks.problems import get_all_problems
-
-from .util import get_obj_val
-from .zeros_benchmark import zeros_bench
+from glm_benchmarks.util import get_obj_val
+from glm_benchmarks.zeros_benchmark import zeros_bench
 
 try:
     from glm_benchmarks.bench_glmnet_python import glmnet_python_bench  # isort:skip
@@ -61,6 +60,18 @@ except ImportError:
     help="The directory to store benchmarking output.",
 )
 @click.option("--single_precision", is_flag=True, help="Whether to use 32-bit data")
+@click.option(
+    "--iterations",
+    default=1,
+    type=int,
+    help="Number of times to re-run the benchmark. This can be useful for avoid performance noise.",
+)
+@click.option(
+    "--regularization_strength",
+    default=None,
+    type=float,
+    help="Regularization strength. Set to None to use the default value of the problem.",
+)
 # TODO: where it calls data loader in main.py, convert x to the correct dtype
 def cli_run(
     problem_names: str,
@@ -70,35 +81,78 @@ def cli_run(
     threads: int,
     output_dir: str,
     single_precision: bool,
+    iterations: int,
+    regularization_strength: Optional[float],
 ):
     problems, libraries = get_limited_problems_libraries(problem_names, library_names)
 
     for Pn, P in problems.items():
         for Ln, L in libraries.items():
             print(f"running problem={Pn} library={Ln}")
-            result = execute_problem_library(
-                P, L, num_rows, storage, threads, single_precision
+            result, regularization_strength_ = execute_problem_library(
+                P,
+                L,
+                num_rows,
+                storage,
+                threads,
+                single_precision,
+                iterations,
+                regularization_strength,
             )
             save_benchmark_results(
-                output_dir, Pn, Ln, num_rows, storage, threads, single_precision, result
+                output_dir,
+                Pn,
+                Ln,
+                num_rows,
+                storage,
+                threads,
+                single_precision,
+                regularization_strength_,
+                result,
             )
-            print("ran")
+            print(f"ran in {result['runtime']}")
 
 
 def execute_problem_library(
-    P, L, num_rows=None, storage="dense", threads=None, single_precision: bool = False
+    P,
+    L,
+    num_rows=None,
+    storage="dense",
+    threads=None,
+    single_precision: bool = False,
+    iterations: int = 1,
+    regularization_strength: Optional[float] = None,
+    print_diagnostics: bool = True,
+    **kwargs,
 ):
     dat = P.data_loader(num_rows=num_rows)
     if threads is None:
         threads = os.environ.get("OMP_NUM_THREADS", os.cpu_count())
     os.environ["OMP_NUM_THREADS"] = str(threads)
-    if storage == "sparse":
-        dat["X"] = scipy.sparse.csc_matrix(dat["X"])
     if single_precision:
         for k, v in dat.items():
             dat[k] = v.astype(np.float32)
-    result = L(dat, P.distribution, P.regularization_strength, P.l1_ratio)
-    return result
+
+    if storage == "sparse":
+        dat["X"] = scipy.sparse.csc_matrix(dat["X"])
+    elif storage.startswith("split"):
+        from glm_benchmarks.scaled_spmat.split_matrix import SplitMatrix
+
+        threshold = float(storage.split("split")[1])
+        dat["X"] = SplitMatrix(scipy.sparse.csc_matrix(dat["X"]), threshold)
+
+    if regularization_strength is None:
+        regularization_strength = P.regularization_strength
+    result = L(
+        dat,
+        P.distribution,
+        regularization_strength,
+        P.l1_ratio,
+        iterations,
+        print_diagnostics,
+        **kwargs,
+    )
+    return result, regularization_strength
 
 
 @click.command()
@@ -131,6 +185,12 @@ def execute_problem_library(
     help="please help me i have been in a hole for 273 hours",
 )
 @click.option(
+    "--regularization_strength",
+    type=float,
+    default=None,
+    help="Specify regularization strength. Leave blank to analyze all.",
+)
+@click.option(
     "--output_dir",
     default="benchmark_output",
     help="The directory where we load benchmarking output.",
@@ -142,6 +202,7 @@ def cli_analyze(
     storage: str,
     threads: str,
     single_precision: str,
+    regularization_strength: str,
     output_dir: str,
 ):
     display_precision = 4
@@ -156,11 +217,18 @@ def cli_analyze(
         # Find the row counts that have been used on this problem
         dir_ = os.path.join(output_dir, Pn)
         param_values = identify_parameter_directories(
-            dir_, [num_rows, storage, threads, single_precision]
+            dir_,
+            [num_rows, storage, threads, single_precision, regularization_strength],
         )
 
         for pv in param_values:
-            num_rows_, storage_, threads_, single_precision_ = pv
+            (
+                num_rows_,
+                storage_,
+                threads_,
+                single_precision_,
+                regularization_strength_,
+            ) = pv
             for Ln in libraries:
                 try:
                     res = load_benchmark_results(
@@ -171,6 +239,7 @@ def cli_analyze(
                         storage_,
                         threads_,
                         single_precision_,
+                        regularization_strength_,
                     )
                 except FileNotFoundError:
                     continue
@@ -184,6 +253,7 @@ def cli_analyze(
                             storage_,
                             threads_,
                             single_precision_,
+                            regularization_strength_,
                             res,
                         )
                     )
@@ -191,7 +261,9 @@ def cli_analyze(
     res_df = pd.concat(formatted_results, axis=1).T
     res_df["offset"] = res_df["problem"].apply(lambda x: "offset" in x)
     res_df["problem"] = ["weights".join(x.split("offset")) for x in res_df["problem"]]
-    res_df = res_df.set_index(["problem", "num_rows", "library"]).sort_index()
+    res_df = res_df.set_index(
+        ["problem", "num_rows", "regularization_strength", "library"]
+    ).sort_index()
     problems = res_df.index.get_level_values("problem").values
 
     res_df["n_iter"] = res_df["n_iter"].astype(int)
@@ -200,16 +272,23 @@ def cli_analyze(
 
     for col in ["obj_val"]:
         res_df["rel_" + col] = (
-            res_df[col] - res_df.groupby(["problem", "num_rows"])[col].min()
+            res_df[col]
+            - res_df.groupby(["problem", "num_rows", "regularization_strength"])[
+                col
+            ].min()
         )
 
     with pd.option_context(
-        "display.expand_frame_repr", False, "max_columns", 10, "max_rows", None
+        "display.expand_frame_repr", False, "max_columns", None, "max_rows", None
     ):
         cols_to_show = [
+            "storage",
+            "threads",
+            "single_precision",
             "n_iter",
             "runtime",
             "intercept",
+            "offset",
             "obj_val",
             "rel_obj_val",
         ]
@@ -223,6 +302,7 @@ def extract_dict_results_to_pd_series(
     storage: str,
     threads: str,
     single_precision: str,
+    regularization_strength: str,
     results: Dict[str, Any],
 ) -> pd.Series:
     coefs = results["coef"]
@@ -256,6 +336,7 @@ def extract_dict_results_to_pd_series(
         "threads": "None" if threads == "None" else int(threads),
         "storage": storage,
         "single_precision": single_precision,
+        "regularization_strength": float(regularization_strength),
         "num_rows": dat["y"].shape[0] if num_rows == "None" else int(num_rows),
         "n_iter": results["n_iter"],
         "runtime": results["runtime"],
@@ -341,6 +422,7 @@ def get_path(
     storage: str = None,
     threads: Union[int, str] = None,
     single_precision: bool = False,
+    regularization_strength: float = None,
 ):
     return os.path.join(
         output_dir,
@@ -349,6 +431,7 @@ def get_path(
         str(storage),
         str(threads),
         "single" if single_precision else "double",
+        str(regularization_strength),
     )
 
 
@@ -360,13 +443,20 @@ def save_benchmark_results(
     storage: str,
     threads: int,
     single_precision: bool,
+    regularization_strength: float,
     result,
 ) -> None:
     problem_dir = os.path.join(output_dir, problem_name)
     if not os.path.exists(problem_dir):
         os.makedirs(problem_dir)
     results_dir = get_path(
-        output_dir, problem_name, num_rows, storage, threads, single_precision
+        output_dir,
+        problem_name,
+        num_rows,
+        storage,
+        threads,
+        single_precision,
+        regularization_strength,
     )
     if not os.path.exists(results_dir):
         os.makedirs(results_dir)
@@ -382,9 +472,20 @@ def load_benchmark_results(
     storage: str,
     threads: str,
     single_precision: str,
+    regularization_strength: str,
 ):
     results_dir = os.path.join(
-        output_dir, problem_name, num_rows, storage, threads, single_precision
+        output_dir,
+        problem_name,
+        num_rows,
+        storage,
+        threads,
+        single_precision,
+        regularization_strength,
     )
     with open(os.path.join(results_dir, library_name + "-results.pkl"), "rb") as f:
         return pickle.load(f)
+
+
+if __name__ == "__main__":
+    cli_run()

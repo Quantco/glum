@@ -7,11 +7,14 @@ from scipy import sparse as sps
 benchmark_convergence_tolerance = 1e-4
 
 
-def runtime(f, *args, **kwargs):
-    start = time.time()
-    out = f(*args, **kwargs)
-    end = time.time()
-    return end - start, out
+def runtime(f, iterations, *args, **kwargs):
+    rs = []
+    for i in range(iterations):
+        start = time.time()
+        out = f(*args, **kwargs)
+        end = time.time()
+        rs.append(end - start)
+    return np.min(rs), out
 
 
 def _get_minus_tweedie_ll_by_obs(eta: np.ndarray, y: np.ndarray, p: float):
