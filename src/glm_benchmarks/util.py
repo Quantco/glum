@@ -1,6 +1,8 @@
 import time
-from typing import Dict, Tuple, Union
+from functools import reduce
+from typing import Callable, Dict, Optional, Tuple, Union
 
+import click
 import numpy as np
 from scipy import sparse as sps
 
@@ -157,14 +159,15 @@ class BenchmarkParams:
         library_name: str,
         num_rows: Union[int, None],
         storage: str,
-        threads: Union[int, None],
-        single_precision: Union[bool, None],
-        regularization_strength,
-        cv: bool,
+        threads: int = None,
+        single_precision: bool = False,
+        regularization_strength: float = None,
+        cv: bool = None,
     ):
+
         self.problem_name = problem_name
         self.library_name = library_name
-        self.num_rows = (num_rows,)
+        self.num_rows = num_rows
         self.storage = storage
         self.threads = threads
         self.single_precision = single_precision
@@ -186,6 +189,97 @@ class BenchmarkParams:
         for k, v in kwargs.items():
             assert k in self.param_names
             setattr(self, k, v)
+        return self
 
     def get_result_fname(self):
-        return "_".join(str(getattr(self, k) for k in self.param_names))
+        return "_".join(str(getattr(self, k)) for k in self.param_names)
+
+
+def benchmark_params_cli(func: Callable) -> Callable:
+    @click.option(
+        "--problem_name",
+        default="",
+        help="Specify a comma-separated list of benchmark problems you want to run. Leaving this blank will default to running all problems.",
+    )
+    @click.option(
+        "--library_name",
+        default="",
+        help="Specify a comma-separated list of libaries to benchmark. Leaving this blank will default to running all problems.",
+    )
+    @click.option(
+        "--num_rows",
+        type=int,
+        help="Pass an integer number of rows. This is useful for testing and development. The default is to use the full dataset.",
+    )
+    @click.option(
+        "--storage",
+        type=str,
+        default="dense",
+        help="Specify the storage format. Currently supported: dense, sparse. Leaving this black will default to dense.",
+    )
+    @click.option(
+        "--threads",
+        type=int,
+        help="Specify the number of threads. If not set, it will use OMP_NUM_THREADS. If that's not set either, it will default to os.cpu_count().",
+    )
+    @click.option("--cv", type=bool, default=False, help="Cross-validation")
+    @click.option(
+        "--single_precision",
+        type=bool,
+        default=False,
+        help="Whether to use 32-bit data",
+    )
+    @click.option(
+        "--regularization_strength",
+        default=None,
+        type=float,
+        help="Regularization strength. Set to None to use the default value of the problem.",
+    )
+    def wrapped_func(
+        problem_name: str,
+        library_name: str,
+        num_rows: int,
+        storage: str,
+        threads: int,
+        cv: bool,
+        single_precision: bool,
+        regularization_strength: Optional[float],
+        *args,
+        **kwargs,
+    ):
+        if num_rows is not None:
+            assert isinstance(num_rows, int)
+        params = BenchmarkParams(
+            problem_name,
+            library_name,
+            num_rows,
+            storage,
+            threads,
+            single_precision,
+            regularization_strength,
+            cv,
+        )
+        if params.num_rows is not None:
+            assert isinstance(params.num_rows, int)
+        return func(params, *args, **kwargs)
+
+    return wrapped_func
+
+
+@click.command()
+@benchmark_params_cli
+def _get_params(params):
+    _get_params.out = params
+
+
+def get_params_from_fname(fname: str) -> BenchmarkParams:
+    cli_list = reduce(
+        lambda x, y: x + y,
+        [
+            ["--" + elt[0], elt[1]]
+            for elt in zip(BenchmarkParams.param_names, fname.strip(".pkl").split("_"))
+            if elt[1] != "None"
+        ],
+    )
+    _get_params(cli_list, standalone_mode=False)
+    return _get_params.out  # type: ignore
