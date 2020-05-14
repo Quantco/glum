@@ -42,19 +42,41 @@ H2O: https://github.com/h2oai/h2o-tutorials/blob/master/tutorials/glm/glm_h2owor
 
 ## Profiling
 
-For line-by-line profiling, use line_profiler `kernprof -lbv src/glm_benchmarks/profile_entry.py`
+For line-by-line profiling, use line_profiler `kernprof -lbv src/glm_benchmarks/main.py --problem_names narrow_insurance_l2_poisson --library_names sklearn_fork`
 
-For stack sampling profiling, use py-spy: `py-spy top -- python src/glm_benchmarks/profile_entry.py`
+For stack sampling profiling, use py-spy: `py-spy top -- python src/glm_benchmarks/main.py --problem_names narrow_insurance_l2_poisson --library_names sklearn_fork`
 
 ## Memory profiling
 
 To create a graph of memory usage:
 ```
-mprof run --python -o mprofresults.dat --interval 0.01 src/glm_benchmarks/profile_entry.py --num_rows 1000000 --no_test
+mprof run --python -o mprofresults.dat --interval 0.01 src/glm_benchmarks/main.py --problem_names narrow_insurance_l2_poisson --library_names sklearn_fork --num_rows 100000
 mprof plot mprofresults.dat -o prof2.png
 ```
 
 To do line-by-line memory profiling, add a `@profile` decorator to the functions you care about and then run:
 ```
-python -m memory_profiler src/glm_benchmarks/profile_entry.py --num_rows 1000000 --no_test
+python -m memory_profiler src/glm_benchmarks/main.py --problem_names narrow_insurance_l2_poisson --library_names sklearn_fork --num_rows 100000
 ```
+
+## Golden master tests
+
+There are two sets of golden master tests, one with artificial data and one directly using the benchmarks and the problems. For both sets of tests, creating the golden master and the tests definition are located in the same file. Calling the file with pytest will run the tests while calling the file as a python script will generate the golden master result. When creating the golden master results, both scripts accept the `--overwrite` command line flag. If set, the existing golden master results will be overwritten. Otherwise, only the new problems will be run.
+
+### Artificial golden master
+
+To overwrite the golden master results:
+```
+python tests/sklearn_fork/test_golden_master.py
+```
+
+Add the `--overwrite` flag if you want to overwrite already existing golden master results
+
+### Benchmarks golden master
+To create the golden master results:
+```
+python tests/sklearn_fork/test_benchmark_golden_master.py
+```
+
+Add the `--overwrite` flag if you want to overwrite already existing golden master results.
+

@@ -458,6 +458,8 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         weights: np.ndarray,
         link: Link,
         diag_fisher: bool = False,
+        eta: np.ndarray = None,
+        mu: np.ndarray = None,
         offset: np.ndarray = None,
     ):
         """Compute linear predictor, mean, score function and fisher matrix.
@@ -488,8 +490,10 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         """
         intercept = coef.size == X.shape[1] + 1
         # eta = linear predictor
-        eta = _safe_lin_pred(X, coef, offset)
-        mu = link.inverse(eta)
+        if eta is None:
+            eta = _safe_lin_pred(X, coef, offset)
+        if mu is None:
+            mu = link.inverse(eta)
 
         # FOR TWEEDIE: sigma_inv = weights / (mu ** p) during optimization bc phi = 1
         sigma_inv = 1.0 / self.variance(mu, phi=phi, weights=weights)
