@@ -78,15 +78,14 @@ def _ls_solver(
     random_state=None,
     diag_fisher=False,
 ):
-    fisher = fisher.copy()
-    score = score.copy()
+    S = score.copy()
     intercept = coef.size == X.shape[1] + 1
     idx = 1 if intercept else 0  # offset if coef[0] is intercept
 
     coef_P2 = add_P2_fisher(fisher, P2, coef, idx, diag_fisher)
 
     # TODO:
-    score[idx:] -= coef_P2
+    S[idx:] -= coef_P2
 
     # TODO: open this up to use a wider range of least squares solvers:
     # -- iterative lsqr
@@ -96,9 +95,7 @@ def _ls_solver(
     # TODO: need to only pass X and W to _ls_solver and _cd_solver. Then, we
     # can calculate fisher and score or use other solvers internal to the inner
     # solver.
-    d, _, rank, sing_vals = linalg.lstsq(
-        fisher, score.copy(), overwrite_a=True, overwrite_b=True
-    )
+    d, _, rank, sing_vals = linalg.lstsq(fisher, S, overwrite_a=True, overwrite_b=True)
 
     expected_rank = fisher.shape[1]
     if rank < expected_rank:  # rank deficient
@@ -623,7 +620,7 @@ def _irls_solver(
 
     if not converged:
         warnings.warn(
-            "Coordinate descent failed to converge. Increase"
+            "IRLS failed to converge. Increase"
             " the maximum number of iterations max_iter"
             " (currently {})".format(max_iter),
             ConvergenceWarning,
