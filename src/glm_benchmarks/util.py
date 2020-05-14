@@ -148,3 +148,44 @@ def exposure_correction(
         sample_weight = exposure if sample_weight is None else sample_weight * exposure
 
     return y, sample_weight
+
+
+class BenchmarkParams:
+    def __init__(
+        self,
+        problem_name: str,
+        library_name: str,
+        num_rows: Union[int, None],
+        storage: str,
+        threads: Union[int, None],
+        single_precision: Union[bool, None],
+        regularization_strength,
+        cv: bool,
+    ):
+        self.problem_name = problem_name
+        self.library_name = library_name
+        self.num_rows = (num_rows,)
+        self.storage = storage
+        self.threads = threads
+        self.single_precision = single_precision
+        self.regularization_strength = regularization_strength
+        self.cv = cv
+
+    param_names = [
+        "problem_name",
+        "library_name",
+        "num_rows",
+        "storage",
+        "threads",
+        "single_precision",
+        "regularization_strength",
+        "cv",
+    ]
+
+    def update_params(self, **kwargs):
+        for k, v in kwargs.items():
+            assert k in self.param_names
+            setattr(self, k, v)
+
+    def get_result_fname(self):
+        return "_".join(str(getattr(self, k) for k in self.param_names))
