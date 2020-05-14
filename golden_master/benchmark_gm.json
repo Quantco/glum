@@ -1,5 +1,5 @@
 {
-  "narrow_insurance_weights_l2_gaussian": {
+  "narrow-insurance-weights-l2-gaussian": {
     "coef": [
       -126.3810906040538,
       72.8867481290601,
@@ -52,7 +52,7 @@
     ],
     "intercept": 1693.2787650952505
   },
-  "narrow_insurance_no_weights_l2_gaussian": {
+  "narrow-insurance-no-weights-l2-gaussian": {
     "coef": [
       -106.95901303043637,
       66.88262280512129,
@@ -105,7 +105,7 @@
     ],
     "intercept": 1610.924855235182
   },
-  "narrow_insurance_offset_l2_gaussian": {
+  "narrow-insurance-offset-l2-gaussian": {
     "coef": [
       -130.89652515941313,
       72.55681887924987,
@@ -158,7 +158,7 @@
     ],
     "intercept": 1638.1366860391136
   },
-  "wide_insurance_no_weights_l2_gaussian": {
+  "wide-insurance-no-weights-l2-gaussian": {
     "coef": [
       -574.4899490293806,
       -8.966789065267289,
@@ -420,7 +420,7 @@
     ],
     "intercept": 1261.4163657668144
   },
-  "wide_insurance_offset_l2_gaussian": {
+  "wide-insurance-offset-l2-gaussian": {
     "coef": [
       -0.17801434478369949,
       -0.0018269888786027755,
@@ -682,7 +682,7 @@
     ],
     "intercept": 0.3715502517541154
   },
-  "narrow_insurance_weights_l2_poisson": {
+  "narrow-insurance-weights-l2-poisson": {
     "coef": [
       -0.018592826162071616,
       0.01918138330306922,
@@ -735,7 +735,7 @@
     ],
     "intercept": -3.910283967791865
   },
-  "narrow_insurance_no_weights_l2_poisson": {
+  "narrow-insurance-no-weights-l2-poisson": {
     "coef": [
       0.052472360940530136,
       0.09340065741015663,
@@ -788,7 +788,7 @@
     ],
     "intercept": -2.3550219142059667
   },
-  "narrow_insurance_offset_l2_poisson": {
+  "narrow-insurance-offset-l2-poisson": {
     "coef": [
       -0.011076463982935035,
       0.010142897875985504,
@@ -841,7 +841,7 @@
     ],
     "intercept": -3.853503438737782
   },
-  "wide_insurance_weights_l2_poisson": {
+  "wide-insurance-weights-l2-poisson": {
     "coef": [
       0.8262439555801522,
       -0.1342356555271194,
@@ -1090,7 +1090,7 @@
     ],
     "intercept": -3.3040758201783342
   },
-  "wide_insurance_no_weights_l2_poisson": {
+  "wide-insurance-no-weights-l2-poisson": {
     "coef": [
       1.516565356953271,
       -0.49771589898038643,
@@ -1339,7 +1339,7 @@
     ],
     "intercept": -1.481652738144895
   },
-  "wide_insurance_offset_l2_poisson": {
+  "wide-insurance-offset-l2-poisson": {
     "coef": [
       0.5036956968542672,
       -0.06764490040154887,
@@ -1588,7 +1588,7 @@
     ],
     "intercept": -3.530867514611538
   },
-  "narrow_insurance_weights_l2_gamma": {
+  "narrow-insurance-weights-l2-gamma": {
     "coef": [
       -0.07599623124038035,
       0.03873481568304362,
@@ -1641,7 +1641,7 @@
     ],
     "intercept": 7.388276268186991
   },
-  "narrow_insurance_no_weights_l2_gamma": {
+  "narrow-insurance-no-weights-l2-gamma": {
     "coef": [
       -0.06618476252773742,
       0.03807770693188958,
@@ -1694,7 +1694,7 @@
     ],
     "intercept": 7.346470213730779
   },
-  "narrow_insurance_offset_l2_gamma": {
+  "narrow-insurance-offset-l2-gamma": {
     "coef": [
       -0.06618474115921195,
       0.03807768480677777,
@@ -1747,7 +1747,7 @@
     ],
     "intercept": 7.3464700699550525
   },
-  "narrow_insurance_weights_l2_tweedie_p=1.5": {
+  "narrow-insurance-weights-l2-tweedie-p=1.5": {
     "coef": [
       0.22322569833176276,
       0.16891868266717353,
@@ -1800,7 +1800,7 @@
     ],
     "intercept": 1.9646628120077372
   },
-  "narrow_insurance_no_weights_l2_tweedie_p=1.5": {
+  "narrow-insurance-no-weights-l2-tweedie-p=1.5": {
     "coef": [
       0.7195748595895425,
       0.49219366470956116,
@@ -1853,7 +1853,7 @@
     ],
     "intercept": 1.8418348470462238
   },
-  "narrow_insurance_offset_l2_tweedie_p=1.5": {
+  "narrow-insurance-offset-l2-tweedie-p=1.5": {
     "coef": [
       0.3823057981479878,
       0.24101525527181458,
@@ -1906,7 +1906,7 @@
     ],
     "intercept": 2.027790593673709
   },
-  "wide_insurance_offset_l2_tweedie_p=1.5": {
+  "wide-insurance-offset-l2-tweedie-p=1.5": {
     "coef": [
       2.456350219441226,
       -1.2016737308201968,
@@ -2155,7 +2155,7 @@
     ],
     "intercept": 1.229040460932164
   },
-  "narrow_insurance_weights_net_gaussian": {
+  "narrow-insurance-weights-net-gaussian": {
     "coef": [
       -122.76736869286307,
       115.35257956878682,
@@ -2208,7 +2208,7 @@
     ],
     "intercept": 1599.5285914838025
   },
-  "narrow_insurance_no_weights_net_gaussian": {
+  "narrow-insurance-no-weights-net-gaussian": {
     "coef": [
       -99.72286168223387,
       108.42099275205996,
@@ -2261,7 +2261,7 @@
     ],
     "intercept": 1521.5339593341937
   },
-  "narrow_insurance_offset_net_gaussian": {
+  "narrow-insurance-offset-net-gaussian": {
     "coef": [
       -126.24004922477164,
       116.97351191110174,
@@ -2314,7 +2314,7 @@
     ],
     "intercept": 1537.4610258950702
   },
-  "wide_insurance_weights_net_gaussian": {
+  "wide-insurance-weights-net-gaussian": {
     "coef": [
       -819.4578885914128,
       -7.25238823695353,
@@ -2576,7 +2576,7 @@
     ],
     "intercept": 1778.9283160369193
   },
-  "wide_insurance_no_weights_net_gaussian": {
+  "wide-insurance-no-weights-net-gaussian": {
     "coef": [
       -743.5081337709323,
       -12.510269641674576,
@@ -2838,7 +2838,7 @@
     ],
     "intercept": 1601.2121079600133
   },
-  "wide_insurance_offset_net_gaussian": {
+  "wide-insurance-offset-net-gaussian": {
     "coef": [
       0.0,
       0.0,
@@ -3100,7 +3100,7 @@
     ],
     "intercept": 0.0033359187777932675
   },
-  "narrow_insurance_weights_net_poisson": {
+  "narrow-insurance-weights-net-poisson": {
     "coef": [
       0.0,
       0.0,
@@ -3153,7 +3153,7 @@
     ],
     "intercept": -3.4586348987349647
   },
-  "narrow_insurance_no_weights_net_poisson": {
+  "narrow-insurance-no-weights-net-poisson": {
     "coef": [
       0.0,
       0.0,
@@ -3206,7 +3206,7 @@
     ],
     "intercept": -1.9526300719652459
   },
-  "narrow_insurance_offset_net_poisson": {
+  "narrow-insurance-offset-net-poisson": {
     "coef": [
       0.0,
       0.0,
@@ -3259,7 +3259,7 @@
     ],
     "intercept": -3.3797038148152074
   },
-  "wide_insurance_weights_net_poisson": {
+  "wide-insurance-weights-net-poisson": {
     "coef": [
       0.8323089740643481,
       0.0,
@@ -3508,7 +3508,7 @@
     ],
     "intercept": -3.1698170899093894
   },
-  "wide_insurance_no_weights_net_poisson": {
+  "wide-insurance-no-weights-net-poisson": {
     "coef": [
       1.8428918671818662,
       -0.20610489393826711,
@@ -3757,7 +3757,7 @@
     ],
     "intercept": -1.6278999130668939
   },
-  "wide_insurance_offset_net_poisson": {
+  "wide-insurance-offset-net-poisson": {
     "coef": [
       0.13168969350023102,
       0.0,
@@ -4006,7 +4006,7 @@
     ],
     "intercept": -3.1795753318327558
   },
-  "narrow_insurance_weights_net_tweedie_p=1.5": {
+  "narrow-insurance-weights-net-tweedie-p=1.5": {
     "coef": [
       0.1053311889236284,
       0.05499918719494355,
@@ -4059,7 +4059,7 @@
     ],
     "intercept": 2.0381565331786593
   },
-  "narrow_insurance_no_weights_net_tweedie_p=1.5": {
+  "narrow-insurance-no-weights-net-tweedie-p=1.5": {
     "coef": [
       0.6438808746918725,
       0.41813524498283133,
@@ -4112,7 +4112,7 @@
     ],
     "intercept": 1.9159483476555246
   },
-  "narrow_insurance_offset_net_tweedie_p=1.5": {
+  "narrow-insurance-offset-net-tweedie-p=1.5": {
     "coef": [
       0.24128184032354252,
       0.1024387364643549,
@@ -4165,7 +4165,7 @@
     ],
     "intercept": 2.114161368186918
   },
-  "narrow_insurance_weights_lasso_gaussian": {
+  "narrow-insurance-weights-lasso-gaussian": {
     "coef": [
       -7.720267297993885,
       290.12984245287964,
@@ -4218,7 +4218,7 @@
     ],
     "intercept": 1264.2615257349862
   },
-  "narrow_insurance_no_weights_lasso_gaussian": {
+  "narrow-insurance-no-weights-lasso-gaussian": {
     "coef": [
       23.791761727534354,
       286.11624030663154,
@@ -4271,7 +4271,7 @@
     ],
     "intercept": 1180.574122025606
   },
-  "narrow_insurance_offset_lasso_gaussian": {
+  "narrow-insurance-offset-lasso-gaussian": {
     "coef": [
       -1.419421165470151,
       303.28886872039845,
@@ -4324,7 +4324,7 @@
     ],
     "intercept": 1166.7980439117496
   },
-  "wide_insurance_weights_lasso_gaussian": {
+  "wide-insurance-weights-lasso-gaussian": {
     "coef": [
       -448.1435094079706,
       -38.37410145148804,
@@ -4586,7 +4586,7 @@
     ],
     "intercept": 2172.8560495215816
   },
-  "wide_insurance_no_weights_lasso_gaussian": {
+  "wide-insurance-no-weights-lasso-gaussian": {
     "coef": [
       -419.7412653949785,
       -30.31366980563715,
@@ -4848,7 +4848,7 @@
     ],
     "intercept": 2222.4311183780264
   },
-  "wide_insurance_offset_lasso_gaussian": {
+  "wide-insurance-offset-lasso-gaussian": {
     "coef": [
       0.0,
       0.0,
@@ -5110,7 +5110,7 @@
     ],
     "intercept": -0.004809216962485152
   },
-  "narrow_insurance_weights_lasso_poisson": {
+  "narrow-insurance-weights-lasso-poisson": {
     "coef": [
       0.0,
       0.0,
@@ -5163,7 +5163,7 @@
     ],
     "intercept": -3.3761733830246152
   },
-  "narrow_insurance_no_weights_lasso_poisson": {
+  "narrow-insurance-no-weights-lasso-poisson": {
     "coef": [
       0.0,
       0.0,
@@ -5216,7 +5216,7 @@
     ],
     "intercept": -1.8987638675658467
   },
-  "narrow_insurance_offset_lasso_poisson": {
+  "narrow-insurance-offset-lasso-poisson": {
     "coef": [
       0.0,
       0.0,
@@ -5269,7 +5269,7 @@
     ],
     "intercept": -3.2142273214464048
   },
-  "wide_insurance_weights_lasso_poisson": {
+  "wide-insurance-weights-lasso-poisson": {
     "coef": [
       0.7077365767886454,
       0.0,
@@ -5518,7 +5518,7 @@
     ],
     "intercept": -3.170610368334623
   },
-  "wide_insurance_no_weights_lasso_poisson": {
+  "wide-insurance-no-weights-lasso-poisson": {
     "coef": [
       2.2174970897339876,
       0.0,
@@ -5767,7 +5767,7 @@
     ],
     "intercept": -1.762828380838676
   },
-  "wide_insurance_offset_lasso_poisson": {
+  "wide-insurance-offset-lasso-poisson": {
     "coef": [
       0.0,
       0.0,
@@ -6016,7 +6016,7 @@
     ],
     "intercept": -3.0562095525432786
   },
-  "narrow_insurance_weights_lasso_tweedie_p=1.5": {
+  "narrow-insurance-weights-lasso-tweedie-p=1.5": {
     "coef": [
       0.017072201527460112,
       0.0,
@@ -6069,7 +6069,7 @@
     ],
     "intercept": 2.0820192760667005
   },
-  "narrow_insurance_no_weights_lasso_tweedie_p=1.5": {
+  "narrow-insurance-no-weights-lasso-tweedie-p=1.5": {
     "coef": [
       0.5503201679340155,
       0.31690843020727044,
@@ -6122,7 +6122,7 @@
     ],
     "intercept": 1.9985300194046651
   },
-  "narrow_insurance_offset_lasso_tweedie_p=1.5": {
+  "narrow-insurance-offset-lasso-tweedie-p=1.5": {
     "coef": [
       0.09253810669547316,
       0.0,

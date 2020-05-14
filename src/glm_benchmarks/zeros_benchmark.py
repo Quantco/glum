@@ -11,6 +11,7 @@ def zeros_bench(
     l1_ratio: float,
     iterations: int,
     cv: bool,
+    print_diagnostics,
 ) -> Dict[str, Any]:
 
     result = {

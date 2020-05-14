@@ -1,6 +1,6 @@
 import os
 import pickle
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import click
 import numpy as np
@@ -9,7 +9,12 @@ import scipy.sparse
 
 from glm_benchmarks.bench_sklearn_fork import sklearn_fork_bench
 from glm_benchmarks.problems import get_all_problems
-from glm_benchmarks.util import BenchmarkParams, get_obj_val
+from glm_benchmarks.util import (
+    BenchmarkParams,
+    benchmark_params_cli,
+    get_obj_val,
+    get_params_from_fname,
+)
 from glm_benchmarks.zeros_benchmark import zeros_bench
 
 try:
@@ -26,144 +31,87 @@ try:
 except ImportError:
     H20_INSTALLED = False
 
-benchmark_params = [
-    "problem-name",
-    "library-name",
-    "num-rows",
-    "storage",
-    "threads",
-    "single-precision",
-    "regularization-strength",
-    "cv",
-]
-
 
 @click.command()
-@click.option(
-    "--problem_names",
-    default="",
-    help="Specify a comma-separated list of benchmark problems you want to run. Leaving this blank will default to running all problems.",
-)
-@click.option(
-    "--library_names",
-    default="",
-    help="Specify a comma-separated list of libaries to benchmark. Leaving this blank will default to running all problems.",
-)
-@click.option(
-    "--num_rows",
-    type=int,
-    help="Pass an integer number of rows. This is useful for testing and development. The default is to use the full dataset.",
-)
-@click.option(
-    "--storage",
-    type=str,
-    default="dense",
-    help="Specify the storage format. Currently supported: dense, sparse. Leaving this black will default to dense.",
-)
-@click.option(
-    "--threads",
-    type=int,
-    help="Specify the number of threads. If not set, it will use OMP_NUM_THREADS. If that's not set either, it will default to os.cpu_count().",
-)
-@click.option("--cv", is_flag=True, help="Cross-validation")
 @click.option(
     "--output_dir",
     default="benchmark_output",
     help="The directory to store benchmarking output.",
 )
-@click.option("--single_precision", is_flag=True, help="Whether to use 32-bit data")
 @click.option(
     "--iterations",
     default=1,
     type=int,
     help="Number of times to re-run the benchmark. This can be useful for avoid performance noise.",
 )
-@click.option(
-    "--regularization_strength",
-    default=None,
-    type=float,
-    help="Regularization strength. Set to None to use the default value of the problem.",
-)
+@benchmark_params_cli
 # TODO: where it calls data loader in main.py, convert x to the correct dtype
 def cli_run(
-    problem_names: str,
-    library_names: str,
-    num_rows: int,
-    storage: str,
-    threads: int,
-    cv: bool,
-    output_dir: str,
-    single_precision: bool,
-    iterations: int,
-    regularization_strength: Optional[float],
+    params: BenchmarkParams, output_dir: str, iterations: int,
 ):
-    problems, libraries = get_limited_problems_libraries(problem_names, library_names)
-
-    params = BenchmarkParams(
-        problem_names,
-        library_names,
-        num_rows,
-        storage,
-        threads,
-        single_precision,
-        regularization_strength,
-        cv,
+    problems, libraries = get_limited_problems_libraries(
+        params.problem_name, params.library_name
     )
 
     for Pn, P in problems.items():
         for Ln, L in libraries.items():
             print(f"running problem={Pn} library={Ln}")
             result, regularization_strength_ = execute_problem_library(
-                P, L, params, iterations,
+                P,
+                L,
+                params.num_rows,
+                params.storage,
+                params.threads,
+                params.single_precision,
+                iterations,
+                params.regularization_strength,
             )
             save_benchmark_results(
                 output_dir,
                 params.update_params(problem_name=Pn, library_name=Ln),
                 result,
             )
-            print(f"ran problem {Pn} with libray {Ln}")
-            print(f"ran in {result['runtime']}")
+            if len(result) > 0:
+                print(f"ran problem {Pn} with libray {Ln}")
+                print(f"ran in {result['runtime']}")
 
 
 def execute_problem_library(
     P,
-    L: Callable,
-    params: BenchmarkParams,
+    L,
+    num_rows=None,
+    storage="dense",
+    threads=None,
+    single_precision: bool = False,
     iterations: int = 1,
-    print_diagnostics: bool = False,
+    regularization_strength: Optional[float] = None,
+    print_diagnostics: bool = True,
     **kwargs,
 ):
-    dat = P.data_loader(num_rows=params.num_rows)
-    if params.threads is None:
+    dat = P.data_loader(num_rows=num_rows)
+    if threads is None:
         threads = os.environ.get("OMP_NUM_THREADS", os.cpu_count())
-    else:
-        threads = params.threads
-
     os.environ["OMP_NUM_THREADS"] = str(threads)
-    if params.single_precision:
+    if single_precision:
         for k, v in dat.items():
             dat[k] = v.astype(np.float32)
 
-    if params.storage == "sparse":
+    if storage == "sparse":
         dat["X"] = scipy.sparse.csc_matrix(dat["X"])
-    elif params.storage.startswith("split"):
+    elif storage.startswith("split"):
         from glm_benchmarks.scaled_spmat.split_matrix import SplitMatrix
 
-        threshold = float(params.storage.split("split")[1])
+        threshold = float(storage.split("split")[1])
         dat["X"] = SplitMatrix(scipy.sparse.csc_matrix(dat["X"]), threshold)
 
-    if params.regularization_strength is None:
+    if regularization_strength is None:
         regularization_strength = P.regularization_strength
-    else:
-        regularization_strength = params.regularization_strength
-
     result = L(
         dat,
         P.distribution,
         regularization_strength,
         P.l1_ratio,
         iterations,
-        params.cv,
         print_diagnostics,
         **kwargs,
     )
@@ -172,74 +120,19 @@ def execute_problem_library(
 
 @click.command()
 @click.option(
-    "--problem_names",
-    default="",
-    help="Specify a comma-separated list of benchmark problems you want to analyze. Leaving this blank will default to analyzing all problems.",
-)
-@click.option(
-    "--library_names",
-    default="",
-    help="Specify a comma-separated list of libaries to analyze. Leaving this blank will default to analyzing all problems.",
-)
-@click.option(
-    "--num_rows",
-    type=int,
-    help="The number of rows that the GLM models were run with.",
-)
-@click.option(
-    "--storage",
-    type=str,
-    default="dense",
-    help="Can be dense or sparse. Leave blank to analyze all.",
-)
-@click.option(
-    "--threads",
-    type=int,
-    help="Specify the number of threads. Leave blank to analyze all.",
-)
-@click.option(
-    "--single_precision",
-    type=bool,
-    help="please help me i have been in a hole for 273 hours",
-)
-@click.option("--cv", is_flag=True, help="cross-validation")
-@click.option(
-    "--regularization_strength",
-    type=float,
-    default=None,
-    help="Specify regularization strength. Leave blank to analyze all.",
-)
-@click.option(
     "--output_dir",
     default="benchmark_output",
     help="The directory where we load benchmarking output.",
 )
+@benchmark_params_cli
 def cli_analyze(
-    problem_names: str,
-    library_names: str,
-    num_rows: int,
-    storage: str,
-    threads: int,
-    single_precision: bool,
-    cv: bool,
-    regularization_strength: Optional[float],
-    output_dir: str,
+    params: BenchmarkParams, output_dir: str,
 ):
     display_precision = 4
     np.set_printoptions(precision=display_precision, suppress=True)
     pd.set_option("precision", display_precision)
-    params = BenchmarkParams(
-        problem_names,
-        library_names,
-        num_rows,
-        storage,
-        threads,
-        single_precision,
-        regularization_strength,
-        cv,
-    )
 
-    file_names = identify_parameter_directories(output_dir, params)
+    file_names = identify_parameter_fnames(output_dir, params)
 
     raw_results = {
         fname: load_benchmark_results(output_dir, fname) for fname in file_names
@@ -251,27 +144,27 @@ def cli_analyze(
     ]
 
     res_df = pd.concat(formatted_results, axis=1).T
-    res_df["offset"] = res_df["problem-name"].apply(lambda x: "offset" in x)
-    res_df["problem-name"] = [
-        "weights".join(x.split("offset")) for x in res_df["problem-name"]
+    res_df["offset"] = res_df["problem_name"].apply(lambda x: "offset" in x)
+    res_df["problem_name"] = [
+        "weights".join(x.split("offset")) for x in res_df["problem_name"]
     ]
-    res_df = res_df.set_index(["problem-name", "num-rows", "library-name"]).sort_index()
+    # All rows with the same values of problem_id_cols should have the same solution
+    problem_id_cols = ["problem_name", "num_rows", "regularization_strength"]
+    res_df = res_df.set_index(problem_id_cols).sort_values("library_name").sort_index()
     res_df["n_iter"] = res_df["n_iter"].astype(int)
     for col in ["runtime", "runtime per iter", "intercept", "l1", "l2"]:
         res_df[col] = res_df[col].astype(float)
 
-    for col in ["obj_val"]:
-        res_df["rel_" + col] = (
-            res_df[col]
-            - res_df.groupby(["problem-name", "num-rows", "regularization_strength"])[
-                col
-            ].min()
-        )
+    print(res_df.head())
+    res_df["rel_obj_val"] = (
+        res_df[["obj_val"]] - res_df.groupby(level=[0, 1, 2])[["obj_val"]].min()
+    )
 
     with pd.option_context(
         "display.expand_frame_repr", False, "max_columns", None, "max_rows", None
     ):
         cols_to_show = [
+            "library_name",
             "storage",
             "threads",
             "single_precision",
@@ -291,16 +184,7 @@ def extract_dict_results_to_pd_series(
     fname: str, results: Dict[str, Any],
 ) -> pd.Series:
     assert "coef" in results.keys()
-    (
-        prob_name,
-        lib_name,
-        num_rows,
-        storage,
-        threads,
-        single_precision,
-        cv,
-        regularization_strength,
-    ) = fname.split("_")
+    params = get_params_from_fname(fname)
     coefs = results["coef"]
     runtime_per_iter = results["runtime"] / results["n_iter"]
     l1_norm = np.sum(np.abs(coefs))
@@ -309,21 +193,13 @@ def extract_dict_results_to_pd_series(
     # weights and offsets are solving the same problem, but the objective is set up to
     # deal with weights, so load the data for the weights problem rather than the
     # offset problem
-    prob_name_weights = "weights".join(prob_name.split("offset"))
+    prob_name_weights = "weights".join(params.problem_name.split("offset"))
     problem = get_all_problems()[prob_name_weights]
-    possible_distributions = ["gaussian", "poisson", "tweedie", "gamma"]
 
-    distribution = None
-    for elt in possible_distributions:
-        if elt in prob_name:
-            distribution = elt
-    assert distribution is not None
-    dat = problem.data_loader(
-        None if num_rows == "None" else int(num_rows), None, distribution
-    )
-    tweedie = "tweedie" in prob_name
+    dat = problem.data_loader(params.num_rows)
+    tweedie = "tweedie" in params.problem_name
     if tweedie:
-        tweedie_p = float(prob_name.split("=")[-1])
+        tweedie_p = float(params.problem_name.split("=")[-1])
 
     obj_val = get_obj_val(
         dat,
@@ -335,14 +211,9 @@ def extract_dict_results_to_pd_series(
         tweedie_p=tweedie_p if tweedie else None,
     )
 
-    formatted: Dict[str, Any] = dict(
-        zip(
-            benchmark_params,
-            [prob_name, lib_name, num_rows, storage, threads, single_precision, cv],
-        )
-    )
+    formatted: Dict[str, Any] = params.__dict__
     items_to_use_from_results = ["n_iter", "runtime", "intercept"]
-    if cv:
+    if params.cv:
         items_to_use_from_results += [
             "n_alphas",
             "max_alpha",
@@ -355,39 +226,51 @@ def extract_dict_results_to_pd_series(
 
     formatted.update(
         {
-            "threads": "None" if threads == "None" else int(threads),
-            "num_rows": dat["y"].shape[0] if num_rows == "None" else int(num_rows),
+            "num_rows": dat["y"].shape[0]
+            if params.num_rows is None
+            else params.num_rows,
+            "regularization_strength": (
+                problem.regularization_strength
+                if params.regularization_strength is None
+                else problem.regularization_strength
+            ),
             "runtime per iter": runtime_per_iter,
             "l1": l1_norm,
             "l2": l2_norm,
             "obj_val": obj_val,
-            "offset": "offset" in prob_name,
-            "regularization_strength": float(regularization_strength),
+            "offset": "offset" in params.problem_name,
         }
     )
 
     return pd.Series(formatted)
 
 
-def identify_parameter_directories(
+def identify_parameter_fnames(
     root_dir: str, constraint_params: BenchmarkParams
 ) -> List[str]:
-    def _to_dict(name):
-        return dict(zip(benchmark_params, name.split("_")))
-
-    results_to_keep = []
-    for result_name in os.listdir(root_dir):
-        this_file_params = _to_dict(result_name.strip(".pkl"))
-        keep_this_problem = {
-            k: getattr(constraint_params, k) is None
-            or getattr(constraint_params, k) == ""
+    def _satisfies_constraint(params: BenchmarkParams, k: str) -> bool:
+        constraint = getattr(constraint_params, k)
+        param = getattr(params, k)
+        return (
+            # TODO: no more ""
+            constraint is None
+            or constraint == ""
+            or param == constraint
             # e.g. this_file_params['library_name'] is 'sklearn-fork'
             # and constraint_params.library_name is 'sklearn-fork,h2o'
-            or this_file_params[k] in str(getattr(constraint_params, k))
+            or (isinstance(constraint, str) and param in constraint.split(","))
+        )
+
+    results_to_keep = []
+    for fname in os.listdir(root_dir):
+        this_file_params = get_params_from_fname(fname)
+
+        keep_this_problem = {
+            k: _satisfies_constraint(this_file_params, k)
             for k in constraint_params.param_names
         }
         if all(keep_this_problem.values()):
-            results_to_keep.append(result_name)
+            results_to_keep.append(fname)
     return results_to_keep
 
 
@@ -426,7 +309,6 @@ def get_comma_sep_names(xs: str) -> List[str]:
 
 
 def save_benchmark_results(output_dir: str, params: BenchmarkParams, result,) -> None:
-
     results_path = output_dir + "/" + params.get_result_fname()
 
     if not os.path.exists(output_dir):
