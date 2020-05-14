@@ -47,7 +47,6 @@ def sklearn_fork_bench(
         random_state=random_seed,
         copy_X=False,
         selection="cyclic",
-        start_params="zero",  # TODO: fix gamma start_params
         tol=benchmark_convergence_tolerance,
     )
     model_args.update(kwargs)
