@@ -15,7 +15,11 @@ from .data import (
 
 @attr.s
 class Problem:
-    data_loader = attr.ib(type=Callable[[Optional[int]], Dict[str, np.ndarray]])
+    data_loader = attr.ib(
+        type=Callable[
+            [Optional[int], Optional[float], Optional[str]], Dict[str, np.ndarray]
+        ]
+    )
     distribution = attr.ib(type=str)
     regularization_strength = attr.ib(type=float)
     l1_ratio = attr.ib(type=float)
@@ -23,7 +27,8 @@ class Problem:
 
 def load_data(
     loader_func: Callable[
-        [Optional[int], Optional[float], str], Tuple[np.ndarray, np.ndarray, np.ndarray]
+        [Optional[int], Optional[float], Optional[str]],
+        Tuple[np.ndarray, np.ndarray, np.ndarray],
     ],
     num_rows: int = None,
     noise: float = None,
