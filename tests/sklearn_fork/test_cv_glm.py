@@ -33,7 +33,7 @@ def test_normal_elastic_net_comparison(l1_ratio, fit_intercept):
     X, T = X[0:n_samples], X[n_samples:]
 
     elastic_net = ElasticNetCV(
-        l1_ratio, n_alphas=n_alphas, fit_intercept=fit_intercept, tol=tol,
+        l1_ratio=l1_ratio, n_alphas=n_alphas, fit_intercept=fit_intercept, tol=tol,
     ).fit(X, y)
     el_pred = elastic_net.predict(T)
 
