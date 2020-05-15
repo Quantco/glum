@@ -120,7 +120,7 @@ gm_model_parameters = {
         "P2": _make_P2(),
     },  # elastic net with P1 and P2 variable penalty
     "fit_intercept": {"fit_intercept": False},  # do not fit the intercept
-    "bounds": {"lower_bounds": np.full(28, -0.5), "upper_bounds": np.full(28, 0.5)},
+    "bounds": {"lower_bounds": np.full(28, 0), "upper_bounds": np.full(28, 0.4)},
 }
 
 
