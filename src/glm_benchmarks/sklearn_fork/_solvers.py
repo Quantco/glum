@@ -63,7 +63,7 @@ def _min_norm_sugrad(
         return res
 
 
-def _ls_solver(
+def _least_squares_solver(
     d: np.ndarray,
     X,
     coef: np.ndarray,
@@ -73,9 +73,9 @@ def _ls_solver(
     P2,
     n_cycles: int,
     inner_tol: float,
-    max_inner_iter=50000,
-    selection="cyclic",
-    random_state=None,
+    max_inner_iter,
+    selection,
+    random_state,
     diag_fisher=False,
 ):
     S = score.copy()
@@ -310,7 +310,8 @@ def _irls_solver(
     link: Link,
     max_iter: int = 100,
     max_inner_iter: int = 100000,
-    tol: Tuple[float, float] = (1e-4, 1e-4),
+    gradient_tol: float = 1e-4,
+    step_size_tol: float = 1e-4,
     fixed_inner_tol: float = None,
     selection="cyclic",
     random_state=None,
@@ -384,9 +385,11 @@ def _irls_solver(
         Maximum number of iterations in each inner loop, i.e. max number of
         cycles over all features per inner loop.
 
-    tol : float, optional (default=1e-4)
+    gradient_tol : float, optional (default=1e-4)
         Convergence criterion is
         sum_i(|minimum of norm of subgrad of objective_i|)<=tol.
+
+    step_size_tol : float, optional (default=1e-4)
 
     selection : str, optional (default='cyclic')
         If 'random', randomly chose features in inner loop.
@@ -589,7 +592,9 @@ def _irls_solver(
             offset=offset,
         )
 
-        converged, mn_subgrad_norm = check_convergence(step, coef, -score, P2, P1, tol)
+        converged, mn_subgrad_norm = check_convergence(
+            step, coef, -score, P2, P1, gradient_tol, step_size_tol
+        )
 
         iteration_runtime = time.time() - iteration_start
         coef_l1 = np.sum(np.abs(coef))
@@ -628,19 +633,17 @@ def _irls_solver(
     return coef, n_iter, n_cycles, diagnostics
 
 
-def check_convergence(step, coef, grad, P2, P1, tol):
+def check_convergence(
+    step, coef, grad, P2, P1, gradient_tol: float, step_size_tol: float
+):
     # minimum subgradient norm
     mn_subgrad_norm = linalg.norm(
         _min_norm_sugrad(coef=coef, grad=grad, P2=P2, P1=P1), ord=1
     )
     step_size = linalg.norm(step)
-    converged = False
-    if tol[0] is not None:
-        if mn_subgrad_norm < tol[0]:
-            converged = True
-    if tol[1] is not None:
-        if step_size < tol[1]:
-            converged = True
+    converged = (gradient_tol is not None and mn_subgrad_norm < gradient_tol) or (
+        step_size_tol is not None and step_size < step_size_tol
+    )
     return converged, mn_subgrad_norm
 
 
@@ -650,7 +653,6 @@ def _lbfgs_solver(
     y: np.ndarray,
     weights: np.ndarray,
     P2: Union[np.ndarray, sparse.spmatrix],
-    fit_intercept: bool,
     verbose: bool,
     family: ExponentialDispersionModel,
     link: Link,
