@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import scipy.sparse
 
+from glm_benchmarks.bench_admm import admm_bench
 from glm_benchmarks.bench_sklearn_fork import sklearn_fork_bench
 from glm_benchmarks.problems import get_all_problems
 from glm_benchmarks.util import get_obj_val
@@ -384,7 +385,9 @@ def identify_parameter_directories(
 def get_limited_problems_libraries(
     problem_names: str, library_names: str
 ) -> Tuple[Dict, Dict]:
-    all_libraries = dict(sklearn_fork=sklearn_fork_bench, zeros=zeros_bench,)
+    all_libraries = dict(
+        sklearn_fork=sklearn_fork_bench, zeros=zeros_bench, admm=admm_bench
+    )
 
     if GLMNET_PYTHON_INSTALLED:
         all_libraries["glmnet_python"] = glmnet_python_bench
