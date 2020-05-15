@@ -125,6 +125,7 @@ gm_model_parameters = {
         "P2": _make_P2(),
     },  # elastic net with P1 and P2 variable penalty
     "fit_intercept": {"fit_intercept": False},  # do not fit the intercept
+    "bounds": {"lower_bounds": np.full(28, -0.5), "upper_bounds": np.full(28, 0.5)},
 }
 
 
@@ -187,7 +188,6 @@ def run_and_store_golden_master(
     gm_dict,
     overwrite=False,
 ):
-    print((distribution, run_name))
     if use_weights:
         run_name = f"{run_name}_weights"
 
