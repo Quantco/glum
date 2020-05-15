@@ -56,9 +56,6 @@ def sklearn_fork_bench(
         # TODO: try tightening this later
         tol=1 if cv else benchmark_convergence_tolerance,
     )
-    # start_params does not seem to work well for gamma and tweedie
-    if distribution == "gamma" or "tweedie" in distribution:
-        model_args["start_params"] = "zero"
     if not cv:
         model_args["alpha"] = alpha
     model_args.update(kwargs)
