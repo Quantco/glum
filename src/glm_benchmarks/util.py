@@ -198,6 +198,7 @@ class BenchmarkParams:
 def benchmark_params_cli(func: Callable) -> Callable:
     @click.option(
         "--problem_name",
+        type=str,
         default="",
         help="Specify a comma-separated list of benchmark problems you want to run. Leaving this blank will default to running all problems.",
     )

@@ -10,6 +10,7 @@ from sklearn.exceptions import ConvergenceWarning
 from glm_benchmarks.bench_sklearn_fork import sklearn_fork_bench
 from glm_benchmarks.main import execute_problem_library
 from glm_benchmarks.problems import get_all_problems
+from glm_benchmarks.util import BenchmarkParams
 
 bench_cfg = dict(
     num_rows=10000,
@@ -41,7 +42,19 @@ def expected_all():
     ["Pn", "P"], all_test_problems.items(), ids=all_test_problems.keys()
 )
 def test_gm_benchmarks(Pn, P, bench_cfg_fix, expected_all):
-    result, _ = execute_problem_library(P, sklearn_fork_bench, **bench_cfg_fix)
+    execute_args = ["print_diagnostics"]
+    params = BenchmarkParams(
+        problem_name=Pn,
+        library_name="sklearn-fork",
+        **{k: v for k, v in bench_cfg_fix.items() if k not in execute_args},
+    )
+
+    result, _ = execute_problem_library(
+        P,
+        sklearn_fork_bench,
+        params,
+        **{k: v for k, v in bench_cfg_fix.items() if k in execute_args},
+    )
 
     expected = expected_all[Pn]
 
@@ -70,9 +83,12 @@ def run_and_store_golden_master(overwrite=False):
                 warnings.warn("Result exists and cannot overwrite. Skipping")
                 continue
 
+        params = BenchmarkParams(
+            problem_name=Pn, library_name="sklearn-fork", **bench_cfg
+        )
         warnings.simplefilter("error", ConvergenceWarning)
         try:
-            res = execute_problem_library(P, sklearn_fork_bench, **bench_cfg)
+            res = execute_problem_library(P, sklearn_fork_bench, params)
         except ConvergenceWarning:
             warnings.warn("Problem does not converge. Not storing result.")
             skipped_problems.append(Pn)

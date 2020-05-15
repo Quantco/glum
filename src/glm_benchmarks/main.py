@@ -1,6 +1,6 @@
 import os
 import pickle
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
 import click
 import numpy as np
@@ -57,14 +57,7 @@ def cli_run(
         for Ln, L in libraries.items():
             print(f"running problem={Pn} library={Ln}")
             result, regularization_strength_ = execute_problem_library(
-                P,
-                L,
-                params.num_rows,
-                params.storage,
-                params.threads,
-                params.single_precision,
-                iterations,
-                params.regularization_strength,
+                P, L, params, iterations,
             )
             save_benchmark_results(
                 output_dir,
@@ -79,43 +72,43 @@ def cli_run(
 def execute_problem_library(
     P,
     L,
-    num_rows=None,
-    storage="dense",
-    threads=None,
-    single_precision: bool = False,
+    params: BenchmarkParams,
     iterations: int = 1,
-    regularization_strength: Optional[float] = None,
     print_diagnostics: bool = True,
     **kwargs,
 ):
-    dat = P.data_loader(num_rows=num_rows)
-    if threads is None:
+    dat = P.data_loader(num_rows=params.num_rows)
+    if params.threads is None:
         threads = os.environ.get("OMP_NUM_THREADS", os.cpu_count())
+    else:
+        threads = params.threads
+
     os.environ["OMP_NUM_THREADS"] = str(threads)
-    if single_precision:
+    if params.single_precision:
         for k, v in dat.items():
             dat[k] = v.astype(np.float32)
 
-    if storage == "sparse":
+    if params.storage == "sparse":
         dat["X"] = scipy.sparse.csc_matrix(dat["X"])
-    elif storage.startswith("split"):
+    elif params.storage.startswith("split"):
         from glm_benchmarks.scaled_spmat.split_matrix import SplitMatrix
 
-        threshold = float(storage.split("split")[1])
+        threshold = float(params.storage.split("split")[1])
         dat["X"] = SplitMatrix(scipy.sparse.csc_matrix(dat["X"]), threshold)
 
-    if regularization_strength is None:
-        regularization_strength = P.regularization_strength
+    if params.regularization_strength is None:
+        params.regularization_strength = P.regularization_strength
     result = L(
         dat,
         P.distribution,
-        regularization_strength,
+        params.regularization_strength,
         P.l1_ratio,
         iterations,
+        params.cv,
         print_diagnostics,
         **kwargs,
     )
-    return result, regularization_strength
+    return result, params.regularization_strength
 
 
 @click.command()
@@ -143,19 +136,17 @@ def cli_analyze(
         if len(res) > 0
     ]
 
-    res_df = pd.concat(formatted_results, axis=1).T
+    res_df = pd.DataFrame.from_records(formatted_results)
     res_df["offset"] = res_df["problem_name"].apply(lambda x: "offset" in x)
     res_df["problem_name"] = [
         "weights".join(x.split("offset")) for x in res_df["problem_name"]
     ]
-    # All rows with the same values of problem_id_cols should have the same solution
     problem_id_cols = ["problem_name", "num_rows", "regularization_strength"]
     res_df = res_df.set_index(problem_id_cols).sort_values("library_name").sort_index()
-    res_df["n_iter"] = res_df["n_iter"].astype(int)
-    for col in ["runtime", "runtime per iter", "intercept", "l1", "l2"]:
-        res_df[col] = res_df[col].astype(float)
+    if params.cv:
+        for col in ["max_alpha", "min_alpha"]:
+            res_df[col] = res_df[col].astype(float)
 
-    print(res_df.head())
     res_df["rel_obj_val"] = (
         res_df[["obj_val"]] - res_df.groupby(level=[0, 1, 2])[["obj_val"]].min()
     )
@@ -180,9 +171,7 @@ def cli_analyze(
         print(res_df[cols_to_show])
 
 
-def extract_dict_results_to_pd_series(
-    fname: str, results: Dict[str, Any],
-) -> pd.Series:
+def extract_dict_results_to_pd_series(fname: str, results: Dict[str, Any],) -> Dict:
     assert "coef" in results.keys()
     params = get_params_from_fname(fname)
     coefs = results["coef"]
@@ -242,7 +231,7 @@ def extract_dict_results_to_pd_series(
         }
     )
 
-    return pd.Series(formatted)
+    return formatted
 
 
 def identify_parameter_fnames(
@@ -269,6 +258,7 @@ def identify_parameter_fnames(
             k: _satisfies_constraint(this_file_params, k)
             for k in constraint_params.param_names
         }
+
         if all(keep_this_problem.values()):
             results_to_keep.append(fname)
     return results_to_keep
