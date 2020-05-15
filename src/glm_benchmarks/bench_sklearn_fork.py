@@ -43,11 +43,12 @@ def sklearn_fork_bench(
         family=family,
         alpha=alpha,
         l1_ratio=l1_ratio,
-        max_iter=40,
+        max_iter=1000,
         random_state=random_seed,
         copy_X=False,
-        selection="random",
-        tol=benchmark_convergence_tolerance,
+        selection="cyclic",
+        gradient_tol=benchmark_convergence_tolerance,
+        step_size_tol=0.01 * benchmark_convergence_tolerance,
     )
     model_args.update(kwargs)
 

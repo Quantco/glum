@@ -1,4 +1,4 @@
 from ._distribution import TweedieDistribution
-from ._glm import GeneralizedLinearRegressor, PoissonRegressor
+from ._glm import GeneralizedLinearRegressor
 
-__all__ = ["GeneralizedLinearRegressor", "PoissonRegressor", "TweedieDistribution"]
+__all__ = ["GeneralizedLinearRegressor", "TweedieDistribution"]
