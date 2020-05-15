@@ -15,7 +15,7 @@ def admm_bench(
     l1_ratio: float,
 ):
     # only gaussian lasso is supported.
-    if distribution != "gaussian":
+    if distribution != "gaussian" or l1_ratio != 0:
         return
 
     start = time.time()

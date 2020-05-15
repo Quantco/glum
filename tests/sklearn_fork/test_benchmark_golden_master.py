@@ -18,12 +18,7 @@ bench_cfg = dict(
     print_diagnostics=False,
 )
 
-with open(git_root("golden_master/skipped_benchmark_gm.json"), "r") as fh:
-    do_not_test = json.load(fh)
-
-all_test_problems = {
-    key: value for key, value in get_all_problems().items() if key not in do_not_test
-}
+all_test_problems = get_all_problems()
 
 
 @pytest.fixture
