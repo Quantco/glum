@@ -38,7 +38,7 @@ Generalized Linear Models with Exponential Dispersion Family
 
 from __future__ import division
 
-from typing import Any, Tuple, Union
+from typing import Any, Optional, Tuple, Union
 
 import numpy as np
 import scipy.sparse.linalg as splinalg
@@ -61,7 +61,7 @@ from ._distribution import (
     guess_intercept,
 )
 from ._link import IdentityLink, Link, LogitLink, LogLink
-from ._solvers import _cd_solver, _irls_solver, _lbfgs_solver, _ls_solver
+from ._solvers import _cd_solver, _irls_solver, _lbfgs_solver, _least_squares_solver
 from .dense_glm_matrix import DenseGLMDataMatrix
 
 _float_itemsize_to_dtype = {8: np.float64, 4: np.float32, 2: np.float16}
@@ -297,8 +297,8 @@ def setup_penalties(
 
 
 def initialize_start_params(
-    start_params: Union[str, np.ndarray], n_cols: int, fit_intercept: bool, _dtype
-) -> np.ndarray:
+    start_params: Optional[np.ndarray], n_cols: int, fit_intercept: bool, _dtype
+) -> Optional[np.ndarray]:
     if start_params is not None:
         start_params = check_array(
             start_params,
@@ -979,7 +979,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         # Note: we already symmetrized P2 = 1/2 (P2 + P2')
         if solver == "irls-ls":
             coef, self.n_iter_, self._n_cycles, self.diagnostics_ = _irls_solver(
-                _ls_solver,
+                _least_squares_solver,
                 coef=coef,
                 X=X,
                 y=y,
@@ -990,12 +990,9 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 family=self._family_instance,
                 link=self._link_instance,
                 max_iter=max_iter,
-                tol=(self.gradient_tol, self.step_size_tol),
+                gradient_tol=self.gradient_tol,
+                step_size_tol=self.step_size_tol,
                 offset=offset,
-                # fixed_inner_tol=fixed_inner_tol,
-                # selection=self.selection,
-                # random_state=random_state,
-                # diag_fisher=self.diag_fisher,
             )
         # 4.2 coordinate descent ##############################################
         # Note: we already set P1 = l1*P1, see above
@@ -1015,7 +1012,8 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 family=self._family_instance,
                 link=self._link_instance,
                 max_iter=max_iter,
-                tol=(self.gradient_tol, self.step_size_tol),
+                gradient_tol=self.gradient_tol,
+                step_size_tol=self.step_size_tol,
                 fixed_inner_tol=fixed_inner_tol,
                 selection=self.selection,
                 random_state=random_state,
@@ -1030,7 +1028,6 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 y=y,
                 weights=weights,
                 P2=P2,
-                fit_intercept=self.fit_intercept,
                 verbose=self.verbose,
                 family=self._family_instance,
                 link=self._link_instance,
