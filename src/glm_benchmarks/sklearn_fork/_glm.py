@@ -40,7 +40,7 @@ from __future__ import division
 
 import time
 import warnings
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import scipy.sparse.linalg as splinalg
@@ -154,6 +154,25 @@ def _check_offset(
     return offset
 
 
+def _check_bounds(
+    bounds: Union[List, float, np.ndarray, None], n_features: int,
+) -> Union[None, np.ndarray]:
+    """Check that the bounds have the right shape."""
+    if bounds is None:
+        return None
+    if np.isscalar(bounds):
+        bounds = np.full(n_features, bounds)
+    else:  # assume it's an array
+        bounds = check_array(
+            bounds, accept_sparse=False, force_all_finite=True, ensure_2d=False,
+        )
+        if bounds.ndim > 1:
+            raise ValueError("Bounds must be 1D array or scalar.")
+        if bounds.shape[0] != n_features:
+            raise ValueError("Bounds must be the same length as X.shape[1].")
+    return bounds
+
+
 def _safe_toarray(X):
     """Returns a numpy array."""
     if sparse.issparse(X):
@@ -165,10 +184,10 @@ def _safe_toarray(X):
 def _min_norm_sugrad(
     coef: np.ndarray,
     grad: np.ndarray,
-    P2: np.ndarray,
+    P2: Optional[np.ndarray],
     P1: np.ndarray,
-    lb: np.ndarray,
-    ub: np.ndarray,
+    lb: Optional[np.ndarray],
+    ub: Optional[np.ndarray],
 ) -> np.ndarray:
     """Compute the gradient of all subgradients with minimal L2-norm.
 
@@ -192,6 +211,14 @@ def _min_norm_sugrad(
 
     P1 : ndarray
         always without intercept
+
+    lb : {ndarray or None}
+        lower bounds. When a coefficient is located at the bound and
+        it's gradient suggest that it would be optimal to go beyond
+        the bound, we set the gradient of this feature to zero.
+
+    ub : {ndarray or None}
+        see lb.
     """
     intercept = coef.size == P1.size + 1
     idx = 1 if intercept else 0  # offset if coef[0] is intercept
@@ -442,8 +469,8 @@ def _cd_cycle(
     selection="cyclic",
     random_state=None,
     diag_fisher=False,
-    lower_bounds=None,
-    upper_bounds=None,
+    lower_bounds: Optional[np.ndarray] = None,
+    upper_bounds: Optional[np.ndarray] = None,
 ):
     """Compute inner loop of coordinate descent, i.e. cycles through features.
 
@@ -485,8 +512,7 @@ def _cd_cycle(
     # A += d @ (H+P2) but so far d=0
 
     # inner loop
-    for inner_iter in range(0, max_inner_iter):
-        inner_iter += 1
+    for inner_iter in range(1, max_inner_iter + 1):
         n_cycles += 1
         # cycle through features, update intercept separately at the end
         # TODO: move a lot of this to outer loop
@@ -929,7 +955,6 @@ def _cd_solver(
         # fp_wP2 = f'(w) + w*P2
         # Note: eta, mu and score are already updated
         # this also updates the inner tolerance for the next loop!
-        # mn_subgrad_norm = calc_mn_subgrad_norm()
         mn_subgrad_norm = _min_norm_sugrad(
             coef=coef, grad=-score, P2=P2, P1=P1, lb=lower_bounds, ub=upper_bounds
         )
@@ -1094,7 +1119,7 @@ def setup_penalties(
     # P1 and P2 are now for sure copies
     P1 = l1 * P1
     P2 = l2 * P2
-    # one only ever needs the symmetrized L2 penaer needs the symmetrized L2 penalty matrix 1/2 (P2 + P2')
+    # one only ever needs the symmetrized L2 penalty matrix 1/2 (P2 + P2')
     # reason: w' P2 w = (w' P2 w)', i.e. it is symmetric
     if P2.ndim == 2:
         if sparse.issparse(P2):
@@ -1571,6 +1596,13 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             raise ValueError(
                 "scale_predictors=True is not supported when fit_intercept=False"
             )
+        if ((self.lower_bounds is not None) or (self.upper_bounds is not None)) and (
+            self.solver != "cd"
+        ):
+            raise ValueError(
+                "Only the 'cd' solver is supported when bounds are set; "
+                "got {}".format(self.solver)
+            )
         if self.check_input:
             # check if P1 has only non-negative values, negative values might
             # indicate group lasso in the future.
@@ -1735,21 +1767,6 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             )
         random_state = check_random_state(self.random_state)
 
-        # bounds
-        for bounds in [self.lower_bounds, self.upper_bounds]:
-            if bounds is not None:
-                if (bounds.ndim != 1) or (bounds.shape[0] != X.shape[1]):
-                    raise ValueError(
-                        "[lower,upper]_bounds must be either None or a 1d array "
-                        "with the length of X.shape[1]; "
-                        "got ([lower,upper]_bounds.shape[0]={}), "
-                        "needed (X.shape[1]={}).".format(bounds.shape[0], X.shape[1])
-                    )
-
-        if (self.lower_bounds is not None) and (self.upper_bounds is not None):
-            if np.any(self.lower_bounds > self.upper_bounds):
-                raise ValueError("Lower bounds must be lower than upper bounds.")
-
         # 1.2 validate arguments of fit #######################################
         _dtype = [np.float64, np.float32]
         if solver == "cd":
@@ -1786,6 +1803,12 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         y = _to_precision(y, X.dtype.itemsize)
         weights = _check_weights(sample_weight, y.shape[0], X.dtype)
         offset = _check_offset(offset, y.shape[0], X.dtype)
+        lower_bounds = _check_bounds(self.lower_bounds, X.shape[1])
+        upper_bounds = _check_bounds(self.upper_bounds, X.shape[1])
+
+        if (lower_bounds is not None) and (upper_bounds is not None):
+            if np.any(lower_bounds > upper_bounds):
+                raise ValueError("Upper bounds must be higher than lower bounds.")
 
         n_samples, n_features = X.shape
 
@@ -1883,8 +1906,8 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                     P2,
                     random_state,
                     offset,
-                    self.lower_bounds,
-                    self.upper_bounds,
+                    lower_bounds,
+                    upper_bounds,
                 )
             else:  # start_params == 'zero'
                 if self.fit_intercept:
@@ -1898,20 +1921,20 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                     )
 
                 idx = 1 if self.fit_intercept else 0
-                if self.lower_bounds is not None:
-                    if np.any(coef[1:] < self.lower_bounds):
+                if lower_bounds is not None:
+                    if np.any(coef[1:] < lower_bounds):
                         warnings.warn(
                             "lower_bounds above zero. Setting the starting guess "
                             "to max(0, lower_bounds)."
                         )
-                        coef[idx:] = np.maximum(coef[idx:], self.lower_bounds)
-                if self.upper_bounds is not None:
-                    if np.any(coef[1:] > self.upper_bounds):
+                        coef[idx:] = np.maximum(coef[idx:], lower_bounds)
+                if upper_bounds is not None:
+                    if np.any(coef[1:] > upper_bounds):
                         warnings.warn(
                             "upper_bounds below zero. Setting the starting guess "
                             "to min(0, upper_bounds)."
                         )
-                        coef[idx:] = np.minimum(coef[idx:], self.upper_bounds)
+                        coef[idx:] = np.minimum(coef[idx:], upper_bounds)
 
         else:  # assign given array as start values
             coef = start_params
@@ -1999,8 +2022,8 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 random_state=random_state,
                 diag_fisher=self.diag_fisher,
                 offset=offset,
-                lower_bounds=self.lower_bounds,
-                upper_bounds=self.upper_bounds,
+                lower_bounds=lower_bounds,
+                upper_bounds=upper_bounds,
             )
 
         #######################################################################
