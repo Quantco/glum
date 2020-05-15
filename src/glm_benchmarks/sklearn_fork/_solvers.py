@@ -679,7 +679,7 @@ def _lbfgs_solver(
         iprint=(verbose > 0) - 1,
         pgtol=tol,
         maxiter=max_iter,
-        factr=1e3,
+        factr=1e2,
     )
     if info["warnflag"] == 1:
         warnings.warn(

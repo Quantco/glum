@@ -457,23 +457,23 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         the chi squared statistic or the deviance statistic. If None, the
         dispersion is not estimated.
 
-    solver : {'auto', 'cd', 'irls', 'lbfgs'}, \
+    solver : {'auto', 'irls-cd', 'irls-ls', 'lbfgs'}, \
             optional (default='auto')
         Algorithm to use in the optimization problem:
 
         'auto'
-            Sets 'irls' if l1_ratio equals 0, else 'cd'.
+            Sets 'irls-ls' if l1_ratio equals 0, else 'irls-cd'.
 
-        'cd'
-            Coordinate descent algorithm. It can deal with L1 as well as L2
-            penalties. Note that in order to avoid unnecessary memory
-            duplication of X in the ``fit`` method, X should be directly passed
-            as a Fortran-contiguous numpy array or sparse csc matrix.
+        'irls-cd'
+            Iteratively reweighted least squares with a coordinate descent
+            inner solver. This can deal with L1 as well as L2 penalties. Note
+            that in order to avoid unnecessary memory duplication of X in the
+            ``fit`` method, X should be directly passed as a Fortran-contiguous
+            numpy array or sparse csc matrix.
 
-        'irls'
-            Iterated reweighted least squares.
-            It is the standard algorithm for GLMs. It cannot deal with
-            L1 penalties.
+        'irls-ls'
+            Iteratively reweighted least squares with a least squares inner
+            solver. This algorithm cannot deal with L1 penalties.
 
         'lbfgs'
             Calls scipy's L-BFGS-B optimizer. It cannot deal with L1 penalties.
@@ -693,7 +693,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 """
             )
 
-        solver_list = ["auto", "irls-ls", "lbfgs", "irls-cd"]
+        solver_list = ["auto", "irls-ls", "irls-cd", "lbfgs"]
         if self.solver not in solver_list:
             solver_list_str = ", ".join(["'{}'".format(s) for s in solver_list])
             raise ValueError(
@@ -816,16 +816,13 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         max_iter = self.max_iter
         fixed_inner_tol = None
         if self.family == "normal":
-            if solver == "irls-cd":
+            if "irls" in solver:
                 # IRLS-CD and IRLS-LS should converge in one iteration for any
                 # normal distribution problem. But, sometimes in very poorly
                 # conditioned problems, a second iteration can refine the
                 # solution.
-
                 max_iter = 2
                 fixed_inner_tol = (self.gradient_tol, self.step_size_tol)
-            elif solver == "irls-ls":
-                max_iter = 2
 
         if self.alpha > 0 and self.l1_ratio > 0 and solver not in ["irls-cd"]:
             raise ValueError(
@@ -957,8 +954,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 coef = np.concatenate((np.array([intercept]), coef))
             if self.center_predictors_:
                 _standardize_warm_start(coef, col_means, col_stds)
-
-        if start_params is None:
+        elif start_params is None:
             if self.fit_intercept:
                 coef = np.zeros(
                     n_features + 1, dtype=_float_itemsize_to_dtype[X.dtype.itemsize]
