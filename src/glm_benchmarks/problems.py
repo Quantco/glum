@@ -38,16 +38,16 @@ def load_data(
     # TODO: add a weights_and_offset option
     if data_setup not in ["weights", "offset", "no_weights"]:
         raise NotImplementedError
-    x, y, exposure = loader_func(num_rows, noise, distribution)
+    X, y, exposure = loader_func(num_rows, noise, distribution)
     if data_setup == "weights":
-        return dict(X=x, y=y, weights=exposure)
+        return dict(X=X, y=y, weights=exposure)
     if data_setup == "offset":
         offset = np.log(exposure)
         assert np.all(np.isfinite(offset))
         # y has already been divided by exposure loader_func, so undo it here
-        return dict(X=x, y=y * exposure, offset=offset)
+        return dict(X=X, y=y * exposure, offset=offset)
     # data_setup = "no_weights"
-    return dict(X=x, y=y)
+    return dict(X=X, y=y)
 
 
 def get_all_problems() -> Dict[str, Problem]:
