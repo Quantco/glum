@@ -1009,3 +1009,27 @@ def test_get_best_intercept(
     obj_high = _get_dev(best_intercept + tol)
     assert obj < obj_low
     assert obj < obj_high
+
+
+@pytest.mark.parametrize("tol", [1e-2, 1e-4, 1e-6])
+def test_step_size_tolerance(tol):
+    X, y = make_regression(n_samples=100, n_features=5, noise=0.5, random_state=42,)
+    y[y < 0] = 0
+
+    def build_glm(step_size_tol):
+        glm = GeneralizedLinearRegressor(
+            alpha=1,
+            l1_ratio=0.5,
+            family="poisson",
+            solver="irls-cd",
+            gradient_tol=1e-10,
+            step_size_tol=step_size_tol,
+            selection="cyclic",
+        )
+        glm.fit(X, y)
+        return glm
+
+    baseline = build_glm(1e-10)
+    glm = build_glm(tol)
+    assert_allclose(baseline.intercept_, glm.intercept_, atol=tol)
+    assert_allclose(baseline.coef_, glm.coef_, atol=tol)
