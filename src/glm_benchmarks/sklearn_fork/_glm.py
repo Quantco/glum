@@ -659,6 +659,9 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
     # See PEP 484 on annotating with float rather than Number
     # https://www.python.org/dev/peps/pep-0484/#the-numeric-tower
     def _validate_hyperparameters(self) -> None:
+        if self.gradient_tol is None and self.step_size_tol is None:
+            raise ValueError("gradient_tol and step_size_tol can't be none.")
+
         if (
             not (isinstance(self.alpha, float) or isinstance(self.alpha, int))
             or self.alpha < 0
