@@ -11,6 +11,8 @@ from sklearn.exceptions import ConvergenceWarning
 from sklearn.utils import check_array
 from sklearn.utils.validation import check_random_state
 
+from glm_benchmarks.matrix import MatrixBase
+
 from ._distribution import ExponentialDispersionModel
 from ._link import Link
 from ._util import _safe_lin_pred, _safe_toarray
@@ -65,7 +67,7 @@ def _min_norm_sugrad(
 
 def _least_squares_solver(
     d: np.ndarray,
-    X,
+    X: MatrixBase,
     coef: np.ndarray,
     score,
     fisher,

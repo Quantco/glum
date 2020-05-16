@@ -1,4 +1,4 @@
-from abc import ABC, abstractclassmethod, abstractmethod
+from abc import abstractclassmethod
 from typing import Union
 
 import numpy as np
@@ -8,12 +8,10 @@ from .matrix_base import MatrixBase
 from .mkl_sparse_matrix import MKLSparseMatrix
 
 
-class ScaledMat(MatrixBase, ABC):
+class ScaledMat(MatrixBase):
     """
     Base class for ColScaledSpMat and RowScaledSpMat. Do not instantiate.
     """
-
-    skip_sklearn_check = True
 
     def __init__(self, mat: sps.spmatrix, shift: np.ndarray):
 
@@ -45,15 +43,8 @@ class ScaledMat(MatrixBase, ABC):
     def scale_axis(self) -> int:
         return 0
 
-    def todense(self) -> np.ndarray:
-        return self.mat.A + self.shift
-
     def toarray(self) -> np.ndarray:
-        return np.array(self.todense())
-
-    @property
-    def A(self):
-        return self.todense()
+        return self.mat.A + self.shift
 
     def multiply(self, other: Union[np.ndarray, float]):
         """
@@ -88,10 +79,6 @@ class ScaledMat(MatrixBase, ABC):
         else:
             return mat_part + shift_part
 
-    def __mul__(self, other):
-        """ Defines the beahvior of "*". """
-        return self.multiply(other)
-
     def sum(self, axis: int = None) -> Union[np.ndarray, float]:
         """
         For col case:
@@ -120,39 +107,6 @@ class ScaledMat(MatrixBase, ABC):
                 shift_sum * self.shape[axis], 1 - self.scale_axis
             )
         return self.mat.sum(axis) + shift_part
-
-    @abstractmethod
-    def transpose(self):
-        pass
-
-    @abstractmethod
-    def dot(self, other):
-        pass
-
-    @property
-    def T(self):
-        return self.transpose()
-
-    def mean(self, axis: int = None):
-        if axis is None:
-            denominator = self.shape[0] * self.shape[1]
-        else:
-            denominator = self.shape[axis]
-        return self.sum(axis) / denominator
-
-    def __matmul__(self, other):
-        """ Defines the behavior of 'self @ other'. """
-        return self.dot(other)
-
-    def __rmatmul__(self, other):
-        """
-        other @ self = (self.T @ other.T).T
-        """
-        return (self.T @ other.T).T
-
-    # Higher priority than numpy arrays, so behavior for funcs like "@" defaults to the
-    # behavior of ScaledMat
-    __array_priority__ = 11
 
 
 class ColScaledSpMat(ScaledMat):
