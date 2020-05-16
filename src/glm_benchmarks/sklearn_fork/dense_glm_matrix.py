@@ -2,8 +2,8 @@ from typing import Tuple
 
 import numpy as np
 
+from glm_benchmarks.matrix.standardize import one_over_var_inf_to_zero
 from glm_benchmarks.sandwich.sandwich import dense_sandwich
-from glm_benchmarks.scaled_spmat.standardize import one_over_var_inf_to_zero
 
 
 class DenseGLMDataMatrix(np.ndarray):

@@ -1,8 +1,9 @@
 import numpy as np
 from scipy import sparse as sps
 
-from glm_benchmarks.scaled_spmat.mkl_sparse_matrix import MKLSparseMatrix
 from glm_benchmarks.sklearn_fork.dense_glm_matrix import DenseGLMDataMatrix
+
+from .mkl_sparse_matrix import MKLSparseMatrix
 
 
 class SplitMatrix:

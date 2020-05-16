@@ -47,7 +47,7 @@ from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.utils import check_array, check_X_y
 from sklearn.utils.validation import check_is_fitted, check_random_state
 
-from glm_benchmarks.scaled_spmat.mkl_sparse_matrix import MKLSparseMatrix
+from glm_benchmarks.matrix.mkl_sparse_matrix import MKLSparseMatrix
 
 from ._distribution import (
     BinomialDistribution,

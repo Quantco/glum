@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from scipy import sparse as sps
 
-from glm_benchmarks.scaled_spmat.scaled_spmat import ColScaledSpMat, RowScaledSpMat
+from glm_benchmarks.matrix.scaled_spmat import ColScaledSpMat, RowScaledSpMat
 
 
 def row_scaled_mat() -> RowScaledSpMat:

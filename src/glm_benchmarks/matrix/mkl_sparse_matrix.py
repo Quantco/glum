@@ -69,7 +69,7 @@ class MKLSparseMatrix(sps.csc_matrix):
     __array_priority__ = 12
 
     def standardize(self, weights, scale_predictors) -> Tuple:
-        from glm_benchmarks.scaled_spmat.standardize import standardize, zero_center
+        from glm_benchmarks.matrix.standardize import standardize, zero_center
 
         if scale_predictors:
             return standardize(self, weights=weights)
