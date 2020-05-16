@@ -17,11 +17,6 @@ from glm_benchmarks.sklearn_fork.dense_glm_matrix import DenseGLMDataMatrix
 
 distributions_to_test = ["normal", "poisson", "gamma", "tweedie_p=1.5"]
 
-# Do not create a golden master for the following because the problem does not converge
-problems_with_issue = [
-    ("gamma", "fit_intercept"),
-]
-
 
 def tweedie_rv(p, mu, sigma2=1):
     """Generates draws from a tweedie distribution with power p.
@@ -159,9 +154,6 @@ def fit_model(family, model_parameters, use_weights, data):
 def test_golden_master(
     distribution, model_parameters, run_name, use_weights, data_all, expected_all
 ):
-    if (distribution, run_name) in problems_with_issue:
-        pytest.skip("Problem does not converge")
-
     data = data_all[distribution]
     model = fit_model(distribution, model_parameters, use_weights, data)
 
@@ -170,11 +162,13 @@ def test_golden_master(
 
     expected = expected_all[distribution][run_name]
 
+    # Use absolute tolerance here so we don't get a bunch of errors from small
+    # changes in small coefficients (e.g. 1e-9 to 1.5e-9)
     np.testing.assert_allclose(
-        model.coef_, np.array(expected["coef_"]), rtol=1e-5, atol=0
+        model.coef_, np.array(expected["coef_"]), rtol=0, atol=1e-4
     )
     np.testing.assert_allclose(
-        model.intercept_, expected["intercept_"], rtol=1e-5, atol=0
+        model.intercept_, expected["intercept_"], rtol=0, atol=1e-4
     )
 
 
@@ -228,8 +222,6 @@ if __name__ == "__main__":
         data = create_reg_data(dist)
         for mdl_param in gm_model_parameters.items():
             for use_weights in [True, False]:
-                if (dist, mdl_param[0]) in problems_with_issue:
-                    continue
                 gm_dict = run_and_store_golden_master(
                     dist,
                     mdl_param[1],

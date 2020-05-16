@@ -129,7 +129,6 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
     intercept_ : float
         Intercept (a.k.a. bias) added to linear predictor.
 
-    # TODO
     dispersion_ : float
         The dispersion parameter :math:`\\phi` if ``fit_dispersion`` was set.
 

@@ -495,7 +495,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             X, self.intercept_, self.coef_ = _unstandardize(
                 X, col_means, col_stds, self.intercept_, self.coef_
             )
-
         if self.fit_dispersion in ["chisqr", "deviance"]:
             # attention because of rescaling of weights
             self.dispersion_ = self.estimate_phi(X, y, weights) * weights_sum
@@ -530,6 +529,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         else:
             max_iter = self.max_iter
 
+        # 4.1 IRLS ############################################################
+        # Note: we already set P2 = l2*P2, see above
+        # Note: we already symmetrized P2 = 1/2 (P2 + P2')
         if self._solver == "irls-ls":
             coef, self.n_iter_, self._n_cycles, self.diagnostics_ = _irls_solver(
                 _least_squares_solver,
@@ -590,6 +592,30 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 offset=offset,
             )
         return coef
+
+    def report_diagnostics(self):
+        if hasattr(self, "diagnostics_"):
+            print("diagnostics:")
+            import pandas as pd
+
+            with pd.option_context("max_rows", None):
+                print(
+                    pd.DataFrame(
+                        columns=[
+                            "convergence",
+                            "L1(coef)",
+                            "L2(coef)",
+                            "L2(step)",
+                            "n_iter",
+                            "n_cycles",
+                            "runtime",
+                            "intercept",
+                        ],
+                        data=self.diagnostics_,
+                    ).set_index("n_iter", drop=True)
+                )
+        else:
+            print("solver does not report diagnostics")
 
     def linear_predictor(self, X, offset: np.ndarray = None):
         """Compute the linear_predictor = X*coef_ + intercept_.
@@ -853,30 +879,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             if not isinstance(self.P1, str):  # if self.P1 != 'identity':
                 if not np.all(self.P1 >= 0):
                     raise ValueError("P1 must not have negative values.")
-
-    def report_diagnostics(self):
-        if hasattr(self, "diagnostics_"):
-            print("diagnostics:")
-            import pandas as pd
-
-            with pd.option_context("max_rows", None):
-                print(
-                    pd.DataFrame(
-                        columns=[
-                            "convergence",
-                            "L1(coef)",
-                            "L2(coef)",
-                            "L2(step)",
-                            "n_iter",
-                            "n_cycles",
-                            "runtime",
-                            "intercept",
-                        ],
-                        data=self.diagnostics_,
-                    ).set_index("n_iter", drop=True)
-                )
-        else:
-            print("solver does not report diagnostics")
 
 
 def set_up_and_check_fit_args(

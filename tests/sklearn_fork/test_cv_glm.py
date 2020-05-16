@@ -42,7 +42,7 @@ def test_normal_elastic_net_comparison(l1_ratio, fit_intercept):
         n_alphas=n_alphas,
         fit_intercept=fit_intercept,
         link="identity",
-        tol=tol,
+        gradient_tol=tol,
     ).fit(X, y)
 
     glm_pred = glm.predict(T)
@@ -85,7 +85,7 @@ def test_normal_ridge_comparison(fit_intercept):
     glm = GeneralizedLinearRegressorCV(
         fit_intercept=fit_intercept,
         link="identity",
-        tol=tol,
+        gradient_tol=tol,
         alphas=alphas,
         l1_ratio=0,
     ).fit(X, y)
