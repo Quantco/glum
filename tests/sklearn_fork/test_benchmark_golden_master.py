@@ -1,7 +1,7 @@
-import argparse
 import json
 import warnings
 
+import click
 import numpy as np
 import pytest
 from git_root import git_root
@@ -19,12 +19,7 @@ bench_cfg = dict(
     print_diagnostics=False,
 )
 
-with open(git_root("golden_master/skipped_benchmark_gm.json"), "r") as fh:
-    do_not_test = json.load(fh)
-
-all_test_problems = {
-    key: value for key, value in get_all_problems().items() if key not in do_not_test
-}
+all_test_problems = get_all_problems()
 
 
 @pytest.fixture
@@ -48,6 +43,8 @@ def test_gm_benchmarks(Pn, P, bench_cfg_fix, expected_all):
         library_name="sklearn-fork",
         **{k: v for k, v in bench_cfg_fix.items() if k not in execute_args},
     )
+    if bench_cfg_fix["print_diagnostics"]:
+        print(Pn)
 
     result, _ = execute_problem_library(
         P,
@@ -60,22 +57,33 @@ def test_gm_benchmarks(Pn, P, bench_cfg_fix, expected_all):
 
     all_result = np.concatenate(([result["intercept"]], result["coef"]))
     all_expected = np.concatenate(([expected["intercept"]], expected["coef"]))
-    np.testing.assert_allclose(all_result, all_expected, rtol=1e-4, atol=1e-4)
+    np.testing.assert_allclose(all_result, all_expected, rtol=2e-4, atol=2e-4)
 
 
-def run_and_store_golden_master(overwrite=False):
-    skipped_problems = []
+@click.command()
+@click.option("--overwrite", is_flag=True, help="overwrite existing golden master")
+@click.option(
+    "--problem_name", default=None, help="Only run and store a specific problem."
+)
+def run_and_store_golden_master(overwrite, problem_name):
 
-    if overwrite:
+    try:
+        with open(git_root("golden_master/benchmark_gm.json"), "r") as fh:
+            gm_dict = json.load(fh)
+    except FileNotFoundError:
         gm_dict = dict()
-    else:
-        try:
-            with open(git_root("golden_master/benchmark_gm.json"), "r") as fh:
-                gm_dict = json.load(fh)
-        except FileNotFoundError:
-            gm_dict = dict()
+
+    try:
+        with open(git_root("golden_master/skipped_benchmark_gm.json"), "r") as fh:
+            skipped_problems = json.load(fh)
+    except FileNotFoundError:
+        skipped_problems = []
 
     for Pn, P in get_all_problems().items():
+        if problem_name is not None:
+            if Pn != problem_name:
+                continue
+
         if Pn in gm_dict.keys():
             if overwrite:
                 warnings.warn("Overwriting existing result")
@@ -87,14 +95,21 @@ def run_and_store_golden_master(overwrite=False):
             problem_name=Pn, library_name="sklearn-fork", **bench_cfg
         )
         warnings.simplefilter("error", ConvergenceWarning)
+        skipped = False
         try:
+            print(f"Running {Pn}")
             res = execute_problem_library(P, sklearn_fork_bench, params)
         except ConvergenceWarning:
             warnings.warn("Problem does not converge. Not storing result.")
-            skipped_problems.append(Pn)
-            continue
+            skipped = True
 
-        gm_dict[Pn] = dict(coef=res["coef"].tolist(), intercept=res["intercept"],)
+        if skipped:
+            if Pn not in skipped_problems:
+                skipped_problems.append(Pn)
+        else:
+            if Pn in skipped_problems:
+                skipped_problems.remove(Pn)
+            gm_dict[Pn] = dict(coef=res["coef"].tolist(), intercept=res["intercept"],)
 
     with open(git_root("golden_master/benchmark_gm.json"), "w") as fh:
         json.dump(gm_dict, fh, indent=2)
@@ -104,10 +119,4 @@ def run_and_store_golden_master(overwrite=False):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--overwrite", action="store_true", help="overwrite existing golden master"
-    )
-    args = parser.parse_args()
-
-    run_and_store_golden_master(args.overwrite)
+    run_and_store_golden_master()

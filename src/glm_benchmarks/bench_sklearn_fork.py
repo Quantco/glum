@@ -49,12 +49,13 @@ def sklearn_fork_bench(
     model_args = dict(
         family=family,
         l1_ratio=l1_ratio,
-        max_iter=40,
+        max_iter=1000,
         random_state=random_seed,
         copy_X=False,
-        selection="random",
+        selection="cyclic",
         # TODO: try tightening this later
-        tol=1 if cv else benchmark_convergence_tolerance,
+        gradient_tol=1 if cv else benchmark_convergence_tolerance,
+        step_size_tol=0.01 * benchmark_convergence_tolerance,
     )
     if not cv:
         model_args["alpha"] = alpha

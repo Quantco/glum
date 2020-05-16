@@ -443,7 +443,6 @@ def _irls_solver(
     #       1d array representing a diagonal matrix.
     iteration_start = time.time()
 
-    assert coef is not None
     eta, mu, score, fisher = family._eta_mu_score_fisher(
         coef=coef,
         phi=1,

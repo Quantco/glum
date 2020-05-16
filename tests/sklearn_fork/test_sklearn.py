@@ -452,7 +452,7 @@ def test_glm_fit_intercept_argument(estimator, fit_intercept):
 )
 @pytest.mark.parametrize(
     "solver, l1_ratio",
-    [("not a solver", 0), (1, 0), ([1], 0), ("irls", 0.5), ("lbfgs", 0.5)],
+    [("not a solver", 0), (1, 0), ([1], 0), ("irls-ls", 0.5), ("lbfgs", 0.5)],
 )
 def test_glm_solver_argument(estimator, solver, l1_ratio, y, X):
     """Test GLM for invalid solver argument."""
