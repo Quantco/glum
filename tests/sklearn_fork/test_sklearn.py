@@ -33,13 +33,12 @@ from glm_benchmarks.sklearn_fork._glm import (
     MKLSparseMatrix,
     NormalDistribution,
     PoissonDistribution,
-    PoissonRegressor,
     TweedieDistribution,
     _unstandardize,
     is_pos_semidef,
 )
 
-GLM_SOLVERS = ["irls", "lbfgs", "cd"]
+GLM_SOLVERS = ["irls-ls", "lbfgs", "irls-cd"]
 
 
 def get_small_x_y(
@@ -255,6 +254,45 @@ def test_offset_validation(estimator):
         glm.fit(X, y, offset=[1, 0])
 
 
+@pytest.mark.parametrize(
+    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
+)
+def test_tol_validation_errors(estimator):
+    X, y = get_small_x_y(estimator)
+
+    glm = estimator(gradient_tol=None, step_size_tol=None)
+    with pytest.raises(ValueError, match="cannot both be None"):
+        glm.fit(X, y)
+
+    glm = estimator(gradient_tol=-0.1)
+    with pytest.raises(ValueError, match="Tolerance for stopping"):
+        glm.fit(X, y)
+
+    glm = estimator(step_size_tol=-0.1)
+    with pytest.raises(ValueError, match="Tolerance for stopping"):
+        glm.fit(X, y)
+
+
+@pytest.mark.parametrize(
+    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
+)
+@pytest.mark.parametrize(
+    "tol_kws",
+    [
+        {},
+        {"step_size_tol": 1},
+        {"step_size_tol": None},
+        {"gradient_tol": 1},
+        {"gradient_tol": None, "step_size_tol": 1},
+        {"gradient_tol": 1, "step_size_tol": 1},
+    ],
+)
+def test_tol_validation_no_error(estimator, tol_kws):
+    X, y = get_small_x_y(estimator)
+    glm = estimator(**tol_kws)
+    glm.fit(X, y)
+
+
 # TODO: something for CV regressor
 @pytest.mark.parametrize(
     "f, fam",
@@ -266,7 +304,7 @@ def test_offset_validation(estimator):
         ("binomial", BinomialDistribution()),
     ],
 )
-def test_glm_family_argument(X, y, f, fam):
+def test_glm_family_argument(f, fam, y, X):
     """Test GLM family argument set as string."""
     glm = GeneralizedLinearRegressor(family=f, alpha=0).fit(X, y)
     assert isinstance(glm._family_instance, fam.__class__)
@@ -438,11 +476,12 @@ def test_glm_max_iter_argument(estimator, max_iter):
 @pytest.mark.parametrize(
     "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
 )
+@pytest.mark.parametrize("tol_param", ["gradient_tol", "step_size_tol"])
 @pytest.mark.parametrize("tol", ["not a number", 0, -1.0, [1e-3]])
-def test_glm_tol_argument(estimator, tol):
+def test_glm_tol_argument(estimator, tol_param, tol):
     """Test GLM for invalid tol argument."""
     X, y = get_small_x_y(estimator)
-    glm = estimator(tol=tol)
+    glm = estimator(**{tol_param: tol})
     with pytest.raises(ValueError, match="stopping criteria must be positive"):
         glm.fit(X, y)
 
@@ -546,8 +585,7 @@ def test_glm_identity_regression(solver, fit_intercept, offset):
         link="identity",
         fit_intercept=fit_intercept,
         solver=solver,
-        start_params="zero",
-        tol=1e-7,
+        gradient_tol=1e-7,
     )
     if fit_intercept:
         X = X[:, 1:]
@@ -572,11 +610,12 @@ def test_glm_identity_regression(solver, fit_intercept, offset):
         GeneralizedHyperbolicSecant(),
     ],
 )
-@pytest.mark.parametrize("solver, tol", [("irls", 1e-6), ("lbfgs", 1e-7), ("cd", 1e-7)])
+@pytest.mark.parametrize(
+    "solver, tol", [("irls-ls", 1e-6), ("lbfgs", 1e-7), ("irls-cd", 1e-7)]
+)
 @pytest.mark.parametrize("fit_intercept", [False, True])
 @pytest.mark.parametrize("offset", [None, np.array([-0.1, 0, 0.1, 0, -0.2]), 0.1])
-@pytest.mark.parametrize("start_params", ["zero", "guess"])
-def test_glm_log_regression(family, solver, tol, fit_intercept, offset, start_params):
+def test_glm_log_regression(family, solver, tol, fit_intercept, offset):
     """Test GLM regression with log link on a simple dataset."""
     coef = [0.2, -0.1]
     X = np.array([[1, 1, 1, 1, 1], [0, 1, 2, 3, 4]]).T
@@ -587,8 +626,7 @@ def test_glm_log_regression(family, solver, tol, fit_intercept, offset, start_pa
         link="log",
         fit_intercept=fit_intercept,
         solver=solver,
-        start_params=start_params,
-        tol=tol,
+        gradient_tol=tol,
     )
     if fit_intercept:
         X = X[:, 1:]
@@ -647,11 +685,10 @@ def test_normal_ridge_comparison(n_samples, n_features, solver, use_offset):
         alpha=1.0,
         l1_ratio=0,
         family="normal",
-        link="identity",
         fit_intercept=True,
         max_iter=300,
         solver=solver,
-        tol=1e-6,
+        gradient_tol=1e-6,
         check_input=False,
         random_state=42,
     )
@@ -662,7 +699,9 @@ def test_normal_ridge_comparison(n_samples, n_features, solver, use_offset):
     assert_allclose(glm.predict(T), ridge.predict(T), rtol=1e-4)
 
 
-@pytest.mark.parametrize("solver, tol", [("irls", 1e-7), ("lbfgs", 1e-7), ("cd", 1e-7)])
+@pytest.mark.parametrize(
+    "solver, tol", [("irls-ls", 1e-7), ("lbfgs", 1e-7), ("irls-cd", 1e-7)]
+)
 @pytest.mark.parametrize("scale_predictors", [True, False])
 @pytest.mark.parametrize("use_sparse", [True, False])
 def test_poisson_ridge(solver, tol, scale_predictors, use_sparse):
@@ -709,7 +748,7 @@ def test_poisson_ridge(solver, tol, scale_predictors, use_sparse):
         fit_intercept=True,
         family="poisson",
         link="log",
-        tol=1e-7,
+        gradient_tol=1e-7,
         solver=solver,
         max_iter=300,
         random_state=rng,
@@ -759,11 +798,10 @@ def test_normal_enet(diag_fisher):
         family="normal",
         link="identity",
         fit_intercept=True,
-        tol=1e-8,
+        gradient_tol=1e-8,
         max_iter=100,
         selection="cyclic",
-        solver="cd",
-        start_params="zero",
+        solver="irls-cd",
         check_input=False,
         diag_fisher=diag_fisher,
     )
@@ -814,11 +852,10 @@ def test_poisson_enet():
         l1_ratio=0.5,
         family="poisson",
         link="log",
-        solver="cd",
-        tol=1e-8,
+        solver="irls-cd",
+        gradient_tol=1e-8,
         selection="random",
         random_state=rng,
-        start_params="guess",
     )
     glm.fit(X, y)
     assert_allclose(glm.intercept_, glmnet_intercept, rtol=2e-6)
@@ -857,10 +894,9 @@ def test_poisson_enet():
         l1_ratio=0.5,
         family="poisson",
         link="log",
-        solver="cd",
-        tol=1e-5,
+        solver="irls-cd",
+        gradient_tol=1e-5,
         selection="cyclic",
-        start_params="zero",
     )
     glm.fit(X, y)
     assert_allclose(glm.intercept_, glmnet_intercept, rtol=1e-4)
@@ -873,10 +909,9 @@ def test_poisson_enet():
         family="poisson",
         max_iter=300,
         link="log",
-        solver="cd",
-        tol=1e-5,
+        solver="irls-cd",
+        gradient_tol=1e-5,
         selection="cyclic",
-        start_params="zero",
     )
     glm.fit(X, y)
     # warm start with original alpha and use of sparse matrices
@@ -910,7 +945,7 @@ def test_binomial_enet(alpha):
         penalty="elasticnet",
         random_state=rng,
         fit_intercept=False,
-        tol=1e-6,
+        tol=1e-7,
         max_iter=1000,
         l1_ratio=l1_ratio,
         C=1.0 / (n_samples * alpha),
@@ -924,9 +959,9 @@ def test_binomial_enet(alpha):
         fit_intercept=False,
         alpha=alpha,
         l1_ratio=l1_ratio,
-        solver="cd",
+        solver="irls-cd",
         selection="cyclic",
-        tol=1e-7,
+        gradient_tol=1e-7,
     )
     glm.fit(X, y)
     assert_allclose(log.intercept_[0], glm.intercept_, rtol=1e-6)
@@ -936,13 +971,11 @@ def test_binomial_enet(alpha):
 @pytest.mark.parametrize(
     "params",
     [
-        {"solver": "irls", "start_params": "guess"},
-        {"solver": "irls", "start_params": "zero"},
-        {"solver": "lbfgs", "start_params": "guess"},
-        {"solver": "lbfgs", "start_params": "zero"},
-        {"solver": "cd", "selection": "cyclic", "diag_fisher": False},
-        {"solver": "cd", "selection": "cyclic", "diag_fisher": True},
-        {"solver": "cd", "selection": "random", "diag_fisher": False},
+        {"solver": "irls-ls"},
+        {"solver": "lbfgs"},
+        {"solver": "irls-cd", "selection": "cyclic", "diag_fisher": False},
+        {"solver": "irls-cd", "selection": "cyclic", "diag_fisher": True},
+        {"solver": "irls-cd", "selection": "random", "diag_fisher": False},
     ],
     ids=lambda params: ", ".join(
         "{}={}".format(key, val) for key, val in params.items()
@@ -979,12 +1012,20 @@ def test_solver_equivalence(params, use_offset, regression_data):
 @pytest.mark.parametrize(
     "params",
     [
-        {"solver": "irls", "start_params": "guess", "rtol": 1e-6},
-        {"solver": "irls", "start_params": "zero", "rtol": 1e-6},
-        {"solver": "lbfgs", "start_params": "guess", "rtol": 2e-4},
-        {"solver": "lbfgs", "start_params": "zero", "rtol": 2e-4},
-        {"solver": "cd", "selection": "cyclic", "diag_fisher": False, "rtol": 2e-5},
-        {"solver": "cd", "selection": "random", "diag_fisher": False, "rtol": 6e-5},
+        {"solver": "irls-ls", "rtol": 1e-6},
+        {"solver": "lbfgs", "rtol": 2e-4},
+        {
+            "solver": "irls-cd",
+            "selection": "cyclic",
+            "diag_fisher": False,
+            "rtol": 2e-5,
+        },
+        {
+            "solver": "irls-cd",
+            "selection": "random",
+            "diag_fisher": False,
+            "rtol": 6e-5,
+        },
     ],
     ids=lambda params: ", ".join(
         "{}={}".format(key, val) for key, val in params.items()
@@ -995,6 +1036,7 @@ def test_solver_equivalence_cv(params, use_offset):
     n_alphas = 3
     n_samples = 100
     n_features = 10
+    gradient_tol = 1e-5
 
     X, y = make_regression(n_samples=n_samples, n_features=n_features, random_state=2)
     if use_offset:
@@ -1003,13 +1045,16 @@ def test_solver_equivalence_cv(params, use_offset):
     else:
         offset = None
 
-    est_ref = GeneralizedLinearRegressorCV(random_state=2, n_alphas=n_alphas)
+    est_ref = GeneralizedLinearRegressorCV(
+        random_state=2, n_alphas=n_alphas, gradient_tol=gradient_tol
+    )
     est_ref.fit(X, y, offset=offset)
 
     est_2 = (
         GeneralizedLinearRegressorCV(
             n_alphas=n_alphas,
             max_iter=1000,
+            gradient_tol=gradient_tol,
             **{k: v for k, v in params.items() if k != "rtol"},
         )
         .set_params(random_state=2)
@@ -1058,7 +1103,7 @@ def test_convergence_warning(solver, regression_data):
     X, y = regression_data
 
     est = GeneralizedLinearRegressor(
-        solver=solver, random_state=2, max_iter=1, tol=1e-20
+        solver=solver, random_state=2, max_iter=1, gradient_tol=1e-20
     )
     with pytest.warns(ConvergenceWarning):
         est.fit(X, y)
@@ -1126,16 +1171,14 @@ def test_standardize(use_sparse, scale_predictors):
 
 
 @pytest.mark.parametrize(
-    "estimator",
-    [GeneralizedLinearRegressor, PoissonRegressor, GeneralizedLinearRegressorCV],
+    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV],
 )
 def test_check_estimator(estimator):
     check_estimator(estimator)
 
 
 @pytest.mark.parametrize(
-    "estimator",
-    [GeneralizedLinearRegressor, PoissonRegressor, GeneralizedLinearRegressorCV],
+    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV],
 )
 def test_clonable(estimator):
     clone(estimator())
@@ -1178,3 +1221,27 @@ def test_get_best_intercept(
     obj_high = _get_dev(best_intercept + tol)
     assert obj < obj_low
     assert obj < obj_high
+
+
+@pytest.mark.parametrize("tol", [1e-2, 1e-4, 1e-6])
+def test_step_size_tolerance(tol):
+    X, y = make_regression(n_samples=100, n_features=5, noise=0.5, random_state=42,)
+    y[y < 0] = 0
+
+    def build_glm(step_size_tol):
+        glm = GeneralizedLinearRegressor(
+            alpha=1,
+            l1_ratio=0.5,
+            family="poisson",
+            solver="irls-cd",
+            gradient_tol=1e-10,
+            step_size_tol=step_size_tol,
+            selection="cyclic",
+        )
+        glm.fit(X, y)
+        return glm
+
+    baseline = build_glm(1e-10)
+    glm = build_glm(tol)
+    assert_allclose(baseline.intercept_, glm.intercept_, atol=tol)
+    assert_allclose(baseline.coef_, glm.coef_, atol=tol)
