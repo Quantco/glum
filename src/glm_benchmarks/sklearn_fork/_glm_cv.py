@@ -1,7 +1,7 @@
 from __future__ import division
 
 import copy
-from typing import Union
+from typing import Optional, Union
 
 import numpy as np
 from sklearn.model_selection._split import check_cv
@@ -9,7 +9,6 @@ from sklearn.model_selection._split import check_cv
 from ._distribution import ExponentialDispersionModel, TweedieDistribution
 from ._glm import (
     GeneralizedLinearRegressorBase,
-    _safe_lin_pred,
     _unstandardize,
     get_family,
     get_link,
@@ -20,6 +19,7 @@ from ._glm import (
     setup_p2,
 )
 from ._link import IdentityLink, Link, LogLink
+from ._util import _safe_lin_pred
 
 
 class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
@@ -74,8 +74,10 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
     max_iter : int, optional (default=100)
         The maximal number of iterations per value of alpha for solver algorithms.
 
-    tol : float, optional (default=1e-4)
+    gradient_tol : float, optional (default=1e-4)
         Stopping criterion for each value of alpha.
+
+    step_size_tol: float, optional (default=None)
 
     warm_start : boolean, optional (default=False)
 
@@ -87,7 +89,6 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
     diag_fisher : boolean, optional, (default=False)
     copy_X : boolean, optional, (default=True)
     check_input : boolean, optional (default=True)
-    center_predictors : boolean, optional (default=True)
     verbose : int, optional (default=0)
 
     cv : int, cross-validation generator or an iterable, optional
@@ -128,6 +129,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
     intercept_ : float
         Intercept (a.k.a. bias) added to linear predictor.
 
+    # TODO
     dispersion_ : float
         The dispersion parameter :math:`\\phi` if ``fit_dispersion`` was set.
 
@@ -151,21 +153,22 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         fit_intercept=True,
         family: Union[str, ExponentialDispersionModel] = "normal",
         link: Union[str, Link] = "auto",
-        fit_dispersion=None,
+        fit_dispersion: Optional[bool] = None,
         solver="auto",
         max_iter=100,
-        tol=1e-4,
-        warm_start=False,
-        start_params="guess",
-        selection="cyclic",
+        gradient_tol: Optional[float] = 1e-4,
+        step_size_tol: Optional[float] = None,
+        warm_start: bool = False,
+        start_params: Optional[np.ndarray] = None,
+        selection: str = "cyclic",
         random_state=None,
-        diag_fisher=False,
-        copy_X=True,
-        check_input=True,
+        diag_fisher: bool = False,
+        copy_X: bool = True,
+        check_input: bool = True,
         verbose=0,
-        scale_predictors=False,
+        scale_predictors: bool = False,
         cv=None,
-        n_jobs: int = None,
+        n_jobs: Optional[int] = None,
     ):
         self.eps = eps
         self.n_alphas = n_alphas
@@ -182,7 +185,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             fit_dispersion,
             solver,
             max_iter,
-            tol,
+            gradient_tol,
+            step_size_tol,
             warm_start,
             start_params,
             selection,
@@ -286,7 +290,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             X, y, sample_weight, offset, solver=self.solver, copy_X=self.copy_X
         )
 
-        self.set_up_for_fit(X, y)
+        self.set_up_for_fit(y)
         if (
             hasattr(self._family_instance, "_power")
             and self._family_instance._power == 1.5
@@ -369,8 +373,6 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
 
                     return w_test.dot((y_test - mu) ** 2) / w_test.sum()
 
-                # TODO: something has gone wrong, get_link won't work
-                P1 = setup_p1(self.P1, X, X.dtype, alphas[i][0], l1)
                 P2 = setup_p2(self.P2, X, _stype, X.dtype, alphas[i][0], l1)
 
                 if (
@@ -379,13 +381,18 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
                 ):
                     assert isinstance(self._link_instance, LogLink)
 
-                coef = self.get_start_coef(
+                _dtype = [np.float64, np.float32]
+                start_params = initialize_start_params(
                     self.start_params,
+                    n_cols=X.shape[1],
+                    fit_intercept=self.fit_intercept,
+                    _dtype=_dtype,
+                )
+                coef = self.get_start_coef(
+                    start_params,
                     x_train,
                     y_train,
                     w_train,
-                    P1,
-                    P2,
                     offset_train,
                     col_means,
                     col_stds,
@@ -452,7 +459,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         )
 
         coef = self.get_start_coef(
-            start_params, X, y, weights, P1, P2, offset, col_means, col_stds
+            start_params, X, y, weights, offset, col_means, col_stds
         )
         coef = self.solve(X, y, weights, P2, P1, coef, offset)
 
