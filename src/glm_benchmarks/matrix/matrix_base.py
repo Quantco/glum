@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from functools import reduce
 from typing import Optional, Tuple, Union
 
 import numpy as np
@@ -14,7 +13,8 @@ class MatrixBase(ABC):
 
     @abstractmethod
     def __init__(self, *args, **kwargs):
-        self.shape: Tuple = ()
+        self.shape: Tuple[int, int] = (0, 0)
+        self.dtype = np.float
 
     @abstractmethod
     def toarray(self) -> np.ndarray:
@@ -65,7 +65,7 @@ class MatrixBase(ABC):
 
     def mean(self, axis: Optional[int]) -> Union[np.ndarray, float]:
         if axis is None:
-            denominator = reduce(lambda x, y: x * y, self.shape)
+            denominator = self.shape[0] * self.shape[1]
         else:
             denominator = self.shape[axis]
         return self.sum(axis) / denominator
