@@ -4,10 +4,11 @@ from typing import Union
 import numpy as np
 from scipy import sparse as sps
 
+from .matrix_base import MatrixBase
 from .mkl_sparse_matrix import MKLSparseMatrix
 
 
-class ScaledMat(ABC):
+class ScaledMat(MatrixBase, ABC):
     """
     Base class for ColScaledSpMat and RowScaledSpMat. Do not instantiate.
     """

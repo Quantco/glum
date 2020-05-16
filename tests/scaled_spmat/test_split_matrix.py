@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 import scipy.sparse as sps
 
-from glm_benchmarks.scaled_spmat.split_matrix import SplitMatrix
+from glm_benchmarks.matrix.split_matrix import SplitMatrix
 from glm_benchmarks.sklearn_fork._glm import DenseGLMDataMatrix
 
 N = 100

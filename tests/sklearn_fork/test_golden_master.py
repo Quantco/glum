@@ -8,7 +8,7 @@ import pytest
 from git_root import git_root
 from scipy import sparse
 
-from glm_benchmarks.scaled_spmat.mkl_sparse_matrix import MKLSparseMatrix
+from glm_benchmarks.matrix.mkl_sparse_matrix import MKLSparseMatrix
 from glm_benchmarks.sklearn_fork._glm import (
     GeneralizedLinearRegressor,
     TweedieDistribution,
