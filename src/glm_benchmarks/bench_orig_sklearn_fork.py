@@ -23,14 +23,15 @@ def orig_sklearn_fork_bench(
     print_diagnostics: bool = True,
     **kwargs,
 ):
-    result = dict()
+    result = dict()  # type: ignore
 
     X = dat["X"]
     fit_args = dict(X=X, y=dat["y"])
     if "weights" in dat.keys():
         fit_args.update({"sample_weight": dat["weights"]})
     if "offset" in dat.keys():
-        fit_args.update({"offset": dat["offset"]})
+        print("Original sklearn_fork does not support offsets.")
+        return result
 
     family = distribution
     if family == "gaussian":
