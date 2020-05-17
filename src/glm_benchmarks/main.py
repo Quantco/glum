@@ -294,7 +294,6 @@ def cli_analyze(
             "obj_val",
             "rel_obj_val",
         ]
-        res_df.to_pickle("analyze_result.pkl")
         print(res_df[cols_to_show])
 
 
