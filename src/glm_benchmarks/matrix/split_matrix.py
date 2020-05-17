@@ -1,15 +1,15 @@
+from typing import Any, Tuple, Union
+
 import numpy as np
 from scipy import sparse as sps
 
-from glm_benchmarks.sklearn_fork.dense_glm_matrix import DenseGLMDataMatrix
-
+from .dense_glm_matrix import DenseGLMDataMatrix
+from .matrix_base import MatrixBase
 from .mkl_sparse_matrix import MKLSparseMatrix
 
 
-class SplitMatrix:
-    skip_sklearn_check = True
-
-    def __init__(self, X, threshold):
+class SplitMatrix(MatrixBase):
+    def __init__(self, X: sps.csc_matrix, threshold: float):
         self.shape = X.shape
         self.threshold = threshold
         self.dtype = X.dtype
@@ -27,7 +27,14 @@ class SplitMatrix:
             sps.csc_matrix(X.toarray()[:, self.sparse_indices])
         )
 
-    def sandwich(self, d):
+    def getcol(self, i: int) -> Union[np.ndarray, sps.csr_matrix]:
+        if i in self.dense_indices:
+            idx = np.where(self.dense_indices == i)[0]
+            return self.X_dense_F[:, idx]
+        idx = np.where(self.sparse_indices == i)[0]
+        return self.X_sparse.getcol(idx)
+
+    def sandwich(self, d: np.ndarray) -> np.ndarray:
         out = np.empty((self.shape[1], self.shape[1]))
         if self.X_sparse.shape[1] > 0:
             SS = self.X_sparse.sandwich(d)
@@ -42,7 +49,9 @@ class SplitMatrix:
 
         return out
 
-    def standardize(self, weights, scale_predictors):
+    def standardize(
+        self, weights: np.ndarray, scale_predictors: bool
+    ) -> Tuple[Any, np.ndarray, np.ndarray]:
         self.X_dense_F, dense_col_means, dense_col_stds = self.X_dense_F.standardize(
             weights, scale_predictors
         )
@@ -60,7 +69,7 @@ class SplitMatrix:
 
         return self, col_means, col_stds
 
-    def unstandardize(self, col_means, col_stds):
+    def unstandardize(self, col_means: np.ndarray, col_stds: np.ndarray):
         self.X_dense_F = self.X_dense_F.unstandardize(
             col_means[0, self.dense_indices], col_stds[self.dense_indices]
         )
@@ -69,17 +78,14 @@ class SplitMatrix:
         )
         return self
 
-    def dot(self, v):
+    def dot(self, v: np.ndarray) -> np.ndarray:
         if v.shape[0] != self.shape[1]:
             raise ValueError(f"shapes {self.shape} and {v.shape} not aligned")
         dense_out = self.X_dense_F.dot(v[self.dense_indices])
         sparse_out = self.X_sparse.dot(v[self.sparse_indices])
         return dense_out + sparse_out
 
-    def __matmul__(self, v):
-        return self.dot(v)
-
-    def __rmatmul__(self, v):
+    def __rmatmul__(self, v) -> np.ndarray:
         dense_component = self.X_dense_F.__rmatmul__(v)
         sparse_component = self.X_sparse.__rmatmul__(v)
         out_shape = list(dense_component.shape)

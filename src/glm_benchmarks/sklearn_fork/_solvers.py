@@ -125,7 +125,7 @@ def _least_squares_solver(
 
 def _cd_solver(
     d: np.ndarray,
-    X,
+    X: MatrixBase,
     coef: np.ndarray,
     score,
     fisher,
@@ -302,7 +302,7 @@ def add_P2_fisher(fisher, P2, coef, idx, diag_fisher):
 def _irls_solver(
     inner_solver,
     coef,
-    X,
+    X: MatrixBase,
     y: np.ndarray,
     weights: np.ndarray,
     P1: Union[np.ndarray, sparse.spmatrix],
@@ -651,7 +651,7 @@ def check_convergence(
 
 def _lbfgs_solver(
     coef,
-    X,
+    X: MatrixBase,
     y: np.ndarray,
     weights: np.ndarray,
     P2: Union[np.ndarray, sparse.spmatrix],

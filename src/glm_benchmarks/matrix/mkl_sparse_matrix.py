@@ -6,8 +6,10 @@ from sparse_dot_mkl import dot_product_mkl
 
 from glm_benchmarks.sandwich.sandwich import csr_dense_sandwich, sparse_sandwich
 
+from .matrix_base import MatrixBase
 
-class MKLSparseMatrix(sps.csc_matrix):
+
+class MKLSparseMatrix(sps.csc_matrix, MatrixBase):
     """
     A scipy.sparse csc matrix subclass that will use MKL for sparse
     matrix-vector products and will use the fast sparse_sandwich function

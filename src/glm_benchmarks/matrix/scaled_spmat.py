@@ -1,5 +1,5 @@
-from abc import abstractclassmethod
-from typing import Union
+from abc import ABC, abstractclassmethod, abstractmethod
+from typing import Optional, Union
 
 import numpy as np
 from scipy import sparse as sps
@@ -8,7 +8,7 @@ from .matrix_base import MatrixBase
 from .mkl_sparse_matrix import MKLSparseMatrix
 
 
-class ScaledMat(MatrixBase):
+class ScaledMat(ABC):
     """
     Base class for ColScaledSpMat and RowScaledSpMat. Do not instantiate.
     """
@@ -108,8 +108,31 @@ class ScaledMat(MatrixBase):
             )
         return self.mat.sum(axis) + shift_part
 
+    def __mul__(self, other):
+        """ Defines the behavior of "*", element-wise multiplication. """
+        return self.multiply(other)
 
-class ColScaledSpMat(ScaledMat):
+    def mean(self, axis: Optional[int]) -> Union[np.ndarray, float]:
+        if axis is None:
+            denominator = self.shape[0] * self.shape[1]
+        else:
+            denominator = self.shape[axis]
+        return self.sum(axis) / denominator
+
+    @property
+    def A(self) -> np.ndarray:
+        return self.toarray()
+
+    @abstractmethod
+    def transpose(self):
+        pass
+
+    @property
+    def T(self):
+        return self.transpose()
+
+
+class ColScaledSpMat(ScaledMat, MatrixBase):
     """
     Matrix with ij element equal to mat[i, j] + shift[1, j]
     """
@@ -272,6 +295,10 @@ class RowScaledSpMat(ScaledMat):
             other_sum = np.expand_dims(other_sum, 0)
         shift_part = self.shift.dot(other_sum)
         return mat_part + shift_part
+
+    def __matmul__(self, other):
+        """ Defines the behavior of 'self @ other'. """
+        return self.dot(other)
 
     def power(self, p: float):
         return self.T.power(p).T

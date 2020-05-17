@@ -1,12 +1,14 @@
-from typing import Tuple
+from typing import Iterable, Tuple
 
 import numpy as np
 
 from glm_benchmarks.matrix.standardize import one_over_var_inf_to_zero
 from glm_benchmarks.sandwich.sandwich import dense_sandwich
 
+from .matrix_base import MatrixBase
 
-class DenseGLMDataMatrix(np.ndarray):
+
+class DenseGLMDataMatrix(np.ndarray, MatrixBase):
     """
     We want to add several function to a numpy ndarray so that it conforms to
     the sparse matrix interface we expect for the GLM algorithms below:
@@ -41,7 +43,7 @@ class DenseGLMDataMatrix(np.ndarray):
     def sandwich(self, d):
         return dense_sandwich(self, d)
 
-    def standardize(self, weights: np.ndarray, scale_predictors: bool) -> Tuple:
+    def standardize(self, weights: Iterable, scale_predictors: bool) -> Tuple:
         col_means = self.T.dot(weights)[None, :]
         self -= col_means
         if scale_predictors:
