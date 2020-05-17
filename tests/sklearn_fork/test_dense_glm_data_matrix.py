@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from glm_benchmarks.sklearn_fork.dense_glm_matrix import DenseGLMDataMatrix
+from glm_benchmarks.matrix import DenseGLMDataMatrix
 
 
 @pytest.mark.parametrize("scale_predictors", [False, True])

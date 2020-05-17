@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Optional, Tuple, Union
+from typing import Tuple
 
 import numpy as np
 
@@ -13,36 +13,9 @@ class MatrixBase(ABC):
 
     @abstractmethod
     def __init__(self, *args, **kwargs):
-        self.shape: Tuple[int, int] = (0, 0)
-        self.dtype = np.float
-
-    @abstractmethod
-    def toarray(self) -> np.ndarray:
-        pass
-
-    @property
-    def A(self) -> np.ndarray:
-        return self.toarray()
-
-    @abstractmethod
-    def multiply(self, other):
-        """
-        Element-wise multiplication, as in np.multiply or
-        scipy.sparse.csr_matrix.multiply
-        """
-        pass
-
-    def __mul__(self, other):
-        """ Defines the behavior of "*", element-wise multiplication. """
-        return self.multiply(other)
-
-    @abstractmethod
-    def transpose(self):
-        pass
-
-    @property
-    def T(self):
-        return self.transpose()
+        # apparently allowed! satisfies mypy.
+        self.shape: Tuple[int, int]
+        self.dtype: np.dtype
 
     @abstractmethod
     def dot(self, other):
@@ -60,15 +33,12 @@ class MatrixBase(ABC):
         return (self.T @ other.T).T
 
     @abstractmethod
-    def sum(self, axis: Optional[int]) -> Union[np.ndarray, float]:
+    def getcol(self, i: int):
         pass
 
-    def mean(self, axis: Optional[int]) -> Union[np.ndarray, float]:
-        if axis is None:
-            denominator = self.shape[0] * self.shape[1]
-        else:
-            denominator = self.shape[axis]
-        return self.sum(axis) / denominator
+    @abstractmethod
+    def sandwich(self, d: np.ndarray) -> np.ndarray:
+        pass
 
     # Higher priority than numpy arrays, so behavior for funcs like "@" defaults to the
     # behavior of this class
