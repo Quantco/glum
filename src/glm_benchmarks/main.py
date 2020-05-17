@@ -8,6 +8,7 @@ import pandas as pd
 import scipy.sparse
 
 from glm_benchmarks.bench_admm import admm_bench
+from glm_benchmarks.bench_orig_sklearn_fork import orig_sklearn_fork_bench
 from glm_benchmarks.bench_sklearn_fork import sklearn_fork_bench
 from glm_benchmarks.problems import get_all_problems
 from glm_benchmarks.util import get_obj_val
@@ -293,6 +294,7 @@ def cli_analyze(
             "obj_val",
             "rel_obj_val",
         ]
+        res_df.to_pickle("analyze_result.pkl")
         print(res_df[cols_to_show])
 
 
@@ -386,7 +388,10 @@ def get_limited_problems_libraries(
     problem_names: str, library_names: str
 ) -> Tuple[Dict, Dict]:
     all_libraries = dict(
-        sklearn_fork=sklearn_fork_bench, zeros=zeros_bench, admm=admm_bench
+        sklearn_fork=sklearn_fork_bench,
+        zeros=zeros_bench,
+        admm=admm_bench,
+        orig_sklearn_fork=orig_sklearn_fork_bench,
     )
 
     if GLMNET_PYTHON_INSTALLED:
