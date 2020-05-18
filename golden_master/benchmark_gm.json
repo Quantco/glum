@@ -11105,7 +11105,7 @@
     ],
     "intercept": 1522.142439019798
   },
-"intermediate_insurance_weights_l2_gaussian": {
+"intermediate-insurance-weights-l2-gaussian": {
     "coef": [
       -126.30367027030259,
       73.98361510903474,
@@ -11208,7 +11208,7 @@
     ],
     "intercept": 1659.3521385201507
   },
-  "intermediate_insurance_no_weights_l2_gaussian": {
+  "intermediate-insurance-no-weights-l2-gaussian": {
     "coef": [
       -106.85957122754117,
       67.7013866424621,
@@ -11311,7 +11311,7 @@
     ],
     "intercept": 1580.2246442259834
   },
-  "intermediate_insurance_offset_l2_gaussian": {
+  "intermediate-insurance-offset-l2-gaussian": {
     "coef": [
       -130.83701911910285,
       73.32115050307556,
@@ -11414,7 +11414,7 @@
     ],
     "intercept": 1604.7347253898743
   },
-  "intermediate_insurance_weights_l2_poisson": {
+  "intermediate-insurance-weights-l2-poisson": {
     "coef": [
       -0.018584758665150664,
       0.019229584358183647,
@@ -11514,7 +11514,7 @@
     ],
     "intercept": -3.906948550483595
   },
-  "intermediate_insurance_no_weights_l2_poisson": {
+  "intermediate-insurance-no-weights-l2-poisson": {
     "coef": [
       0.052420539545722164,
       0.09329451121283693,
@@ -11614,7 +11614,7 @@
     ],
     "intercept": -2.34813622653799
   },
-  "intermediate_insurance_offset_l2_poisson": {
+  "intermediate-insurance-offset-l2-poisson": {
     "coef": [
       -0.011073520924040505,
       0.010158275421695773,
@@ -11714,7 +11714,7 @@
     ],
     "intercept": -3.85161864755318
   },
-  "intermediate_insurance_weights_l2_gamma": {
+  "intermediate-insurance-weights-l2-gamma": {
     "coef": [
       -0.0750036886183146,
       0.04028562740031608,
@@ -11817,7 +11817,7 @@
     ],
     "intercept": 7.376916173350309
   },
-  "intermediate_insurance_no_weights_l2_gamma": {
+  "intermediate-insurance-no-weights-l2-gamma": {
     "coef": [
       -0.06519845456446005,
       0.039640786580327374,
@@ -11920,7 +11920,7 @@
     ],
     "intercept": 7.336106036463511
   },
-  "intermediate_insurance_offset_l2_gamma": {
+  "intermediate-insurance-offset-l2-gamma": {
     "coef": [
       -0.06519859897903073,
       0.039641297262072966,
@@ -12023,7 +12023,7 @@
     ],
     "intercept": 7.336109602291485
   },
-  "intermediate_insurance_weights_l2_tweedie_p=1.5": {
+  "intermediate-insurance-weights-l2-tweedie-p=1.5": {
     "coef": [
       0.18342104930335365,
       0.1507017963816563,
@@ -12123,7 +12123,7 @@
     ],
     "intercept": 1.8346406669859228
   },
-  "intermediate_insurance_no_weights_l2_tweedie_p=1.5": {
+  "intermediate-insurance-no-weights-l2-tweedie-p=1.5": {
     "coef": [
       0.6661560696873658,
       0.42913167913354805,
@@ -12223,7 +12223,7 @@
     ],
     "intercept": 1.9899424338161573
   },
-  "intermediate_insurance_offset_l2_tweedie_p=1.5": {
+  "intermediate-insurance-offset-l2-tweedie-p=1.5": {
     "coef": [
       0.34690506398958026,
       0.2143935573638163,
@@ -12323,7 +12323,7 @@
     ],
     "intercept": 1.9964633579629103
   },
-  "intermediate_insurance_weights_net_gaussian": {
+  "intermediate-insurance-weights-net-gaussian": {
     "coef": [
       -122.34398604729961,
       117.74725640650988,
@@ -12426,7 +12426,7 @@
     ],
     "intercept": 1541.6247871073142
   },
-  "intermediate_insurance_no_weights_net_gaussian": {
+  "intermediate-insurance-no-weights-net-gaussian": {
     "coef": [
       -99.30909475276768,
       110.20453030875886,
@@ -12529,7 +12529,7 @@
     ],
     "intercept": 1471.0276264807876
   },
-  "intermediate_insurance_offset_net_gaussian": {
+  "intermediate-insurance-offset-net-gaussian": {
     "coef": [
       -125.91687274968923,
       118.70594177054325,
@@ -12632,7 +12632,7 @@
     ],
     "intercept": 1477.6746460754575
   },
-  "intermediate_insurance_weights_net_poisson": {
+  "intermediate-insurance-weights-net-poisson": {
     "coef": [
       0.0,
       0.0,
@@ -12732,7 +12732,7 @@
     ],
     "intercept": -3.458321204155224
   },
-  "intermediate_insurance_no_weights_net_poisson": {
+  "intermediate-insurance-no-weights-net-poisson": {
     "coef": [
       0.0,
       0.0,
@@ -12832,7 +12832,7 @@
     ],
     "intercept": -1.9525371778142668
   },
-  "intermediate_insurance_offset_net_poisson": {
+  "intermediate-insurance-offset-net-poisson": {
     "coef": [
       0.0,
       0.0,
@@ -12932,7 +12932,7 @@
     ],
     "intercept": -3.3793405006490893
   },
-  "intermediate_insurance_weights_net_gamma": {
+  "intermediate-insurance-weights-net-gamma": {
     "coef": [
       0.0,
       0.0,
@@ -13035,7 +13035,7 @@
     ],
     "intercept": 7.477713229480255
   },
-  "intermediate_insurance_no_weights_net_gamma": {
+  "intermediate-insurance-no-weights-net-gamma": {
     "coef": [
       0.0,
       0.0,
@@ -13138,7 +13138,7 @@
     ],
     "intercept": 7.418115955774198
   },
-  "intermediate_insurance_offset_net_gamma": {
+  "intermediate-insurance-offset-net-gamma": {
     "coef": [
       0.0,
       0.0,
@@ -13241,7 +13241,7 @@
     ],
     "intercept": 7.418107429453971
   },
-  "intermediate_insurance_weights_net_tweedie_p=1.5": {
+  "intermediate-insurance-weights-net-tweedie-p=1.5": {
     "coef": [
       0.052525693793058846,
       0.027404426435456222,
@@ -13341,7 +13341,7 @@
     ],
     "intercept": 1.8951804387602493
   },
-  "intermediate_insurance_no_weights_net_tweedie_p=1.5": {
+  "intermediate-insurance-no-weights-net-tweedie-p=1.5": {
     "coef": [
       0.5954689637584475,
       0.361279394854217,
@@ -13441,7 +13441,7 @@
     ],
     "intercept": 1.9888579977897995
   },
-  "intermediate_insurance_offset_net_tweedie_p=1.5": {
+  "intermediate-insurance-offset-net-tweedie-p=1.5": {
     "coef": [
       0.20444807912123092,
       0.0766797162989239,
@@ -13541,7 +13541,7 @@
     ],
     "intercept": 1.9745225862201101
   },
-  "intermediate_insurance_weights_lasso_gaussian": {
+  "intermediate-insurance-weights-lasso-gaussian": {
     "coef": [
       1.8053308997570376,
       313.78196689324744,
@@ -13644,7 +13644,7 @@
     ],
     "intercept": 794.3389896015938
   },
-  "intermediate_insurance_no_weights_lasso_gaussian": {
+  "intermediate-insurance-no-weights-lasso-gaussian": {
     "coef": [
       32.33287034372064,
       301.1794107276427,
@@ -13747,7 +13747,7 @@
     ],
     "intercept": 1064.1477169695358
   },
-  "intermediate_insurance_offset_lasso_gaussian": {
+  "intermediate-insurance-offset-lasso-gaussian": {
     "coef": [
       1.3198563298793042,
       319.3556861148197,
@@ -13850,7 +13850,7 @@
     ],
     "intercept": 585.2693857541221
   },
-  "intermediate_insurance_weights_lasso_poisson": {
+  "intermediate-insurance-weights-lasso-poisson": {
     "coef": [
       0.0,
       0.0,
@@ -13950,7 +13950,7 @@
     ],
     "intercept": -3.3761775153011566
   },
-  "intermediate_insurance_no_weights_lasso_poisson": {
+  "intermediate-insurance-no-weights-lasso-poisson": {
     "coef": [
       0.0,
       0.0,
@@ -14050,7 +14050,7 @@
     ],
     "intercept": -1.898711961048769
   },
-  "intermediate_insurance_offset_lasso_poisson": {
+  "intermediate-insurance-offset-lasso-poisson": {
     "coef": [
       0.0,
       0.0,
@@ -14150,7 +14150,7 @@
     ],
     "intercept": -3.213867566388824
   },
-  "intermediate_insurance_weights_lasso_gamma": {
+  "intermediate-insurance-weights-lasso-gamma": {
     "coef": [
       0.0,
       0.0,
@@ -14253,7 +14253,7 @@
     ],
     "intercept": 7.466984720853101
   },
-  "intermediate_insurance_no_weights_lasso_gamma": {
+  "intermediate-insurance-no-weights-lasso-gamma": {
     "coef": [
       0.0,
       0.0,
@@ -14356,7 +14356,7 @@
     ],
     "intercept": 7.416388511105703
   },
-  "intermediate_insurance_offset_lasso_gamma": {
+  "intermediate-insurance-offset-lasso-gamma": {
     "coef": [
       0.0,
       0.0,
@@ -14459,7 +14459,7 @@
     ],
     "intercept": 7.416408481972985
   },
-  "intermediate_insurance_weights_lasso_tweedie_p=1.5": {
+  "intermediate-insurance-weights-lasso-tweedie-p=1.5": {
     "coef": [
       0.0,
       0.0,
@@ -14559,7 +14559,7 @@
     ],
     "intercept": 1.9180657530317298
   },
-  "intermediate_insurance_no_weights_lasso_tweedie_p=1.5": {
+  "intermediate-insurance-no-weights-lasso-tweedie-p=1.5": {
     "coef": [
       0.4990597948556743,
       0.26992715734237,
@@ -14659,7 +14659,7 @@
     ],
     "intercept": 1.955556567069734
   },
-  "intermediate_insurance_offset_lasso_tweedie_p=1.5": {
+  "intermediate-insurance-offset-lasso-tweedie-p=1.5": {
     "coef": [
       0.072709876642279,
       0.0,
