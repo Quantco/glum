@@ -1,16 +1,21 @@
+import os
 from functools import partial
-from os.path import isfile
 from typing import Callable, Dict, Optional, Tuple
 
 import attr
 import numpy as np
 from git_root import git_root
+from joblib import Memory
+from scipy.sparse import csc_matrix
 
 from .data import (
     generate_narrow_insurance_dataset,
     generate_real_insurance_dataset,
     generate_wide_insurance_dataset,
 )
+
+CACHE_LOCATION = os.environ.get("GLM_BENCHMARKS_CACHE", git_root(".cache"))
+JOBLIB_MEMORY = Memory(CACHE_LOCATION, verbose=0)
 
 
 @attr.s
@@ -21,12 +26,15 @@ class Problem:
     l1_ratio = attr.ib(type=float)
 
 
+@JOBLIB_MEMORY.cache
 def load_data(
     loader_func: Callable[
         [Optional[int], Optional[float], Optional[str]],
         Tuple[np.ndarray, np.ndarray, np.ndarray],
     ],
     num_rows: int = None,
+    storage: str = "dense",
+    single_precision: bool = False,
     noise: float = None,
     distribution: str = "poisson",
     data_setup: str = "weights",
@@ -40,6 +48,21 @@ def load_data(
     if data_setup not in ["weights", "offset", "no-weights"]:
         raise NotImplementedError
     X, y, exposure = loader_func(num_rows, noise, distribution)
+
+    if single_precision:
+        X = X.astype(np.float32)
+        y = y.astype(np.float32)
+        if exposure is not None:
+            exposure = exposure.astype(np.float32)
+
+    if storage == "sparse":
+        X = csc_matrix(X)
+    elif storage.startswith("split"):
+        from glm_benchmarks.scaled_spmat.split_matrix import SplitMatrix
+
+        threshold = float(storage.split("split")[1])
+        X = SplitMatrix(csc_matrix(X), threshold)
+
     if data_setup == "weights":
         return dict(X=X, y=y, weights=exposure)
     if data_setup == "offset":
@@ -58,7 +81,7 @@ def get_all_problems() -> Dict[str, Problem]:
         "narrow-insurance": generate_narrow_insurance_dataset,
         "wide-insurance": generate_wide_insurance_dataset,
     }
-    if isfile(git_root("data", "X.parquet")):
+    if os.path.isfile(git_root("data", "X.parquet")):
         load_funcs["real-insurance"] = generate_real_insurance_dataset
 
     problems = dict()
