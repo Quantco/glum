@@ -7,7 +7,6 @@ import pytest
 from git_root import git_root
 from sklearn.exceptions import ConvergenceWarning
 
-from glm_benchmarks.bench_sklearn_fork import sklearn_fork_bench
 from glm_benchmarks.main import execute_problem_library
 from glm_benchmarks.problems import get_all_problems
 from glm_benchmarks.util import BenchmarkParams
@@ -47,10 +46,7 @@ def test_gm_benchmarks(Pn, P, bench_cfg_fix, expected_all):
         print(Pn)
 
     result, _ = execute_problem_library(
-        P,
-        sklearn_fork_bench,
-        params,
-        **{k: v for k, v in bench_cfg_fix.items() if k in execute_args},
+        params, **{k: v for k, v in bench_cfg_fix.items() if k in execute_args}
     )
 
     expected = expected_all[Pn]
@@ -92,13 +88,15 @@ def run_and_store_golden_master(overwrite, problem_name):
                 continue
 
         params = BenchmarkParams(
-            problem_name=Pn, library_name="sklearn-fork", **bench_cfg
+            problem_name=Pn,
+            library_name="sklearn-fork",
+            **{k: v for k, v in bench_cfg.items() if k != "print_diagnostics"},
         )
         warnings.simplefilter("error", ConvergenceWarning)
         skipped = False
         try:
             print(f"Running {Pn}")
-            res = execute_problem_library(P, sklearn_fork_bench, params)
+            res, _ = execute_problem_library(params)
         except ConvergenceWarning:
             warnings.warn("Problem does not converge. Not storing result.")
             skipped = True
