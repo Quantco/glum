@@ -24,6 +24,11 @@ def glmnet_python_bench(
         if not isinstance(X, sps.csc.csc_matrix):
             warnings.warn("sparse matrix will be converted to csc format")
             X = X.tocsc()
+    elif not isinstance(X, np.ndarray):
+        warnings.warn(
+            "glmnet_python requires data as scipy.sparse matrix or numpy array. Skipping."
+        )
+        return result
 
     if len(dat["y"]) <= 650:
         warnings.warn("glmnet_python does not work with too few rows")

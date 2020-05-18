@@ -66,7 +66,7 @@ def cli_run(
             )
             if len(result) > 0:
                 print(f"ran problem {Pn} with libray {Ln}")
-                print(f"ran in {result['runtime']}")
+                print(f"ran in {result.get('runtime')}")
 
 
 def execute_problem_library(
