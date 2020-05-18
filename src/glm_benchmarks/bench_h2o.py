@@ -29,6 +29,7 @@ def h2o_bench(
     alpha: float,
     l1_ratio: float,
     iterations: int,
+    cv: bool,
     print_diagnostics: bool = True,  # ineffective here
 ):
 
@@ -66,6 +67,10 @@ def h2o_bench(
         beta_epsilon=benchmark_convergence_tolerance,
         gradient_epsilon=benchmark_convergence_tolerance,
     )
+    if cv:
+        model_args["lambda_search"] = True
+        model_args["nfolds"] = 5
+
     if tweedie:
         p = float(distribution.split("=")[-1])
         model_args["tweedie_variance_power"] = p
@@ -107,8 +112,12 @@ def h2o_bench(
             )
         ]
     )
+    if cv:
+        result["best_alpha"] = m._model_json["output"]["lambda_best"]
+        result["n_alphas"] = m.parms["nlambdas"]["actual_value"]
 
     result["intercept"] = standardized_intercept
     result["coef"] = standardized_coefs
-    result["n_iter"] = m.score_history().iloc[-1]["iterations"]
+
+    result["n_iter"] = m.score_history().iloc[-1]["iteration" if cv else "iterations"]
     return result
