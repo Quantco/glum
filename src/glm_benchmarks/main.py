@@ -5,7 +5,6 @@ from typing import Any, Dict, List, Tuple
 import click
 import numpy as np
 import pandas as pd
-import scipy.sparse
 
 from glm_benchmarks.bench_admm import admm_bench
 from glm_benchmarks.bench_sklearn_fork import sklearn_fork_bench
@@ -78,24 +77,17 @@ def execute_problem_library(
     P = get_all_problems()[params.problem_name]
     L = get_all_libraries()[params.library_name]
 
-    dat = P.data_loader(num_rows=params.num_rows)
+    dat = P.data_loader(
+        num_rows=params.num_rows,
+        storage=params.storage,
+        single_precision=params.single_precision,
+    )
     if params.threads is None:
         threads = os.environ.get("OMP_NUM_THREADS", os.cpu_count())
     else:
         threads = params.threads
 
     os.environ["OMP_NUM_THREADS"] = str(threads)
-    if params.single_precision:
-        for k, v in dat.items():
-            dat[k] = v.astype(np.float32)
-
-    if params.storage == "sparse":
-        dat["X"] = scipy.sparse.csc_matrix(dat["X"])
-    elif params.storage.startswith("split"):
-        from glm_benchmarks.scaled_spmat.split_matrix import SplitMatrix
-
-        threshold = float(params.storage.split("split")[1])
-        dat["X"] = SplitMatrix(scipy.sparse.csc_matrix(dat["X"]), threshold)
 
     if params.regularization_strength is None:
         params.regularization_strength = P.regularization_strength
