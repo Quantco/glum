@@ -7,6 +7,7 @@ import numpy as np
 from git_root import git_root
 
 from .data import (
+    generate_intermediate_insurance_dataset,
     generate_narrow_insurance_dataset,
     generate_real_insurance_dataset,
     generate_wide_insurance_dataset,
@@ -54,6 +55,7 @@ def get_all_problems() -> Dict[str, Problem]:
     regularization_strength = 0.001
     distributions = ["gaussian", "poisson", "gamma", "tweedie_p=1.5"]
     load_funcs = {
+        "intermediate_insurance": generate_intermediate_insurance_dataset,
         "narrow_insurance": generate_narrow_insurance_dataset,
         "wide_insurance": generate_wide_insurance_dataset,
     }
