@@ -5,12 +5,16 @@ PROBLEM_NAMES="intermediate_insurance_offset_net_poisson, intermediate_insurance
 LIBRARY_NAMES="sklearn_fork, glmnet_python"
 THREADS=8
 
-for NUM_ROWS in 100000 1000000 2000000
+for NUM_ROWS in 100000 1000000 10000000
 do
-    for REG_STRENGTH in 1.0 0.1 0.001 0.00001 0.0
+    for REG_STRENGTH in 1.0 0.1 0.01 0.0
     do
         for STORAGE in "dense" "sparse" "split0.1"
         do
+            echo "---------------------------------"
+            echo "NUM_ROWS = ${NUM_ROWS}"
+            echo "REG_STRENGTH = ${REG_STRENGTH}"
+            echo "STORAGE = ${STORAGE}"        
             glm_benchmarks_run \
                 --problem_names "${PROBLEM_NAMES}" \
                 --library_names "${LIBRARY_NAMES}" \
