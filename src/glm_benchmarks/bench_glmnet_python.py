@@ -15,7 +15,7 @@ def glmnet_python_bench(
     l1_ratio: float,
     iterations: int,
     cv: bool,
-    print_diagnostics: bool,
+    print_diagnostics: bool = True,  # ineffective here
 ) -> Dict[str, Any]:
     result: Dict = dict()
 
