@@ -16,7 +16,7 @@ from .data import (
 
 @attr.s
 class Problem:
-    data_loader = attr.ib(type=Callable[[Optional[int]], Dict[str, np.ndarray]])
+    data_loader = attr.ib(type=Callable)
     distribution = attr.ib(type=str)
     regularization_strength = attr.ib(type=float)
     l1_ratio = attr.ib(type=float)
@@ -24,7 +24,8 @@ class Problem:
 
 def load_data(
     loader_func: Callable[
-        [Optional[int], Optional[float], str], Tuple[np.ndarray, np.ndarray, np.ndarray]
+        [Optional[int], Optional[float], Optional[str]],
+        Tuple[np.ndarray, np.ndarray, np.ndarray],
     ],
     num_rows: int = None,
     noise: float = None,
@@ -37,7 +38,7 @@ def load_data(
     exposures will be referred to as weights.
     """
     # TODO: add a weights_and_offset option
-    if data_setup not in ["weights", "offset", "no_weights"]:
+    if data_setup not in ["weights", "offset", "no-weights"]:
         raise NotImplementedError
     X, y, exposure = loader_func(num_rows, noise, distribution)
     if data_setup == "weights":
@@ -53,26 +54,26 @@ def load_data(
 
 def get_all_problems() -> Dict[str, Problem]:
     regularization_strength = 0.001
-    distributions = ["gaussian", "poisson", "gamma", "tweedie_p=1.5"]
+    distributions = ["gaussian", "poisson", "gamma", "tweedie-p=1.5"]
     load_funcs = {
-        "intermediate_insurance": generate_intermediate_insurance_dataset,
-        "narrow_insurance": generate_narrow_insurance_dataset,
-        "wide_insurance": generate_wide_insurance_dataset,
+        "intermediate-insurance": generate_intermediate_insurance_dataset,
+        "narrow-insurance": generate_narrow_insurance_dataset,
+        "wide-insurance": generate_wide_insurance_dataset,
     }
     if isfile(git_root("data", "X.parquet")):
-        load_funcs["real_insurance"] = generate_real_insurance_dataset
+        load_funcs["real-insurance"] = generate_real_insurance_dataset
 
     problems = dict()
     for penalty_str, l1_ratio in [("l2", 0.0), ("net", 0.5), ("lasso", 1.0)]:
         for distribution in distributions:
-            suffix = penalty_str + "_" + distribution
+            suffix = penalty_str + "-" + distribution
             dist = distribution
             if "tweedie" in dist:
                 dist = "tweedie"
 
             for problem_name, load_fn in load_funcs.items():
-                for data_setup in ["weights", "no_weights", "offset"]:
-                    problems["_".join((problem_name, data_setup, suffix))] = Problem(
+                for data_setup in ["weights", "no-weights", "offset"]:
+                    problems["-".join((problem_name, data_setup, suffix))] = Problem(
                         data_loader=partial(
                             load_data, load_fn, distribution=dist, data_setup=data_setup
                         ),
