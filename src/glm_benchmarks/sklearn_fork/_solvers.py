@@ -2,7 +2,7 @@ from __future__ import division
 
 import time
 import warnings
-from typing import List, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 from scipy import linalg, sparse
@@ -310,9 +310,9 @@ def _irls_solver(
     link: Link,
     max_iter: int = 100,
     max_inner_iter: int = 100000,
-    gradient_tol: float = 1e-4,
-    step_size_tol: float = 1e-4,
-    fixed_inner_tol: float = None,
+    gradient_tol: Optional[float] = 1e-4,
+    step_size_tol: Optional[float] = 1e-4,
+    fixed_inner_tol: Optional[Tuple] = None,
     selection="cyclic",
     random_state=None,
     diag_fisher=False,
@@ -634,7 +634,13 @@ def _irls_solver(
 
 
 def check_convergence(
-    step, coef, grad, P2, P1, gradient_tol: float, step_size_tol: float
+    step,
+    coef,
+    grad,
+    P2,
+    P1,
+    gradient_tol: Optional[float],
+    step_size_tol: Optional[float],
 ):
     # minimum subgradient norm
     mn_subgrad_norm = linalg.norm(
