@@ -1,6 +1,6 @@
 import os
 import pickle
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import click
 import numpy as np
@@ -54,11 +54,17 @@ def cli_run(
     )
 
     for Pn, P in problems.items():
+        dat = P.data_loader(
+            num_rows=params.num_rows,
+            storage=params.storage,
+            single_precision=params.single_precision,
+        )
+
         for Ln, L in libraries.items():
             print(f"running problem={Pn} library={Ln}")
             new_params = params.update_params(problem_name=Pn, library_name=Ln)
             result, regularization_strength_ = execute_problem_library(
-                new_params, iterations
+                new_params, iterations, dat=dat
             )
             save_benchmark_results(
                 output_dir, new_params, result,
@@ -66,22 +72,26 @@ def cli_run(
             if len(result) > 0:
                 print(f"ran problem {Pn} with libray {Ln}")
                 print(f"ran in {result['runtime']}")
+        del dat
 
 
 def execute_problem_library(
     params: BenchmarkParams,
     iterations: int = 1,
     print_diagnostics: bool = True,
+    dat: Optional[Dict[str, Any]] = None,
     **kwargs,
 ):
     P = get_all_problems()[params.problem_name]
     L = get_all_libraries()[params.library_name]
 
-    dat = P.data_loader(
-        num_rows=params.num_rows,
-        storage=params.storage,
-        single_precision=params.single_precision,
-    )
+    if dat is None:
+        dat = P.data_loader(
+            num_rows=params.num_rows,
+            storage=params.storage,
+            single_precision=params.single_precision,
+        )
+
     if params.threads is None:
         threads = os.environ.get("OMP_NUM_THREADS", os.cpu_count())
     else:
@@ -120,14 +130,38 @@ def cli_analyze(
 
     file_names = identify_parameter_fnames(output_dir, params)
 
-    raw_results = {
-        fname: load_benchmark_results(output_dir, fname) for fname in file_names
-    }
-    formatted_results = [
-        extract_dict_results_to_pd_series(name, res)
-        for name, res in raw_results.items()
-        if len(res) > 0
-    ]
+    raw_results = sorted(
+        filter(
+            lambda x: len(x["res"]) > 0,
+            [
+                {
+                    "fname": fname,
+                    "res": load_benchmark_results(output_dir, fname),
+                    "problem_name": get_params_from_fname(fname).problem_name,
+                }
+                for fname in file_names
+            ],
+        ),
+        key=lambda x: x["problem_name"],
+    )
+
+    formatted_results = []
+    current_problem = ""
+    dat: Dict[str, Any] = {}
+    for elt in raw_results:
+        problem_name = elt["problem_name"]
+        if elt["problem_name"] != current_problem:
+            current_problem = elt["problem_name"]
+            del dat
+            dat = get_all_problems()[problem_name].data_loader(
+                num_rows=params.num_rows,
+                storage=params.storage,
+                single_precision=params.single_precision,
+            )
+
+        formatted_results.append(
+            extract_dict_results_to_pd_series(elt["fname"], elt["res"], dat)
+        )
 
     res_df = pd.DataFrame.from_records(formatted_results)
     res_df["offset"] = res_df["problem_name"].apply(lambda x: "offset" in x)
@@ -164,7 +198,9 @@ def cli_analyze(
         print(res_df[cols_to_show])
 
 
-def extract_dict_results_to_pd_series(fname: str, results: Dict[str, Any],) -> Dict:
+def extract_dict_results_to_pd_series(
+    fname: str, results: Dict[str, Any], dat: Dict[str, Any] = None
+) -> Dict:
     assert "coef" in results.keys()
     params = get_params_from_fname(fname)
     coefs = results["coef"]
@@ -178,7 +214,8 @@ def extract_dict_results_to_pd_series(fname: str, results: Dict[str, Any],) -> D
     prob_name_weights = "weights".join(params.problem_name.split("offset"))
     problem = get_all_problems()[prob_name_weights]
 
-    dat = problem.data_loader(params.num_rows)
+    if dat is None:
+        dat = problem.data_loader(params.num_rows)
     tweedie = "tweedie" in params.problem_name
     if tweedie:
         tweedie_p = float(params.problem_name.split("=")[-1])

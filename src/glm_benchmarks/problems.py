@@ -5,7 +5,6 @@ from typing import Callable, Dict, Optional, Tuple
 import attr
 import numpy as np
 from git_root import git_root
-from joblib import Memory
 from scipy.sparse import csc_matrix
 
 from .data import (
@@ -13,9 +12,6 @@ from .data import (
     generate_real_insurance_dataset,
     generate_wide_insurance_dataset,
 )
-
-CACHE_LOCATION = os.environ.get("GLM_BENCHMARKS_CACHE", git_root(".cache"))
-JOBLIB_MEMORY = Memory(CACHE_LOCATION, verbose=0)
 
 
 @attr.s
@@ -26,7 +22,6 @@ class Problem:
     l1_ratio = attr.ib(type=float)
 
 
-@JOBLIB_MEMORY.cache
 def load_data(
     loader_func: Callable[
         [Optional[int], Optional[float], Optional[str]],
