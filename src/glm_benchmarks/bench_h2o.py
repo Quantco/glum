@@ -28,6 +28,7 @@ def h2o_bench(
     alpha: float,
     l1_ratio: float,
     iterations: int,
+    print_diagnostics: bool = True,  # ineffective here
 ):
 
     h2o.init(nthreads=int(os.environ.get("OMP_NUM_THREADS", os.cpu_count())))  # type: ignore
