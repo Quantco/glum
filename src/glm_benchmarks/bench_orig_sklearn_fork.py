@@ -19,9 +19,12 @@ def orig_sklearn_fork_bench(
     alpha: float,
     l1_ratio: float,
     iterations: int,
+    cv: bool,
     print_diagnostics: bool = True,
     **kwargs,
 ):
+    if cv:
+        raise ValueError("original sklearn fork does not support cross-validation")
     result = dict()  # type: ignore
 
     X = dat["X"]
@@ -36,14 +39,14 @@ def orig_sklearn_fork_bench(
     if family == "gaussian":
         family = "normal"
     elif "tweedie" in family:
-        tweedie_p = float(family.split("_p=")[1])
+        tweedie_p = float(family.split("-p=")[1])
         family = TweedieDistribution(tweedie_p)  # type: ignore
 
     model_args = dict(
         family=family,
         alpha=alpha,
         l1_ratio=l1_ratio,
-        max_iter=50,
+        max_iter=150,
         random_state=random_seed,
         copy_X=False,
         selection="cyclic",
