@@ -171,6 +171,7 @@ def cli_analyze(
             cols_to_show += ["intercept", "obj_val", "rel_obj_val"]
 
         print(res_df[cols_to_show])
+    res_df.to_pickle("results.pkl")
 
 
 def extract_dict_results_to_pd_series(fname: str, results: Dict[str, Any],) -> Dict:
