@@ -2,6 +2,7 @@
 #
 # License: BSD 3 clause
 import copy
+from typing import Tuple, Union
 
 import numpy as np
 import pytest
@@ -15,6 +16,7 @@ from sklearn.linear_model import ElasticNet, LogisticRegression, Ridge
 from sklearn.metrics import mean_absolute_error
 from sklearn.utils.estimator_checks import check_estimator
 
+from glm_benchmarks.sklearn_fork import GeneralizedLinearRegressorCV
 from glm_benchmarks.sklearn_fork._distribution import guess_intercept
 from glm_benchmarks.sklearn_fork._glm import (
     BinomialDistribution,
@@ -37,6 +39,18 @@ from glm_benchmarks.sklearn_fork._glm import (
 )
 
 GLM_SOLVERS = ["irls-ls", "lbfgs", "irls-cd"]
+
+
+def get_small_x_y(
+    estimator: Union[GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
+) -> Tuple[np.ndarray, np.ndarray]:
+    if isinstance(estimator, GeneralizedLinearRegressor):
+        n_rows = 1
+    else:
+        n_rows = 10
+    x = np.ones((n_rows, 1), dtype=int)
+    y = np.ones(n_rows) * 0.5
+    return x, y
 
 
 @pytest.fixture(scope="module")
@@ -180,13 +194,15 @@ def test_fisher_matrix(family, link):
     assert_allclose(oim, fisher)
 
 
-def test_sample_weights_validation():
+@pytest.mark.parametrize(
+    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
+)
+def test_sample_weights_validation(estimator):
     """Test the raised errors in the validation of sample_weight."""
     # scalar value but not positive
-    X = [[1]]
-    y = [1]
+    X, y = get_small_x_y(estimator)
     weights = 0
-    glm = GeneralizedLinearRegressor(fit_intercept=False)
+    glm = estimator(fit_intercept=False)
     with pytest.raises(ValueError, match="weights must be non-negative"):
         glm.fit(X, y, weights)
 
@@ -216,26 +232,68 @@ def test_sample_weights_validation():
         glm.fit(X, y, weights)
 
 
-def test_offset_validation():
-    X = [[1]]
-    y = [1]
-    glm = GeneralizedLinearRegressor(fit_intercept=False)
+@pytest.mark.parametrize(
+    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
+)
+def test_offset_validation(estimator):
+    X, y = get_small_x_y(estimator)
+    glm = estimator(fit_intercept=False)
 
     # Negatives are accepted (makes sense for log link)
     glm.fit(X, y, offset=-1)
 
     # Arrays of the right shape are accepted
-    glm.fit(X, y, offset=[1])
+    glm.fit(X, y, offset=y.copy())
 
     # 2d array
     with pytest.raises(ValueError, match="must be 1D array or scalar"):
-        glm.fit(X, y, offset=[[0]])
+        glm.fit(X, y, offset=np.zeros_like(X))
 
     # 1d but wrong length
     with pytest.raises(ValueError, match="must have the same length as y"):
         glm.fit(X, y, offset=[1, 0])
 
 
+@pytest.mark.parametrize(
+    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
+)
+def test_tol_validation_errors(estimator):
+    X, y = get_small_x_y(estimator)
+
+    glm = estimator(gradient_tol=None, step_size_tol=None)
+    with pytest.raises(ValueError, match="cannot both be None"):
+        glm.fit(X, y)
+
+    glm = estimator(gradient_tol=-0.1)
+    with pytest.raises(ValueError, match="Tolerance for stopping"):
+        glm.fit(X, y)
+
+    glm = estimator(step_size_tol=-0.1)
+    with pytest.raises(ValueError, match="Tolerance for stopping"):
+        glm.fit(X, y)
+
+
+@pytest.mark.parametrize(
+    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
+)
+@pytest.mark.parametrize(
+    "tol_kws",
+    [
+        {},
+        {"step_size_tol": 1},
+        {"step_size_tol": None},
+        {"gradient_tol": 1},
+        {"gradient_tol": None, "step_size_tol": 1},
+        {"gradient_tol": 1, "step_size_tol": 1},
+    ],
+)
+def test_tol_validation_no_error(estimator, tol_kws):
+    X, y = get_small_x_y(estimator)
+    glm = estimator(**tol_kws)
+    glm.fit(X, y)
+
+
+# TODO: something for CV regressor
 @pytest.mark.parametrize(
     "f, fam",
     [
@@ -252,15 +310,23 @@ def test_glm_family_argument(f, fam, y, X):
     assert isinstance(glm._family_instance, fam.__class__)
 
 
-def test_glm_family_argument_invalid_input(y, X):
-    glm = GeneralizedLinearRegressor(family="not a family", fit_intercept=False)
+@pytest.mark.parametrize(
+    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
+)
+def test_glm_family_argument_invalid_input(estimator):
+    X, y = get_small_x_y(estimator)
+    glm = estimator(family="not a family", fit_intercept=False)
     with pytest.raises(ValueError, match="family must be"):
         glm.fit(X, y)
 
 
+@pytest.mark.parametrize(
+    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
+)
 @pytest.mark.parametrize("family", ExponentialDispersionModel.__subclasses__())
-def test_glm_family_argument_as_exponential_dispersion_model(y, X, family):
-    glm = GeneralizedLinearRegressor(family=family())
+def test_glm_family_argument_as_exponential_dispersion_model(estimator, family):
+    X, y = get_small_x_y(estimator)
+    glm = estimator(family=family())
     glm.fit(X, y)
 
 
@@ -274,8 +340,12 @@ def test_glm_link_argument(l, link, y, X):
     assert isinstance(glm._link_instance, link.__class__)
 
 
-def test_glm_link_argument_invalid_input(y, X):
-    glm = GeneralizedLinearRegressor(family="normal", link="not a link")
+@pytest.mark.parametrize(
+    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
+)
+def test_glm_link_argument_invalid_input(estimator):
+    X, y = get_small_x_y(estimator)
+    glm = estimator(family="normal", link="not a link")
     with pytest.raises(ValueError, match="link must be"):
         glm.fit(X, y)
 
@@ -288,33 +358,53 @@ def test_glm_alpha_argument(alpha, y, X):
         glm.fit(X, y)
 
 
-@pytest.mark.parametrize("l1_ratio", ["not a number", -4.2, 1.1, [1]])
-def test_glm_l1_ratio_argument(l1_ratio, y, X):
+@pytest.mark.parametrize(
+    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
+)
+@pytest.mark.parametrize("l1_ratio", ["not a number", -4.2, 1.1])
+def test_glm_l1_ratio_argument(estimator, l1_ratio):
     """Test GLM for invalid l1_ratio argument."""
-    glm = GeneralizedLinearRegressor(family="normal", l1_ratio=l1_ratio)
+    X, y = get_small_x_y(estimator)
+    glm = estimator(family="normal", l1_ratio=l1_ratio)
     with pytest.raises(ValueError, match="l1_ratio must be a number in interval.*0, 1"):
         glm.fit(X, y)
 
 
+def test_glm_ratio_argument_array():
+    X, y = get_small_x_y(GeneralizedLinearRegressor)
+    glm = GeneralizedLinearRegressor(family="normal", l1_ratio=[1])
+    with pytest.raises(ValueError, match="l1_ratio must be a number in interval.*0, 1"):
+        glm.fit(X, y)
+
+
+@pytest.mark.parametrize(
+    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
+)
 @pytest.mark.parametrize("P1", [["a string", "a string"], [1, [2]], [1, 2, 3], [-1]])
-def test_glm_P1_argument(P1, y, X):
+def test_glm_P1_argument(estimator, P1, y, X):
     """Test GLM for invalid P1 argument."""
-    glm = GeneralizedLinearRegressor(P1=P1, l1_ratio=0.5, check_input=True)
+    glm = estimator(P1=P1, l1_ratio=0.5, check_input=True)
     with pytest.raises((ValueError, TypeError)):
         glm.fit(X, y)
 
 
 @pytest.mark.parametrize(
+    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
+)
+@pytest.mark.parametrize(
     "P2", ["a string", [1, 2, 3], [[2, 3]], sparse.csr_matrix([1, 2, 3]), [-1]]
 )
-def test_glm_P2_argument(P2, y, X):
+def test_glm_P2_argument(estimator, P2, y, X):
     """Test GLM for invalid P2 argument."""
-    glm = GeneralizedLinearRegressor(P2=P2, check_input=True)
+    glm = estimator(P2=P2, check_input=True)
     with pytest.raises(ValueError):
         glm.fit(X, y)
 
 
-def test_glm_P2_positive_semidefinite():
+@pytest.mark.parametrize(
+    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
+)
+def test_glm_P2_positive_semidefinite(estimator):
     """Test GLM for a positive semi-definite P2 argument."""
     n_samples, n_features = 10, 2
     y = np.arange(n_samples)
@@ -322,12 +412,12 @@ def test_glm_P2_positive_semidefinite():
 
     # negative definite matrix
     P2 = np.array([[1, 2], [2, 1]])
-    glm = GeneralizedLinearRegressor(P2=P2, fit_intercept=False, check_input=True)
+    glm = estimator(P2=P2, fit_intercept=False, check_input=True)
     with pytest.raises(ValueError, match="P2 must be positive semi-definite"):
         glm.fit(X, y)
 
     P2 = sparse.csr_matrix(P2)
-    glm = GeneralizedLinearRegressor(P2=P2, fit_intercept=False, check_input=True)
+    glm = estimator(P2=P2, fit_intercept=False, check_input=True)
     with pytest.raises(ValueError, match="P2 must be positive semi-definite"):
         glm.fit(X, y)
 
@@ -345,95 +435,138 @@ def test_positive_semidefinite():
     assert is_pos_semidef(sparse.eye(2))
 
 
+@pytest.mark.parametrize(
+    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
+)
 @pytest.mark.parametrize("fit_intercept", ["not bool", 1, 0, [True]])
-def test_glm_fit_intercept_argument(fit_intercept, y, X):
+def test_glm_fit_intercept_argument(estimator, fit_intercept):
     """Test GLM for invalid fit_intercept argument."""
-    glm = GeneralizedLinearRegressor(fit_intercept=fit_intercept)
+    X, y = get_small_x_y(estimator)
+    glm = estimator(fit_intercept=fit_intercept)
     with pytest.raises(ValueError, match="fit_intercept must be bool"):
         glm.fit(X, y)
 
 
 @pytest.mark.parametrize(
+    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
+)
+@pytest.mark.parametrize(
     "solver, l1_ratio",
     [("not a solver", 0), (1, 0), ([1], 0), ("irls-ls", 0.5), ("lbfgs", 0.5)],
 )
-def test_glm_solver_argument(solver, l1_ratio, y, X):
+def test_glm_solver_argument(estimator, solver, l1_ratio, y, X):
     """Test GLM for invalid solver argument."""
-    glm = GeneralizedLinearRegressor(solver=solver, l1_ratio=l1_ratio)
+    glm = estimator(solver=solver, l1_ratio=l1_ratio)
     with pytest.raises(ValueError):
         glm.fit(X, y)
 
 
+@pytest.mark.parametrize(
+    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
+)
 @pytest.mark.parametrize("max_iter", ["not a number", 0, -1, 5.5, [1]])
-def test_glm_max_iter_argument(max_iter, y, X):
+def test_glm_max_iter_argument(estimator, max_iter):
     """Test GLM for invalid max_iter argument."""
-    glm = GeneralizedLinearRegressor(max_iter=max_iter)
+    X, y = get_small_x_y(estimator)
+    glm = estimator(max_iter=max_iter)
     with pytest.raises(ValueError, match="must be a positive integer"):
         glm.fit(X, y)
 
 
+@pytest.mark.parametrize(
+    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
+)
+@pytest.mark.parametrize("tol_param", ["gradient_tol", "step_size_tol"])
 @pytest.mark.parametrize("tol", ["not a number", 0, -1.0, [1e-3]])
-def test_glm_tol_argument(tol, y, X):
+def test_glm_tol_argument(estimator, tol_param, tol):
     """Test GLM for invalid tol argument."""
-    glm = GeneralizedLinearRegressor(gradient_tol=tol)
+    X, y = get_small_x_y(estimator)
+    glm = estimator(**{tol_param: tol})
     with pytest.raises(ValueError, match="stopping criteria must be positive"):
         glm.fit(X, y)
 
 
+@pytest.mark.parametrize(
+    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
+)
 @pytest.mark.parametrize("warm_start", ["not bool", 1, 0, [True]])
-def test_glm_warm_start_argument(warm_start, y, X):
+def test_glm_warm_start_argument(estimator, warm_start):
     """Test GLM for invalid warm_start argument."""
-    glm = GeneralizedLinearRegressor(warm_start=warm_start)
+    X, y = get_small_x_y(estimator)
+    glm = estimator(warm_start=warm_start)
     with pytest.raises(ValueError, match="warm_start must be bool"):
         glm.fit(X, y)
 
 
 @pytest.mark.parametrize(
+    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
+)
+@pytest.mark.parametrize(
     "start_params", ["not a start_params", ["zero"], [0, 0, 0], [[0, 0]], ["a", "b"]]
 )
-def test_glm_start_params_argument(start_params, y, X):
+def test_glm_start_params_argument(estimator, start_params, y, X):
     """Test GLM for invalid start_params argument."""
-    glm = GeneralizedLinearRegressor(start_params=start_params)
+    glm = estimator(start_params=start_params)
     with pytest.raises(ValueError):
         glm.fit(X, y)
 
 
+@pytest.mark.parametrize(
+    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
+)
 @pytest.mark.parametrize("selection", ["not a selection", 1, 0, ["cyclic"]])
-def test_glm_selection_argument(selection, y, X):
+def test_glm_selection_argument(estimator, selection):
     """Test GLM for invalid selection argument"""
-    glm = GeneralizedLinearRegressor(selection=selection)
+    X, y = get_small_x_y(estimator)
+    glm = estimator(selection=selection)
     with pytest.raises(ValueError, match="argument selection must be"):
         glm.fit(X, y)
 
 
+@pytest.mark.parametrize(
+    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
+)
 @pytest.mark.parametrize("random_state", ["a string", 0.5, [0]])
-def test_glm_random_state_argument(random_state, y, X):
+def test_glm_random_state_argument(estimator, random_state):
     """Test GLM for invalid random_state argument."""
-    glm = GeneralizedLinearRegressor(random_state=random_state)
+    X, y = get_small_x_y(estimator)
+    glm = estimator(random_state=random_state)
     with pytest.raises(ValueError, match="cannot be used to seed"):
         glm.fit(X, y)
 
 
+@pytest.mark.parametrize(
+    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
+)
 @pytest.mark.parametrize("diag_fisher", ["not bool", 1, 0, [True]])
-def test_glm_diag_fisher_argument(diag_fisher, y, X):
+def test_glm_diag_fisher_argument(estimator, diag_fisher):
     """Test GLM for invalid diag_fisher arguments."""
-    glm = GeneralizedLinearRegressor(diag_fisher=diag_fisher)
+    X, y = get_small_x_y(estimator)
+    glm = estimator(diag_fisher=diag_fisher)
     with pytest.raises(ValueError, match="diag_fisher must be bool"):
         glm.fit(X, y)
 
 
+@pytest.mark.parametrize(
+    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
+)
 @pytest.mark.parametrize("copy_X", ["not bool", 1, 0, [True]])
-def test_glm_copy_X_argument(copy_X, y, X):
+def test_glm_copy_X_argument(estimator, copy_X):
     """Test GLM for invalid copy_X arguments."""
-    glm = GeneralizedLinearRegressor(copy_X=copy_X)
+    X, y = get_small_x_y(estimator)
+    glm = estimator(copy_X=copy_X)
     with pytest.raises(ValueError, match="copy_X must be bool"):
         glm.fit(X, y)
 
 
+@pytest.mark.parametrize(
+    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
+)
 @pytest.mark.parametrize("check_input", ["not bool", 1, 0, [True]])
-def test_glm_check_input_argument(check_input, y, X):
+def test_glm_check_input_argument(estimator, check_input):
     """Test GLM for invalid check_input argument."""
-    glm = GeneralizedLinearRegressor(check_input=check_input)
+    X, y = get_small_x_y(estimator)
+    glm = estimator(check_input=check_input)
     with pytest.raises(ValueError, match="check_input must be bool"):
         glm.fit(X, y)
 
@@ -859,32 +992,106 @@ def test_solver_equivalence(params, use_offset, regression_data):
     est_ref = GeneralizedLinearRegressor(random_state=2)
     est_ref.fit(X, y, offset=offset)
 
-    estimator = GeneralizedLinearRegressor(**params)
-    estimator.set_params(random_state=2)
+    est_2 = GeneralizedLinearRegressor(**params)
+    est_2.set_params(random_state=2)
 
-    estimator.fit(X, y, offset=offset)
+    est_2.fit(X, y, offset=offset)
 
-    assert_allclose(estimator.intercept_, est_ref.intercept_, rtol=1e-4)
-    assert_allclose(estimator.coef_, est_ref.coef_, rtol=1e-4)
+    assert_allclose(est_2.intercept_, est_ref.intercept_, rtol=1e-4)
+    assert_allclose(est_2.coef_, est_ref.coef_, rtol=1e-4)
     assert_allclose(
-        mean_absolute_error(estimator.predict(X), y),
+        mean_absolute_error(est_2.predict(X), y),
         mean_absolute_error(est_ref.predict(X), y),
         rtol=1e-4,
     )
 
 
-def test_fit_dispersion(regression_data):
+# TODO: different distributions
+# TODO: put diag_fisher back in after merging Ben's bug fix
+# Specify rtol since some are more accurate than others
+@pytest.mark.parametrize(
+    "params",
+    [
+        {"solver": "irls-ls", "rtol": 1e-6},
+        {"solver": "lbfgs", "rtol": 2e-4},
+        {
+            "solver": "irls-cd",
+            "selection": "cyclic",
+            "diag_fisher": False,
+            "rtol": 2e-5,
+        },
+        {
+            "solver": "irls-cd",
+            "selection": "random",
+            "diag_fisher": False,
+            "rtol": 6e-5,
+        },
+    ],
+    ids=lambda params: ", ".join(
+        "{}={}".format(key, val) for key, val in params.items()
+    ),
+)
+@pytest.mark.parametrize("use_offset", [False, True])
+def test_solver_equivalence_cv(params, use_offset):
+    n_alphas = 3
+    n_samples = 100
+    n_features = 10
+    gradient_tol = 1e-5
+
+    X, y = make_regression(n_samples=n_samples, n_features=n_features, random_state=2)
+    if use_offset:
+        np.random.seed(0)
+        offset = np.random.random(len(y))
+    else:
+        offset = None
+
+    est_ref = GeneralizedLinearRegressorCV(
+        random_state=2, n_alphas=n_alphas, gradient_tol=gradient_tol
+    )
+    est_ref.fit(X, y, offset=offset)
+
+    est_2 = (
+        GeneralizedLinearRegressorCV(
+            n_alphas=n_alphas,
+            max_iter=1000,
+            gradient_tol=gradient_tol,
+            **{k: v for k, v in params.items() if k != "rtol"},
+        )
+        .set_params(random_state=2)
+        .fit(X, y, offset=offset)
+    )
+
+    def _assert_all_close(x, y):
+        return assert_allclose(x, y, rtol=params["rtol"], atol=1e-7)
+
+    _assert_all_close(est_2.alphas_, est_ref.alphas_)
+    _assert_all_close(est_2.alpha_, est_ref.alpha_)
+    _assert_all_close(est_2.l1_ratio_, est_ref.l1_ratio_)
+    _assert_all_close(est_2.coef_path_, est_ref.coef_path_)
+    _assert_all_close(est_2.mse_path_, est_ref.mse_path_)
+    _assert_all_close(est_2.intercept_, est_ref.intercept_)
+    _assert_all_close(est_2.coef_, est_ref.coef_)
+    _assert_all_close(
+        mean_absolute_error(est_2.predict(X), y),
+        mean_absolute_error(est_ref.predict(X), y),
+    )
+
+
+@pytest.mark.parametrize(
+    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
+)
+def test_fit_dispersion(estimator, regression_data):
     X, y = regression_data
 
-    est1 = GeneralizedLinearRegressor(random_state=2)
+    est1 = estimator(random_state=2)
     est1.fit(X, y)
     assert not hasattr(est1, "dispersion_")
 
-    est2 = GeneralizedLinearRegressor(random_state=2, fit_dispersion="chisqr")
+    est2 = estimator(random_state=2, fit_dispersion="chisqr")
     est2.fit(X, y)
     assert isinstance(est2.dispersion_, float)
 
-    est3 = GeneralizedLinearRegressor(random_state=2, fit_dispersion="deviance")
+    est3 = estimator(random_state=2, fit_dispersion="deviance")
     est3.fit(X, y)
     assert isinstance(est3.dispersion_, float)
 
@@ -910,6 +1117,7 @@ def test_standardize(use_sparse, scale_predictors):
     col_mults = np.arange(1, NC + 1)
     row_mults = np.linspace(0, 2, NR)
     M = row_mults[:, None] * col_mults[None, :]
+
     if use_sparse:
         M = MKLSparseMatrix(sparse.csc_matrix(M))
     else:
@@ -962,12 +1170,16 @@ def test_standardize(use_sparse, scale_predictors):
         np.testing.assert_almost_equal(MC, X2)
 
 
-@pytest.mark.parametrize("estimator", [GeneralizedLinearRegressor])
+@pytest.mark.parametrize(
+    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV],
+)
 def test_check_estimator(estimator):
     check_estimator(estimator)
 
 
-@pytest.mark.parametrize("estimator", [GeneralizedLinearRegressor])
+@pytest.mark.parametrize(
+    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV],
+)
 def test_clonable(estimator):
     clone(estimator())
 

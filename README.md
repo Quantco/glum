@@ -23,9 +23,9 @@ After installing the package, you should have two CLI tools: `glm_benchmarks_run
 
 To run the full benchmarking suite, just run `glm_benchmarks_run` with no flags. 
 
-For a more advanced example: `glm_benchmarks_run --problem_names narrow_insurance_l2_poisson --library_names sklearn_fork --storage dense --num_rows 100 --output_dir mydatadirname` will run just the first 100 rows of the `narrow_insurance_l2_poisson` problem through the `sklearn_fork` library and save the output to `mydatadirname`. This demonstrates several capabilities that will speed development when you just want to run a subset of either data or problems or libraries. 
+For a more advanced example: `glm_benchmarks_run --problem_name narrow_insurance_l2_poisson --library_name sklearn_fork --storage dense --num_rows 100 --output_dir mydatadirname` will run just the first 100 rows of the `narrow_insurance_l2_poisson` problem through the `sklearn_fork` library and save the output to `mydatadirname`. This demonstrates several capabilities that will speed development when you just want to run a subset of either data or problems or libraries. 
 
-The `--problem_names` and `--library_names` flags take comma separated lists. This mean that if you want to run both `sklearn_fork` and `glmnet_python`, you could run `glm_benchmarks_run --library_names sklearn_fork,glmnet_python`.
+The `--problem_name` and `--library_name` flags take comma separated lists. This mean that if you want to run both `sklearn_fork` and `glmnet_python`, you could run `glm_benchmarks_run --library_name sklearn_fork,glmnet_python`.
 
 The `glm_benchmarks_analyze` tool is still more a sketch-up and will evolve as we identify what we care about.
 
@@ -42,21 +42,21 @@ H2O: https://github.com/h2oai/h2o-tutorials/blob/master/tutorials/glm/glm_h2owor
 
 ## Profiling
 
-For line-by-line profiling, use line_profiler `kernprof -lbv src/glm_benchmarks/main.py --problem_names narrow_insurance_l2_poisson --library_names sklearn_fork`
+For line-by-line profiling, use line_profiler `kernprof -lbv src/glm_benchmarks/main.py --problem_name narrow_insurance_l2_poisson --library_name sklearn_fork`
 
-For stack sampling profiling, use py-spy: `py-spy top -- python src/glm_benchmarks/main.py --problem_names narrow_insurance_l2_poisson --library_names sklearn_fork`
+For stack sampling profiling, use py-spy: `py-spy top -- python src/glm_benchmarks/main.py --problem_name narrow_insurance_l2_poisson --library_name sklearn_fork`
 
 ## Memory profiling
 
 To create a graph of memory usage:
 ```
-mprof run --python -o mprofresults.dat --interval 0.01 src/glm_benchmarks/main.py --problem_names narrow_insurance_l2_poisson --library_names sklearn_fork --num_rows 100000
+mprof run --python -o mprofresults.dat --interval 0.01 src/glm_benchmarks/main.py --problem_name narrow_insurance_l2_poisson --library_name sklearn_fork --num_rows 100000
 mprof plot mprofresults.dat -o prof2.png
 ```
 
 To do line-by-line memory profiling, add a `@profile` decorator to the functions you care about and then run:
 ```
-python -m memory_profiler src/glm_benchmarks/main.py --problem_names narrow_insurance_l2_poisson --library_names sklearn_fork --num_rows 100000
+python -m memory_profiler src/glm_benchmarks/main.py --problem_name narrow_insurance_l2_poisson --library_name sklearn_fork --num_rows 100000
 ```
 
 ## Golden master tests

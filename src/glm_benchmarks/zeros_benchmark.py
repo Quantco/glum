@@ -10,6 +10,8 @@ def zeros_bench(
     alpha: float,
     l1_ratio: float,
     iterations: int,
+    cv: bool,
+    print_diagnostics,
 ) -> Dict[str, Any]:
 
     result = {
@@ -19,4 +21,6 @@ def zeros_bench(
         "coef": np.zeros(dat["X"].shape[1]),
         "n_iter": 1,
     }
+    if cv:
+        result["alpha"] = 0
     return result
