@@ -9,7 +9,8 @@ from .mkl_sparse_matrix import MKLSparseMatrix
 
 
 class SplitMatrix(MatrixBase):
-    def __init__(self, X: sps.csc_matrix, threshold: float):
+    # TODO: could X be an MKSparseMatrix or ColScaledSpMat?
+    def __init__(self, X: Union[sps.csc_matrix, MKLSparseMatrix], threshold: float):
         self.shape = X.shape
         self.threshold = threshold
         self.dtype = X.dtype

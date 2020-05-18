@@ -506,7 +506,6 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         d1_sigma_inv = d1 * sigma_inv
         temp = d1_sigma_inv * (y - mu)
         if intercept:
-            print(type(X))
             score = np.concatenate(([temp.sum()], temp @ X))
         else:
             score = temp @ X

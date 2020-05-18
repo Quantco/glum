@@ -20,8 +20,6 @@ class DenseGLMDataMatrix(np.ndarray, MatrixBase):
     np.ndarray subclassing is explained here: https://docs.scipy.org/doc/numpy/user/basics.subclassing.html#slightly-more-realistic-example-attribute-added-to-existing-array
     """
 
-    skip_sklearn_check = True
-
     def __new__(cls, input_array):
         obj = np.asarray(input_array).view(cls)
         if not np.issubdtype(obj.dtype, np.floating):
@@ -34,8 +32,8 @@ class DenseGLMDataMatrix(np.ndarray, MatrixBase):
         if obj is None:
             return
 
-    def getcol(self, j):
-        return self[:, j]
+    def getcol(self, i):
+        return self[:, i]
 
     def toarray(self):
         return self
