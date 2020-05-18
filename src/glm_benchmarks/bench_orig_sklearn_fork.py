@@ -1,4 +1,3 @@
-import time
 from typing import Dict, Union
 
 import numpy as np
@@ -63,17 +62,3 @@ def orig_sklearn_fork_bench(
     result["n_iter"] = m.n_iter_
 
     return result
-
-
-def compute_path(niters, model_args, fit_args):
-    step_model_args = model_args.copy()
-    step_model_args["max_iter"] = 1
-    step_model_args["warm_start"] = True
-    m = GeneralizedLinearRegressor(**step_model_args)
-    path = []
-    for i in range(niters):
-        start = time.time()
-        m.fit(**fit_args)
-        print(time.time() - start)
-        path.append(m.coef_.copy())
-    return path
