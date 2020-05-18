@@ -440,3 +440,38 @@ def generate_wide_insurance_dataset(
     y, exposure = compute_y_exposure(df, distribution)
 
     return transformer.fit_transform(df), y, exposure
+
+
+def generate_intermediate_insurance_dataset(
+    num_rows=None, noise=None, distribution="poisson"
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Generate the tutorial data set from the sklearn fork and save it to disk."""
+
+    df = pd.read_parquet(git_root("data/insurance.parquet"))
+
+    df["BonusMalusClipped"] = df["BonusMalus"].clip(50, 100)
+
+    if distribution in ["gamma", "gaussian"]:
+        df = df.query("ClaimAmountCut > 0")
+
+    if num_rows is not None:
+        # if we're oversampling, set default value for noise to 0.05
+        # can be turned off by setting noise to zero
+        if noise is None and num_rows > len(df):
+            noise = 0.05
+        df = df.sample(n=num_rows, replace=True, random_state=12345)
+
+    if noise is not None:
+        df = add_noise(df, noise=noise)
+
+    col_trans_GLM1, _ = gen_col_trans(drop=True, standardize=False)
+    col_trans_GLM1.transformers.append(
+        (
+            "BonusMalusClipped",
+            OneHotEncoder(sparse=False, drop="first"),
+            ["BonusMalusClipped"],
+        )
+    )
+    y, exposure = compute_y_exposure(df, distribution)
+
+    return col_trans_GLM1.fit_transform(df), y, exposure

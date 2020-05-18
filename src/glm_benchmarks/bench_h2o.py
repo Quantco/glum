@@ -1,4 +1,5 @@
 import os
+import warnings
 from typing import Dict, Union
 
 import h2o
@@ -31,6 +32,14 @@ def h2o_bench(
     cv: bool,
     print_diagnostics: bool = True,  # ineffective here
 ):
+
+    result: Dict = dict()
+
+    if not isinstance(dat["X"], np.ndarray) and not isinstance(dat["X"], sps.spmatrix):
+        warnings.warn(
+            "h2o requires data as scipy.sparse matrix or numpy array. Skipping."
+        )
+        return result
 
     h2o.init(nthreads=int(os.environ.get("OMP_NUM_THREADS", os.cpu_count())))  # type: ignore
 
@@ -90,7 +99,6 @@ def h2o_bench(
             training_frame=train_h2o,
         )
 
-    result = dict()
     result["runtime"], m = runtime(build_and_fit, iterations, model_args, train_args)
     # un-standardize
     standardized_intercept = m.coef()["Intercept"]
