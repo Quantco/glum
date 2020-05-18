@@ -25,7 +25,7 @@ def glmnet_python_bench(
             X = X.tocsc()
     elif not isinstance(X, np.ndarray):
         warnings.warn(
-            "glmnet_python requires data as scipy.sparse matrix or numpy array."
+            "glmnet_python requires data as scipy.sparse matrix or numpy array. Skipping."
         )
         return result
 
