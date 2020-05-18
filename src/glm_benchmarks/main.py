@@ -111,7 +111,7 @@ def cli_run(
                 regularization_strength_,
                 result,
             )
-            print(f"ran in {result['runtime']}")
+            print(f"ran in {result.get('runtime')}")
 
 
 def execute_problem_library(
