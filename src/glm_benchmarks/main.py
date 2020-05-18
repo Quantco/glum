@@ -57,13 +57,12 @@ def cli_run(
     for Pn, P in problems.items():
         for Ln, L in libraries.items():
             print(f"running problem={Pn} library={Ln}")
+            new_params = params.update_params(problem_name=Pn, library_name=Ln)
             result, regularization_strength_ = execute_problem_library(
-                P, L, params, iterations,
+                new_params, iterations
             )
             save_benchmark_results(
-                output_dir,
-                params.update_params(problem_name=Pn, library_name=Ln),
-                result,
+                output_dir, new_params, result,
             )
             if len(result) > 0:
                 print(f"ran problem {Pn} with libray {Ln}")
@@ -71,13 +70,14 @@ def cli_run(
 
 
 def execute_problem_library(
-    P,
-    L,
     params: BenchmarkParams,
     iterations: int = 1,
     print_diagnostics: bool = True,
     **kwargs,
 ):
+    P = get_all_problems()[params.problem_name]
+    L = get_all_libraries()[params.library_name]
+
     dat = P.data_loader(num_rows=params.num_rows)
     if params.threads is None:
         threads = os.environ.get("OMP_NUM_THREADS", os.cpu_count())
@@ -265,18 +265,25 @@ def identify_parameter_fnames(
     return results_to_keep
 
 
-def get_limited_problems_libraries(
-    problem_names: str, library_names: str
-) -> Tuple[Dict, Dict]:
-    all_libraries = dict(
-        sklearn_fork=sklearn_fork_bench, zeros=zeros_bench, admm=admm_bench
-    )
+def get_all_libraries() -> Dict[str, Any]:
+    all_libraries = {
+        "sklearn-fork": sklearn_fork_bench,
+        "zeros": zeros_bench,
+        "admm": admm_bench,
+    }
 
     if GLMNET_PYTHON_INSTALLED:
         all_libraries["glmnet-python"] = glmnet_python_bench
 
     if H20_INSTALLED:
         all_libraries["h2o"] = h2o_bench
+    return all_libraries
+
+
+def get_limited_problems_libraries(
+    problem_names: str, library_names: str
+) -> Tuple[Dict, Dict]:
+    all_libraries = get_all_libraries()
 
     if len(library_names) > 0:
         library_names_split = get_comma_sep_names(library_names)

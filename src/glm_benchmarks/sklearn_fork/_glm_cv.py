@@ -47,15 +47,14 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         List of alphas where to compute the models.
         If ``None`` alphas are set automatically. Setting 'None' is preferred.
 
-    l1_ratio : float or array of floats, optional (default=0)
+    l1_ratio : float or array of floats, optional (default=0). If you pass l1_ratio
+        as an array, the `fit` method will choose the best value of l1_ratio and store
+        it as self.l1_ratio.
 
-    P1 : {'identity', array-like}, shape (n_features,), optional \
-            (default='identity')
+    P1 : {'identity', array-like}, shape (n_features,), optional (default='identity')
 
-    P2 : {'identity', array-like, sparse matrix}, shape \
-
-            (n_features,) or (n_features, n_features), optional \
-            (default='identity')
+    P2 : {'identity', array-like, sparse matrix}, shape (n_features,)
+        or (n_features, n_features), optional (default='identity')
 
     fit_intercept : boolean, optional (default=True)
 
@@ -277,14 +276,10 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             # assume log link and tweedie distribution
             grad = _get_tweedie_log_grad_at_zeros_with_optimal_intercept()
 
-        max_alpha = np.max(np.abs(grad)) / l1_ratio
-        return _make_grid(max_alpha)
+        alpha_max = np.max(np.abs(grad)) / l1_ratio
+        return _make_grid(alpha_max)
 
     def fit(self, X, y, sample_weight=None, offset=None):
-        # TODO:
-        # 1) stuff from other fit
-        # 2) cv stuff
-
         X, y, weights, offset, weights_sum = set_up_and_check_fit_args(
             X, y, sample_weight, offset, solver=self.solver, copy_X=self.copy_X
         )
@@ -297,8 +292,6 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             assert isinstance(self._link_instance, LogLink)
 
         l1_ratio = np.atleast_1d(self.l1_ratio)
-
-        # From sklearn.linear_model.LinearModelCV.fit
 
         if self.alphas is None:
             alphas = [self._get_alpha_path(l1, X, y, weights) for l1 in l1_ratio]
