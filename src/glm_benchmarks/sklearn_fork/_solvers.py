@@ -2,7 +2,7 @@ from __future__ import division
 
 import time
 import warnings
-from typing import List, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 from scipy import linalg, sparse
@@ -89,37 +89,12 @@ def _least_squares_solver(
     # TODO:
     S[idx:] -= coef_P2
 
-    # TODO: open this up to use a wider range of least squares solvers:
-    # -- iterative lsqr
-    # -- iterative lsmr
-    # -- can it be generalized so we can have one IRLS implementation and this
-    #    can call CD or ADMM?
+    # TODO: In cases where we have lots of columns, we might want to avoid the
+    # sandwich product and use something like iterative lsqr or lsmr.
     # TODO: need to only pass X and W to _ls_solver and _cd_solver. Then, we
     # can calculate fisher and score or use other solvers internal to the inner
     # solver.
-    d, _, rank, sing_vals = linalg.lstsq(fisher, S, overwrite_a=True, overwrite_b=True)
-
-    expected_rank = fisher.shape[1]
-    if rank < expected_rank:  # rank deficient
-        # may have been rank deficient due to lack of precision
-        if X.dtype == np.float32:
-            warning = f"""
-                A matrix used for IRLS is poorly conditioned or rank deficient;
-                it has measued rank {rank} when rank {expected_rank} is required, and
-                condition_number {sing_vals[0] / sing_vals[1]}. Numerical failures are
-                likely. To avoid this problem, try using double precision
-                (X.dtype = np.float64), increasing regularization or avoiding
-                collinear columns.
-            """
-        else:  # unknown cause of rank deficiency
-            warning = f"""
-                A matrix used for IRLS is poorly conditioned or rank deficient;
-                it has measued rank {rank} when rank {expected_rank} is required, and
-                condition_number {sing_vals[0] / sing_vals[1]}. Numerical failures are
-                likely. Try increasing regularization or avoiding collinear columns.
-             """
-        warnings.warn(warning)
-
+    d = linalg.solve(fisher, S, overwrite_a=True, overwrite_b=True, assume_a="pos")
     return d, coef_P2, 1, inner_tol
 
 
@@ -312,9 +287,9 @@ def _irls_solver(
     link: Link,
     max_iter: int = 100,
     max_inner_iter: int = 100000,
-    gradient_tol: float = 1e-4,
-    step_size_tol: float = 1e-4,
-    fixed_inner_tol: float = None,
+    gradient_tol: Optional[float] = 1e-4,
+    step_size_tol: Optional[float] = 1e-4,
+    fixed_inner_tol: Optional[Tuple] = None,
     selection="cyclic",
     random_state=None,
     diag_fisher=False,
@@ -636,7 +611,13 @@ def _irls_solver(
 
 
 def check_convergence(
-    step, coef, grad, P2, P1, gradient_tol: float, step_size_tol: float
+    step,
+    coef,
+    grad,
+    P2,
+    P1,
+    gradient_tol: Optional[float],
+    step_size_tol: Optional[float],
 ):
     # minimum subgradient norm
     mn_subgrad_norm = linalg.norm(
