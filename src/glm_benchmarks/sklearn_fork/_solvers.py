@@ -2,7 +2,6 @@ from __future__ import division
 
 import time
 import warnings
-from functools import partial
 from typing import List, Optional, Tuple, Union
 
 import numpy as np
@@ -99,7 +98,11 @@ def _least_squares_solver(
     selection,
     random_state,
     diag_fisher=False,
+    lower_bounds=None,
+    upper_bounds=None,
 ):
+    if (lower_bounds is not None) or (upper_bounds is not None):
+        raise ValueError("Bounds are not supported with the least square solver.")
     S = score.copy()
     intercept = coef.size == X.shape[1] + 1
     idx = 1 if intercept else 0  # offset if coef[0] is intercept
@@ -430,15 +433,6 @@ def _irls_solver(
     Journal of Machine Learning Research 13 (2012) 1999-2030
     https://www.csie.ntu.edu.tw/~cjlin/papers/l1_glmnet/long-glmnet.pdf
     """
-    if inner_solver == "cd":
-        inner_solver_fct = partial(
-            _cd_solver, lower_bounds=lower_bounds, upper_bounds=upper_bounds
-        )
-    elif inner_solver == "ls":
-        inner_solver_fct = _least_squares_solver  # type: ignore
-    else:
-        raise ValueError("Only 'cd' or 'ls' are supported as inner solver.")
-
     if P2.ndim == 2:
         P2 = check_array(P2, "csc", dtype=[np.float64, np.float32])
 
@@ -518,7 +512,7 @@ def _irls_solver(
         d.fill(0)
 
         # inner loop
-        d, coef_P2, n_cycles, inner_tol = inner_solver_fct(
+        d, coef_P2, n_cycles, inner_tol = inner_solver(
             d,
             X,
             coef,
@@ -532,6 +526,8 @@ def _irls_solver(
             selection=selection,
             random_state=random_state,
             diag_fisher=diag_fisher,
+            lower_bounds=lower_bounds,
+            upper_bounds=upper_bounds,
         )
 
         # line search by sequence beta^k, k=0, 1, ..
