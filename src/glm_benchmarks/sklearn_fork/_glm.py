@@ -908,15 +908,16 @@ def set_up_and_check_fit_args(
         # do that if X was intially int64.
         X = X.astype(np.float64)
 
-    X, y = check_X_y(
-        X,
-        y,
-        accept_sparse=_stype,
-        dtype=_dtype,
-        y_numeric=True,
-        multi_output=False,
-        copy=copy_X,
-    )
+    if not getattr(X, "skip_sklearn_check", False):
+        X, y = check_X_y(
+            X,
+            y,
+            accept_sparse=_stype,
+            dtype=_dtype,
+            y_numeric=True,
+            multi_output=False,
+            copy=copy_X,
+        )
 
     # Without converting y to float, deviance might raise
     # ValueError: Integers to negative integer powers are not allowed.
@@ -940,7 +941,7 @@ def set_up_and_check_fit_args(
     #######################################################################
     if sparse.issparse(X):
         X = MKLSparseMatrix(X)
-    else:
+    elif isinstance(X, np.ndarray):
         X = DenseGLMDataMatrix(X)
 
     return X, y, weights, offset, weights_sum
