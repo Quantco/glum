@@ -12,6 +12,7 @@ from glm_benchmarks.problems import get_all_problems
 from glm_benchmarks.util import (
     BenchmarkParams,
     benchmark_params_cli,
+    clear_cache,
     get_obj_val,
     get_params_from_fname,
 )
@@ -49,6 +50,8 @@ except ImportError:
 def cli_run(
     params: BenchmarkParams, output_dir: str, iterations: int,
 ):
+
+    clear_cache()
     problems, libraries = get_limited_problems_libraries(
         params.problem_name, params.library_name
     )
@@ -114,6 +117,8 @@ def execute_problem_library(
 def cli_analyze(
     params: BenchmarkParams, output_dir: str,
 ):
+
+    clear_cache()
     display_precision = 4
     np.set_printoptions(precision=display_precision, suppress=True)
     pd.set_option("precision", display_precision)

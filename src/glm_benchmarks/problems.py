@@ -14,9 +14,9 @@ from .data import (
     generate_real_insurance_dataset,
     generate_wide_insurance_dataset,
 )
+from .util import cache_location
 
-CACHE_LOCATION = os.environ.get("GLM_BENCHMARKS_CACHE", git_root(".cache"))
-JOBLIB_MEMORY = Memory(CACHE_LOCATION, verbose=0)
+joblib_memory = Memory(cache_location, verbose=0)
 
 
 @attr.s
@@ -27,7 +27,7 @@ class Problem:
     l1_ratio = attr.ib(type=float)
 
 
-@JOBLIB_MEMORY.cache
+@joblib_memory.cache
 def load_data(
     loader_func: Callable[
         [Optional[int], Optional[float], Optional[str]],

@@ -1,3 +1,6 @@
+import glob
+import os
+import shutil
 import time
 from functools import reduce
 from typing import Callable, Dict, Optional, Tuple, Union
@@ -7,6 +10,7 @@ import numpy as np
 from scipy import sparse as sps
 
 benchmark_convergence_tolerance = 1e-4
+cache_location = os.environ.get("GLM_BENCHMARKS_CACHE", None)
 
 
 def runtime(f, iterations, *args, **kwargs):
@@ -284,3 +288,21 @@ def get_params_from_fname(fname: str) -> BenchmarkParams:
     )
     _get_params(cli_list, standalone_mode=False)
     return _get_params.out  # type: ignore
+
+
+def _get_size_of_cache_directory():
+    return sum(
+        os.path.getsize(x) for x in glob.glob(f"{cache_location}/**", recursive=True)
+    )
+
+
+def clear_cache(force=False):
+    """Clear the cache directory if its size exceeds a threshold."""
+
+    if cache_location is None:
+        return
+
+    cache_size_limit = os.environ.get("GLM_BENCHMARKS_CACHE_SIZE_LIMIT", 1024 ** 3)
+
+    if force or _get_size_of_cache_directory() > cache_size_limit:
+        shutil.rmtree(cache_location)
