@@ -321,58 +321,25 @@ void _csr_dense${order}_sandwich(
                     }
                 }
 
-                //TODO: try a csc matrix and then flip this inner loop
                 for (int k = kk; k < kmax; k++) {
-                    int A_idx = Aindptr[k];
-                    int A_idx_max = Aindptr[k+1];
-                    % for IBLOCK in [2, 1]:
-                    {
-                        int A_block_idx_end = A_idx + ((A_idx_max - A_idx) / ${IBLOCK}) * ${IBLOCK};
-                        for (; A_idx < A_block_idx_end; A_idx += ${IBLOCK}) {
-                            % for ir in range(IBLOCK):
-                                int i${ir} = Aindices[A_idx + ${ir}];
-                                F Q${ir} = Adata[A_idx + ${ir}];
-                                auto Qsimd${ir} = xs::set_simd(Q${ir});
-                                F* outtempptr${ir} = &outtemp[i${ir}*r2+jj];
-                            % endfor
+                    for (int A_idx = Aindptr[k]; A_idx < Aindptr[k+1]; A_idx++) {
+                        int i = Aindices[A_idx];
+                        F Q = Adata[A_idx];
+                        auto Qsimd = xs::set_simd(Q);
 
-                            F* Rptrstart = &R[(k-kk)*jblock];
-                            F* Rptr = Rptrstart;
-                            int simd_len = ((jmax - jj) / simd_size) * simd_size;
-                            F* Rptrend = Rptrstart + simd_len;
-                            for (; Rptr < Rptrend; Rptr += simd_size,
-                                    % for ir in range(IBLOCK):
-                                        % if ir == IBLOCK - 1:
-                                        outtempptr${ir} += simd_size
-                                        % else:
-                                        outtempptr${ir} += simd_size,
-                                        % endif
-                                    % endfor
-                                    ) {
-                                auto Bsimd = xs::load_aligned(Rptr);
-                                % for ir in range(IBLOCK):
-                                {
-                                    auto outsimd = xs::load_aligned(outtempptr${ir});
-                                    outsimd = xs::fma(Qsimd${ir}, Bsimd, outsimd);
-                                    outsimd.store_aligned(outtempptr${ir});
-                                }
-                                % endfor
-                            }
+                        int j = jj;
+                        int jmax2 = jj + ((jmax - jj) / simd_size) * simd_size;
+                        for (; j < jmax2; j+=simd_size) {
+                            auto Bsimd = xs::load_aligned(&R[(k-kk)*jblock+(j-jj)]);
+                            auto outsimd = xs::load_aligned(&outtemp[i*r2+j]);
+                            outsimd = xs::fma(Qsimd, Bsimd, outsimd);
+                            outsimd.store_aligned(&outtemp[i*r2+j]);
+                        }
 
-                            for (;Rptr < Rptrstart + (jmax - jj); Rptr++, 
-                                    % for ir in range(IBLOCK):
-                                        % if ir == IBLOCK - 1:
-                                        outtempptr${ir}++
-                                        % else:
-                                        outtempptr${ir}++,
-                                        % endif
-                                    % endfor
-                                    ) {
-                                (*outtempptr${ir}) += Q${ir} * (*Rptr);
-                            }
+                        for (; j < jmax; j++) {
+                            outtemp[i*r2+j] += Q * R[(k-kk)*jblock+(j-jj)];
                         }
                     }
-                    % endfor
                 }
             }
         }

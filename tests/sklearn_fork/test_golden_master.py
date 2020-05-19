@@ -9,6 +9,7 @@ from git_root import git_root
 from scipy import sparse
 
 from glm_benchmarks.scaled_spmat.mkl_sparse_matrix import MKLSparseMatrix
+from glm_benchmarks.scaled_spmat.split_matrix import SplitMatrix
 from glm_benchmarks.sklearn_fork._glm import (
     GeneralizedLinearRegressor,
     TweedieDistribution,
@@ -78,7 +79,7 @@ def _make_P2():
     return P2
 
 
-@pytest.fixture(params=["sparse", "dense"])
+@pytest.fixture(params=["sparse", "dense", "split"])
 def data_all(request):
     data = dict()
     for dist in distributions_to_test:
@@ -86,8 +87,10 @@ def data_all(request):
 
         if request.param == "dense":
             data_dist["X"] = DenseGLMDataMatrix(data_dist["X"])
-        else:
+        elif request.param == "sparse":
             data_dist["X"] = MKLSparseMatrix(sparse.csc_matrix(data_dist["X"]))
+        elif request.param == "split":
+            data_dist["X"] = SplitMatrix(sparse.csc_matrix(data_dist["X"]), 0.1)
 
         data[dist] = data_dist
 
