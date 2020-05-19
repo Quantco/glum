@@ -1,5 +1,6 @@
 import os
 import tempfile
+import warnings
 from typing import Any, Dict, List
 
 import click
@@ -83,11 +84,13 @@ def test_correct_problems_run():
         for ln in library_names
     ]
 
+    n_threads = os.cpu_count()
+
     expected_problems_run_2 = [
-        "narrow-insurance-weights-l2-gamma_zeros_20_dense_4_False_1000.0_False.pkl",
-        "narrow-insurance-weights-l2-gamma_sklearn-fork_20_dense_4_False_1000.0_False.pkl",
-        "wide-insurance-no-weights-net-poisson_zeros_20_dense_4_False_1000.0_False.pkl",
-        "wide-insurance-no-weights-net-poisson_sklearn-fork_20_dense_4_False_1000.0_False.pkl",
+        f"narrow-insurance-weights-l2-gamma_zeros_20_dense_{n_threads}_False_1000.0_False.pkl",
+        f"narrow-insurance-weights-l2-gamma_sklearn-fork_20_dense_{n_threads}_False_1000.0_False.pkl",
+        f"wide-insurance-no-weights-net-poisson_zeros_20_dense_{n_threads}_False_1000.0_False.pkl",
+        f"wide-insurance-no-weights-net-poisson_sklearn-fork_20_dense_{n_threads}_False_1000.0_False.pkl",
     ]
 
     assert sorted(problems_run) == sorted(expected_problems_run)
@@ -101,5 +104,9 @@ def test_correct_problems_analyzed():
     is empty, the test will not be meaningful.
     """
     output_dir = "benchmark_output"
+    if output_dir not in os.listdir():
+        warnings.warn("Output directory not found")
+        return
+
     to_analyze = identify_parameter_fnames(output_dir, BenchmarkParams())
     assert sorted(to_analyze) == sorted(os.listdir(output_dir))
