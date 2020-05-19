@@ -1,9 +1,14 @@
 #!/bin/bash
 
 OUTPUT_DIR=$(git rev-parse HEAD)
-PROBLEM_NAMES="intermediate_insurance_offset_net_poisson, intermediate_insurance_offset_l2_poisson"
-LIBRARY_NAMES="sklearn_fork, glmnet_python"
+PROBLEM_NAMES="intermediate-insurance-offset-net-poisson, intermediate-insurance-offset-l2-poisson"
+LIBRARY_NAMES="sklearn-fork, glmnet-python"
 THREADS=8
+
+export GLM_BENCHMARKS_CACHE_SIZE_LIMIT=10737418240  # 10 GB
+export GLM_BENCHMARKS_CACHE=.cache
+
+echo "" > output.log
 
 for NUM_ROWS in 100000 1000000 10000000
 do
@@ -14,21 +19,25 @@ do
             echo "---------------------------------"
             echo "NUM_ROWS = ${NUM_ROWS}"
             echo "REG_STRENGTH = ${REG_STRENGTH}"
-            echo "STORAGE = ${STORAGE}"        
+            echo "STORAGE = ${STORAGE}"
             glm_benchmarks_run \
-                --problem_names "${PROBLEM_NAMES}" \
-                --library_names "${LIBRARY_NAMES}" \
+                --problem_name "${PROBLEM_NAMES}" \
+                --library_name "${LIBRARY_NAMES}" \
                 --num_rows ${NUM_ROWS} \
                 --threads ${THREADS} \
                 --storage ${STORAGE} \
                 --regularization_strength ${REG_STRENGTH} \
                 --output_dir ${OUTPUT_DIR}
+
+            glm_benchmarks_analyze \
+                --problem_name "${PROBLEM_NAMES}" \
+                --library_name "${LIBRARY_NAMES}" \
+                --num_rows ${NUM_ROWS} \
+                --threads ${THREADS} \
+                --storage ${STORAGE} \
+                --regularization_strength ${REG_STRENGTH} \
+                --output_dir ${OUTPUT_DIR} >> output.log
+
         done
     done
 done
-
-# analyze
-glm_benchmarks_analyze \
-    --problem_names "${PROBLEM_NAMES}" \
-    --library_names "${LIBRARY_NAMES}" \
-    --output_dir ${OUTPUT_DIR}

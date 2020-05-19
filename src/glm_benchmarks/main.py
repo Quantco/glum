@@ -5,7 +5,6 @@ from typing import Any, Dict, List, Tuple
 import click
 import numpy as np
 import pandas as pd
-import scipy.sparse
 
 from glm_benchmarks.bench_admm import admm_bench
 from glm_benchmarks.bench_sklearn_fork import sklearn_fork_bench
@@ -13,6 +12,7 @@ from glm_benchmarks.problems import get_all_problems
 from glm_benchmarks.util import (
     BenchmarkParams,
     benchmark_params_cli,
+    clear_cache,
     get_obj_val,
     get_params_from_fname,
 )
@@ -50,6 +50,8 @@ except ImportError:
 def cli_run(
     params: BenchmarkParams, output_dir: str, iterations: int,
 ):
+
+    clear_cache()
     problems, libraries = get_limited_problems_libraries(
         params.problem_name, params.library_name
     )
@@ -78,24 +80,17 @@ def execute_problem_library(
     P = get_all_problems()[params.problem_name]
     L = get_all_libraries()[params.library_name]
 
-    dat = P.data_loader(num_rows=params.num_rows)
+    dat = P.data_loader(
+        num_rows=params.num_rows,
+        storage=params.storage,
+        single_precision=params.single_precision,
+    )
     if params.threads is None:
         threads = os.environ.get("OMP_NUM_THREADS", os.cpu_count())
     else:
         threads = params.threads
 
     os.environ["OMP_NUM_THREADS"] = str(threads)
-    if params.single_precision:
-        for k, v in dat.items():
-            dat[k] = v.astype(np.float32)
-
-    if params.storage == "sparse":
-        dat["X"] = scipy.sparse.csc_matrix(dat["X"])
-    elif params.storage.startswith("split"):
-        from glm_benchmarks.scaled_spmat.split_matrix import SplitMatrix
-
-        threshold = float(params.storage.split("split")[1])
-        dat["X"] = SplitMatrix(scipy.sparse.csc_matrix(dat["X"]), threshold)
 
     if params.regularization_strength is None:
         params.regularization_strength = P.regularization_strength
@@ -122,6 +117,8 @@ def execute_problem_library(
 def cli_analyze(
     params: BenchmarkParams, output_dir: str,
 ):
+
+    clear_cache()
     display_precision = 4
     np.set_printoptions(precision=display_precision, suppress=True)
     pd.set_option("precision", display_precision)
@@ -136,6 +133,9 @@ def cli_analyze(
         for name, res in raw_results.items()
         if len(res) > 0
     ]
+
+    if not formatted_results:
+        return
 
     res_df = pd.DataFrame.from_records(formatted_results)
     res_df["offset"] = res_df["problem_name"].apply(lambda x: "offset" in x)
@@ -222,7 +222,7 @@ def extract_dict_results_to_pd_series(fname: str, results: Dict[str, Any],) -> D
             "regularization_strength": (
                 problem.regularization_strength
                 if params.regularization_strength is None
-                else problem.regularization_strength
+                else params.regularization_strength
             ),
             "runtime per iter": runtime_per_iter,
             "l1": l1_norm,
