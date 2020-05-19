@@ -1,6 +1,6 @@
 import os
 import pickle
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import click
 import numpy as np
@@ -8,7 +8,7 @@ import pandas as pd
 
 from glm_benchmarks.bench_admm import admm_bench
 from glm_benchmarks.bench_sklearn_fork import sklearn_fork_bench
-from glm_benchmarks.problems import get_all_problems
+from glm_benchmarks.problems import Problem, get_all_problems
 from glm_benchmarks.util import (
     BenchmarkParams,
     benchmark_params_cli,
@@ -46,11 +46,9 @@ except ImportError:
     help="Number of times to re-run the benchmark. This can be useful for avoid performance noise.",
 )
 @benchmark_params_cli
-# TODO: where it calls data loader in main.py, convert x to the correct dtype
 def cli_run(
     params: BenchmarkParams, output_dir: str, iterations: int,
 ):
-
     clear_cache()
     problems, libraries = get_limited_problems_libraries(
         params.problem_name, params.library_name
@@ -58,7 +56,7 @@ def cli_run(
 
     for Pn, P in problems.items():
         for Ln, L in libraries.items():
-            print(f"running problem={Pn} library={Ln}")
+            click.echo(f"running problem={Pn} library={Ln}")
             new_params = params.update_params(problem_name=Pn, library_name=Ln)
             result, regularization_strength_ = execute_problem_library(
                 new_params, iterations
@@ -67,8 +65,8 @@ def cli_run(
                 output_dir, new_params, result,
             )
             if len(result) > 0:
-                print(f"ran problem {Pn} with libray {Ln}")
-                print(f"ran in {result.get('runtime')}")
+                click.echo(f"ran problem {Pn} with libray {Ln}")
+                click.echo(f"ran in {result.get('runtime')}")
 
 
 def execute_problem_library(
@@ -77,23 +75,25 @@ def execute_problem_library(
     print_diagnostics: bool = True,
     **kwargs,
 ):
+    assert params.problem_name is not None
+    assert params.library_name is not None
     P = get_all_problems()[params.problem_name]
     L = get_all_libraries()[params.library_name]
+
+    for k in params.param_names:
+        if getattr(params, k) is None:
+            params.update_params(**{k: get_default_val(k)})
 
     dat = P.data_loader(
         num_rows=params.num_rows,
         storage=params.storage,
         single_precision=params.single_precision,
     )
-    if params.threads is None:
-        threads = os.environ.get("OMP_NUM_THREADS", os.cpu_count())
-    else:
-        threads = params.threads
-
-    os.environ["OMP_NUM_THREADS"] = str(threads)
+    os.environ["OMP_NUM_THREADS"] = str(params.threads)
 
     if params.regularization_strength is None:
         params.regularization_strength = P.regularization_strength
+
     result = L(
         dat,
         P.distribution,
@@ -170,11 +170,14 @@ def cli_analyze(
             cols_to_show += ["intercept", "obj_val", "rel_obj_val"]
 
         print(res_df[cols_to_show])
+    return res_df
 
 
 def extract_dict_results_to_pd_series(fname: str, results: Dict[str, Any],) -> Dict:
     assert "coef" in results.keys()
     params = get_params_from_fname(fname)
+    assert params.problem_name is not None
+
     coefs = results["coef"]
     runtime_per_iter = results["runtime"] / results["n_iter"]
     l1_norm = np.sum(np.abs(coefs))
@@ -242,9 +245,7 @@ def identify_parameter_fnames(
         constraint = getattr(constraint_params, k)
         param = getattr(params, k)
         return (
-            # TODO: no more ""
             constraint is None
-            or constraint == ""
             or param == constraint
             # e.g. this_file_params['library_name'] is 'sklearn-fork'
             # and constraint_params.library_name is 'sklearn-fork,h2o'
@@ -281,11 +282,11 @@ def get_all_libraries() -> Dict[str, Any]:
 
 
 def get_limited_problems_libraries(
-    problem_names: str, library_names: str
+    problem_names: Optional[str], library_names: Optional[str]
 ) -> Tuple[Dict, Dict]:
     all_libraries = get_all_libraries()
 
-    if len(library_names) > 0:
+    if library_names is not None:
         library_names_split = get_comma_sep_names(library_names)
         libraries = {k: all_libraries[k] for k in library_names_split}
     else:
@@ -293,10 +294,10 @@ def get_limited_problems_libraries(
     return get_limited_problems(problem_names), libraries
 
 
-def get_limited_problems(problem_names):
+def get_limited_problems(problem_names: Optional[str]) -> Dict[str, Problem]:
     all_problems = get_all_problems()
 
-    if len(problem_names) > 0:
+    if problem_names is not None:
         problem_names_split = get_comma_sep_names(problem_names)
         problems = {k: all_problems[k] for k in problem_names_split}
     else:
@@ -321,6 +322,32 @@ def load_benchmark_results(output_dir: str, fname: str):
     results_path = os.path.join(output_dir, fname)
     with open(results_path, "rb") as f:
         return pickle.load(f)
+
+
+def get_default_val(k: str) -> Any:
+    """
+
+    Parameters
+    ----------
+    k: An element of BenchmarkParams.param_names
+
+    Returns
+    -------
+        Default value of parameter.
+    """
+    if k == "threads":
+        return os.environ.get("OMP_NUM_THREADS", os.cpu_count())
+    # For these parameters, value is fixed downstream,
+    # e.g. threads depends on hardware in cli_run and is 'all' for cli_analyze
+    if k in ["problem_name", "library_name", "num_rows", "regularization_strength"]:
+        return None
+    if k == "storage":
+        return "dense"
+    if k == "cv":
+        return False
+    if k == "single_precision":
+        return False
+    raise KeyError(f"Key {k} not found")
 
 
 if __name__ == "__main__":
