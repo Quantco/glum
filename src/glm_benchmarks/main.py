@@ -219,7 +219,7 @@ def extract_dict_results_to_pd_series(fname: str, results: Dict[str, Any],) -> D
             "regularization_strength": (
                 problem.regularization_strength
                 if params.regularization_strength is None
-                else problem.regularization_strength
+                else params.regularization_strength
             ),
             "runtime per iter": runtime_per_iter,
             "l1": l1_norm,
