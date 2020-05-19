@@ -1,5 +1,4 @@
 import numpy as np
-from scipy import sparse as sps
 
 from glm_benchmarks.scaled_spmat.mkl_sparse_matrix import MKLSparseMatrix
 from glm_benchmarks.sklearn_fork.dense_glm_matrix import DenseGLMDataMatrix
@@ -22,9 +21,7 @@ class SplitMatrix:
         self.X_dense_F = DenseGLMDataMatrix(
             np.asfortranarray(X.toarray()[:, self.dense_indices])
         )
-        self.X_sparse = MKLSparseMatrix(
-            sps.csc_matrix(X.toarray()[:, self.sparse_indices])
-        )
+        self.X_sparse = MKLSparseMatrix(X[:, self.sparse_indices])
 
     def sandwich(self, d):
         out = np.empty((self.shape[1], self.shape[1]))
@@ -38,7 +35,6 @@ class SplitMatrix:
                 DS = self.X_sparse.sandwich_dense(self.X_dense_F, d)
                 out[np.ix_(self.sparse_indices, self.dense_indices)] = DS
                 out[np.ix_(self.dense_indices, self.sparse_indices)] = DS.T
-
         return out
 
     def standardize(self, weights, scale_predictors):
