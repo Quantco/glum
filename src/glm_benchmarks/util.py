@@ -157,16 +157,21 @@ def exposure_correction(
 
 
 class BenchmarkParams:
+    """
+    Attributes reflect exactly what the user passed in, only modified by type
+    conversions. Any additional processing should be downstream.
+    """
+
     def __init__(
         self,
-        problem_name: str,
-        library_name: str,
-        num_rows: Union[int, None],
-        storage: str,
-        threads: int = None,
-        single_precision: bool = False,
-        regularization_strength: float = None,
-        cv: bool = None,
+        problem_name: Optional[str] = None,
+        library_name: Optional[str] = None,
+        num_rows: Optional[int] = None,
+        storage: Optional[str] = None,
+        threads: Optional[int] = None,
+        single_precision: Optional[bool] = None,
+        regularization_strength: Optional[float] = None,
+        cv: Optional[bool] = None,
     ):
 
         self.problem_name = problem_name
@@ -203,12 +208,10 @@ def benchmark_params_cli(func: Callable) -> Callable:
     @click.option(
         "--problem_name",
         type=str,
-        default="",
         help="Specify a comma-separated list of benchmark problems you want to run. Leaving this blank will default to running all problems.",
     )
     @click.option(
         "--library_name",
-        default="",
         help="Specify a comma-separated list of libaries to benchmark. Leaving this blank will default to running all problems.",
     )
     @click.option(
@@ -219,7 +222,6 @@ def benchmark_params_cli(func: Callable) -> Callable:
     @click.option(
         "--storage",
         type=str,
-        default="dense",
         help="Specify the storage format. Currently supported: dense, sparse. Leaving this black will default to dense.",
     )
     @click.option(
@@ -227,33 +229,27 @@ def benchmark_params_cli(func: Callable) -> Callable:
         type=int,
         help="Specify the number of threads. If not set, it will use OMP_NUM_THREADS. If that's not set either, it will default to os.cpu_count().",
     )
-    @click.option("--cv", type=bool, default=False, help="Cross-validation")
+    @click.option("--cv", type=bool, help="Cross-validation")
     @click.option(
-        "--single_precision",
-        type=bool,
-        default=False,
-        help="Whether to use 32-bit data",
+        "--single_precision", type=bool, help="Whether to use 32-bit data",
     )
     @click.option(
         "--regularization_strength",
-        default=None,
         type=float,
         help="Regularization strength. Set to None to use the default value of the problem.",
     )
     def wrapped_func(
-        problem_name: str,
-        library_name: str,
-        num_rows: int,
-        storage: str,
-        threads: int,
-        cv: bool,
-        single_precision: bool,
+        problem_name: Optional[str],
+        library_name: Optional[str],
+        num_rows: Optional[int],
+        storage: Optional[str],
+        threads: Optional[int],
+        cv: Optional[bool],
+        single_precision: Optional[bool],
         regularization_strength: Optional[float],
         *args,
         **kwargs,
     ):
-        if num_rows is not None:
-            assert isinstance(num_rows, int)
         params = BenchmarkParams(
             problem_name,
             library_name,
@@ -264,8 +260,6 @@ def benchmark_params_cli(func: Callable) -> Callable:
             regularization_strength,
             cv,
         )
-        if params.num_rows is not None:
-            assert isinstance(params.num_rows, int)
         return func(params, *args, **kwargs)
 
     return wrapped_func
@@ -273,8 +267,8 @@ def benchmark_params_cli(func: Callable) -> Callable:
 
 @click.command()
 @benchmark_params_cli
-def _get_params(params):
-    _get_params.out = params
+def get_params(params):
+    get_params.out = params
 
 
 def get_params_from_fname(fname: str) -> BenchmarkParams:
@@ -286,8 +280,8 @@ def get_params_from_fname(fname: str) -> BenchmarkParams:
             if elt[1] != "None"
         ],
     )
-    _get_params(cli_list, standalone_mode=False)
-    return _get_params.out  # type: ignore
+    get_params(cli_list, standalone_mode=False)
+    return get_params.out  # type: ignore
 
 
 def _get_size_of_cache_directory():
