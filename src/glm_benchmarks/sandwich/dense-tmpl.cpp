@@ -330,10 +330,10 @@ void _csr_dense${order}_sandwich(
                         int j = jj;
                         int jmax2 = jj + ((jmax - jj) / simd_size) * simd_size;
                         for (; j < jmax2; j+=simd_size) {
-                            auto Bsimd = xs::load_unaligned(&R[(k-kk)*jblock+(j-jj)]);
-                            auto outsimd = xs::load_unaligned(&outtemp[i*r2+j]);
+                            auto Bsimd = xs::load_aligned(&R[(k-kk)*jblock+(j-jj)]);
+                            auto outsimd = xs::load_aligned(&outtemp[i*r2+j]);
                             outsimd = xs::fma(Qsimd, Bsimd, outsimd);
-                            outsimd.store_unaligned(&outtemp[i*r2+j]);
+                            outsimd.store_aligned(&outtemp[i*r2+j]);
                         }
 
                         for (; j < jmax; j++) {
