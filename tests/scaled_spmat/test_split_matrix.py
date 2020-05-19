@@ -26,11 +26,16 @@ def test_split_matrix_init(X: np.ndarray):
 
 
 def test_sandwich(X: np.ndarray):
-    Xsplit = SplitMatrix(sps.csc_matrix(X), 0.2)
-    v = np.random.rand(Xsplit.shape[0])
-    y1 = Xsplit.sandwich(v)
-    y2 = (X.T * v) @ X
-    np.testing.assert_almost_equal(y1, y2)
+    for i in range(10):
+        n = np.random.randint(8, 300)
+        m = np.random.randint(2, n)
+        X = sps.random(n, m, density=0.2)
+        v = np.random.rand(n)
+        Xsplit = SplitMatrix(sps.csc_matrix(X), 0.2)
+        y1 = Xsplit.sandwich(v)
+        y2 = ((X.T.multiply(v)) @ X).toarray()
+        maxdiff = np.max(np.abs(y1 - y2))
+        assert maxdiff < 1e-12
 
 
 @pytest.mark.parametrize("scale_predictors", [True, False])

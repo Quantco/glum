@@ -1135,12 +1135,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         sample_weight non-negative, P2 positive semi-definite.
         Don't use this parameter unless you know what you do.
 
-    center_predictors : boolean, optional (default=True)
-        Subtract the means from each column. Centering predictors can improve
-        performance of coordinate descent by a substantial amount. This
-        defaults to True, but will be False if fit_intercept is False or if
-        diag_fisher is True
-
     verbose : int, optional (default=0)
         For the lbfgs solver set verbose to any positive number for verbosity.
 
