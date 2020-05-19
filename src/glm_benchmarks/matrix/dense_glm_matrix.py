@@ -33,10 +33,10 @@ class DenseGLMDataMatrix(np.ndarray, MatrixBase):
             return
 
     def getcol(self, i):
-        return self[:, i]
+        return self[:, [i]]
 
     def toarray(self):
-        return self
+        return np.asarray(self)
 
     def sandwich(self, d):
         return dense_sandwich(self, d)

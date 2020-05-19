@@ -40,6 +40,14 @@ class MatrixBase(ABC):
     def sandwich(self, d: np.ndarray) -> np.ndarray:
         pass
 
+    @property
+    def A(self) -> np.ndarray:
+        return self.toarray()
+
+    @abstractmethod
+    def toarray(self) -> np.ndarray:
+        pass
+
     # Higher priority than numpy arrays, so behavior for funcs like "@" defaults to the
     # behavior of this class
     __array_priority__ = 11
