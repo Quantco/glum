@@ -27,8 +27,18 @@ class MKLSparseMatrix(sps.csc_matrix, MatrixBase):
         if self.x_csr is None:
             self.x_csr = self.tocsr(copy=False)
 
-    def to_scipy_sparse(self, copy: bool) -> sps.csc_matrix:
-        return sps.csc_matrix(self, copy=copy)
+    def tocsc(self, shape=None, dtype=None, copy=False) -> sps.csc_matrix:
+        if shape is None:
+            shape = self.shape
+        if dtype is None:
+            dtype = self.dtype
+
+        return sps.csc_matrix(
+            (self.data, self.indices, self.indptr), shape, dtype, copy=copy
+        )
+
+    def to_scipy_sparse(self, shape=None, dtype=None, copy=False) -> sps.csc_matrix:
+        return self.tocsc(shape, dtype, copy)
 
     def sandwich(self, d: np.ndarray) -> np.ndarray:
         if not self.dtype == d.dtype:
@@ -55,6 +65,8 @@ class MKLSparseMatrix(sps.csc_matrix, MatrixBase):
         return csr_dense_sandwich(self.x_csr, B, d)
 
     def dot(self, v):
+        if not isinstance(v, np.ndarray) and not sps.issparse(v):
+            v = np.asarray(v)
         if len(v.shape) == 1:
             return dot_product_mkl(self, v)
         if len(v.shape) == 2 and v.shape[1] == 1:

@@ -9,8 +9,14 @@ from .mkl_sparse_matrix import MKLSparseMatrix
 
 
 class SplitMatrix(MatrixBase):
-    # TODO: could X be an MKSparseMatrix or ColScaledSpMat?
-    def __init__(self, X: Union[sps.csc_matrix, MKLSparseMatrix], threshold: float):
+    # TODO: better error handling for wrong-type inputs
+    def __init__(
+        self, X: Union[sps.csc_matrix, MKLSparseMatrix], threshold: float = 0.1
+    ):
+        if not isinstance(X, sps.csc_matrix) and not isinstance(X, MKLSparseMatrix):
+            raise TypeError(
+                "X must be of type scipy.sparse.csc_matrix or matrix.MKLSparseMatrix"
+            )
         self.shape = X.shape
         self.threshold = threshold
         self.dtype = X.dtype
@@ -27,6 +33,23 @@ class SplitMatrix(MatrixBase):
         self.X_sparse = MKLSparseMatrix(
             sps.csc_matrix(X.toarray()[:, self.sparse_indices])
         )
+
+    def toarray(self) -> np.ndarray:
+        columns = []
+        dense_idx = 0
+        sparse_idx = 0
+
+        for i in range(len(self.dense_indices) + len(self.sparse_indices)):
+            if i == self.dense_indices[dense_idx]:
+                columns.append(self.X_dense_F[:, dense_idx])
+                dense_idx += 1
+            else:
+                assert i == self.sparse_indices[sparse_idx]
+                sparse_col = self.X_sparse.getcol(sparse_idx)
+                columns.append(sparse_col.A[:, 0])
+                sparse_idx += 1
+
+        return np.stack(columns).T
 
     def getcol(self, i: int) -> Union[np.ndarray, sps.csr_matrix]:
         if i in self.dense_indices:
@@ -80,10 +103,15 @@ class SplitMatrix(MatrixBase):
         return self
 
     def dot(self, v: np.ndarray) -> np.ndarray:
+        v = np.asarray(v)
         if v.shape[0] != self.shape[1]:
             raise ValueError(f"shapes {self.shape} and {v.shape} not aligned")
-        dense_out = self.X_dense_F.dot(v[self.dense_indices])
-        sparse_out = self.X_sparse.dot(v[self.sparse_indices])
+        if v.ndim == 1:
+            dense_out = self.X_dense_F.dot(v[self.dense_indices])
+            sparse_out = self.X_sparse.dot(v[self.sparse_indices])
+        else:
+            dense_out = self.X_dense_F.dot(v[self.dense_indices, :])
+            sparse_out = self.X_sparse.dot(v[self.sparse_indices, :])
         return dense_out + sparse_out
 
     def __rmatmul__(self, v) -> np.ndarray:

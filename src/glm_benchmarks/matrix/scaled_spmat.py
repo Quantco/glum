@@ -289,7 +289,7 @@ class RowScaledSpMat(ScaledMat):
                            (n,)                  (n, 1) @ (1,) = (n,)
         """
         mat_part = self.mat.dot(other_mat)
-        other_sum = other_mat.sum(0)
+        other_sum = np.sum(other_mat, 0)
         if not sps.issparse(other_mat):
             # with numpy, sum is of shape (k,); with scipy it is of shape (1, k)
             other_sum = np.expand_dims(other_sum, 0)
