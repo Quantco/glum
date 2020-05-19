@@ -134,6 +134,9 @@ def cli_analyze(
         if len(res) > 0
     ]
 
+    if not formatted_results:
+        return
+
     res_df = pd.DataFrame.from_records(formatted_results)
     res_df["offset"] = res_df["problem_name"].apply(lambda x: "offset" in x)
     res_df["problem_name"] = [
