@@ -4,13 +4,19 @@ from typing import Dict, Union
 import numpy as np
 from scipy import sparse as sps
 
-from .sklearn_fork import GeneralizedLinearRegressor, TweedieDistribution
+from .sklearn_fork import (
+    GeneralizedLinearRegressor,
+    GeneralizedLinearRegressorCV,
+    TweedieDistribution,
+)
 from .util import benchmark_convergence_tolerance, runtime
 
 random_seed = 110
 
 
-def build_and_fit(model_args, fit_args):
+def build_and_fit(model_args, fit_args, cv: bool):
+    if cv:
+        return GeneralizedLinearRegressorCV(**model_args).fit(**fit_args)
     return GeneralizedLinearRegressor(**model_args).fit(**fit_args)
 
 
@@ -20,6 +26,7 @@ def sklearn_fork_bench(
     alpha: float,
     l1_ratio: float,
     iterations: int,
+    cv: bool,
     print_diagnostics: bool = True,
     **kwargs,
 ):
@@ -36,24 +43,28 @@ def sklearn_fork_bench(
     if family == "gaussian":
         family = "normal"
     elif "tweedie" in family:
-        tweedie_p = float(family.split("_p=")[1])
+        tweedie_p = float(family.split("-p=")[1])
         family = TweedieDistribution(tweedie_p)  # type: ignore
 
     model_args = dict(
         family=family,
-        alpha=alpha,
         l1_ratio=l1_ratio,
         max_iter=1000,
         random_state=random_seed,
         copy_X=False,
         selection="cyclic",
-        gradient_tol=benchmark_convergence_tolerance,
+        # TODO: try tightening this later
+        gradient_tol=1 if cv else benchmark_convergence_tolerance,
         step_size_tol=0.01 * benchmark_convergence_tolerance,
     )
+    if not cv:
+        model_args["alpha"] = alpha
     model_args.update(kwargs)
 
     try:
-        result["runtime"], m = runtime(build_and_fit, iterations, model_args, fit_args)
+        result["runtime"], m = runtime(
+            build_and_fit, iterations, model_args, fit_args, cv
+        )
     except ValueError as e:
         print(f"Problem failed with this error: {e}")
         return result
@@ -61,6 +72,12 @@ def sklearn_fork_bench(
     result["intercept"] = m.intercept_
     result["coef"] = m.coef_
     result["n_iter"] = m.n_iter_
+    if cv:
+        alphas: np.ndarray = m.alphas_
+        result["n_alphas"] = len(alphas)
+        result["max_alpha"] = alphas.max()
+        result["min_alpha"] = alphas.min()
+        result["best_alpha"] = m.alpha_
 
     if print_diagnostics:
         m.report_diagnostics()
