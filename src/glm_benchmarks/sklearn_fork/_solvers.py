@@ -2,7 +2,7 @@ from __future__ import division
 
 import time
 import warnings
-from typing import List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 from scipy import linalg, sparse
@@ -118,7 +118,7 @@ def _least_squares_solver(
     # can calculate fisher and score or use other solvers internal to the inner
     # solver.
     d = linalg.solve(fisher, S, overwrite_a=True, overwrite_b=True, assume_a="pos")
-    return d, coef_P2, 1, inner_tol
+    return d, coef_P2, n_cycles + 1, inner_tol
 
 
 def _cd_solver(
@@ -331,7 +331,7 @@ def _irls_solver(
     offset: np.ndarray = None,
     lower_bounds: Optional[np.ndarray] = None,
     upper_bounds: Optional[np.ndarray] = None,
-) -> Tuple[np.ndarray, int, int, List[List]]:
+) -> Tuple[np.ndarray, int, int, List[Dict]]:
     """Solve GLM with L1 and L2 penalty by coordinate descent algorithm.
 
     The objective being minimized in the coefficients w=coef is::
@@ -628,16 +628,16 @@ def _irls_solver(
         coef_l2 = np.linalg.norm(coef)
         step_l2 = np.linalg.norm(d)
         diagnostics.append(
-            [
-                mn_subgrad_norm,
-                coef_l1,
-                coef_l2,
-                step_l2,
-                n_iter,
-                n_cycles,
-                iteration_runtime,
-                coef[0],
-            ]
+            {
+                "convergence": mn_subgrad_norm,
+                "L1(coef)": coef_l1,
+                "L2(coef)": coef_l2,
+                "L2(step)": step_l2,
+                "n_iter": n_iter,
+                "n_cycles": n_cycles,
+                "runtime": iteration_runtime,
+                "intercept": coef[0],
+            }
         )
         iteration_start = time.time()
 
