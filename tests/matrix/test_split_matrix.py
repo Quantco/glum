@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 import scipy.sparse as sps
 
+from glm_benchmarks.matrix.sandwich.sandwich import csr_dense_sandwich
 from glm_benchmarks.matrix.split_matrix import SplitMatrix
 from glm_benchmarks.sklearn_fork._glm import DenseGLMDataMatrix
 
@@ -25,12 +26,28 @@ def test_split_matrix_init(X: np.ndarray):
         assert fully_dense.sparse_indices.shape[0] == S
 
 
+def test_sandwich_dense(X: np.ndarray):
+    np.random.seed(0)
+    n, k = X.shape
+    d = np.random.random((n,))
+    A = sps.random(n, 2).tocsr()
+    result = csr_dense_sandwich(A, X, d)
+    expected = A.T.A @ np.diag(d) @ X
+    np.testing.assert_allclose(result, expected)
+
+
 def test_sandwich(X: np.ndarray):
-    Xsplit = SplitMatrix(sps.csc_matrix(X), 0.2)
-    v = np.random.rand(Xsplit.shape[0])
-    y1 = Xsplit.sandwich(v)
-    y2 = (X.T * v) @ X
-    np.testing.assert_almost_equal(y1, y2)
+    for i in range(10):
+        n = np.random.randint(8, 300)
+        m = np.random.randint(2, n)
+        X = sps.random(n, m, density=0.2)
+        v = np.random.rand(n)
+        Xsplit = SplitMatrix(sps.csc_matrix(X), 0.2)
+        y1 = Xsplit.sandwich(v)
+        y2 = ((X.T.multiply(v)) @ X).toarray()
+        np.testing.assert_allclose(y1, y2, atol=1e-12)
+        maxdiff = np.max(np.abs(y1 - y2))
+        assert maxdiff < 1e-12
 
 
 @pytest.mark.parametrize("scale_predictors", [True, False])

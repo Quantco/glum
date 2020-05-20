@@ -5,13 +5,13 @@ import numpy as np
 import pandas as pd
 from scipy import sparse as sps
 
+from glm_benchmarks.matrix import SplitMatrix
+from glm_benchmarks.matrix.sandwich.sandwich import dense_sandwich, sparse_sandwich
 from glm_benchmarks.problems import (
     generate_narrow_insurance_dataset,
     generate_wide_insurance_dataset,
     load_data,
 )
-from glm_benchmarks.sandwich.sandwich import dense_sandwich, sparse_sandwich
-from glm_benchmarks.scaled_spmat.split_matrix import SplitMatrix
 
 
 def load(which: str, n_rows: int) -> Tuple[Any, np.ndarray]:

@@ -905,15 +905,16 @@ def set_up_and_check_fit_args(
         # do that if X was intially int64.
         X = X.astype(np.float64)
 
-    X, y = check_X_y(
-        X,
-        y,
-        accept_sparse=_stype,
-        dtype=_dtype,
-        y_numeric=True,
-        multi_output=False,
-        copy=copy_X,
-    )
+    if not getattr(X, "skip_sklearn_check", False):
+        X, y = check_X_y(
+            X,
+            y,
+            accept_sparse=_stype,
+            dtype=_dtype,
+            y_numeric=True,
+            multi_output=False,
+            copy=copy_X,
+        )
 
     # Without converting y to float, deviance might raise
     # ValueError: Integers to negative integer powers are not allowed.
@@ -937,7 +938,7 @@ def set_up_and_check_fit_args(
     #######################################################################
     if sparse.issparse(X):
         X = MKLSparseMatrix(X)
-    else:
+    elif isinstance(X, np.ndarray):
         X = DenseGLMDataMatrix(X)
 
     return X, y, weights, offset, weights_sum
@@ -1132,12 +1133,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         Allow to bypass several checks on input: y values in range of family,
         sample_weight non-negative, P2 positive semi-definite.
         Don't use this parameter unless you know what you do.
-
-    center_predictors : boolean, optional (default=True)
-        Subtract the means from each column. Centering predictors can improve
-        performance of coordinate descent by a substantial amount. This
-        defaults to True, but will be False if fit_intercept is False or if
-        diag_fisher is True
 
     verbose : int, optional (default=0)
         For the lbfgs solver set verbose to any positive number for verbosity.
