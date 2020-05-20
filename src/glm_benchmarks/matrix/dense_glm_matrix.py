@@ -2,8 +2,8 @@ from typing import Iterable, Tuple
 
 import numpy as np
 
+from glm_benchmarks.matrix.sandwich.sandwich import dense_sandwich
 from glm_benchmarks.matrix.standardize import one_over_var_inf_to_zero
-from glm_benchmarks.sandwich.sandwich import dense_sandwich
 
 from .matrix_base import MatrixBase
 
