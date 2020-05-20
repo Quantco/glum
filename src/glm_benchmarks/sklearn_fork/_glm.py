@@ -129,7 +129,7 @@ def _check_offset(
     return np.full(n_rows, offset)
 
 
-def _check_bounds(
+def check_bounds(
     bounds: Union[Iterable, float, np.ndarray, None], n_features: int,
 ) -> Union[None, np.ndarray]:
     """Check that the bounds have the right shape."""
@@ -1200,6 +1200,13 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     verbose : int, optional (default=0)
         For the lbfgs solver set verbose to any positive number for verbosity.
 
+    lower_bounds : np.ndarray, shape=(n_features), optional (default=None)
+        Set a lower bound for the coefficients. Setting bounds forces the use
+        of the coordinate descent solver (irls-cd).
+
+    upper_bounds : np.ndarray, shape=(n_features), optional (default=None)
+        See lower_bounds.
+
     Attributes
     ----------
     coef_ : array, shape (n_features,)
@@ -1390,8 +1397,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         P1 = setup_p1(self.P1, X, X.dtype, self.alpha, self.l1_ratio)
         P2 = setup_p2(self.P2, X, _stype, X.dtype, self.alpha, self.l1_ratio)
 
-        lower_bounds = _check_bounds(self.lower_bounds, X.shape[1])
-        upper_bounds = _check_bounds(self.upper_bounds, X.shape[1])
+        lower_bounds = check_bounds(self.lower_bounds, X.shape[1])
+        upper_bounds = check_bounds(self.upper_bounds, X.shape[1])
 
         if (lower_bounds is not None) and (upper_bounds is not None):
             if np.any(lower_bounds > upper_bounds):
