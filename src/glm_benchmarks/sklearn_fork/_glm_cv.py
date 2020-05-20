@@ -10,6 +10,7 @@ from ._distribution import ExponentialDispersionModel, TweedieDistribution
 from ._glm import (
     GeneralizedLinearRegressorBase,
     _unstandardize,
+    check_bounds,
     get_family,
     get_link,
     initialize_start_params,
@@ -80,8 +81,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
 
     warm_start : boolean, optional (default=False)
 
-    start_params : {'guess', 'zero', array of shape (n_features*, )}, \
-            optional (default='guess')
+    start_params : array of shape (n_features*,), optional (default=None)
 
     selection : str, optional (default='cyclic')
     random_state : {int, RandomState instance, None}, optional (default=None)
@@ -89,6 +89,13 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
     copy_X : boolean, optional, (default=True)
     check_input : boolean, optional (default=True)
     verbose : int, optional (default=0)
+
+    lower_bounds : np.ndarray, shape=(n_features), optional (default=None)
+        Set a lower bound for the coefficients. Setting bounds forces the use
+        of the coordinate descent solver (irls-cd).
+
+    upper_bounds : np.ndarray, shape=(n_features), optional (default=None)
+        See lower_bounds.
 
     cv : int, cross-validation generator or an iterable, optional
         Determines the cross-validation splitting strategy.
@@ -165,6 +172,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         check_input: bool = True,
         verbose=0,
         scale_predictors: bool = False,
+        lower_bounds: Optional[np.ndarray] = None,
+        upper_bounds: Optional[np.ndarray] = None,
         cv=None,
         n_jobs: Optional[int] = None,
     ):
@@ -174,26 +183,28 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         self.cv = cv
         self.n_jobs = n_jobs
         super().__init__(
-            l1_ratio,
-            P1,
-            P2,
-            fit_intercept,
-            family,
-            link,
-            fit_dispersion,
-            solver,
-            max_iter,
-            gradient_tol,
-            step_size_tol,
-            warm_start,
-            start_params,
-            selection,
-            random_state,
-            diag_fisher,
-            copy_X,
-            check_input,
-            verbose,
-            scale_predictors,
+            l1_ratio=l1_ratio,
+            P1=P1,
+            P2=P2,
+            fit_intercept=fit_intercept,
+            family=family,
+            link=link,
+            fit_dispersion=fit_dispersion,
+            solver=solver,
+            max_iter=max_iter,
+            gradient_tol=gradient_tol,
+            step_size_tol=step_size_tol,
+            warm_start=warm_start,
+            start_params=start_params,
+            selection=selection,
+            random_state=random_state,
+            diag_fisher=diag_fisher,
+            copy_X=copy_X,
+            check_input=check_input,
+            verbose=verbose,
+            scale_predictors=scale_predictors,
+            lower_bounds=lower_bounds,
+            upper_bounds=upper_bounds,
         )
 
     def _validate_hyperparameters(self) -> None:
@@ -303,6 +314,9 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         else:
             self.alphas_ = np.asarray(alphas)
 
+        lower_bounds = check_bounds(self.lower_bounds, X.shape[1])
+        upper_bounds = check_bounds(self.upper_bounds, X.shape[1])
+
         cv = check_cv(self.cv)
 
         self.deviance_path_ = np.full(
@@ -408,7 +422,15 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
                     # use standardize_warm_start?
                     # TODO: write simpler tests against sklearn ridge
                     coef = self.solve(
-                        x_train, y_train, w_train, P2, P1, coef, offset_train
+                        X=x_train,
+                        y=y_train,
+                        weights=w_train,
+                        P2=P2,
+                        P1=P1,
+                        coef=coef,
+                        offset=offset_train,
+                        lower_bounds=lower_bounds,
+                        upper_bounds=upper_bounds,
                     )
 
                     if self._center_predictors:
@@ -453,7 +475,17 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         coef = self.get_start_coef(
             start_params, X, y, weights, offset, col_means, col_stds
         )
-        coef = self.solve(X, y, weights, P2, P1, coef, offset)
+        coef = self.solve(
+            X=X,
+            y=y,
+            weights=weights,
+            P2=P2,
+            P1=P1,
+            coef=coef,
+            offset=offset,
+            lower_bounds=lower_bounds,
+            upper_bounds=upper_bounds,
+        )
 
         if self.fit_intercept:
             self.intercept_ = coef[0]
