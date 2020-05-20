@@ -81,7 +81,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
 
     warm_start : boolean, optional (default=False)
 
-    start_params : array of shape (n_features*,), optional (default='guess')
+    start_params : array of shape (n_features*,), optional (default=None)
 
     selection : str, optional (default='cyclic')
     random_state : {int, RandomState instance, None}, optional (default=None)
