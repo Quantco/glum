@@ -30,9 +30,7 @@ class SplitMatrix(MatrixBase):
         self.X_dense_F = DenseGLMDataMatrix(
             np.asfortranarray(X.toarray()[:, self.dense_indices])
         )
-        self.X_sparse = MKLSparseMatrix(
-            sps.csc_matrix(X.toarray()[:, self.sparse_indices])
-        )
+        self.X_sparse = MKLSparseMatrix(X[:, self.sparse_indices])
 
     def toarray(self) -> np.ndarray:
         columns = []
@@ -70,7 +68,6 @@ class SplitMatrix(MatrixBase):
                 DS = self.X_sparse.sandwich_dense(self.X_dense_F, d)
                 out[np.ix_(self.sparse_indices, self.dense_indices)] = DS
                 out[np.ix_(self.dense_indices, self.sparse_indices)] = DS.T
-
         return out
 
     def standardize(

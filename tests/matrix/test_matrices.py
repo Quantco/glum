@@ -3,7 +3,7 @@ import pytest
 from scipy import sparse as sps
 
 import glm_benchmarks.matrix as mx
-from glm_benchmarks.sandwich.sandwich import csr_dense_sandwich
+from glm_benchmarks.matrix.sandwich.sandwich import csr_dense_sandwich
 
 
 def base_array() -> np.ndarray:

@@ -4,7 +4,7 @@ import numpy as np
 from scipy import sparse as sps
 from sparse_dot_mkl import dot_product_mkl
 
-from glm_benchmarks.sandwich.sandwich import csr_dense_sandwich, sparse_sandwich
+from glm_benchmarks.matrix.sandwich.sandwich import csr_dense_sandwich, sparse_sandwich
 
 from .matrix_base import MatrixBase
 
