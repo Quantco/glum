@@ -1184,7 +1184,7 @@ def test_standardize(use_sparse, scale_predictors):
     "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV],
 )
 def test_check_estimator(estimator):
-    check_estimator(estimator)
+    check_estimator(estimator())
 
 
 @pytest.mark.parametrize(
