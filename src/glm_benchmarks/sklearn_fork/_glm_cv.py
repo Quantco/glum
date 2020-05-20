@@ -85,7 +85,6 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
 
     selection : str, optional (default='cyclic')
     random_state : {int, RandomState instance, None}, optional (default=None)
-    diag_fisher : boolean, optional, (default=False)
     copy_X : boolean, optional, (default=True)
     check_input : boolean, optional (default=True)
     verbose : int, optional (default=0)
@@ -160,7 +159,6 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         start_params: Optional[np.ndarray] = None,
         selection: str = "cyclic",
         random_state=None,
-        diag_fisher: bool = False,
         copy_X: bool = True,
         check_input: bool = True,
         verbose=0,
@@ -189,7 +187,6 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             start_params,
             selection,
             random_state,
-            diag_fisher,
             copy_X,
             check_input,
             verbose,
