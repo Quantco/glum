@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 
 from glm_benchmarks.bench_admm import admm_bench
+from glm_benchmarks.bench_orig_sklearn_fork import orig_sklearn_fork_bench
 from glm_benchmarks.bench_sklearn_fork import sklearn_fork_bench
 from glm_benchmarks.problems import Problem, get_all_problems
 from glm_benchmarks.util import (
@@ -269,6 +270,7 @@ def identify_parameter_fnames(
 def get_all_libraries() -> Dict[str, Any]:
     all_libraries = {
         "sklearn-fork": sklearn_fork_bench,
+        "orig-sklearn-fork": orig_sklearn_fork_bench,
         "zeros": zeros_bench,
         "admm": admm_bench,
     }
