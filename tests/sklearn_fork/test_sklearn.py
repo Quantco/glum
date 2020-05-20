@@ -40,6 +40,11 @@ from glm_benchmarks.sklearn_fork._glm import (
 
 GLM_SOLVERS = ["irls-ls", "lbfgs", "irls-cd"]
 
+estimators = [
+    (GeneralizedLinearRegressor, {}),
+    (GeneralizedLinearRegressorCV, {"n_alphas": 2}),
+]
+
 
 def get_small_x_y(
     estimator: Union[GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
@@ -194,15 +199,13 @@ def test_fisher_matrix(family, link):
     assert_allclose(oim, fisher)
 
 
-@pytest.mark.parametrize(
-    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
-)
-def test_sample_weights_validation(estimator):
+@pytest.mark.parametrize("estimator, kwargs", estimators)
+def test_sample_weights_validation(estimator, kwargs):
     """Test the raised errors in the validation of sample_weight."""
     # scalar value but not positive
     X, y = get_small_x_y(estimator)
     weights = 0
-    glm = estimator(fit_intercept=False)
+    glm = estimator(fit_intercept=False, **kwargs)
     with pytest.raises(ValueError, match="weights must be non-negative"):
         glm.fit(X, y, weights)
 
@@ -232,12 +235,10 @@ def test_sample_weights_validation(estimator):
         glm.fit(X, y, weights)
 
 
-@pytest.mark.parametrize(
-    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
-)
-def test_offset_validation(estimator):
+@pytest.mark.parametrize("estimator, kwargs", estimators)
+def test_offset_validation(estimator, kwargs):
     X, y = get_small_x_y(estimator)
-    glm = estimator(fit_intercept=False)
+    glm = estimator(fit_intercept=False, **kwargs)
 
     # Negatives are accepted (makes sense for log link)
     glm.fit(X, y, offset=-1)
@@ -273,9 +274,7 @@ def test_tol_validation_errors(estimator):
         glm.fit(X, y)
 
 
-@pytest.mark.parametrize(
-    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
-)
+@pytest.mark.parametrize("estimator, kwargs", estimators)
 @pytest.mark.parametrize(
     "tol_kws",
     [
@@ -287,9 +286,9 @@ def test_tol_validation_errors(estimator):
         {"gradient_tol": 1, "step_size_tol": 1},
     ],
 )
-def test_tol_validation_no_error(estimator, tol_kws):
+def test_tol_validation_no_error(estimator, kwargs, tol_kws):
     X, y = get_small_x_y(estimator)
-    glm = estimator(**tol_kws)
+    glm = estimator(**tol_kws, **kwargs)
     glm.fit(X, y)
 
 
@@ -320,13 +319,11 @@ def test_glm_family_argument_invalid_input(estimator):
         glm.fit(X, y)
 
 
-@pytest.mark.parametrize(
-    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
-)
+@pytest.mark.parametrize("estimator, kwargs", estimators)
 @pytest.mark.parametrize("family", ExponentialDispersionModel.__subclasses__())
-def test_glm_family_argument_as_exponential_dispersion_model(estimator, family):
+def test_glm_family_argument_as_exponential_dispersion_model(estimator, kwargs, family):
     X, y = get_small_x_y(estimator)
-    glm = estimator(family=family())
+    glm = estimator(family=family(), **kwargs)
     glm.fit(X, y)
 
 
@@ -1077,21 +1074,19 @@ def test_solver_equivalence_cv(params, use_offset):
     )
 
 
-@pytest.mark.parametrize(
-    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
-)
-def test_fit_dispersion(estimator, regression_data):
+@pytest.mark.parametrize("estimator, kwargs", estimators)
+def test_fit_dispersion(estimator, kwargs, regression_data):
     X, y = regression_data
 
-    est1 = estimator(random_state=2)
+    est1 = estimator(random_state=2, **kwargs)
     est1.fit(X, y)
     assert not hasattr(est1, "dispersion_")
 
-    est2 = estimator(random_state=2, fit_dispersion="chisqr")
+    est2 = estimator(random_state=2, fit_dispersion="chisqr", **kwargs)
     est2.fit(X, y)
     assert isinstance(est2.dispersion_, float)
 
-    est3 = estimator(random_state=2, fit_dispersion="deviance")
+    est3 = estimator(random_state=2, fit_dispersion="deviance", **kwargs)
     est3.fit(X, y)
     assert isinstance(est3.dispersion_, float)
 
@@ -1180,11 +1175,9 @@ def test_standardize(use_sparse, scale_predictors):
         np.testing.assert_almost_equal(MC, X2)
 
 
-@pytest.mark.parametrize(
-    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV],
-)
-def test_check_estimator(estimator):
-    check_estimator(estimator)
+@pytest.mark.parametrize("estimator, kwargs", estimators)
+def test_check_estimator(estimator, kwargs):
+    check_estimator(estimator(**kwargs))
 
 
 @pytest.mark.parametrize(
