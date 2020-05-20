@@ -1,5 +1,9 @@
-# Project-specific folder
+# Project-specific
 benchmark_output/
+
+# Files created by templating
+dense.cpp
+sandwich.cpp
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
