@@ -38,6 +38,7 @@ Generalized Linear Models with Exponential Dispersion Family
 
 from __future__ import division
 
+import warnings
 from typing import Any, Iterable, Optional, Tuple, Union
 
 import numpy as np
@@ -125,6 +126,25 @@ def _check_offset(
         elif offset.shape[0] != n_rows:
             raise ValueError("offset must have the same length as y.")
     return np.full(n_rows, offset)
+
+
+def check_bounds(
+    bounds: Union[Iterable, float, np.ndarray, None], n_features: int,
+) -> Union[None, np.ndarray]:
+    """Check that the bounds have the right shape."""
+    if bounds is None:
+        return None
+    if np.isscalar(bounds):
+        bounds = np.full(n_features, bounds)
+    else:  # assume it's an array
+        bounds = check_array(
+            bounds, accept_sparse=False, force_all_finite=True, ensure_2d=False,
+        )
+        if bounds.ndim > 1:
+            raise ValueError("Bounds must be 1D array or scalar.")
+        if bounds.shape[0] != n_features:
+            raise ValueError("Bounds must be the same length as X.shape[1].")
+    return bounds
 
 
 def _unstandardize(
@@ -397,6 +417,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         check_input=True,
         verbose=0,
         scale_predictors=False,
+        lower_bounds: Optional[np.ndarray] = None,
+        upper_bounds: Optional[np.ndarray] = None,
     ):
         self.l1_ratio = l1_ratio
         self.P1 = P1
@@ -418,6 +440,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self.check_input = check_input
         self.verbose = verbose
         self.scale_predictors = scale_predictors
+        self.lower_bounds = lower_bounds
+        self.upper_bounds = upper_bounds
 
     def get_start_coef(
         self, start_params, X, y, weights, offset, col_means, col_stds
@@ -443,6 +467,25 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             coef = start_params
             if self._center_predictors:
                 _standardize_warm_start(coef, col_means, col_stds)
+
+        # If starting values are outside the specified bounds (if set),
+        # bring the starting value exactly at the bound.
+        idx = 1 if self.fit_intercept else 0
+        if self.lower_bounds is not None:
+            if np.any(coef[idx:] < self.lower_bounds):
+                warnings.warn(
+                    "lower_bounds above starting value. Setting the starting values "
+                    "to max(start_params, lower_bounds)."
+                )
+                coef[idx:] = np.maximum(coef[idx:], self.lower_bounds)
+        if self.upper_bounds is not None:
+            if np.any(coef[idx:] > self.upper_bounds):
+                warnings.warn(
+                    "upper_bounds below starting value. Setting the starting values "
+                    "to min(start_params, upper_bounds)."
+                )
+                coef[idx:] = np.minimum(coef[idx:], self.upper_bounds)
+
         return coef
 
     def set_up_for_fit(self, y) -> None:
@@ -464,7 +507,11 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self._center_predictors: bool = self.fit_intercept
 
         if self.solver == "auto":
-            if self.l1_ratio == 0:
+            if (
+                (self.l1_ratio == 0)
+                and (self.lower_bounds is None)
+                and (self.upper_bounds is None)
+            ):
                 self._solver = "irls-ls"
             else:
                 self._solver = "irls-cd"
@@ -512,6 +559,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         P1: np.ndarray,
         coef: np.ndarray,
         offset: Optional[np.ndarray],
+        lower_bounds: Optional[np.ndarray],
+        upper_bounds: Optional[np.ndarray],
     ) -> np.ndarray:
         """
         Must be run after running set_up_for_fit and before running tear_down_from_fit.
@@ -531,7 +580,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         # Note: we already symmetrized P2 = 1/2 (P2 + P2')
         if self._solver == "irls-ls":
             coef, self.n_iter_, self._n_cycles, self.diagnostics_ = _irls_solver(
-                _least_squares_solver,
+                inner_solver=_least_squares_solver,
                 coef=coef,
                 X=X,
                 y=y,
@@ -553,7 +602,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         elif self._solver == "irls-cd":
             # TODO: simplify with parameters object?
             coef, self.n_iter_, self._n_cycles, self.diagnostics_ = _irls_solver(
-                _cd_solver,
+                inner_solver=_cd_solver,
                 coef=coef,
                 X=X,
                 y=y,
@@ -571,6 +620,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 random_state=self.random_state,
                 diag_fisher=self.diag_fisher,
                 offset=offset,
+                lower_bounds=lower_bounds,
+                upper_bounds=upper_bounds,
             )
         # 4.3 L-BFGS ##########################################################
         elif self._solver == "lbfgs":
@@ -597,19 +648,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
             with pd.option_context("max_rows", None):
                 print(
-                    pd.DataFrame(
-                        columns=[
-                            "convergence",
-                            "L1(coef)",
-                            "L2(coef)",
-                            "L2(step)",
-                            "n_iter",
-                            "n_cycles",
-                            "runtime",
-                            "intercept",
-                        ],
-                        data=self.diagnostics_,
-                    ).set_index("n_iter", drop=True)
+                    pd.DataFrame(data=self.diagnostics_).set_index("n_iter", drop=True)
                 )
         else:
             print("solver does not report diagnostics")
@@ -869,8 +908,14 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             raise ValueError(
                 "scale_predictors=True is not supported when fit_intercept=False"
             )
+        if ((self.lower_bounds is not None) or (self.upper_bounds is not None)) and (
+            self.solver not in ["irls-cd", "auto"]
+        ):
+            raise ValueError(
+                "Only the 'cd' solver is supported when bounds are set; "
+                "got {}".format(self.solver)
+            )
         if self.check_input:
-
             # check if P1 has only non-negative values, negative values might
             # indicate group lasso in the future.
             if not isinstance(self.P1, str):  # if self.P1 != 'identity':
@@ -1137,6 +1182,13 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     verbose : int, optional (default=0)
         For the lbfgs solver set verbose to any positive number for verbosity.
 
+    lower_bounds : np.ndarray, shape=(n_features), optional (default=None)
+        Set a lower bound for the coefficients. Setting bounds forces the use
+        of the coordinate descent solver (irls-cd).
+
+    upper_bounds : np.ndarray, shape=(n_features), optional (default=None)
+        See lower_bounds.
+
     Attributes
     ----------
     coef_ : array, shape (n_features,)
@@ -1211,31 +1263,35 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         check_input=True,
         verbose=0,
         scale_predictors=False,
+        lower_bounds: Optional[np.ndarray] = None,
+        upper_bounds: Optional[np.ndarray] = None,
         fit_args_reformat="safe",
     ):
         self.alpha = alpha
         self.fit_args_reformat = fit_args_reformat
         super().__init__(
-            l1_ratio,
-            P1,
-            P2,
-            fit_intercept,
-            family,
-            link,
-            fit_dispersion,
-            solver,
-            max_iter,
-            gradient_tol,
-            step_size_tol,
-            warm_start,
-            start_params,
-            selection,
-            random_state,
-            diag_fisher,
-            copy_X,
-            check_input,
-            verbose,
-            scale_predictors,
+            l1_ratio=l1_ratio,
+            P1=P1,
+            P2=P2,
+            fit_intercept=fit_intercept,
+            family=family,
+            link=link,
+            fit_dispersion=fit_dispersion,
+            solver=solver,
+            max_iter=max_iter,
+            gradient_tol=gradient_tol,
+            step_size_tol=step_size_tol,
+            warm_start=warm_start,
+            start_params=start_params,
+            selection=selection,
+            random_state=random_state,
+            diag_fisher=diag_fisher,
+            copy_X=copy_X,
+            check_input=check_input,
+            verbose=verbose,
+            scale_predictors=scale_predictors,
+            lower_bounds=lower_bounds,
+            upper_bounds=upper_bounds,
         )
 
     def _validate_hyperparameters(self) -> None:
@@ -1323,6 +1379,13 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         P1 = setup_p1(self.P1, X, X.dtype, self.alpha, self.l1_ratio)
         P2 = setup_p2(self.P2, X, _stype, X.dtype, self.alpha, self.l1_ratio)
 
+        lower_bounds = check_bounds(self.lower_bounds, X.shape[1])
+        upper_bounds = check_bounds(self.upper_bounds, X.shape[1])
+
+        if (lower_bounds is not None) and (upper_bounds is not None):
+            if np.any(lower_bounds > upper_bounds):
+                raise ValueError("Upper bounds must be higher than lower bounds.")
+
         start_params = initialize_start_params(
             self.start_params,
             n_cols=X.shape[1],
@@ -1366,7 +1429,17 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         #######################################################################
         # 4. fit                                                              #
         #######################################################################
-        coef = self.solve(X, y, weights, P2, P1, coef, offset)
+        coef = self.solve(
+            X=X,
+            y=y,
+            weights=weights,
+            P2=P2,
+            P1=P1,
+            coef=coef,
+            offset=offset,
+            lower_bounds=lower_bounds,
+            upper_bounds=upper_bounds,
+        )
 
         if self.fit_intercept:
             self.intercept_ = coef[0]
