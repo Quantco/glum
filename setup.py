@@ -14,7 +14,7 @@ with open(path.join(here, "README.md")) as f:
 
 # TODO: this should be moved inside the compilation of the extension
 print("templating C source")
-for fn in ["src/glm_benchmarks/sandwich/dense-tmpl.cpp"]:
+for fn in ["src/glm_benchmarks/matrix/sandwich/dense-tmpl.cpp"]:
     tmpl = mako.template.Template(filename=fn)
 
     buf = io.StringIO()
@@ -27,8 +27,8 @@ for fn in ["src/glm_benchmarks/sandwich/dense-tmpl.cpp"]:
 
 ext_modules = [
     Extension(
-        name="glm_benchmarks.sandwich.sandwich",
-        sources=["src/glm_benchmarks/sandwich/sandwich.pyx"],
+        name="glm_benchmarks.matrix.sandwich.sandwich",
+        sources=["src/glm_benchmarks/matrix/sandwich/sandwich.pyx"],
         include_dirs=[np.get_include()],
     ),
 ]

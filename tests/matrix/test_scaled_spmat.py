@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from scipy import sparse as sps
 
-from glm_benchmarks.scaled_spmat.scaled_spmat import ColScaledSpMat, RowScaledSpMat
+from glm_benchmarks.matrix.scaled_spmat import ColScaledSpMat, RowScaledSpMat
 
 
 def row_scaled_mat() -> RowScaledSpMat:
@@ -102,14 +102,6 @@ def test_col_scaled_mat_get_row():
     np.testing.assert_allclose(result, expected)
 
 
-def test_row_sccaled_mat_get_col():
-    scaled_mat = row_scaled_mat()
-    i = 1
-    result = scaled_mat.getcol(i)
-    expected = scaled_mat.A[:, i]
-    np.testing.assert_allclose(result, expected)
-
-
 @pytest.mark.parametrize("scaled_mat_builder", [col_scaled_mat, row_scaled_mat])
 def test_col_dot_dense_mat(scaled_mat_builder):
 
@@ -140,24 +132,6 @@ def test_power(scaled_mat_builder):
     assert isinstance(result, type(scaled_mat))
     assert result.shape == scaled_mat.shape
     np.testing.assert_almost_equal(result.A, scaled_mat.A ** p)
-
-
-def test_transpose_type_col(col_scaled_mat_fixture: ColScaledSpMat):
-    t = col_scaled_mat_fixture.T
-    assert isinstance(t, RowScaledSpMat)
-    assert t.shape == (col_scaled_mat_fixture.shape[1], col_scaled_mat_fixture.shape[0])
-
-
-def test_transpose_type_row(row_scaled_mat_fixture: RowScaledSpMat):
-    t = row_scaled_mat_fixture.T
-    assert isinstance(t, ColScaledSpMat)
-    assert t.shape == (row_scaled_mat_fixture.shape[1], row_scaled_mat_fixture.shape[0])
-
-
-@pytest.mark.parametrize("scaled_mat_builder", [col_scaled_mat, row_scaled_mat])
-def test_transpose_against_dense(scaled_mat_builder):
-    scaled_mat = scaled_mat_builder()
-    np.testing.assert_almost_equal(scaled_mat.T.A, scaled_mat.A.T)
 
 
 @pytest.mark.parametrize("scaled_mat_builder", [col_scaled_mat, row_scaled_mat])

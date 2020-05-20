@@ -47,7 +47,7 @@ from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.utils import check_array, check_X_y
 from sklearn.utils.validation import check_is_fitted, check_random_state
 
-from glm_benchmarks.scaled_spmat.mkl_sparse_matrix import MKLSparseMatrix
+from glm_benchmarks.matrix import DenseGLMDataMatrix, MKLSparseMatrix
 
 from ._distribution import (
     BinomialDistribution,
@@ -62,7 +62,6 @@ from ._distribution import (
 )
 from ._link import IdentityLink, Link, LogitLink, LogLink
 from ._solvers import _cd_solver, _irls_solver, _lbfgs_solver, _least_squares_solver
-from .dense_glm_matrix import DenseGLMDataMatrix
 
 _float_itemsize_to_dtype = {8: np.float64, 4: np.float32, 2: np.float16}
 
