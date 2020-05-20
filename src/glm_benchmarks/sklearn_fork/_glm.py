@@ -649,19 +649,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
             with pd.option_context("max_rows", None):
                 print(
-                    pd.DataFrame(
-                        columns=[
-                            "convergence",
-                            "L1(coef)",
-                            "L2(coef)",
-                            "L2(step)",
-                            "n_iter",
-                            "n_cycles",
-                            "runtime",
-                            "intercept",
-                        ],
-                        data=self.diagnostics_,
-                    ).set_index("n_iter", drop=True)
+                    pd.DataFrame(data=self.diagnostics_).set_index("n_iter", drop=True)
                 )
         else:
             print("solver does not report diagnostics")
