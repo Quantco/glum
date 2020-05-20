@@ -33,7 +33,7 @@ class ScaledMat(ABC):
                 )
 
         self.shift = shift
-        self.mat = mat
+        self.mat = MKLSparseMatrix(mat)
         self.shape = mat.shape
         self.ndim = mat.ndim
         self.dtype = mat.dtype
@@ -217,6 +217,8 @@ class ColScaledSpMat(ScaledMat, MatrixBase):
         """
         Performs a sandwich product: X.T @ diag(d) @ X
         """
+        if not hasattr(d, "dtype"):
+            d = np.asarray(d)
         if not self.mat.dtype == d.dtype:
             raise TypeError(
                 f"""self.mat and d need to be of same dtype, either
@@ -309,7 +311,7 @@ class RowScaledSpMat(ScaledMat):
         >>> x.getcol(1)
         array([ 0.,  2., -2.])
         """
-        return np.squeeze(self.mat.getcol(i).toarray()) + np.squeeze(self.shift)
+        return self.mat.getcol(i).toarray() + self.shift
 
     def getrow(self, i: int) -> ScaledMat:
         """
