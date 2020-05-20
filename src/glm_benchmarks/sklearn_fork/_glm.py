@@ -475,14 +475,14 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         if self.lower_bounds is not None:
             if np.any(coef[idx:] < self.lower_bounds):
                 warnings.warn(
-                    "lower_bounds above starting value. Setting the starting value "
+                    "lower_bounds above starting value. Setting the starting values "
                     "to max(start_params, lower_bounds)."
                 )
                 coef[idx:] = np.maximum(coef[idx:], self.lower_bounds)
         if self.upper_bounds is not None:
             if np.any(coef[idx:] > self.upper_bounds):
                 warnings.warn(
-                    "upper_bounds below starting value. Setting the starting guess "
+                    "upper_bounds below starting value. Setting the starting values "
                     "to min(start_params, upper_bounds)."
                 )
                 coef[idx:] = np.minimum(coef[idx:], self.upper_bounds)
