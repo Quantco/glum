@@ -39,16 +39,7 @@ matrices = [
 ]
 
 
-@pytest.mark.parametrize(
-    "mat",
-    [
-        dense_glm_data_matrix(),
-        split_matrix(),
-        mkl_sparse_matrix(),
-        col_scaled_sp_mat(),
-        row_scaled_sp_mat(),
-    ],
-)
+@pytest.mark.parametrize("mat", matrices)
 def test_get_col(mat):
     i = 1
     col = mat.getcol(i)
