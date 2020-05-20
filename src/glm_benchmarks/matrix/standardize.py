@@ -3,7 +3,7 @@ from typing import Tuple
 import numpy as np
 from scipy import sparse as sps
 
-from glm_benchmarks.scaled_spmat import ColScaledSpMat
+from .scaled_spmat import ColScaledSpMat
 
 
 def zero_center(

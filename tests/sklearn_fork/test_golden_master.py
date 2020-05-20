@@ -8,13 +8,11 @@ import pytest
 from git_root import git_root
 from scipy import sparse
 
-from glm_benchmarks.scaled_spmat.mkl_sparse_matrix import MKLSparseMatrix
-from glm_benchmarks.scaled_spmat.split_matrix import SplitMatrix
+from glm_benchmarks.matrix import DenseGLMDataMatrix, MKLSparseMatrix, SplitMatrix
 from glm_benchmarks.sklearn_fork._glm import (
     GeneralizedLinearRegressor,
     TweedieDistribution,
 )
-from glm_benchmarks.sklearn_fork.dense_glm_matrix import DenseGLMDataMatrix
 
 distributions_to_test = ["normal", "poisson", "gamma", "tweedie_p=1.5"]
 

@@ -4,10 +4,12 @@ import numpy as np
 from scipy import sparse as sps
 from sparse_dot_mkl import dot_product_mkl
 
-from glm_benchmarks.sandwich.sandwich import csr_dense_sandwich, sparse_sandwich
+from glm_benchmarks.matrix.sandwich.sandwich import csr_dense_sandwich, sparse_sandwich
+
+from .matrix_base import MatrixBase
 
 
-class MKLSparseMatrix(sps.csc_matrix):
+class MKLSparseMatrix(sps.csc_matrix, MatrixBase):
     """
     A scipy.sparse csc matrix subclass that will use MKL for sparse
     matrix-vector products and will use the fast sparse_sandwich function
@@ -25,10 +27,22 @@ class MKLSparseMatrix(sps.csc_matrix):
         if self.x_csr is None:
             self.x_csr = self.tocsr(copy=False)
 
-    def to_scipy_sparse(self, copy: bool) -> sps.csc_matrix:
-        return sps.csc_matrix(self, copy=copy)
+    def tocsc(self, shape=None, dtype=None, copy=False) -> sps.csc_matrix:
+        if shape is None:
+            shape = self.shape
+        if dtype is None:
+            dtype = self.dtype
+
+        return sps.csc_matrix(
+            (self.data, self.indices, self.indptr), shape, dtype, copy=copy
+        )
+
+    def to_scipy_sparse(self, shape=None, dtype=None, copy=False) -> sps.csc_matrix:
+        return self.tocsc(shape, dtype, copy)
 
     def sandwich(self, d: np.ndarray) -> np.ndarray:
+        if not hasattr(d, "dtype"):
+            d = np.asarray(d)
         if not self.dtype == d.dtype:
             raise TypeError(
                 f"""self and d need to be of same dtype, either np.float64
@@ -43,20 +57,28 @@ class MKLSparseMatrix(sps.csc_matrix):
         """
         sandwich product: self.T @ diag(d) @ B
         """
+        if not hasattr(d, "dtype"):
+            d = np.asarray(d)
+
         if self.dtype != d.dtype or B.dtype != d.dtype:
             raise TypeError(
                 f"""self, B and d all need to be of same dtype, either
                 np.float64 or np.float32. This matrix is of type {self.dtype},
                 B is of type {B.dtype}, while d is of type {d.dtype}."""
             )
+        if np.issubdtype(d.dtype, np.signedinteger):
+            d = d.astype(float)
+
         self._check_csr()
         return csr_dense_sandwich(self.x_csr, B, d)
 
     def dot(self, v):
+        if not isinstance(v, np.ndarray) and not sps.issparse(v):
+            v = np.asarray(v)
         if len(v.shape) == 1:
             return dot_product_mkl(self, v)
         if len(v.shape) == 2 and v.shape[1] == 1:
-            return dot_product_mkl(self, np.squeeze(v))[:, None]
+            return dot_product_mkl(self, v[:, 0])[:, None]
         return sps.csc_matrix.dot(self, v)
 
     def __rmatmul__(self, v):
@@ -69,7 +91,7 @@ class MKLSparseMatrix(sps.csc_matrix):
     __array_priority__ = 12
 
     def standardize(self, weights, scale_predictors) -> Tuple:
-        from glm_benchmarks.scaled_spmat.standardize import standardize, zero_center
+        from glm_benchmarks.matrix.standardize import standardize, zero_center
 
         if scale_predictors:
             return standardize(self, weights=weights)
