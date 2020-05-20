@@ -13,7 +13,7 @@ from sklearn.utils.validation import check_random_state
 
 from ._distribution import ExponentialDispersionModel
 from ._link import Link
-from ._util import _safe_lin_pred, _safe_toarray
+from ._util import _safe_lin_pred, _safe_sandwich_dot
 
 
 def _min_norm_sugrad(
@@ -66,9 +66,10 @@ def _min_norm_sugrad(
 def _least_squares_solver(
     d: np.ndarray,
     X,
+    y,
     coef: np.ndarray,
     score,
-    fisher,
+    fisher_W,
     P1,
     P2,
     n_cycles: int,
@@ -76,32 +77,30 @@ def _least_squares_solver(
     max_inner_iter,
     selection,
     random_state,
-    diag_fisher=False,
 ):
     S = score.copy()
     intercept = coef.size == X.shape[1] + 1
     idx = 1 if intercept else 0  # offset if coef[0] is intercept
 
-    coef_P2 = add_P2_fisher(fisher, P2, coef, idx, diag_fisher)
+    fisher = _safe_sandwich_dot(X, fisher_W, intercept)
+    coef_P2 = add_P2_fisher(fisher, P2, coef, idx)
 
     # TODO:
     S[idx:] -= coef_P2
 
     # TODO: In cases where we have lots of columns, we might want to avoid the
     # sandwich product and use something like iterative lsqr or lsmr.
-    # TODO: need to only pass X and W to _ls_solver and _cd_solver. Then, we
-    # can calculate fisher and score or use other solvers internal to the inner
-    # solver.
     d = linalg.solve(fisher, S, overwrite_a=True, overwrite_b=True, assume_a="pos")
-    return d, coef_P2, 1, inner_tol
+    return d, coef_P2, 1
 
 
 def _cd_solver(
     d: np.ndarray,
     X,
+    y,
     coef: np.ndarray,
     score,
-    fisher,
+    fisher_W,
     P1,
     P2,
     n_cycles: int,
@@ -109,166 +108,36 @@ def _cd_solver(
     max_inner_iter=50000,
     selection="cyclic",
     random_state=None,
-    diag_fisher=False,
 ):
-    """Compute inner loop of coordinate descent, i.e. cycles through features.
-
-    Minimization of 1-d subproblems::
-
-        min_z q(d+z*e_j) - q(d)
-        = min_z A_j z + 1/2 B_jj z^2 + ||P1_j (w_j+d_j+z)||_1
-
-    A = f'(w) + d*H(w) + (w+d)*P2
-    B = H+P2
-    Note: f'=-score and H=fisher are updated at the end of outer iteration.
-    """
-    # TODO: split into diag_fisher and non diag_fisher cases to make optimization easier
-    # TODO: Cython/C++?
-    # TODO: use sparsity (coefficient already 0 due to L1 penalty)
-    #       => active set of features for featurelist, see paper
-    #          of Improved GLMNET or Gap Safe Screening Rules
-    #          https://arxiv.org/abs/1611.05780
-    n_samples, n_features = X.shape
     intercept = coef.size == X.shape[1] + 1
     idx = 1 if intercept else 0  # offset if coef[0] is intercept
-    f_cont = fisher.flags["F_CONTIGUOUS"]
 
-    coef_P2 = add_P2_fisher(fisher, P2, coef, idx, diag_fisher)
+    fisher = _safe_sandwich_dot(X, fisher_W, intercept)
+    coef_P2 = add_P2_fisher(fisher, P2, coef, idx)
 
-    A = -score
-    A[idx:] += coef_P2
-    # A += d @ (H+P2) but so far d=0
-    # inner loop
-    for inner_iter in range(1, max_inner_iter + 1):
-        inner_iter += 1
-        n_cycles += 1
-        # cycle through features, update intercept separately at the end
-        # TODO: move a lot of this to outer loop
-        if selection == "random":
-            featurelist = random_state.permutation(n_features)
-        else:
-            featurelist = np.arange(n_features)
+    from ._cd_fast import enet_coordinate_descent_gram
 
-        # if selection is not random, only need to do this once
-        jdx_vec = featurelist + idx
-        if diag_fisher:
-            b_vec = fisher[jdx_vec]
-        else:
-            b_vec = np.diag(fisher)[jdx_vec]
-        b_less_than_zero_vec = b_vec <= 0
-        p1_is_zero_vec = P1[featurelist] == 0
+    random = selection == "random"
+    import ipdb
 
-        for num, j in enumerate(featurelist):
-            # minimize_z: a z + 1/2 b z^2 + c |d+z|
-            # a = A_j
-            # b = B_jj > 0
-            # c = |P1_j| = P1_j > 0, see 1.3
-            # d = w_j + d_j
-            # cf. https://arxiv.org/abs/0708.1485 Eqs. (3) - (4)
-            # with beta = z+d, beta_hat = d-a/b and gamma = c/b
-            # z = 1/b * S(bd-a,c) - d
-            # S(a,b) = sign(a) max(|a|-b, 0) soft thresholding
-            # jdx = j + idx  # index for arrays containing entries for intercept
-            jdx = jdx_vec[num]
-            a = A[jdx]
-            if diag_fisher:
-                # Note: fisher is ndarray of shape (n_samples,) => no idx
-                # Calculate Bj = B[j, :] = B[:, j] as it is needed later anyway
-                x_j = np.squeeze(np.array(X.getcol(j).toarray()))
-                Bj = np.zeros_like(A)
-                if intercept:
-                    Bj[0] = fisher @ x_j
-                Bj[idx:] = _safe_toarray((fisher * x_j) @ X).ravel()
-
-                if P2.ndim == 1:
-                    Bj[idx + j] += P2[j]
-                else:
-                    if sparse.issparse(P2):
-                        # slice columns as P2 is csc
-                        Bj[idx:] += P2[:, j].toarray().ravel()
-                    else:
-                        Bj[idx:] += P2[:, j]
-                b = Bj[jdx]
-            else:
-                b = b_vec[num]
-
-            # those ten lines are what it is all about
-            if b_less_than_zero_vec[num]:
-                z = 0
-            elif p1_is_zero_vec[num]:
-                z = -a / b
-            elif a + P1[j] < b * (coef[jdx] + d[jdx]):
-                z = -(a + P1[j]) / b
-            elif a - P1[j] > b * (coef[jdx] + d[jdx]):
-                z = -(a - P1[j]) / b
-            else:
-                z = -(coef[jdx] + d[jdx])
-
-            # update direction d
-            d[jdx] += z
-            # update A because d_j is now d_j+z
-            # A = f'(w) + d*H(w) + (w+d)*P2
-            # => A += (H+P2)*e_j z = B_j * z
-            # Note: B is symmetric B = B.transpose
-            if diag_fisher:
-                # Bj = B[:, j] calculated above, still valid
-                bj = Bj
-            # otherwise, B is symmetric, C- or F-contiguous, but never sparse
-            elif f_cont:
-                # slice columns like for sparse csc
-                bj = fisher[:, jdx]
-            else:  # B.flags['C_CONTIGUOUS'] might be true
-                # slice rows
-                bj = fisher[jdx, :]
-            A += bj * z
-            # end of cycle over features
-
-        # update intercept
-        if intercept:
-            if diag_fisher:
-                Bj = np.zeros_like(A)
-                Bj[0] = fisher.sum()
-                Bj[1:] = fisher @ X
-                b = Bj[0]
-            else:
-                b = fisher[0, 0]
-            z = 0 if b <= 0 else -A[0] / b
-            d[0] += z
-            if diag_fisher:
-                A += Bj * z
-            else:
-                if fisher.flags["F_CONTIGUOUS"]:
-                    A += fisher[:, 0] * z
-                else:
-                    A += fisher[0, :] * z
-        # end of complete cycle
-        # stopping criterion for inner loop
-        # sum_i(|minimum of norm of subgrad of q(d)_i|)
-        # subgrad q(d) = A + subgrad ||P1*(w+d)||_1
-        mn_subgrad = _min_norm_sugrad(coef=coef + d, grad=A, P2=None, P1=P1)
-        mn_subgrad = linalg.norm(mn_subgrad, ord=1)
-        if mn_subgrad <= inner_tol:
-            if inner_iter == 1:
-                inner_tol = inner_tol / 4.0
-            break
-        # end of inner loop
-    return d, coef_P2, n_cycles, inner_tol
+    ipdb.set_trace()
+    enet_coordinate_descent_gram(
+        d, P1[0], fisher, score, y, max_inner_iter, inner_tol, random_state, random, 0
+    )
+    return d, coef_P2, 1
 
 
-def add_P2_fisher(fisher, P2, coef, idx, diag_fisher):
+def add_P2_fisher(fisher, P2, coef, idx):
     if P2.ndim == 1:
         coef_P2 = coef[idx:] * P2
-        if not diag_fisher:
-            idiag = np.arange(start=idx, stop=fisher.shape[0])
-            # B[np.diag_indices_from(B)] += P2
-            fisher[(idiag, idiag)] += P2
+        idiag = np.arange(start=idx, stop=fisher.shape[0])
+        fisher[(idiag, idiag)] += P2
     else:
         coef_P2 = coef[idx:] @ P2
-        if not diag_fisher:
-            if sparse.issparse(P2):
-                fisher[idx:, idx:] += P2.toarray()
-            else:
-                fisher[idx:, idx:] += P2
+        if sparse.issparse(P2):
+            fisher[idx:, idx:] += P2.toarray()
+        else:
+            fisher[idx:, idx:] += P2
     return coef_P2
 
 
@@ -290,7 +159,6 @@ def _irls_solver(
     fixed_inner_tol: Optional[Tuple] = None,
     selection="cyclic",
     random_state=None,
-    diag_fisher=False,
     offset: np.ndarray = None,
 ) -> Tuple[np.ndarray, int, int, List[List]]:
     """Solve GLM with L1 and L2 penalty by coordinate descent algorithm.
@@ -371,12 +239,6 @@ def _irls_solver(
 
     random_state : {int, RandomState instance, None}, optional (default=None)
 
-    diag_fisher : boolean, optional (default=False)
-        ``False`` calculates full fisher matrix, ``True`` only diagonal matrix
-        s.t. fisher = X.T @ diag @ X. This saves storage but needs more
-        matrix-vector multiplications.
-
-
     Returns
     -------
     coef : ndarray, shape (c,)
@@ -414,19 +276,10 @@ def _irls_solver(
     # line search parameters
     (beta, sigma) = (0.5, 0.01)
     # some precalculations
-    # Note: For diag_fisher=False, fisher = X.T @ fisher @ X and fisher is a
-    #       1d array representing a diagonal matrix.
     iteration_start = time.time()
 
-    eta, mu, score, fisher = family._eta_mu_score_fisher(
-        coef=coef,
-        phi=1,
-        X=X,
-        y=y,
-        weights=weights,
-        link=link,
-        diag_fisher=diag_fisher,
-        offset=offset,
+    eta, mu, score, fisher_W = family._eta_mu_score_fisher(
+        coef=coef, phi=1, X=X, y=y, weights=weights, link=link, offset=offset,
     )
 
     # set up space for search direction d for inner loop
@@ -470,12 +323,13 @@ def _irls_solver(
         d.fill(0)
 
         # inner loop = _cd_cycle
-        d, coef_P2, n_cycles, inner_tol = inner_solver(
+        d, coef_P2, n_cycles = inner_solver(
             d,
             X,
+            y,
             coef,
             score,
-            fisher,
+            fisher_W,
             P1,
             P2,
             n_cycles,
@@ -483,7 +337,6 @@ def _irls_solver(
             max_inner_iter=max_inner_iter,
             selection=selection,
             random_state=random_state,
-            diag_fisher=diag_fisher,
         )
 
         # line search by sequence beta^k, k=0, 1, ..
@@ -554,14 +407,13 @@ def _irls_solver(
         mu = mu_wd
 
         # calculate eta, mu, score, Fisher matrix for next iteration
-        eta, mu, score, fisher = family._eta_mu_score_fisher(
+        eta, mu, score, fisher_W = family._eta_mu_score_fisher(
             coef=coef,
             phi=1,
             X=X,
             y=y,
             weights=weights,
             link=link,
-            diag_fisher=diag_fisher,
             eta=eta,
             mu=mu,
             offset=offset,

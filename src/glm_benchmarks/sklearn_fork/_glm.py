@@ -393,7 +393,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         start_params: Optional[np.ndarray] = None,
         selection="cyclic",
         random_state=None,
-        diag_fisher=False,
         copy_X=True,
         check_input=True,
         verbose=0,
@@ -414,7 +413,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self.start_params = start_params
         self.selection = selection
         self.random_state = random_state
-        self.diag_fisher = diag_fisher
         self.copy_X = copy_X
         self.check_input = check_input
         self.verbose = verbose
@@ -570,7 +568,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 fixed_inner_tol=fixed_inner_tol,
                 selection=self.selection,
                 random_state=self.random_state,
-                diag_fisher=self.diag_fisher,
                 offset=offset,
             )
         # 4.3 L-BFGS ##########################################################
@@ -852,11 +849,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 "The argument selection must be 'cyclic' or "
                 "'random'; got (selection={})".format(self.selection)
             )
-        if not isinstance(self.diag_fisher, bool):
-            raise ValueError(
-                "The argument diag_fisher must be bool;"
-                " got {}".format(self.diag_fisher)
-            )
         if not isinstance(self.copy_X, bool):
             raise ValueError(
                 "The argument copy_X must be bool;" " got {}".format(self.copy_X)
@@ -1117,16 +1109,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         RandomState instance used by `np.random`. Used when ``selection`` ==
         'random'.
 
-    diag_fisher : boolean, optional, (default=False)
-        Only relevant for solver 'irls-cd'
-        If ``False``, the full Fisher matrix (expected Hessian) is computed in
-        each outer iteration (Newton iteration). If ``True``, only a diagonal
-        matrix (stored as 1d array) is computed, such that
-        fisher = X.T @ diag @ X. This saves memory and matrix-matrix
-        multiplications, but needs more matrix-vector multiplications. If you
-        use large sparse X or if you have many features,
-        i.e. n_features >> n_samples, you might set this option to ``True``.
-
     copy_X : boolean, optional, (default=True)
         If ``True``, X will be copied; else, it may be overwritten.
 
@@ -1207,7 +1189,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         start_params: Optional[np.ndarray] = None,
         selection: str = "cyclic",
         random_state=None,
-        diag_fisher=False,
         copy_X=True,
         check_input=True,
         verbose=0,
@@ -1232,7 +1213,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             start_params,
             selection,
             random_state,
-            diag_fisher,
             copy_X,
             check_input,
             verbose,

@@ -7,7 +7,7 @@ import numpy as np
 from scipy import special
 
 from ._link import IdentityLink, Link, LogitLink, LogLink
-from ._util import _safe_lin_pred, _safe_sandwich_dot
+from ._util import _safe_lin_pred
 
 
 class ExponentialDispersionModel(metaclass=ABCMeta):
@@ -46,9 +46,6 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
     starting_mu
 
     _mu_deviance_derivative
-    _score
-    _fisher_matrix
-    _observed_information
     _eta_mu_score_fisher
 
     References
@@ -331,124 +328,6 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
             devp = temp @ X  # same as X.T @ temp
         return mu, devp
 
-    def _score(
-        self,
-        coef: np.ndarray,
-        phi,
-        X,
-        y: np.ndarray,
-        weights: np.ndarray,
-        link: Link,
-        offset: np.ndarray = None,
-    ) -> np.ndarray:
-        r"""Compute the score function.
-
-        The score function is the derivative of the
-        log-likelihood w.r.t. `coef` (:math:`w`).
-        It is given by
-
-        .. math:
-
-            \mathbf{score}(\boldsymbol{w})
-            = \frac{\partial loglike}{\partial\boldsymbol{w}}
-            = \mathbf{X}^T \mathbf{D}
-            \boldsymbol{\Sigma}^-1 (\mathbf{y} - \boldsymbol{\mu})\,,
-
-        with :math:`\mathbf{D}=\mathrm{diag}(h'(\eta_1),\ldots)` and
-        :math:`\boldsymbol{\Sigma}=\mathrm{diag}(\mathbf{V}[y_1],\ldots)`.
-        Note: The derivative of the deviance w.r.t. coef equals -2 * score.
-        """
-        lin_pred = _safe_lin_pred(X, coef, offset)
-        mu = link.inverse(lin_pred)
-        sigma_inv = 1 / self.variance(mu, phi=phi, weights=weights)
-        d = link.inverse_derivative(lin_pred)
-        temp = sigma_inv * d * (y - mu)
-        if coef.size == X.shape[1] + 1:
-            score = np.concatenate(([temp.sum()], temp @ X))
-        else:
-            score = temp @ X  # same as X.T @ temp
-        return score
-
-    def _fisher_matrix(
-        self,
-        coef: np.ndarray,
-        phi,
-        X,
-        weights: np.ndarray,
-        link: Link,
-        offset: np.ndarray = None,
-    ) -> np.ndarray:
-        r"""Compute the Fisher information matrix.
-
-        The Fisher information matrix, also known as expected information
-        matrix is given by
-
-        .. math:
-
-            \mathbf{F}(\boldsymbol{w}) =
-            \mathrm{E}\left[-\frac{\partial\mathbf{score}}{\partial
-            \boldsymbol{w}} \right]
-            = \mathrm{E}\left[
-            -\frac{\partial^2 loglike}{\partial\boldsymbol{w}
-            \partial\boldsymbol{w}^T}\right]
-            = \mathbf{X}^T W \mathbf{X} \,,
-
-        with :math:`\mathbf{W} = \mathbf{D}^2 \boldsymbol{\Sigma}^{-1}`,
-        see func:`_score`.
-        """
-        lin_pred = _safe_lin_pred(X, coef, offset)
-        mu = link.inverse(lin_pred)
-        sigma_inv = 1 / self.variance(mu, phi=phi, weights=weights)
-        d = link.inverse_derivative(lin_pred)
-        d2_sigma_inv = sigma_inv * d * d
-        intercept = coef.size == X.shape[1] + 1
-        fisher_matrix = _safe_sandwich_dot(X, d2_sigma_inv, intercept=intercept)
-        return fisher_matrix
-
-    def _observed_information(
-        self,
-        coef: np.ndarray,
-        phi,
-        X,
-        y: np.ndarray,
-        weights: np.ndarray,
-        link: Link,
-        offset: np.ndarray = None,
-    ):
-        r"""Compute the observed information matrix.
-
-        The observed information matrix, also known as the negative of
-        the Hessian matrix of the log-likelihood, is given by
-
-        .. math:
-
-            \mathbf{H}(\boldsymbol{w}) =
-            -\frac{\partial^2 loglike}{\partial\boldsymbol{w}
-            \partial\boldsymbol{w}^T}
-            = \mathbf{X}^T \left[
-            - \mathbf{D}' \mathbf{R}
-            + \mathbf{D}^2 \mathbf{V} \mathbf{R}
-            + \mathbf{D}^2
-            \right] \boldsymbol{\Sigma}^{-1} \mathbf{X} \,,
-
-        with :math:`\mathbf{R} = \mathrm{diag}(y_i - \mu_i)`,
-        :math:`\mathbf{V} = \mathrm{diag}\left(\frac{v'(\mu_i)}{
-        v(\mu_i)}
-        \right)`,
-        see :func:`score_` function and :func:`_fisher_matrix`.
-        """
-        lin_pred = _safe_lin_pred(X, coef, offset)
-        mu = link.inverse(lin_pred)
-        sigma_inv = 1 / self.variance(mu, phi=phi, weights=weights)
-        dp = link.inverse_derivative2(lin_pred)
-        d2 = link.inverse_derivative(lin_pred) ** 2
-        v = self.unit_variance_derivative(mu) / self.unit_variance(mu)
-        r = y - mu
-        temp = sigma_inv * (-dp * r + d2 * v * r + d2)
-        intercept = coef.size == X.shape[1] + 1
-        observed_information = _safe_sandwich_dot(X, temp, intercept=intercept)
-        return observed_information
-
     def _eta_mu_score_fisher(
         self,
         coef: np.ndarray,
@@ -508,12 +387,10 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         else:
             score = temp @ X
 
-        d2_sigma_inv = d1 * d1_sigma_inv
-        if diag_fisher:
-            fisher_matrix = d2_sigma_inv
-        else:
-            fisher_matrix = _safe_sandwich_dot(X, d2_sigma_inv, intercept=intercept)
-        return eta, mu, score, fisher_matrix
+        fisher_W = d1 * d1_sigma_inv
+        # To form the fisher matrix:
+        # fisher_matrix = _safe_sandwich_dot(X, fisher_W, intercept=intercept)
+        return eta, mu, score, fisher_W
 
 
 class TweedieDistribution(ExponentialDispersionModel):

@@ -1,8 +1,5 @@
-import io
 from os import path
 
-import mako.runtime
-import mako.template
 import numpy as np
 from Cython.Build import cythonize
 from setuptools import Extension, find_packages, setup
@@ -12,23 +9,15 @@ here = path.abspath(path.dirname(__file__))
 with open(path.join(here, "README.md")) as f:
     long_description = f.read()
 
-# TODO: this should be moved inside the compilation of the extension
-print("templating C source")
-for fn in ["src/glm_benchmarks/sandwich/dense-tmpl.cpp"]:
-    tmpl = mako.template.Template(filename=fn)
-
-    buf = io.StringIO()
-    ctx = mako.runtime.Context(buf)
-    rendered_src = tmpl.render_context(ctx)
-
-    out_fn = fn.split("-tmpl")[0] + ".cpp"
-    with open(out_fn, "w") as f:
-        f.write(buf.getvalue())
-
 ext_modules = [
     Extension(
         name="glm_benchmarks.sandwich.sandwich",
         sources=["src/glm_benchmarks/sandwich/sandwich.pyx"],
+        include_dirs=[np.get_include()],
+    ),
+    Extension(
+        name="glm_benchmarks.sklearn_fork._cd_fast",
+        sources=["src/glm_benchmarks/sklearn_fork/_cd_fast.pyx"],
         include_dirs=[np.get_include()],
     ),
 ]
