@@ -48,6 +48,14 @@ class MatrixBase(ABC):
     def toarray(self) -> np.ndarray:
         pass
 
+    @abstractmethod
+    def transpose(self):
+        pass
+
+    @property
+    def T(self):
+        return self.transpose()
+
     # Higher priority than numpy arrays, so behavior for funcs like "@" defaults to the
     # behavior of this class
     __array_priority__ = 11

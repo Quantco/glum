@@ -1126,7 +1126,17 @@ def test_standardize(use_sparse, scale_predictors):
 
     X, col_means, col_stds = M.standardize(np.ones(NR) / NR, scale_predictors)
     if use_sparse:
-        assert id(X.mat) == id(M)
+        assert (
+            X.mat.data.__array_interface__["data"] == M.data.__array_interface__["data"]
+        )
+        assert (
+            X.mat.indices.__array_interface__["data"]
+            == M.indices.__array_interface__["data"]
+        )
+        assert (
+            X.mat.indptr.__array_interface__["data"]
+            == M.indptr.__array_interface__["data"]
+        )
     else:
         # Check that the underlying data pointer is the same
         assert X.__array_interface__["data"] == M.__array_interface__["data"]

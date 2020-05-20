@@ -41,6 +41,8 @@ class MKLSparseMatrix(sps.csc_matrix, MatrixBase):
         return self.tocsc(shape, dtype, copy)
 
     def sandwich(self, d: np.ndarray) -> np.ndarray:
+        if not hasattr(d, "dtype"):
+            d = np.asarray(d)
         if not self.dtype == d.dtype:
             raise TypeError(
                 f"""self and d need to be of same dtype, either np.float64
@@ -55,12 +57,18 @@ class MKLSparseMatrix(sps.csc_matrix, MatrixBase):
         """
         sandwich product: self.T @ diag(d) @ B
         """
+        if not hasattr(d, "dtype"):
+            d = np.asarray(d)
+
         if self.dtype != d.dtype or B.dtype != d.dtype:
             raise TypeError(
                 f"""self, B and d all need to be of same dtype, either
                 np.float64 or np.float32. This matrix is of type {self.dtype},
                 B is of type {B.dtype}, while d is of type {d.dtype}."""
             )
+        if np.issubdtype(d.dtype, np.signedinteger):
+            d = d.astype(float)
+
         self._check_csr()
         return csr_dense_sandwich(self.x_csr, B, d)
 
@@ -70,7 +78,7 @@ class MKLSparseMatrix(sps.csc_matrix, MatrixBase):
         if len(v.shape) == 1:
             return dot_product_mkl(self, v)
         if len(v.shape) == 2 and v.shape[1] == 1:
-            return dot_product_mkl(self, np.squeeze(v))[:, None]
+            return dot_product_mkl(self, v[:, 0])[:, None]
         return sps.csc_matrix.dot(self, v)
 
     def __rmatmul__(self, v):

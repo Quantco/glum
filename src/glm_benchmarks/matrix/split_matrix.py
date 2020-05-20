@@ -124,4 +124,7 @@ class SplitMatrix(MatrixBase):
         out[..., self.sparse_indices] = sparse_component
         return out
 
+    def transpose(self):
+        raise NotImplementedError("Oops, this library is not finished.")
+
     __array_priority__ = 13
