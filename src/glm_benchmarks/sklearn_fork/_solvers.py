@@ -18,10 +18,7 @@ from ._util import _safe_lin_pred, _safe_sandwich_dot
 
 
 def _least_squares_solver(
-    d: np.ndarray,
     X,
-    weights,
-    y,
     coef: np.ndarray,
     score,
     fisher_W,
@@ -29,14 +26,11 @@ def _least_squares_solver(
     P2,
     inner_tol: float,
     max_inner_iter,
-    selection,
-    random_state,
+    *args,
+    **kwargs,
 ):
     intercept = coef.size == X.shape[1] + 1
-    idx = 1 if intercept else 0  # offset if coef[0] is intercept
-
-    fisher = _safe_sandwich_dot(X, fisher_W, intercept)
-    add_P2_fisher(fisher, P2, coef, idx)
+    fisher = build_fisher(X, fisher_W, intercept, P2)
 
     # TODO: In cases where we have lots of columns, we might want to avoid the
     # sandwich product and use something like iterative lsqr or lsmr.
@@ -45,10 +39,7 @@ def _least_squares_solver(
 
 
 def _cd_solver(
-    d: np.ndarray,
     X,
-    weights,
-    y,
     coef: np.ndarray,
     score,
     fisher_W,
@@ -60,30 +51,24 @@ def _cd_solver(
     random_state=None,
 ):
     intercept = coef.size == X.shape[1] + 1
-    idx = 1 if intercept else 0  # offset if coef[0] is intercept
-
-    fisher = _safe_sandwich_dot(X, fisher_W, intercept)
-    add_P2_fisher(fisher, P2, coef, idx)
-
-    rhs = -score
-
-    random = selection == "random"
-    new_coef = coef.copy()
+    fisher = build_fisher(X, fisher_W, intercept, P2)
     new_coef, gap, _, n_cycles = enet_coordinate_descent_gram(
-        new_coef,
+        coef.copy(),
         P1,
         fisher,
-        rhs,
+        -score,
         max_inner_iter,
         inner_tol,
         random_state,
         intercept,
-        random,
+        selection == "random",
     )
     return new_coef - coef, n_cycles
 
 
-def add_P2_fisher(fisher, P2, coef, idx):
+def build_fisher(X, fisher_W, intercept, P2):
+    idx = 1 if intercept else 0
+    fisher = _safe_sandwich_dot(X, fisher_W, intercept)
     if P2.ndim == 1:
         idiag = np.arange(start=idx, stop=fisher.shape[0])
         fisher[(idiag, idiag)] += P2
@@ -92,6 +77,7 @@ def add_P2_fisher(fisher, P2, coef, idx):
             fisher[idx:, idx:] += P2.toarray()
         else:
             fisher[idx:, idx:] += P2
+    return fisher
 
 
 def make_coef_P2(coef, P2, idx):
@@ -288,10 +274,7 @@ def _irls_solver(
 
         # inner loop = _cd_cycle
         d, n_cycles_this_iter = inner_solver(
-            d,
             X,
-            weights,
-            y,
             coef,
             score,
             fisher_W,
