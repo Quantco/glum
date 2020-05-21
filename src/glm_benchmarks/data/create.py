@@ -332,7 +332,8 @@ def compute_y_exposure(df, distribution):
         y = df["HasClaim"].values
     else:
         raise ValueError(
-            f"distribution must be one of ['poisson', 'gamma', 'tweedie', 'gaussian'] not {distribution}."
+            "distribution must be one of ['poisson', 'gamma', 'tweedie', 'gaussian', 'binomial'] "
+            f"not {distribution}."
         )
 
     return y, exposure
