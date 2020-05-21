@@ -11,10 +11,10 @@ from sklearn.exceptions import ConvergenceWarning
 from sklearn.utils import check_array
 from sklearn.utils.validation import check_random_state
 
-from ._cd_fast import enet_coordinate_descent_gram
+from ._cd_fast import _norm_min_subgrad, enet_coordinate_descent_gram
 from ._distribution import ExponentialDispersionModel
 from ._link import Link
-from ._util import _min_norm_subgrad, _safe_lin_pred, _safe_sandwich_dot
+from ._util import _safe_lin_pred, _safe_sandwich_dot
 
 
 def _least_squares_solver(
@@ -100,6 +100,17 @@ def add_P2_fisher(fisher, P2, coef, idx):
         else:
             fisher[idx:, idx:] += P2
     return coef_P2
+
+
+def make_coef_P2(coef, P2, idx):
+    out = np.empty_like(coef)
+    if idx == 1:
+        out[0] = 0
+    if P2.ndim == 1:
+        out[idx:] = coef[idx:] * P2
+    else:
+        out[idx:] = coef[idx:] @ P2
+    return out
 
 
 def _irls_solver(
@@ -242,15 +253,14 @@ def _irls_solver(
     eta, mu, score, fisher_W = family._eta_mu_score_fisher(
         coef=coef, phi=1, X=X, y=y, weights=weights, link=link, offset=offset,
     )
+    coef_P2 = make_coef_P2(coef, P2, idx)
 
     # set up space for search direction d for inner loop
     d = np.zeros_like(coef)
 
     # minimum subgradient norm
     def calc_mn_subgrad_norm():
-        return linalg.norm(
-            _min_norm_subgrad(coef=coef, grad=-score, P2=P2, P1=P1), ord=1
-        )
+        return _norm_min_subgrad(coef, -score + coef_P2, P1, idx)
 
     # the ratio of inner tolerance to the minimum subgradient norm
     # This wasn't explored in the newGLMNET paper linked above.
@@ -380,9 +390,10 @@ def _irls_solver(
             mu=mu,
             offset=offset,
         )
+        coef_P2 = make_coef_P2(coef, P2, idx)
 
         converged, mn_subgrad_norm = check_convergence(
-            step, coef, -score, P2, P1, gradient_tol, step_size_tol
+            step, coef, -score + coef_P2, P1, idx, gradient_tol, step_size_tol
         )
 
         iteration_runtime = time.time() - iteration_start
@@ -426,15 +437,13 @@ def check_convergence(
     step,
     coef,
     grad,
-    P2,
     P1,
+    idx,
     gradient_tol: Optional[float],
     step_size_tol: Optional[float],
 ):
     # minimum subgradient norm
-    mn_subgrad_norm = linalg.norm(
-        _min_norm_subgrad(coef=coef, grad=grad, P2=P2, P1=P1), ord=1
-    )
+    mn_subgrad_norm = _norm_min_subgrad(coef, grad, P1, idx)
     step_size = linalg.norm(step)
     converged = (gradient_tol is not None and mn_subgrad_norm < gradient_tol) or (
         step_size_tol is not None and step_size < step_size_tol
