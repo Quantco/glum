@@ -14,7 +14,7 @@ from glm_benchmarks.sklearn_fork._glm import (
     TweedieDistribution,
 )
 
-distributions_to_test = ["normal", "poisson", "gamma", "tweedie_p=1.5"]
+distributions_to_test = ["normal", "poisson", "gamma", "tweedie_p=1.5", "binomial"]
 
 
 def tweedie_rv(p, mu, sigma2=1):
@@ -62,6 +62,9 @@ def create_reg_data(
     elif "tweedie" in distribution:
         p = float(distribution.split("=")[1])
         y = tweedie_rv(p, np.exp(intercept + X @ coefs))
+    elif distribution == "binomial":
+        prob = 1 / (1 + np.exp(-intercept - X @ coefs))
+        y = rand.binomial(n=1, p=prob)
     else:
         raise ValueError(f"{distribution} not supported as distribution")
 
@@ -143,9 +146,7 @@ def fit_model(family, model_parameters, use_weights, data):
 
 
 @pytest.mark.parametrize(
-    "distribution",
-    ["normal", "poisson", "gamma", "tweedie_p=1.5"],
-    ids=["normal", "poisson", "gamma", "tweedie"],
+    "distribution", distributions_to_test, ids=distributions_to_test,
 )
 @pytest.mark.parametrize(
     ["run_name", "model_parameters"],
