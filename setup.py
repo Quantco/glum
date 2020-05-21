@@ -1,5 +1,8 @@
+import io
 from os import path
 
+import mako.runtime
+import mako.template
 import numpy as np
 from Cython.Build import cythonize
 from setuptools import Extension, find_packages, setup
@@ -8,6 +11,30 @@ here = path.abspath(path.dirname(__file__))
 
 with open(path.join(here, "README.md")) as f:
     long_description = f.read()
+
+# TODO: this should be moved inside the compilation of the extension
+print("templating C source")
+for fn in ["src/glm_benchmarks/sandwich/dense-tmpl.cpp"]:
+    tmpl = mako.template.Template(filename=fn)
+
+    buf = io.StringIO()
+    ctx = mako.runtime.Context(buf)
+    tmpl.render_context(ctx)
+    rendered_src = buf.getvalue()
+
+    out_fn = fn.split("-tmpl")[0] + ".cpp"
+
+    # When the templated source code hasn't changed, we don't want to write the
+    # file again because that'll touch the file and result in a rebuild
+    write = True
+    with open(out_fn, "r") as f:
+        out_fn_src = f.read()
+        if out_fn_src == rendered_src:
+            write = False
+
+    if write:
+        with open(out_fn, "w") as f:
+            f.write(rendered_src)
 
 ext_modules = [
     Extension(
