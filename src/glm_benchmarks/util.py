@@ -110,7 +110,7 @@ def get_obj_val(
         raise NotImplementedError
 
     penalty = _get_penalty(alpha, l1_ratio, coefs)
-    print(weights.sum())
+
     return minus_log_like_by_ob.dot(weights) + penalty
 
 
