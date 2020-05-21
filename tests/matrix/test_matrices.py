@@ -147,3 +147,26 @@ def test_transpose(mat: mx.MatrixBase):
     expected = mat.A.T
     assert res.shape == (mat.shape[1], mat.shape[0])
     np.testing.assert_allclose(res, expected)
+
+
+@pytest.mark.parametrize("matrix_shape", [(3,), (1, 3), (2, 3)])
+@pytest.mark.parametrize(
+    "mat",
+    [
+        dense_glm_data_matrix(),
+        col_scaled_sp_mat(),
+        split_matrix(),
+        mkl_sparse_matrix(),
+    ],
+)
+def test_r_matmul(mat, matrix_shape):
+    v = np.ones(matrix_shape)
+    result = v @ mat
+    expected = v @ mat.A
+    np.testing.assert_allclose(result, expected)
+
+
+@pytest.mark.parametrize("mat", matrices)
+def test_dot_raises(mat):
+    with pytest.raises(ValueError):
+        mat.dot(np.ones((10, 1)))
