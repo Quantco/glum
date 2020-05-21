@@ -11,74 +11,27 @@ from sklearn.exceptions import ConvergenceWarning
 from sklearn.utils import check_array
 from sklearn.utils.validation import check_random_state
 
+from ._cd_fast import enet_coordinate_descent_gram
 from ._distribution import ExponentialDispersionModel
 from ._link import Link
-from ._util import _safe_lin_pred, _safe_sandwich_dot
-
-
-def _min_norm_sugrad(
-    coef: np.ndarray, grad: np.ndarray, P2: np.ndarray, P1: np.ndarray
-) -> np.ndarray:
-    """Compute the gradient of all subgradients with minimal L2-norm.
-
-    subgrad = grad + P2 * coef + P1 * subgrad(|coef|_1)
-
-    g_i = grad_i + (P2*coef)_i
-
-    if coef_i > 0:   g_i + P1_i
-    if coef_i < 0:   g_i - P1_i
-    if coef_i = 0:   sign(g_i) * max(|g_i|-P1_i, 0)
-
-    Parameters
-    ----------
-    coef : ndarray
-        coef[0] may be intercept.
-
-    grad : ndarray, shape=coef.shape
-
-    P2 : {1d or 2d array, None}
-        always without intercept, ``None`` means P2 = 0
-
-    P1 : ndarray
-        always without intercept
-    """
-    intercept = coef.size == P1.size + 1
-    idx = 1 if intercept else 0  # offset if coef[0] is intercept
-    # compute grad + coef @ P2 without intercept
-    grad_wP2 = grad[idx:].copy()
-    if P2 is None:
-        pass
-    elif P2.ndim == 1:
-        grad_wP2 += coef[idx:] * P2
-    else:
-        grad_wP2 += coef[idx:] @ P2
-    res = np.where(
-        coef[idx:] == 0,
-        np.sign(grad_wP2) * np.maximum(np.abs(grad_wP2) - P1, 0),
-        grad_wP2 + np.sign(coef[idx:]) * P1,
-    )
-    if intercept:
-        return np.concatenate(([grad[0]], res))
-    else:
-        return res
+from ._util import _min_norm_subgrad, _safe_lin_pred, _safe_sandwich_dot
 
 
 def _least_squares_solver(
     d: np.ndarray,
     X,
+    weights,
     y,
     coef: np.ndarray,
     score,
     fisher_W,
     P1,
     P2,
-    n_cycles: int,
     inner_tol: float,
     max_inner_iter,
     selection,
     random_state,
 ):
-    S = score.copy()
     intercept = coef.size == X.shape[1] + 1
     idx = 1 if intercept else 0  # offset if coef[0] is intercept
 
@@ -86,6 +39,7 @@ def _least_squares_solver(
     coef_P2 = add_P2_fisher(fisher, P2, coef, idx)
 
     # TODO:
+    S = score.copy()
     S[idx:] -= coef_P2
 
     # TODO: In cases where we have lots of columns, we might want to avoid the
@@ -97,13 +51,13 @@ def _least_squares_solver(
 def _cd_solver(
     d: np.ndarray,
     X,
+    weights,
     y,
     coef: np.ndarray,
     score,
     fisher_W,
     P1,
     P2,
-    n_cycles: int,
     inner_tol: float,
     max_inner_iter=50000,
     selection="cyclic",
@@ -115,16 +69,23 @@ def _cd_solver(
     fisher = _safe_sandwich_dot(X, fisher_W, intercept)
     coef_P2 = add_P2_fisher(fisher, P2, coef, idx)
 
-    from ._cd_fast import enet_coordinate_descent_gram
+    rhs = -score
+    rhs[idx:] += coef_P2
 
     random = selection == "random"
-    import ipdb
-
-    ipdb.set_trace()
-    enet_coordinate_descent_gram(
-        d, P1[0], fisher, score, y, max_inner_iter, inner_tol, random_state, random, 0
+    new_coef = coef.copy()
+    new_coef, gap, _, n_cycles = enet_coordinate_descent_gram(
+        new_coef,
+        P1,
+        fisher,
+        rhs,
+        max_inner_iter,
+        inner_tol,
+        random_state,
+        intercept,
+        random,
     )
-    return d, coef_P2, 1
+    return new_coef - coef, coef_P2, n_cycles
 
 
 def add_P2_fisher(fisher, P2, coef, idx):
@@ -288,7 +249,7 @@ def _irls_solver(
     # minimum subgradient norm
     def calc_mn_subgrad_norm():
         return linalg.norm(
-            _min_norm_sugrad(coef=coef, grad=-score, P2=P2, P1=P1), ord=1
+            _min_norm_subgrad(coef=coef, grad=-score, P2=P2, P1=P1), ord=1
         )
 
     # the ratio of inner tolerance to the minimum subgradient norm
@@ -323,21 +284,22 @@ def _irls_solver(
         d.fill(0)
 
         # inner loop = _cd_cycle
-        d, coef_P2, n_cycles = inner_solver(
+        d, coef_P2, n_cycles_this_iter = inner_solver(
             d,
             X,
+            weights,
             y,
             coef,
             score,
             fisher_W,
             P1,
             P2,
-            n_cycles,
             inner_tol,
             max_inner_iter=max_inner_iter,
             selection=selection,
             random_state=random_state,
         )
+        n_cycles += n_cycles_this_iter
 
         # line search by sequence beta^k, k=0, 1, ..
         # F(w + lambda d) - F(w) <= lambda * bound
@@ -471,7 +433,7 @@ def check_convergence(
 ):
     # minimum subgradient norm
     mn_subgrad_norm = linalg.norm(
-        _min_norm_sugrad(coef=coef, grad=grad, P2=P2, P1=P1), ord=1
+        _min_norm_subgrad(coef=coef, grad=grad, P2=P2, P1=P1), ord=1
     )
     step_size = linalg.norm(step)
     converged = (gradient_tol is not None and mn_subgrad_norm < gradient_tol) or (
