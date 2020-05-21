@@ -27,7 +27,7 @@ class Problem:
     l1_ratio = attr.ib(type=float)
 
 
-# @joblib_memory.cache
+@joblib_memory.cache
 def load_data(
     loader_func: Callable[
         [Optional[int], Optional[float], Optional[str]],
