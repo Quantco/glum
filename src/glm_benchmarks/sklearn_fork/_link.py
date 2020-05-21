@@ -118,7 +118,11 @@ class LogitLink(Link):
         return 1.0 / (mu * (1 - mu))
 
     def inverse(self, lin_pred):
-        return special.expit(lin_pred)
+        """Note: since passing a very large value might result in an output
+        of 1, this function bounds the output to be between
+        [10^-20, 1 - 10^-10].
+        """
+        return np.maximum(np.minimum(special.expit(lin_pred), 1 - 1e-10), 1e-20)
 
     def inverse_derivative(self, lin_pred):
         ep = special.expit(lin_pred)
