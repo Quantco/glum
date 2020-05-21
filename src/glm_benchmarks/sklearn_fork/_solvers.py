@@ -2,7 +2,7 @@ from __future__ import division
 
 import time
 import warnings
-from typing import List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 from scipy import linalg, sparse
@@ -19,7 +19,12 @@ from ._util import _safe_lin_pred, _safe_toarray
 
 
 def _min_norm_sugrad(
-    coef: np.ndarray, grad: np.ndarray, P2: np.ndarray, P1: np.ndarray
+    coef: np.ndarray,
+    grad: np.ndarray,
+    P2: Optional[np.ndarray],
+    P1: np.ndarray,
+    lb: Optional[np.ndarray],
+    ub: Optional[np.ndarray],
 ) -> np.ndarray:
     """Compute the gradient of all subgradients with minimal L2-norm.
 
@@ -43,6 +48,14 @@ def _min_norm_sugrad(
 
     P1 : ndarray
         always without intercept
+
+    lb : {ndarray or None}
+        lower bounds. When a coefficient is located at the bound and
+        it's gradient suggest that it would be optimal to go beyond
+        the bound, we set the gradient of this feature to zero.
+
+    ub : {ndarray or None}
+        see lb.
     """
     intercept = coef.size == P1.size + 1
     idx = 1 if intercept else 0  # offset if coef[0] is intercept
@@ -54,15 +67,23 @@ def _min_norm_sugrad(
         grad_wP2 += coef[idx:] * P2
     else:
         grad_wP2 += coef[idx:] @ P2
-    res = np.where(
+
+    subgrad = np.where(
         coef[idx:] == 0,
         np.sign(grad_wP2) * np.maximum(np.abs(grad_wP2) - P1, 0),
         grad_wP2 + np.sign(coef[idx:]) * P1,
     )
+
+    # maybe use something else?
+    if lb is not None:
+        subgrad = np.where((coef[idx:] == lb) & (subgrad > 0), 0, subgrad)
+    if ub is not None:
+        subgrad = np.where((coef[idx:] == ub) & (subgrad < 0), 0, subgrad)
+
     if intercept:
-        return np.concatenate(([grad[0]], res))
+        return np.concatenate(([grad[0]], subgrad))
     else:
-        return res
+        return subgrad
 
 
 def _least_squares_solver(
@@ -79,7 +100,11 @@ def _least_squares_solver(
     selection,
     random_state,
     diag_fisher=False,
+    lower_bounds=None,
+    upper_bounds=None,
 ):
+    if (lower_bounds is not None) or (upper_bounds is not None):
+        raise ValueError("Bounds are not supported with the least square solver.")
     S = score.copy()
     intercept = coef.size == X.shape[1] + 1
     idx = 1 if intercept else 0  # offset if coef[0] is intercept
@@ -95,7 +120,7 @@ def _least_squares_solver(
     # can calculate fisher and score or use other solvers internal to the inner
     # solver.
     d = linalg.solve(fisher, S, overwrite_a=True, overwrite_b=True, assume_a="pos")
-    return d, coef_P2, 1, inner_tol
+    return d, coef_P2, n_cycles + 1, inner_tol
 
 
 def _cd_solver(
@@ -112,6 +137,8 @@ def _cd_solver(
     selection="cyclic",
     random_state=None,
     diag_fisher=False,
+    lower_bounds: Optional[np.ndarray] = None,
+    upper_bounds: Optional[np.ndarray] = None,
 ):
     """Compute inner loop of coordinate descent, i.e. cycles through features.
 
@@ -206,6 +233,14 @@ def _cd_solver(
             else:
                 z = -(coef[jdx] + d[jdx])
 
+            # bounds
+            if lower_bounds is not None:
+                if coef[jdx] + (d[jdx] + z) < lower_bounds[j]:
+                    z = lower_bounds[j] - coef[jdx] - d[jdx]
+            if upper_bounds is not None:
+                if coef[jdx] + (d[jdx] + z) > upper_bounds[j]:
+                    z = upper_bounds[j] - coef[jdx] - d[jdx]
+
             # update direction d
             d[jdx] += z
             # update A because d_j is now d_j+z
@@ -247,7 +282,9 @@ def _cd_solver(
         # stopping criterion for inner loop
         # sum_i(|minimum of norm of subgrad of q(d)_i|)
         # subgrad q(d) = A + subgrad ||P1*(w+d)||_1
-        mn_subgrad = _min_norm_sugrad(coef=coef + d, grad=A, P2=None, P1=P1)
+        mn_subgrad = _min_norm_sugrad(
+            coef=coef + d, grad=A, P2=None, P1=P1, lb=lower_bounds, ub=upper_bounds
+        )
         mn_subgrad = linalg.norm(mn_subgrad, ord=1)
         if mn_subgrad <= inner_tol:
             if inner_iter == 1:
@@ -294,7 +331,9 @@ def _irls_solver(
     random_state=None,
     diag_fisher=False,
     offset: np.ndarray = None,
-) -> Tuple[np.ndarray, int, int, List[List]]:
+    lower_bounds: Optional[np.ndarray] = None,
+    upper_bounds: Optional[np.ndarray] = None,
+) -> Tuple[np.ndarray, int, int, List[Dict]]:
     """Solve GLM with L1 and L2 penalty by coordinate descent algorithm.
 
     The objective being minimized in the coefficients w=coef is::
@@ -437,7 +476,10 @@ def _irls_solver(
     # minimum subgradient norm
     def calc_mn_subgrad_norm():
         return linalg.norm(
-            _min_norm_sugrad(coef=coef, grad=-score, P2=P2, P1=P1), ord=1
+            _min_norm_sugrad(
+                coef=coef, grad=-score, P2=P2, P1=P1, lb=lower_bounds, ub=upper_bounds
+            ),
+            ord=1,
         )
 
     # the ratio of inner tolerance to the minimum subgradient norm
@@ -471,7 +513,7 @@ def _irls_solver(
         # initialize search direction d (to be optimized) with zero
         d.fill(0)
 
-        # inner loop = _cd_cycle
+        # inner loop
         d, coef_P2, n_cycles, inner_tol = inner_solver(
             d,
             X,
@@ -486,6 +528,8 @@ def _irls_solver(
             selection=selection,
             random_state=random_state,
             diag_fisher=diag_fisher,
+            lower_bounds=lower_bounds,
+            upper_bounds=upper_bounds,
         )
 
         # line search by sequence beta^k, k=0, 1, ..
@@ -570,7 +614,15 @@ def _irls_solver(
         )
 
         converged, mn_subgrad_norm = check_convergence(
-            step, coef, -score, P2, P1, gradient_tol, step_size_tol
+            step,
+            coef,
+            -score,
+            P2,
+            P1,
+            gradient_tol,
+            step_size_tol,
+            lb=lower_bounds,
+            ub=upper_bounds,
         )
 
         iteration_runtime = time.time() - iteration_start
@@ -578,16 +630,16 @@ def _irls_solver(
         coef_l2 = np.linalg.norm(coef)
         step_l2 = np.linalg.norm(d)
         diagnostics.append(
-            [
-                mn_subgrad_norm,
-                coef_l1,
-                coef_l2,
-                step_l2,
-                n_iter,
-                n_cycles,
-                iteration_runtime,
-                coef[0],
-            ]
+            {
+                "convergence": mn_subgrad_norm,
+                "L1(coef)": coef_l1,
+                "L2(coef)": coef_l2,
+                "L2(step)": step_l2,
+                "n_iter": n_iter,
+                "n_cycles": n_cycles,
+                "runtime": iteration_runtime,
+                "intercept": coef[0],
+            }
         )
         iteration_start = time.time()
 
@@ -618,10 +670,12 @@ def check_convergence(
     P1,
     gradient_tol: Optional[float],
     step_size_tol: Optional[float],
+    lb: Optional[np.ndarray],
+    ub: Optional[np.ndarray],
 ):
     # minimum subgradient norm
     mn_subgrad_norm = linalg.norm(
-        _min_norm_sugrad(coef=coef, grad=grad, P2=P2, P1=P1), ord=1
+        _min_norm_sugrad(coef=coef, grad=grad, P2=P2, P1=P1, lb=lb, ub=ub), ord=1
     )
     step_size = linalg.norm(step)
     converged = (gradient_tol is not None and mn_subgrad_norm < gradient_tol) or (
