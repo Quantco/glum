@@ -44,9 +44,10 @@ def _min_norm_subgrad(
         grad_wP2 + np.sign(coef[idx:]) * P1,
     )
     if intercept:
-        return np.concatenate(([grad[0]], res))
+        out = np.concatenate(([grad[0]], res))
     else:
-        return res
+        out = res
+    return np.linalg.norm(out, ord=1)
 
 
 def _safe_lin_pred(X, coef: np.ndarray, offset: np.ndarray = None) -> np.ndarray:
