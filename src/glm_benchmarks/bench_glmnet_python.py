@@ -44,7 +44,7 @@ def glmnet_python_bench(
 
     glmnet_kws = dict(
         x=X,
-        y=dat["y"].copy(),
+        y=dat["y"].astype(np.float64).copy(),
         family=distribution,
         alpha=l1_ratio,
         standardize=False,

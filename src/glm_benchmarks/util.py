@@ -59,6 +59,14 @@ def _get_minus_gaussian_ll_by_obs(eta: np.ndarray, y: np.ndarray) -> np.ndarray:
     return (y - eta) ** 2 / 2
 
 
+def _get_minus_binomial_ll_by_obs(eta: np.ndarray, y: np.ndarray) -> np.ndarray:
+    """
+    The binomial log-likelihood.
+    """
+    yhat = np.exp(eta) / (1 + np.exp(eta))
+    return (np.log(yhat) * y) + np.log(1 - yhat) * (1 - y)
+
+
 def _get_linear_prediction_part(
     x: Union[np.ndarray, sps.spmatrix], coefs: np.ndarray, intercept: float
 ) -> np.ndarray:
@@ -96,11 +104,13 @@ def get_obj_val(
     elif "tweedie" in distribution:
         assert tweedie_p is not None
         minus_log_like_by_ob = _get_minus_tweedie_ll_by_obs(eta, dat["y"], tweedie_p)
+    elif distribution == "binomial":
+        minus_log_like_by_ob = _get_minus_binomial_ll_by_obs(eta, dat["y"])
     else:
         raise NotImplementedError
 
     penalty = _get_penalty(alpha, l1_ratio, coefs)
-
+    print(weights.sum())
     return minus_log_like_by_ob.dot(weights) + penalty
 
 
