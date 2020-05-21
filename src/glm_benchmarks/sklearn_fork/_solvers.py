@@ -36,16 +36,12 @@ def _least_squares_solver(
     idx = 1 if intercept else 0  # offset if coef[0] is intercept
 
     fisher = _safe_sandwich_dot(X, fisher_W, intercept)
-    coef_P2 = add_P2_fisher(fisher, P2, coef, idx)
-
-    # TODO:
-    S = score.copy()
-    S[idx:] -= coef_P2
+    add_P2_fisher(fisher, P2, coef, idx)
 
     # TODO: In cases where we have lots of columns, we might want to avoid the
     # sandwich product and use something like iterative lsqr or lsmr.
-    d = linalg.solve(fisher, S, overwrite_a=True, overwrite_b=True, assume_a="pos")
-    return d, coef_P2, 1
+    d = linalg.solve(fisher, score, overwrite_a=True, overwrite_b=True, assume_a="pos")
+    return d, 1
 
 
 def _cd_solver(
@@ -67,10 +63,9 @@ def _cd_solver(
     idx = 1 if intercept else 0  # offset if coef[0] is intercept
 
     fisher = _safe_sandwich_dot(X, fisher_W, intercept)
-    coef_P2 = add_P2_fisher(fisher, P2, coef, idx)
+    add_P2_fisher(fisher, P2, coef, idx)
 
     rhs = -score
-    rhs[idx:] += coef_P2
 
     random = selection == "random"
     new_coef = coef.copy()
@@ -85,21 +80,18 @@ def _cd_solver(
         intercept,
         random,
     )
-    return new_coef - coef, coef_P2, n_cycles
+    return new_coef - coef, n_cycles
 
 
 def add_P2_fisher(fisher, P2, coef, idx):
     if P2.ndim == 1:
-        coef_P2 = coef[idx:] * P2
         idiag = np.arange(start=idx, stop=fisher.shape[0])
         fisher[(idiag, idiag)] += P2
     else:
-        coef_P2 = coef[idx:] @ P2
         if sparse.issparse(P2):
             fisher[idx:, idx:] += P2.toarray()
         else:
             fisher[idx:, idx:] += P2
-    return coef_P2
 
 
 def make_coef_P2(coef, P2, idx):
@@ -254,13 +246,14 @@ def _irls_solver(
         coef=coef, phi=1, X=X, y=y, weights=weights, link=link, offset=offset,
     )
     coef_P2 = make_coef_P2(coef, P2, idx)
+    score -= coef_P2
 
     # set up space for search direction d for inner loop
     d = np.zeros_like(coef)
 
     # minimum subgradient norm
     def calc_mn_subgrad_norm():
-        return _norm_min_subgrad(coef, -score + coef_P2, P1, idx)
+        return _norm_min_subgrad(coef, -score, P1, idx)
 
     # the ratio of inner tolerance to the minimum subgradient norm
     # This wasn't explored in the newGLMNET paper linked above.
@@ -294,7 +287,7 @@ def _irls_solver(
         d.fill(0)
 
         # inner loop = _cd_cycle
-        d, coef_P2, n_cycles_this_iter = inner_solver(
+        d, n_cycles_this_iter = inner_solver(
             d,
             X,
             weights,
@@ -318,17 +311,13 @@ def _irls_solver(
         P1w_1 = linalg.norm(P1 * coef[idx:], ord=1)
         P1wd_1 = linalg.norm(P1 * (coef + d)[idx:], ord=1)
         # Note: coef_P2 already calculated and still valid
-        bound = sigma * (-(score @ d) + coef_P2 @ d[idx:] + P1wd_1 - P1w_1)
+        bound = sigma * (-(score @ d) + P1wd_1 - P1w_1)
 
         # In the first iteration, we must compute Fw explicitly.
         # In later iterations, we just use Fwd from the previous iteration
         # as set after the line search loop below.
         if Fw is None:
-            Fw = (
-                0.5 * family.deviance(y, mu, weights)
-                + 0.5 * (coef_P2 @ coef[idx:])
-                + P1w_1
-            )
+            Fw = 0.5 * family.deviance(y, mu, weights) + 0.5 * (coef_P2 @ coef) + P1w_1
 
         la = 1.0 / beta
 
@@ -391,9 +380,10 @@ def _irls_solver(
             offset=offset,
         )
         coef_P2 = make_coef_P2(coef, P2, idx)
+        score -= coef_P2
 
         converged, mn_subgrad_norm = check_convergence(
-            step, coef, -score + coef_P2, P1, idx, gradient_tol, step_size_tol
+            step, coef, -score, P1, idx, gradient_tol, step_size_tol
         )
 
         iteration_runtime = time.time() - iteration_start
