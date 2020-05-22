@@ -29,6 +29,13 @@ The `--problem_name` and `--library_name` flags take comma separated lists. This
 
 The `glm_benchmarks_analyze` tool is still more a sketch-up and will evolve as we identify what we care about.
 
+Benchmarks can be sped up by enabling caching of generated data. If you don't do this, 
+you will spend a lot of time repeatedly generating the same data set. If you are using
+Docker, caching is automatically enabled. The simulated data is written to an unmapped
+directory within Docker, so it will cease to exist upon exiting the container. If you
+are not using Docker, to enable caching, set the GLM_BENCHMARKS_CACHE environment
+variable to the directory you would like to write to.
+
 ## Docker
 
 To build the image, make sure you have a functioning Docker and docker-compose installation. Then, `docker-compose build work`.
