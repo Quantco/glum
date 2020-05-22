@@ -663,6 +663,10 @@ class BinomialDistribution(ExponentialDispersionModel):
 
     def unit_deviance(self, y, mu):
         return 2 * (special.xlogy(y, y / mu) + special.xlogy(1 - y, (1 - y) / (1 - mu)))
+        # return 2 * (
+        #     special.xlogy(y, y) - special.xlogy(y, mu)
+        #     + special.xlogy(1 - y, 1 - y) - special.xlogy(1 - y, 1 - mu)
+        # )
 
 
 def guess_intercept(
@@ -737,5 +741,8 @@ def get_one_over_variance(
     # More numerically accurate
     """
     if isinstance(distribution, BinomialDistribution) and isinstance(link, LogitLink):
+        max_float_for_exp = np.log(np.finfo(eta.dtype).max / 10)
+        if np.any(np.abs(eta) > max_float_for_exp):
+            eta = np.clip(eta, -max_float_for_exp, max_float_for_exp)
         return weights * (np.exp(eta) + 2 + np.exp(-eta)) / phi
     return 1.0 / distribution.variance(mu, phi=phi, weights=weights)

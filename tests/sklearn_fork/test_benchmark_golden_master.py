@@ -11,6 +11,8 @@ from glm_benchmarks.main import execute_problem_library
 from glm_benchmarks.problems import Problem, get_all_problems
 from glm_benchmarks.util import BenchmarkParams, get_obj_val
 
+np.seterr(over="raise")
+
 bench_cfg = dict(
     num_rows=10000,
     regularization_strength=0.1,
