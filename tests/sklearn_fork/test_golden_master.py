@@ -77,7 +77,7 @@ def _make_P2():
     return P2
 
 
-@pytest.fixture(params=["sparse", "dense", "split"])
+@pytest.fixture(params=["sparse", "dense", "split"], scope="module")
 def data_all(request):
     data = dict()
     for dist in distributions_to_test:
