@@ -922,71 +922,71 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 if not np.all(self.P1 >= 0):
                     raise ValueError("P1 must not have negative values.")
 
+    def set_up_and_check_fit_args(
+        self,
+        X,
+        y: np.ndarray,
+        sample_weight: Union[np.ndarray, None],
+        offset: Union[np.ndarray, None],
+        solver: str,
+        copy_X: bool,
+    ) -> Tuple[
+        Union[MKLSparseMatrix, DenseGLMDataMatrix],
+        np.ndarray,
+        np.ndarray,
+        Union[np.ndarray, None],
+        float,
+    ]:
+        _dtype = [np.float64, np.float32]
+        if solver == "cd":
+            _stype = ["csc"]
+        else:
+            _stype = ["csc", "csr"]
 
-def set_up_and_check_fit_args(
-    X,
-    y: np.ndarray,
-    sample_weight: Union[np.ndarray, None],
-    offset: Union[np.ndarray, None],
-    solver: str,
-    copy_X: bool,
-) -> Tuple[
-    Union[MKLSparseMatrix, DenseGLMDataMatrix],
-    np.ndarray,
-    np.ndarray,
-    Union[np.ndarray, None],
-    float,
-]:
-    _dtype = [np.float64, np.float32]
-    if solver == "cd":
-        _stype = ["csc"]
-    else:
-        _stype = ["csc", "csr"]
+        if hasattr(X, "dtype") and X.dtype == np.int64:
+            # check_X_y will convert to float32 if we don't do this, which causes
+            # precision issues with the new handling of single precision. The new
+            # behavior is to give everything the precision of X, but we don't want to
+            # do that if X was intially int64.
+            X = X.astype(np.float64)
 
-    if hasattr(X, "dtype") and X.dtype == np.int64:
-        # check_X_y will convert to float32 if we don't do this, which causes
-        # precision issues with the new handling of single precision. The new
-        # behavior is to give everything the precision of X, but we don't want to
-        # do that if X was intially int64.
-        X = X.astype(np.float64)
+        if not getattr(X, "skip_sklearn_check", False):
+            X, y = self._validate_data(
+                X,
+                y,
+                accept_sparse=_stype,
+                dtype=_dtype,
+                y_numeric=True,
+                multi_output=False,
+                copy=copy_X,
+            )
 
-    if not getattr(X, "skip_sklearn_check", False):
-        X, y = check_X_y(
-            X,
-            y,
-            accept_sparse=_stype,
-            dtype=_dtype,
-            y_numeric=True,
-            multi_output=False,
-            copy=copy_X,
-        )
+        # Without converting y to float, deviance might raise
+        # ValueError: Integers to negative integer powers are not allowed.
+        # Also, y must not be sparse.
+        # Make sure everything has the same precision as X
+        # This will prevent accidental upcasting later and slow operations on
+        # mixed-precision numbers
+        y = np.asarray(y, dtype=X.dtype)
+        weights = _check_weights(sample_weight, y.shape[0], X.dtype)
+        offset = _check_offset(offset, y.shape[0], X.dtype)
 
-    # Without converting y to float, deviance might raise
-    # ValueError: Integers to negative integer powers are not allowed.
-    # Also, y must not be sparse.
-    # Make sure everything has the same precision as X
-    # This will prevent accidental upcasting later and slow operations on
-    # mixed-precision numbers
-    y = np.asarray(y, dtype=X.dtype)
-    weights = _check_weights(sample_weight, y.shape[0], X.dtype)
-    offset = _check_offset(offset, y.shape[0], X.dtype)
+        # IMPORTANT NOTE: Since we want to minimize
+        # 1/(2*sum(sample_weight)) * deviance + L1 + L2,
+        # deviance = sum(sample_weight * unit_deviance),
+        # we rescale weights such that sum(weights) = 1 and this becomes
+        # 1/2*deviance + L1 + L2 with deviance=sum(weights * unit_deviance)
+        weights_sum: float = np.sum(weights)
+        weights /= weights_sum
+        #######################################################################
+        # 2b. convert to wrapper matrix types
+        #######################################################################
+        if sparse.issparse(X):
+            X = MKLSparseMatrix(X)
+        elif isinstance(X, np.ndarray):
+            X = DenseGLMDataMatrix(X)
 
-    # IMPORTANT NOTE: Since we want to minimize
-    # 1/(2*sum(sample_weight)) * deviance + L1 + L2,
-    # deviance = sum(sample_weight * unit_deviance),
-    # we rescale weights such that sum(weights) = 1 and this becomes
-    # 1/2*deviance + L1 + L2 with deviance=sum(weights * unit_deviance)
-    weights_sum: float = np.sum(weights)
-    weights /= weights_sum
-    #######################################################################
-    # 2b. convert to wrapper matrix types
-    #######################################################################
-    if sparse.issparse(X):
-        X = MKLSparseMatrix(X)
-    elif isinstance(X, np.ndarray):
-        X = DenseGLMDataMatrix(X)
-
-    return X, y, weights, offset, weights_sum
+        return X, y, weights, offset, weights_sum
 
 
 class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
@@ -1351,7 +1351,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         """
 
         if self.fit_args_reformat == "safe":
-            X, y, weights, offset, weights_sum = set_up_and_check_fit_args(
+            X, y, weights, offset, weights_sum = self.set_up_and_check_fit_args(
                 X, y, sample_weight, offset, solver=self.solver, copy_X=self.copy_X
             )
         else:
