@@ -124,13 +124,14 @@ class LogitLink(Link):
         [10^-20, 1 - 10^-10].
         """
         inv_logit = special.expit(lin_pred)
-        if np.any(inv_logit == 1) or np.any(inv_logit == 0):
+        if np.any(inv_logit > 1 - 1e-10) or np.any(inv_logit < 1e-20):
             warnings.warn(
                 "Computing sigmoid function gave results too close to 0 or 1. "
                 "Clipping."
             )
             return np.clip(inv_logit, 1e-20, 1 - 1e-10)
         return inv_logit
+        # return special.expit(lin_pred)
 
     def inverse_derivative(self, lin_pred):
         ep = special.expit(lin_pred)
