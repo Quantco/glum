@@ -122,7 +122,7 @@ class LogitLink(Link):
         of 1, this function bounds the output to be between
         [10^-20, 1 - 10^-10].
         """
-        return np.clip(special.expit(lin_pred), 1e-20, 1 - 1e-10)
+        return special.expit(lin_pred)
 
     def inverse_derivative(self, lin_pred):
         ep = special.expit(lin_pred)

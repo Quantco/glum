@@ -8,8 +8,8 @@ from git_root import git_root
 from sklearn.exceptions import ConvergenceWarning
 
 from glm_benchmarks.main import execute_problem_library
-from glm_benchmarks.problems import get_all_problems
-from glm_benchmarks.util import BenchmarkParams
+from glm_benchmarks.problems import Problem, get_all_problems
+from glm_benchmarks.util import BenchmarkParams, get_obj_val
 
 bench_cfg = dict(
     num_rows=10000,
@@ -35,7 +35,7 @@ def expected_all():
 @pytest.mark.parametrize(
     ["Pn", "P"], all_test_problems.items(), ids=all_test_problems.keys()
 )
-def test_gm_benchmarks(Pn, P, bench_cfg_fix, expected_all):
+def test_gm_benchmarks(Pn: str, P: Problem, bench_cfg_fix: dict, expected_all: dict):
     execute_args = ["print_diagnostics"]
     params = BenchmarkParams(
         problem_name=Pn,
@@ -53,7 +53,31 @@ def test_gm_benchmarks(Pn, P, bench_cfg_fix, expected_all):
 
     all_result = np.concatenate(([result["intercept"]], result["coef"]))
     all_expected = np.concatenate(([expected["intercept"]], expected["coef"]))
-    np.testing.assert_allclose(all_result, all_expected, rtol=2e-4, atol=2e-4)
+
+    try:
+        np.testing.assert_allclose(all_result, all_expected, rtol=2e-4, atol=2e-4)
+    except AssertionError as e:
+        dat = P.data_loader(num_rows=params.num_rows,)
+        obj_result = get_obj_val(
+            dat,
+            P.distribution,
+            P.regularization_strength,
+            P.l1_ratio,
+            all_result[0],
+            all_result[1:],
+        )
+        expected_result = get_obj_val(
+            dat,
+            P.distribution,
+            P.regularization_strength,
+            P.l1_ratio,
+            all_expected[0],
+            all_expected[1:],
+        )
+        raise AssertionError(
+            f"""Failed with error {e}.
+            New objective function value is higher by {obj_result - expected_result}."""
+        )
 
 
 @click.command()
