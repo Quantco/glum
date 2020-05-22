@@ -15,8 +15,7 @@ COPY . /app
 RUN conda run -n base pip install --no-use-pep517 --no-deps --disable-pip-version-check -e .
 
 # set location for generated data caching
-ARG cache=/app/cache
-ENV GLM_BENCHMARKS_CACHE=$cache
+ENV GLM_BENCHMARKS_CACHE=/cache
 
 ENTRYPOINT ["/app/build_and_launch"]
 CMD ["bash"]
