@@ -382,10 +382,9 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         # d1 = 1./link.derivative(mu)
         d1_sigma_inv = d1 * sigma_inv
         temp = d1_sigma_inv * (y - mu)
+        score = temp @ X
         if intercept:
-            score = np.concatenate(([temp.sum()], temp @ X))
-        else:
-            score = temp @ X
+            score = np.concatenate(([temp.sum()], score))
 
         fisher_W = d1 * d1_sigma_inv
         # To form the fisher matrix:

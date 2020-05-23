@@ -61,7 +61,13 @@ from ._distribution import (
     guess_intercept,
 )
 from ._link import IdentityLink, Link, LogitLink, LogLink
-from ._solvers import _cd_solver, _irls_solver, _lbfgs_solver, _least_squares_solver
+from ._solvers import (
+    IRLSData,
+    _cd_solver,
+    _irls_solver,
+    _lbfgs_solver,
+    _least_squares_solver,
+)
 from .dense_glm_matrix import DenseGLMDataMatrix
 
 _float_itemsize_to_dtype = {8: np.float64, 4: np.float32, 2: np.float16}
@@ -526,34 +532,11 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             max_iter = self.max_iter
 
         # 4.1 IRLS ############################################################
-        # Note: we already set P2 = l2*P2, see above
-        # Note: we already symmetrized P2 = 1/2 (P2 + P2')
-        if self._solver == "irls-ls":
-            coef, self.n_iter_, self._n_cycles, self.diagnostics_ = _irls_solver(
-                _least_squares_solver,
-                coef=coef,
-                X=X,
-                y=y,
-                weights=weights,
-                P1=P1,
-                P2=P2,
-                fit_intercept=self.fit_intercept,
-                family=self._family_instance,
-                link=self._link_instance,
-                max_iter=max_iter,
-                gradient_tol=self.gradient_tol,
-                step_size_tol=self.step_size_tol,
-                offset=offset,
-            )
-        # 4.2 coordinate descent ##############################################
-        # Note: we already set P1 = l1*P1, see above
-        # Note: we already set P2 = l2*P2, see above
-        # Note: we already symmetrized P2 = 1/2 (P2 + P2')
-        elif self._solver == "irls-cd":
-            # TODO: simplify with parameters object?
-            coef, self.n_iter_, self._n_cycles, self.diagnostics_ = _irls_solver(
-                _cd_solver,
-                coef=coef,
+        if "irls" in self._solver:
+            # Note: we already set P1 = l1*P1, see above
+            # Note: we already set P2 = l2*P2, see above
+            # Note: we already symmetrized P2 = 1/2 (P2 + P2')
+            irls_data = IRLSData(
                 X=X,
                 y=y,
                 weights=weights,
@@ -570,6 +553,15 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 random_state=self.random_state,
                 offset=offset,
             )
+            if self._solver == "irls-ls":
+                coef, self.n_iter_, self._n_cycles, self.diagnostics_ = _irls_solver(
+                    _least_squares_solver, coef, irls_data
+                )
+            # 4.2 coordinate descent ##############################################
+            elif self._solver == "irls-cd":
+                coef, self.n_iter_, self._n_cycles, self.diagnostics_ = _irls_solver(
+                    _cd_solver, coef, irls_data
+                )
         # 4.3 L-BFGS ##########################################################
         elif self._solver == "lbfgs":
             coef, self.n_iter_, self._n_cycles, self.diagnostics_ = _lbfgs_solver(
