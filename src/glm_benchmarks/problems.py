@@ -8,6 +8,8 @@ from git_root import git_root
 from joblib import Memory
 from scipy.sparse import csc_matrix
 
+from glm_benchmarks.matrix.split_matrix import SplitMatrix
+
 from .data import (
     generate_intermediate_insurance_dataset,
     generate_narrow_insurance_dataset,
@@ -59,11 +61,8 @@ def load_data(
     if storage == "sparse":
         X = csc_matrix(X)
     elif storage.startswith("split"):
-        from glm_benchmarks.scaled_spmat.split_matrix import SplitMatrix
-
         threshold = float(storage.split("split")[1])
         X = SplitMatrix(csc_matrix(X), threshold)
-
     if data_setup == "weights":
         return dict(X=X, y=y, weights=exposure)
     if data_setup == "offset":
