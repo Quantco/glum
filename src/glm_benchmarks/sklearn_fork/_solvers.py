@@ -445,16 +445,8 @@ def line_search(state, data, d):
         Fwd = 0.5 * data.family.deviance(data.y, mu_wd, data.weights) + linalg.norm(
             data.P1 * coef_wd[data.intercept_offset :], ord=1
         )
-        if data.P2.ndim == 1:
-            Fwd += 0.5 * (
-                (coef_wd[data.intercept_offset :] * data.P2)
-                @ coef_wd[data.intercept_offset :]
-            )
-        else:
-            Fwd += 0.5 * (
-                coef_wd[data.intercept_offset :]
-                @ (data.P2 @ coef_wd[data.intercept_offset :])
-            )
+        coef_wd_P2 = make_coef_P2(data, coef_wd)
+        Fwd += 0.5 * (coef_wd_P2 @ coef_wd)
         if Fwd - Fw <= sigma * la * bound:
             break
 
