@@ -285,7 +285,14 @@ class IRLSState:
         self.diagnostics = []
 
         self.coef = coef
-        self.step = np.full_like(self.coef, data.step_size_tol)
+
+        # We need to have an initial step value to make sure that the step size
+        # convergence criteria fails on the first pass
+        initial_step = data.step_size_tol
+        if initial_step is None:
+            initial_step = 0.0
+        self.step = np.full_like(self.coef, initial_step)
+
         self.Fw = None
         self.eta = None
         self.mu = None
