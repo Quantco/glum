@@ -66,7 +66,7 @@ from ._solvers import (
     _cd_solver,
     _irls_solver,
     _lbfgs_solver,
-    _least_squares_solver,
+    _least_squares_normal_equations_solver,
 )
 from .dense_glm_matrix import DenseGLMDataMatrix
 
@@ -555,7 +555,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             )
             if self._solver == "irls-ls":
                 coef, self.n_iter_, self._n_cycles, self.diagnostics_ = _irls_solver(
-                    _least_squares_solver, coef, irls_data
+                    _least_squares_normal_equations_solver, coef, irls_data
                 )
             # 4.2 coordinate descent ##############################################
             elif self._solver == "irls-cd":

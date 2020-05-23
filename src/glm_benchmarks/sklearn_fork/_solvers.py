@@ -17,7 +17,26 @@ from ._link import Link
 from ._util import _safe_lin_pred, _safe_sandwich_dot
 
 
-def _least_squares_solver(state, data):
+def _least_squares_full_solver(state, data):
+    d1 = data.link.inverse_derivative(state.eta)
+    V = data.family.variance(state.mu, phi=1, weights=data.weights)
+
+    W = np.sqrt(d1 ** 2 / V)
+    z = (data.y - state.mu) / d1
+
+    n = data.X.shape[0]
+    lhs = np.zeros((data.X.shape[0] + data.P2.shape[0], data.X.shape[1] + 1))
+    lhs[:n, 0] = W
+    lhs[:n, 1:] = W[:, np.newaxis] * data.X
+    lhs[n:, 1:] = np.diag(np.sqrt(data.P2))
+    rhs = np.concatenate((W * z, np.zeros(data.P2.shape[0])))
+
+    d, _, rank, s = linalg.lstsq(lhs, rhs, overwrite_a=True, overwrite_b=True)
+    print(rank)
+    return d, 1
+
+
+def _least_squares_normal_equations_solver(state, data):
     fisher = build_fisher(data.X, state.fisher_W, data.fit_intercept, data.P2)
 
     # TODO: In cases where we have lots of columns, we might want to avoid the
@@ -285,7 +304,7 @@ class IRLSState:
         self.diagnostics = []
 
         self.coef = coef
-        self.step = np.empty_like(self.coef)
+        self.step = np.full_like(self.coef, data.step_size_tol)
         self.Fw = None
         self.eta = None
         self.mu = None
