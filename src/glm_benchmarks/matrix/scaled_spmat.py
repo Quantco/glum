@@ -1,9 +1,10 @@
-from abc import ABC, abstractclassmethod, abstractmethod
-from typing import Union
+from abc import ABC, abstractmethod
+from typing import Optional, Union
 
 import numpy as np
 from scipy import sparse as sps
 
+from .matrix_base import MatrixBase
 from .mkl_sparse_matrix import MKLSparseMatrix
 
 
@@ -12,8 +13,6 @@ class ScaledMat(ABC):
     Base class for ColScaledSpMat and RowScaledSpMat. Do not instantiate.
     """
 
-    skip_sklearn_check = True
-
     def __init__(self, mat: sps.spmatrix, shift: np.ndarray):
 
         if not (sps.issparse(mat) or isinstance(mat, MKLSparseMatrix)):
@@ -21,9 +20,9 @@ class ScaledMat(ABC):
 
         shift = np.asarray(shift)
         if shift.ndim == 1:
-            shift = np.expand_dims(shift, 1 - self.scale_axis)
+            shift = np.expand_dims(shift, 1 - self.scale_axis())
         else:
-            if self.scale_axis == 0:
+            if self.scale_axis() == 0:
                 expected_shape = (mat.shape[0], 1)
             else:
                 expected_shape = (1, mat.shape[1])
@@ -34,25 +33,18 @@ class ScaledMat(ABC):
                 )
 
         self.shift = shift
-        self.mat = mat
+        self.mat = MKLSparseMatrix(mat)
         self.shape = mat.shape
         self.ndim = mat.ndim
         self.dtype = mat.dtype
 
-    @property  # type: ignore
-    @abstractclassmethod
+    @classmethod
+    @abstractmethod
     def scale_axis(self) -> int:
-        return 0
-
-    def todense(self) -> np.ndarray:
-        return self.mat.A + self.shift
+        pass
 
     def toarray(self) -> np.ndarray:
-        return np.array(self.todense())
-
-    @property
-    def A(self):
-        return self.todense()
+        return self.mat.A + self.shift
 
     def multiply(self, other: Union[np.ndarray, float]):
         """
@@ -87,10 +79,6 @@ class ScaledMat(ABC):
         else:
             return mat_part + shift_part
 
-    def __mul__(self, other):
-        """ Defines the beahvior of "*". """
-        return self.multiply(other)
-
     def sum(self, axis: int = None) -> Union[np.ndarray, float]:
         """
         For col case:
@@ -110,51 +98,41 @@ class ScaledMat(ABC):
         shift_sum = self.shift.sum(axis=axis)
 
         if axis is None:
-            shift_part = shift_sum * self.shape[1 - self.scale_axis]
+            shift_part = shift_sum * self.shape[1 - self.scale_axis()]
             assert np.isscalar(shift_part)
-        elif axis == self.scale_axis:
+        elif axis == self.scale_axis():
             shift_part = shift_sum
         else:
             shift_part = np.expand_dims(
-                shift_sum * self.shape[axis], 1 - self.scale_axis
+                shift_sum * self.shape[axis], 1 - self.scale_axis()
             )
         return self.mat.sum(axis) + shift_part
 
-    @abstractmethod
-    def transpose(self):
-        pass
+    def __mul__(self, other):
+        """ Defines the behavior of "*", element-wise multiplication. """
+        return self.multiply(other)
 
-    @abstractmethod
-    def dot(self, other):
-        pass
-
-    @property
-    def T(self):
-        return self.transpose()
-
-    def mean(self, axis: int = None):
+    def mean(self, axis: Optional[int]) -> Union[np.ndarray, float]:
         if axis is None:
             denominator = self.shape[0] * self.shape[1]
         else:
             denominator = self.shape[axis]
         return self.sum(axis) / denominator
 
-    def __matmul__(self, other):
-        """ Defines the behavior of 'self @ other'. """
-        return self.dot(other)
+    @property
+    def A(self) -> np.ndarray:
+        return self.toarray()
 
-    def __rmatmul__(self, other):
-        """
-        other @ self = (self.T @ other.T).T
-        """
-        return (self.T @ other.T).T
+    @abstractmethod
+    def transpose(self):
+        pass
 
-    # Higher priority than numpy arrays, so behavior for funcs like "@" defaults to the
-    # behavior of ScaledMat
-    __array_priority__ = 11
+    @property
+    def T(self):
+        return self.transpose()
 
 
-class ColScaledSpMat(ScaledMat):
+class ColScaledSpMat(ScaledMat, MatrixBase):
     """
     Matrix with ij element equal to mat[i, j] + shift[1, j]
     """
@@ -162,8 +140,8 @@ class ColScaledSpMat(ScaledMat):
     def __init__(self, mat: sps.spmatrix, shift: np.ndarray):
         super().__init__(mat, shift)
 
-    @property  # type: ignore
-    def scale_axis(self):
+    @classmethod
+    def scale_axis(self) -> int:
         return 1
 
     def transpose(self):
@@ -239,6 +217,8 @@ class ColScaledSpMat(ScaledMat):
         """
         Performs a sandwich product: X.T @ diag(d) @ X
         """
+        if not hasattr(d, "dtype"):
+            d = np.asarray(d)
         if not self.mat.dtype == d.dtype:
             raise TypeError(
                 f"""self.mat and d need to be of same dtype, either
@@ -286,8 +266,8 @@ class RowScaledSpMat(ScaledMat):
     def __init__(self, mat: sps.spmatrix, shift: np.ndarray):
         super().__init__(mat, shift)
 
-    @property
-    def scale_axis(self):
+    @classmethod
+    def scale_axis(self) -> int:
         return 0
 
     def transpose(self) -> ColScaledSpMat:
@@ -311,12 +291,16 @@ class RowScaledSpMat(ScaledMat):
                            (n,)                  (n, 1) @ (1,) = (n,)
         """
         mat_part = self.mat.dot(other_mat)
-        other_sum = other_mat.sum(0)
+        other_sum = np.sum(other_mat, 0)
         if not sps.issparse(other_mat):
             # with numpy, sum is of shape (k,); with scipy it is of shape (1, k)
             other_sum = np.expand_dims(other_sum, 0)
         shift_part = self.shift.dot(other_sum)
         return mat_part + shift_part
+
+    def __matmul__(self, other):
+        """ Defines the behavior of 'self @ other'. """
+        return self.dot(other)
 
     def power(self, p: float):
         return self.T.power(p).T
@@ -327,7 +311,7 @@ class RowScaledSpMat(ScaledMat):
         >>> x.getcol(1)
         array([ 0.,  2., -2.])
         """
-        return np.squeeze(self.mat.getcol(i).toarray()) + np.squeeze(self.shift)
+        return self.mat.getcol(i).toarray() + self.shift
 
     def getrow(self, i: int) -> ScaledMat:
         """

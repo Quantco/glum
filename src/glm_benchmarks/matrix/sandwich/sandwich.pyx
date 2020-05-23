@@ -77,6 +77,9 @@ def csr_dense_sandwich(A, B, floating[:] d):
     cdef int r = B.shape[1]
 
     out = np.zeros((m, r), dtype=A.dtype)
+    if Aindptr[-1] - Aindptr[0] == 0:
+        return out
+
     cdef floating[:, :] out_view = out
     cdef floating* outp = &out_view[0,0]
 

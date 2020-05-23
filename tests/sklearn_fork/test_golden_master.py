@@ -8,13 +8,11 @@ import pytest
 from git_root import git_root
 from scipy import sparse
 
-from glm_benchmarks.scaled_spmat.mkl_sparse_matrix import MKLSparseMatrix
-from glm_benchmarks.scaled_spmat.split_matrix import SplitMatrix
+from glm_benchmarks.matrix import DenseGLMDataMatrix, MKLSparseMatrix, SplitMatrix
 from glm_benchmarks.sklearn_fork._glm import (
     GeneralizedLinearRegressor,
     TweedieDistribution,
 )
-from glm_benchmarks.sklearn_fork.dense_glm_matrix import DenseGLMDataMatrix
 
 distributions_to_test = ["normal", "poisson", "gamma", "tweedie_p=1.5"]
 
@@ -79,7 +77,7 @@ def _make_P2():
     return P2
 
 
-@pytest.fixture(params=["sparse", "dense", "split"])
+@pytest.fixture(params=["sparse", "dense", "split"], scope="module")
 def data_all(request):
     data = dict()
     for dist in distributions_to_test:
@@ -123,6 +121,7 @@ gm_model_parameters = {
         "P2": _make_P2(),
     },  # elastic net with P1 and P2 variable penalty
     "fit_intercept": {"fit_intercept": False},  # do not fit the intercept
+    "bounds": {"lower_bounds": np.full(28, 0), "upper_bounds": np.full(28, 0.4)},
 }
 
 
@@ -184,7 +183,6 @@ def run_and_store_golden_master(
     gm_dict,
     overwrite=False,
 ):
-    print((distribution, run_name))
     if use_weights:
         run_name = f"{run_name}_weights"
 
