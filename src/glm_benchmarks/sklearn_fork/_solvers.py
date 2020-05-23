@@ -18,6 +18,8 @@ from ._util import _safe_lin_pred, _safe_sandwich_dot
 
 
 def _least_squares_solver(state, data):
+    if data.has_lower_bounds or data.has_upper_bounds:
+        raise ValueError("Bounds are not supported with the least squares solver.")
     fisher = build_fisher(data.X, state.fisher_W, data.fit_intercept, data.P2)
 
     # TODO: In cases where we have lots of columns, we might want to avoid the
@@ -40,6 +42,10 @@ def _cd_solver(state, data):
         data.random_state,
         data.fit_intercept,
         data.selection == "random",
+        data.has_lower_bounds,
+        data._lower_bounds,
+        data.has_upper_bounds,
+        data._upper_bounds,
     )
     return new_coef - state.coef, n_cycles
 
@@ -115,6 +121,7 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
     state.converged, state.mn_subgrad_norm, state.inner_tol = check_convergence(
         state, data
     )
+    state.record_iteration()
 
     while state.n_iter < data.max_iter and not state.converged:
 
@@ -194,6 +201,12 @@ class IRLSData:
         self.selection = selection
         self.random_state = random_state
         self.offset = offset
+        self.has_lower_bounds, self._lower_bounds = setup_bounds(
+            lower_bounds, self.X.dtype
+        )
+        self.has_upper_bounds, self._upper_bounds = setup_bounds(
+            upper_bounds, self.X.dtype
+        )
 
         self.intercept_offset = 1 if self.fit_intercept else 0
 
@@ -213,6 +226,13 @@ class IRLSData:
         self.random_state = check_random_state(self.random_state)
 
 
+def setup_bounds(bounds, dtype):
+    _out_bounds = bounds
+    if _out_bounds is None:
+        _out_bounds = np.array([], dtype=dtype)
+    return bounds is not None, _out_bounds
+
+
 class IRLSState:
     def __init__(self, coef, data):
         self.data = data
@@ -221,7 +241,7 @@ class IRLSState:
         self.iteration_start = time.time()
 
         # number of outer iterations
-        self.n_iter = 0
+        self.n_iter = -1
 
         # number of inner iterations (for CD, this is the number of cycles over
         # all the features)
@@ -259,16 +279,16 @@ class IRLSState:
         coef_l2 = np.linalg.norm(self.coef)
         step_l2 = np.linalg.norm(self.step)
         self.diagnostics.append(
-            [
-                self.mn_subgrad_norm,
-                coef_l1,
-                coef_l2,
-                step_l2,
-                self.n_iter,
-                self.n_cycles,
-                iteration_runtime,
-                self.coef[0],
-            ]
+            {
+                "convergence": self.mn_subgrad_norm,
+                "L1(coef)": coef_l1,
+                "L2(coef)": coef_l2,
+                "L2(step)": step_l2,
+                "n_iter": self.n_iter,
+                "n_cycles": self.n_cycles,
+                "runtime": iteration_runtime,
+                "intercept": self.coef[0],
+            }
         )
 
 
@@ -282,7 +302,14 @@ def check_convergence(state, data):
 
     # L1 norm of the minimum norm subgradient
     mn_subgrad_norm = _norm_min_subgrad(
-        state.coef, -state.score, state.data.P1, state.data.intercept_offset
+        state.coef,
+        -state.score,
+        state.data.P1,
+        state.data.intercept_offset,
+        data.has_lower_bounds,
+        data._lower_bounds,
+        data.has_upper_bounds,
+        data._upper_bounds,
     )
     gradient_converged = (
         state.data.gradient_tol is not None

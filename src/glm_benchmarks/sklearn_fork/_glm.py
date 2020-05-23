@@ -135,7 +135,7 @@ def _check_offset(
 
 
 def check_bounds(
-    bounds: Union[Iterable, float, np.ndarray, None], n_features: int,
+    bounds: Union[Iterable, float, np.ndarray, None], n_features: int, dtype
 ) -> Union[None, np.ndarray]:
     """Check that the bounds have the right shape."""
     if bounds is None:
@@ -150,7 +150,7 @@ def check_bounds(
             raise ValueError("Bounds must be 1D array or scalar.")
         if bounds.shape[0] != n_features:
             raise ValueError("Bounds must be the same length as X.shape[1].")
-    return bounds
+    return bounds.astype(dtype)
 
 
 def _unstandardize(
@@ -1351,8 +1351,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         P1 = setup_p1(self.P1, X, X.dtype, self.alpha, self.l1_ratio)
         P2 = setup_p2(self.P2, X, _stype, X.dtype, self.alpha, self.l1_ratio)
 
-        lower_bounds = check_bounds(self.lower_bounds, X.shape[1])
-        upper_bounds = check_bounds(self.upper_bounds, X.shape[1])
+        lower_bounds = check_bounds(self.lower_bounds, X.shape[1], X.dtype)
+        upper_bounds = check_bounds(self.upper_bounds, X.shape[1], X.dtype)
 
         if (lower_bounds is not None) and (upper_bounds is not None):
             if np.any(lower_bounds > upper_bounds):
