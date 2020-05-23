@@ -108,5 +108,8 @@ def test_correct_problems_analyzed():
         warnings.warn("Output directory not found")
         return
 
+    import ipdb
+
+    ipdb.set_trace()
     to_analyze = identify_parameter_fnames(output_dir, BenchmarkParams())
     assert sorted(to_analyze) == sorted(os.listdir(output_dir))
