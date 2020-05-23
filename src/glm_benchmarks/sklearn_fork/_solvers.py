@@ -34,7 +34,6 @@ def _least_squares_full_solver(state, data):
     rhs = np.concatenate((W * z, np.zeros(data.P2.shape[0])))
 
     d, _, rank, s = linalg.lstsq(lhs, rhs, overwrite_a=True, overwrite_b=True)
-    print(rank)
     return d, 1
 
 
