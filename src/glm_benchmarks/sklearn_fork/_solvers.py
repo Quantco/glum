@@ -98,6 +98,14 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
         If fit_intercept=True, then c=X.shape[1] + 1.
     data : IRLSData
         Data object containing all the data and solver parameters.
+
+    References
+    ----------
+
+    Guo-Xun Yuan, Chia-Hua Ho, Chih-Jen Lin
+    An Improved GLMNET for L1-regularized Logistic Regression,
+    Journal of Machine Learning Research 13 (2012) 1999-2030
+    https://www.csie.ntu.edu.tw/~cjlin/papers/l1_glmnet/long-glmnet.pdf
     """
 
     state = IRLSState(coef, data)
@@ -162,71 +170,10 @@ class IRLSData:
         fixed_inner_tol: Optional[Tuple] = None,
         selection="cyclic",
         random_state=None,
-        offset: np.ndarray = None,
+        offset: Optional[np.ndarray] = None,
+        lower_bounds: Optional[np.ndarray] = None,
+        upper_bounds: Optional[np.ndarray] = None,
     ):
-        """
-        X : {ndarray, csc sparse matrix}, shape (n_samples, n_features)
-            Training data (with intercept included if present). If not sparse,
-            pass directly as Fortran-contiguous data to avoid
-            unnecessary memory duplication.
-
-        y : ndarray, shape (n_samples,)
-            Target values.
-
-        weights: ndarray, shape (n_samples,)
-            Sample weights with which the deviance is weighted. The weights must
-            bee normalized and sum to 1.
-
-        P1 : {ndarray}, shape (n_features,)
-            The L1-penalty vector (=diagonal matrix)
-
-        P2 : {ndarray, csc sparse matrix}, shape (n_features, n_features)
-            The L2-penalty matrix or vector (=diagonal matrix). If a matrix is
-            passed, it must be symmetric. If X is sparse, P2 must also be sparse.
-
-        fit_intercept : boolean, optional (default=True)
-            Specifies if a constant (a.k.a. bias or intercept) should be
-            added to the linear predictor (X*coef+intercept).
-
-        family : ExponentialDispersionModel
-
-        link : Link
-
-        max_iter : int, optional (default=100)
-            Maximum numer of outer (Newton) iterations.
-
-        max_inner_iter : int, optional (default=1000)
-            Maximum number of iterations in each inner loop, i.e. max number of
-            cycles over all features per inner loop.
-
-        gradient_tol : float, optional (default=1e-4)
-            Convergence criterion is
-            sum_i(|minimum of norm of subgrad of objective_i|)<=tol.
-
-        step_size_tol : float, optional (default=1e-4)
-
-        selection : str, optional (default='cyclic')
-            If 'random', randomly chose features in inner loop.
-
-        random_state : {int, RandomState instance, None}, optional (default=None)
-
-        Returns
-        -------
-        coef : ndarray, shape (c,)
-            If fit_intercept=False, shape c=X.shape[1].
-            If fit_intercept=True, then c=X.shape[1] + 1.
-
-        n_iter : number of outer iterations = newton iterations
-
-        n_cycles : number of cycles over features
-
-        References
-        ----------
-        Guo-Xun Yuan, Chia-Hua Ho, Chih-Jen Lin
-        An Improved GLMNET for L1-regularized Logistic Regression,
-        Journal of Machine Learning Research 13 (2012) 1999-2030
-        https://www.csie.ntu.edu.tw/~cjlin/papers/l1_glmnet/long-glmnet.pdf
-        """
         self.X = X
         self.y = y
         self.weights = weights

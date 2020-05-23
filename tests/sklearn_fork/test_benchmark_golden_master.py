@@ -26,7 +26,7 @@ def bench_cfg_fix():
     return bench_cfg
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def expected_all():
     with open(git_root("golden_master/benchmark_gm.json"), "r") as fh:
         return json.load(fh)

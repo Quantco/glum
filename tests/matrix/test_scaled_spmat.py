@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from scipy import sparse as sps
 
-from glm_benchmarks.scaled_spmat.scaled_spmat import ColScaledSpMat, RowScaledSpMat
+from glm_benchmarks.matrix.scaled_spmat import ColScaledSpMat, RowScaledSpMat
 
 
 def row_scaled_mat() -> RowScaledSpMat:
@@ -51,39 +51,22 @@ def test_setup_and_densify_col():
     np.testing.assert_almost_equal(col_scaled_mat.A, expected)
 
 
-def test_setup_and_densify_row():
-
+@pytest.mark.parametrize("mat_type", [ColScaledSpMat, RowScaledSpMat])
+def test_setup_and_densify_row(mat_type):
     n_rows = 4
     n_cols = 3
 
     np.random.seed(0)
     sp_mat = sps.random(n_rows, n_cols, density=0.8)
-    shift = np.random.uniform(0, 1, n_rows)
-    scaled_mat = RowScaledSpMat(sp_mat, shift)
-    expected = sp_mat.A + shift[:, None]
+    shift = np.random.uniform(0, 1, sp_mat.shape[mat_type.scale_axis()])
+    scaled_mat = mat_type(sp_mat, shift)
+    expected = sp_mat.A + np.expand_dims(shift, 1 - scaled_mat.scale_axis())
     assert scaled_mat.A.shape == (n_rows, n_cols)
     np.testing.assert_almost_equal(scaled_mat.A, expected)
 
 
 def as_sparse(x: Union[ColScaledSpMat, RowScaledSpMat]) -> sps.csc_matrix:
     return sps.csc_matrix(x.A)
-
-
-@pytest.mark.parametrize("scaled_mat_builder", [col_scaled_mat, row_scaled_mat])
-def test_col_dot_dense_vec(scaled_mat_builder):
-    scaled_mat = scaled_mat_builder()
-    mat = np.random.uniform(0, 2, scaled_mat.shape[1])
-    expected = as_sparse(scaled_mat).dot(mat)
-    result = scaled_mat.dot(mat)
-    np.testing.assert_almost_equal(result, expected)
-
-
-def test_col_scaled_get_col():
-    scaled_mat = col_scaled_mat()
-    i = 1
-    result = scaled_mat.getcol(i)
-    expected = scaled_mat.A[:, [i]]
-    np.testing.assert_allclose(result.toarray(), expected)
 
 
 def test_row_scaled_get_row():
@@ -102,36 +85,6 @@ def test_col_scaled_mat_get_row():
     np.testing.assert_allclose(result, expected)
 
 
-def test_row_sccaled_mat_get_col():
-    scaled_mat = row_scaled_mat()
-    i = 1
-    result = scaled_mat.getcol(i)
-    expected = scaled_mat.A[:, i]
-    np.testing.assert_allclose(result, expected)
-
-
-@pytest.mark.parametrize("scaled_mat_builder", [col_scaled_mat, row_scaled_mat])
-def test_col_dot_dense_mat(scaled_mat_builder):
-
-    scaled_mat = scaled_mat_builder()
-    mat_shape = (scaled_mat.shape[1], 2)
-    mat = np.random.uniform(0, 2, mat_shape)
-    result = scaled_mat.dot(mat)
-    expected = as_sparse(scaled_mat).dot(mat)
-    np.testing.assert_almost_equal(result, expected)
-
-
-@pytest.mark.parametrize("scaled_mat_builder", [col_scaled_mat, row_scaled_mat])
-def test_col_dot_sparse_mat(scaled_mat_builder):
-    scaled_mat = scaled_mat_builder()
-    mat_shape = (scaled_mat.shape[1], 2)
-
-    mat = sps.csc_matrix(np.random.uniform(0, 2, mat_shape))
-    result = scaled_mat.dot(mat)
-    expected = as_sparse(scaled_mat).dot(mat.A)
-    np.testing.assert_almost_equal(result.A, expected)
-
-
 @pytest.mark.parametrize("scaled_mat_builder", [col_scaled_mat, row_scaled_mat])
 def test_power(scaled_mat_builder):
     p = 3
@@ -140,24 +93,6 @@ def test_power(scaled_mat_builder):
     assert isinstance(result, type(scaled_mat))
     assert result.shape == scaled_mat.shape
     np.testing.assert_almost_equal(result.A, scaled_mat.A ** p)
-
-
-def test_transpose_type_col(col_scaled_mat_fixture: ColScaledSpMat):
-    t = col_scaled_mat_fixture.T
-    assert isinstance(t, RowScaledSpMat)
-    assert t.shape == (col_scaled_mat_fixture.shape[1], col_scaled_mat_fixture.shape[0])
-
-
-def test_transpose_type_row(row_scaled_mat_fixture: RowScaledSpMat):
-    t = row_scaled_mat_fixture.T
-    assert isinstance(t, ColScaledSpMat)
-    assert t.shape == (row_scaled_mat_fixture.shape[1], row_scaled_mat_fixture.shape[0])
-
-
-@pytest.mark.parametrize("scaled_mat_builder", [col_scaled_mat, row_scaled_mat])
-def test_transpose_against_dense(scaled_mat_builder):
-    scaled_mat = scaled_mat_builder()
-    np.testing.assert_almost_equal(scaled_mat.T.A, scaled_mat.A.T)
 
 
 @pytest.mark.parametrize("scaled_mat_builder", [col_scaled_mat, row_scaled_mat])
@@ -171,8 +106,8 @@ def test_transpose_reversible(scaled_mat_builder):
 @pytest.mark.parametrize("scaled_mat_builder", [col_scaled_mat, row_scaled_mat])
 def test_multiply(scaled_mat_builder):
     scaled_mat = scaled_mat_builder()
-    other = np.random.normal(0, 1, scaled_mat.shape[scaled_mat.scale_axis])
-    other = np.expand_dims(other, 1 - scaled_mat.scale_axis)
+    other = np.random.normal(0, 1, scaled_mat.shape[scaled_mat.scale_axis()])
+    other = np.expand_dims(other, 1 - scaled_mat.scale_axis())
 
     expected = as_sparse(scaled_mat).multiply(other)
     result = scaled_mat.multiply(other)

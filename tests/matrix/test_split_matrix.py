@@ -2,7 +2,8 @@ import numpy as np
 import pytest
 import scipy.sparse as sps
 
-from glm_benchmarks.scaled_spmat.split_matrix import SplitMatrix
+from glm_benchmarks.matrix.sandwich.sandwich import csr_dense_sandwich
+from glm_benchmarks.matrix.split_matrix import SplitMatrix
 from glm_benchmarks.sklearn_fork._glm import DenseGLMDataMatrix
 
 N = 100
@@ -25,6 +26,16 @@ def test_split_matrix_init(X: np.ndarray):
         assert fully_dense.sparse_indices.shape[0] == S
 
 
+def test_sandwich_dense(X: np.ndarray):
+    np.random.seed(0)
+    n, k = X.shape
+    d = np.random.random((n,))
+    A = sps.random(n, 2).tocsr()
+    result = csr_dense_sandwich(A, X, d)
+    expected = A.T.A @ np.diag(d) @ X
+    np.testing.assert_allclose(result, expected)
+
+
 def test_sandwich(X: np.ndarray):
     for i in range(10):
         n = np.random.randint(8, 300)
@@ -34,6 +45,7 @@ def test_sandwich(X: np.ndarray):
         Xsplit = SplitMatrix(sps.csc_matrix(X), 0.2)
         y1 = Xsplit.sandwich(v)
         y2 = ((X.T.multiply(v)) @ X).toarray()
+        np.testing.assert_allclose(y1, y2, atol=1e-12)
         maxdiff = np.max(np.abs(y1 - y2))
         assert maxdiff < 1e-12
 
@@ -56,24 +68,3 @@ def test_standardize(X: np.ndarray, scale_predictors):
 
     X_GLM_unstandardized = X_GLM_standardized.unstandardize(means, stds)
     np.testing.assert_almost_equal(X_GLM_unstandardized, X)
-
-
-@pytest.mark.parametrize("matrix_shape", [(4,), (4, 1), (4, 2)])
-def test_dot(X: np.ndarray, matrix_shape):
-    v = np.ones(matrix_shape)
-    result = SplitMatrix(sps.csc_matrix(X), 0.2).dot(v)
-    expected = X.dot(v)
-    np.testing.assert_allclose(result, expected)
-
-
-def test_dot_raises(X: np.ndarray):
-    with pytest.raises(ValueError):
-        SplitMatrix(sps.csc_matrix(X), 0.2).dot(np.ones((5, 1)))
-
-
-@pytest.mark.parametrize("matrix_shape", [(N,), (1, N), (2, N)])
-def test_r_matmul(X: np.ndarray, matrix_shape):
-    v = np.ones(matrix_shape)
-    result = v @ SplitMatrix(sps.csc_matrix(X), 0.2)
-    expected = v @ X
-    np.testing.assert_allclose(result, expected)
