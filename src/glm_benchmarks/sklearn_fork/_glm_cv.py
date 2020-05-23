@@ -311,8 +311,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         else:
             self.alphas_ = np.asarray(alphas)
 
-        lower_bounds = check_bounds(self.lower_bounds, X.shape[1])
-        upper_bounds = check_bounds(self.upper_bounds, X.shape[1])
+        lower_bounds = check_bounds(self.lower_bounds, X.shape[1], X.dtype)
+        upper_bounds = check_bounds(self.upper_bounds, X.shape[1], X.dtype)
 
         cv = check_cv(self.cv)
 

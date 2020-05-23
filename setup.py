@@ -27,10 +27,11 @@ for fn in ["src/glm_benchmarks/matrix/sandwich/dense-tmpl.cpp"]:
     # When the templated source code hasn't changed, we don't want to write the
     # file again because that'll touch the file and result in a rebuild
     write = True
-    with open(out_fn, "r") as f:
-        out_fn_src = f.read()
-        if out_fn_src == rendered_src:
-            write = False
+    if path.exists(out_fn):
+        with open(out_fn, "r") as f:
+            out_fn_src = f.read()
+            if out_fn_src == rendered_src:
+                write = False
 
     if write:
         with open(out_fn, "w") as f:

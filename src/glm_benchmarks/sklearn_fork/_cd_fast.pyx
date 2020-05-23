@@ -65,10 +65,14 @@ cdef inline floating fsign(floating f) nogil:
 
 def enet_coordinate_descent_gram(floating[::1] w,
                                  floating[::1] P1,
-                                 np.ndarray[floating, ndim=2, mode='c'] Q,
-                                 np.ndarray[floating, ndim=1, mode='c'] q,
+                                 floating[:,:] Q,
+                                 floating[::1] q,
                                  int max_iter, floating tol, object rng,
-                                 bint intercept, bint random=0):
+                                 bint intercept, bint random,
+                                 bint has_lower_bounds,
+                                 floating[:] lower_bounds,
+                                 bint has_upper_bounds,
+                                 floating[:] upper_bounds):
     """Cython version of the coordinate descent algorithm
         for Elastic-Net regression
         We minimize
@@ -87,8 +91,9 @@ def enet_coordinate_descent_gram(floating[::1] w,
     cdef floating w_max
     cdef floating d_w_ii
     cdef floating d_w_tol = tol
+    cdef floating mn_subgrad = 0
     cdef unsigned int ii
-    cdef unsigned int n_iter = 0
+    cdef int n_iter = 0
     cdef unsigned int f_iter
     cdef UINT32_t rand_r_state_seed = rng.randint(0, RAND_R_MAX)
     cdef UINT32_t* rand_r_state = &rand_r_state_seed
@@ -106,7 +111,7 @@ def enet_coordinate_descent_gram(floating[::1] w,
                 else:
                     ii = f_iter
 
-                if ii < intercept:
+                if ii < <unsigned int>intercept:
                     P1_ii = 0.0
                 else:
                     P1_ii = P1[ii - intercept]
@@ -123,6 +128,14 @@ def enet_coordinate_descent_gram(floating[::1] w,
 
                 w[ii] = fsign(-q[ii]) * fmax(fabs(q[ii]) - P1_ii, 0) / Q[ii, ii]
 
+                if ii >= <unsigned int>intercept:
+                    if has_lower_bounds:
+                        if w[ii] < lower_bounds[ii - intercept]:
+                            w[ii] = lower_bounds[ii - intercept]
+                    if has_upper_bounds:
+                        if w[ii] > upper_bounds[ii - intercept]:
+                            w[ii] = upper_bounds[ii - intercept]
+
                 if w[ii] != 0.0:
                     # q +=  w[ii] * Q[ii] # Update q = X.T (X w - y)
                     _axpy(n_features, w[ii], Q_ptr + ii * n_features, 1,
@@ -136,15 +149,16 @@ def enet_coordinate_descent_gram(floating[::1] w,
                 if fabs(w[ii]) > w_max:
                     w_max = fabs(w[ii])
 
-            #TODO: convergence criteria needs a major overhaul
             if w_max == 0.0 or d_w_max / w_max < d_w_tol or n_iter == max_iter - 1:
                 # the biggest coordinate update of this iteration was smaller than
                 # the tolerance: check the minimum norm subgradient as the
                 # ultimate stopping criterion
-                with gil:
-                    mn_subgrad = _norm_min_subgrad(w, q, P1, intercept)
-                    if mn_subgrad <= tol:
-                        break
+                mn_subgrad = _norm_min_subgrad(
+                    w, q, P1, intercept,
+                    has_lower_bounds, lower_bounds, has_upper_bounds, upper_bounds
+                )
+                if mn_subgrad <= tol:
+                    break
         else:
             # for/else, runs if for doesn't end with a `break`
             with gil:
@@ -156,12 +170,16 @@ def enet_coordinate_descent_gram(floating[::1] w,
     return np.asarray(w), mn_subgrad, tol, n_iter + 1
 
 
-def _norm_min_subgrad(
+cpdef floating _norm_min_subgrad(
     floating[::1] coef,
     floating[::1] grad,
     floating[::1] P1,
-    bint intercept
-) -> floating:
+    bint intercept,
+    bint has_lower_bounds,
+    floating[:] lower_bounds,
+    bint has_upper_bounds,
+    floating[:] upper_bounds,
+) nogil:
     """Compute the gradient of all subgradients with minimal L2-norm.
 
     subgrad = grad + P1 * subgrad(|coef|_1)
@@ -184,13 +202,28 @@ def _norm_min_subgrad(
 
     intercept : bool
         are we including an intercept?
+
+    _lower_bounds : ndarray
+        lower bounds. When a coefficient is located at the bound and
+        it's gradient suggest that it would be optimal to go beyond
+        the bound, we set the gradient of this feature to zero.
+
+    _upper_bounds : ndarray
+        see lb.
     """
-    cdef floating out
+    cdef floating out = 0
+    cdef floating term
+    cdef int i
     if intercept:
         out = fabs(grad[0])
     for i in range(intercept, coef.shape[0]):
         if coef[i] == 0:
-            out += fabs(fsign(grad[i]) * fmax(fabs(grad[i]) - P1[i - intercept], 0))
+            term = fsign(grad[i]) * fmax(fabs(grad[i]) - P1[i - intercept], 0)
         else:
-            out += fabs(grad[i] + fsign(coef[i]) * P1[i - intercept])
+            term = grad[i] + fsign(coef[i]) * P1[i - intercept]
+        if has_lower_bounds and coef[i] == lower_bounds[i - intercept] and term > 0:
+            term = 0
+        if has_upper_bounds and coef[i] == upper_bounds[i - intercept] and term < 0:
+            term = 0
+        out += fabs(term)
     return out
