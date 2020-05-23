@@ -18,6 +18,8 @@ from ._util import _safe_lin_pred, _safe_sandwich_dot
 
 
 def _least_squares_full_solver(state, data):
+    # TODO: we need some extra flexibility in the quadratic approximation so
+    # this can be faster.
     d1 = data.link.inverse_derivative(state.eta)
     V = data.family.variance(state.mu, phi=1, weights=data.weights)
 
