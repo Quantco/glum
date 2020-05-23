@@ -285,7 +285,7 @@ class IRLSState:
         self.diagnostics = []
 
         self.coef = coef
-        self.step = np.empty_like(self.coef)
+        self.step = np.full_like(self.coef, data.step_size_tol)
         self.Fw = None
         self.eta = None
         self.mu = None
