@@ -66,7 +66,7 @@ def cli_run(
                 output_dir, new_params, result,
             )
             if len(result) > 0:
-                click.echo(f"ran problem {Pn} with libray {Ln}")
+                click.echo(f"ran problem {Pn} with library {Ln}")
                 click.echo(f"ran in {result.get('runtime')}")
 
 
@@ -172,7 +172,7 @@ def cli_analyze(params: BenchmarkParams, output_dir: str, export: Optional[str])
         if res_df["cv"].any():
             cols_to_show += ["n_alphas", "max_alpha", "min_alpha", "best_alpha"]
         else:
-            cols_to_show += ["intercept", "obj_val", "rel_obj_val"]
+            cols_to_show += ["intercept", "num_nonzero_coef", "obj_val", "rel_obj_val"]
 
         print(res_df[cols_to_show])
 
@@ -194,6 +194,7 @@ def extract_dict_results_to_pd_series(fname: str, results: Dict[str, Any],) -> D
     runtime_per_iter = results["runtime"] / results["n_iter"]
     l1_norm = np.sum(np.abs(coefs))
     l2_norm = np.sum(coefs ** 2)
+    num_nonzero_coef = np.sum(np.abs(coefs) > 1e-8)
 
     # weights and offsets are solving the same problem, but the objective is set up to
     # deal with weights, so load the data for the weights problem rather than the
@@ -242,6 +243,7 @@ def extract_dict_results_to_pd_series(fname: str, results: Dict[str, Any],) -> D
             "runtime per iter": runtime_per_iter,
             "l1": l1_norm,
             "l2": l2_norm,
+            "num_nonzero_coef": num_nonzero_coef,
             "obj_val": obj_val,
             "offset": "offset" in params.problem_name,
         }
