@@ -3,8 +3,8 @@
 set -uo pipefail
 
 OUTPUT_DIR=$(git rev-parse HEAD)
-PROBLEM_NAMES="real-insurance-weights-net-poisson,real-insurance-weights-l2-poisson"
-LIBRARY_NAMES="sklearn-fork,orig-sklearn-fork,glmnet-python,h2o"
+PROBLEM_NAMES="wide-insurance-weights-net-poisson,wide-insurance-weights-l2-poisson"
+LIBRARY_NAMES="sklearn-fork,h2o"
 THREADS=8
 
 export GLM_BENCHMARKS_CACHE_SIZE_LIMIT=20737418240  # 20 GB
@@ -37,4 +37,4 @@ glm_benchmarks_analyze \
     --problem_name "${PROBLEM_NAMES}" \
     --library_name "${LIBRARY_NAMES}" \
     --output_dir ${OUTPUT_DIR} \
-    --export "real_results.csv"
+    --export "wide_results.csv"

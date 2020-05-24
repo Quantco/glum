@@ -3,7 +3,7 @@
 set -uo pipefail
 
 OUTPUT_DIR=$(git rev-parse HEAD)
-PROBLEM_NAMES="real-insurance-weights-net-poisson,real-insurance-weights-l2-poisson"
+PROBLEM_NAMES="narrow-insurance-weights-net-poisson,narrow-insurance-weights-l2-poisson"
 LIBRARY_NAMES="sklearn-fork,orig-sklearn-fork,glmnet-python,h2o"
 THREADS=8
 
@@ -37,4 +37,4 @@ glm_benchmarks_analyze \
     --problem_name "${PROBLEM_NAMES}" \
     --library_name "${LIBRARY_NAMES}" \
     --output_dir ${OUTPUT_DIR} \
-    --export "real_results.csv"
+    --export "narrow_results.csv"
