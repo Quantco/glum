@@ -114,10 +114,14 @@ def execute_problem_library(
     default="benchmark_output",
     help="The directory where we load benchmarking output.",
 )
+@click.option(
+    "--export",
+    default=None,
+    type=str,
+    help="File name or path to export the results to CSV or Pickle.",
+)
 @benchmark_params_cli
-def cli_analyze(
-    params: BenchmarkParams, output_dir: str,
-):
+def cli_analyze(params: BenchmarkParams, output_dir: str, export: Optional[str]):
 
     clear_cache()
     display_precision = 4
@@ -171,6 +175,13 @@ def cli_analyze(
             cols_to_show += ["intercept", "obj_val", "rel_obj_val"]
 
         print(res_df[cols_to_show])
+
+    if export:
+        if export.endswith(".pkl"):
+            res_df.to_pickle(export)
+        else:
+            res_df.to_csv(export)
+
     return res_df
 
 
