@@ -28,6 +28,12 @@ def orig_sklearn_fork_bench(
     result = dict()  # type: ignore
 
     X = dat["X"]
+
+    if X.shape[0] > 100000 and not isinstance(X, np.ndarray):
+        raise ValueError(
+            "original sklearn fork is too slow on sparse data sets with more than 100,000 rows skipping."
+        )
+
     fit_args = dict(X=X, y=dat["y"])
     if "weights" in dat.keys():
         fit_args.update({"sample_weight": dat["weights"]})
