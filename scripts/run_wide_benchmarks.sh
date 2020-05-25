@@ -12,7 +12,7 @@ export GLM_BENCHMARKS_CACHE=.cache
 
 for NUM_ROWS in 100000 1000000 10000000
 do
-    for REG_STRENGTH in 1.0 0.1 0.00001
+    for REG_STRENGTH in 0.1 0.001 0.00001
     do
         for STORAGE in "dense" "sparse" "split0.1"
         do
