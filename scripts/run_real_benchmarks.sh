@@ -3,7 +3,7 @@
 set -uo pipefail
 
 OUTPUT_DIR=$(git rev-parse HEAD)
-PROBLEM_NAMES="real-insurance-weights-net-poisson,real-insurance-weights-l2-poisson"
+PROBLEM_NAMES="real-insurance-weights-net-poisson,real-insurance-weights-l2-poisson,real-insurance-weights-net-gamma,real-insurance-weights-l2-gamma"
 LIBRARY_NAMES="sklearn-fork,orig-sklearn-fork,glmnet-python,h2o"
 THREADS=8
 
