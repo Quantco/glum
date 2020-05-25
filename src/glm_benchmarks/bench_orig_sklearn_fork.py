@@ -1,3 +1,4 @@
+import warnings
 from typing import Dict, Union
 
 import numpy as np
@@ -30,15 +31,16 @@ def orig_sklearn_fork_bench(
     X = dat["X"]
 
     if X.shape[0] > 100000 and not isinstance(X, np.ndarray):
-        raise ValueError(
+        warnings.warn(
             "original sklearn fork is too slow on sparse data sets with more than 100,000 rows skipping."
         )
+        return result
 
     fit_args = dict(X=X, y=dat["y"])
     if "weights" in dat.keys():
         fit_args.update({"sample_weight": dat["weights"]})
     if "offset" in dat.keys():
-        print("Original sklearn_fork does not support offsets.")
+        warnings.warn("Original sklearn_fork does not support offsets.")
         return result
 
     family = distribution
@@ -63,7 +65,7 @@ def orig_sklearn_fork_bench(
     try:
         result["runtime"], m = runtime(build_and_fit, iterations, model_args, fit_args)
     except ValueError as e:
-        print(f"Problem failed with this error: {e}")
+        warnings.warn(f"Problem failed with this error: {e}")
         return result
 
     result["intercept"] = m.intercept_
