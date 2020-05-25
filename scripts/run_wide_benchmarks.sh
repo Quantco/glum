@@ -3,7 +3,7 @@
 set -uo pipefail
 
 OUTPUT_DIR=$(git rev-parse HEAD)
-PROBLEM_NAMES="wide-insurance-weights-net-poisson,wide-insurance-weights-l2-poisson"
+PROBLEM_NAMES="wide-insurance-weights-net-poisson,wide-insurance-weights-l2-poisson,wide-insurance-weights-net-gamma,wide-insurance-weights-l2-gamma"
 LIBRARY_NAMES="sklearn-fork,h2o"  # don't run these for glmnet and orig-sklearn-fork -> these take forever
 THREADS=8
 
