@@ -39,16 +39,28 @@ Generalized Linear Models with Exponential Dispersion Family
 from __future__ import division
 
 import warnings
-from typing import Any, Iterable, Optional, Tuple, Union
+from typing import Any, Iterable, List, Optional, Tuple, Type, Union
 
 import numpy as np
 import scipy.sparse.linalg as splinalg
 from scipy import linalg, sparse
 from sklearn.base import BaseEstimator, RegressorMixin
-from sklearn.utils import check_array, check_X_y
-from sklearn.utils.validation import check_is_fitted, check_random_state
+from sklearn.utils import check_array
+from sklearn.utils.validation import (
+    _assert_all_finite,
+    check_consistent_length,
+    check_is_fitted,
+    check_random_state,
+    check_X_y,
+    column_or_1d,
+)
 
-from glm_benchmarks.matrix import DenseGLMDataMatrix, MKLSparseMatrix
+from glm_benchmarks.matrix import (
+    DenseGLMDataMatrix,
+    MatrixBase,
+    MKLSparseMatrix,
+    SplitMatrix,
+)
 
 from ._distribution import (
     BinomialDistribution,
@@ -73,8 +85,70 @@ from ._solvers import (
 _float_itemsize_to_dtype = {8: np.float64, 4: np.float32, 2: np.float16}
 
 
-def get_float_dtype_of_size(itemsize: int):
-    return _float_itemsize_to_dtype[itemsize]
+def check_X_y_matrix(
+    X: MatrixBase,
+    y: Union[np.ndarray, List, sparse.spmatrix],
+    *,
+    accept_sparse: Union[str, bool, List[str]] = False,
+    dtype: Union[str, Type, List[Type], None] = "numeric",
+    order: Optional[str] = None,
+    copy: bool = False,
+    ensure_min_samples: int = 1,
+    estimator: Optional[str] = None,
+) -> Tuple[Union[MatrixBase, sparse.spmatrix, np.ndarray], np.ndarray]:
+    """
+    See documentation for sklearn.utils.check_X_y. This function behaves identically
+    for inputs that are not from the Matrix package, and has some parameters,
+    such as "force_all_finite", fixed to match the needs of GLMs..
+
+    Returns
+    -------
+    X_converted : object
+        The converted and validated X.
+    y_converted : object
+        The converted and validated y.
+    """
+
+    def _check_array(mat, ensure_min_features: int):
+
+        return check_array(
+            mat,
+            accept_sparse=accept_sparse,
+            accept_large_sparse=True,
+            dtype=dtype,
+            order=order,
+            copy=copy,
+            force_all_finite=True,
+            ensure_2d=True,
+            allow_nd=False,
+            ensure_min_samples=ensure_min_samples,
+            ensure_min_features=ensure_min_features,
+            estimator=estimator,
+        )
+
+    if y is None:
+        raise ValueError("y cannot be None")
+
+    y = column_or_1d(y, warn=True)
+    _assert_all_finite(y)
+    if y.dtype.kind == "O":
+        y = y.astype(np.float64)
+
+    check_consistent_length(X, y)
+
+    if isinstance(X, SplitMatrix):
+        X.X_sparse = _check_array(X.X_sparse, ensure_min_features=0)
+        X.X_dense_F = DenseGLMDataMatrix(
+            _check_array(X.X_dense_F, ensure_min_features=0)
+        )
+
+    else:
+        original_type = type(X)
+        X = _check_array(X, ensure_min_features=1)
+        if original_type is DenseGLMDataMatrix:
+            X = DenseGLMDataMatrix(X)
+
+    return X, y
 
 
 def _check_weights(
@@ -731,14 +805,13 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         """
         check_is_fitted(self, "coef_")
         _dtype = [np.float64, np.float32]
-        X, y = check_X_y(
-            X,
-            y,
-            accept_sparse=["csr", "csc", "coo"],
-            dtype=_dtype,
-            y_numeric=True,
-            multi_output=False,
-        )
+        if isinstance(X, MatrixBase):
+            X, y = check_X_y_matrix(
+                X, y, accept_sparse=["csr", "csc", "coo"], dtype=_dtype
+            )
+        else:
+            X, y = check_X_y(X, y, accept_sparse=["csr", "csc", "coo"], dtype=_dtype)
+
         n_samples, n_features = X.shape
         weights = _check_weights(sample_weight, n_samples, X.dtype)
         eta = X @ self.coef_
@@ -757,10 +830,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             chisq = np.sum(
                 weights * (y - mu) ** 2 / self._family_instance.unit_variance(mu)
             )
-            return chisq / (n_samples - n_features)
+            return float(chisq) / (n_samples - n_features)
         elif self.fit_dispersion == "deviance":
             dev = self._family_instance.deviance(y, mu, weights)
-            return dev / (n_samples - n_features)
+            return float(dev) / (n_samples - n_features)
 
     # Note: check_estimator(GeneralizedLinearRegressor) might raise
     # "AssertionError: -0.28014056555724598 not greater than 0.5"
@@ -926,7 +999,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         float,
     ]:
         _dtype = [np.float64, np.float32]
-        if solver == "cd":
+        if solver == "irls-cd":
             _stype = ["csc"]
         else:
             _stype = ["csc", "csr"]
@@ -938,15 +1011,14 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             # do that if X was intially int64.
             X = X.astype(np.float64)
 
-        if not getattr(X, "skip_sklearn_check", False):
+        if isinstance(X, MatrixBase):
+            X, y = check_X_y_matrix(
+                X, y, accept_sparse=_stype, dtype=_dtype, copy=copy_X
+            )
+            self._check_n_features(X, reset=True)
+        else:
             X, y = self._validate_data(
-                X,
-                y,
-                accept_sparse=_stype,
-                dtype=_dtype,
-                y_numeric=True,
-                multi_output=False,
-                copy=copy_X,
+                X, y, ensure_2d=True, accept_sparse=_stype, dtype=_dtype, copy=copy_X
             )
 
         # Without converting y to float, deviance might raise
