@@ -4,7 +4,6 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import click
 
-from glm_benchmarks.bench_admm import admm_bench
 from glm_benchmarks.bench_orig_sklearn_fork import orig_sklearn_fork_bench
 from glm_benchmarks.bench_sklearn_fork import sklearn_fork_bench
 from glm_benchmarks.problems import Problem, get_all_problems
@@ -140,7 +139,6 @@ def get_all_libraries() -> Dict[str, Any]:
         "sklearn-fork": sklearn_fork_bench,
         "orig-sklearn-fork": orig_sklearn_fork_bench,
         "zeros": zeros_bench,
-        "admm": admm_bench,
     }
 
     if GLMNET_PYTHON_INSTALLED:
