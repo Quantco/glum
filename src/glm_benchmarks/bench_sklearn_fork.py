@@ -1,5 +1,5 @@
 import time
-from typing import Dict, Union
+from typing import Dict, Optional, Union
 
 import numpy as np
 from scipy import sparse as sps
@@ -28,6 +28,7 @@ def sklearn_fork_bench(
     iterations: int,
     cv: bool,
     print_diagnostics: bool = True,
+    reg_multiplier: Optional[float] = None,
     **kwargs,
 ):
     result = dict()
@@ -54,11 +55,14 @@ def sklearn_fork_bench(
         copy_X=False,
         selection="cyclic",
         # TODO: try tightening this later
-        gradient_tol=1 if cv else benchmark_convergence_tolerance,
+        gradient_tol=1 if cv else benchmark_convergence_tolerance * 1e-4,
         step_size_tol=0.01 * benchmark_convergence_tolerance,
     )
     if not cv:
-        model_args["alpha"] = alpha
+        model_args["alpha"] = (
+            alpha if reg_multiplier is None else alpha * reg_multiplier
+        )
+
     model_args.update(kwargs)
 
     try:

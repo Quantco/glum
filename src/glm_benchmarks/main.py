@@ -94,15 +94,22 @@ def execute_problem_library(
 
     if params.regularization_strength is None:
         params.regularization_strength = P.regularization_strength
+    # Weights have been multiplied by exposure. The new sum of weights
+    # should influence the objective function (in order to keep everything comparable
+    # to the "weights instead of offset" setup), but this will get undone by weight
+    # normalization. So instead divide the penalty by the new weight sum divided by
+    # the old weight sum
+    reg_multiplier = 1 / dat["weights"].mean() if "weights" in dat.keys() else None
 
     result = L(
         dat,
-        P.distribution,
-        params.regularization_strength,
-        P.l1_ratio,
-        iterations,
-        params.cv,
-        print_diagnostics,
+        distribution=P.distribution,
+        alpha=params.regularization_strength,
+        l1_ratio=P.l1_ratio,
+        iterations=iterations,
+        cv=params.cv,
+        print_diagnostics=print_diagnostics,
+        reg_multiplier=reg_multiplier,
         **kwargs,
     )
     return result, params.regularization_strength
