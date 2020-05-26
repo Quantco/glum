@@ -15,10 +15,16 @@ def admm_bench(
     l1_ratio: float,
     iterations: int = None,
     cv: bool = False,
-    print_diagnostics: bool = True,  # ineffective here
+    **kwargs,
 ):
     # only gaussian lasso is supported.
-    if distribution != "gaussian" or l1_ratio != 0 or iterations != 1 or cv:
+    if (
+        distribution != "gaussian"
+        or l1_ratio != 0
+        or iterations != 1
+        or cv
+        or "offset" in dat.keys()
+    ):
         return dict()
 
     start = time.time()
