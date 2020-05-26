@@ -15,7 +15,6 @@ from ._glm import (
     get_link,
     initialize_start_params,
     is_pos_semidef,
-    set_up_and_check_fit_args,
     setup_p1,
     setup_p2,
 )
@@ -288,7 +287,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         return _make_grid(alpha_max)
 
     def fit(self, X, y, sample_weight=None, offset=None):
-        X, y, weights, offset, weights_sum = set_up_and_check_fit_args(
+        X, y, weights, offset, weights_sum = self.set_up_and_check_fit_args(
             X, y, sample_weight, offset, solver=self.solver, copy_X=self.copy_X
         )
 
