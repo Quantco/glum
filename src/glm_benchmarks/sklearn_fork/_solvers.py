@@ -2,7 +2,7 @@ from __future__ import division
 
 import time
 import warnings
-from typing import Dict, List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 from scipy import linalg, sparse
@@ -11,330 +11,61 @@ from sklearn.exceptions import ConvergenceWarning
 from sklearn.utils import check_array
 from sklearn.utils.validation import check_random_state
 
-from glm_benchmarks.matrix import MatrixBase
-
+from ._cd_fast import _norm_min_subgrad, enet_coordinate_descent_gram
 from ._distribution import ExponentialDispersionModel
 from ._link import Link
-from ._util import _safe_lin_pred, _safe_toarray
+from ._util import _safe_lin_pred, _safe_sandwich_dot
 
 
-def _min_norm_sugrad(
-    coef: np.ndarray,
-    grad: np.ndarray,
-    P2: Optional[np.ndarray],
-    P1: np.ndarray,
-    lb: Optional[np.ndarray],
-    ub: Optional[np.ndarray],
-) -> np.ndarray:
-    """Compute the gradient of all subgradients with minimal L2-norm.
-
-    subgrad = grad + P2 * coef + P1 * subgrad(|coef|_1)
-
-    g_i = grad_i + (P2*coef)_i
-
-    if coef_i > 0:   g_i + P1_i
-    if coef_i < 0:   g_i - P1_i
-    if coef_i = 0:   sign(g_i) * max(|g_i|-P1_i, 0)
-
-    Parameters
-    ----------
-    coef : ndarray
-        coef[0] may be intercept.
-
-    grad : ndarray, shape=coef.shape
-
-    P2 : {1d or 2d array, None}
-        always without intercept, ``None`` means P2 = 0
-
-    P1 : ndarray
-        always without intercept
-
-    lb : {ndarray or None}
-        lower bounds. When a coefficient is located at the bound and
-        it's gradient suggest that it would be optimal to go beyond
-        the bound, we set the gradient of this feature to zero.
-
-    ub : {ndarray or None}
-        see lb.
-    """
-    intercept = coef.size == P1.size + 1
-    idx = 1 if intercept else 0  # offset if coef[0] is intercept
-    # compute grad + coef @ P2 without intercept
-    grad_wP2 = grad[idx:].copy()
-    if P2 is None:
-        pass
-    elif P2.ndim == 1:
-        grad_wP2 += coef[idx:] * P2
-    else:
-        grad_wP2 += coef[idx:] @ P2
-
-    subgrad = np.where(
-        coef[idx:] == 0,
-        np.sign(grad_wP2) * np.maximum(np.abs(grad_wP2) - P1, 0),
-        grad_wP2 + np.sign(coef[idx:]) * P1,
-    )
-
-    # maybe use something else?
-    if lb is not None:
-        subgrad = np.where((coef[idx:] == lb) & (subgrad > 0), 0, subgrad)
-    if ub is not None:
-        subgrad = np.where((coef[idx:] == ub) & (subgrad < 0), 0, subgrad)
-
-    if intercept:
-        return np.concatenate(([grad[0]], subgrad))
-    else:
-        return subgrad
-
-
-def _least_squares_solver(
-    d: np.ndarray,
-    X: MatrixBase,
-    coef: np.ndarray,
-    score,
-    fisher,
-    P1,
-    P2,
-    n_cycles: int,
-    inner_tol: float,
-    max_inner_iter,
-    selection,
-    random_state,
-    diag_fisher=False,
-    lower_bounds=None,
-    upper_bounds=None,
-):
-    if (lower_bounds is not None) or (upper_bounds is not None):
-        raise ValueError("Bounds are not supported with the least square solver.")
-    S = score.copy()
-    intercept = coef.size == X.shape[1] + 1
-    idx = 1 if intercept else 0  # offset if coef[0] is intercept
-
-    coef_P2 = add_P2_fisher(fisher, P2, coef, idx, diag_fisher)
-
-    # TODO:
-    S[idx:] -= coef_P2
+def _least_squares_solver(state, data):
+    if data.has_lower_bounds or data.has_upper_bounds:
+        raise ValueError("Bounds are not supported with the least squares solver.")
+    fisher = build_fisher(data.X, state.fisher_W, data.fit_intercept, data.P2)
 
     # TODO: In cases where we have lots of columns, we might want to avoid the
     # sandwich product and use something like iterative lsqr or lsmr.
-    # TODO: need to only pass X and W to _ls_solver and _cd_solver. Then, we
-    # can calculate fisher and score or use other solvers internal to the inner
-    # solver.
-    d = linalg.solve(fisher, S, overwrite_a=True, overwrite_b=True, assume_a="pos")
-    return d, coef_P2, n_cycles + 1, inner_tol
+    d = linalg.solve(
+        fisher, state.score, overwrite_a=True, overwrite_b=True, assume_a="pos"
+    )
+    return d, 1
 
 
-def _cd_solver(
-    d: np.ndarray,
-    X: MatrixBase,
-    coef: np.ndarray,
-    score,
-    fisher,
-    P1,
-    P2,
-    n_cycles: int,
-    inner_tol: float,
-    max_inner_iter=50000,
-    selection="cyclic",
-    random_state=None,
-    diag_fisher=False,
-    lower_bounds: Optional[np.ndarray] = None,
-    upper_bounds: Optional[np.ndarray] = None,
-):
-    """Compute inner loop of coordinate descent, i.e. cycles through features.
-
-    Minimization of 1-d subproblems::
-
-        min_z q(d+z*e_j) - q(d)
-        = min_z A_j z + 1/2 B_jj z^2 + ||P1_j (w_j+d_j+z)||_1
-
-    A = f'(w) + d*H(w) + (w+d)*P2
-    B = H+P2
-    Note: f'=-score and H=fisher are updated at the end of outer iteration.
-    """
-    # TODO: split into diag_fisher and non diag_fisher cases to make optimization easier
-    # TODO: Cython/C++?
-    # TODO: use sparsity (coefficient already 0 due to L1 penalty)
-    #       => active set of features for featurelist, see paper
-    #          of Improved GLMNET or Gap Safe Screening Rules
-    #          https://arxiv.org/abs/1611.05780
-    n_samples, n_features = X.shape
-    intercept = coef.size == X.shape[1] + 1
-    idx = 1 if intercept else 0  # offset if coef[0] is intercept
-    f_cont = fisher.flags["F_CONTIGUOUS"]
-
-    coef_P2 = add_P2_fisher(fisher, P2, coef, idx, diag_fisher)
-
-    A = -score
-    A[idx:] += coef_P2
-    # A += d @ (H+P2) but so far d=0
-    # inner loop
-    for inner_iter in range(1, max_inner_iter + 1):
-        inner_iter += 1
-        n_cycles += 1
-        # cycle through features, update intercept separately at the end
-        # TODO: move a lot of this to outer loop
-        if selection == "random":
-            featurelist = random_state.permutation(n_features)
-        else:
-            featurelist = np.arange(n_features)
-
-        # if selection is not random, only need to do this once
-        jdx_vec = featurelist + idx
-        if diag_fisher:
-            b_vec = fisher[jdx_vec]
-        else:
-            b_vec = np.diag(fisher)[jdx_vec]
-        b_less_than_zero_vec = b_vec <= 0
-        p1_is_zero_vec = P1[featurelist] == 0
-
-        for num, j in enumerate(featurelist):
-            # minimize_z: a z + 1/2 b z^2 + c |d+z|
-            # a = A_j
-            # b = B_jj > 0
-            # c = |P1_j| = P1_j > 0, see 1.3
-            # d = w_j + d_j
-            # cf. https://arxiv.org/abs/0708.1485 Eqs. (3) - (4)
-            # with beta = z+d, beta_hat = d-a/b and gamma = c/b
-            # z = 1/b * S(bd-a,c) - d
-            # S(a,b) = sign(a) max(|a|-b, 0) soft thresholding
-            # jdx = j + idx  # index for arrays containing entries for intercept
-            jdx = jdx_vec[num]
-            a = A[jdx]
-            if diag_fisher:
-                # Note: fisher is ndarray of shape (n_samples,) => no idx
-                # Calculate Bj = B[j, :] = B[:, j] as it is needed later anyway
-                x_j = np.squeeze(np.array(X.getcol(j).toarray()))
-                Bj = np.zeros_like(A)
-                if intercept:
-                    Bj[0] = fisher @ x_j
-                Bj[idx:] = _safe_toarray((fisher * x_j) @ X).ravel()
-
-                if P2.ndim == 1:
-                    Bj[idx + j] += P2[j]
-                else:
-                    if sparse.issparse(P2):
-                        # slice columns as P2 is csc
-                        Bj[idx:] += P2[:, j].toarray().ravel()
-                    else:
-                        Bj[idx:] += P2[:, j]
-                b = Bj[jdx]
-            else:
-                b = b_vec[num]
-
-            # those ten lines are what it is all about
-            if b_less_than_zero_vec[num]:
-                z = 0
-            elif p1_is_zero_vec[num]:
-                z = -a / b
-            elif a + P1[j] < b * (coef[jdx] + d[jdx]):
-                z = -(a + P1[j]) / b
-            elif a - P1[j] > b * (coef[jdx] + d[jdx]):
-                z = -(a - P1[j]) / b
-            else:
-                z = -(coef[jdx] + d[jdx])
-
-            # bounds
-            if lower_bounds is not None:
-                if coef[jdx] + (d[jdx] + z) < lower_bounds[j]:
-                    z = lower_bounds[j] - coef[jdx] - d[jdx]
-            if upper_bounds is not None:
-                if coef[jdx] + (d[jdx] + z) > upper_bounds[j]:
-                    z = upper_bounds[j] - coef[jdx] - d[jdx]
-
-            # update direction d
-            d[jdx] += z
-            # update A because d_j is now d_j+z
-            # A = f'(w) + d*H(w) + (w+d)*P2
-            # => A += (H+P2)*e_j z = B_j * z
-            # Note: B is symmetric B = B.transpose
-            if diag_fisher:
-                # Bj = B[:, j] calculated above, still valid
-                bj = Bj
-            # otherwise, B is symmetric, C- or F-contiguous, but never sparse
-            elif f_cont:
-                # slice columns like for sparse csc
-                bj = fisher[:, jdx]
-            else:  # B.flags['C_CONTIGUOUS'] might be true
-                # slice rows
-                bj = fisher[jdx, :]
-            A += bj * z
-            # end of cycle over features
-
-        # update intercept
-        if intercept:
-            if diag_fisher:
-                Bj = np.zeros_like(A)
-                Bj[0] = fisher.sum()
-                Bj[1:] = fisher @ X
-                b = Bj[0]
-            else:
-                b = fisher[0, 0]
-            z = 0 if b <= 0 else -A[0] / b
-            d[0] += z
-            if diag_fisher:
-                A += Bj * z
-            else:
-                if fisher.flags["F_CONTIGUOUS"]:
-                    A += fisher[:, 0] * z
-                else:
-                    A += fisher[0, :] * z
-        # end of complete cycle
-        # stopping criterion for inner loop
-        # sum_i(|minimum of norm of subgrad of q(d)_i|)
-        # subgrad q(d) = A + subgrad ||P1*(w+d)||_1
-        mn_subgrad = _min_norm_sugrad(
-            coef=coef + d, grad=A, P2=None, P1=P1, lb=lower_bounds, ub=upper_bounds
-        )
-        mn_subgrad = linalg.norm(mn_subgrad, ord=1)
-        if mn_subgrad <= inner_tol:
-            if inner_iter == 1:
-                inner_tol = inner_tol / 4.0
-            break
-        # end of inner loop
-    return d, coef_P2, n_cycles, inner_tol
+def _cd_solver(state, data):
+    fisher = build_fisher(data.X, state.fisher_W, data.fit_intercept, data.P2)
+    new_coef, gap, _, n_cycles = enet_coordinate_descent_gram(
+        state.coef.copy(),
+        data.P1,
+        fisher,
+        -state.score,
+        data.max_inner_iter,
+        state.inner_tol,
+        data.random_state,
+        data.fit_intercept,
+        data.selection == "random",
+        data.has_lower_bounds,
+        data._lower_bounds,
+        data.has_upper_bounds,
+        data._upper_bounds,
+    )
+    return new_coef - state.coef, n_cycles
 
 
-def add_P2_fisher(fisher, P2, coef, idx, diag_fisher):
+def build_fisher(X, fisher_W, intercept, P2):
+    idx = 1 if intercept else 0
+    fisher = _safe_sandwich_dot(X, fisher_W, intercept)
     if P2.ndim == 1:
-        coef_P2 = coef[idx:] * P2
-        if not diag_fisher:
-            idiag = np.arange(start=idx, stop=fisher.shape[0])
-            # B[np.diag_indices_from(B)] += P2
-            fisher[(idiag, idiag)] += P2
+        idiag = np.arange(start=idx, stop=fisher.shape[0])
+        fisher[(idiag, idiag)] += P2
     else:
-        coef_P2 = coef[idx:] @ P2
-        if not diag_fisher:
-            if sparse.issparse(P2):
-                fisher[idx:, idx:] += P2.toarray()
-            else:
-                fisher[idx:, idx:] += P2
-    return coef_P2
+        if sparse.issparse(P2):
+            fisher[idx:, idx:] += P2.toarray()
+        else:
+            fisher[idx:, idx:] += P2
+    return fisher
 
 
-def _irls_solver(
-    inner_solver,
-    coef,
-    X: MatrixBase,
-    y: np.ndarray,
-    weights: np.ndarray,
-    P1: Union[np.ndarray, sparse.spmatrix],
-    P2: Union[np.ndarray, sparse.spmatrix],
-    fit_intercept: bool,
-    family: ExponentialDispersionModel,
-    link: Link,
-    max_iter: int = 100,
-    max_inner_iter: int = 100000,
-    gradient_tol: Optional[float] = 1e-4,
-    step_size_tol: Optional[float] = 1e-4,
-    fixed_inner_tol: Optional[Tuple] = None,
-    selection="cyclic",
-    random_state=None,
-    diag_fisher=False,
-    offset: np.ndarray = None,
-    lower_bounds: Optional[np.ndarray] = None,
-    upper_bounds: Optional[np.ndarray] = None,
-) -> Tuple[np.ndarray, int, int, List[Dict]]:
-    """Solve GLM with L1 and L2 penalty by coordinate descent algorithm.
+def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[List]]:
+    """Solve GLM with L1 and L2 penalty by IRLS
 
     The objective being minimized in the coefficients w=coef is::
 
@@ -349,13 +80,14 @@ def _irls_solver(
        q(d) = (f'(w) + w*P2)*d + 1/2 d*(H(w)+P2)*d
        + ||P1*(w+d)||_1 - ||P1*w||_1
        Then minimize q(d): min_d q(d)
-    3. Coordinate descent by updating coordinate j (d -> d+z*e_j):
+    3a. Coordinate descent by updating coordinate j (d -> d+z*e_j):
        min_z q(d+z*e_j)
        = min_z q(d+z*e_j) - q(d)
        = min_z A_j z + 1/2 B_jj z^2
                + ||P1_j (w_j+d_j+z)||_1 - ||P1_j (w_j+d_j)||_1
        A = f'(w) + d*H(w) + (w+d)*P2
        B = H + P2
+    3b. Least squares solve of the quadratic approximation.
 
     Repeat steps 1-3 until convergence.
     Note: Use Fisher matrix instead of Hessian for H.
@@ -363,124 +95,234 @@ def _irls_solver(
 
     Parameters
     ----------
+    inner_solver
+        A least squares solver that can handle the appropriate penalties. With
+        an L1 penalty, this will _cd_solver. With only an L2 penalty,
+        _least_squares_solver will be more efficient.
     coef : ndarray, shape (c,)
         If fit_intercept=False, shape c=X.shape[1].
         If fit_intercept=True, then c=X.shape[1] + 1.
-
-    X : {ndarray, csc sparse matrix}, shape (n_samples, n_features)
-        Training data (with intercept included if present). If not sparse,
-        pass directly as Fortran-contiguous data to avoid
-        unnecessary memory duplication.
-
-    y : ndarray, shape (n_samples,)
-        Target values.
-
-    weights: ndarray, shape (n_samples,)
-        Sample weights with which the deviance is weighted. The weights must
-        bee normalized and sum to 1.
-
-    P1 : {ndarray}, shape (n_features,)
-        The L1-penalty vector (=diagonal matrix)
-
-    P2 : {ndarray, csc sparse matrix}, shape (n_features, n_features)
-        The L2-penalty matrix or vector (=diagonal matrix). If a matrix is
-        passed, it must be symmetric. If X is sparse, P2 must also be sparse.
-
-    fit_intercept : boolean, optional (default=True)
-        Specifies if a constant (a.k.a. bias or intercept) should be
-        added to the linear predictor (X*coef+intercept).
-
-    family : ExponentialDispersionModel
-
-    link : Link
-
-    max_iter : int, optional (default=100)
-        Maximum numer of outer (Newton) iterations.
-
-    max_inner_iter : int, optional (default=1000)
-        Maximum number of iterations in each inner loop, i.e. max number of
-        cycles over all features per inner loop.
-
-    gradient_tol : float, optional (default=1e-4)
-        Convergence criterion is
-        sum_i(|minimum of norm of subgrad of objective_i|)<=tol.
-
-    step_size_tol : float, optional (default=1e-4)
-
-    selection : str, optional (default='cyclic')
-        If 'random', randomly chose features in inner loop.
-
-    random_state : {int, RandomState instance, None}, optional (default=None)
-
-    diag_fisher : boolean, optional (default=False)
-        ``False`` calculates full fisher matrix, ``True`` only diagonal matrix
-        s.t. fisher = X.T @ diag @ X. This saves storage but needs more
-        matrix-vector multiplications.
-
-
-    Returns
-    -------
-    coef : ndarray, shape (c,)
-        If fit_intercept=False, shape c=X.shape[1].
-        If fit_intercept=True, then c=X.shape[1] + 1.
-
-    n_iter : number of outer iterations = newton iterations
-
-    n_cycles : number of cycles over features
+    data : IRLSData
+        Data object containing all the data and solver parameters.
 
     References
     ----------
+
     Guo-Xun Yuan, Chia-Hua Ho, Chih-Jen Lin
     An Improved GLMNET for L1-regularized Logistic Regression,
     Journal of Machine Learning Research 13 (2012) 1999-2030
     https://www.csie.ntu.edu.tw/~cjlin/papers/l1_glmnet/long-glmnet.pdf
     """
-    if P2.ndim == 2:
-        P2 = check_array(P2, "csc", dtype=[np.float64, np.float32])
 
-    if sparse.issparse(X):
-        if not sparse.isspmatrix_csc(P2):
-            raise ValueError(
-                "If X is sparse, P2 must also be sparse csc"
-                "format. Got P2 not sparse."
-            )
+    state = IRLSState(coef, data)
+    state.eta, state.mu, state.score, state.fisher_W, state.coef_P2 = update_quadratic(
+        state, data
+    )
+    state.converged, state.mn_subgrad_norm, state.inner_tol = check_convergence(
+        state, data
+    )
+    state.record_iteration()
 
-    random_state = check_random_state(random_state)
-    # Note: we already set P2 = l2*P2, P1 = l1*P1
-    # Note: we already symmetrized P2 = 1/2 (P2 + P2')
-    n_iter = 0  # number of outer iterations
-    n_cycles = 0  # number of (complete) cycles over features
-    converged = False
-    idx = 1 if fit_intercept else 0  # offset if coef[0] is intercept
-    # line search parameters
-    (beta, sigma) = (0.5, 0.01)
-    # some precalculations
-    # Note: For diag_fisher=False, fisher = X.T @ fisher @ X and fisher is a
-    #       1d array representing a diagonal matrix.
-    iteration_start = time.time()
+    while state.n_iter < data.max_iter and not state.converged:
 
-    eta, mu, score, fisher = family._eta_mu_score_fisher(
-        coef=coef,
-        phi=1,
-        X=X,
-        y=y,
-        weights=weights,
-        link=link,
-        diag_fisher=diag_fisher,
-        offset=offset,
+        # 1) Solve the L1 and L2 penalized least squares problem
+        d, n_cycles_this_iter = inner_solver(state, data)
+        state.n_cycles += n_cycles_this_iter
+
+        # 2) Line search
+        state.coef, state.step, state.obj_val, state.eta, state.mu = line_search(
+            state, data, d
+        )
+
+        # 3) Update the quadratic approximation
+        (
+            state.eta,
+            state.mu,
+            state.score,
+            state.fisher_W,
+            state.coef_P2,
+        ) = update_quadratic(state, data)
+
+        # 4) Check if we've converged
+        state.converged, state.mn_subgrad_norm, state.inner_tol = check_convergence(
+            state, data
+        )
+        state.record_iteration()
+
+    if not state.converged:
+        warnings.warn(
+            "IRLS failed to converge. Increase"
+            " the maximum number of iterations max_iter"
+            " (currently {})".format(data.max_iter),
+            ConvergenceWarning,
+        )
+    return state.coef, state.n_iter, state.n_cycles, state.diagnostics
+
+
+class IRLSData:
+    def __init__(
+        self,
+        X,
+        y: np.ndarray,
+        weights: np.ndarray,
+        P1: Union[np.ndarray, sparse.spmatrix],
+        P2: Union[np.ndarray, sparse.spmatrix],
+        fit_intercept: bool,
+        family: ExponentialDispersionModel,
+        link: Link,
+        max_iter: int = 100,
+        max_inner_iter: int = 100000,
+        gradient_tol: Optional[float] = 1e-4,
+        step_size_tol: Optional[float] = 1e-4,
+        fixed_inner_tol: Optional[Tuple] = None,
+        selection="cyclic",
+        random_state=None,
+        offset: Optional[np.ndarray] = None,
+        lower_bounds: Optional[np.ndarray] = None,
+        upper_bounds: Optional[np.ndarray] = None,
+    ):
+        self.X = X
+        self.y = y
+        self.weights = weights
+        self.P1 = P1
+
+        # Note: we already set P2 = l2*P2, P1 = l1*P1
+        # Note: we already symmetrized P2 = 1/2 (P2 + P2')
+        self.P2 = P2
+
+        self.fit_intercept = fit_intercept
+        self.family = family
+        self.link = link
+        self.max_iter = max_iter
+        self.max_inner_iter = max_inner_iter
+        self.gradient_tol = gradient_tol
+        self.step_size_tol = step_size_tol
+        self.fixed_inner_tol = fixed_inner_tol
+        self.selection = selection
+        self.random_state = random_state
+        self.offset = offset
+        self.has_lower_bounds, self._lower_bounds = setup_bounds(
+            lower_bounds, self.X.dtype
+        )
+        self.has_upper_bounds, self._upper_bounds = setup_bounds(
+            upper_bounds, self.X.dtype
+        )
+
+        self.intercept_offset = 1 if self.fit_intercept else 0
+
+        self.check_data()
+
+    def check_data(self):
+        if self.P2.ndim == 2:
+            self.P2 = check_array(self.P2, "csc", dtype=[np.float64, np.float32])
+
+        if sparse.issparse(self.X):
+            if not sparse.isspmatrix_csc(self.P2):
+                raise ValueError(
+                    "If X is sparse, P2 must also be sparse csc"
+                    "format. Got P2 not sparse."
+                )
+
+        self.random_state = check_random_state(self.random_state)
+
+
+def setup_bounds(bounds, dtype):
+    _out_bounds = bounds
+    if _out_bounds is None:
+        _out_bounds = np.array([], dtype=dtype)
+    return bounds is not None, _out_bounds
+
+
+class IRLSState:
+    def __init__(self, coef, data):
+        self.data = data
+
+        # some precalculations
+        self.iteration_start = time.time()
+
+        # number of outer iterations
+        self.n_iter = -1
+
+        # number of inner iterations (for CD, this is the number of cycles over
+        # all the features)
+        self.n_cycles = 0
+
+        self.converged = False
+
+        self.diagnostics = []
+
+        self.coef = coef
+
+        # We need to have an initial step value to make sure that the step size
+        # convergence criteria fails on the first pass
+        initial_step = data.step_size_tol
+        if initial_step is None:
+            initial_step = 0.0
+        self.step = np.full_like(self.coef, initial_step)
+
+        self.obj_val = None
+        self.eta = None
+        self.mu = None
+        self.score = None
+        self.fisher_W = None
+        self.coef_P2 = None
+        self.mn_subgrad_norm = None
+        self.inner_tol = None
+
+    def record_iteration(self):
+        self.n_iter += 1
+
+        iteration_runtime = time.time() - self.iteration_start
+        self.iteration_start = time.time()
+
+        coef_l1 = np.sum(np.abs(self.coef))
+        coef_l2 = np.linalg.norm(self.coef)
+        step_l2 = np.linalg.norm(self.step)
+        self.diagnostics.append(
+            {
+                "convergence": self.mn_subgrad_norm,
+                "L1(coef)": coef_l1,
+                "L2(coef)": coef_l2,
+                "L2(step)": step_l2,
+                "n_iter": self.n_iter,
+                "n_cycles": self.n_cycles,
+                "runtime": iteration_runtime,
+                "intercept": self.coef[0],
+            }
+        )
+
+
+def check_convergence(state, data):
+    # stopping criterion for outer loop is a mix of a subgradient tolerance
+    # and a step size tolerance
+    # sum_i(|minimum-norm of subgrad of F(w)_i|)
+    # fp_wP2 = f'(w) + w*P2
+    # Note: eta, mu and score are already updated
+    # this also updates the inner tolerance for the next loop!
+
+    # L1 norm of the minimum norm subgradient
+    mn_subgrad_norm = _norm_min_subgrad(
+        state.coef,
+        -state.score,
+        state.data.P1,
+        state.data.intercept_offset,
+        data.has_lower_bounds,
+        data._lower_bounds,
+        data.has_upper_bounds,
+        data._upper_bounds,
+    )
+    gradient_converged = (
+        state.data.gradient_tol is not None
+        and mn_subgrad_norm < state.data.gradient_tol
     )
 
-    # set up space for search direction d for inner loop
-    d = np.zeros_like(coef)
+    # Simple L2 step length convergence criteria
+    step_size = linalg.norm(state.step)
+    step_size_converged = (
+        state.data.step_size_tol is not None and step_size < state.data.step_size_tol
+    )
 
-    # minimum subgradient norm
-    def calc_mn_subgrad_norm():
-        return linalg.norm(
-            _min_norm_sugrad(
-                coef=coef, grad=-score, P2=P2, P1=P1, lb=lower_bounds, ub=upper_bounds
-            ),
-            ord=1,
-        )
+    converged = gradient_converged or step_size_converged
 
     # the ratio of inner tolerance to the minimum subgradient norm
     # This wasn't explored in the newGLMNET paper linked above.
@@ -491,202 +333,118 @@ def _irls_solver(
     # The value should probably be between 0.01 and 0.5. 0.1 works well for many problems
     inner_tol_ratio = 0.1
 
-    def calc_inner_tol(mn_subgrad_norm):
-        if fixed_inner_tol is None:
-            # Another potential rule limits the inner tol to be no smaller than tol
-            # return max(mn_subgrad_norm * inner_tol_ratio, tol)
-            return mn_subgrad_norm * inner_tol_ratio
-        else:
-            return fixed_inner_tol[0]
+    if state.data.fixed_inner_tol is None:
+        # Another potential rule limits the inner tol to be no smaller than tol
+        # return max(mn_subgrad_norm * inner_tol_ratio, tol)
+        inner_tol = mn_subgrad_norm * inner_tol_ratio
+    else:
+        inner_tol = state.data.fixed_inner_tol[0]
 
-    mn_subgrad_norm = calc_mn_subgrad_norm()
+    return converged, mn_subgrad_norm, inner_tol
 
-    Fw = None
-    diagnostics = []
-    # outer loop
-    while n_iter < max_iter:
-        # stopping tolerance of inner loop
-        # use L1-norm of minimum of norm of subgradient of F
-        inner_tol = calc_inner_tol(mn_subgrad_norm)
 
-        n_iter += 1
-        # initialize search direction d (to be optimized) with zero
-        d.fill(0)
+def update_quadratic(state, data):
+    eta, mu, score, fisher_W = data.family._eta_mu_score_fisher(
+        coef=state.coef,
+        phi=1,
+        X=data.X,
+        y=data.y,
+        weights=data.weights,
+        link=data.link,
+        offset=data.offset,
+        eta=state.eta,
+        mu=state.mu,
+    )
+    coef_P2 = make_coef_P2(data, state.coef)
+    score -= coef_P2
+    return eta, mu, score, fisher_W, coef_P2
 
-        # inner loop
-        d, coef_P2, n_cycles, inner_tol = inner_solver(
-            d,
-            X,
-            coef,
-            score,
-            fisher,
-            P1,
-            P2,
-            n_cycles,
-            inner_tol,
-            max_inner_iter=max_inner_iter,
-            selection=selection,
-            random_state=random_state,
-            diag_fisher=diag_fisher,
-            lower_bounds=lower_bounds,
-            upper_bounds=upper_bounds,
+
+def make_coef_P2(data, coef):
+    out = np.empty_like(coef)
+
+    if data.intercept_offset == 1:
+        out[0] = 0
+
+    C = coef[data.intercept_offset :]
+    if data.P2.ndim == 1:
+        out[data.intercept_offset :] = C * data.P2
+    else:
+        out[data.intercept_offset :] = C @ data.P2
+
+    return out
+
+
+def line_search(state, data, d):
+    # line search parameters
+    (beta, sigma) = (0.5, 0.01)
+
+    # line search by sequence beta^k, k=0, 1, ..
+    # F(w + lambda d) - F(w) <= lambda * bound
+    # bound = sigma * (f'(w)*d + w*P2*d
+    #                  +||P1 (w+d)||_1 - ||P1 w||_1)
+    P1w_1 = linalg.norm(data.P1 * state.coef[data.intercept_offset :], ord=1)
+    P1wd_1 = linalg.norm(data.P1 * (state.coef + d)[data.intercept_offset :], ord=1)
+    # Note: coef_P2 already calculated and still valid
+    bound = sigma * (-(state.score @ d) + P1wd_1 - P1w_1)
+
+    # In the first iteration, we must compute the objective value explicitly.
+    # In later iterations, we just use the objective value from the previous
+    # iteration as set after the line search loop below.
+    if state.obj_val is None:
+        obj_val = (
+            0.5 * data.family.deviance(data.y, state.mu, data.weights)
+            + 0.5 * (state.coef_P2 @ state.coef)
+            + P1w_1
         )
+    else:
+        obj_val = state.obj_val
 
-        # line search by sequence beta^k, k=0, 1, ..
-        # F(w + lambda d) - F(w) <= lambda * bound
-        # bound = sigma * (f'(w)*d + w*P2*d
-        #                  +||P1 (w+d)||_1 - ||P1 w||_1)
-        P1w_1 = linalg.norm(P1 * coef[idx:], ord=1)
-        P1wd_1 = linalg.norm(P1 * (coef + d)[idx:], ord=1)
-        # Note: coef_P2 already calculated and still valid
-        bound = sigma * (-(score @ d) + coef_P2 @ d[idx:] + P1wd_1 - P1w_1)
+    la = 1.0 / beta
 
-        # In the first iteration, we must compute Fw explicitly.
-        # In later iterations, we just use Fwd from the previous iteration
-        # as set after the line search loop below.
-        if Fw is None:
-            Fw = (
-                0.5 * family.deviance(y, mu, weights)
-                + 0.5 * (coef_P2 @ coef[idx:])
-                + P1w_1
-            )
+    # TODO: if we keep track of X_dot_coef, we can add this to avoid a
+    # _safe_lin_pred in _eta_mu_score_fisher every loop
+    X_dot_d = _safe_lin_pred(data.X, d)
 
-        la = 1.0 / beta
-
-        # TODO: if we keep track of X_dot_coef, we can add this to avoid a
-        # _safe_lin_pred in _eta_mu_score_fisher every loop
-        X_dot_d = _safe_lin_pred(X, d)
-
-        # Try progressively shorter line search steps.
-        for k in range(20):
-            la *= beta  # starts with la=1
-            coef_wd = coef + la * d
-
-            # The simple version of the next line is:
-            # mu_wd = link.inverse(_safe_lin_pred(X, coef_wd))
-            # but because coef_wd can be factored as
-            # coef_wd = coef + la * d
-            # we can rewrite to only perform one dot product with the data
-            # matrix per loop which is substantially faster
-            eta_wd = eta + la * X_dot_d
-            mu_wd = link.inverse(eta_wd)
-
-            # TODO - optimize: for Tweedie that isn't one of the special cases
-            # (gaussian, poisson, gamma), family.deviance is quite slow! Can we
-            # fix that somehow?
-            Fwd = 0.5 * family.deviance(y, mu_wd, weights) + linalg.norm(
-                P1 * coef_wd[idx:], ord=1
-            )
-            if P2.ndim == 1:
-                Fwd += 0.5 * ((coef_wd[idx:] * P2) @ coef_wd[idx:])
-            else:
-                Fwd += 0.5 * (coef_wd[idx:] @ (P2 @ coef_wd[idx:]))
-            if Fwd - Fw <= sigma * la * bound:
-                break
-
-        # Fw in the next iteration will be equal to Fwd this iteration.
-        Fw = Fwd
-
-        # update coefficients
+    # Try progressively shorter line search steps.
+    # variables suffixed with wd are for the new coefficient values
+    for k in range(20):
+        la *= beta  # starts with la=1
         step = la * d
-        coef += step
+        coef_wd = state.coef + step
 
-        # We can avoid a matrix-vector product inside _eta_mu_score_fisher by
-        # updating eta here.
-        # NOTE: This might accumulate some numerical error over a sufficient
-        # number of iterations, maybe we should completely recompute eta every
-        # N iterations?
-        eta = eta_wd
-        mu = mu_wd
+        # The simple version of the next line is:
+        # mu_wd = link.inverse(_safe_lin_pred(X, coef_wd))
+        # but because coef_wd can be factored as
+        # coef_wd = coef + la * d
+        # we can rewrite to only perform one dot product with the data
+        # matrix per loop which is substantially faster
+        eta_wd = state.eta + la * X_dot_d
+        mu_wd = data.link.inverse(eta_wd)
 
-        # calculate eta, mu, score, Fisher matrix for next iteration
-        eta, mu, score, fisher = family._eta_mu_score_fisher(
-            coef=coef,
-            phi=1,
-            X=X,
-            y=y,
-            weights=weights,
-            link=link,
-            diag_fisher=diag_fisher,
-            eta=eta,
-            mu=mu,
-            offset=offset,
-        )
-
-        converged, mn_subgrad_norm = check_convergence(
-            step,
-            coef,
-            -score,
-            P2,
-            P1,
-            gradient_tol,
-            step_size_tol,
-            lb=lower_bounds,
-            ub=upper_bounds,
-        )
-
-        iteration_runtime = time.time() - iteration_start
-        coef_l1 = np.sum(np.abs(coef))
-        coef_l2 = np.linalg.norm(coef)
-        step_l2 = np.linalg.norm(d)
-        diagnostics.append(
-            {
-                "convergence": mn_subgrad_norm,
-                "L1(coef)": coef_l1,
-                "L2(coef)": coef_l2,
-                "L2(step)": step_l2,
-                "n_iter": n_iter,
-                "n_cycles": n_cycles,
-                "runtime": iteration_runtime,
-                "intercept": coef[0],
-            }
-        )
-        iteration_start = time.time()
-
-        # stopping criterion for outer loop
-        # sum_i(|minimum-norm of subgrad of F(w)_i|)
-        # fp_wP2 = f'(w) + w*P2
-        # Note: eta, mu and score are already updated
-        # this also updates the inner tolerance for the next loop!
-        if converged:
+        # TODO - optimize: for Tweedie that isn't one of the special cases
+        # (gaussian, poisson, gamma), family.deviance is quite slow! Can we
+        # fix that somehow?
+        obj_val_wd = 0.5 * data.family.deviance(
+            data.y, mu_wd, data.weights
+        ) + linalg.norm(data.P1 * coef_wd[data.intercept_offset :], ord=1)
+        coef_wd_P2 = make_coef_P2(data, coef_wd)
+        obj_val_wd += 0.5 * (coef_wd_P2 @ coef_wd)
+        if obj_val_wd - obj_val <= sigma * la * bound:
             break
-        # end of outer loop
 
-    if not converged:
-        warnings.warn(
-            "IRLS failed to converge. Increase"
-            " the maximum number of iterations max_iter"
-            " (currently {})".format(max_iter),
-            ConvergenceWarning,
-        )
-    return coef, n_iter, n_cycles, diagnostics
-
-
-def check_convergence(
-    step,
-    coef,
-    grad,
-    P2,
-    P1,
-    gradient_tol: Optional[float],
-    step_size_tol: Optional[float],
-    lb: Optional[np.ndarray],
-    ub: Optional[np.ndarray],
-):
-    # minimum subgradient norm
-    mn_subgrad_norm = linalg.norm(
-        _min_norm_sugrad(coef=coef, grad=grad, P2=P2, P1=P1, lb=lb, ub=ub), ord=1
-    )
-    step_size = linalg.norm(step)
-    converged = (gradient_tol is not None and mn_subgrad_norm < gradient_tol) or (
-        step_size_tol is not None and step_size < step_size_tol
-    )
-    return converged, mn_subgrad_norm
+    # obj_val in the next iteration will be equal to obj_val_wd this iteration.
+    # We can avoid a matrix-vector product inside _eta_mu_score_fisher by
+    # returning the new eta and mu calculated here.
+    # NOTE: This might accumulate some numerical error over a sufficient
+    # number of iterations, maybe we should completely recompute eta every
+    # N iterations?
+    return state.coef + step, step, obj_val_wd, eta_wd, mu_wd
 
 
 def _lbfgs_solver(
     coef,
-    X: MatrixBase,
+    X,
     y: np.ndarray,
     weights: np.ndarray,
     P2: Union[np.ndarray, sparse.spmatrix],
