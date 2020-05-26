@@ -70,8 +70,8 @@ setup(
     install_requires=[],
     entry_points="""
         [console_scripts]
-        glm_benchmarks_run = glm_benchmarks.main:cli_run
-        glm_benchmarks_analyze = glm_benchmarks.main:cli_analyze
+        glm_benchmarks_run = glm_benchmarks.cli_run:cli_run
+        glm_benchmarks_analyze = glm_benchmarks.cli_analyze:cli_analyze
     """,
     ext_modules=cythonize(ext_modules, annotate=False),
     zip_safe=False,
