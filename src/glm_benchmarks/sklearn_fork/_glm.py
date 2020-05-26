@@ -51,6 +51,7 @@ from sklearn.utils.validation import (
     check_consistent_length,
     check_is_fitted,
     check_random_state,
+    check_X_y,
     column_or_1d,
 )
 
@@ -84,11 +85,11 @@ from ._solvers import (
 _float_itemsize_to_dtype = {8: np.float64, 4: np.float32, 2: np.float16}
 
 
-def check_X_y(
-    X: Union[np.ndarray, List, sparse.spmatrix, MatrixBase],
+def check_X_y_matrix(
+    X: MatrixBase,
     y: Union[np.ndarray, List, sparse.spmatrix],
-    accept_sparse: Union[str, bool, List[str]] = False,
     *,
+    accept_sparse: Union[str, bool, List[str]] = False,
     dtype: Union[str, Type, List[Type], None] = "numeric",
     order: Optional[str] = None,
     copy: bool = False,
@@ -524,23 +525,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self.lower_bounds = lower_bounds
         self.upper_bounds = upper_bounds
 
-    def _validate_data(
-        self,
-        X: Union[np.ndarray, sparse.spmatrix, List, MatrixBase],
-        y: Union[np.ndarray, List, sparse.spmatrix],
-        **check_params,
-    ) -> Tuple[Union[np.ndarray, sparse.spmatrix, MatrixBase], np.ndarray]:
-        """
-        Modified from sklearn BaseEstimator._validate_data, modified so that X can
-        be a subclass of MatrixBase
-        """
-        X, y = check_X_y(X, y, **check_params)
-
-        if check_params.get("ensure_2d", True):
-            self._check_n_features(X, reset=True)
-
-        return X, y
-
     def get_start_coef(
         self, start_params, X, y, weights, offset, col_means, col_stds
     ) -> np.ndarray:
@@ -821,7 +805,13 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         """
         check_is_fitted(self, "coef_")
         _dtype = [np.float64, np.float32]
-        X, y = check_X_y(X, y, accept_sparse=["csr", "csc", "coo"], dtype=_dtype)
+        if isinstance(X, MatrixBase):
+            X, y = check_X_y_matrix(
+                X, y, accept_sparse=["csr", "csc", "coo"], dtype=_dtype
+            )
+        else:
+            X, y = check_X_y(X, y, accept_sparse=["csr", "csc", "coo"], dtype=_dtype)
+
         n_samples, n_features = X.shape
         weights = _check_weights(sample_weight, n_samples, X.dtype)
         eta = X @ self.coef_
@@ -1014,8 +1004,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         else:
             _stype = ["csc", "csr"]
 
-        order = "F" if solver == "irls-cd" else None
-
         if hasattr(X, "dtype") and X.dtype == np.int64:
             # check_X_y will convert to float32 if we don't do this, which causes
             # precision issues with the new handling of single precision. The new
@@ -1023,9 +1011,15 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             # do that if X was intially int64.
             X = X.astype(np.float64)
 
-        X, y = self._validate_data(
-            X, y, accept_sparse=_stype, dtype=_dtype, copy=copy_X, order=order
-        )
+        if isinstance(X, MatrixBase):
+            X, y = check_X_y_matrix(
+                X, y, accept_sparse=_stype, dtype=_dtype, copy=copy_X
+            )
+            self._check_n_features(X, reset=True)
+        else:
+            X, y = self._validate_data(
+                X, y, ensure_2d=True, accept_sparse=_stype, dtype=_dtype, copy=copy_X
+            )
 
         # Without converting y to float, deviance might raise
         # ValueError: Integers to negative integer powers are not allowed.
