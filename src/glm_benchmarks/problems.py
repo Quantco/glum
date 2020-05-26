@@ -8,14 +8,13 @@ from git_root import git_root
 from joblib import Memory
 from scipy.sparse import csc_matrix
 
-from glm_benchmarks.matrix.split_matrix import SplitMatrix
-
 from .data import (
     generate_intermediate_insurance_dataset,
     generate_narrow_insurance_dataset,
     generate_real_insurance_dataset,
     generate_wide_insurance_dataset,
 )
+from .matrix import SplitMatrix
 from .util import cache_location
 
 joblib_memory = Memory(cache_location, verbose=0)
