@@ -60,9 +60,15 @@ def _get_minus_gaussian_ll_by_obs(eta: np.ndarray, y: np.ndarray) -> np.ndarray:
 
 
 def _get_linear_prediction_part(
-    x: Union[np.ndarray, sps.spmatrix], coefs: np.ndarray, intercept: float
+    x: Union[np.ndarray, sps.spmatrix],
+    coefs: np.ndarray,
+    intercept: float,
+    offset: Optional[np.ndarray] = None,
 ) -> np.ndarray:
-    return x.dot(coefs) + intercept
+    lp = x.dot(coefs) + intercept
+    if offset is None:
+        return lp
+    return lp + offset
 
 
 def _get_penalty(alpha: float, l1_ratio: float, coefs: np.ndarray) -> float:
@@ -81,11 +87,10 @@ def get_obj_val(
     coefs: np.ndarray,
     tweedie_p: float = None,
 ) -> float:
-    assert "offset" not in dat.keys()
     weights = dat.get("weights", np.ones_like(dat["y"])).astype(np.float64)
     weights /= weights.sum()
 
-    eta = _get_linear_prediction_part(dat["X"], coefs, intercept)
+    eta = _get_linear_prediction_part(dat["X"], coefs, intercept, dat.get("offset"))
 
     if distribution == "poisson":
         minus_log_like_by_ob = -_get_poisson_ll_by_obs(eta, dat["y"])
