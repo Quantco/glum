@@ -84,7 +84,6 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
 
     selection : str, optional (default='cyclic')
     random_state : {int, RandomState instance, None}, optional (default=None)
-    diag_fisher : boolean, optional, (default=False)
     copy_X : boolean, optional, (default=True)
     check_input : boolean, optional (default=True)
     verbose : int, optional (default=0)
@@ -166,7 +165,6 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         start_params: Optional[np.ndarray] = None,
         selection: str = "cyclic",
         random_state=None,
-        diag_fisher: bool = False,
         copy_X: bool = True,
         check_input: bool = True,
         verbose=0,
@@ -197,7 +195,6 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             start_params=start_params,
             selection=selection,
             random_state=random_state,
-            diag_fisher=diag_fisher,
             copy_X=copy_X,
             check_input=check_input,
             verbose=verbose,
@@ -313,8 +310,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         else:
             self.alphas_ = np.asarray(alphas)
 
-        lower_bounds = check_bounds(self.lower_bounds, X.shape[1])
-        upper_bounds = check_bounds(self.upper_bounds, X.shape[1])
+        lower_bounds = check_bounds(self.lower_bounds, X.shape[1], X.dtype)
+        upper_bounds = check_bounds(self.upper_bounds, X.shape[1], X.dtype)
 
         cv = check_cv(self.cv)
 
