@@ -309,7 +309,9 @@ class RowScaledSpMat(ScaledMat):
         """
         >>> x = RowScaledSpMat(sps.eye(3), shift=[0, 1, -2])
         >>> x.getcol(1)
-        array([ 0.,  2., -2.])
+        array([[ 0.],
+               [ 2.],
+               [-2.]])
         """
         return self.mat.getcol(i).toarray() + self.shift
 
