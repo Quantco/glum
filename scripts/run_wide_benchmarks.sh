@@ -3,8 +3,8 @@
 set -uo pipefail
 
 OUTPUT_DIR=$(git rev-parse HEAD)
-PROBLEM_NAMES="intermediate-insurance-weights-net-poisson,intermediate-insurance-weights-l2-poisson,intermediate-insurance-weights-net-gamma,intermediate-insurance-weights-l2-gamma"
-LIBRARY_NAMES="sklearn-fork,orig-sklearn-fork,glmnet-python,h2o"
+PROBLEM_NAMES="wide-insurance-weights-net-poisson,wide-insurance-weights-l2-poisson,wide-insurance-weights-net-gamma,wide-insurance-weights-l2-gamma"
+LIBRARY_NAMES="sklearn-fork,h2o"  # don't run these for glmnet and orig-sklearn-fork -> these take forever
 THREADS=8
 
 export GLM_BENCHMARKS_CACHE_SIZE_LIMIT=20737418240  # 20 GB
@@ -37,4 +37,4 @@ glm_benchmarks_analyze \
     --problem_name "${PROBLEM_NAMES}" \
     --library_name "${LIBRARY_NAMES}" \
     --output_dir ${OUTPUT_DIR} \
-    --export "intermediate_results.csv"
+    --export "wide_results.csv"
