@@ -92,14 +92,12 @@ def execute_problem_library(
 
     if params.regularization_strength is None:
         params.regularization_strength = P.regularization_strength
-
     # Weights have been multiplied by exposure. The new sum of weights
     # should influence the objective function (in order to keep everything comparable
     # to the "weights instead of offset" setup), but this will get undone by weight
     # normalization. So instead divide the penalty by the new weight sum divided by
     # the old weight sum
     reg_multiplier = 1 / dat["weights"].mean() if "weights" in dat.keys() else None
-
     result = L(
         dat,
         distribution=P.distribution,
@@ -122,7 +120,9 @@ def execute_problem_library(
             result["coef"],
             tweedie_p=get_tweedie_p(params.problem_name),
         )
+
         result["obj_val"] = obj_val
+        result["num_rows"] = dat["y"].shape[0]
 
     return result, params.regularization_strength
 
