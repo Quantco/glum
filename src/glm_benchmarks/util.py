@@ -3,7 +3,7 @@ import os
 import shutil
 import time
 from functools import reduce
-from typing import Callable, Dict, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import click
 import numpy as np
@@ -60,9 +60,15 @@ def _get_minus_gaussian_ll_by_obs(eta: np.ndarray, y: np.ndarray) -> np.ndarray:
 
 
 def _get_linear_prediction_part(
-    x: Union[np.ndarray, sps.spmatrix], coefs: np.ndarray, intercept: float
+    x: Union[np.ndarray, sps.spmatrix],
+    coefs: np.ndarray,
+    intercept: float,
+    offset: Optional[np.ndarray] = None,
 ) -> np.ndarray:
-    return x.dot(coefs) + intercept
+    lp = x.dot(coefs) + intercept
+    if offset is None:
+        return lp
+    return lp + offset
 
 
 def _get_penalty(alpha: float, l1_ratio: float, coefs: np.ndarray) -> float:
@@ -81,11 +87,10 @@ def get_obj_val(
     coefs: np.ndarray,
     tweedie_p: float = None,
 ) -> float:
-    assert "offset" not in dat.keys()
     weights = dat.get("weights", np.ones_like(dat["y"])).astype(np.float64)
     weights /= weights.sum()
 
-    eta = _get_linear_prediction_part(dat["X"], coefs, intercept)
+    eta = _get_linear_prediction_part(dat["X"], coefs, intercept, dat.get("offset"))
 
     if distribution == "poisson":
         minus_log_like_by_ob = -_get_poisson_ll_by_obs(eta, dat["y"])
@@ -204,6 +209,32 @@ class BenchmarkParams:
         return "_".join(str(getattr(self, k)) for k in self.param_names)
 
 
+def get_default_val(k: str) -> Any:
+    """
+
+    Parameters
+    ----------
+    k: An element of BenchmarkParams.param_names
+
+    Returns
+    -------
+        Default value of parameter.
+    """
+    if k == "threads":
+        return os.environ.get("OMP_NUM_THREADS", os.cpu_count())
+    # For these parameters, value is fixed downstream,
+    # e.g. threads depends on hardware in cli_run and is 'all' for cli_analyze
+    if k in ["problem_name", "library_name", "num_rows", "regularization_strength"]:
+        return None
+    if k == "storage":
+        return "dense"
+    if k == "cv":
+        return False
+    if k == "single_precision":
+        return False
+    raise KeyError(f"Key {k} not found")
+
+
 def benchmark_params_cli(func: Callable) -> Callable:
     @click.option(
         "--problem_name",
@@ -302,3 +333,7 @@ def clear_cache(force=False):
 
     if force or _get_size_of_cache_directory() > cache_size_limit:
         shutil.rmtree(cache_location)
+
+
+def get_comma_sep_names(xs: str) -> List[str]:
+    return [x.strip() for x in xs.split(",")]
