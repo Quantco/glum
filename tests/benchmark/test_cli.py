@@ -7,8 +7,9 @@ import click
 import pytest
 from click.testing import CliRunner
 
-from glm_benchmarks.main import cli_run, get_default_val, identify_parameter_fnames
-from glm_benchmarks.util import BenchmarkParams, benchmark_params_cli
+from glm_benchmarks.cli_analyze import identify_parameter_fnames
+from glm_benchmarks.cli_run import cli_run
+from glm_benchmarks.util import BenchmarkParams, benchmark_params_cli, get_default_val
 
 
 @pytest.mark.parametrize(
