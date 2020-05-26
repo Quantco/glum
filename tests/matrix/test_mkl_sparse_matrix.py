@@ -36,19 +36,3 @@ def test_to_csc(x: sps.csc_matrix):
 
     _test_same(one, two)
     _test_same(one, three)
-
-
-@pytest.mark.parametrize("matrix_shape", [(3,), (3, 1), (3, 2)])
-def test_dot(x: sps.csc_matrix, matrix_shape):
-    v = np.ones(matrix_shape)
-    result = x.dot(v)
-    expected = x.tocsc().dot(v)
-    np.testing.assert_allclose(result, expected)
-
-
-@pytest.mark.parametrize("matrix_shape", [(10,), (1, 10), (2, 10)])
-def test_r_matmul(x: sps.csc_matrix, matrix_shape):
-    v = np.ones(matrix_shape)
-    result = v @ x
-    expected = v @ x.tocsc()
-    np.testing.assert_allclose(result, expected)
