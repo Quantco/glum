@@ -141,16 +141,20 @@ def check_bounds(
     if bounds is None:
         return None
     if np.isscalar(bounds):
-        bounds = np.full(n_features, bounds)
+        bounds = np.full(n_features, bounds, dtype=dtype)
     else:  # assume it's an array
         bounds = check_array(
-            bounds, accept_sparse=False, force_all_finite=True, ensure_2d=False,
+            bounds,
+            accept_sparse=False,
+            force_all_finite=True,
+            ensure_2d=False,
+            dtype=dtype,
         )
         if bounds.ndim > 1:
             raise ValueError("Bounds must be 1D array or scalar.")
         if bounds.shape[0] != n_features:
             raise ValueError("Bounds must be the same length as X.shape[1].")
-    return bounds.astype(dtype)
+    return bounds
 
 
 def _unstandardize(

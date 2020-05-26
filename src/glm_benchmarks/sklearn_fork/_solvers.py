@@ -130,7 +130,7 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
         state.n_cycles += n_cycles_this_iter
 
         # 2) Line search
-        state.coef, state.step, state.Fw, state.eta, state.mu = line_search(
+        state.coef, state.step, state.obj_val, state.eta, state.mu = line_search(
             state, data, d
         )
 
@@ -260,7 +260,7 @@ class IRLSState:
             initial_step = 0.0
         self.step = np.full_like(self.coef, initial_step)
 
-        self.Fw = None
+        self.obj_val = None
         self.eta = None
         self.mu = None
         self.score = None
@@ -388,17 +388,17 @@ def line_search(state, data, d):
     # Note: coef_P2 already calculated and still valid
     bound = sigma * (-(state.score @ d) + P1wd_1 - P1w_1)
 
-    # In the first iteration, we must compute Fw explicitly.
-    # In later iterations, we just use Fwd from the previous iteration
-    # as set after the line search loop below.
-    if state.Fw is None:
-        Fw = (
+    # In the first iteration, we must compute the objective value explicitly.
+    # In later iterations, we just use the objective value from the previous
+    # iteration as set after the line search loop below.
+    if state.obj_val is None:
+        obj_val = (
             0.5 * data.family.deviance(data.y, state.mu, data.weights)
             + 0.5 * (state.coef_P2 @ state.coef)
             + P1w_1
         )
     else:
-        Fw = state.Fw
+        obj_val = state.obj_val
 
     la = 1.0 / beta
 
@@ -407,9 +407,11 @@ def line_search(state, data, d):
     X_dot_d = _safe_lin_pred(data.X, d)
 
     # Try progressively shorter line search steps.
+    # variables suffixed with wd are for the new coefficient values
     for k in range(20):
         la *= beta  # starts with la=1
-        coef_wd = state.coef + la * d
+        step = la * d
+        coef_wd = state.coef + step
 
         # The simple version of the next line is:
         # mu_wd = link.inverse(_safe_lin_pred(X, coef_wd))
@@ -423,26 +425,21 @@ def line_search(state, data, d):
         # TODO - optimize: for Tweedie that isn't one of the special cases
         # (gaussian, poisson, gamma), family.deviance is quite slow! Can we
         # fix that somehow?
-        Fwd = 0.5 * data.family.deviance(data.y, mu_wd, data.weights) + linalg.norm(
-            data.P1 * coef_wd[data.intercept_offset :], ord=1
-        )
+        obj_val_wd = 0.5 * data.family.deviance(
+            data.y, mu_wd, data.weights
+        ) + linalg.norm(data.P1 * coef_wd[data.intercept_offset :], ord=1)
         coef_wd_P2 = make_coef_P2(data, coef_wd)
-        Fwd += 0.5 * (coef_wd_P2 @ coef_wd)
-        if Fwd - Fw <= sigma * la * bound:
+        obj_val_wd += 0.5 * (coef_wd_P2 @ coef_wd)
+        if obj_val_wd - obj_val <= sigma * la * bound:
             break
 
-    # Fw in the next iteration will be equal to Fwd this iteration.
-    Fw = Fwd
-
-    # update coefficients
-    step = la * d
-
+    # obj_val in the next iteration will be equal to obj_val_wd this iteration.
     # We can avoid a matrix-vector product inside _eta_mu_score_fisher by
     # returning the new eta and mu calculated here.
     # NOTE: This might accumulate some numerical error over a sufficient
     # number of iterations, maybe we should completely recompute eta every
     # N iterations?
-    return state.coef + step, step, Fwd, eta_wd, mu_wd
+    return state.coef + step, step, obj_val_wd, eta_wd, mu_wd
 
 
 def _lbfgs_solver(
