@@ -1,6 +1,6 @@
 import os
 import warnings
-from typing import Dict, Union
+from typing import Dict, Optional, Union
 
 import h2o
 import numpy as np
@@ -31,6 +31,7 @@ def h2o_bench(
     iterations: int,
     cv: bool,
     print_diagnostics: bool = True,  # ineffective here
+    reg_multiplier: Optional[float] = None,
 ):
 
     result: Dict = dict()
@@ -60,7 +61,7 @@ def h2o_bench(
         # not sure if this is right
         family="tweedie" if tweedie else distribution,
         alpha=l1_ratio,
-        lambda_=alpha,
+        lambda_=alpha if reg_multiplier is None else alpha * reg_multiplier,
         standardize=False,
         solver="IRLSM",
         objective_epsilon=benchmark_convergence_tolerance,

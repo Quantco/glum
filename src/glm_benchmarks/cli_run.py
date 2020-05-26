@@ -4,7 +4,6 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import click
 
-from glm_benchmarks.bench_admm import admm_bench
 from glm_benchmarks.bench_orig_sklearn_fork import orig_sklearn_fork_bench
 from glm_benchmarks.bench_sklearn_fork import sklearn_fork_bench
 from glm_benchmarks.problems import Problem, get_all_problems
@@ -92,29 +91,37 @@ def execute_problem_library(
 
     if params.regularization_strength is None:
         params.regularization_strength = P.regularization_strength
-
+    # Weights have been multiplied by exposure. The new sum of weights
+    # should influence the objective function (in order to keep everything comparable
+    # to the "weights instead of offset" setup), but this will get undone by weight
+    # normalization. So instead divide the penalty by the new weight sum divided by
+    # the old weight sum
+    reg_multiplier = 1 / dat["weights"].mean() if "weights" in dat.keys() else None
     result = L(
         dat,
-        P.distribution,
-        params.regularization_strength,
-        P.l1_ratio,
-        iterations,
-        params.cv,
-        print_diagnostics,
+        distribution=P.distribution,
+        alpha=params.regularization_strength,
+        l1_ratio=P.l1_ratio,
+        iterations=iterations,
+        cv=params.cv,
+        print_diagnostics=print_diagnostics,
+        reg_multiplier=reg_multiplier,
         **kwargs,
     )
-    result["num_rows"] = dat["y"].shape[0]
+    if len(result) > 0:
+        result["num_rows"] = dat["y"].shape[0]
+        obj_val = get_obj_val(
+            dat,
+            P.distribution,
+            P.regularization_strength,
+            P.l1_ratio,
+            result["intercept"],
+            result["coef"],
+            tweedie_p=get_tweedie_p(params.problem_name),
+        )
 
-    obj_val = get_obj_val(
-        dat,
-        P.distribution,
-        P.regularization_strength,
-        P.l1_ratio,
-        result["intercept"],
-        result["coef"],
-        tweedie_p=get_tweedie_p(params.problem_name),
-    )
-    result["obj_val"] = obj_val
+        result["obj_val"] = obj_val
+        result["num_rows"] = dat["y"].shape[0]
 
     return result, params.regularization_strength
 
@@ -132,7 +139,6 @@ def get_all_libraries() -> Dict[str, Any]:
         "sklearn-fork": sklearn_fork_bench,
         "orig-sklearn-fork": orig_sklearn_fork_bench,
         "zeros": zeros_bench,
-        "admm": admm_bench,
     }
 
     if GLMNET_PYTHON_INSTALLED:

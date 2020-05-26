@@ -1,5 +1,5 @@
 import warnings
-from typing import Dict, Union
+from typing import Dict, Optional, Union
 
 import numpy as np
 from scipy import sparse as sps
@@ -22,6 +22,7 @@ def orig_sklearn_fork_bench(
     iterations: int,
     cv: bool,
     print_diagnostics: bool = True,
+    reg_multiplier: Optional[float] = True,
     **kwargs,
 ):
     if cv:
@@ -52,7 +53,7 @@ def orig_sklearn_fork_bench(
 
     model_args = dict(
         family=family,
-        alpha=alpha,
+        alpha=alpha if reg_multiplier is None else alpha * reg_multiplier,
         l1_ratio=l1_ratio,
         max_iter=150,
         random_state=random_seed,
