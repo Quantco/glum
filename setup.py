@@ -19,16 +19,33 @@ for fn in ["src/glm_benchmarks/matrix/sandwich/dense-tmpl.cpp"]:
 
     buf = io.StringIO()
     ctx = mako.runtime.Context(buf)
-    rendered_src = tmpl.render_context(ctx)
+    tmpl.render_context(ctx)
+    rendered_src = buf.getvalue()
 
     out_fn = fn.split("-tmpl")[0] + ".cpp"
-    with open(out_fn, "w") as f:
-        f.write(buf.getvalue())
+
+    # When the templated source code hasn't changed, we don't want to write the
+    # file again because that'll touch the file and result in a rebuild
+    write = True
+    if path.exists(out_fn):
+        with open(out_fn, "r") as f:
+            out_fn_src = f.read()
+            if out_fn_src == rendered_src:
+                write = False
+
+    if write:
+        with open(out_fn, "w") as f:
+            f.write(rendered_src)
 
 ext_modules = [
     Extension(
         name="glm_benchmarks.matrix.sandwich.sandwich",
         sources=["src/glm_benchmarks/matrix/sandwich/sandwich.pyx"],
+        include_dirs=[np.get_include()],
+    ),
+    Extension(
+        name="glm_benchmarks.sklearn_fork._cd_fast",
+        sources=["src/glm_benchmarks/sklearn_fork/_cd_fast.pyx"],
         include_dirs=[np.get_include()],
     ),
 ]
