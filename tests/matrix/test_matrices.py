@@ -66,6 +66,7 @@ def test_dot_vector(mat: mx.MatrixBase, vec_type):
     res = mat.dot(vec)
     expected = mat.A.dot(vec_as_list)
     np.testing.assert_allclose(res, expected)
+    assert isinstance(res, np.ndarray)
 
 
 @pytest.mark.parametrize("mat", matrices)
@@ -170,3 +171,13 @@ def test_r_matmul(mat, matrix_shape):
 def test_dot_raises(mat):
     with pytest.raises(ValueError):
         mat.dot(np.ones((10, 1)))
+
+
+@pytest.mark.parametrize("mat", matrices)
+@pytest.mark.parametrize("dtype", [np.float64, np.float32])
+def test_astype(mat, dtype):
+    new_mat = mat.astype(dtype)
+    assert np.issubdtype(new_mat.dtype, dtype)
+    vec = np.zeros(mat.shape[1], dtype=dtype)
+    res = new_mat.dot(vec)
+    assert res.dtype == new_mat.dtype
