@@ -14,6 +14,7 @@ from .data import (
     generate_real_insurance_dataset,
     generate_wide_insurance_dataset,
 )
+from .matrix import SplitMatrix
 from .util import cache_location
 
 joblib_memory = Memory(cache_location, verbose=0)
@@ -59,8 +60,6 @@ def load_data(
     if storage == "sparse":
         X = csc_matrix(X)
     elif storage.startswith("split"):
-        from glm_benchmarks.scaled_spmat.split_matrix import SplitMatrix
-
         threshold = float(storage.split("split")[1])
         X = SplitMatrix(csc_matrix(X), threshold)
 
