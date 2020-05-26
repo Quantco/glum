@@ -7,7 +7,7 @@ import pytest
 from git_root import git_root
 from sklearn.exceptions import ConvergenceWarning
 
-from glm_benchmarks.main import execute_problem_library
+from glm_benchmarks.cli_run import execute_problem_library
 from glm_benchmarks.problems import get_all_problems
 from glm_benchmarks.util import BenchmarkParams
 
