@@ -55,7 +55,7 @@ def sklearn_fork_bench(
         copy_X=False,
         selection="cyclic",
         # TODO: try tightening this later
-        gradient_tol=1 if cv else benchmark_convergence_tolerance * 1e-4,
+        gradient_tol=1 if cv else benchmark_convergence_tolerance,
         step_size_tol=0.01 * benchmark_convergence_tolerance,
     )
     if not cv:
