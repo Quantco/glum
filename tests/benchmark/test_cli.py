@@ -66,7 +66,10 @@ def test_correct_problems_run():
         runner = CliRunner()
         result = runner.invoke(cli_run, args)
         if not result.exit_code == 0:
-            raise ValueError(result.output)
+            problem_name_str = " ".join(args)
+            raise ValueError(
+                f"""Failed on problem {problem_name_str} with output: \n {result.output}"""
+            )
         problems_run = os.listdir(d)
 
     expected_problems_run = [
