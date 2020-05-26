@@ -9,7 +9,6 @@ class MatrixBase(ABC):
     Base class for all matrix classes. Cannot be instantiated.
     """
 
-    skip_sklearn_check = True
     ndim = 2
     shape: Tuple[int, int]
     dtype: np.dtype
