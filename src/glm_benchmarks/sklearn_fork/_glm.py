@@ -107,11 +107,6 @@ def check_X_y(
     y_converted : object
         The converted and validated y.
     """
-    # TODO: add order='F' when this function is called and solver is CD
-    # TODO: make sure accept_sparse is csc when solver is CD (may already be true)
-    # TODO: make sure this is generally called with copy=False, since check_array
-    # will force a copy even when the matrix is unchanged (in _ensure_sparse_format)
-    # TODO: modify DenseGLMDataMatrix so np.asarray doesn't convert it?
 
     def _check_array(mat, ensure_min_features: int):
 
@@ -1014,10 +1009,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         float,
     ]:
         _dtype = [np.float64, np.float32]
-        if solver == "cd":
+        if solver == "irls-cd":
             _stype = ["csc"]
         else:
             _stype = ["csc", "csr"]
+
+        order = "F" if solver == "irls-cd" else None
 
         if hasattr(X, "dtype") and X.dtype == np.int64:
             # check_X_y will convert to float32 if we don't do this, which causes
@@ -1026,10 +1023,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             # do that if X was intially int64.
             X = X.astype(np.float64)
 
-        # X, y = check_X_y(X, y, accept_sparse=_stype, dtype=_dtype, copy=copy_X)
-
         X, y = self._validate_data(
-            X, y, accept_sparse=_stype, dtype=_dtype, copy=copy_X,
+            X, y, accept_sparse=_stype, dtype=_dtype, copy=copy_X, order=order
         )
 
         # Without converting y to float, deviance might raise
