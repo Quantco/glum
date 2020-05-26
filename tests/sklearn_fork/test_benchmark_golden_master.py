@@ -35,7 +35,12 @@ def expected_all():
 
 
 @pytest.mark.parametrize(
-    ["Pn", "P"], all_test_problems.items(), ids=all_test_problems.keys()
+    ["Pn", "P"],
+    [
+        x if "wide" not in x[0] else pytest.param(x[0], x[1], marks=pytest.mark.slow)
+        for x in all_test_problems.items()
+    ],  # mark the "wide" problems as "slow" so that we can call pytest -m "not slow"
+    ids=all_test_problems.keys(),
 )
 def test_gm_benchmarks(Pn: str, P: Problem, bench_cfg_fix: dict, expected_all: dict):
     execute_args = ["print_diagnostics"]
