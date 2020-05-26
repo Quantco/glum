@@ -73,7 +73,13 @@ from ._distribution import (
     guess_intercept,
 )
 from ._link import IdentityLink, Link, LogitLink, LogLink
-from ._solvers import _cd_solver, _irls_solver, _lbfgs_solver, _least_squares_solver
+from ._solvers import (
+    IRLSData,
+    _cd_solver,
+    _irls_solver,
+    _lbfgs_solver,
+    _least_squares_solver,
+)
 
 _float_itemsize_to_dtype = {8: np.float64, 4: np.float32, 2: np.float16}
 
@@ -207,16 +213,20 @@ def _check_offset(
 
 
 def check_bounds(
-    bounds: Union[Iterable, float, np.ndarray, None], n_features: int,
+    bounds: Union[Iterable, float, np.ndarray, None], n_features: int, dtype
 ) -> Union[None, np.ndarray]:
     """Check that the bounds have the right shape."""
     if bounds is None:
         return None
     if np.isscalar(bounds):
-        bounds = np.full(n_features, bounds)
+        bounds = np.full(n_features, bounds, dtype=dtype)
     else:  # assume it's an array
         bounds = check_array(
-            bounds, accept_sparse=False, force_all_finite=True, ensure_2d=False,
+            bounds,
+            accept_sparse=False,
+            force_all_finite=True,
+            ensure_2d=False,
+            dtype=dtype,
         )
         if bounds.ndim > 1:
             raise ValueError("Bounds must be 1D array or scalar.")
@@ -490,7 +500,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         start_params: Optional[np.ndarray] = None,
         selection="cyclic",
         random_state=None,
-        diag_fisher=False,
         copy_X=True,
         check_input=True,
         verbose=0,
@@ -513,13 +522,29 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self.start_params = start_params
         self.selection = selection
         self.random_state = random_state
-        self.diag_fisher = diag_fisher
         self.copy_X = copy_X
         self.check_input = check_input
         self.verbose = verbose
         self.scale_predictors = scale_predictors
         self.lower_bounds = lower_bounds
         self.upper_bounds = upper_bounds
+
+    def _validate_data(
+        self,
+        X: Union[np.ndarray, sparse.spmatrix, List, MatrixBase],
+        y: Union[np.ndarray, List, sparse.spmatrix],
+        **check_params,
+    ) -> Tuple[Union[np.ndarray, sparse.spmatrix, MatrixBase], np.ndarray]:
+        """
+        Modified from sklearn BaseEstimator._validate_data, modified so that X can
+        be a subclass of MatrixBase
+        """
+        X, y = check_X_y(X, y, **check_params)
+
+        if check_params.get("ensure_2d", True):
+            self._check_n_features(X, reset=True)
+
+        return X, y
 
     def get_start_coef(
         self, start_params, X, y, weights, offset, col_means, col_stds
@@ -654,34 +679,11 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             max_iter = self.max_iter
 
         # 4.1 IRLS ############################################################
-        # Note: we already set P2 = l2*P2, see above
-        # Note: we already symmetrized P2 = 1/2 (P2 + P2')
-        if self._solver == "irls-ls":
-            coef, self.n_iter_, self._n_cycles, self.diagnostics_ = _irls_solver(
-                inner_solver=_least_squares_solver,
-                coef=coef,
-                X=X,
-                y=y,
-                weights=weights,
-                P1=P1,
-                P2=P2,
-                fit_intercept=self.fit_intercept,
-                family=self._family_instance,
-                link=self._link_instance,
-                max_iter=max_iter,
-                gradient_tol=self.gradient_tol,
-                step_size_tol=self.step_size_tol,
-                offset=offset,
-            )
-        # 4.2 coordinate descent ##############################################
-        # Note: we already set P1 = l1*P1, see above
-        # Note: we already set P2 = l2*P2, see above
-        # Note: we already symmetrized P2 = 1/2 (P2 + P2')
-        elif self._solver == "irls-cd":
-            # TODO: simplify with parameters object?
-            coef, self.n_iter_, self._n_cycles, self.diagnostics_ = _irls_solver(
-                inner_solver=_cd_solver,
-                coef=coef,
+        if "irls" in self._solver:
+            # Note: we already set P1 = l1*P1, see above
+            # Note: we already set P2 = l2*P2, see above
+            # Note: we already symmetrized P2 = 1/2 (P2 + P2')
+            irls_data = IRLSData(
                 X=X,
                 y=y,
                 weights=weights,
@@ -696,11 +698,19 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 fixed_inner_tol=fixed_inner_tol,
                 selection=self.selection,
                 random_state=self.random_state,
-                diag_fisher=self.diag_fisher,
                 offset=offset,
                 lower_bounds=lower_bounds,
                 upper_bounds=upper_bounds,
             )
+            if self._solver == "irls-ls":
+                coef, self.n_iter_, self._n_cycles, self.diagnostics_ = _irls_solver(
+                    _least_squares_solver, coef, irls_data
+                )
+            # 4.2 coordinate descent ##############################################
+            elif self._solver == "irls-cd":
+                coef, self.n_iter_, self._n_cycles, self.diagnostics_ = _irls_solver(
+                    _cd_solver, coef, irls_data
+                )
         # 4.3 L-BFGS ##########################################################
         elif self._solver == "lbfgs":
             coef, self.n_iter_, self._n_cycles, self.diagnostics_ = _lbfgs_solver(
@@ -961,11 +971,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 "The argument selection must be 'cyclic' or "
                 "'random'; got (selection={})".format(self.selection)
             )
-        if not isinstance(self.diag_fisher, bool):
-            raise ValueError(
-                "The argument diag_fisher must be bool;"
-                " got {}".format(self.diag_fisher)
-            )
         if not isinstance(self.copy_X, bool):
             raise ValueError(
                 "The argument copy_X must be bool;" " got {}".format(self.copy_X)
@@ -993,62 +998,66 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 if not np.all(self.P1 >= 0):
                     raise ValueError("P1 must not have negative values.")
 
+    def set_up_and_check_fit_args(
+        self,
+        X,
+        y: np.ndarray,
+        sample_weight: Union[np.ndarray, None],
+        offset: Union[np.ndarray, None],
+        solver: str,
+        copy_X: bool,
+    ) -> Tuple[
+        Union[MKLSparseMatrix, DenseGLMDataMatrix],
+        np.ndarray,
+        np.ndarray,
+        Union[np.ndarray, None],
+        float,
+    ]:
+        _dtype = [np.float64, np.float32]
+        if solver == "cd":
+            _stype = ["csc"]
+        else:
+            _stype = ["csc", "csr"]
 
-def set_up_and_check_fit_args(
-    X: Union[np.ndarray, sparse.spmatrix, MatrixBase],
-    y: np.ndarray,
-    sample_weight: Union[np.ndarray, None],
-    offset: Union[np.ndarray, None],
-    solver: str,
-    copy_X: bool,
-) -> Tuple[
-    Union[MKLSparseMatrix, DenseGLMDataMatrix],
-    np.ndarray,
-    np.ndarray,
-    Union[np.ndarray, None],
-    float,
-]:
-    _dtype = [np.float64, np.float32]
-    if solver == "cd":
-        _stype = ["csc"]
-    else:
-        _stype = ["csc", "csr"]
+        if hasattr(X, "dtype") and X.dtype == np.int64:
+            # check_X_y will convert to float32 if we don't do this, which causes
+            # precision issues with the new handling of single precision. The new
+            # behavior is to give everything the precision of X, but we don't want to
+            # do that if X was intially int64.
+            X = X.astype(np.float64)
 
-    if hasattr(X, "dtype") and X.dtype == np.int64:
-        # check_X_y will convert to float32 if we don't do this, which causes
-        # precision issues with the new handling of single precision. The new
-        # behavior is to give everything the precision of X, but we don't want to
-        # do that if X was intially int64.
-        X = X.astype(np.float64)
+        # X, y = check_X_y(X, y, accept_sparse=_stype, dtype=_dtype, copy=copy_X)
 
-    X, y = check_X_y(X, y, accept_sparse=_stype, dtype=_dtype, copy=copy_X)
+        X, y = self._validate_data(
+            X, y, accept_sparse=_stype, dtype=_dtype, copy=copy_X,
+        )
 
-    # Without converting y to float, deviance might raise
-    # ValueError: Integers to negative integer powers are not allowed.
-    # Also, y must not be sparse.
-    # Make sure everything has the same precision as X
-    # This will prevent accidental upcasting later and slow operations on
-    # mixed-precision numbers
-    y = np.asarray(y, dtype=X.dtype)
-    weights = _check_weights(sample_weight, y.shape[0], X.dtype)
-    offset = _check_offset(offset, y.shape[0], X.dtype)
+        # Without converting y to float, deviance might raise
+        # ValueError: Integers to negative integer powers are not allowed.
+        # Also, y must not be sparse.
+        # Make sure everything has the same precision as X
+        # This will prevent accidental upcasting later and slow operations on
+        # mixed-precision numbers
+        y = np.asarray(y, dtype=X.dtype)
+        weights = _check_weights(sample_weight, y.shape[0], X.dtype)
+        offset = _check_offset(offset, y.shape[0], X.dtype)
 
-    # IMPORTANT NOTE: Since we want to minimize
-    # 1/(2*sum(sample_weight)) * deviance + L1 + L2,
-    # deviance = sum(sample_weight * unit_deviance),
-    # we rescale weights such that sum(weights) = 1 and this becomes
-    # 1/2*deviance + L1 + L2 with deviance=sum(weights * unit_deviance)
-    weights_sum: float = np.sum(weights)
-    weights /= weights_sum
-    #######################################################################
-    # 2b. convert to wrapper matrix types
-    #######################################################################
-    if sparse.issparse(X):
-        X = MKLSparseMatrix(X)
-    elif isinstance(X, np.ndarray):
-        X = DenseGLMDataMatrix(X)
+        # IMPORTANT NOTE: Since we want to minimize
+        # 1/(2*sum(sample_weight)) * deviance + L1 + L2,
+        # deviance = sum(sample_weight * unit_deviance),
+        # we rescale weights such that sum(weights) = 1 and this becomes
+        # 1/2*deviance + L1 + L2 with deviance=sum(weights * unit_deviance)
+        weights_sum: float = np.sum(weights)
+        weights /= weights_sum
+        #######################################################################
+        # 2b. convert to wrapper matrix types
+        #######################################################################
+        if sparse.issparse(X):
+            X = MKLSparseMatrix(X)
+        elif isinstance(X, np.ndarray):
+            X = DenseGLMDataMatrix(X)
 
-    return X, y, weights, offset, weights_sum
+        return X, y, weights, offset, weights_sum
 
 
 class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
@@ -1223,16 +1232,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         RandomState instance used by `np.random`. Used when ``selection`` ==
         'random'.
 
-    diag_fisher : boolean, optional, (default=False)
-        Only relevant for solver 'irls-cd'
-        If ``False``, the full Fisher matrix (expected Hessian) is computed in
-        each outer iteration (Newton iteration). If ``True``, only a diagonal
-        matrix (stored as 1d array) is computed, such that
-        fisher = X.T @ diag @ X. This saves memory and matrix-matrix
-        multiplications, but needs more matrix-vector multiplications. If you
-        use large sparse X or if you have many features,
-        i.e. n_features >> n_samples, you might set this option to ``True``.
-
     copy_X : boolean, optional, (default=True)
         If ``True``, X will be copied; else, it may be overwritten.
 
@@ -1320,7 +1319,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         start_params: Optional[np.ndarray] = None,
         selection: str = "cyclic",
         random_state=None,
-        diag_fisher=False,
         copy_X=True,
         check_input=True,
         verbose=0,
@@ -1347,7 +1345,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             start_params=start_params,
             selection=selection,
             random_state=random_state,
-            diag_fisher=diag_fisher,
             copy_X=copy_X,
             check_input=check_input,
             verbose=verbose,
@@ -1413,7 +1410,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         """
 
         if self.fit_args_reformat == "safe":
-            X, y, weights, offset, weights_sum = set_up_and_check_fit_args(
+            X, y, weights, offset, weights_sum = self.set_up_and_check_fit_args(
                 X, y, sample_weight, offset, solver=self.solver, copy_X=self.copy_X
             )
         else:
@@ -1441,8 +1438,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         P1 = setup_p1(self.P1, X, X.dtype, self.alpha, self.l1_ratio)
         P2 = setup_p2(self.P2, X, _stype, X.dtype, self.alpha, self.l1_ratio)
 
-        lower_bounds = check_bounds(self.lower_bounds, X.shape[1])
-        upper_bounds = check_bounds(self.upper_bounds, X.shape[1])
+        lower_bounds = check_bounds(self.lower_bounds, X.shape[1], X.dtype)
+        upper_bounds = check_bounds(self.upper_bounds, X.shape[1], X.dtype)
 
         if (lower_bounds is not None) and (upper_bounds is not None):
             if np.any(lower_bounds > upper_bounds):

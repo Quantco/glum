@@ -84,7 +84,7 @@ def test_correct_problems_run():
         for ln in library_names
     ]
 
-    n_threads = os.cpu_count()
+    n_threads = os.environ.get("OMP_NUM_THREADS", os.cpu_count())
 
     expected_problems_run_2 = [
         f"narrow-insurance-weights-l2-gamma_zeros_20_dense_{n_threads}_False_1000.0_False.pkl",
