@@ -73,25 +73,30 @@ def cli_analyze(
     with pd.option_context(
         "display.expand_frame_repr", False, "max_columns", None, "max_rows", None
     ):
-        cols_to_show = [
-            "library_name",
-            "storage",
-            "threads",
-            "single_precision",
-            "n_iter",
-            "runtime",
-            "offset",
-        ]
-        if res_df["cv"].any():
-            cols_to_show += ["n_alphas", "max_alpha", "min_alpha", "best_alpha"]
-        else:
-            cols_to_show += ["intercept", "num_nonzero_coef", "obj_val", "rel_obj_val"]
         if cols is not None:
-            filtered_cols = set(cols_to_show).intersection(
-                set(get_comma_sep_names(cols))
-            )
-
-        print(res_df[filtered_cols])
+            cols_to_show = get_comma_sep_names(cols)
+        else:
+            cols_to_show = [
+                "library_name",
+                "storage",
+                "threads",
+                "single_precision",
+                "n_iter",
+                "runtime",
+                "offset",
+            ]
+            if res_df["cv"].any():
+                cols_to_show += ["n_alphas", "max_alpha", "min_alpha", "best_alpha"]
+            else:
+                cols_to_show += [
+                    "intercept",
+                    "num_nonzero_coef",
+                    "obj_val",
+                    "rel_obj_val",
+                ]
+        if "library_name" not in cols_to_show:
+            cols_to_show.insert(0, "library_name")
+        print(res_df[cols_to_show])
 
     if export:
         if export.endswith(".pkl"):
