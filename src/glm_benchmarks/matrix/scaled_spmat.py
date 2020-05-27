@@ -38,6 +38,12 @@ class ScaledMat(ABC):
         self.ndim = mat.ndim
         self.dtype = mat.dtype
 
+    def astype(self, dtype, order="K", casting="unsafe", copy=True):
+        return type(self)(
+            self.mat.astype(dtype, casting=casting, copy=copy),
+            self.shift.astype(dtype, order=order, casting=casting, copy=copy),
+        )
+
     @classmethod
     @abstractmethod
     def scale_axis(self) -> int:
@@ -309,7 +315,9 @@ class RowScaledSpMat(ScaledMat):
         """
         >>> x = RowScaledSpMat(sps.eye(3), shift=[0, 1, -2])
         >>> x.getcol(1)
-        array([ 0.,  2., -2.])
+        array([[ 0.],
+               [ 2.],
+               [-2.]])
         """
         return self.mat.getcol(i).toarray() + self.shift
 

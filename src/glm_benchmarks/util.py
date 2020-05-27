@@ -3,7 +3,7 @@ import os
 import shutil
 import time
 from functools import reduce
-from typing import Callable, Dict, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import click
 import numpy as np
@@ -222,6 +222,32 @@ class BenchmarkParams:
         return "_".join(str(getattr(self, k)) for k in self.param_names)
 
 
+def get_default_val(k: str) -> Any:
+    """
+
+    Parameters
+    ----------
+    k: An element of BenchmarkParams.param_names
+
+    Returns
+    -------
+        Default value of parameter.
+    """
+    if k == "threads":
+        return os.environ.get("OMP_NUM_THREADS", os.cpu_count())
+    # For these parameters, value is fixed downstream,
+    # e.g. threads depends on hardware in cli_run and is 'all' for cli_analyze
+    if k in ["problem_name", "library_name", "num_rows", "regularization_strength"]:
+        return None
+    if k == "storage":
+        return "dense"
+    if k == "cv":
+        return False
+    if k == "single_precision":
+        return False
+    raise KeyError(f"Key {k} not found")
+
+
 def benchmark_params_cli(func: Callable) -> Callable:
     @click.option(
         "--problem_name",
@@ -320,3 +346,7 @@ def clear_cache(force=False):
 
     if force or _get_size_of_cache_directory() > cache_size_limit:
         shutil.rmtree(cache_location)
+
+
+def get_comma_sep_names(xs: str) -> List[str]:
+    return [x.strip() for x in xs.split(",")]

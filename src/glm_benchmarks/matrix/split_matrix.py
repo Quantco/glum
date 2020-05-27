@@ -1,3 +1,4 @@
+import copy as copy_
 from typing import Any, Tuple, Union
 
 import numpy as np
@@ -30,6 +31,18 @@ class SplitMatrix(MatrixBase):
             np.asfortranarray(X.toarray()[:, self.dense_indices])
         )
         self.X_sparse = MKLSparseMatrix(X[:, self.sparse_indices])
+
+    def astype(self, dtype, order="K", casting="unsafe", copy=True):
+        if copy:
+            new = copy_.copy(self)
+            new.X_dense_F = self.X_dense_F.astype(dtype, order, casting, copy=copy)
+            new.X_sparse = self.X_sparse.astype(dtype, casting, copy)
+            new.dtype = new.X_dense_F.dtype
+            return new
+        self.X_dense_F = self.X_dense_F.astype(dtype, order, casting, copy=copy)
+        self.X_sparse = self.X_sparse.astype(dtype, casting, copy)
+        self.dtype = self.X_dense_F.dtype
+        return self
 
     def toarray(self) -> np.ndarray:
         out = np.empty(self.shape)
