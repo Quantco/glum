@@ -9,13 +9,9 @@ class MatrixBase(ABC):
     Base class for all matrix classes. Cannot be instantiated.
     """
 
-    skip_sklearn_check = True
-
-    @abstractmethod
-    def __init__(self, *args, **kwargs):
-        # apparently allowed! satisfies mypy.
-        self.shape: Tuple[int, int]
-        self.dtype: np.dtype
+    ndim = 2
+    shape: Tuple[int, int]
+    dtype: np.dtype
 
     @abstractmethod
     def dot(self, other):
@@ -55,6 +51,10 @@ class MatrixBase(ABC):
     @property
     def T(self):
         return self.transpose()
+
+    @abstractmethod
+    def astype(self, dtype, order="K", casting="unsafe", copy=True):
+        pass
 
     # Higher priority than numpy arrays, so behavior for funcs like "@" defaults to the
     # behavior of this class

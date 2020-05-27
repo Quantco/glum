@@ -1,4 +1,4 @@
-from abc import ABC, abstractclassmethod, abstractmethod
+from abc import ABC, abstractmethod
 from typing import Optional, Union
 
 import numpy as np
@@ -20,9 +20,9 @@ class ScaledMat(ABC):
 
         shift = np.asarray(shift)
         if shift.ndim == 1:
-            shift = np.expand_dims(shift, 1 - self.scale_axis)
+            shift = np.expand_dims(shift, 1 - self.scale_axis())
         else:
-            if self.scale_axis == 0:
+            if self.scale_axis() == 0:
                 expected_shape = (mat.shape[0], 1)
             else:
                 expected_shape = (1, mat.shape[1])
@@ -38,10 +38,16 @@ class ScaledMat(ABC):
         self.ndim = mat.ndim
         self.dtype = mat.dtype
 
-    @property  # type: ignore
-    @abstractclassmethod
+    def astype(self, dtype, order="K", casting="unsafe", copy=True):
+        return type(self)(
+            self.mat.astype(dtype, casting=casting, copy=copy),
+            self.shift.astype(dtype, order=order, casting=casting, copy=copy),
+        )
+
+    @classmethod
+    @abstractmethod
     def scale_axis(self) -> int:
-        return 0
+        pass
 
     def toarray(self) -> np.ndarray:
         return self.mat.A + self.shift
@@ -98,13 +104,13 @@ class ScaledMat(ABC):
         shift_sum = self.shift.sum(axis=axis)
 
         if axis is None:
-            shift_part = shift_sum * self.shape[1 - self.scale_axis]
+            shift_part = shift_sum * self.shape[1 - self.scale_axis()]
             assert np.isscalar(shift_part)
-        elif axis == self.scale_axis:
+        elif axis == self.scale_axis():
             shift_part = shift_sum
         else:
             shift_part = np.expand_dims(
-                shift_sum * self.shape[axis], 1 - self.scale_axis
+                shift_sum * self.shape[axis], 1 - self.scale_axis()
             )
         return self.mat.sum(axis) + shift_part
 
@@ -140,8 +146,8 @@ class ColScaledSpMat(ScaledMat, MatrixBase):
     def __init__(self, mat: sps.spmatrix, shift: np.ndarray):
         super().__init__(mat, shift)
 
-    @property  # type: ignore
-    def scale_axis(self):
+    @classmethod
+    def scale_axis(self) -> int:
         return 1
 
     def transpose(self):
@@ -266,8 +272,8 @@ class RowScaledSpMat(ScaledMat):
     def __init__(self, mat: sps.spmatrix, shift: np.ndarray):
         super().__init__(mat, shift)
 
-    @property
-    def scale_axis(self):
+    @classmethod
+    def scale_axis(self) -> int:
         return 0
 
     def transpose(self) -> ColScaledSpMat:
@@ -309,7 +315,9 @@ class RowScaledSpMat(ScaledMat):
         """
         >>> x = RowScaledSpMat(sps.eye(3), shift=[0, 1, -2])
         >>> x.getcol(1)
-        array([ 0.,  2., -2.])
+        array([[ 0.],
+               [ 2.],
+               [-2.]])
         """
         return self.mat.getcol(i).toarray() + self.shift
 

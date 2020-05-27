@@ -1,3 +1,4 @@
+import warnings
 from abc import ABCMeta, abstractmethod
 
 import numexpr
@@ -118,7 +119,18 @@ class LogitLink(Link):
         return 1.0 / (mu * (1 - mu))
 
     def inverse(self, lin_pred):
-        return special.expit(lin_pred)
+        """Note: since passing a very large value might result in an output
+        of 1, this function bounds the output to be between
+        [10^-20, 1 - 10^-10].
+        """
+        inv_logit = special.expit(lin_pred)
+        if np.any(inv_logit > 1 - 1e-10) or np.any(inv_logit < 1e-20):
+            warnings.warn(
+                "Computing sigmoid function gave results too close to 0 or 1. "
+                "Clipping."
+            )
+            return np.clip(inv_logit, 1e-20, 1 - 1e-10)
+        return inv_logit
 
     def inverse_derivative(self, lin_pred):
         ep = special.expit(lin_pred)
