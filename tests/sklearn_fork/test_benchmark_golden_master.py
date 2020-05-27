@@ -7,7 +7,7 @@ import pytest
 from git_root import git_root
 from sklearn.exceptions import ConvergenceWarning
 
-from glm_benchmarks.main import execute_problem_library
+from glm_benchmarks.cli_run import execute_problem_library
 from glm_benchmarks.problems import get_all_problems
 from glm_benchmarks.util import BenchmarkParams
 
@@ -26,14 +26,19 @@ def bench_cfg_fix():
     return bench_cfg
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def expected_all():
     with open(git_root("golden_master/benchmark_gm.json"), "r") as fh:
         return json.load(fh)
 
 
 @pytest.mark.parametrize(
-    ["Pn", "P"], all_test_problems.items(), ids=all_test_problems.keys()
+    ["Pn", "P"],
+    [
+        x if "wide" not in x[0] else pytest.param(x[0], x[1], marks=pytest.mark.slow)
+        for x in all_test_problems.items()
+    ],  # mark the "wide" problems as "slow" so that we can call pytest -m "not slow"
+    ids=all_test_problems.keys(),
 )
 def test_gm_benchmarks(Pn, P, bench_cfg_fix, expected_all):
     execute_args = ["print_diagnostics"]
