@@ -30,12 +30,17 @@ def mkl_sparse_matrix(order="F") -> mx.MKLSparseMatrix:
     return mx.MKLSparseMatrix(sps.csc_matrix(base_array(order)))
 
 
+def categorical_matrix(order="F") -> mx.CategoricalMatrix:
+    return mx.CategoricalMatrix([1, 0, 1])
+
+
 matrices = [
     dense_glm_data_matrix,
     col_scaled_sp_mat,
     row_scaled_sp_mat,
     split_matrix,
     mkl_sparse_matrix,
+    categorical_matrix,
 ]
 
 
@@ -174,7 +179,16 @@ def test_dot_raises(mat, order):
         mat_.dot(np.ones((10, 1)))
 
 
-@pytest.mark.parametrize("mat", matrices)
+@pytest.mark.parametrize(
+    "mat",
+    [
+        dense_glm_data_matrix,
+        col_scaled_sp_mat,
+        row_scaled_sp_mat,
+        split_matrix,
+        mkl_sparse_matrix,
+    ],
+)
 @pytest.mark.parametrize("dtype", [np.float64, np.float32])
 @pytest.mark.parametrize("order", ["F", "C"])
 def test_astype(mat, dtype, order):
