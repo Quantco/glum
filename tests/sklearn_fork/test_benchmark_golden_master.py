@@ -32,6 +32,16 @@ def expected_all():
         return json.load(fh)
 
 
+@pytest.fixture(scope="module")
+def skipped_benchmark_gm():
+    try:
+        with open(git_root("golden_master/skipped_benchmark_gm.json"), "r") as fh:
+            skipped_problems = json.load(fh)
+    except FileNotFoundError:
+        skipped_problems = []
+    return skipped_problems
+
+
 @pytest.mark.parametrize(
     ["Pn", "P"],
     [
@@ -40,7 +50,16 @@ def expected_all():
     ],  # mark the "wide" problems as "slow" so that we can call pytest -m "not slow"
     ids=all_test_problems.keys(),
 )
-def test_gm_benchmarks(Pn: str, P: Problem, bench_cfg_fix: dict, expected_all: dict):
+def test_gm_benchmarks(
+    Pn: str,
+    P: Problem,
+    bench_cfg_fix: dict,
+    expected_all: dict,
+    skipped_benchmark_gm: list,
+):
+    if Pn in skipped_benchmark_gm:
+        pytest.skip("Skipping problem with convergence issue.")
+
     execute_args = ["print_diagnostics"]
     params = BenchmarkParams(
         problem_name=Pn,
