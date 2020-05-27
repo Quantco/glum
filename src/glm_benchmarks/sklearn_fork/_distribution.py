@@ -538,11 +538,12 @@ class BinomialDistribution(ExponentialDispersionModel):
         return 1 - 2 * mu
 
     def unit_deviance(self, y, mu):
-        return 2 * (special.xlogy(y, y / mu) + special.xlogy(1 - y, (1 - y) / (1 - mu)))
-        # return 2 * (
-        #     special.xlogy(y, y) - special.xlogy(y, mu)
-        #     + special.xlogy(1 - y, 1 - y) - special.xlogy(1 - y, 1 - mu)
-        # )
+        return 2 * (
+            special.xlogy(y, y)
+            - special.xlogy(y, mu)
+            + special.xlogy(1 - y, 1 - y)
+            - special.xlogy(1 - y, 1 - mu)
+        )
 
 
 def guess_intercept(
