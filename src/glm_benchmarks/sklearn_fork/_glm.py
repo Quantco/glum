@@ -649,11 +649,15 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         Sets self.coef_ and self.intercept_.
         """
         fixed_inner_tol = None
-        if self.family == "normal" and "irls" in self._solver:
+        if (
+            isinstance(self._family_instance, NormalDistribution)
+            and isinstance(self._link_instance, IdentityLink)
+            and "irls" in self._solver
+        ):
             # IRLS-CD and IRLS-LS should converge in one iteration for any
-            # normal distribution problem.
-            max_iter = 1
+            # normal distribution problem with identity link.
             fixed_inner_tol = (self.gradient_tol, self.step_size_tol)
+            max_iter = 1
         else:
             max_iter = self.max_iter
 
