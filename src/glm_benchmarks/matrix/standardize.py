@@ -28,7 +28,7 @@ def zero_center(
 
 def one_over_var_inf_to_zero(arr: np.ndarray) -> np.ndarray:
     zeros = np.where(arr == 0)
-    with np.errstate(divide='ignore'):
+    with np.errstate(divide="ignore"):
         one_over = 1 / arr
     one_over[zeros] = 0
     return one_over
