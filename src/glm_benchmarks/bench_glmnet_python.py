@@ -1,5 +1,5 @@
 import warnings
-from typing import Any, Dict, Union
+from typing import Any, Dict, Optional, Union
 
 import numpy as np
 from glmnet_python import cvglmnet, glmnet
@@ -16,6 +16,7 @@ def glmnet_python_bench(
     iterations: int,
     cv: bool,
     print_diagnostics: bool = True,  # ineffective here
+    reg_multiplier: Optional[float] = None,
 ) -> Dict[str, Any]:
     result: Dict = dict()
 
@@ -44,7 +45,7 @@ def glmnet_python_bench(
 
     glmnet_kws = dict(
         x=X,
-        y=dat["y"].copy(),
+        y=dat["y"].astype(np.float64).copy(),
         family=distribution,
         alpha=l1_ratio,
         standardize=False,
@@ -64,6 +65,8 @@ def glmnet_python_bench(
         result["best_alpha"] = m["lambda_min"][0]
     else:
         glmnet_kws["lambdau"] = np.array([alpha])
+        if reg_multiplier is not None:
+            glmnet_kws["lambdau"] *= reg_multiplier
         result["runtime"], m = runtime(glmnet, iterations, **glmnet_kws)
         fit_model = m
 

@@ -28,7 +28,8 @@ def zero_center(
 
 def one_over_var_inf_to_zero(arr: np.ndarray) -> np.ndarray:
     zeros = np.where(arr == 0)
-    one_over = 1 / arr
+    with np.errstate(divide="ignore"):
+        one_over = 1 / arr
     one_over[zeros] = 0
     return one_over
 
@@ -42,9 +43,9 @@ def standardize(
     >>> R.A
     array([[ 1., -1.],
            [-1.,  1.]])
-    >>> R, means, st_devs = standardize(mat, weights=np.array([9, 1]))
+    >>> R, means, st_devs = standardize(mat, weights=np.array([9., 1.]))
     >>> means
-    array([0.9, 0.1])
+    array([[0.9, 0.1]])
     >>> st_devs
     array([0.3, 0.3])
     >>> R.A
