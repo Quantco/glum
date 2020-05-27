@@ -9,3 +9,13 @@ services:
     privileged: true
     cap_add:
       - SYS_PTRACE
+
+  workmac:
+    build: .
+    volumes:
+      - .:/app
+    network_mode: bridge
+    pid: host
+    privileged: true
+    cap_add:
+      - SYS_PTRACE
