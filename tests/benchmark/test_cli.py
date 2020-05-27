@@ -7,8 +7,9 @@ import click
 import pytest
 from click.testing import CliRunner
 
-from glm_benchmarks.main import cli_run, get_default_val, identify_parameter_fnames
-from glm_benchmarks.util import BenchmarkParams, benchmark_params_cli
+from glm_benchmarks.cli_analyze import identify_parameter_fnames
+from glm_benchmarks.cli_run import cli_run
+from glm_benchmarks.util import BenchmarkParams, benchmark_params_cli, get_default_val
 
 
 @pytest.mark.parametrize(
@@ -65,7 +66,10 @@ def test_correct_problems_run():
         runner = CliRunner()
         result = runner.invoke(cli_run, args)
         if not result.exit_code == 0:
-            raise ValueError(result.output)
+            problem_name_str = " ".join(args)
+            raise ValueError(
+                f"""Failed on problem {problem_name_str} with output: \n {result.output}"""
+            )
         problems_run = os.listdir(d)
 
     expected_problems_run = [
