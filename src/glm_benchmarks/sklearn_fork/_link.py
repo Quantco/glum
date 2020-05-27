@@ -131,7 +131,6 @@ class LogitLink(Link):
             )
             return np.clip(inv_logit, 1e-20, 1 - 1e-10)
         return inv_logit
-        # return special.expit(lin_pred)
 
     def inverse_derivative(self, lin_pred):
         ep = special.expit(lin_pred)
