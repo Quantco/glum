@@ -68,24 +68,3 @@ def test_standardize(X: np.ndarray, scale_predictors):
 
     X_GLM_unstandardized = X_GLM_standardized.unstandardize(means, stds)
     np.testing.assert_almost_equal(X_GLM_unstandardized, X)
-
-
-@pytest.mark.parametrize("matrix_shape", [(4,), (4, 1), (4, 2)])
-def test_dot(X: np.ndarray, matrix_shape):
-    v = np.ones(matrix_shape)
-    result = SplitMatrix(sps.csc_matrix(X), 0.2).dot(v)
-    expected = X.dot(v)
-    np.testing.assert_allclose(result, expected)
-
-
-def test_dot_raises(X: np.ndarray):
-    with pytest.raises(ValueError):
-        SplitMatrix(sps.csc_matrix(X), 0.2).dot(np.ones((5, 1)))
-
-
-@pytest.mark.parametrize("matrix_shape", [(N,), (1, N), (2, N)])
-def test_r_matmul(X: np.ndarray, matrix_shape):
-    v = np.ones(matrix_shape)
-    result = v @ SplitMatrix(sps.csc_matrix(X), 0.2)
-    expected = v @ X
-    np.testing.assert_allclose(result, expected)

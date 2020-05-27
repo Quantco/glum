@@ -3,7 +3,7 @@
 set -uo pipefail
 
 OUTPUT_DIR=$(git rev-parse HEAD)
-PROBLEM_NAMES="intermediate-insurance-weights-net-poisson,intermediate-insurance-weights-l2-poisson,intermediate-insurance-weights-net-gamma,intermediate-insurance-weights-l2-gamma"
+PROBLEM_NAMES="narrow-insurance-weights-net-poisson,narrow-insurance-weights-l2-poisson,narrow-insurance-weights-net-gamma,narrow-insurance-weights-l2-gamma"
 LIBRARY_NAMES="sklearn-fork,orig-sklearn-fork,glmnet-python,h2o"
 THREADS=8
 
@@ -37,4 +37,4 @@ glm_benchmarks_analyze \
     --problem_name "${PROBLEM_NAMES}" \
     --library_name "${LIBRARY_NAMES}" \
     --output_dir ${OUTPUT_DIR} \
-    --export "intermediate_results.csv"
+    --export "narrow_results.csv"

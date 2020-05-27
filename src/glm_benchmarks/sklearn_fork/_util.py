@@ -20,7 +20,6 @@ def _safe_sandwich_dot(X: MatrixBase, d: np.ndarray, intercept=False) -> np.ndar
     With ``intercept=True``, X is treated as if a column of 1 were appended as
     first column of X.
     X can be sparse, d must be an ndarray. Always returns a ndarray."""
-
     result = X.sandwich(d)
 
     if intercept:
