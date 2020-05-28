@@ -17,7 +17,7 @@ from ._link import Link
 from ._util import _safe_lin_pred, _safe_sandwich_dot
 
 
-def _least_squares_solver(state, data, active_set):
+def _least_squares_solver(state, data):
     if data.has_lower_bounds or data.has_upper_bounds:
         raise ValueError("Bounds are not supported with the least squares solver.")
     fisher = build_fisher(data.X, state.fisher_W, data.fit_intercept, data.P2)
@@ -30,10 +30,10 @@ def _least_squares_solver(state, data, active_set):
     return d, 1
 
 
-def _cd_solver(state, data, active_set):
+def _cd_solver(state, data):
     fisher = build_fisher(data.X, state.fisher_W, data.fit_intercept, data.P2)
     new_coef, gap, _, _, n_cycles = enet_coordinate_descent_gram(
-        active_set,
+        state.active_set,
         state.coef.copy(),
         data.P1,
         fisher,
@@ -129,30 +129,10 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
 
     while state.n_iter < data.max_iter and not state.converged:
 
-        if state.n_iter == 0:
-            active_set = np.arange(state.coef.shape[0], dtype=np.int32)
-        else:
-            active_set = [0] if data.fit_intercept else []
-            n = data.X.shape[0]
-            T = data.P1 * n - state.max_min_subgrad
-            import matplotlib.pyplot as plt
-
-            plt.plot(state.score[1:], "r", label="gradient")
-            plt.plot(T, "b", label="threshold")
-            plt.legend()
-            plt.show()
-            for i in range(data.intercept_offset, state.score.shape[0]):
-                P1v = data.P1[i - data.intercept_offset]
-                threshold = P1v - state.max_min_subgrad
-                active_criteria = abs(state.score[i]) < threshold
-                if state.coef[i] == 0 and active_criteria:
-                    continue
-                active_set.append(i)
-            active_set = np.array(active_set, dtype=np.int32)
-        print(active_set)
+        state.active_set = identify_active_set(state, data)
 
         # 1) Solve the L1 and L2 penalized least squares problem
-        d, n_cycles_this_iter = inner_solver(state, data, active_set)
+        d, n_cycles_this_iter = inner_solver(state, data)
         state.n_cycles += n_cycles_this_iter
 
         # 2) Line search
@@ -298,6 +278,7 @@ class IRLSState:
         self.norm_min_subgrad = None
         self.max_min_subgrad = None
         self.inner_tol = None
+        self.active_set = np.arange(self.coef.shape[0])
 
     def record_iteration(self):
         self.n_iter += 1
@@ -314,6 +295,7 @@ class IRLSState:
                 "L1(coef)": coef_l1,
                 "L2(coef)": coef_l2,
                 "L2(step)": step_l2,
+                "n_active": self.active_set.shape[0],
                 "n_iter": self.n_iter,
                 "n_cycles": self.n_cycles,
                 "runtime": iteration_runtime,
@@ -404,6 +386,26 @@ def make_coef_P2(data, coef):
         out[data.intercept_offset :] = C @ data.P2
 
     return out
+
+
+def identify_active_set(state, data):
+    T = data.P1 * (1 - state.max_min_subgrad)
+    T = data.P1 - state.max_min_subgrad
+    # T = data.P1 - state.score[1:]#state.max_min_subgrad
+    abs_score = np.abs(state.score[1:])
+    active = abs_score >= T
+
+    # import matplotlib.pyplot as plt
+    # plt.plot(abs_score, "r", label="gradient")
+    # plt.plot(T, "b", label="threshold")
+    # plt.legend()
+    # plt.show()
+
+    active_set = np.concatenate(
+        ([0] if data.fit_intercept else [], np.where(active)[0] + data.intercept_offset)
+    ).astype(np.int32)
+
+    return active_set
 
 
 def line_search(state, data, d):
