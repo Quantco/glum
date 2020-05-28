@@ -12,6 +12,7 @@ from libc.math cimport fabs
 cimport numpy as np
 import numpy as np
 import numpy.linalg as linalg
+from numpy.math cimport INFINITY
 
 cimport cython
 from cpython cimport bool
@@ -61,10 +62,8 @@ cdef inline floating fsign(floating f) nogil:
         return -1.0
 
 
-
-
-
-def enet_coordinate_descent_gram(floating[::1] w,
+def enet_coordinate_descent_gram(int[::1] active_set,
+                                 floating[::1] w,
                                  floating[::1] P1,
                                  floating[:,:] Q,
                                  floating[::1] q,
@@ -84,6 +83,7 @@ def enet_coordinate_descent_gram(floating[::1] w,
     """
 
     # get the data information into easy vars
+    cdef unsigned int n_active_features = active_set.shape[0]
     cdef unsigned int n_features = Q.shape[0]
 
     cdef floating w_ii
@@ -94,6 +94,7 @@ def enet_coordinate_descent_gram(floating[::1] w,
     cdef floating d_w_tol = tol
     cdef floating norm_min_subgrad = 0
     cdef floating max_min_subgrad
+    cdef unsigned int active_set_ii
     cdef unsigned int ii
     cdef int n_iter = 0
     cdef unsigned int f_iter
@@ -107,11 +108,12 @@ def enet_coordinate_descent_gram(floating[::1] w,
         for n_iter in range(max_iter):
             w_max = 0.0
             d_w_max = 0.0
-            for f_iter in range(n_features):  # Loop over coordinates
+            for f_iter in range(n_active_features):  # Loop over coordinates
                 if random:
-                    ii = rand_int(n_features, rand_r_state)
+                    active_set_ii = rand_int(n_active_features, rand_r_state)
                 else:
-                    ii = f_iter
+                    active_set_ii = f_iter
+                ii = active_set[active_set_ii]
 
                 if ii < <unsigned int>intercept:
                     P1_ii = 0.0
@@ -156,9 +158,11 @@ def enet_coordinate_descent_gram(floating[::1] w,
                 # the tolerance: check the minimum norm subgradient as the
                 # ultimate stopping criterion
                 cython_norm_min_subgrad(
+                    active_set,
                     w, q, P1, intercept,
                     has_lower_bounds, lower_bounds, has_upper_bounds, upper_bounds,
-                    &norm_min_subgrad, &max_min_subgrad
+                    &norm_min_subgrad, &max_min_subgrad,
+                    True
                 )
                 if norm_min_subgrad <= tol:
                     break
@@ -175,6 +179,7 @@ def enet_coordinate_descent_gram(floating[::1] w,
 
 
 cdef void cython_norm_min_subgrad(
+    int[::1] active_set,
     floating[::1] coef,
     floating[::1] grad,
     floating[::1] P1,
@@ -184,7 +189,8 @@ cdef void cython_norm_min_subgrad(
     bint has_upper_bounds,
     floating[:] upper_bounds,
     floating* norm_out,
-    floating* max_out
+    floating* max_out,
+    bint should_print
 ) nogil:
     """Compute the gradient of all subgradients with minimal L2-norm.
 
@@ -217,15 +223,26 @@ cdef void cython_norm_min_subgrad(
     _upper_bounds : ndarray
         see lb.
     """
-    norm_out[0] = 0
     cdef floating term, absterm
+    cdef int active_set_i
     cdef int i
-    if intercept:
-        norm_out[0] = fabs(grad[0])
-    max_out[0] = norm_out[0]
-    for i in range(intercept, coef.shape[0]):
+
+    norm_out[0] = 0
+    max_out[0] = INFINITY
+    for active_set_i in range(len(active_set)):
+        i = active_set[active_set_i]
+
+        if i < intercept:
+            norm_out[0] = fabs(grad[0])
+            max_out[0] = norm_out[0]
+            continue
+
         if coef[i] == 0:
             term = fsign(grad[i]) * fmax(fabs(grad[i]) - P1[i - intercept], 0)
+            # if should_print:
+            #     with gil:
+            #         if i in active_set and term > 0:
+            #             print("WHOA", i, term)
         else:
             term = grad[i] + fsign(coef[i]) * P1[i - intercept]
         if has_lower_bounds and coef[i] == lower_bounds[i - intercept] and term > 0:
@@ -238,6 +255,7 @@ cdef void cython_norm_min_subgrad(
             max_out[0] = absterm
 
 def _norm_min_subgrad(
+    int[::1] active_set,
     floating[::1] coef,
     floating[::1] grad,
     floating[::1] P1,
@@ -250,6 +268,7 @@ def _norm_min_subgrad(
     cdef floating norm_out
     cdef floating max_out
     cython_norm_min_subgrad(
+        active_set,
         coef,
         grad,
         P1,
@@ -259,6 +278,7 @@ def _norm_min_subgrad(
         has_upper_bounds,
         upper_bounds,
         &norm_out,
-        &max_out
+        &max_out,
+        False
     )
     return norm_out, max_out
