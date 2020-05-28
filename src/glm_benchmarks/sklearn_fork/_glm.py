@@ -232,9 +232,14 @@ def check_bounds(
 
 
 def _unstandardize(
-    X, col_means: np.ndarray, col_stds: np.ndarray, intercept: float, coef
+    X,
+    col_means: np.ndarray,
+    col_stds: np.ndarray,
+    intercept: float,
+    coef,
+    scale_predictors: bool,
 ) -> Tuple[Any, float, np.ndarray]:
-    X = X.unstandardize(col_means, col_stds)
+    X = X.unstandardize(col_means, col_stds, scale_predictors)
     intercept -= float(np.squeeze(col_means / col_stds).dot(coef))
     coef /= col_stds
     return X, intercept, coef
@@ -621,7 +626,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         #######################################################################
         if self._center_predictors:
             X, self.intercept_, self.coef_ = _unstandardize(
-                X, col_means, col_stds, self.intercept_, self.coef_
+                X,
+                col_means,
+                col_stds,
+                self.intercept_,
+                self.coef_,
+                self.scale_predictors,
             )
         if self.fit_dispersion in ["chisqr", "deviance"]:
             # attention because of rescaling of weights
@@ -1399,6 +1409,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         """
 
         if self.fit_args_reformat == "safe":
+            # NOTE: This function checks if all the entries in X and y are
+            # finite. That can be expensive. But probably worthwhile.
             X, y, weights, offset, weights_sum = self.set_up_and_check_fit_args(
                 X, y, sample_weight, offset, solver=self.solver, copy_X=self.copy_X
             )

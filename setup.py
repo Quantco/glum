@@ -37,11 +37,28 @@ for fn in ["src/glm_benchmarks/matrix/sandwich/dense-tmpl.cpp"]:
         with open(out_fn, "w") as f:
             f.write(rendered_src)
 
+extension_args = dict(
+    include_dirs=[np.get_include()],
+    extra_compile_args=[
+        "-fopenmp",
+        "-O3",
+        "-ffast-math",
+        "-march=native",
+        "--std=c++17",
+    ],
+    extra_link_args=["-fopenmp"],
+    language="c++",
+)
 ext_modules = [
     Extension(
         name="glm_benchmarks.matrix.sandwich.sandwich",
         sources=["src/glm_benchmarks/matrix/sandwich/sandwich.pyx"],
-        include_dirs=[np.get_include()],
+        **extension_args,
+    ),
+    Extension(
+        name="glm_benchmarks.sklearn_fork._functions",
+        sources=["src/glm_benchmarks/sklearn_fork/_functions.pyx"],
+        **extension_args,
     ),
     Extension(
         name="glm_benchmarks.sklearn_fork._cd_fast",
