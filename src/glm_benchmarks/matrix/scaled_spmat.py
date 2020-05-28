@@ -5,7 +5,6 @@ import numpy as np
 from scipy import sparse as sps
 
 from .matrix_base import MatrixBase
-from .mkl_sparse_matrix import MKLSparseMatrix
 
 
 class ScaledMat(ABC):
@@ -15,8 +14,8 @@ class ScaledMat(ABC):
 
     def __init__(self, mat: sps.spmatrix, shift: np.ndarray):
 
-        if not (sps.issparse(mat) or isinstance(mat, MKLSparseMatrix)):
-            raise ValueError("mat should be a sparse matrix.")
+        # if not (sps.issparse(mat) or isinstance(mat, MKLSparseMatrix)):
+        #     raise ValueError("mat should be a sparse matrix.")
 
         shift = np.asarray(shift)
         if shift.ndim == 1:
@@ -33,7 +32,8 @@ class ScaledMat(ABC):
                 )
 
         self.shift = shift
-        self.mat = MKLSparseMatrix(mat)
+        # self.mat = MKLSparseMatrix(mat)
+        self.mat = mat
         self.shape = mat.shape
         self.ndim = mat.ndim
         self.dtype = mat.dtype
