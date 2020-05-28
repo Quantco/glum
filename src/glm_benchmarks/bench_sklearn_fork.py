@@ -65,13 +65,11 @@ def sklearn_fork_bench(
 
     model_args.update(kwargs)
 
-    try:
-        result["runtime"], m = runtime(
-            build_and_fit, iterations, model_args, fit_args, cv
-        )
-    except ValueError as e:
-        print(f"Problem failed with this error: {e}")
-        return result
+    # try:
+    result["runtime"], m = runtime(build_and_fit, iterations, model_args, fit_args, cv)
+    # except ValueError as e:
+    #     print(f"Problem failed with this error: {e}")
+    #     return result
 
     result["intercept"] = m.intercept_
     result["coef"] = m.coef_
