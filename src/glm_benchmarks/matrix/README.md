@@ -69,7 +69,24 @@ One-hot encoding a feature creates a sparse matrix that has some special propert
 All of its nonzero elements are ones, and since each element starts a new row, it's `indptr`,
 which indicates where rows start and end, will increment by 1 every time.
 
-### csr
+### sandwich
+
+Sandwich products can be computed very efficiently.
+```
+sandwich(X, d)[i, j] = sum_k X[k, i] d[k] X[k, j]
+```
+If `i != j`, `sum_k X[k, i] d[k] X[k, j]` = 0. If `i = j`,
+```
+sandwich(X, d)[i, j] = sum_k X[k, i] d[k] X[k, i]
+= sum_k X[k, i] d[k]
+= d[X[:, i]].sum()
+= (X.T @ d)[i]
+```
+
+So `sandwich(X, d) = diag(X.T @ d)`. This will be especially efficient if `X` is 
+available in CSC format.
+
+### csr dot
 ```
 >>> import numpy as np
 >>> from scipy import sparse

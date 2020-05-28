@@ -1,4 +1,4 @@
-from .categorical_matrix import CategoricalCSCMatrix, CategoricalCSRMatrix
+from .categorical_matrix import CategoricalCSRMatrix
 from .dense_glm_matrix import DenseGLMDataMatrix
 from .matrix_base import MatrixBase
 from .mkl_sparse_matrix import MKLSparseMatrix
@@ -16,5 +16,4 @@ __all__ = [
     "MKLSparseMatrix",
     "SplitMatrix",
     "CategoricalCSRMatrix",
-    "CategoricalCSCMatrix",
 ]
