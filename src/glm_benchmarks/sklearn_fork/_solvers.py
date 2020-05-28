@@ -17,7 +17,7 @@ from ._link import Link
 from ._util import _safe_lin_pred, _safe_sandwich_dot
 
 
-def _least_squares_solver(state, data):
+def _least_squares_solver(state, data, active_set):
     if data.has_lower_bounds or data.has_upper_bounds:
         raise ValueError("Bounds are not supported with the least squares solver.")
     fisher = build_fisher(data.X, state.fisher_W, data.fit_intercept, data.P2)
@@ -30,9 +30,10 @@ def _least_squares_solver(state, data):
     return d, 1
 
 
-def _cd_solver(state, data):
+def _cd_solver(state, data, active_set):
     fisher = build_fisher(data.X, state.fisher_W, data.fit_intercept, data.P2)
     new_coef, gap, _, _, n_cycles = enet_coordinate_descent_gram(
+        active_set,
         state.coef.copy(),
         data.P1,
         fisher,
@@ -128,11 +129,30 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
 
     while state.n_iter < data.max_iter and not state.converged:
 
-        # active_set = [0] if data.fit_intercept else []
-        # for i in range(data.X.shape[1]):
+        if state.n_iter == 0:
+            active_set = np.arange(state.coef.shape[0], dtype=np.int32)
+        else:
+            active_set = [0] if data.fit_intercept else []
+            n = data.X.shape[0]
+            T = data.P1 * n - state.max_min_subgrad
+            import matplotlib.pyplot as plt
+
+            plt.plot(state.score[1:], "r", label="gradient")
+            plt.plot(T, "b", label="threshold")
+            plt.legend()
+            plt.show()
+            for i in range(data.intercept_offset, state.score.shape[0]):
+                P1v = data.P1[i - data.intercept_offset]
+                threshold = P1v - state.max_min_subgrad
+                active_criteria = abs(state.score[i]) < threshold
+                if state.coef[i] == 0 and active_criteria:
+                    continue
+                active_set.append(i)
+            active_set = np.array(active_set, dtype=np.int32)
+        print(active_set)
 
         # 1) Solve the L1 and L2 penalized least squares problem
-        d, n_cycles_this_iter = inner_solver(state, data)
+        d, n_cycles_this_iter = inner_solver(state, data, active_set)
         state.n_cycles += n_cycles_this_iter
 
         # 2) Line search
@@ -312,6 +332,7 @@ def check_convergence(state, data):
 
     # L1 norm of the minimum norm subgradient
     norm_min_subgrad, max_min_subgrad = _norm_min_subgrad(
+        np.arange(state.coef.shape[0], dtype=np.int32),
         state.coef,
         -state.score,
         state.data.P1,
@@ -350,7 +371,7 @@ def check_convergence(state, data):
     else:
         inner_tol = state.data.fixed_inner_tol[0]
 
-    return converged, norm_min_subgrad, inner_tol, max_min_subgrad
+    return converged, norm_min_subgrad, max_min_subgrad, inner_tol
 
 
 def update_quadratic(state, data):
