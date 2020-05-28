@@ -389,17 +389,9 @@ def make_coef_P2(data, coef):
 
 
 def identify_active_set(state, data):
-    T = data.P1 * (1 - state.max_min_subgrad)
     T = data.P1 - state.max_min_subgrad
-    # T = data.P1 - state.score[1:]#state.max_min_subgrad
     abs_score = np.abs(state.score[1:])
     active = abs_score >= T
-
-    # import matplotlib.pyplot as plt
-    # plt.plot(abs_score, "r", label="gradient")
-    # plt.plot(T, "b", label="threshold")
-    # plt.legend()
-    # plt.show()
 
     active_set = np.concatenate(
         ([0] if data.fit_intercept else [], np.where(active)[0] + data.intercept_offset)
