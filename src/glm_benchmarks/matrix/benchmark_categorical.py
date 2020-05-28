@@ -3,7 +3,7 @@ import time
 import numpy as np
 from sklearn.preprocessing import OneHotEncoder
 
-from glm_benchmarks.matrix.categorical_matrix import CategoricalMatrix
+from glm_benchmarks.matrix.categorical_matrix import CategoricalCSRMatrix
 
 
 def main():
@@ -20,7 +20,7 @@ def main():
     vec = np.random.random(n_categories_used)
 
     start = time.time()
-    cat_mat = CategoricalMatrix(cat_vec)
+    cat_mat = CategoricalCSRMatrix(cat_vec)
     elapsed = time.time() - start
     print("Set-up time new: ", elapsed)
     assert cat_mat.shape == (n_rows, n_categories_used)

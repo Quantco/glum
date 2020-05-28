@@ -68,6 +68,8 @@ Individual subclasses may support significantly more operations.
 One-hot encoding a feature creates a sparse matrix that has some special properties: 
 All of its nonzero elements are ones, and since each element starts a new row, it's `indptr`,
 which indicates where rows start and end, will increment by 1 every time.
+
+### csr
 ```
 >>> import numpy as np
 >>> from scipy import sparse
@@ -114,3 +116,23 @@ simplify this function to be
 The original function involved `6N` lookups, `N` multiplications, and `N` additions, 
 while the new function involves only `3N` lookups. It thus has the potential to be
 significantly faster.
+
+### csc
+The case is not quite so simple for csc (column-major) sparse matrices.
+However, we still do not need to store the data.
+
+```
+>>> import numpy as np
+>>> from scipy import sparse
+>>> import pandas as pd
+
+>>> arr = [1, 0, 1]
+>>> dummies = pd.get_dummies(arr)
+>>> csc = sparse.csc_matrix(dummies.values)
+>>> csc.data
+array([1, 1, 1], dtype=uint8)
+>>> csc.indices
+array([1, 0, 2], dtype=int32)
+>>> csc.indptr
+array([0, 1, 3], dtype=int32)
+```

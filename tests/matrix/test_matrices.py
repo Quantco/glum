@@ -30,8 +30,11 @@ def mkl_sparse_matrix(order="F") -> mx.MKLSparseMatrix:
     return mx.MKLSparseMatrix(sps.csc_matrix(base_array(order)))
 
 
-def categorical_matrix(order="F") -> mx.CategoricalMatrix:
-    return mx.CategoricalMatrix([1, 0, 1])
+def categorical_matrix(order="F"):
+    vec = [1, 0, 1]
+    if order == "F":
+        return mx.CategoricalCSCMatrix(vec)
+    return mx.CategoricalCSRMatrix(vec)
 
 
 matrices = [
