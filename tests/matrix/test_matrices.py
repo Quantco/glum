@@ -32,8 +32,6 @@ def mkl_sparse_matrix(order="F") -> mx.MKLSparseMatrix:
 
 def categorical_matrix(order="F"):
     vec = [1, 0, 1]
-    if order == "F":
-        return mx.CategoricalCSCMatrix(vec)
     return mx.CategoricalCSRMatrix(vec)
 
 
@@ -133,18 +131,32 @@ def test_dense_sandwich():
 
 
 @pytest.mark.parametrize(
-    "mat", [dense_glm_data_matrix, mkl_sparse_matrix, col_scaled_sp_mat, split_matrix],
+    "mat",
+    [
+        dense_glm_data_matrix,
+        mkl_sparse_matrix,
+        col_scaled_sp_mat,
+        split_matrix,
+        categorical_matrix,
+    ],
 )
 @pytest.mark.parametrize(
     "vec_type", [lambda x: x, np.array, mx.DenseGLMDataMatrix],
 )
 @pytest.mark.parametrize("order", ["F", "C"])
 def test_sandwich(mat: type, vec_type, order):
-    vec_as_list = [3, 0.1, 1]
-    vec = vec_type(vec_as_list)
     mat_ = mat(order)
+    vec_as_list = [3, 0.1, 1][: mat_.shape[0]]
+    assert len(vec_as_list) == mat_.shape[0]
+    vec = vec_type(vec_as_list)
     res = mat_.sandwich(vec)
-    expected = mat_.A.T @ np.diag(vec_as_list) @ mat_.A
+
+    try:
+        expected = mat_.A.T @ np.diag(vec_as_list) @ mat_.A
+    except ValueError:
+        import ipdb
+
+        ipdb.set_trace()
     np.testing.assert_allclose(res, expected)
 
 
