@@ -91,12 +91,18 @@ class SplitMatrix(MatrixBase):
 
         return self, col_means, col_stds
 
-    def unstandardize(self, col_means: np.ndarray, col_stds: np.ndarray):
+    def unstandardize(
+        self, col_means: np.ndarray, col_stds: np.ndarray, scale_predictors: bool
+    ):
         self.X_dense_F = self.X_dense_F.unstandardize(
-            col_means[0, self.dense_indices], col_stds[self.dense_indices]
+            col_means[0, self.dense_indices],
+            col_stds[self.dense_indices],
+            scale_predictors,
         )
         self.X_sparse = self.X_sparse.unstandardize(
-            col_means[0, self.sparse_indices], col_stds[self.sparse_indices]
+            col_means[0, self.sparse_indices],
+            col_stds[self.sparse_indices],
+            scale_predictors,
         )
         return self
 

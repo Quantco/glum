@@ -53,7 +53,8 @@ class DenseGLMDataMatrix(np.ndarray, MatrixBase):
             col_stds = np.ones(self.shape[1], dtype=self.dtype)
         return self, col_means, col_stds
 
-    def unstandardize(self, col_means, col_stds):
-        self *= col_stds
+    def unstandardize(self, col_means, col_stds, scale_predictors):
+        if scale_predictors:
+            self *= col_stds
         self += col_means
         return self
