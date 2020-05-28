@@ -32,7 +32,7 @@ def _least_squares_solver(state, data):
 
 def _cd_solver(state, data):
     fisher = build_fisher(data.X, state.fisher_W, data.fit_intercept, data.P2)
-    new_coef, gap, _, n_cycles = enet_coordinate_descent_gram(
+    new_coef, gap, _, _, n_cycles = enet_coordinate_descent_gram(
         state.coef.copy(),
         data.P1,
         fisher,
@@ -118,12 +118,18 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
     state.eta, state.mu, state.score, state.fisher_W, state.coef_P2 = update_quadratic(
         state, data
     )
-    state.converged, state.mn_subgrad_norm, state.inner_tol = check_convergence(
-        state, data
-    )
+    (
+        state.converged,
+        state.norm_min_subgrad,
+        state.max_min_subgrad,
+        state.inner_tol,
+    ) = check_convergence(state, data)
     state.record_iteration()
 
     while state.n_iter < data.max_iter and not state.converged:
+
+        # active_set = [0] if data.fit_intercept else []
+        # for i in range(data.X.shape[1]):
 
         # 1) Solve the L1 and L2 penalized least squares problem
         d, n_cycles_this_iter = inner_solver(state, data)
@@ -144,9 +150,12 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
         ) = update_quadratic(state, data)
 
         # 4) Check if we've converged
-        state.converged, state.mn_subgrad_norm, state.inner_tol = check_convergence(
-            state, data
-        )
+        (
+            state.converged,
+            state.norm_min_subgrad,
+            state.max_min_subgrad,
+            state.inner_tol,
+        ) = check_convergence(state, data)
         state.record_iteration()
 
     if not state.converged:
@@ -266,7 +275,8 @@ class IRLSState:
         self.score = None
         self.fisher_W = None
         self.coef_P2 = None
-        self.mn_subgrad_norm = None
+        self.norm_min_subgrad = None
+        self.max_min_subgrad = None
         self.inner_tol = None
 
     def record_iteration(self):
@@ -280,7 +290,7 @@ class IRLSState:
         step_l2 = np.linalg.norm(self.step)
         self.diagnostics.append(
             {
-                "convergence": self.mn_subgrad_norm,
+                "convergence": self.norm_min_subgrad,
                 "L1(coef)": coef_l1,
                 "L2(coef)": coef_l2,
                 "L2(step)": step_l2,
@@ -301,7 +311,7 @@ def check_convergence(state, data):
     # this also updates the inner tolerance for the next loop!
 
     # L1 norm of the minimum norm subgradient
-    mn_subgrad_norm = _norm_min_subgrad(
+    norm_min_subgrad, max_min_subgrad = _norm_min_subgrad(
         state.coef,
         -state.score,
         state.data.P1,
@@ -313,7 +323,7 @@ def check_convergence(state, data):
     )
     gradient_converged = (
         state.data.gradient_tol is not None
-        and mn_subgrad_norm < state.data.gradient_tol
+        and norm_min_subgrad < state.data.gradient_tol
     )
 
     # Simple L2 step length convergence criteria
@@ -335,12 +345,12 @@ def check_convergence(state, data):
 
     if state.data.fixed_inner_tol is None:
         # Another potential rule limits the inner tol to be no smaller than tol
-        # return max(mn_subgrad_norm * inner_tol_ratio, tol)
-        inner_tol = mn_subgrad_norm * inner_tol_ratio
+        # return max(norm_min_subgrad * inner_tol_ratio, tol)
+        inner_tol = norm_min_subgrad * inner_tol_ratio
     else:
         inner_tol = state.data.fixed_inner_tol[0]
 
-    return converged, mn_subgrad_norm, inner_tol
+    return converged, norm_min_subgrad, inner_tol, max_min_subgrad
 
 
 def update_quadratic(state, data):
