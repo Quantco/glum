@@ -1,10 +1,11 @@
-# cython: boundscheck=False, wraparound=False, cdivision=True
 import numpy as np
 
 import cython
 from cython cimport floating
 from cython.parallel import prange
 
+@cython.boundscheck(False)
+@cython.wraparound(False)
 def sparse_sandwich(A, AT, floating[:] d):
     # AT is CSC
     # A is CSC
