@@ -8,6 +8,7 @@ from scipy import special
 
 from glm_benchmarks.matrix import MatrixBase
 
+from ._functions import gradient_hessian_update
 from ._link import IdentityLink, Link, LogitLink, LogLink
 from ._util import _safe_lin_pred
 
@@ -373,22 +374,30 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         # eta = linear predictor
         if eta is None:
             eta = _safe_lin_pred(X, coef, offset)
-        if mu is None:
-            mu = link.inverse(eta)
 
-        # FOR TWEEDIE: sigma_inv = weights / (mu ** p) during optimization bc phi = 1
-        sigma_inv = 1.0 / self.variance(mu, phi=phi, weights=weights)
-        d1 = link.inverse_derivative(eta)  # = h'(eta)
-        # Alternatively:
-        # h'(eta) = h'(g(mu)) = 1/g'(mu), note that h is inverse of g
-        # d1 = 1./link.derivative(mu)
-        d1_sigma_inv = d1 * sigma_inv
-        temp = d1_sigma_inv * (y - mu)
-        score = temp @ X
+        # TODO: don't update mu when not needed?
+        update_mu = mu is None
+        if update_mu:
+            mu = np.empty_like(eta)
+
+        gradient_rows = np.empty_like(mu)
+        fisher_W = np.empty_like(mu)
+        gradient_hessian_update(y, weights, eta, update_mu, mu, gradient_rows, fisher_W)
+
+        # # FOR TWEEDIE: sigma_inv = weights / (mu ** p) during optimization bc phi = 1
+        # sigma_inv = 1.0 / self.variance(mu, phi=phi, weights=weights)
+        # d1 = link.inverse_derivative(eta)  # = h'(eta)
+        # # Alternatively:
+        # # h'(eta) = h'(g(mu)) = 1/g'(mu), note that h is inverse of g
+        # # d1 = 1./link.derivative(mu)
+        # d1_sigma_inv = d1 * sigma_inv
+        # gradient_rows = d1_sigma_inv * (y - mu)
+        # fisher_W = d1 * d1_sigma_inv
+
+        score = gradient_rows @ X
         if intercept:
-            score = np.concatenate(([temp.sum()], score))
+            score = np.concatenate(([gradient_rows.sum()], score))
 
-        fisher_W = d1 * d1_sigma_inv
         # To form the fisher matrix:
         # fisher_matrix = _safe_sandwich_dot(X, fisher_W, intercept=intercept)
         return eta, mu, score, fisher_W
