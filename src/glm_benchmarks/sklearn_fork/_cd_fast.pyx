@@ -92,7 +92,8 @@ def enet_coordinate_descent_gram(floating[::1] w,
     cdef floating w_max
     cdef floating d_w_ii
     cdef floating d_w_tol = tol
-    cdef floating mn_subgrad = 0
+    cdef floating norm_min_subgrad = 0
+    cdef floating max_min_subgrad
     cdef unsigned int ii
     cdef int n_iter = 0
     cdef unsigned int f_iter
@@ -154,24 +155,26 @@ def enet_coordinate_descent_gram(floating[::1] w,
                 # the biggest coordinate update of this iteration was smaller than
                 # the tolerance: check the minimum norm subgradient as the
                 # ultimate stopping criterion
-                mn_subgrad = _norm_min_subgrad(
+                cython_norm_min_subgrad(
                     w, q, P1, intercept,
-                    has_lower_bounds, lower_bounds, has_upper_bounds, upper_bounds
+                    has_lower_bounds, lower_bounds, has_upper_bounds, upper_bounds,
+                    &norm_min_subgrad, &max_min_subgrad
                 )
-                if mn_subgrad <= tol:
+                if norm_min_subgrad <= tol:
                     break
         else:
             # for/else, runs if for doesn't end with a `break`
             with gil:
                 warnings.warn("Coordinate descent did not converge. You might want to "
                               "increase the number of iterations. Minimum norm "
-                              "subgradient: {}, tolerance: {}".format(mn_subgrad, tol),
+                              "subgradient: {}, tolerance: {}".format(norm_min_subgrad, tol),
                               ConvergenceWarning)
 
-    return np.asarray(w), mn_subgrad, tol, n_iter + 1
+    return np.asarray(w), norm_min_subgrad, max_min_subgrad, tol, n_iter + 1
 
 
-cpdef floating _norm_min_subgrad(
+
+cdef void cython_norm_min_subgrad(
     floating[::1] coef,
     floating[::1] grad,
     floating[::1] P1,
@@ -180,6 +183,8 @@ cpdef floating _norm_min_subgrad(
     floating[:] lower_bounds,
     bint has_upper_bounds,
     floating[:] upper_bounds,
+    floating* norm_out,
+    floating* max_out
 ) nogil:
     """Compute the gradient of all subgradients with minimal L2-norm.
 
@@ -212,11 +217,12 @@ cpdef floating _norm_min_subgrad(
     _upper_bounds : ndarray
         see lb.
     """
-    cdef floating out = 0
-    cdef floating term
+    norm_out[0] = 0
+    cdef floating term, absterm
     cdef int i
     if intercept:
-        out = fabs(grad[0])
+        norm_out[0] = fabs(grad[0])
+    max_out[0] = norm_out[0]
     for i in range(intercept, coef.shape[0]):
         if coef[i] == 0:
             term = fsign(grad[i]) * fmax(fabs(grad[i]) - P1[i - intercept], 0)
@@ -226,5 +232,33 @@ cpdef floating _norm_min_subgrad(
             term = 0
         if has_upper_bounds and coef[i] == upper_bounds[i - intercept] and term < 0:
             term = 0
-        out += fabs(term)
-    return out
+        absterm = fabs(term)
+        norm_out[0] += absterm
+        if absterm > max_out[0]:
+            max_out[0] = absterm
+
+def _norm_min_subgrad(
+    floating[::1] coef,
+    floating[::1] grad,
+    floating[::1] P1,
+    bint intercept,
+    bint has_lower_bounds,
+    floating[:] lower_bounds,
+    bint has_upper_bounds,
+    floating[:] upper_bounds
+):
+    cdef floating norm_out
+    cdef floating max_out
+    cython_norm_min_subgrad(
+        coef,
+        grad,
+        P1,
+        intercept,
+        has_lower_bounds,
+        lower_bounds,
+        has_upper_bounds,
+        upper_bounds,
+        &norm_out,
+        &max_out
+    )
+    return norm_out, max_out
