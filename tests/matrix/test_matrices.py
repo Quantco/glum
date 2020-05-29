@@ -150,13 +150,10 @@ def test_sandwich(mat: type, vec_type, order):
     assert len(vec_as_list) == mat_.shape[0]
     vec = vec_type(vec_as_list)
     res = mat_.sandwich(vec)
+    if sps.issparse(res):
+        res = res.A
 
-    try:
-        expected = mat_.A.T @ np.diag(vec_as_list) @ mat_.A
-    except ValueError:
-        import ipdb
-
-        ipdb.set_trace()
+    expected = mat_.A.T @ np.diag(vec_as_list) @ mat_.A
     np.testing.assert_allclose(res, expected)
 
 

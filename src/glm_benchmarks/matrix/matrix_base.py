@@ -1,7 +1,8 @@
 from abc import ABC, abstractmethod
-from typing import Tuple
+from typing import Tuple, Union
 
 import numpy as np
+from scipy import sparse as sps
 
 
 class MatrixBase(ABC):
@@ -33,7 +34,7 @@ class MatrixBase(ABC):
         pass
 
     @abstractmethod
-    def sandwich(self, d: np.ndarray) -> np.ndarray:
+    def sandwich(self, d: np.ndarray) -> Union[np.ndarray, sps.spmatrix]:
         pass
 
     @property

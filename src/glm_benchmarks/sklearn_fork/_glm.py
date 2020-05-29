@@ -56,6 +56,7 @@ from sklearn.utils.validation import (
 )
 
 from glm_benchmarks.matrix import (
+    CategoricalCSRMatrix,
     DenseGLMDataMatrix,
     MatrixBase,
     MKLSparseMatrix,
@@ -142,7 +143,7 @@ def check_X_y_matrix(
             _check_array(X.X_dense_F, ensure_min_features=0)
         )
 
-    else:
+    elif not isinstance(X, CategoricalCSRMatrix):
         original_type = type(X)
         X = _check_array(X, ensure_min_features=1)
         if original_type is DenseGLMDataMatrix:
@@ -1008,22 +1009,35 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         else:
             _stype = ["csc", "csr"]
 
-        if hasattr(X, "dtype") and X.dtype == np.int64:
+        if (
+            not isinstance(X, CategoricalCSRMatrix)
+            and hasattr(X, "dtype")
+            and X.dtype == np.int64
+        ):
             # check_X_y will convert to float32 if we don't do this, which causes
             # precision issues with the new handling of single precision. The new
             # behavior is to give everything the precision of X, but we don't want to
             # do that if X was intially int64.
             X = X.astype(np.float64)
 
-        if isinstance(X, MatrixBase):
-            X, y = check_X_y_matrix(
-                X, y, accept_sparse=_stype, dtype=_dtype, copy=copy_X
-            )
-            self._check_n_features(X, reset=True)
+        if isinstance(X, CategoricalCSRMatrix):
+            dtype = np.float64
         else:
-            X, y = self._validate_data(
-                X, y, ensure_2d=True, accept_sparse=_stype, dtype=_dtype, copy=copy_X
-            )
+            if isinstance(X, MatrixBase):
+                X, y = check_X_y_matrix(
+                    X, y, accept_sparse=_stype, dtype=_dtype, copy=copy_X
+                )
+                self._check_n_features(X, reset=True)
+            else:
+                X, y = self._validate_data(
+                    X,
+                    y,
+                    ensure_2d=True,
+                    accept_sparse=_stype,
+                    dtype=_dtype,
+                    copy=copy_X,
+                )
+            dtype = X.dtype
 
         # Without converting y to float, deviance might raise
         # ValueError: Integers to negative integer powers are not allowed.
@@ -1031,9 +1045,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         # Make sure everything has the same precision as X
         # This will prevent accidental upcasting later and slow operations on
         # mixed-precision numbers
-        y = np.asarray(y, dtype=X.dtype)
-        weights = _check_weights(sample_weight, y.shape[0], X.dtype)
-        offset = _check_offset(offset, y.shape[0], X.dtype)
+        y = np.asarray(y, dtype=dtype)
+        weights = _check_weights(sample_weight, y.shape[0], dtype)
+        offset = _check_offset(offset, y.shape[0], dtype)
 
         # IMPORTANT NOTE: Since we want to minimize
         # 1/(2*sum(sample_weight)) * deviance + L1 + L2,

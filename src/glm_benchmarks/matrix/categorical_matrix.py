@@ -5,10 +5,23 @@ import pandas as pd
 from scipy import sparse as sps
 
 from glm_benchmarks.matrix.matrix_base import MatrixBase
+from glm_benchmarks.matrix.sandwich.categorical_sandwich import sandwich_categorical
 
 
 def csr_dot_categorical(mat_indices: np.ndarray, vec: np.ndarray) -> np.ndarray:
     return np.asarray(vec)[mat_indices]
+
+
+def sandwich_old(indices: np.ndarray, indptr: np.ndarray, d: np.ndarray) -> np.ndarray:
+    """
+    Returns a 1d array. The sandwich output is a diagonal matrix with this array on
+    the diagonal.
+    """
+    tmp = d[indices]
+    res = np.zeros(len(indptr) - 1, dtype=d.dtype)
+    for i in range(len(res)):
+        res[i] = tmp[indptr[i] : indptr[i + 1]].sum()
+    return res
 
 
 class CategoricalCSRMatrix(MatrixBase):
@@ -43,14 +56,17 @@ class CategoricalCSRMatrix(MatrixBase):
     def getcol(self, i: int) -> np.ndarray:
         return (self.indices == i).astype(int)[:, None]
 
-    def sandwich(self, d: Union[np.ndarray, List]) -> np.ndarray:
+    def sandwich(self, d: Union[np.ndarray, List]) -> sps.spmatrix:
         d = np.asarray(d)
         indices, indptr = self._check_csc()
-        tmp = d[indices]
-        res = np.zeros(self.shape[1], dtype=d.dtype)
-        for i in range(len(res)):
-            res[i] = tmp[indptr[i] : indptr[i + 1]].sum()
-        return np.diag(res)
+        res = sandwich_categorical(indices, indptr, d)
+        return sps.diags(res)
+
+    def sandwich_old(self, d: Union[np.ndarray, List]) -> sps.spmatrix:
+        d = np.asarray(d)
+        indices, indptr = self._check_csc()
+        res = sandwich_old(indices, indptr, d)
+        return sps.diags(res)
 
     def tocsr(self) -> sps.csr_matrix:
         return sps.csr_matrix(
@@ -74,6 +90,9 @@ class CategoricalCSRMatrix(MatrixBase):
         but it needs to be implemented.
         """
         return self
+
+    def standardize(self):
+        pass
 
 
 def _dot(mat: CategoricalCSRMatrix, other: Union[np.ndarray, List],) -> np.ndarray:

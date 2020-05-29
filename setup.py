@@ -48,6 +48,11 @@ ext_modules = [
         sources=["src/glm_benchmarks/sklearn_fork/_cd_fast.pyx"],
         include_dirs=[np.get_include()],
     ),
+    Extension(
+        name="glm_benchmarks.matrix.sandwich.categorical_sandwich",
+        sources=["src/glm_benchmarks/matrix/sandwich/categorical_sandwich.pyx"],
+        include_dirs=[np.get_include()],
+    ),
 ]
 
 setup(
