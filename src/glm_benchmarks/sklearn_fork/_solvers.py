@@ -31,15 +31,38 @@ def _least_squares_solver(state, data):
 
 
 def _cd_solver(state, data):
-    fisher = build_fisher(
-        data.X, state.fisher_W, data.fit_intercept, data.P2, state.active_set
+    fisher_W_diff = state.fisher_W - state.old_fisher_W
+
+    n_rows = fisher_W_diff.shape[0]
+    if state.fisher is not None:
+        C = 10  # tightness of exclusion criterion
+        abs_diff = np.abs(fisher_W_diff)
+        # threshold = state.max_min_subgrad / (C * data.X.shape[0])
+        threshold = np.max(abs_diff) / C
+        exclude = abs_diff < threshold
+        fisher_W_diff[exclude] = 0.0
+        n_rows -= np.sum(exclude)
+
+    import time
+
+    start = time.time()
+    state.fisher_delta = build_fisher(
+        data.X, fisher_W_diff, data.fit_intercept, data.P2, state.active_set
     )
+    print(f"n_rows={n_rows} n_cols={len(state.active_set)} time={time.time() - start}")
+
+    if state.fisher is None:
+        state.fisher = state.fisher_delta
+    else:
+        state.fisher[np.ix_(state.active_set, state.active_set)] += state.fisher_delta
+
+    F = state.fisher[np.ix_(state.active_set, state.active_set)]
 
     new_coef, gap, _, _, n_cycles = enet_coordinate_descent_gram(
         state.active_set,
         state.coef.copy(),
         data.P1,
-        fisher,
+        F,
         -state.score,
         data.max_inner_iter,
         state.inner_tol,
@@ -148,6 +171,7 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
         )
 
         # 3) Update the quadratic approximation
+        state.old_fisher_W[:] = state.fisher_W
         (
             state.eta,
             state.mu,
@@ -280,7 +304,9 @@ class IRLSState:
         self.eta = None
         self.mu = None
         self.score = None
+        self.old_fisher_W = np.zeros(data.X.shape[0], dtype=data.X.dtype)
         self.fisher_W = None
+        self.fisher = None
         self.coef_P2 = None
         self.norm_min_subgrad = None
         self.max_min_subgrad = None
@@ -441,6 +467,7 @@ def line_search(state, data, d):
     # TODO: if we keep track of X_dot_coef, we can add this to avoid a
     # _safe_lin_pred in _eta_mu_score_fisher every loop
     X_dot_d = _safe_lin_pred(data.X, d)
+    print(f"updated: {np.sum(np.abs(d) > 0)}")
 
     # Try progressively shorter line search steps.
     # variables suffixed with wd are for the new coefficient values
