@@ -56,6 +56,27 @@ class MatrixBase(ABC):
     def astype(self, dtype, order="K", casting="unsafe", copy=True):
         pass
 
+    @abstractmethod
+    def _get_col_means(self, weights: np.ndarray) -> np.ndarray:
+        pass
+
+    @abstractmethod
+    def _get_col_stds(self, weights: np.ndarray, col_means: np.ndarray) -> np.ndarray:
+        pass
+
+    def standardize(self, weights: np.ndarray, scale_predictors: bool):
+        """
+        Returns a ColScaledMat, col_means, and col_stds
+        """
+        from .scaled_mat import ColScaledMat
+
+        col_means = self._get_col_means(weights)
+        if scale_predictors:
+            col_stds = self._get_col_stds(weights, col_means)
+        else:
+            col_stds = np.ones(self.shape[1])
+        return ColScaledMat(self, -col_means), col_means, col_stds
+
     # Higher priority than numpy arrays, so behavior for funcs like "@" defaults to the
     # behavior of this class
     __array_priority__ = 11

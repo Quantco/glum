@@ -14,14 +14,6 @@ def dense_glm_data_matrix(order="F") -> mx.DenseGLMDataMatrix:
     return mx.DenseGLMDataMatrix(base_array(order))
 
 
-def col_scaled_sp_mat(order="F") -> mx.ColScaledSpMat:
-    return mx.ColScaledSpMat(sps.csc_matrix(base_array(order)), [0.0, 1.0])
-
-
-def row_scaled_sp_mat(order="F") -> mx.RowScaledSpMat:
-    return mx.RowScaledSpMat(sps.csc_matrix(base_array(order)), [0.0, 1.0, -0.1])
-
-
 def split_matrix(order="F") -> mx.SplitMatrix:
     return mx.SplitMatrix(sps.csc_matrix(base_array(order)), threshold=0.1)
 
@@ -30,13 +22,27 @@ def mkl_sparse_matrix(order="F") -> mx.MKLSparseMatrix:
     return mx.MKLSparseMatrix(sps.csc_matrix(base_array(order)))
 
 
-matrices = [
+def col_scaled_dense(order="F") -> mx.ColScaledMat:
+    return mx.ColScaledMat(dense_glm_data_matrix(order), [0.0, 1.0])
+
+
+def col_scaled_sparse(order="F") -> mx.ColScaledMat:
+    return mx.ColScaledMat(mkl_sparse_matrix(order), [0.0, 1.0])
+
+
+def col_scaled_split(order="F") -> mx.ColScaledMat:
+    return mx.ColScaledMat(split_matrix(order), [0.0, 1.0])
+
+
+unscaled_matrices = [
     dense_glm_data_matrix,
-    col_scaled_sp_mat,
-    row_scaled_sp_mat,
     split_matrix,
     mkl_sparse_matrix,
 ]
+
+scaled_matrices = [col_scaled_dense, col_scaled_sparse, col_scaled_split]
+
+matrices = unscaled_matrices + scaled_matrices  # type: ignore
 
 
 @pytest.mark.parametrize("mat", matrices)
@@ -49,14 +55,20 @@ def test_get_col(mat):
     np.testing.assert_almost_equal(col, mat_.A[:, [i]])
 
 
-@pytest.mark.parametrize(
-    "mat", [dense_glm_data_matrix, split_matrix, mkl_sparse_matrix]
-)
+@pytest.mark.parametrize("mat", unscaled_matrices)
 @pytest.mark.parametrize("order", ["F", "C"])
 def test_to_array(mat, order):
     mat_ = mat(order)
     assert isinstance(mat_.A, np.ndarray)
     np.testing.assert_allclose(mat_.A, base_array(order))
+
+
+@pytest.mark.parametrize("mat", scaled_matrices)
+@pytest.mark.parametrize("order", ["F", "C"])
+def test_to_array_scaled(mat, order):
+    mat_ = mat(order)
+    assert isinstance(mat_.A, np.ndarray)
+    np.testing.assert_allclose(mat_.A, base_array(order) + np.array([[0, 1]]))
 
 
 @pytest.mark.parametrize("mat", matrices)
@@ -124,9 +136,7 @@ def test_dense_sandwich():
     np.testing.assert_allclose(result, expected)
 
 
-@pytest.mark.parametrize(
-    "mat", [dense_glm_data_matrix, mkl_sparse_matrix, col_scaled_sp_mat, split_matrix],
-)
+@pytest.mark.parametrize("mat", matrices)
 @pytest.mark.parametrize(
     "vec_type", [lambda x: x, np.array, mx.DenseGLMDataMatrix],
 )
@@ -140,9 +150,11 @@ def test_sandwich(mat: type, vec_type, order):
     np.testing.assert_allclose(res, expected)
 
 
+# TODO: make this work for SplitMatrix too, or figure out a way to not need transpose
+# TODO: make sure we have sklearn tests for each matrix setup
 @pytest.mark.parametrize(
     "mat",
-    [dense_glm_data_matrix, col_scaled_sp_mat, row_scaled_sp_mat, mkl_sparse_matrix],
+    [dense_glm_data_matrix, mkl_sparse_matrix, col_scaled_dense, col_scaled_sparse],
 )
 @pytest.mark.parametrize("order", ["F", "C"])
 def test_transpose(mat: type, order):
@@ -155,7 +167,8 @@ def test_transpose(mat: type, order):
 
 @pytest.mark.parametrize("matrix_shape", [(3,), (1, 3), (2, 3)])
 @pytest.mark.parametrize(
-    "mat", [dense_glm_data_matrix, col_scaled_sp_mat, split_matrix, mkl_sparse_matrix],
+    "mat",
+    [dense_glm_data_matrix, mkl_sparse_matrix, col_scaled_dense, col_scaled_sparse],
 )
 @pytest.mark.parametrize("order", ["F", "C"])
 def test_r_matmul(mat, matrix_shape, order):
