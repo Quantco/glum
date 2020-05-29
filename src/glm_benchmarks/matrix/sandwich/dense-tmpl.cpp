@@ -26,7 +26,7 @@
 #include <omp.h>
 namespace xs = xsimd;
 
-<%def name="middle_j(kparallel, IBLOCK, JBLOCK, KBLOCKS)">
+<%def name="middle_j(kparallel, IBLOCK, JBLOCK)">
     int jmaxblock = jmin + ((jmaxinner - jmin) / ${JBLOCK}) * ${JBLOCK};
     for (; j < jmaxblock; j += ${JBLOCK}) {
 
@@ -108,13 +108,13 @@ namespace xs = xsimd;
                     // and j, the sum here is safe
                     #pragma omp atomic
                 % endif
-                out[(i + ${ir}) * m + (j + ${jr})] += accum${ir}_${jr};
+                out[(i + ${ir}) * out_m + (j + ${jr})] += accum${ir}_${jr};
             % endfor
         % endfor
     }
 </%def>
 
-<%def name="outer_i(kparallel, IBLOCK, JBLOCKS, KBLOCKS)">
+<%def name="outer_i(kparallel, IBLOCK, JBLOCKS)">
     int imaxblock = imin + ((imax - imin) / ${IBLOCK}) * ${IBLOCK};
     for (; i < imaxblock; i += ${IBLOCK}) {
         int jmaxinner = jmax;
@@ -124,7 +124,7 @@ namespace xs = xsimd;
         int j = jmin;
         % for JBLOCK in JBLOCKS:
         {
-            ${middle_j(kparallel, IBLOCK, JBLOCK, KBLOCKS)}
+            ${middle_j(kparallel, IBLOCK, JBLOCK)}
         }
         % endfor
     }
@@ -133,7 +133,7 @@ namespace xs = xsimd;
 <%def name="dense_base_tmpl(kparallel)">
 template <typename F>
 void dense_base${kparallel}(F* R, F* L, F* d, F* out,
-                int m, int n,
+                int out_m, int n,
                 int imin2, int imax2,
                 int jmin2, int jmax2, 
                 int kmin, int kmax, int innerblock, int kstep) 
@@ -152,7 +152,7 @@ void dense_base${kparallel}(F* R, F* L, F* d, F* out,
             int i = imin;
             % for IBLOCK in [4, 2, 1]:
             {
-                ${outer_i(kparallel, IBLOCK, [4, 2, 1], [1])}
+                ${outer_i(kparallel, IBLOCK, [4, 2, 1])}
             }
             % endfor
         }
@@ -178,14 +178,15 @@ ${dense_base_tmpl(False)}
     F* R = Rglobal;
     % if kparallel:
     R += omp_get_thread_num()*thresh1d*thresh1d*kratio*kratio;
-    for (int jj = j; jj < jmax2; jj++) {
+    for (int Cjj = Cj; Cjj < Cjmax2; Cjj++) {
     % else:
     #pragma omp parallel for
-    for (int jj = j; jj < jmax2; jj++) {
+    for (int Cjj = Cj; Cjj < Cjmax2; Cjj++) {
     % endif
         {
+            int jj = cols[Cjj];
             %if order == 'F':
-                F* Rptr = &R[(jj-j)*kratio*thresh1d];
+                F* Rptr = &R[(Cjj-Cj)*kratio*thresh1d];
                 F* Rptrend = Rptr + kmax2 - k;
                 F* dptr = &d[k];
                 F* Xptr = &X[jj*n+k];
@@ -194,26 +195,27 @@ ${dense_base_tmpl(False)}
                 }
             % else:
                 for (int kk=k; kk<kmax2; kk++) {
-                    R[(jj-j)*kratio*thresh1d+(kk-k)] = d[kk] * X[kk*m+jj];
+                    R[(Cjj-Cj)*kratio*thresh1d+(kk-k)] = d[kk] * X[kk*m+jj];
                 }
             % endif
         }
     }
 
     % if kparallel:
-        for (int i = j; i < m; i+=thresh1d) {
+        for (int Ci = Cj; Ci < out_m; Ci+=thresh1d) {
     % else:
         #pragma omp parallel for
-        for (int i = j; i < m; i+=thresh1d) {
+        for (int Ci = Cj; Ci < out_m; Ci+=thresh1d) {
     % endif
-        int imax2 = i + thresh1d; 
-        if (imax2 > m) {
-            imax2 = m; 
+        int Cimax2 = Ci + thresh1d; 
+        if (Cimax2 > out_m) {
+            Cimax2 = out_m; 
         }
         F* L = &Lglobal[omp_get_thread_num()*thresh1d*thresh1d*kratio];
-        for (int ii = i; ii < imax2; ii++) {
+        for (int Cii = Ci; Cii < Cimax2; Cii++) {
+            int ii = cols[Cii];
             %if order == 'F':
-                F* Lptr = &L[(ii-i)*kratio*thresh1d];
+                F* Lptr = &L[(Cii-Ci)*kratio*thresh1d];
                 F* Lptrend = Lptr + kmax2 - k;
                 F* Xptr = &X[ii*n+k];
                 for (; Lptr < Lptrend; Lptr++, Xptr++) {
@@ -221,11 +223,11 @@ ${dense_base_tmpl(False)}
                 }
             % else:
                 for (int kk=k; kk<kmax2; kk++) {
-                    L[(ii-i)*kratio*thresh1d+(kk-k)] = X[kk*m+ii];
+                    L[(Cii-Ci)*kratio*thresh1d+(kk-k)] = X[kk*m+ii];
                 }
             % endif
         }
-        dense_base${kparallel}(R, L, d, out, m, n, i, imax2, j, jmax2, k, kmax2, innerblock, kratio*thresh1d);
+        dense_base${kparallel}(R, L, d, out, out_m, n, Ci, Cimax2, Cj, Cjmax2, k, kmax2, innerblock, kratio*thresh1d);
     }
 }
 </%def>
@@ -233,23 +235,23 @@ ${dense_base_tmpl(False)}
 
 <%def name="dense_sandwich_tmpl(order)">
 template <typename F>
-void _dense${order}_sandwich(F* X, F* d, F* out,
-        int m, int n, int thresh1d, int kratio, int innerblock) 
+void _dense${order}_sandwich(int* cols, F* X, F* d, F* out,
+        int out_m, int m, int n, int thresh1d, int kratio, int innerblock) 
 {
     constexpr std::size_t simd_size = xsimd::simd_type<F>::size;
     constexpr auto alignment = std::align_val_t{simd_size*sizeof(F)};
 
-    bool kparallel = (n / (kratio*thresh1d)) > (m / thresh1d);
+    bool kparallel = (n / (kratio*thresh1d)) > (out_m / thresh1d);
     size_t Rsize = thresh1d*thresh1d*kratio*kratio;
     if (kparallel) {
         Rsize *= omp_get_max_threads();
     }
     auto Rglobal = new (alignment) F[Rsize];
     auto Lglobal = new (alignment) F[omp_get_max_threads()*thresh1d*thresh1d*kratio];
-    for (int j = 0; j < m; j+=kratio*thresh1d) {
-        int jmax2 = j + kratio*thresh1d; 
-        if (jmax2 > m) {
-            jmax2 = m; 
+    for (int Cj = 0; Cj < out_m; Cj+=kratio*thresh1d) {
+        int Cjmax2 = Cj + kratio*thresh1d; 
+        if (Cjmax2 > out_m) {
+            Cjmax2 = out_m; 
         }
         if (kparallel) {
             ${k_loop(True, order)}
@@ -260,10 +262,10 @@ void _dense${order}_sandwich(F* X, F* d, F* out,
     ::operator delete(Lglobal, alignment);
     ::operator delete(Rglobal, alignment);
 
-    #pragma omp parallel if(m > 100)
-    for (int i = 0; i < m; i++) {
-        for (int j = 0; j <= i; j++) {
-            out[j * m + i] = out[i * m + j];
+    #pragma omp parallel if(out_m > 100)
+    for (int Ci = 0; Ci < out_m; Ci++) {
+        for (int Cj = 0; Cj <= Ci; Cj++) {
+            out[Cj * out_m + Ci] = out[Ci * out_m + Cj];
         }
     }
 }
