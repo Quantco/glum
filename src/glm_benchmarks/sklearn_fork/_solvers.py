@@ -389,8 +389,12 @@ def make_coef_P2(data, coef):
 
 
 def identify_active_set(state, data):
+    # This criteria is from section 5.3 of:
+    # An Improved GLMNET for L1-regularized LogisticRegression.
+    # Yuan, Ho, Lin. 2012
+    # https://www.csie.ntu.edu.tw/~cjlin/papers/l1_glmnet/long-glmnet.pdf
     T = data.P1 - state.max_min_subgrad
-    abs_score = np.abs(state.score[1:])
+    abs_score = np.abs(state.score[data.intercept_offset :])
     active = abs_score >= T
 
     active_set = np.concatenate(
