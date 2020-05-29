@@ -260,7 +260,7 @@ void _dense${order}_sandwich(int* rows, int* cols, F* X, F* d, F* out,
     ::operator delete(Lglobal, alignment);
     ::operator delete(Rglobal, alignment);
 
-    #pragma omp parallel if(out_m > 100)
+    #pragma omp parallel for if(out_m > 100)
     for (int Ci = 0; Ci < out_m; Ci++) {
         for (int Cj = 0; Cj <= Ci; Cj++) {
             out[Cj * out_m + Ci] = out[Ci * out_m + Cj];
@@ -272,6 +272,73 @@ void _dense${order}_sandwich(int* rows, int* cols, F* X, F* d, F* out,
 ${dense_sandwich_tmpl('C')}
 ${dense_sandwich_tmpl('F')}
 
+
+<%def name="dense_rmatvec_tmpl(order)">
+template <typename F>
+void _dense${order}_rmatvec(int* rows, int* cols, F* X, F* v, F* out,
+        int n_rows, int n_cols, int m, int n) 
+{
+    constexpr std::size_t simd_size = xsimd::simd_type<F>::size;
+    constexpr auto alignment = std::align_val_t{simd_size*sizeof(F)};
+
+    auto outglobal = new (alignment) F[omp_get_max_threads()*n_cols];
+
+    constexpr int rowblocksize = 256;
+    constexpr int colblocksize = 4;
+
+    #pragma omp parallel for
+    for (int Ci = 0; Ci < n_rows; Ci += rowblocksize) {
+        int Cimax = Ci + rowblocksize;
+        if (Cimax > n_rows) {
+            Cimax = n_rows;
+        }
+
+        F* outlocal = &outglobal[omp_get_thread_num()*n_cols];
+
+        for (int Cj = 0; Cj < n_cols; Cj += colblocksize) {
+            int Cjmax = Cj + colblocksize;
+            if (Cjmax > n_cols) {
+                Cjmax = n_cols;
+            }
+
+            % if order == 'F':
+                for (int Cjj = Cj; Cjj < Cjmax; Cjj++) {
+                    int j = cols[Cjj];
+                    F out_entry = 0.0;
+                    for (int Cii = Ci; Cii < Cimax; Cii++) {
+                        int i = rows[Cii];
+                        F Xv = X[j * n + i];
+                        F vv = v[i];
+                        out_entry += Xv * vv;
+                    }
+
+                    outlocal[Cjj] = out_entry;
+                }
+            % else:
+                for (int Cjj = Cj; Cjj < Cjmax; Cjj++) {
+                    outlocal[Cjj] = 0.0;
+                }
+                for (int Cii = Ci; Cii < Cimax; Cii++) {
+                    int i = rows[Cii];
+                    F vv = v[i];
+                    for (int Cjj = Cj; Cjj < Cjmax; Cjj++) {
+                        int j = cols[Cjj];
+                        F Xv = X[i * m + j];
+                        outlocal[Cjj] += Xv * vv;
+                    }
+                }
+            % endif
+        }
+
+        for (int Cj = 0; Cj < n_cols; Cj++) {
+            #pragma omp atomic
+            out[Cj] += outlocal[Cj];
+        }
+    }
+}
+</%def>
+${dense_rmatvec_tmpl('C')}
+${dense_rmatvec_tmpl('F')}
 
 <%def name="csr_dense_sandwich_tmpl(order)">
 template <typename F>

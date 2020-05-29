@@ -14,8 +14,9 @@ def _safe_lin_pred(
     return res
 
 
+@profile
 def _safe_sandwich_dot(
-    X: MatrixBase, d: np.ndarray, cols: np.ndarray, intercept=False
+    X: MatrixBase, d: np.ndarray, rows: np.ndarray, cols: np.ndarray, intercept=False
 ) -> np.ndarray:
     """Compute sandwich product X.T @ diag(d) @ X.
 
@@ -25,14 +26,14 @@ def _safe_sandwich_dot(
     import time
 
     start = time.time()
-    result = X.sandwich(d, cols)
+    result = X.sandwich(d, rows, cols)
     print(len(cols), time.time() - start)
 
     if intercept:
         dim = cols.shape[0] + 1
         res_including_intercept = np.empty((dim, dim), dtype=X.dtype)
         res_including_intercept[0, 0] = d.sum()
-        res_including_intercept[1:, 0] = X.limited_rmatvec(d, cols)
+        res_including_intercept[1:, 0] = X.limited_rmatvec(d, rows, cols)
         res_including_intercept[0, 1:] = res_including_intercept[1:, 0]
         res_including_intercept[1:, 1:] = result
     else:
