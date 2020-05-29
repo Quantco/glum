@@ -3,6 +3,7 @@ from typing import Iterable, Tuple
 import numpy as np
 
 from glm_benchmarks.matrix.sandwich.sandwich import dense_sandwich
+from glm_benchmarks.matrix.standardize import one_over_var_inf_to_zero
 
 from .matrix_base import MatrixBase
 
@@ -42,9 +43,15 @@ class DenseGLMDataMatrix(np.ndarray, MatrixBase):
         return dense_sandwich(self, d)
 
     def standardize(self, weights: Iterable, scale_predictors: bool) -> Tuple:
-        from . import standardize
-
-        return standardize(self, weights, scale_predictors)
+        col_means = self.T.dot(weights)[None, :]
+        self -= col_means
+        if scale_predictors:
+            # TODO: avoid copying X -- the X ** 2 makes a copy
+            col_stds = np.sqrt((self ** 2).T.dot(weights))
+            self *= one_over_var_inf_to_zero(col_stds)
+        else:
+            col_stds = np.ones(self.shape[1], dtype=self.dtype)
+        return self, col_means, col_stds
 
     def unstandardize(self, col_means, col_stds, scale_predictors):
         if scale_predictors:
