@@ -35,17 +35,6 @@ def _cd_solver(state, data):
         data.X, state.fisher_W, data.fit_intercept, data.P2, state.active_set
     )
 
-    fisher2 = build_fisher(
-        data.X,
-        state.fisher_W,
-        data.fit_intercept,
-        data.P2,
-        np.arange(data.X.shape[1] + 1, dtype=np.int32),
-    )
-    np.testing.assert_almost_equal(
-        fisher2[np.ix_(state.active_set, state.active_set)], fisher
-    )
-
     new_coef, gap, _, _, n_cycles = enet_coordinate_descent_gram(
         state.active_set,
         state.coef.copy(),
@@ -154,7 +143,6 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
         state.n_cycles += n_cycles_this_iter
 
         # 2) Line search
-        print(d)
         state.coef, state.step, state.obj_val, state.eta, state.mu = line_search(
             state, data, d
         )
@@ -297,7 +285,7 @@ class IRLSState:
         self.norm_min_subgrad = None
         self.max_min_subgrad = None
         self.inner_tol = None
-        self.active_set = np.arange(self.coef.shape[0])
+        self.active_set = np.arange(self.coef.shape[0], dtype=np.int32)
 
     def record_iteration(self):
         self.n_iter += 1

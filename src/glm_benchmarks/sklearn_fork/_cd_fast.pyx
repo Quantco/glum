@@ -84,6 +84,7 @@ def enet_coordinate_descent_gram(int[::1] active_set,
 
     # get the data information into easy vars
     cdef unsigned int n_active_features = active_set.shape[0]
+    cdef unsigned int n_features = Q.shape[0]
 
     cdef floating w_ii
     cdef floating P1_ii
@@ -125,7 +126,7 @@ def enet_coordinate_descent_gram(int[::1] active_set,
                     # q -= w_ii * Q[ii]
                     for active_set_jj in range(n_active_features):
                         jj = active_set[active_set_jj]
-                        q[jj] -= w_ii * Q[active_set_ii,active_set_jj]
+                        q[jj] -= w[ii] * Q[active_set_ii, active_set_jj]
 
                 w[ii] = fsign(-q[ii]) * fmax(fabs(q[ii]) - P1_ii, 0) / Q[active_set_ii, active_set_ii]
 
@@ -141,7 +142,7 @@ def enet_coordinate_descent_gram(int[::1] active_set,
                     # q +=  w[ii] * Q[ii] # Update q = X.T (X w - y)
                     for active_set_jj in range(n_active_features):
                         jj = active_set[active_set_jj]
-                        q[jj] += w_ii * Q[active_set_ii,active_set_jj]
+                        q[jj] += w[ii] * Q[active_set_ii, active_set_jj]
 
                 # update the maximum absolute coefficient update
                 d_w_ii = fabs(w[ii] - w_ii)
