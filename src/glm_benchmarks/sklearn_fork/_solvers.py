@@ -34,6 +34,18 @@ def _cd_solver(state, data):
     fisher = build_fisher(
         data.X, state.fisher_W, data.fit_intercept, data.P2, state.active_set
     )
+
+    fisher2 = build_fisher(
+        data.X,
+        state.fisher_W,
+        data.fit_intercept,
+        data.P2,
+        np.arange(data.X.shape[1] + 1, dtype=np.int32),
+    )
+    np.testing.assert_almost_equal(
+        fisher2[np.ix_(state.active_set, state.active_set)], fisher
+    )
+
     new_coef, gap, _, _, n_cycles = enet_coordinate_descent_gram(
         state.active_set,
         state.coef.copy(),
@@ -55,18 +67,19 @@ def _cd_solver(state, data):
 
 def build_fisher(X, fisher_W, intercept, P2, active_set):
     idx = 1 if intercept else 0
-    print(active_set.shape[0])
-    fisher = _safe_sandwich_dot(X, fisher_W, active_set[1:], intercept)
+    active_non_intercept = active_set[idx:] - idx
+    fisher = _safe_sandwich_dot(X, fisher_W, active_non_intercept, intercept)
     if P2.ndim == 1:
         idiag = np.arange(start=idx, stop=fisher.shape[0])
-        fisher[(idiag, idiag)] += P2[active_set[idx:] - idx]
+        fisher[(idiag, idiag)] += P2[active_non_intercept]
     else:
         if sparse.issparse(P2):
             P2_temp = P2.toarray()
         else:
             P2_temp = P2
-        P2_idxs = active_set[idx:]
-        fisher[idx:, idx:] += P2_temp[np.ix_(P2_idxs, P2_idxs)]
+        fisher[idx:, idx:] += P2_temp[
+            np.ix_(active_non_intercept, active_non_intercept)
+        ]
     return fisher
 
 
@@ -141,6 +154,7 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
         state.n_cycles += n_cycles_this_iter
 
         # 2) Line search
+        print(d)
         state.coef, state.step, state.obj_val, state.eta, state.mu = line_search(
             state, data, d
         )

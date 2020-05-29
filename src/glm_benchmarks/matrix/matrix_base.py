@@ -36,6 +36,10 @@ class MatrixBase(ABC):
     def sandwich(self, d: np.ndarray, cols: np.ndarray) -> np.ndarray:
         pass
 
+    # @abstractmethod
+    def limited_rmatvec(self, v: np.ndarray, cols: np.ndarray) -> np.ndarray:
+        pass
+
     @property
     def A(self) -> np.ndarray:
         return self.toarray()

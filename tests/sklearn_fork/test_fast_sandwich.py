@@ -20,20 +20,20 @@ def test_fast_sandwich_sparse(dtype):
 
 def test_fast_sandwich_dense():
     for i in range(5):
-        A = simulate_matrix()
+        A = simulate_matrix(shape=np.random.randint(1000, size=2))
         d = np.random.rand(A.shape[0])
 
         check(A, d, np.arange(A.shape[1], dtype=np.int32))
 
-        cols = np.random.choice(np.arange(A.shape[1]), size=10, replace=False).astype(
-            np.int32
-        )
+        cols = np.random.choice(
+            np.arange(A.shape[1]), size=np.random.randint(A.shape[1]), replace=False
+        ).astype(np.int32)
         check(A, d, cols)
 
 
 def check(A, d, cols):
     Asub = A[:, cols]
-    true = Asub.T.dot(Asub).toarray()
+    true = (Asub.T.multiply(d)).dot(Asub).toarray()
     out = dense_sandwich(np.asfortranarray(A.toarray()), d, cols)
     np.testing.assert_allclose(true, out, atol=np.sqrt(np.finfo(np.float64).eps))
 

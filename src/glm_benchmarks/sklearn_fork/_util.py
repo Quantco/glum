@@ -28,7 +28,7 @@ def _safe_sandwich_dot(
         dim = cols.shape[0] + 1
         res_including_intercept = np.empty((dim, dim), dtype=X.dtype)
         res_including_intercept[0, 0] = d.sum()
-        res_including_intercept[1:, 0] = d @ X
+        res_including_intercept[1:, 0] = X.limited_rmatvec(d, cols)
         res_including_intercept[0, 1:] = res_including_intercept[1:, 0]
         res_including_intercept[1:, 1:] = result
     else:
