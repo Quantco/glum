@@ -13,7 +13,6 @@ from sklearn.utils.validation import check_random_state
 
 from ._cd_fast import _norm_min_subgrad, enet_coordinate_descent_gram
 from ._distribution import ExponentialDispersionModel
-from ._functions import line_search_deviance, line_search_update
 from ._link import Link
 from ._util import _safe_lin_pred, _safe_sandwich_dot
 
@@ -345,13 +344,13 @@ def check_convergence(state, data):
 
 
 def update_quadratic(state, data):
-    eta, mu, score, fisher_W = data.family._eta_mu_score_fisher(
+    eta, mu, score, fisher_W = data.family._eta_mu_score_fisher_W(
+        data.link,
         coef=state.coef,
         phi=1,
         X=data.X,
         y=data.y,
         weights=data.weights,
-        link=data.link,
         offset=data.offset,
         eta=state.eta,
         mu=state.mu,
@@ -397,7 +396,10 @@ def line_search(state, data, d):
     # iteration as set after the line search loop below.
     if state.obj_val is None:
         obj_val = (
-            0.5 * line_search_deviance(data.y, state.eta, state.mu, data.weights)
+            0.5
+            * line_search_deviance(
+                data.family, data.link, data.y, state.eta, state.mu, data.weights
+            )
             + 0.5 * (state.coef_P2 @ state.coef)
             + P1w_1
         )
@@ -424,7 +426,15 @@ def line_search(state, data, d):
         # we can rewrite to only perform one dot product with the data
         # matrix per loop which is substantially faster
         deviance = line_search_update(
-            la, state.eta, X_dot_d, data.y, data.weights, eta_wd, mu_wd
+            data.family,
+            data.link,
+            la,
+            state.eta,
+            X_dot_d,
+            data.y,
+            data.weights,
+            eta_wd,
+            mu_wd,
         )
 
         obj_val_wd = 0.5 * deviance
@@ -441,6 +451,37 @@ def line_search(state, data, d):
     # number of iterations, maybe we should completely recompute eta every
     # N iterations?
     return state.coef + step, step, obj_val_wd, eta_wd, mu_wd
+
+
+def line_search_deviance(family, link, y, eta, mu, weights):
+    custom = family.run_customized_function(
+        link, family.line_search_deviance_fncs, y, eta, mu, weights
+    )
+    if custom[0]:
+        return custom[1]
+
+    return family.deviance(y, mu, weights)
+
+
+def line_search_update(
+    family, link, la, eta, X_dot_d, y, weights, eta_wd_out, mu_wd_out
+):
+    custom = family.run_customized_function(
+        link,
+        family.line_search_update_fncs,
+        la,
+        eta,
+        X_dot_d,
+        y,
+        weights,
+        eta_wd_out,
+        mu_wd_out,
+    )
+    if custom[0]:
+        return custom[1]
+    eta_wd_out[:] = eta + la * X_dot_d
+    mu_wd_out[:] = link.inverse(eta_wd_out)
+    return family.deviance(y, mu_wd_out, weights)
 
 
 def _lbfgs_solver(

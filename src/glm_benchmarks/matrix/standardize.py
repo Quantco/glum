@@ -34,7 +34,7 @@ def one_over_var_inf_to_zero(arr: np.ndarray) -> np.ndarray:
 
 
 def standardize(
-    mat: sps.spmatrix, weights: np.ndarray = None
+    mat: sps.spmatrix, weights: np.ndarray = None, scale_predictors=False
 ) -> Tuple[ColScaledSpMat, np.ndarray, np.ndarray]:
     """
     >>> mat = sps.eye(2)
@@ -52,6 +52,8 @@ def standardize(
            [-3.        ,  3.        ]])
     """
     centered_mat, means = zero_center(mat, weights)
+    if not scale_predictors:
+        return centered_mat, means, np.ones(means.shape[1], dtype=means.dtype)
 
     # TODO: this copies!!
     mat_squared = centered_mat.power(2)
