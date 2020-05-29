@@ -124,6 +124,8 @@ def enet_coordinate_descent_gram(int[::1] active_set,
 
                 if w_ii != 0.0:
                     # q -= w_ii * Q[ii]
+                    # TODO: this update is unnecessary and could be combined with the re-addition below.
+                    #       just make sure to modify the w[ii] update to account for the change in q[ii]
                     for active_set_jj in range(n_active_features):
                         jj = active_set[active_set_jj]
                         q[jj] -= w[ii] * Q[active_set_ii, active_set_jj]
