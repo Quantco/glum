@@ -43,7 +43,7 @@ class DenseGLMDataMatrix(np.ndarray, MatrixBase):
         return dense_sandwich(self, d, cols)
 
     def limited_rmatvec(self, v: np.ndarray, cols: np.ndarray):
-        return self[:, cols].T.dot(v)
+        return self.T.dot(v)[cols]
 
     def standardize(self, weights: Iterable, scale_predictors: bool) -> Tuple:
         col_means = self.T.dot(weights)[None, :]
