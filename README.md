@@ -42,6 +42,13 @@ To build the image, make sure you have a functioning Docker and docker-compose i
 
 To run something, for example: `docker-compose run work python benchmarks/sklearn_fork.py`
 
+---
+**NOTE FOR MAC USERS**
+
+On MacOS, docker cannot use the "host" `network_mode` and will therefore have no exposed port. To use a jupyter notebook, you can instead start the container with `docker-compose run -p 8888:8888 workmac`. Port 8888 will be exposed and you will be able to access Jupyter.
+
+---
+
 ## Library examples:
 
 glmnet_python: see https://bitbucket.org/quantco/wayfairelastpricing/tests/test_glmnet_numerical.py
