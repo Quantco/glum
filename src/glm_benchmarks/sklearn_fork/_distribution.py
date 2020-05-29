@@ -261,60 +261,6 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         """
         return weights * self.unit_deviance_derivative(y, mu)
 
-    def starting_mu(
-        self,
-        y: np.ndarray,
-        weights=1,
-        ind_weight=0.5,
-        offset: np.ndarray = None,
-        link: Link = None,
-    ) -> np.ndarray:
-        """Set starting values for the mean mu by interpolating between a best-guess
-        case of where mu may end up, fitting y perfectly, and a worst-case guess,
-        where we can only fit an intercept.
-
-        In the worst case, we have worst_case_mu = link.inverse(eta + intercept),
-        where intercept is set so that
-        sum(y) = sum(link.inverse(eta + intercept))
-
-        When eta = 0, this simplifies to intercept = link.link(avg(y)), so we can
-        simply write the worse-case mu as avg(y).
-
-        These may be good starting points for the (unpenalized) IRLS solver.
-
-
-        Parameters
-        ----------
-        y : array, shape (n_samples,)
-            Target values.
-
-        weights : array, shape (n_samples,) (default=1)
-            Weights or exposure to which variance is inverse proportional.
-
-        ind_weight : float (default=0.5)
-            Must be between 0 and 1. Specifies how much weight is given to the
-            individual observations instead of the mean of y.
-        """
-
-        expected_dtype = np.float64 if y.dtype.itemsize == 8 else np.float32
-
-        # Be careful: combining a 32-bit int and 32-bit float gives 64-bit answers
-        def _interpolate(vec1: np.ndarray, vec2: np.ndarray) -> np.ndarray:
-            return np.multiply(ind_weight, vec1, dtype=expected_dtype) + np.multiply(
-                1 - ind_weight, vec2, dtype=expected_dtype
-            )
-
-        if offset is None:
-            # If our predictors are bad, we can at least fit the mean
-            worst_case_pred = np.average(y, weights=weights)
-        else:
-            assert link is not None
-            # worst case: guess offset plus an intercept
-            best_intercept = guess_intercept(y, weights, link, offset)
-            worst_case_pred = link.inverse(offset + best_intercept)
-
-        return _interpolate(y, worst_case_pred)
-
     def _mu_deviance_derivative(
         self,
         coef: np.ndarray,
@@ -405,7 +351,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
             mu[:] = link.inverse(eta)
 
         # # FOR TWEEDIE: sigma_inv = weights / (mu ** p) during optimization bc phi = 1
-        sigma_inv = 1.0 / self.variance(mu, phi=1.0, weights=weights)
+        sigma_inv = get_one_over_variance(self, link, mu, eta, 1.0, weights)
         d1 = link.inverse_derivative(eta)  # = h'(eta)
         # Alternatively:
         # h'(eta) = h'(g(mu)) = 1/g'(mu), note that h is inverse of g
@@ -627,7 +573,12 @@ class BinomialDistribution(ExponentialDispersionModel):
         return 1 - 2 * mu
 
     def unit_deviance(self, y, mu):
-        return 2 * (special.xlogy(y, y / mu) + special.xlogy(1 - y, (1 - y) / (1 - mu)))
+        return 2 * (
+            special.xlogy(y, y)
+            - special.xlogy(y, mu)
+            + special.xlogy(1 - y, 1 - y)
+            - special.xlogy(1 - y, 1 - mu)
+        )
 
 
 def guess_intercept(
@@ -684,3 +635,26 @@ def guess_intercept(
         return log_odds - avg_eta
     else:
         raise NotImplementedError
+
+
+def get_one_over_variance(
+    distribution: ExponentialDispersionModel,
+    link: Link,
+    mu: np.ndarray,
+    eta: np.ndarray,
+    phi,
+    weights: np.ndarray,
+):
+    """
+    # FOR TWEEDIE: sigma_inv = weights / (mu ** p) during optimization bc phi = 1
+
+    # For Binomial with Logit link: Simplifies to
+    # variance = phi / ( weights * (exp(eta) + 2 + exp(-eta)))
+    # More numerically accurate
+    """
+    if isinstance(distribution, BinomialDistribution) and isinstance(link, LogitLink):
+        max_float_for_exp = np.log(np.finfo(eta.dtype).max / 10)
+        if np.any(np.abs(eta) > max_float_for_exp):
+            eta = np.clip(eta, -max_float_for_exp, max_float_for_exp)
+        return weights * (np.exp(eta) + 2 + np.exp(-eta)) / phi
+    return 1.0 / distribution.variance(mu, phi=phi, weights=weights)
