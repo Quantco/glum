@@ -33,7 +33,7 @@ class MatrixBase(ABC):
         pass
 
     @abstractmethod
-    def sandwich(self, d: np.ndarray) -> np.ndarray:
+    def sandwich(self, d: np.ndarray, cols: np.ndarray) -> np.ndarray:
         pass
 
     @property

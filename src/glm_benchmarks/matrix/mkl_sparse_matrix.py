@@ -40,7 +40,7 @@ class MKLSparseMatrix(sps.csc_matrix, MatrixBase):
     def to_scipy_sparse(self, shape=None, dtype=None, copy=False) -> sps.csc_matrix:
         return self.tocsc(shape, dtype, copy)
 
-    def sandwich(self, d: np.ndarray) -> np.ndarray:
+    def sandwich(self, d: np.ndarray, cols: np.ndarray) -> np.ndarray:
         if not hasattr(d, "dtype"):
             d = np.asarray(d)
         if not self.dtype == d.dtype:

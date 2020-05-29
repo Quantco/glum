@@ -219,7 +219,7 @@ class ColScaledSpMat(ScaledMat, MatrixBase):
         """
         return np.squeeze(self.mat.getrow(i).toarray()) + np.squeeze(self.shift)
 
-    def sandwich(self, d: np.ndarray) -> np.ndarray:
+    def sandwich(self, d: np.ndarray, cols: np.ndarray) -> np.ndarray:
         """
         Performs a sandwich product: X.T @ diag(d) @ X
         """
@@ -231,7 +231,7 @@ class ColScaledSpMat(ScaledMat, MatrixBase):
                 np.float64 or np.float32. This matrix is of type {self.mat.dtype},
                 while d is of type {d.dtype}."""
             )
-        term1 = self.mat.sandwich(d)
+        term1 = self.mat.sandwich(d, cols)
         term2 = (d @ self.mat)[:, np.newaxis] * self.shift
         term3 = term2.T
         term4 = (self.shift.T * self.shift) * d.sum()

@@ -57,13 +57,13 @@ class SplitMatrix(MatrixBase):
         idx = np.where(self.sparse_indices == i)[0]
         return self.X_sparse.getcol(idx)
 
-    def sandwich(self, d: np.ndarray) -> np.ndarray:
+    def sandwich(self, d: np.ndarray, cols: np.ndarray) -> np.ndarray:
         out = np.empty((self.shape[1], self.shape[1]))
         if self.X_sparse.shape[1] > 0:
-            SS = self.X_sparse.sandwich(d)
+            SS = self.X_sparse.sandwich(d, cols)
             out[np.ix_(self.sparse_indices, self.sparse_indices)] = SS
         if self.X_dense_F.shape[1] > 0:
-            DD = self.X_dense_F.sandwich(d)
+            DD = self.X_dense_F.sandwich(d, cols)
             out[np.ix_(self.dense_indices, self.dense_indices)] = DD
             if self.X_sparse.shape[1] > 0:
                 DS = self.X_sparse.sandwich_dense(self.X_dense_F, d)
