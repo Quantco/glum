@@ -66,5 +66,7 @@ def test_standardize(X: np.ndarray, scale_predictors):
     np.testing.assert_almost_equal(means, means_split)
     np.testing.assert_almost_equal(stds, stds_split)
 
-    X_GLM_unstandardized = X_GLM_standardized.unstandardize(means, stds)
+    X_GLM_unstandardized = X_GLM_standardized.unstandardize(
+        means, stds, scale_predictors
+    )
     np.testing.assert_almost_equal(X_GLM_unstandardized, X)

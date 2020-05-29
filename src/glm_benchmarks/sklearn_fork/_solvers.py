@@ -399,13 +399,13 @@ def check_convergence(state, data):
 
 
 def update_quadratic(state, data):
-    eta, mu, score, fisher_W = data.family._eta_mu_score_fisher(
+    eta, mu, score, fisher_W = data.family._eta_mu_score_fisher_W(
+        data.link,
         coef=state.coef,
         phi=1,
         X=data.X,
         y=data.y,
         weights=data.weights,
-        link=data.link,
         offset=data.offset,
         eta=state.eta,
         mu=state.mu,
@@ -454,9 +454,12 @@ def line_search(state, data, d):
     # F(w + lambda d) - F(w) <= lambda * bound
     # bound = sigma * (f'(w)*d + w*P2*d
     #                  +||P1 (w+d)||_1 - ||P1 w||_1)
+    # TODO: check this line search for correctness.
+    # TODO: potentially use different line search algorithm?
     P1w_1 = linalg.norm(data.P1 * state.coef[data.intercept_offset :], ord=1)
     P1wd_1 = linalg.norm(data.P1 * (state.coef + d)[data.intercept_offset :], ord=1)
-    # Note: coef_P2 already calculated and still valid
+
+    # Note: the L2 penalty term is included in the score.
     bound = sigma * (-(state.score @ d) + P1wd_1 - P1w_1)
 
     # In the first iteration, we must compute the objective value explicitly.
@@ -464,7 +467,10 @@ def line_search(state, data, d):
     # iteration as set after the line search loop below.
     if state.obj_val is None:
         obj_val = (
-            0.5 * data.family.deviance(data.y, state.mu, data.weights)
+            0.5
+            * line_search_deviance(
+                data.family, data.link, data.y, state.eta, state.mu, data.weights
+            )
             + 0.5 * (state.coef_P2 @ state.coef)
             + P1w_1
         )
@@ -473,13 +479,13 @@ def line_search(state, data, d):
 
     la = 1.0 / beta
 
-    # TODO: if we keep track of X_dot_coef, we can add this to avoid a
-    # _safe_lin_pred in _eta_mu_score_fisher every loop
     X_dot_d = _safe_lin_pred(data.X, d)
     print(f"updated: {np.sum(np.abs(d) > 0)}")
 
     # Try progressively shorter line search steps.
     # variables suffixed with wd are for the new coefficient values
+    eta_wd = np.empty(data.X.shape[0], dtype=data.X.dtype)
+    mu_wd = np.empty(data.X.shape[0], dtype=data.X.dtype)
     for k in range(20):
         la *= beta  # starts with la=1
         step = la * d
@@ -491,15 +497,20 @@ def line_search(state, data, d):
         # coef_wd = coef + la * d
         # we can rewrite to only perform one dot product with the data
         # matrix per loop which is substantially faster
-        eta_wd = state.eta + la * X_dot_d
-        mu_wd = data.link.inverse(eta_wd)
+        deviance = line_search_update(
+            data.family,
+            data.link,
+            la,
+            state.eta,
+            X_dot_d,
+            data.y,
+            data.weights,
+            eta_wd,
+            mu_wd,
+        )
 
-        # TODO - optimize: for Tweedie that isn't one of the special cases
-        # (gaussian, poisson, gamma), family.deviance is quite slow! Can we
-        # fix that somehow?
-        obj_val_wd = 0.5 * data.family.deviance(
-            data.y, mu_wd, data.weights
-        ) + linalg.norm(data.P1 * coef_wd[data.intercept_offset :], ord=1)
+        obj_val_wd = 0.5 * deviance
+        obj_val_wd += linalg.norm(data.P1 * coef_wd[data.intercept_offset :], ord=1)
         coef_wd_P2 = make_coef_P2(data, coef_wd)
         obj_val_wd += 0.5 * (coef_wd_P2 @ coef_wd)
         if obj_val_wd - obj_val <= sigma * la * bound:
@@ -512,6 +523,37 @@ def line_search(state, data, d):
     # number of iterations, maybe we should completely recompute eta every
     # N iterations?
     return state.coef + step, step, obj_val_wd, eta_wd, mu_wd
+
+
+def line_search_deviance(family, link, y, eta, mu, weights):
+    custom = family.run_customized_function(
+        link, family.line_search_deviance_fncs, y, eta, mu, weights
+    )
+    if custom[0]:
+        return custom[1]
+
+    return family.deviance(y, mu, weights)
+
+
+def line_search_update(
+    family, link, la, eta, X_dot_d, y, weights, eta_wd_out, mu_wd_out
+):
+    custom = family.run_customized_function(
+        link,
+        family.line_search_update_fncs,
+        la,
+        eta,
+        X_dot_d,
+        y,
+        weights,
+        eta_wd_out,
+        mu_wd_out,
+    )
+    if custom[0]:
+        return custom[1]
+    eta_wd_out[:] = eta + la * X_dot_d
+    mu_wd_out[:] = link.inverse(eta_wd_out)
+    return family.deviance(y, mu_wd_out, weights)
 
 
 def _lbfgs_solver(
