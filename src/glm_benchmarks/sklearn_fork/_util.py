@@ -4,11 +4,18 @@ from scipy import sparse
 from glm_benchmarks.matrix import MatrixBase
 
 
+@profile
 def _safe_lin_pred(
     X: MatrixBase, coef: np.ndarray, offset: np.ndarray = None
 ) -> np.ndarray:
     """Compute the linear predictor taking care if intercept is present."""
-    res = X.dot(coef[1:]) + coef[0] if coef.size == X.shape[1] + 1 else X.dot(coef)
+    nonzero_coefs = np.where(coef[1:] != 0.0)[0].astype(np.int32)
+    Xdc = X.limited_matvec(
+        coef[1:], np.arange(X.shape[0], dtype=np.int32), nonzero_coefs
+    )
+    # Xdc2 = X.dot(coef[1:])
+    # np.testing.assert_almost_equal(Xdc, Xdc2)
+    res = Xdc + coef[0] if coef.size == X.shape[1] + 1 else X.dot(coef)
     if offset is not None:
         return res + offset
     return res

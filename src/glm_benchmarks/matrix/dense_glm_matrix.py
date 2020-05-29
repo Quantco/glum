@@ -2,7 +2,11 @@ from typing import Iterable, Tuple
 
 import numpy as np
 
-from glm_benchmarks.matrix.sandwich.sandwich import dense_rmatvec, dense_sandwich
+from glm_benchmarks.matrix.sandwich.sandwich import (
+    dense_matvec,
+    dense_rmatvec,
+    dense_sandwich,
+)
 from glm_benchmarks.matrix.standardize import one_over_var_inf_to_zero
 
 from .matrix_base import MatrixBase
@@ -49,9 +53,15 @@ class DenseGLMDataMatrix(np.ndarray, MatrixBase):
         # TODO: related to above, it could be nice to have a version that only
         # filters rows and a version that only filters columns.
         if rows.shape[0] == self.shape[0] and cols.shape[0] == self.shape[1]:
-            return self.T.dot(v)[cols]
+            return self.T.dot(v)
         else:
             return dense_rmatvec(self, v, rows, cols)
+
+    def limited_matvec(self, v: np.ndarray, rows: np.ndarray, cols: np.ndarray):
+        if rows.shape[0] == self.shape[0] and cols.shape[0] == self.shape[1]:
+            return self.dot(v)
+        else:
+            return dense_matvec(self, v, rows, cols)
 
     def standardize(self, weights: Iterable, scale_predictors: bool) -> Tuple:
         col_means = self.T.dot(weights)[None, :]

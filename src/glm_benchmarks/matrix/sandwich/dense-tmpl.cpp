@@ -340,6 +340,74 @@ void _dense${order}_rmatvec(int* rows, int* cols, F* X, F* v, F* out,
 ${dense_rmatvec_tmpl('C')}
 ${dense_rmatvec_tmpl('F')}
 
+<%def name="dense_matvec_tmpl(order)">
+template <typename F>
+void _dense${order}_matvec(int* rows, int* cols, F* X, F* v, F* out,
+        int n_rows, int n_cols, int m, int n) 
+{
+    constexpr std::size_t simd_size = xsimd::simd_type<F>::size;
+    constexpr auto alignment = std::align_val_t{simd_size*sizeof(F)};
+
+    constexpr int rowblocksize = 256;
+    constexpr int colblocksize = 4;
+
+    #pragma omp parallel for
+    for (int Ci = 0; Ci < n_rows; Ci += rowblocksize) {
+        int Cimax = Ci + rowblocksize;
+        if (Cimax > n_rows) {
+            Cimax = n_rows;
+        }
+        for (int Cii = Ci; Cii < Cimax; Cii++) {
+            F out_entry = 0.0;
+            int i = rows[Cii];
+            for (int Cjj = 0; Cjj < n_cols; Cjj++) {
+                int j = cols[Cjj];
+                F vv = v[j];
+                % if order == 'F':
+                    F Xv = X[j * n + i];
+                % else:
+                    F Xv = X[i * m + j];
+                % endif
+                out_entry += Xv * vv;
+            }
+            out[Cii] = out_entry;
+        }
+    }
+    // #pragma omp parallel for
+    // for (int Ci = 0; Ci < n_rows; Ci += rowblocksize) {
+    //     int Cimax = Ci + rowblocksize;
+    //     if (Cimax > n_rows) {
+    //         Cimax = n_rows;
+    //     }
+
+    //     for (int Cj = 0; Cj < n_cols; Cj += colblocksize) {
+    //         int Cjmax = Cj + colblocksize;
+    //         if (Cjmax > n_cols) {
+    //             Cjmax = n_cols;
+    //         }
+
+    //         for (int Cii = Ci; Cii < Cimax; Cii++) {
+    //             F out_entry = 0.0;
+    //             int i = rows[Cii];
+    //             for (int Cjj = Cj; Cjj < Cjmax; Cjj++) {
+    //                 int j = cols[Cjj];
+    //                 F vv = v[j];
+    //                 % if order == 'F':
+    //                     F Xv = X[j * n + i];
+    //                 % else:
+    //                     F Xv = X[i * m + j];
+    //                 % endif
+    //                 out_entry += Xv * vv;
+    //             }
+    //             out[Cii] = out_entry;
+    //         }
+    //     }
+    // }
+}
+</%def>
+${dense_matvec_tmpl('C')}
+${dense_matvec_tmpl('F')}
+
 <%def name="csr_dense_sandwich_tmpl(order)">
 template <typename F>
 void _csr_dense${order}_sandwich(
