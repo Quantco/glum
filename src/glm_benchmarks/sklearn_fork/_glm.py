@@ -38,7 +38,6 @@ Generalized Linear Models with Exponential Dispersion Family
 
 from __future__ import division
 
-import copy
 import warnings
 from typing import Any, Iterable, List, Optional, Tuple, Type, Union
 
@@ -737,14 +736,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         lower_bounds: Optional[np.ndarray],
         upper_bounds: Optional[np.ndarray],
     ) -> np.ndarray:
-        if self._center_predictors:
-            X, col_means, col_stds = X.standardize(weights, self.scale_predictors)
-        else:
-            col_means, col_stds = None, None
 
-        self.deviance_path_ = np.empty(len(alphas))
-        self.mse_path_ = np.empty(len(alphas))
         self.coef_path_ = np.empty((len(alphas), len(coef)))
+
+        self.path_diagnostics_ = []
 
         for k, alpha in enumerate(alphas):
             P1 = P1_no_alpha * alpha
@@ -762,15 +757,11 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 upper_bounds=upper_bounds,
             )
 
-            if self._center_predictors:
-                _, intercept, coef_tmp = _unstandardize(
-                    copy.copy(X), col_means, col_stds, coef[0], coef[1:].copy(),
-                )
-                coef_uncentered = np.concatenate([[intercept], coef_tmp])
-            else:
-                coef_uncentered = coef
+            self.coef_path_[k, :] = coef
 
-            self.coef_path_[k, :] = coef_uncentered
+            for elmt in self.diagnostics_:
+                elmt["alpha_search"] = k  # type: ignore
+                self.path_diagnostics_.append(elmt)
 
         return self.coef_path_
 
@@ -782,6 +773,20 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             with pd.option_context("max_rows", None):
                 print(
                     pd.DataFrame(data=self.diagnostics_).set_index("n_iter", drop=True)
+                )
+        else:
+            print("solver does not report diagnostics")
+
+    def report_path_diagnostics(self):
+        if hasattr(self, "path_diagnostics_"):
+            print("diagnostics:")
+            import pandas as pd
+
+            with pd.option_context("max_rows", None):
+                print(
+                    pd.DataFrame(data=self.path_diagnostics_).set_index(
+                        ["alpha_search", "n_iter"], drop=True
+                    )
                 )
         else:
             print("solver does not report diagnostics")
@@ -1602,7 +1607,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         """
 
         if self.fit_args_reformat == "safe":
-            X, y, weights, offset, weights_sum = set_up_and_check_fit_args(
+            X, y, weights, offset, weights_sum = self.set_up_and_check_fit_args(
                 X, y, sample_weight, offset, solver=self.solver, copy_X=self.copy_X
             )
         else:
@@ -1630,8 +1635,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         P1_no_alpha = setup_p1(self.P1, X, X.dtype, 1, self.l1_ratio)
         P2_no_alpha = setup_p2(self.P2, X, _stype, X.dtype, 1, self.l1_ratio)
 
-        lower_bounds = check_bounds(self.lower_bounds, X.shape[1])
-        upper_bounds = check_bounds(self.upper_bounds, X.shape[1])
+        lower_bounds = check_bounds(self.lower_bounds, X.shape[1], X.dtype)
+        upper_bounds = check_bounds(self.upper_bounds, X.shape[1], X.dtype)
 
         if (lower_bounds is not None) and (upper_bounds is not None):
             if np.any(lower_bounds > upper_bounds):
