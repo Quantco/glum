@@ -5,7 +5,7 @@ from cython.parallel import prange
 
 from libc.math cimport exp, log
 
-def line_search_update(floating la, floating[:] eta, floating[:] X_dot_d, floating[:] y, floating[:] weights, floating[:] eta_wd_out, floating[:] mu_wd_out):
+def poisson_log_line_search_update(floating la, floating[:] eta, floating[:] X_dot_d, floating[:] y, floating[:] weights, floating[:] eta_wd_out, floating[:] mu_wd_out):
     cdef int n = eta.shape[0]
     cdef int i
     cdef floating unit_deviance
@@ -20,7 +20,7 @@ def line_search_update(floating la, floating[:] eta, floating[:] X_dot_d, floati
         deviance += weights[i] * unit_deviance
     return deviance
 
-def line_search_deviance(floating[:] y, floating[:] eta, floating[:] mu, floating[:] weights):
+def poisson_log_line_search_deviance(floating[:] y, floating[:] eta, floating[:] mu, floating[:] weights):
     cdef int n = eta.shape[0]
     cdef int i
     cdef floating unit_deviance
@@ -33,7 +33,7 @@ def line_search_deviance(floating[:] y, floating[:] eta, floating[:] mu, floatin
         deviance += weights[i] * unit_deviance
     return deviance
 
-def gradient_hessian_update(floating[:] y, floating[:] weights, floating[:] eta, bint update_mu, floating[:] mu_out, floating[:] gradient_rows_out, floating[:] fisher_W_out):
+def poisson_log_gradient_hessian_update(floating[:] y, floating[:] weights, floating[:] eta, bint update_mu, floating[:] mu_out, floating[:] gradient_rows_out, floating[:] fisher_W_out):
     cdef int n = eta.shape[0]
     cdef int i
     cdef floating unit_variance, sigma_inv, d1, d1_sigma_inv

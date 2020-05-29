@@ -436,6 +436,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
                             col_stds,
                             coef[0],
                             coef[1:].copy(),
+                            self.scale_predictors,
                         )
                         coef_uncentered = np.concatenate([[intercept], coef_tmp])
                     else:
