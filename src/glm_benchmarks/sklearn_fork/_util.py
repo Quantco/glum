@@ -22,7 +22,11 @@ def _safe_sandwich_dot(
     With ``intercept=True``, X is treated as if a column of 1 were appended as
     first column of X.
     X can be sparse, d must be an ndarray. Always returns a ndarray."""
+    import time
+
+    start = time.time()
     result = X.sandwich(d, cols)
+    print(len(cols), time.time() - start)
 
     if intercept:
         dim = cols.shape[0] + 1

@@ -133,7 +133,7 @@ namespace xs = xsimd;
 <%def name="dense_base_tmpl(kparallel)">
 template <typename F>
 void dense_base${kparallel}(F* R, F* L, F* d, F* out,
-                int out_m, int n,
+                int out_m,
                 int imin2, int imax2,
                 int jmin2, int jmax2, 
                 int kmin, int kmax, int innerblock, int kstep) 
@@ -166,13 +166,13 @@ ${dense_base_tmpl(False)}
 <%def name="k_loop(kparallel, order)">
 % if kparallel:
     #pragma omp parallel for
-    for (int k = 0; k < n; k+=kratio*thresh1d) {
+    for (int Rk = 0; Rk < in_n; Rk+=kratio*thresh1d) {
 % else:
-    for (int k = 0; k < n; k+=kratio*thresh1d) {
+    for (int Rk = 0; Rk < in_n; Rk+=kratio*thresh1d) {
 % endif
-    int kmax2 = k + kratio*thresh1d; 
-    if (kmax2 > n) {
-        kmax2 = n; 
+    int Rkmax2 = Rk + kratio*thresh1d; 
+    if (Rkmax2 > in_n) {
+        Rkmax2 = in_n; 
     }
 
     F* R = Rglobal;
@@ -186,16 +186,15 @@ ${dense_base_tmpl(False)}
         {
             int jj = cols[Cjj];
             %if order == 'F':
-                F* Rptr = &R[(Cjj-Cj)*kratio*thresh1d];
-                F* Rptrend = Rptr + kmax2 - k;
-                F* dptr = &d[k];
-                F* Xptr = &X[jj*n+k];
-                for (; Rptr < Rptrend; Rptr++, dptr++, Xptr++) {
-                    (*Rptr) = (*dptr) * (*Xptr);
+                //TODO: this could use some pointer logic for the R assignment?
+                for (int Rkk=Rk; Rkk<Rkmax2; Rkk++) {
+                    int kk = rows[Rkk];
+                    R[(Cjj-Cj)*kratio*thresh1d+(Rkk-Rk)] = d[kk] * X[jj*n+kk];
                 }
             % else:
-                for (int kk=k; kk<kmax2; kk++) {
-                    R[(Cjj-Cj)*kratio*thresh1d+(kk-k)] = d[kk] * X[kk*m+jj];
+                for (int Rkk=Rk; Rkk<Rkmax2; Rkk++) {
+                    int kk = rows[Rkk];
+                    R[(Cjj-Cj)*kratio*thresh1d+(Rkk-Rk)] = d[kk] * X[kk*m+jj];
                 }
             % endif
         }
@@ -215,19 +214,18 @@ ${dense_base_tmpl(False)}
         for (int Cii = Ci; Cii < Cimax2; Cii++) {
             int ii = cols[Cii];
             %if order == 'F':
-                F* Lptr = &L[(Cii-Ci)*kratio*thresh1d];
-                F* Lptrend = Lptr + kmax2 - k;
-                F* Xptr = &X[ii*n+k];
-                for (; Lptr < Lptrend; Lptr++, Xptr++) {
-                    *Lptr = *Xptr;
+                for (int Rkk=Rk; Rkk<Rkmax2; Rkk++) {
+                    int kk = rows[Rkk];
+                    L[(Cii-Ci)*kratio*thresh1d+(Rkk-Rk)] = X[ii*n+kk];
                 }
             % else:
-                for (int kk=k; kk<kmax2; kk++) {
-                    L[(Cii-Ci)*kratio*thresh1d+(kk-k)] = X[kk*m+ii];
+                for (int Rkk=Rk; Rkk<Rkmax2; Rkk++) {
+                    int kk = rows[Rkk];
+                    L[(Cii-Ci)*kratio*thresh1d+(Rkk-Rk)] = X[kk*m+ii];
                 }
             % endif
         }
-        dense_base${kparallel}(R, L, d, out, out_m, n, Ci, Cimax2, Cj, Cjmax2, k, kmax2, innerblock, kratio*thresh1d);
+        dense_base${kparallel}(R, L, d, out, out_m, Ci, Cimax2, Cj, Cjmax2, Rk, Rkmax2, innerblock, kratio*thresh1d);
     }
 }
 </%def>
@@ -235,13 +233,13 @@ ${dense_base_tmpl(False)}
 
 <%def name="dense_sandwich_tmpl(order)">
 template <typename F>
-void _dense${order}_sandwich(int* cols, F* X, F* d, F* out,
-        int out_m, int m, int n, int thresh1d, int kratio, int innerblock) 
+void _dense${order}_sandwich(int* rows, int* cols, F* X, F* d, F* out,
+        int in_n, int out_m, int m, int n, int thresh1d, int kratio, int innerblock) 
 {
     constexpr std::size_t simd_size = xsimd::simd_type<F>::size;
     constexpr auto alignment = std::align_val_t{simd_size*sizeof(F)};
 
-    bool kparallel = (n / (kratio*thresh1d)) > (out_m / thresh1d);
+    bool kparallel = (in_n / (kratio*thresh1d)) > (out_m / thresh1d);
     size_t Rsize = thresh1d*thresh1d*kratio*kratio;
     if (kparallel) {
         Rsize *= omp_get_max_threads();

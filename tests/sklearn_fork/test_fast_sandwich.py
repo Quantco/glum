@@ -23,6 +23,8 @@ def test_fast_sandwich_dense():
         A = simulate_matrix(shape=np.random.randint(1000, size=2))
         d = np.random.rand(A.shape[0])
 
+        d[np.random.choice(np.arange(A.shape[0]), size=10, replace=False)] = 0.0
+
         check(A, d, np.arange(A.shape[1], dtype=np.int32))
 
         cols = np.random.choice(
@@ -34,7 +36,8 @@ def test_fast_sandwich_dense():
 def check(A, d, cols):
     Asub = A[:, cols]
     true = (Asub.T.multiply(d)).dot(Asub).toarray()
-    out = dense_sandwich(np.asfortranarray(A.toarray()), d, cols)
+    nonzero = np.where(np.abs(d) > 1e-14)[0].astype(np.int32)
+    out = dense_sandwich(np.asfortranarray(A.toarray()), d, nonzero, cols)
     np.testing.assert_allclose(true, out, atol=np.sqrt(np.finfo(np.float64).eps))
 
 
