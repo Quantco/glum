@@ -16,7 +16,6 @@ from ._glm import (
     get_link,
     initialize_start_params,
     is_pos_semidef,
-    set_up_and_check_fit_args,
     setup_p1,
     setup_p2,
 )
@@ -199,7 +198,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             start_params=start_params,
             selection=selection,
             random_state=random_state,
-            diag_fisher=diag_fisher,
+            # diag_fisher=diag_fisher,
             copy_X=copy_X,
             check_input=check_input,
             verbose=verbose,
@@ -292,10 +291,12 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         return _make_grid(alpha_max)
 
     def fit(self, X, y, sample_weight=None, offset=None):
-        X, y, weights, offset, weights_sum = set_up_and_check_fit_args(
+        X, y, weights, offset, weights_sum = self.set_up_and_check_fit_args(
             X, y, sample_weight, offset, solver=self.solver, copy_X=self.copy_X
         )
 
+        #########
+        # Checks
         self.set_up_for_fit(y)
         if (
             hasattr(self._family_instance, "_power")
@@ -315,22 +316,17 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         else:
             self.alphas_ = np.asarray(alphas)
 
-        lower_bounds = check_bounds(self.lower_bounds, X.shape[1])
-        upper_bounds = check_bounds(self.upper_bounds, X.shape[1])
+        lower_bounds = check_bounds(self.lower_bounds, X.shape[1], X.dtype)
+        upper_bounds = check_bounds(self.upper_bounds, X.shape[1], X.dtype)
 
         cv = check_cv(self.cv)
 
-        self.deviance_path_ = np.full(
-            (len(l1_ratio), len(alphas[0]), cv.get_n_splits()), np.nan
-        )
+        #######
+        # Setup CV attributes
+        self.deviance_path_ = np.full((cv.get_n_splits(), len(alphas[0])), np.nan)
         self.mse_path_ = self.deviance_path_.copy()
         self.coef_path_ = np.full(
-            (
-                len(l1_ratio),
-                len(alphas[0]),
-                cv.get_n_splits(),
-                X.shape[1] + int(self.fit_intercept),
-            ),
+            (cv.get_n_splits(), len(alphas[0]), X.shape[1] + int(self.fit_intercept),),
             np.nan,
         )
         if self._solver == "cd":
@@ -338,14 +334,32 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         else:
             _stype = ["csc", "csr"]
 
-        l1 = l1_ratio[0]
-        i = 0
-        # for i, l1 in enumerate(l1_ratio):
-        #     print(f'estimating l1_ratio {i+1}/{len(l1_ratio)}')
-
-        def get_cv_split(self, k, train_idx, test_idx):
+        def get_cv_split(
+            self,
+            k: int,
+            train_idx,
+            test_idx,
+            X,
+            y,
+            P1,
+            P2,
+            l1,
+            alphas,
+            weights,
+            offset,
+            lower_bounds,
+            upper_bounds,
+            fit_intercept,
+        ):
             # for k, (train_idx, test_idx) in enumerate(cv.split(X, y)):
             print(f"estimating fold {k+1}/{cv.get_n_splits()}")
+
+            deviance_path_ = np.full(len(alphas[0]), np.nan)
+            mse_path_ = deviance_path_.copy()
+            coef_path_ = np.full(
+                (len(alphas[0]), X.shape[1] + int(fit_intercept)), np.nan
+            )
+
             x_train, y_train, w_train = (
                 X[train_idx, :],
                 y[train_idx],
@@ -386,7 +400,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
 
                 return w_test.dot((y_test - mu) ** 2) / w_test.sum()
 
-            P2 = setup_p2(self.P2, X, _stype, X.dtype, alphas[i][0], l1)
+            P2 = setup_p2(self.P2, X, _stype, X.dtype, alphas[0], l1)
 
             if (
                 hasattr(self._family_instance, "_power")
@@ -411,21 +425,35 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
                 col_stds,
             )
 
+            P1_no_alpha = setup_p1(self.P1, X, X.dtype, 1, l1)
+            P2_no_alpha = setup_p2(self.P2, X, _stype, X.dtype, 1, l1)
+
             if self.check_input:
                 # check if P2 is positive semidefinite
                 if not isinstance(self.P2, str):  # self.P2 != 'identity'
-                    if not is_pos_semidef(P2):
-                        if P2.ndim == 1 or P2.shape[0] == 1:
+                    if not is_pos_semidef(P2_no_alpha):
+                        if P2_no_alpha.ndim == 1 or P2_no_alpha.shape[0] == 1:
                             error = "1d array P2 must not have negative values."
                         else:
                             error = "P2 must be positive semi-definite."
                         raise ValueError(error)
 
-            for j, alpha in enumerate(alphas[i]):
-                print(f"estimating alpha {j+1}/{len(alphas[i])}")
-                P1 = setup_p1(self.P1, X, X.dtype, alpha, l1)
-                P2 = setup_p2(self.P2, X, _stype, X.dtype, alpha, l1)
+            # coef = self.fit_regularization_path(
+            #     X=x_train,
+            #     y=y_train,
+            #     weights=w_train,
+            #     P2=P2,
+            #     P1=P1,
+            #     coef=coef,
+            #     offset=offset_train,
+            #     lower_bounds=lower_bounds,
+            #     upper_bounds=upper_bounds,
+            # )
+            for j, alpha in enumerate(alphas):
+                print(f"estimating alpha {j+1}/{len(alphas)}")
 
+                P1 = P1_no_alpha * alpha
+                P2 = P2_no_alpha * alpha
                 # TODO: see if we need to deal with centering or something
                 # use standardize_warm_start?
                 # TODO: write simpler tests against sklearn ridge
@@ -453,16 +481,40 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
                 else:
                     coef_uncentered = coef
 
-                self.deviance_path_[i, j, k] = _get_deviance(coef_uncentered)
-                self.mse_path_[i, j, k] = _get_mse(coef_uncentered)
-                self.coef_path_[i, j, k, :] = coef_uncentered
+                deviance_path_[j] = _get_deviance(coef_uncentered)
+                mse_path_[j] = _get_mse(coef_uncentered)
+                coef_path_[j, :] = coef_uncentered
 
-        Parallel(n_jobs=4)(
-            delayed(get_cv_split)(self, i1, i2, i3)
+            return coef_path_, deviance_path_, mse_path_, l1
+
+        all_jobs = [
+            delayed(get_cv_split)(
+                self,
+                k=i1,
+                train_idx=i2,
+                test_idx=i3,
+                X=X,
+                y=y,
+                P1=self.P1,
+                P2=self.P2,
+                l1=l1_ratio,
+                alphas=alphas,
+                weights=weights,
+                offset=offset,
+                lower_bounds=lower_bounds,
+                upper_bounds=upper_bounds,
+                fit_intercept=self.fit_intercept,
+            )
             for i1, (i2, i3) in enumerate(cv.split(X, y))
-        )
+        ]
+        res = Parallel(n_jobs=self.n_jobs)(all_jobs)
 
-        avg_deviance = self.deviance_path_.mean(2)
+        for foldid, fold_res in enumerate(res):
+            self.coef_path_[foldid, :, :] = fold_res[0]
+            self.deviance_path_[foldid, :] = fold_res[1]
+            self.mse_path_[foldid, :] = fold_res[2]
+
+        avg_deviance = self.deviance_path_.mean(0)
         best_idx = np.argmin(avg_deviance)
         # # TODO: simplify
         l1_ratios = np.repeat(l1_ratio[:, None], len(alphas[0]), axis=1)
