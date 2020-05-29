@@ -31,7 +31,9 @@ def _least_squares_solver(state, data):
 
 
 def _cd_solver(state, data):
-    fisher = build_fisher(data.X, state.fisher_W, data.fit_intercept, data.P2)
+    fisher = build_fisher(
+        data.X, state.fisher_W, data.fit_intercept, data.P2, state.active_set
+    )
     new_coef, gap, _, _, n_cycles = enet_coordinate_descent_gram(
         state.active_set,
         state.coef.copy(),
@@ -51,17 +53,20 @@ def _cd_solver(state, data):
     return new_coef - state.coef, n_cycles
 
 
-def build_fisher(X, fisher_W, intercept, P2):
+def build_fisher(X, fisher_W, intercept, P2, active_set):
     idx = 1 if intercept else 0
-    fisher = _safe_sandwich_dot(X, fisher_W, intercept)
+    print(active_set.shape[0])
+    fisher = _safe_sandwich_dot(X, fisher_W, active_set[1:], intercept)
     if P2.ndim == 1:
         idiag = np.arange(start=idx, stop=fisher.shape[0])
-        fisher[(idiag, idiag)] += P2
+        fisher[(idiag, idiag)] += P2[active_set[idx:] - idx]
     else:
         if sparse.issparse(P2):
-            fisher[idx:, idx:] += P2.toarray()
+            P2_temp = P2.toarray()
         else:
-            fisher[idx:, idx:] += P2
+            P2_temp = P2
+        P2_idxs = active_set[idx:]
+        fisher[idx:, idx:] += P2_temp[np.ix_(P2_idxs, P2_idxs)]
     return fisher
 
 

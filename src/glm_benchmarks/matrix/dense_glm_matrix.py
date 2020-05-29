@@ -38,9 +38,9 @@ class DenseGLMDataMatrix(np.ndarray, MatrixBase):
     def toarray(self):
         return np.asarray(self)
 
-    def sandwich(self, d: np.ndarray):
+    def limited_sandwich(self, d: np.ndarray, cols: np.ndarray):
         d = np.asarray(d)
-        return dense_sandwich(self, d)
+        return dense_sandwich(self, d, cols)
 
     def standardize(self, weights: Iterable, scale_predictors: bool) -> Tuple:
         col_means = self.T.dot(weights)[None, :]
