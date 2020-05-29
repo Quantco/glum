@@ -11,7 +11,11 @@ from sklearn.exceptions import ConvergenceWarning
 from sklearn.utils import check_array
 from sklearn.utils.validation import check_random_state
 
-from ._cd_fast import _norm_min_subgrad, enet_coordinate_descent_gram
+from ._cd_fast import (
+    _norm_min_subgrad,
+    enet_coordinate_descent_gram,
+    identify_active_rows,
+)
 from ._distribution import ExponentialDispersionModel
 from ._link import Link
 from ._util import _safe_lin_pred, _safe_sandwich_dot
@@ -38,27 +42,24 @@ def _least_squares_solver(state, data):
 
 
 def _cd_solver(state, data):
-    fisher_W_diff = state.fisher_W - state.old_fisher_W
-
-    n_rows = fisher_W_diff.shape[0]
-    if state.fisher is not None:
-        C = 0.1  # tightness of exclusion criterion
-        abs_diff = np.abs(fisher_W_diff)
-        # threshold = state.max_min_subgrad / (C * data.X.shape[0])
-        threshold = C * np.max(abs_diff)
-        exclude = abs_diff < threshold
-        fisher_W_diff[exclude] = 0.0
-        n_rows -= np.sum(exclude)
-
-    state.fisher_W = state.old_fisher_W + fisher_W_diff
+    fisher_W_diff, active_rows = identify_active_rows(
+        state.fisher_W, state.old_fisher_W, 0.1
+    )
 
     import time
 
     start = time.time()
     state.fisher_delta = build_fisher(
-        data.X, fisher_W_diff, data.fit_intercept, data.P2, state.active_set
+        data.X,
+        fisher_W_diff,
+        data.fit_intercept,
+        data.P2,
+        active_rows,
+        state.active_set,
     )
-    print(f"n_rows={n_rows} n_cols={len(state.active_set)} time={time.time() - start}")
+    print(
+        f"n_rows={active_rows.shape[0]} n_cols={len(state.active_set)} time={time.time() - start}"
+    )
 
     if state.fisher is None:
         state.fisher = state.fisher_delta
@@ -86,20 +87,22 @@ def _cd_solver(state, data):
     return new_coef - state.coef, n_cycles
 
 
-def build_fisher(X, fisher_W, intercept, P2, active_set):
+def build_fisher(X, fisher_W, intercept, P2, active_rows, active_cols):
     idx = 1 if intercept else 0
-    active_non_intercept = active_set[idx:] - idx
-    fisher = _safe_sandwich_dot(X, fisher_W, active_non_intercept, intercept)
+    active_cols_non_intercept = active_cols[idx:] - idx
+    fisher = _safe_sandwich_dot(
+        X, fisher_W, active_rows, active_cols_non_intercept, intercept
+    )
     if P2.ndim == 1:
         idiag = np.arange(start=idx, stop=fisher.shape[0])
-        fisher[(idiag, idiag)] += P2[active_non_intercept]
+        fisher[(idiag, idiag)] += P2[active_cols_non_intercept]
     else:
         if sparse.issparse(P2):
             P2_temp = P2.toarray()
         else:
             P2_temp = P2
         fisher[idx:, idx:] += P2_temp[
-            np.ix_(active_non_intercept, active_non_intercept)
+            np.ix_(active_cols_non_intercept, active_cols_non_intercept)
         ]
     return fisher
 
