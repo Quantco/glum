@@ -91,6 +91,11 @@ class MKLSparseMatrix(sps.csc_matrix, MatrixBase):
     __array_priority__ = 12
 
     def standardize(self, weights, scale_predictors) -> Tuple:
-        from glm_benchmarks.matrix.standardize import standardize
+        from glm_benchmarks.matrix.standardize import standardize, zero_center
 
-        return standardize(self, weights, scale_predictors)
+        if scale_predictors:
+            return standardize(self, weights=weights)
+        else:
+            X, col_means = zero_center(self, weights=weights)
+            col_stds = np.ones(self.shape[1])
+            return X, col_means, col_stds

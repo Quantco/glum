@@ -172,7 +172,7 @@ def test_fisher_matrix(family, link):
     lin_pred = np.dot(X, coef)
     mu = link.inverse(lin_pred)
     weights = rng.randn(10) ** 2 + 1
-    _, _, _, fisher_W = family._eta_mu_score_fisher(
+    _, _, _, fisher_W = family._eta_mu_score_fisher_W(
         coef=coef, phi=phi, X=X, y=weights, weights=weights, link=link
     )
     fisher = _safe_sandwich_dot(X, fisher_W)
@@ -185,7 +185,7 @@ def test_fisher_matrix(family, link):
     for i in range(coef.shape[0]):
 
         def f(coef):
-            _, _, score, _ = family._eta_mu_score_fisher(
+            _, _, score, _ = family._eta_mu_score_fisher_W(
                 coef=coef, phi=phi, X=X, y=mu, weights=weights, link=link
             )
             return -score[i]
@@ -1128,7 +1128,12 @@ def test_standardize(use_sparse, scale_predictors):
     intercept_standardized = 0.0
     coef_standardized = col_stds
     X2, intercept, coef = _unstandardize(
-        X, col_means, col_stds, intercept_standardized, coef_standardized
+        X,
+        col_means,
+        col_stds,
+        intercept_standardized,
+        coef_standardized,
+        scale_predictors,
     )
     if use_sparse:
         assert id(X2) == id(X.mat)
