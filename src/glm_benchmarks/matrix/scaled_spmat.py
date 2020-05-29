@@ -251,10 +251,12 @@ class ColScaledSpMat(ScaledMat, MatrixBase):
         term2 = self.shift.T * (d @ B)[np.newaxis, :]
         return term1 + term2
 
-    def unstandardize(self, col_means, col_stds):
+    def unstandardize(self, col_means, col_stds, scale_predictors):
         """
         Doesn't need to use col_means because those are assumed to equal 'shift'.
         """
+        if not scale_predictors:
+            return self.mat
         if sps.isspmatrix_csc(self.mat):
             from .standardize import _scale_csc_columns_inplace
 
