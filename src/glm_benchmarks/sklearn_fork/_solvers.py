@@ -41,6 +41,9 @@ def _least_squares_solver(state, data):
     return d, 1
 
 
+total = 0
+
+
 def _cd_solver(state, data):
     fisher_W_diff, active_rows = identify_active_rows(
         state.fisher_W, state.old_fisher_W, 0.1
@@ -60,6 +63,9 @@ def _cd_solver(state, data):
     print(
         f"n_rows={active_rows.shape[0]} n_cols={len(state.active_set)} time={time.time() - start}"
     )
+    global total
+    total += time.time() - start
+    print(total)
 
     if state.fisher is None:
         state.fisher = state.fisher_delta
@@ -107,6 +113,7 @@ def build_fisher(X, fisher_W, intercept, P2, active_rows, active_cols):
     return fisher
 
 
+@profile
 def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[List]]:
     """Solve GLM with L1 and L2 penalty by IRLS
 
