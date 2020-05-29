@@ -1,12 +1,10 @@
-from typing import Tuple
-
 import numpy as np
 from scipy import sparse as sps
 from sparse_dot_mkl import dot_product_mkl
 
 from glm_benchmarks.matrix.sandwich.sandwich import csr_dense_sandwich, sparse_sandwich
 
-from .matrix_base import MatrixBase
+from . import MatrixBase
 
 
 class MKLSparseMatrix(sps.csc_matrix, MatrixBase):
@@ -90,12 +88,8 @@ class MKLSparseMatrix(sps.csc_matrix, MatrixBase):
 
     __array_priority__ = 12
 
-    def standardize(self, weights, scale_predictors) -> Tuple:
-        from glm_benchmarks.matrix.standardize import standardize, zero_center
+    def _get_col_means(self, weights: np.ndarray) -> np.ndarray:
+        return self.T.dot(weights)
 
-        if scale_predictors:
-            return standardize(self, weights=weights)
-        else:
-            X, col_means = zero_center(self, weights=weights)
-            col_stds = np.ones(self.shape[1])
-            return X, col_means, col_stds
+    def _get_col_stds(self, weights: np.ndarray, col_means: np.ndarray) -> np.ndarray:
+        return (self ** 2).T.dot(weights) - col_means ** 2

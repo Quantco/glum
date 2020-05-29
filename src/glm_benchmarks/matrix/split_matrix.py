@@ -1,11 +1,11 @@
 import copy as copy_
-from typing import Any, Tuple, Union
+from typing import Union
 
 import numpy as np
 from scipy import sparse as sps
 
+from . import MatrixBase
 from .dense_glm_matrix import DenseGLMDataMatrix
-from .matrix_base import MatrixBase
 from .mkl_sparse_matrix import MKLSparseMatrix
 
 
@@ -71,25 +71,27 @@ class SplitMatrix(MatrixBase):
                 out[np.ix_(self.dense_indices, self.sparse_indices)] = DS.T
         return out
 
-    def standardize(
-        self, weights: np.ndarray, scale_predictors: bool
-    ) -> Tuple[Any, np.ndarray, np.ndarray]:
-        self.X_dense_F, dense_col_means, dense_col_stds = self.X_dense_F.standardize(
-            weights, scale_predictors
-        )
-        self.X_sparse, sparse_col_means, sparse_col_stds = self.X_sparse.standardize(
-            weights, scale_predictors
-        )
+    def _get_col_means(self, weights: np.ndarray) -> np.ndarray:
+        dense_col_means = self.X_dense_F.T.dot(weights)
+        sparse_col_means = self.X_sparse.T.dot(weights)
 
         col_means = np.empty((1, self.shape[1]), dtype=self.dtype)
         col_means[0, self.dense_indices] = dense_col_means
         col_means[0, self.sparse_indices] = sparse_col_means
+        return col_means
+
+    def _get_col_stds(self, weights: np.ndarray, col_means: np.ndarray) -> np.ndarray:
+        dense_col_stds = np.sqrt(
+            (self.X_dense_F ** 2).T.dot(weights) - col_means[self.dense_indices] ** 2
+        )
+        sparse_col_stds = np.sqrt(
+            (self.X_sparse ** 2).T.dot(weights) - col_means[self.sparse_indices] ** 2
+        )
 
         col_stds = np.empty(self.shape[1], dtype=self.dtype)
         col_stds[self.dense_indices] = dense_col_stds
         col_stds[self.sparse_indices] = sparse_col_stds
-
-        return self, col_means, col_stds
+        return col_stds
 
     def unstandardize(self, col_means: np.ndarray, col_stds: np.ndarray):
         self.X_dense_F = self.X_dense_F.unstandardize(

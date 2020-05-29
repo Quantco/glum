@@ -24,10 +24,6 @@ def load(which: str, n_rows: int) -> Tuple[Any, np.ndarray]:
     return x, d
 
 
-def naive_sandwich(x, d):
-    return (x.T @ (x.multiply(d[:, None]))).toarray()
-
-
 def _fast_sandwich(X, d):
     return sparse_sandwich(X, X.XT, d)
 
@@ -55,9 +51,6 @@ def run_one_problem_all_methods(x, d, include_naive, dtype) -> pd.DataFrame:
     # for threshold in [0.0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3,0.4,0.5,0.7,0.9,1.0]:
     # for threshold in [0.01, 0.02, 0.03, 0.04, 0.05]:
     #     funcs[f"split_sandwich_{threshold}"] = split_sandwich(x, threshold)
-
-    if include_naive:
-        funcs["naive"] = naive_sandwich
 
     info: Dict[str, Any] = {}
     for name, func in funcs.items():
