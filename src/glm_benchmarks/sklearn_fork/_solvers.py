@@ -20,7 +20,14 @@ from ._util import _safe_lin_pred, _safe_sandwich_dot
 def _least_squares_solver(state, data):
     if data.has_lower_bounds or data.has_upper_bounds:
         raise ValueError("Bounds are not supported with the least squares solver.")
-    fisher = build_fisher(data.X, state.fisher_W, data.fit_intercept, data.P2)
+
+    fisher = build_fisher(
+        data.X,
+        state.fisher_W,
+        data.fit_intercept,
+        data.P2,
+        np.arange(state.coef.shape[0], dtype=np.int32),
+    )
 
     # TODO: In cases where we have lots of columns, we might want to avoid the
     # sandwich product and use something like iterative lsqr or lsmr.
@@ -35,13 +42,15 @@ def _cd_solver(state, data):
 
     n_rows = fisher_W_diff.shape[0]
     if state.fisher is not None:
-        C = 10  # tightness of exclusion criterion
+        C = 0.1  # tightness of exclusion criterion
         abs_diff = np.abs(fisher_W_diff)
         # threshold = state.max_min_subgrad / (C * data.X.shape[0])
-        threshold = np.max(abs_diff) / C
+        threshold = C * np.max(abs_diff)
         exclude = abs_diff < threshold
         fisher_W_diff[exclude] = 0.0
         n_rows -= np.sum(exclude)
+
+    state.fisher_W = state.old_fisher_W + fisher_W_diff
 
     import time
 
