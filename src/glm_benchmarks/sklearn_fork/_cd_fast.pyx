@@ -84,7 +84,6 @@ def enet_coordinate_descent_gram(int[::1] active_set,
 
     # get the data information into easy vars
     cdef unsigned int n_active_features = active_set.shape[0]
-    cdef unsigned int n_features = Q.shape[0]
 
     cdef floating w_ii
     cdef floating P1_ii
@@ -94,15 +93,12 @@ def enet_coordinate_descent_gram(int[::1] active_set,
     cdef floating d_w_tol = tol
     cdef floating norm_min_subgrad = 0
     cdef floating max_min_subgrad
-    cdef unsigned int active_set_ii
-    cdef unsigned int ii
+    cdef unsigned int active_set_ii, active_set_jj
+    cdef unsigned int ii, jj
     cdef int n_iter = 0
     cdef unsigned int f_iter
     cdef UINT32_t rand_r_state_seed = rng.randint(0, RAND_R_MAX)
     cdef UINT32_t* rand_r_state = &rand_r_state_seed
-
-    cdef floating* Q_ptr = &Q[0, 0]
-    cdef floating* q_ptr = &q[0]
 
     with nogil:
         for n_iter in range(max_iter):
@@ -120,17 +116,18 @@ def enet_coordinate_descent_gram(int[::1] active_set,
                 else:
                     P1_ii = P1[ii - intercept]
 
-                if Q[ii, ii] == 0.0:
+                if Q[active_set_ii, active_set_ii] == 0.0:
                     continue
 
                 w_ii = w[ii]  # Store previous value
 
                 if w_ii != 0.0:
                     # q -= w_ii * Q[ii]
-                    _axpy(n_features, -w_ii, Q_ptr + ii * n_features, 1,
-                          q_ptr, 1)
+                    for active_set_jj in range(n_active_features):
+                        jj = active_set[active_set_jj]
+                        q[jj] -= w_ii * Q[active_set_ii,active_set_jj]
 
-                w[ii] = fsign(-q[ii]) * fmax(fabs(q[ii]) - P1_ii, 0) / Q[ii, ii]
+                w[ii] = fsign(-q[ii]) * fmax(fabs(q[ii]) - P1_ii, 0) / Q[active_set_ii, active_set_ii]
 
                 if ii >= <unsigned int>intercept:
                     if has_lower_bounds:
@@ -142,8 +139,9 @@ def enet_coordinate_descent_gram(int[::1] active_set,
 
                 if w[ii] != 0.0:
                     # q +=  w[ii] * Q[ii] # Update q = X.T (X w - y)
-                    _axpy(n_features, w[ii], Q_ptr + ii * n_features, 1,
-                          q_ptr, 1)
+                    for active_set_jj in range(n_active_features):
+                        jj = active_set[active_set_jj]
+                        q[jj] += w_ii * Q[active_set_ii,active_set_jj]
 
                 # update the maximum absolute coefficient update
                 d_w_ii = fabs(w[ii] - w_ii)
@@ -161,8 +159,7 @@ def enet_coordinate_descent_gram(int[::1] active_set,
                     active_set,
                     w, q, P1, intercept,
                     has_lower_bounds, lower_bounds, has_upper_bounds, upper_bounds,
-                    &norm_min_subgrad, &max_min_subgrad,
-                    True
+                    &norm_min_subgrad, &max_min_subgrad
                 )
                 if norm_min_subgrad <= tol:
                     break
@@ -189,8 +186,7 @@ cdef void cython_norm_min_subgrad(
     bint has_upper_bounds,
     floating[:] upper_bounds,
     floating* norm_out,
-    floating* max_out,
-    bint should_print
+    floating* max_out
 ) nogil:
     """Compute the gradient of all subgradients with minimal L2-norm.
 
@@ -239,10 +235,6 @@ cdef void cython_norm_min_subgrad(
 
         if coef[i] == 0:
             term = fsign(grad[i]) * fmax(fabs(grad[i]) - P1[i - intercept], 0)
-            # if should_print:
-            #     with gil:
-            #         if i in active_set and term > 0:
-            #             print("WHOA", i, term)
         else:
             term = grad[i] + fsign(coef[i]) * P1[i - intercept]
         if has_lower_bounds and coef[i] == lower_bounds[i - intercept] and term > 0:
@@ -278,7 +270,6 @@ def _norm_min_subgrad(
         has_upper_bounds,
         upper_bounds,
         &norm_out,
-        &max_out,
-        False
+        &max_out
     )
     return norm_out, max_out
