@@ -58,8 +58,8 @@ def sparse_sandwich(A, AT, floating[:] d):
     return out
 
 cdef extern from "dense.cpp":
-    void _denseC_sandwich[F](int*, F*, F*, F*, int, int, int, int, int, int) nogil
-    void _denseF_sandwich[F](int*, F*, F*, F*, int, int, int, int, int, int) nogil
+    void _denseC_sandwich[F](int*, int*, F*, F*, F*, int, int, int, int, int, int, int) nogil
+    void _denseF_sandwich[F](int*, int*, F*, F*, F*, int, int, int, int, int, int, int) nogil
     void _csr_denseC_sandwich[F](F*, int*, int*, F*, F*, F*, int, int, int) nogil
     void _csr_denseF_sandwich[F](F*, int*, int*, F*, F*, F*, int, int, int) nogil
 
@@ -96,24 +96,30 @@ def csr_dense_sandwich(A, B, floating[:] d):
 
 
 
-def dense_sandwich(X, floating[:] d, int[:] cols, int thresh1d = 32, int kratio = 16, int innerblock = 128):
+def dense_sandwich(X, floating[:] d, int[:] rows, int[:] cols, int thresh1d = 32, int kratio = 16, int innerblock = 128):
     cdef int n = X.shape[0]
     cdef int m = X.shape[1]
+    cdef int in_n = rows.shape[0]
     cdef int out_m = cols.shape[0]
 
     out = np.zeros((out_m,out_m), dtype=X.dtype)
+    if in_n == 0 or out_m == 0:
+        return out
+
     cdef floating[:, :] out_view = out
     cdef floating* outp = &out_view[0,0]
 
     cdef floating[:, :] Xmemview = X;
     cdef floating* Xp = &Xmemview[0,0]
     cdef floating* dp = &d[0]
+
     cdef int* colsp = &cols[0]
+    cdef int* rowsp = &rows[0]
 
     if X.flags['C_CONTIGUOUS']:
-        _denseC_sandwich(colsp, Xp, dp, outp, out_m, m, n, thresh1d, kratio, innerblock)
+        _denseC_sandwich(rowsp, colsp, Xp, dp, outp, in_n, out_m, m, n, thresh1d, kratio, innerblock)
     elif X.flags['F_CONTIGUOUS']:
-        _denseF_sandwich(colsp, Xp, dp, outp, out_m, m, n, thresh1d, kratio, innerblock)
+        _denseF_sandwich(rowsp, colsp, Xp, dp, outp, in_n, out_m, m, n, thresh1d, kratio, innerblock)
     else:
         raise Exception()
     return out

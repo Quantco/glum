@@ -40,9 +40,11 @@ class DenseGLMDataMatrix(np.ndarray, MatrixBase):
 
     def sandwich(self, d: np.ndarray, cols: np.ndarray):
         d = np.asarray(d)
-        return dense_sandwich(self, d, cols)
+        nonzero_rows = np.where(np.abs(d) > 1e-16)[0].astype(np.int32)
+        return dense_sandwich(self, d, nonzero_rows, cols)
 
     def limited_rmatvec(self, v: np.ndarray, cols: np.ndarray):
+        # TODO: optimize!
         return self.T.dot(v)[cols]
 
     def standardize(self, weights: Iterable, scale_predictors: bool) -> Tuple:
