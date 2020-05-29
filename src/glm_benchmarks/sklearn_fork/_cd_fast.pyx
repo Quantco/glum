@@ -161,8 +161,7 @@ def enet_coordinate_descent_gram(int[::1] active_set,
                     active_set,
                     w, q, P1, intercept,
                     has_lower_bounds, lower_bounds, has_upper_bounds, upper_bounds,
-                    &norm_min_subgrad, &max_min_subgrad,
-                    True
+                    &norm_min_subgrad, &max_min_subgrad
                 )
                 if norm_min_subgrad <= tol:
                     break
@@ -190,7 +189,6 @@ cdef void cython_norm_min_subgrad(
     floating[:] upper_bounds,
     floating* norm_out,
     floating* max_out,
-    bint should_print
 ) nogil:
     """Compute the gradient of all subgradients with minimal L2-norm.
 
@@ -239,10 +237,6 @@ cdef void cython_norm_min_subgrad(
 
         if coef[i] == 0:
             term = fsign(grad[i]) * fmax(fabs(grad[i]) - P1[i - intercept], 0)
-            # if should_print:
-            #     with gil:
-            #         if i in active_set and term > 0:
-            #             print("WHOA", i, term)
         else:
             term = grad[i] + fsign(coef[i]) * P1[i - intercept]
         if has_lower_bounds and coef[i] == lower_bounds[i - intercept] and term > 0:
@@ -278,7 +272,6 @@ def _norm_min_subgrad(
         has_upper_bounds,
         upper_bounds,
         &norm_out,
-        &max_out,
-        False
+        &max_out
     )
     return norm_out, max_out
