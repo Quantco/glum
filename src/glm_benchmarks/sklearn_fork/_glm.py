@@ -493,6 +493,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         gradient_tol: Optional[float] = 1e-4,
         step_size_tol: Optional[float] = None,
         warm_start=False,
+        alpha_search: bool = False,
+        n_alphas: int = 100,
+        alphas: Optional[np.ndarray] = None,
+        # min_alpha: Optional[float] = None,
         start_params: Optional[np.ndarray] = None,
         selection="cyclic",
         random_state=None,
@@ -515,6 +519,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self.gradient_tol = gradient_tol
         self.step_size_tol = step_size_tol
         self.warm_start = warm_start
+        self.alpha_search = alpha_search
+        self.n_alphas = n_alphas
+        self.alphas = alphas
         self.start_params = start_params
         self.selection = selection
         self.random_state = random_state
@@ -619,12 +626,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         #######################################################################
         # 5a. undo standardization
         #######################################################################
-        print(self.coef_.shape)
-        print(self.intercept_.shape)
         if self._center_predictors:
-            if self.coef_.ndim == 2:
-                print(self.coef_.shape)
-                print(self.intercept_.shape)
+            if self.alpha_search:
                 for i in range(self.coef_.shape[0]):
                     X, self.intercept_[i], self.coef_[i, :] = _unstandardize(
                         X, col_means, col_stds, self.intercept_[i], self.coef_[i, :]
@@ -642,6 +645,73 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         del self._solver
         del self._random_state
         return X
+
+    def _get_alpha_path(
+        self,
+        l1_ratio: float,
+        X,
+        y: np.ndarray,
+        w: np.ndarray,
+        offset: np.ndarray = None,
+    ) -> np.ndarray:
+        """
+        If l1_ratio is positive, the highest alpha is the lowest alpha such that no
+        coefficients (other than the intercept) are nonzero.
+
+        If l1_ratio is zero, use the sklearn RidgeCV default path [10, 1, 0.1] or
+        whatever is specified by the input parameters eps and n_alphas..
+
+        eps is the length of the path, with 1e-3 as the default.
+        """
+
+        def _make_grid(max_alpha: float) -> np.ndarray:
+            min_alpha = max_alpha * self.eps
+            return np.logspace(
+                np.log(max_alpha), np.log(min_alpha), self.n_alphas, base=np.e
+            )
+
+        def _get_normal_identity_grad_at_zeros_with_optimal_intercept() -> np.ndarray:
+            if self.fit_intercept:
+                if offset is None:
+                    mu = y.dot(w)
+                else:
+                    mu = offset + (y - offset).dot(w)
+            else:
+                mu = 0
+            return X.T.dot(w * (y - mu))
+
+        def _get_tweedie_log_grad_at_zeros_with_optimal_intercept() -> np.ndarray:
+            if self.fit_intercept:
+                # if all non-intercept coefficients are zero and there is no offset,
+                # the best intercept makes the predicted mean the sample mean
+                mu = y.dot(w)
+            elif offset is not None:
+                mu = offset
+            else:
+                mu = 1
+
+            family = get_family(self.family)
+            if isinstance(family, TweedieDistribution):
+                p = family.power
+            else:
+                p = 0
+
+            # tweedie grad
+            return mu ** (1 - p) * X.T.dot(w * (y - mu))
+
+        if l1_ratio == 0:
+            alpha_max = 10
+            return _make_grid(alpha_max)
+
+        if isinstance(get_link(self.link, get_family(self.family)), IdentityLink):
+            # assume normal distribution
+            grad = _get_normal_identity_grad_at_zeros_with_optimal_intercept()
+        else:
+            # assume log link and tweedie distribution
+            grad = _get_tweedie_log_grad_at_zeros_with_optimal_intercept()
+
+        alpha_max = np.max(np.abs(grad)) / l1_ratio
+        return _make_grid(alpha_max)
 
     def solve(
         self,
@@ -1376,6 +1446,10 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         gradient_tol: Optional[float] = 1e-4,
         step_size_tol: Optional[float] = None,
         warm_start: bool = False,
+        alpha_search: bool = False,
+        n_alphas: int = 100,
+        alphas: Optional[np.ndarray] = None,
+        # min_alpha: Optional[float] = None,
         start_params: Optional[np.ndarray] = None,
         selection: str = "cyclic",
         random_state=None,
@@ -1402,6 +1476,9 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             gradient_tol=gradient_tol,
             step_size_tol=step_size_tol,
             warm_start=warm_start,
+            alpha_search=alpha_search,
+            n_alphas=n_alphas,
+            alphas=alphas,
             start_params=start_params,
             selection=selection,
             random_state=random_state,
@@ -1478,6 +1555,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
 
         self.set_up_for_fit(y)
 
+        # TODO: deal with alpha for regularization path
         if self.alpha > 0 and self.l1_ratio > 0 and self._solver != "irls-cd":
             raise ValueError(
                 "The chosen solver (solver={}) can't deal "
@@ -1495,8 +1573,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
 
         # 1.3 arguments to take special care ##################################
         # P1, P2, start_params
-        P1 = setup_p1(self.P1, X, X.dtype, self.alpha, self.l1_ratio)
-        P2 = setup_p2(self.P2, X, _stype, X.dtype, self.alpha, self.l1_ratio)
+        P1_no_alpha = setup_p1(self.P1, X, X.dtype, 1, self.l1_ratio)
+        P2_no_alpha = setup_p2(self.P2, X, _stype, X.dtype, 1, self.l1_ratio)
 
         lower_bounds = check_bounds(self.lower_bounds, X.shape[1], X.dtype)
         upper_bounds = check_bounds(self.upper_bounds, X.shape[1], X.dtype)
@@ -1517,8 +1595,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             # check if P2 is positive semidefinite
             if not isinstance(self.P2, str):  # self.P2 != 'identity'
 
-                if not is_pos_semidef(P2):
-                    if P2.ndim == 1 or P2.shape[0] == 1:
+                if not is_pos_semidef(P2_no_alpha):
+                    if P2_no_alpha.ndim == 1 or P2_no_alpha.shape[0] == 1:
                         error = "1d array P2 must not have negative values."
                     else:
                         error = "P2 must be positive semi-definite."
@@ -1548,25 +1626,51 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         #######################################################################
         # 4. fit                                                              #
         #######################################################################
-        coef = self.solve(
-            X=X,
-            y=y,
-            weights=weights,
-            P2=P2,
-            P1=P1,
-            coef=coef,
-            offset=offset,
-            lower_bounds=lower_bounds,
-            upper_bounds=upper_bounds,
-        )
+        if self.alpha_search:
+            alphas = self._get_alpha_path(
+                l1_ratio=self.l1_ratio, X=X, y=y, w=sample_weight, offset=offset
+            )
+            coef = self.solve_regularization_path(
+                X=X,
+                y=y,
+                weights=weights,
+                P2_no_alpha=P2_no_alpha,
+                P1_no_alpha=P1_no_alpha,
+                alphas=alphas,
+                coef=coef,
+                offset=offset,
+                lower_bounds=lower_bounds,
+                upper_bounds=upper_bounds,
+            )
 
-        if self.fit_intercept:
-            self.intercept_ = coef[0]
-            self.coef_ = coef[1:]
+            if self.fit_intercept:
+                self.intercept_ = coef[:, 0]
+                self.coef_ = coef[:, 1:]
+            else:
+                # set intercept to zero as the other linear models do
+                self.intercept_ = np.zeros(len(self.alpha))
+                self.coef_ = coef
+
         else:
-            # set intercept to zero as the other linear models do
-            self.intercept_ = 0.0
-            self.coef_ = coef
+            coef = self.solve(
+                X=X,
+                y=y,
+                weights=weights,
+                P2=P2_no_alpha * self.alpha,
+                P1=P1_no_alpha * self.alpha,
+                coef=coef,
+                offset=offset,
+                lower_bounds=lower_bounds,
+                upper_bounds=upper_bounds,
+            )
+
+            if self.fit_intercept:
+                self.intercept_ = coef[0]
+                self.coef_ = coef[1:]
+            else:
+                # set intercept to zero as the other linear models do
+                self.intercept_ = 0.0
+                self.coef_ = coef
 
         self.tear_down_from_fit(X, y, col_means, col_stds, weights, weights_sum)
 
