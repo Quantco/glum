@@ -3,6 +3,8 @@ from typing import Tuple
 
 import numpy as np
 
+from .standardize import one_over_var_inf_to_zero
+
 
 class MatrixBase(ABC):
     """
@@ -22,12 +24,6 @@ class MatrixBase(ABC):
         """ Defines the behavior of 'self @ other'. """
         return self.dot(other)
 
-    def __rmatmul__(self, other):
-        """
-        other @ self = (self.T @ other.T).T
-        """
-        return (self.T @ other.T).T
-
     @abstractmethod
     def getcol(self, i: int):
         pass
@@ -45,20 +41,15 @@ class MatrixBase(ABC):
         pass
 
     @abstractmethod
-    def transpose(self):
+    def transpose_dot_vec(self, vec: np.ndarray) -> np.ndarray:
         pass
-
-    @property
-    def T(self):
-        return self.transpose()
 
     @abstractmethod
     def astype(self, dtype, order="K", casting="unsafe", copy=True):
         pass
 
-    @abstractmethod
     def _get_col_means(self, weights: np.ndarray) -> np.ndarray:
-        pass
+        return self.transpose_dot_vec(weights)
 
     @abstractmethod
     def _get_col_stds(self, weights: np.ndarray, col_means: np.ndarray) -> np.ndarray:
@@ -75,7 +66,14 @@ class MatrixBase(ABC):
             col_stds = self._get_col_stds(weights, col_means)
         else:
             col_stds = np.ones(self.shape[1])
-        return ColScaledMat(self, -col_means), col_means, col_stds
+
+        one_over_col_sds = one_over_var_inf_to_zero(col_stds)
+
+        self.scale_cols_inplace(one_over_col_sds)
+        return ColScaledMat(self, -col_means * one_over_col_sds), col_means, col_stds
+
+    def scale_cols_inplace(self, col_scaling: np.ndarray) -> None:
+        pass
 
     # Higher priority than numpy arrays, so behavior for funcs like "@" defaults to the
     # behavior of this class

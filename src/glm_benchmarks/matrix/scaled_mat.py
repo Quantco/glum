@@ -1,4 +1,3 @@
-from abc import ABC, abstractmethod
 from typing import List, Union
 
 import numpy as np
@@ -7,15 +6,16 @@ from scipy import sparse as sps
 from glm_benchmarks.matrix import MatrixBase
 
 
-class ScaledMat(ABC):
+class ColScaledMat:
     """
-    Base class for ColScaledSpMat and RowScaledSpMat. Do not instantiate.
+    Matrix with ij element equal to mat[i, j] + shift[1, j]
     """
+
+    # TODO: make shift 1d
 
     __array_priority__ = 11
 
     def __init__(self, mat: MatrixBase, shift: Union[np.ndarray, List]):
-
         shift = np.asarray(shift)
         if shift.ndim == 1:
             shift = np.expand_dims(shift, 1 - self.scale_axis())
@@ -36,62 +36,9 @@ class ScaledMat(ABC):
         self.ndim = mat.ndim
         self.dtype = mat.dtype
 
-    @abstractmethod
-    def dot(self, other):
-        """ Matrix multiplication. """
-        pass
-
-    def __matmul__(self, other):
-        """ Defines the behavior of 'self @ other'. """
-        return self.dot(other)
-
-    def __rmatmul__(self, other):
-        """
-        other @ self = (self.T @ other.T).T
-        """
-        return (self.T @ other.T).T
-
-    def astype(self, dtype, order="K", casting="unsafe", copy=True):
-        return type(self)(
-            self.mat.astype(dtype, casting=casting, copy=copy),
-            self.shift.astype(dtype, order=order, casting=casting, copy=copy),
-        )
-
-    @classmethod
-    @abstractmethod
-    def scale_axis(self) -> int:
-        pass
-
-    def toarray(self) -> np.ndarray:
-        return self.mat.A + self.shift
-
-    @property
-    def A(self) -> np.ndarray:
-        return self.toarray()
-
-    @abstractmethod
-    def transpose(self):
-        pass
-
-    @property
-    def T(self):
-        return self.transpose()
-
-
-class ColScaledMat(ScaledMat):
-    """
-    Matrix with ij element equal to mat[i, j] + shift[1, j]
-    """
-
-    def __init__(self, mat: MatrixBase, shift: np.ndarray):
-        super().__init__(mat, shift)
-
     @classmethod
     def scale_axis(self) -> int:
         return 1
-
-    def transpose(self):
-        return RowScaledMat(self.mat.T, self.shift.T)
 
     def dot(self, other_mat: Union[sps.spmatrix, np.ndarray]):
         """
@@ -124,7 +71,7 @@ class ColScaledMat(ScaledMat):
             return ColScaledMat(mat_part, shifter)
         return mat_part + shifter
 
-    def getcol(self, i: int) -> ScaledMat:
+    def getcol(self, i: int):
         """
         Returns a ColScaledSpMat.
 
@@ -157,59 +104,56 @@ class ColScaledMat(ScaledMat):
         term4 = (self.shift.T * self.shift) * d.sum()
         return term1 + term2 + term3 + term4
 
-    def unstandardize(self, col_means, col_stds):
+    def unstandardize(self, col_stds: np.ndarray) -> MatrixBase:
         """
         Doesn't need to use col_means because those are assumed to equal 'shift'.
         """
-        if sps.isspmatrix_csc(self.mat):
-            from .standardize import _scale_csc_columns_inplace
+        self.mat.scale_cols_inplace(col_stds)
+        return self.mat
 
-            _scale_csc_columns_inplace(self.mat, col_stds)
-            return self.mat
+    def __rmatmul__(self, other: np.ndarray) -> np.ndarray:
+        """
+        Let self.shape = (N, K) and other.shape = (M, N).
+        Remember self.shift = ones(N, 1) x (1, K)
+
+        (other @ X)[i, j] = (other @ x.mat)[i, j] + other @ x.shift
+        (other @ shift)[i, j] = (other @ ones(n, 1) @ self.shift)[i, j]
+        = sum_k other[i, k] self.shift[j]
+        = other.sum(1) @ shift
+        """
+        # TODO: write a check_1d function
+        other = np.asarray(other)
+        other_sum = other.sum(-1)
+        if not sps.issparse(other) and other.ndim > 1:
+            other_sum = np.expand_dims(other_sum, 1)
+            assert other_sum.shape == (other.shape[0], 1)
+        mat_part = other @ self.mat
+        if other.ndim == 1:
+            # other_sum is a float
+            shift_part = self.shift[0, :] * other_sum
+            assert shift_part.shape == (self.shape[1],)
         else:
-            return self.mat @ sps.diags(col_stds)
-
-
-class RowScaledMat(ScaledMat):
-    """
-    Matrix with ij element equal to mat[i, j] + shift[i]
-    """
-
-    def __init__(self, mat: MatrixBase, shift: np.ndarray):
-        super().__init__(mat, shift)
-
-    @classmethod
-    def scale_axis(self) -> int:
-        return 0
-
-    def transpose(self) -> ColScaledMat:
-        return ColScaledMat(self.mat.T, self.shift.T)
-
-    def dot(self, other_mat: Union[sps.spmatrix, np.ndarray]) -> np.ndarray:
-        """
-        Let self.shape = (n, k).
-
-        If other.shape = (k, m):
-
-            result[i, j] = sum_k self[i, k] @ other_mat[k, j]
-                         = sum_k (self.mat[i, k] + self.shift[i, 1]) @ other_mat[k, j]
-            result = self.mat @ other_mat + self.shift @ other_mat.sum(0)
-                      (n, m)                 (n, 1) @ (1, m) = (n, m)
-            This is dense!
-
-        If other.shape = (k,):
-
-            result[i, j] = self.mat @ other_mat + self.shift @ other_mat.sum(0)
-                           (n,)                  (n, 1) @ (1,) = (n,)
-        """
-        mat_part = self.mat.dot(other_mat)
-        other_sum = np.sum(other_mat, 0)
-        if not sps.issparse(other_mat):
-            # with numpy, sum is of shape (k,); with scipy it is of shape (1, k)
-            other_sum = np.expand_dims(other_sum, 0)
-        shift_part = self.shift.dot(other_sum)
-        return mat_part + shift_part
+            shift_part = other_sum @ self.shift
+        result = mat_part + shift_part
+        if other.ndim == 1:
+            assert result.shape == (self.shape[1],)
+        else:
+            assert result.shape == (other.shape[0], self.shape[1])
+        return result
 
     def __matmul__(self, other):
         """ Defines the behavior of 'self @ other'. """
         return self.dot(other)
+
+    def toarray(self) -> np.ndarray:
+        return self.mat.A + self.shift
+
+    @property
+    def A(self) -> np.ndarray:
+        return self.toarray()
+
+    def astype(self, dtype, order="K", casting="unsafe", copy=True):
+        return type(self)(
+            self.mat.astype(dtype, casting=casting, copy=copy),
+            self.shift.astype(dtype, order=order, casting=casting, copy=copy),
+        )
