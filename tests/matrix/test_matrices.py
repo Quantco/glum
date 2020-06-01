@@ -1,3 +1,5 @@
+import warnings
+
 import numpy as np
 import pytest
 from scipy import sparse as sps
@@ -150,12 +152,8 @@ def test_sandwich(mat: type, vec_type, order):
     np.testing.assert_allclose(res, expected)
 
 
-# TODO: make this work for SplitMatrix too, or figure out a way to not need transpose
 # TODO: make sure we have sklearn tests for each matrix setup
-@pytest.mark.parametrize(
-    "mat",
-    [dense_glm_data_matrix, mkl_sparse_matrix, col_scaled_dense, col_scaled_sparse],
-)
+@pytest.mark.parametrize("mat", [dense_glm_data_matrix, mkl_sparse_matrix])
 @pytest.mark.parametrize("order", ["F", "C"])
 def test_transpose(mat: type, order):
     mat_ = mat(order)
@@ -197,3 +195,33 @@ def test_astype(mat, dtype, order):
     vec = np.zeros(mat_.shape[1], dtype=dtype)
     res = new_mat.dot(vec)
     assert res.dtype == new_mat.dtype
+
+
+@pytest.mark.parametrize("mat", unscaled_matrices)
+@pytest.mark.parametrize("scale_predictors", [False, True])
+def test_standardize(mat, scale_predictors: bool):
+    mat_: mx.MatrixBase = mat()
+    asarray = mat_.A.copy()
+    weights = np.random.rand(mat_.shape[0])
+    weights /= weights.sum()
+
+    true_means = asarray.T.dot(weights)
+    true_sds = np.sqrt((asarray ** 2).T.dot(weights) - true_means ** 2)
+
+    standardized, means, stds = mat_.standardize(weights, scale_predictors)
+    assert isinstance(standardized, mx.ColScaledMat)
+    assert isinstance(standardized.mat, type(mat_))
+    expected_sds = true_sds if scale_predictors else np.ones_like(true_sds)
+
+    np.testing.assert_allclose(means, asarray.T.dot(weights))
+    np.testing.assert_allclose(stds, expected_sds)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", category=RuntimeWarning)
+        one_over_sds = np.nan_to_num(1 / expected_sds)
+
+    np.testing.assert_allclose(standardized.A, (asarray - true_means) * one_over_sds)
+
+    unstandardized = standardized.unstandardize(stds)
+    assert isinstance(unstandardized, type(mat_))
+    np.testing.assert_allclose(unstandardized.A, asarray)

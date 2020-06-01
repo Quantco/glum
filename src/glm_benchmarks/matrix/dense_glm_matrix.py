@@ -39,8 +39,11 @@ class DenseGLMDataMatrix(np.ndarray, MatrixBase):
         d = np.asarray(d)
         return dense_sandwich(self, d)
 
-    def _get_col_means(self, weights: np.ndarray) -> np.ndarray:
-        return self.T.dot(weights)
-
     def _get_col_stds(self, weights: np.ndarray, col_means: np.ndarray) -> np.ndarray:
         return np.sqrt((self ** 2).T.dot(weights) - col_means ** 2)
+
+    def transpose_dot_vec(self, vec: np.ndarray) -> np.ndarray:
+        return self.T.dot(vec)
+
+    def scale_cols_inplace(self, col_scaling: np.ndarray) -> None:
+        self *= col_scaling[None, :]

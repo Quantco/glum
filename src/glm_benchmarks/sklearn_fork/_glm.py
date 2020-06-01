@@ -234,7 +234,7 @@ def check_bounds(
 def _unstandardize(
     X, col_means: np.ndarray, col_stds: np.ndarray, intercept: float, coef
 ) -> Tuple[Any, float, np.ndarray]:
-    X = X.unstandardize(col_means, col_stds)
+    X = X.unstandardize(col_stds)
     intercept -= float(np.squeeze(col_means / col_stds).dot(coef))
     coef /= col_stds
     return X, intercept, coef

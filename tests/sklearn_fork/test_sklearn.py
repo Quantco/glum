@@ -16,6 +16,7 @@ from sklearn.linear_model import ElasticNet, LogisticRegression, Ridge
 from sklearn.metrics import mean_absolute_error
 from sklearn.utils.estimator_checks import check_estimator
 
+import glm_benchmarks.matrix as mx
 from glm_benchmarks.sklearn_fork import GeneralizedLinearRegressorCV
 from glm_benchmarks.sklearn_fork._distribution import guess_intercept
 from glm_benchmarks.sklearn_fork._glm import (
@@ -1078,6 +1079,9 @@ def test_convergence_warning(solver, regression_data):
 @pytest.mark.parametrize("use_sparse", [False, True])
 @pytest.mark.parametrize("scale_predictors", [False, True])
 def test_standardize(use_sparse, scale_predictors):
+    def _arrays_share_data(arr1: np.ndarray, arr2: np.ndarray) -> bool:
+        return arr1.__array_interface__["data"] == arr2.__array_interface__["data"]
+
     NR = 101
     NC = 10
     col_mults = np.arange(1, NC + 1)
@@ -1092,21 +1096,13 @@ def test_standardize(use_sparse, scale_predictors):
 
     X, col_means, col_stds = M.standardize(np.ones(NR) / NR, scale_predictors)
     if use_sparse:
-        assert (
-            X.mat.data.__array_interface__["data"] == M.data.__array_interface__["data"]
-        )
-        assert (
-            X.mat.indices.__array_interface__["data"]
-            == M.indices.__array_interface__["data"]
-        )
-        assert (
-            X.mat.indptr.__array_interface__["data"]
-            == M.indptr.__array_interface__["data"]
-        )
+        assert _arrays_share_data(X.mat.data, M.data)
+        assert _arrays_share_data(X.mat.indices, M.indices)
+        assert _arrays_share_data(X.mat.indptr, M.indptr)
     else:
         # Check that the underlying data pointer is the same
-        assert X.__array_interface__["data"] == M.__array_interface__["data"]
-    np.testing.assert_almost_equal(col_means[0, :], col_mults)
+        assert _arrays_share_data(X.mat, M)
+    np.testing.assert_almost_equal(col_means, col_mults)
 
     # After standardization, all the columns will have the same values.
     # To check that, just convert to dense first.
@@ -1116,9 +1112,16 @@ def test_standardize(use_sparse, scale_predictors):
         Xdense = X
     for i in range(1, NC):
         if scale_predictors:
-            np.testing.assert_almost_equal(Xdense[:, 0], Xdense[:, i])
+            if isinstance(Xdense, mx.ColScaledMat):
+                one, two = Xdense.A[:, 0], Xdense.A[:, i]
+            else:
+                one, two = Xdense[:, 0], Xdense[:, i]
         else:
-            np.testing.assert_almost_equal((i + 1) * Xdense[:, 0], Xdense[:, i])
+            if isinstance(Xdense, mx.ColScaledMat):
+                one, two = (i + 1) * Xdense.A[:, 0], Xdense.A[:, i]
+            else:
+                one, two = (i + 1) * Xdense[:, 0], Xdense[:, i]
+        np.testing.assert_almost_equal(one, two)
 
     if scale_predictors:
         # The sample variance of row_mults is 0.34. This is scaled up by the col_mults
@@ -1131,9 +1134,9 @@ def test_standardize(use_sparse, scale_predictors):
         X, col_means, col_stds, intercept_standardized, coef_standardized
     )
     if use_sparse:
-        assert id(X2) == id(X.mat)
+        assert _arrays_share_data(X2.data, X.mat.data)
     else:
-        assert id(X2) == id(X)
+        assert _arrays_share_data(X2, X.mat)
     np.testing.assert_almost_equal(intercept, -(NC + 1) * NC / 2)
     if scale_predictors:
         np.testing.assert_almost_equal(coef, 1.0)
