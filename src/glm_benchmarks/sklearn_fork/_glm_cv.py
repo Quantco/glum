@@ -175,8 +175,6 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         n_jobs: Optional[int] = None,
     ):
         self.eps = eps
-        self.n_alphas = n_alphas
-        self.alphas = alphas
         self.cv = cv
         self.n_jobs = n_jobs
         super().__init__(
@@ -192,6 +190,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             gradient_tol=gradient_tol,
             step_size_tol=step_size_tol,
             warm_start=warm_start,
+            n_alphas=n_alphas,
+            alphas=alphas,
             start_params=start_params,
             selection=selection,
             random_state=random_state,

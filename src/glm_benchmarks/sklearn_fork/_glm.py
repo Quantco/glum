@@ -496,7 +496,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         alpha_search: bool = False,
         n_alphas: int = 100,
         alphas: Optional[np.ndarray] = None,
-        # min_alpha: Optional[float] = None,
+        min_alpha_ratio: float = 1e-3,
+        min_alpha: Optional[float] = None,
         start_params: Optional[np.ndarray] = None,
         selection="cyclic",
         random_state=None,
@@ -522,6 +523,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self.alpha_search = alpha_search
         self.n_alphas = n_alphas
         self.alphas = alphas
+        self.min_alpha_ratio = min_alpha_ratio
+        self.min_alpha = min_alpha
         self.start_params = start_params
         self.selection = selection
         self.random_state = random_state
@@ -659,13 +662,21 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         coefficients (other than the intercept) are nonzero.
 
         If l1_ratio is zero, use the sklearn RidgeCV default path [10, 1, 0.1] or
-        whatever is specified by the input parameters eps and n_alphas..
+        whatever is specified by the input parameters min_alpha_ratio and n_alphas..
 
-        eps is the length of the path, with 1e-3 as the default.
+        min_alpha_ratio is the length of the path, with 1e-3 as the default.
         """
 
         def _make_grid(max_alpha: float) -> np.ndarray:
-            min_alpha = max_alpha * self.eps
+            if self.min_alpha is None:
+                min_alpha = max_alpha * self.min_alpha_ratio
+            else:
+                if self.min_alpha >= max_alpha:
+                    raise ValueError(
+                        "Current value of min_alpha would generate all zeros. "
+                        "Consider reducing this value."
+                    )
+                min_alpha = self.min_alpha
             return np.logspace(
                 np.log(max_alpha), np.log(min_alpha), self.n_alphas, base=np.e
             )
@@ -1449,7 +1460,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         alpha_search: bool = False,
         n_alphas: int = 100,
         alphas: Optional[np.ndarray] = None,
-        # min_alpha: Optional[float] = None,
+        min_alpha_ratio: float = 1e-3,
+        min_alpha: Optional[float] = None,
         start_params: Optional[np.ndarray] = None,
         selection: str = "cyclic",
         random_state=None,
@@ -1479,6 +1491,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             alpha_search=alpha_search,
             n_alphas=n_alphas,
             alphas=alphas,
+            min_alpha=min_alpha,
+            min_alpha_ratio=min_alpha_ratio,
             start_params=start_params,
             selection=selection,
             random_state=random_state,
@@ -1627,16 +1641,20 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         # 4. fit                                                              #
         #######################################################################
         if self.alpha_search:
-            alphas = self._get_alpha_path(
-                l1_ratio=self.l1_ratio, X=X, y=y, w=sample_weight, offset=offset
-            )
+            if self.alphas is None:
+                self._alphas = self._get_alpha_path(
+                    l1_ratio=self.l1_ratio, X=X, y=y, w=sample_weight, offset=offset
+                )
+            else:
+                self._alphas = self.alphas
+
             coef = self.solve_regularization_path(
                 X=X,
                 y=y,
                 weights=weights,
                 P2_no_alpha=P2_no_alpha,
                 P1_no_alpha=P1_no_alpha,
-                alphas=alphas,
+                alphas=self._alphas,
                 coef=coef,
                 offset=offset,
                 lower_bounds=lower_bounds,
@@ -1671,144 +1689,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
                 # set intercept to zero as the other linear models do
                 self.intercept_ = 0.0
                 self.coef_ = coef
-
-        self.tear_down_from_fit(X, y, col_means, col_stds, weights, weights_sum)
-
-        return self
-
-    def fit_regularization_path(
-        self, X, y, sample_weight=None, offset=None, weights_sum: float = None
-    ):
-        """Fit a Generalized Linear Model.
-
-        Parameters
-        ----------
-        X : {array-like, sparse matrix}, shape (n_samples, n_features)
-            Training data.
-
-        y : array-like, shape (n_samples,)
-            Target values.
-
-        sample_weight : {None, array-like}, shape (n_samples,),\
-                optional (default=None)
-            Individual weights w_i for each sample. Note that for an
-            Exponential Dispersion Model (EDM), one has
-            Var[Y_i]=phi/w_i * v(mu).
-            If Y_i ~ EDM(mu, phi/w_i), then
-            sum(w*Y)/sum(w) ~ EDM(mu, phi/sum(w)), i.e. the mean of y is a
-            weighted average with weights=sample_weight.
-
-        offset: {None, array-like}, shape (n_samples,), optional (default=None)
-            Added to linear predictor "eta". An offset of 3 will increase expected
-            y by 3 if the link is linear, and will multiply expected y by 3 if the
-            link is log.
-
-        weights_sum: {None, float}, optional (default=None)
-
-        Returns
-        -------
-        self : returns an instance of self.
-        """
-
-        if self.fit_args_reformat == "safe":
-            X, y, weights, offset, weights_sum = self.set_up_and_check_fit_args(
-                X, y, sample_weight, offset, solver=self.solver, copy_X=self.copy_X
-            )
-        else:
-            weights = sample_weight
-
-        self.set_up_for_fit(y)
-
-        # if self.alpha > 0 and self.l1_ratio > 0 and self._solver != "irls-cd":
-        #     raise ValueError(
-        #         "The chosen solver (solver={}) can't deal "
-        #         "with L1 penalties, which are included with "
-        #         "(alpha={}) and (l1_ratio={}).".format(
-        #             self._solver, self.alpha, self.l1_ratio
-        #         )
-        #     )
-
-        _dtype = [np.float64, np.float32]
-        if self._solver == "irls-cd":
-            _stype = ["csc"]
-        else:
-            _stype = ["csc", "csr"]
-
-        # 1.3 arguments to take special care ##################################
-        # P1, P2, start_params
-        P1_no_alpha = setup_p1(self.P1, X, X.dtype, 1, self.l1_ratio)
-        P2_no_alpha = setup_p2(self.P2, X, _stype, X.dtype, 1, self.l1_ratio)
-
-        lower_bounds = check_bounds(self.lower_bounds, X.shape[1], X.dtype)
-        upper_bounds = check_bounds(self.upper_bounds, X.shape[1], X.dtype)
-
-        if (lower_bounds is not None) and (upper_bounds is not None):
-            if np.any(lower_bounds > upper_bounds):
-                raise ValueError("Upper bounds must be higher than lower bounds.")
-
-        start_params = initialize_start_params(
-            self.start_params,
-            n_cols=X.shape[1],
-            fit_intercept=self.fit_intercept,
-            _dtype=_dtype,
-        )
-
-        # 1.4 additional validations ##########################################
-        if self.check_input:
-            # check if P2 is positive semidefinite
-            if not isinstance(self.P2, str):  # self.P2 != 'identity'
-
-                if not is_pos_semidef(P2_no_alpha):
-                    if P2_no_alpha.ndim == 1 or P2_no_alpha.shape[0] == 1:
-                        error = "1d array P2 must not have negative values."
-                    else:
-                        error = "P2 must be positive semi-definite."
-                    raise ValueError(error)
-            # TODO: if alpha=0 check that X is not rank deficient
-            # TODO: what else to check?
-
-        #######################################################################
-        # 2c. potentially rescale predictors
-        #######################################################################
-        if self._center_predictors:
-            X, col_means, col_stds = X.standardize(weights, self.scale_predictors)
-        else:
-            col_means, col_stds = None, None
-
-        #######################################################################
-        # 3. initialization of coef = (intercept_, coef_)                     #
-        #######################################################################
-        # Note: Since phi=self.dispersion_ does not enter the estimation
-        #       of mu_i=E[y_i], set it to 1.
-
-        # set start values for coef
-        coef = self.get_start_coef(
-            start_params, X, y, weights, offset, col_means, col_stds
-        )
-
-        #######################################################################
-        # 4. fit                                                              #
-        #######################################################################
-        coef = self.solve_regularization_path(
-            X=X,
-            y=y,
-            weights=weights,
-            P2_no_alpha=P2_no_alpha,
-            P1_no_alpha=P1_no_alpha,
-            alphas=self.alpha,
-            coef=coef,
-            offset=offset,
-            lower_bounds=lower_bounds,
-            upper_bounds=upper_bounds,
-        )
-
-        if self.fit_intercept:
-            self.intercept_ = coef[:, 0]
-            self.coef_ = coef[:, 1:]
-        else:
-            # set intercept to zero as the other linear models do
-            self.intercept_ = np.zeros(len(self.alpha))
-            self.coef_ = coef
 
         self.tear_down_from_fit(X, y, col_means, col_stds, weights, weights_sum)
 
