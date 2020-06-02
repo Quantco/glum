@@ -25,18 +25,15 @@ def _least_squares_solver(state, data):
     if data.has_lower_bounds or data.has_upper_bounds:
         raise ValueError("Bounds are not supported with the least squares solver.")
 
-    fisher = build_fisher(
-        data.X,
-        state.fisher_W,
-        data.fit_intercept,
-        data.P2,
-        np.arange(state.coef.shape[0], dtype=np.int32),
+    hessian = build_hessian(
+        data.X, state.hessian_rows, data.fit_intercept, data.P2,
+        np.arange(state.coef.shape[0], dtype=np.int32)
     )
 
     # TODO: In cases where we have lots of columns, we might want to avoid the
     # sandwich product and use something like iterative lsqr or lsmr.
     d = linalg.solve(
-        fisher, state.score, overwrite_a=True, overwrite_b=True, assume_a="pos"
+        hessian, state.score, overwrite_a=True, overwrite_b=True, assume_a="pos"
     )
     return d, 1
 
@@ -45,16 +42,16 @@ total = 0
 
 
 def _cd_solver(state, data):
-    fisher_W_diff, active_rows = identify_active_rows(
-        state.fisher_W, state.old_fisher_W, 0.1
+    hessian_rows_diff, active_rows = identify_active_rows(
+        state.hessian_rows, state.old_hessian_rows, 0.1
     )
 
     import time
 
     start = time.time()
-    state.fisher_delta = build_fisher(
+    state.hessian_delta = build_hessian(
         data.X,
-        fisher_W_diff,
+        hessian_rows_diff,
         data.fit_intercept,
         data.P2,
         active_rows,
@@ -67,12 +64,12 @@ def _cd_solver(state, data):
     total += time.time() - start
     print(total)
 
-    if state.fisher is None:
-        state.fisher = state.fisher_delta
+    if state.hessian is None:
+        state.hessian = state.hessian_delta
     else:
-        state.fisher[np.ix_(state.active_set, state.active_set)] += state.fisher_delta
+        state.hessian[np.ix_(state.active_set, state.active_set)] += state.hessian_delta
 
-    F = state.fisher[np.ix_(state.active_set, state.active_set)]
+    F = state.hessian[np.ix_(state.active_set, state.active_set)]
 
     new_coef, gap, _, _, n_cycles = enet_coordinate_descent_gram(
         state.active_set,
@@ -93,7 +90,7 @@ def _cd_solver(state, data):
     return new_coef - state.coef, n_cycles
 
 
-def build_fisher(X, fisher_W, intercept, P2, active_rows, active_cols):
+def build_hessian(X, fisher_W, intercept, P2, active_rows, active_cols):
     idx = 1 if intercept else 0
     active_cols_non_intercept = active_cols[idx:] - idx
     fisher = _safe_sandwich_dot(
@@ -111,7 +108,6 @@ def build_fisher(X, fisher_W, intercept, P2, active_rows, active_cols):
             np.ix_(active_cols_non_intercept, active_cols_non_intercept)
         ]
     return fisher
-
 
 @profile
 def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[List]]:
@@ -140,8 +136,8 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
     3b. Least squares solve of the quadratic approximation.
 
     Repeat steps 1-3 until convergence.
-    Note: Use Fisher matrix instead of Hessian for H.
-    Note: f' = -score, H = Fisher matrix
+    Note: Use hessian matrix instead of Hessian for H.
+    Note: f' = -score, H = hessian matrix
 
     Parameters
     ----------
@@ -165,15 +161,18 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
     """
 
     state = IRLSState(coef, data)
-    state.eta, state.mu, state.score, state.fisher_W, state.coef_P2 = update_quadratic(
-        state, data
+
+    state.eta, state.mu, state.obj_val, coef_P2 = update_predictions(
+        state, data, state.coef
     )
+    state.score, state.hessian_rows = update_quadratic(state, data, coef_P2)
     (
         state.converged,
         state.norm_min_subgrad,
         state.max_min_subgrad,
         state.inner_tol,
     ) = check_convergence(state, data)
+
     state.record_iteration()
 
     while state.n_iter < data.max_iter and not state.converged:
@@ -185,19 +184,18 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
         state.n_cycles += n_cycles_this_iter
 
         # 2) Line search
-        state.coef, state.step, state.obj_val, state.eta, state.mu = line_search(
-            state, data, d
-        )
-
-        # 3) Update the quadratic approximation
-        state.old_fisher_W[:] = state.fisher_W
+        state.old_hessian_rows[:] = state.hessian_rows
         (
+            state.coef,
+            state.step,
             state.eta,
             state.mu,
-            state.score,
-            state.fisher_W,
-            state.coef_P2,
-        ) = update_quadratic(state, data)
+            state.obj_val,
+            coef_P2,
+        ) = line_search(state, data, d)
+
+        # 3) Update the quadratic approximation
+        state.score, state.hessian_rows = update_quadratic(state, data, coef_P2)
 
         # 4) Check if we've converged
         (
@@ -320,12 +318,12 @@ class IRLSState:
         self.step = np.full_like(self.coef, initial_step)
 
         self.obj_val = None
-        self.eta = None
+        self.eta = np.zeros(data.X.shape[0], dtype=data.X.dtype)
         self.mu = None
         self.score = None
-        self.old_fisher_W = np.zeros(data.X.shape[0], dtype=data.X.dtype)
-        self.fisher_W = None
-        self.fisher = None
+        self.old_hessian_rows = np.zeros(data.X.shape[0], dtype=data.X.dtype)
+        self.hessian_rows = None
+        self.hessian = None
         self.coef_P2 = None
         self.norm_min_subgrad = None
         self.max_min_subgrad = None
@@ -408,8 +406,22 @@ def check_convergence(state, data):
     return converged, norm_min_subgrad, max_min_subgrad, inner_tol
 
 
-def update_quadratic(state, data):
-    eta, mu, score, fisher_W = data.family._eta_mu_score_fisher_W(
+def update_predictions(state, data, coef, X_dot_step=None, factor=1.0):
+    if X_dot_step is None:
+        X_dot_step = _safe_lin_pred(data.X, coef, data.offset)
+
+    eta, mu, deviance = data.family.eta_mu_deviance(
+        data.link, factor, state.eta, X_dot_step, data.y, data.weights
+    )
+    obj_val = 0.5 * deviance
+    obj_val += linalg.norm(data.P1 * coef[data.intercept_offset :], ord=1)
+    coef_P2 = make_coef_P2(data, coef)
+    obj_val += 0.5 * (coef_P2 @ coef)
+    return eta, mu, obj_val, coef_P2
+
+
+def update_quadratic(state, data, coef_P2):
+    gradient_rows, hessian_rows = data.family.rowwise_gradient_hessian(
         data.link,
         coef=state.coef,
         phi=1,
@@ -420,9 +432,12 @@ def update_quadratic(state, data):
         eta=state.eta,
         mu=state.mu,
     )
-    coef_P2 = make_coef_P2(data, state.coef)
-    score -= coef_P2
-    return eta, mu, score, fisher_W, coef_P2
+
+    grad = gradient_rows @ data.X
+    if data.fit_intercept:
+        grad = np.concatenate(([gradient_rows.sum()], grad))
+    grad -= coef_P2
+    return grad, hessian_rows
 
 
 def make_coef_P2(data, coef):
@@ -472,98 +487,33 @@ def line_search(state, data, d):
     # Note: the L2 penalty term is included in the score.
     bound = sigma * (-(state.score @ d) + P1wd_1 - P1w_1)
 
-    # In the first iteration, we must compute the objective value explicitly.
-    # In later iterations, we just use the objective value from the previous
-    # iteration as set after the line search loop below.
-    if state.obj_val is None:
-        obj_val = (
-            0.5
-            * line_search_deviance(
-                data.family, data.link, data.y, state.eta, state.mu, data.weights
-            )
-            + 0.5 * (state.coef_P2 @ state.coef)
-            + P1w_1
-        )
-    else:
-        obj_val = state.obj_val
-
-    la = 1.0 / beta
-
+    # The step direction in row space. We'll be multiplying this by varying
+    # step sizes during the line search. Factoring this matrix-vector product
+    # out of the inner loop improve performance a lot!
     X_dot_d = _safe_lin_pred(data.X, d)
     print(f"updated: {np.sum(np.abs(d) > 0)}")
 
     # Try progressively shorter line search steps.
     # variables suffixed with wd are for the new coefficient values
-    eta_wd = np.empty(data.X.shape[0], dtype=data.X.dtype)
-    mu_wd = np.empty(data.X.shape[0], dtype=data.X.dtype)
+    factor = 1.0
     for k in range(20):
-        la *= beta  # starts with la=1
-        step = la * d
+        step = factor * d
         coef_wd = state.coef + step
-
-        # The simple version of the next line is:
-        # mu_wd = link.inverse(_safe_lin_pred(X, coef_wd))
-        # but because coef_wd can be factored as
-        # coef_wd = coef + la * d
-        # we can rewrite to only perform one dot product with the data
-        # matrix per loop which is substantially faster
-        deviance = line_search_update(
-            data.family,
-            data.link,
-            la,
-            state.eta,
-            X_dot_d,
-            data.y,
-            data.weights,
-            eta_wd,
-            mu_wd,
+        eta_wd, mu_wd, obj_val_wd, coef_wd_P2 = update_predictions(
+            state, data, coef_wd, X_dot_d, factor=factor
         )
-
-        obj_val_wd = 0.5 * deviance
-        obj_val_wd += linalg.norm(data.P1 * coef_wd[data.intercept_offset :], ord=1)
-        coef_wd_P2 = make_coef_P2(data, coef_wd)
-        obj_val_wd += 0.5 * (coef_wd_P2 @ coef_wd)
-        if obj_val_wd - obj_val <= sigma * la * bound:
+        if obj_val_wd - state.obj_val <= sigma * factor * bound:
             break
+        factor *= beta
 
     # obj_val in the next iteration will be equal to obj_val_wd this iteration.
-    # We can avoid a matrix-vector product inside _eta_mu_score_fisher by
+    # We can avoid a matrix-vector product inside _eta_mu_score_hessian by
     # returning the new eta and mu calculated here.
-    # NOTE: This might accumulate some numerical error over a sufficient
-    # number of iterations, maybe we should completely recompute eta every
-    # N iterations?
-    return state.coef + step, step, obj_val_wd, eta_wd, mu_wd
-
-
-def line_search_deviance(family, link, y, eta, mu, weights):
-    custom = family.run_customized_function(
-        link, family.line_search_deviance_fncs, y, eta, mu, weights
-    )
-    if custom[0]:
-        return custom[1]
-
-    return family.deviance(y, mu, weights)
-
-
-def line_search_update(
-    family, link, la, eta, X_dot_d, y, weights, eta_wd_out, mu_wd_out
-):
-    custom = family.run_customized_function(
-        link,
-        family.line_search_update_fncs,
-        la,
-        eta,
-        X_dot_d,
-        y,
-        weights,
-        eta_wd_out,
-        mu_wd_out,
-    )
-    if custom[0]:
-        return custom[1]
-    eta_wd_out[:] = eta + la * X_dot_d
-    mu_wd_out[:] = link.inverse(eta_wd_out)
-    return family.deviance(y, mu_wd_out, weights)
+    # NOTE: This might accumulate some numerical error over a sufficient number
+    # of iterations since we aren't calculating eta or mu from scratch but
+    # instead adding the delta from the previous iteration. Maybe we should
+    # completely recompute eta every N iterations?
+    return state.coef + step, step, eta_wd, mu_wd, obj_val_wd, coef_wd_P2
 
 
 def _lbfgs_solver(
