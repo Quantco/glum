@@ -62,7 +62,6 @@ cdef inline floating fsign(floating f) nogil:
     else:
         return -1.0
 
-
 def identify_active_rows(floating[::1] fisher_W, floating[::1] old_fisher_W, floating C):
     cdef int n = fisher_W.shape[0]
 
@@ -92,9 +91,6 @@ def identify_active_rows(floating[::1] fisher_W, floating[::1] old_fisher_W, flo
 
     return fisher_W_diff_arr, active_rows_arr
     
-
-
-
 def enet_coordinate_descent_gram(int[::1] active_set,
                                  floating[::1] w,
                                  floating[::1] P1,
@@ -208,8 +204,6 @@ def enet_coordinate_descent_gram(int[::1] active_set,
                               ConvergenceWarning)
 
     return np.asarray(w), norm_min_subgrad, max_min_subgrad, tol, n_iter + 1
-
-
 
 cdef void cython_norm_min_subgrad(
     int[::1] active_set,

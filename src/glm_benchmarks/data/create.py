@@ -376,16 +376,16 @@ def generate_real_insurance_dataset(
     if distribution != "poisson":
         raise NotImplementedError("distibution must be poisson")
 
+    # restrict X and df to train set
+    train_set = df["sample"] == "train"
+    X = X.loc[train_set].reset_index(drop=True)
+    df = df.loc[train_set].reset_index(drop=True)
+
     # subsample
     if num_rows is not None:
         idx = df.sample(n=num_rows).index
         df = df.loc[idx].reset_index(drop=True)
         X = X.loc[idx].reset_index(drop=True)
-
-    # restrict X and df to train set
-    train_set = df["sample"] == "train"
-    X = X.loc[train_set]
-    df = df.loc[train_set]
 
     # account for exposure and offsets
     y, weights = exposure_correction(
