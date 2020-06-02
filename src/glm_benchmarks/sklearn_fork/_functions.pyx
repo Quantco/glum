@@ -34,7 +34,7 @@ def poisson_log_rowwise_gradient_hessian(
     floating[:] eta,
     floating[:] mu,
     floating[:] gradient_rows_out,
-    floating[:] fisher_W_out
+    floating[:] hessian_rows_out
 ):
     cdef int n = eta.shape[0]
     cdef int i
@@ -45,5 +45,5 @@ def poisson_log_rowwise_gradient_hessian(
         d1 = mu[i]
         d1_sigma_inv = d1 * sigma_inv
         gradient_rows_out[i] = d1_sigma_inv * (y[i] - mu[i])
-        fisher_W_out[i] = d1 * d1_sigma_inv
+        hessian_rows_out[i] = d1 * d1_sigma_inv
 
