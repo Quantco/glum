@@ -1,9 +1,10 @@
 from typing import List, Union
 
 import numpy as np
-from scipy import sparse as sps
 
 from glm_benchmarks.matrix import MatrixBase
+
+from .util import rmatmul_vector_only
 
 
 class ColScaledMat:
@@ -16,65 +17,32 @@ class ColScaledMat:
     __array_priority__ = 11
 
     def __init__(self, mat: MatrixBase, shift: Union[np.ndarray, List]):
-        shift = np.asarray(shift)
-        if shift.ndim == 1:
-            shift = np.expand_dims(shift, 1 - self.scale_axis())
-        else:
-            if self.scale_axis() == 0:
-                expected_shape = (mat.shape[0], 1)
-            else:
-                expected_shape = (1, mat.shape[1])
-            if not shift.shape == expected_shape:
-                raise ValueError(
-                    f"""Expected shift to have shape {expected_shape},
-                but it has shape {shift.shape}"""
-                )
+        shift_arr = np.atleast_1d(np.squeeze(shift))
+        expected_shape = (mat.shape[1],)
+        if not shift_arr.shape == expected_shape:
+            raise ValueError(
+                f"""Expected shift to be able to conform to shape {expected_shape},
+            but it has shape {np.asarray(shift).shape}"""
+            )
 
-        self.shift = shift
+        self.shift = shift_arr
         self.mat = mat
         self.shape = mat.shape
         self.ndim = mat.ndim
         self.dtype = mat.dtype
 
-    @classmethod
-    def scale_axis(self) -> int:
-        return 1
-
-    def dot(self, other_mat: Union[sps.spmatrix, np.ndarray]):
+    def dot(self, other_mat: Union[np.ndarray, List]) -> np.ndarray:
         """
-        Let self.shape = (n, k).
-
-        If other.shape = (k, m):
-
-            result[i, j] = sum_k self[i, k] @ other_mat[k, j]
-                         = sum_k (self.mat[i, k] + self.shift[0, k]) @ other_mat[k, j]
-            result       = self.mat @ other_mat + self.shift @ other_mat
-                           (n, m)                  (1, m)
-
-            If other is sparse, result = ColScaledSpMat(self.mat @ other_mat,
-                                                         self.shift @other_mat)
-            If other is dense, result = self.mat @ other_mat + self.shift @ other_mat
-
-        If other.shape = (k,):
-
-            result = self.mat @ other_mat + self.shift @ other_mat
-                           (n,)                  (1,)
+        This function returns a dense output, so it is best geared for the
+        matrix-vector case.
         """
-        mat_part = self.mat.dot(other_mat)
-        if sps.issparse(other_mat):
-            # np.dot doesn't work well with a sparse matrix right argument
-            shifter = other_mat.T.dot(self.shift.T).T
-        else:
-            shifter = self.shift.dot(other_mat)
-
-        if sps.issparse(mat_part):
-            return ColScaledMat(mat_part, shifter)
-        return mat_part + shifter
+        return self.mat.dot(other_mat) + self.shift.dot(other_mat)
 
     def getcol(self, i: int):
         """
         Returns a ColScaledSpMat.
 
+        >>> from scipy import sparse as sps
         >>> x = ColScaledMat(sps.eye(3), shift=[0, 1, -2])
         >>> col_1 = x.getcol(1)
         >>> isinstance(col_1, ColScaledMat)
@@ -84,7 +52,7 @@ class ColScaledMat:
                [2.],
                [1.]])
         """
-        return ColScaledMat(self.mat.getcol(i), [self.shift[0, i]])
+        return ColScaledMat(self.mat.getcol(i), [self.shift[i]])
 
     def sandwich(self, d: np.ndarray) -> np.ndarray:
         """
@@ -101,7 +69,7 @@ class ColScaledMat:
         term1 = self.mat.sandwich(d)
         term2 = (d @ self.mat)[:, np.newaxis] * self.shift
         term3 = term2.T
-        term4 = (self.shift.T * self.shift) * d.sum()
+        term4 = np.outer(self.shift, self.shift) * d.sum()
         return term1 + term2 + term3 + term4
 
     def unstandardize(self, col_stds: np.ndarray) -> MatrixBase:
@@ -111,7 +79,7 @@ class ColScaledMat:
         self.mat.scale_cols_inplace(col_stds)
         return self.mat
 
-    def __rmatmul__(self, other: np.ndarray) -> np.ndarray:
+    def transpose_dot_vec(self, other: np.ndarray) -> np.ndarray:
         """
         Let self.shape = (N, K) and other.shape = (M, N).
         Remember self.shift = ones(N, 1) x (1, K)
@@ -121,32 +89,22 @@ class ColScaledMat:
         = sum_k other[i, k] self.shift[j]
         = other.sum(1) @ shift
         """
-        # TODO: write a check_1d function
-        other = np.asarray(other)
-        other_sum = other.sum(-1)
-        if not sps.issparse(other) and other.ndim > 1:
-            other_sum = np.expand_dims(other_sum, 1)
-            assert other_sum.shape == (other.shape[0], 1)
-        mat_part = other @ self.mat
-        if other.ndim == 1:
-            # other_sum is a float
-            shift_part = self.shift[0, :] * other_sum
-            assert shift_part.shape == (self.shape[1],)
-        else:
-            shift_part = other_sum @ self.shift
+        other = np.atleast_1d(np.squeeze(other))
+        other_sum = other.sum()
+        mat_part = self.mat.transpose_dot_vec(other)
+        shift_part = self.shift * other_sum
         result = mat_part + shift_part
-        if other.ndim == 1:
-            assert result.shape == (self.shape[1],)
-        else:
-            assert result.shape == (other.shape[0], self.shape[1])
         return result
+
+    def __rmatmul__(self, other: Union[np.ndarray, List]) -> np.ndarray:
+        return rmatmul_vector_only(self, np.asarray(other).T)
 
     def __matmul__(self, other):
         """ Defines the behavior of 'self @ other'. """
         return self.dot(other)
 
     def toarray(self) -> np.ndarray:
-        return self.mat.A + self.shift
+        return self.mat.A + self.shift[None, :]
 
     @property
     def A(self) -> np.ndarray:

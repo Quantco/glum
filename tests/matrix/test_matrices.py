@@ -111,7 +111,9 @@ def test_dot_dense_matrix(mat: type, vec_type, order):
     vec = vec_type(vec_as_list)
     mat_ = mat(order)
     res = mat_.dot(vec)
+    assert isinstance(res, np.ndarray)
     expected = mat_.A.dot(vec_as_list)
+    assert isinstance(expected, np.ndarray)
     np.testing.assert_allclose(res, expected)
 
 
@@ -163,7 +165,7 @@ def test_transpose(mat: type, order):
     np.testing.assert_allclose(res, expected)
 
 
-@pytest.mark.parametrize("matrix_shape", [(3,), (1, 3), (2, 3)])
+@pytest.mark.parametrize("matrix_shape", [(3,), (1, 3)])
 @pytest.mark.parametrize(
     "mat",
     [dense_glm_data_matrix, mkl_sparse_matrix, col_scaled_dense, col_scaled_sparse],

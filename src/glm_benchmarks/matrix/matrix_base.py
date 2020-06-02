@@ -1,9 +1,10 @@
 from abc import ABC, abstractmethod
-from typing import Tuple
+from typing import List, Tuple, Union
 
 import numpy as np
 
 from .standardize import one_over_var_inf_to_zero
+from .util import rmatmul_vector_only
 
 
 class MatrixBase(ABC):
@@ -41,8 +42,11 @@ class MatrixBase(ABC):
         pass
 
     @abstractmethod
-    def transpose_dot_vec(self, vec: np.ndarray) -> np.ndarray:
+    def transpose_dot_vec(self, vec: Union[np.ndarray, List]) -> np.ndarray:
         pass
+
+    def __rmatmul__(self, other: Union[np.ndarray, List]) -> np.ndarray:
+        return rmatmul_vector_only(self, np.asarray(other).T)
 
     @abstractmethod
     def astype(self, dtype, order="K", casting="unsafe", copy=True):

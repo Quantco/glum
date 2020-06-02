@@ -6,7 +6,7 @@ import numexpr
 import numpy as np
 from scipy import special
 
-from glm_benchmarks.matrix import MatrixBase
+from glm_benchmarks.matrix import ColScaledMat, MatrixBase
 
 from ._link import IdentityLink, Link, LogitLink, LogLink
 from ._util import _safe_lin_pred
@@ -280,7 +280,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         self,
         coef: np.ndarray,
         phi,
-        X: MatrixBase,
+        X: Union[MatrixBase, ColScaledMat],
         y: np.ndarray,
         weights: np.ndarray,
         link: Link,
