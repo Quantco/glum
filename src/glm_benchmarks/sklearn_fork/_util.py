@@ -10,12 +10,12 @@ def _safe_lin_pred(
 ) -> np.ndarray:
     """Compute the linear predictor taking care if intercept is present."""
     nonzero_coefs = np.where(coef[1:] != 0.0)[0].astype(np.int32)
-    Xdc = X.limited_matvec(
+    res = X.limited_matvec(
         coef[1:], np.arange(X.shape[0], dtype=np.int32), nonzero_coefs
     )
-    # Xdc2 = X.dot(coef[1:])
-    # np.testing.assert_almost_equal(Xdc, Xdc2)
-    res = Xdc + coef[0] if coef.size == X.shape[1] + 1 else X.dot(coef)
+
+    if coef.size == X.shape[1] + 1:
+        res += coef[0]
     if offset is not None:
         return res + offset
     return res
