@@ -20,22 +20,23 @@ from ._util import _safe_lin_pred, _safe_sandwich_dot
 def _least_squares_solver(state, data):
     if data.has_lower_bounds or data.has_upper_bounds:
         raise ValueError("Bounds are not supported with the least squares solver.")
-    fisher = build_fisher(data.X, state.fisher_W, data.fit_intercept, data.P2)
+    hessian = build_hessian(data.X, state.hessian_rows, data.fit_intercept, data.P2)
 
     # TODO: In cases where we have lots of columns, we might want to avoid the
     # sandwich product and use something like iterative lsqr or lsmr.
     d = linalg.solve(
-        fisher, state.score, overwrite_a=True, overwrite_b=True, assume_a="pos"
+        hessian, state.score, overwrite_a=True, overwrite_b=True, assume_a="pos"
     )
     return d, 1
 
 
 def _cd_solver(state, data):
-    fisher = build_fisher(data.X, state.fisher_W, data.fit_intercept, data.P2)
-    new_coef, gap, _, n_cycles = enet_coordinate_descent_gram(
+    hessian = build_hessian(data.X, state.hessian_rows, data.fit_intercept, data.P2)
+    new_coef, gap, _, _, n_cycles = enet_coordinate_descent_gram(
+        state.active_set,
         state.coef.copy(),
         data.P1,
-        fisher,
+        hessian,
         -state.score,
         data.max_inner_iter,
         state.inner_tol,
@@ -50,18 +51,18 @@ def _cd_solver(state, data):
     return new_coef - state.coef, n_cycles
 
 
-def build_fisher(X, fisher_W, intercept, P2):
+def build_hessian(X, hessian_rows, intercept, P2):
     idx = 1 if intercept else 0
-    fisher = _safe_sandwich_dot(X, fisher_W, intercept)
+    hessian = _safe_sandwich_dot(X, hessian_rows, intercept)
     if P2.ndim == 1:
-        idiag = np.arange(start=idx, stop=fisher.shape[0])
-        fisher[(idiag, idiag)] += P2
+        idiag = np.arange(start=idx, stop=hessian.shape[0])
+        hessian[(idiag, idiag)] += P2
     else:
         if sparse.issparse(P2):
-            fisher[idx:, idx:] += P2.toarray()
+            hessian[idx:, idx:] += P2.toarray()
         else:
-            fisher[idx:, idx:] += P2
-    return fisher
+            hessian[idx:, idx:] += P2
+    return hessian
 
 
 def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[List]]:
@@ -90,8 +91,8 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
     3b. Least squares solve of the quadratic approximation.
 
     Repeat steps 1-3 until convergence.
-    Note: Use Fisher matrix instead of Hessian for H.
-    Note: f' = -score, H = Fisher matrix
+    Note: Use hessian matrix instead of Hessian for H.
+    Note: f' = -score, H = hessian matrix
 
     Parameters
     ----------
@@ -116,31 +117,47 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
 
     state = IRLSState(coef, data)
 
-    state.eta, state.mu, state.obj_val = update_predictions(state, data, state.coef)
-    state.score, state.fisher_W, state.coef_P2 = update_quadratic(state, data)
-    state.converged, state.mn_subgrad_norm, state.inner_tol = check_convergence(
-        state, data
+    state.eta, state.mu, state.obj_val, coef_P2 = update_predictions(
+        state, data, state.coef
     )
+    state.score, state.hessian_rows = update_quadratic(state, data, coef_P2)
+    (
+        state.converged,
+        state.norm_min_subgrad,
+        state.max_min_subgrad,
+        state.inner_tol,
+    ) = check_convergence(state, data)
+
     state.record_iteration()
 
     while state.n_iter < data.max_iter and not state.converged:
+
+        state.active_set = identify_active_set(state, data)
 
         # 1) Solve the L1 and L2 penalized least squares problem
         d, n_cycles_this_iter = inner_solver(state, data)
         state.n_cycles += n_cycles_this_iter
 
         # 2) Line search
-        state.coef, state.step, state.eta, state.mu, state.obj_val = line_search(
-            state, data, d
-        )
+        (
+            state.coef,
+            state.step,
+            state.eta,
+            state.mu,
+            state.obj_val,
+            coef_P2,
+        ) = line_search(state, data, d)
 
         # 3) Update the quadratic approximation
-        state.score, state.fisher_W, state.coef_P2 = update_quadratic(state, data)
+        state.score, state.hessian_rows = update_quadratic(state, data, coef_P2)
 
         # 4) Check if we've converged
-        state.converged, state.mn_subgrad_norm, state.inner_tol = check_convergence(
-            state, data
-        )
+        (
+            state.converged,
+            state.norm_min_subgrad,
+            state.max_min_subgrad,
+            state.inner_tol,
+        ) = check_convergence(state, data)
         state.record_iteration()
 
     if not state.converged:
@@ -258,10 +275,12 @@ class IRLSState:
         self.eta = np.zeros(data.X.shape[0], dtype=data.X.dtype)
         self.mu = None
         self.score = None
-        self.fisher_W = None
+        self.hessian_rows = None
         self.coef_P2 = None
-        self.mn_subgrad_norm = None
+        self.norm_min_subgrad = None
+        self.max_min_subgrad = None
         self.inner_tol = None
+        self.active_set = np.arange(self.coef.shape[0])
 
     def record_iteration(self):
         self.n_iter += 1
@@ -274,10 +293,11 @@ class IRLSState:
         step_l2 = np.linalg.norm(self.step)
         self.diagnostics.append(
             {
-                "convergence": self.mn_subgrad_norm,
+                "convergence": self.norm_min_subgrad,
                 "L1(coef)": coef_l1,
                 "L2(coef)": coef_l2,
                 "L2(step)": step_l2,
+                "n_active": self.active_set.shape[0],
                 "n_iter": self.n_iter,
                 "n_cycles": self.n_cycles,
                 "runtime": iteration_runtime,
@@ -295,7 +315,8 @@ def check_convergence(state, data):
     # this also updates the inner tolerance for the next loop!
 
     # L1 norm of the minimum norm subgradient
-    mn_subgrad_norm = _norm_min_subgrad(
+    norm_min_subgrad, max_min_subgrad = _norm_min_subgrad(
+        np.arange(state.coef.shape[0], dtype=np.int32),
         state.coef,
         -state.score,
         state.data.P1,
@@ -307,7 +328,7 @@ def check_convergence(state, data):
     )
     gradient_converged = (
         state.data.gradient_tol is not None
-        and mn_subgrad_norm < state.data.gradient_tol
+        and norm_min_subgrad < state.data.gradient_tol
     )
 
     # Simple L2 step length convergence criteria
@@ -329,12 +350,12 @@ def check_convergence(state, data):
 
     if state.data.fixed_inner_tol is None:
         # Another potential rule limits the inner tol to be no smaller than tol
-        # return max(mn_subgrad_norm * inner_tol_ratio, tol)
-        inner_tol = mn_subgrad_norm * inner_tol_ratio
+        # return max(norm_min_subgrad * inner_tol_ratio, tol)
+        inner_tol = norm_min_subgrad * inner_tol_ratio
     else:
         inner_tol = state.data.fixed_inner_tol[0]
 
-    return converged, mn_subgrad_norm, inner_tol
+    return converged, norm_min_subgrad, max_min_subgrad, inner_tol
 
 
 def update_predictions(state, data, coef, X_dot_step=None, factor=1.0):
@@ -348,10 +369,10 @@ def update_predictions(state, data, coef, X_dot_step=None, factor=1.0):
     obj_val += linalg.norm(data.P1 * coef[data.intercept_offset :], ord=1)
     coef_P2 = make_coef_P2(data, coef)
     obj_val += 0.5 * (coef_P2 @ coef)
-    return eta, mu, obj_val
+    return eta, mu, obj_val, coef_P2
 
 
-def update_quadratic(state, data):
+def update_quadratic(state, data, coef_P2):
     gradient_rows, hessian_rows = data.family.rowwise_gradient_hessian(
         data.link,
         coef=state.coef,
@@ -367,10 +388,8 @@ def update_quadratic(state, data):
     grad = gradient_rows @ data.X
     if data.fit_intercept:
         grad = np.concatenate(([gradient_rows.sum()], grad))
-
-    coef_P2 = make_coef_P2(data, state.coef)
     grad -= coef_P2
-    return grad, hessian_rows, coef_P2
+    return grad, hessian_rows
 
 
 def make_coef_P2(data, coef):
@@ -386,6 +405,22 @@ def make_coef_P2(data, coef):
         out[data.intercept_offset :] = C @ data.P2
 
     return out
+
+
+def identify_active_set(state, data):
+    # This criteria is from section 5.3 of:
+    # An Improved GLMNET for L1-regularized LogisticRegression.
+    # Yuan, Ho, Lin. 2012
+    # https://www.csie.ntu.edu.tw/~cjlin/papers/l1_glmnet/long-glmnet.pdf
+    T = data.P1 - state.max_min_subgrad
+    abs_score = np.abs(state.score[data.intercept_offset :])
+    active = abs_score >= T
+
+    active_set = np.concatenate(
+        ([0] if data.fit_intercept else [], np.where(active)[0] + data.intercept_offset)
+    ).astype(np.int32)
+
+    return active_set
 
 
 def line_search(state, data, d):
@@ -415,7 +450,7 @@ def line_search(state, data, d):
     for k in range(20):
         step = factor * d
         coef_wd = state.coef + step
-        eta_wd, mu_wd, obj_val_wd = update_predictions(
+        eta_wd, mu_wd, obj_val_wd, coef_wd_P2 = update_predictions(
             state, data, coef_wd, X_dot_d, factor=factor
         )
         if obj_val_wd - state.obj_val <= sigma * factor * bound:
@@ -423,13 +458,13 @@ def line_search(state, data, d):
         factor *= beta
 
     # obj_val in the next iteration will be equal to obj_val_wd this iteration.
-    # We can avoid a matrix-vector product inside _eta_mu_score_fisher by
+    # We can avoid a matrix-vector product inside _eta_mu_score_hessian by
     # returning the new eta and mu calculated here.
     # NOTE: This might accumulate some numerical error over a sufficient number
     # of iterations since we aren't calculating eta or mu from scratch but
     # instead adding the delta from the previous iteration. Maybe we should
     # completely recompute eta every N iterations?
-    return state.coef + step, step, eta_wd, mu_wd, obj_val_wd
+    return state.coef + step, step, eta_wd, mu_wd, obj_val_wd, coef_wd_P2
 
 
 def _lbfgs_solver(

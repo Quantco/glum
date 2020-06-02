@@ -26,7 +26,7 @@ Generalized Linear Models with Exponential Dispersion Family
 #   a 1st or 2nd order difference matrix (compare B-spline penalties and
 #   Tikhonov regularization).
 # - The link function (instance of class Link) is necessary for the evaluation
-#   of deviance, score, Fisher and Hessian matrix as functions of the
+#   of deviance, score, Hessian matrix as functions of the
 #   coefficients, which is needed by optimizers.
 #   Solution: link as argument in those functions
 # - Which name/symbol for sample_weight in docu?
@@ -1180,9 +1180,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
 
         'lbfgs'
             Calls scipy's L-BFGS-B optimizer. It cannot deal with L1 penalties.
-
-        Note that all solvers except lbfgs use the fisher matrix, i.e. the
-        expected Hessian instead of the Hessian matrix.
 
     max_iter : int, optional (default=100)
         The maximal number of iterations for solver algorithms.
