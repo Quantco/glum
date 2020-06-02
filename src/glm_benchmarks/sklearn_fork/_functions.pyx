@@ -6,7 +6,7 @@ from cython.parallel import prange
 from libc.math cimport exp, log
 
 def poisson_log_eta_mu_deviance(
-    floating la,
+    floating factor,
     floating[:] cur_eta,
     floating[:] X_dot_d,
     floating[:] y,
@@ -19,7 +19,7 @@ def poisson_log_eta_mu_deviance(
     cdef floating unit_deviance
     cdef floating deviance = 0.0
     for i in prange(n, nogil=True):
-        eta_out[i] = cur_eta[i] + la * X_dot_d[i]
+        eta_out[i] = cur_eta[i] + factor * X_dot_d[i]
         mu_out[i] = exp(eta_out[i])
         if y[i] == 0:
             unit_deviance = 2 * (-y[i] + mu_out[i])
