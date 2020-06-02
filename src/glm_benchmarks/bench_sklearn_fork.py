@@ -2,6 +2,7 @@ import time
 from typing import Dict, Optional, Union
 
 import numpy as np
+import pandas as pd
 from scipy import sparse as sps
 
 from .sklearn_fork import (
@@ -78,7 +79,10 @@ def sklearn_fork_bench(
         result["best_alpha"] = m.alpha_
 
     if print_diagnostics:
-        m.report_diagnostics()
+        with pd.option_context(
+            "display.expand_frame_repr", False, "max_columns", None, "max_rows", None
+        ):
+            m.report_diagnostics()
     return result
 
 
