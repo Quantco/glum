@@ -8,10 +8,10 @@ from scipy import special
 
 from glm_benchmarks.matrix import MatrixBase
 
-# from ._functions import (
-#     poisson_log_eta_mu_deviance,
-#     poisson_log_rowwise_gradient_hessian,
-# )
+from ._functions import (
+    poisson_log_eta_mu_deviance,
+    poisson_log_rowwise_gradient_hessian,
+)
 from ._link import IdentityLink, Link, LogitLink, LogLink
 from ._util import _safe_lin_pred
 
@@ -52,7 +52,8 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
     starting_mu
 
     _mu_deviance_derivative
-    _eta_mu_score_fisher
+    eta_mu_deviance
+    gradient_hessian
 
     References
     ----------
@@ -289,6 +290,20 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         y: np.ndarray,
         weights: np.ndarray,
     ):
+        """
+        Compute:
+        * the linear predictor, eta
+        * the link-function-transformed prediction, mu
+        * the deviance
+
+        Returns
+        -------
+        (eta, mu) : tuple with 4 elements
+            The elements are:
+            * eta: ndarray, shape (X.shape[0],)
+            * mu: ndarray, shape (X.shape[0],)
+            * deviance: float
+        """
         eta_out = np.empty_like(cur_eta)
         mu_out = np.empty_like(cur_eta)
         return (
@@ -316,14 +331,13 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         version for a specific distribution and link function, please override
         this function in the subclass.
         """
-        # TODO: remove eta from here. It doesn't vary depending on link/distribution
+
         eta_out[:] = cur_eta + factor * X_dot_d
         mu_out[:] = link.inverse(eta_out)
         deviance = self.deviance(y, mu_out, weights=weights)
         return deviance
 
-    # TODO: make return row-wise values
-    def gradient_hessian(
+    def rowwise_gradient_hessian(
         self,
         link: Link,
         coef: np.ndarray,
@@ -335,40 +349,36 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         mu: np.ndarray,
         offset: np.ndarray = None,
     ):
-        """Compute linear predictor, mean, score function and fisher matrix.
-
-        It calculates the linear predictor, the mean, score function
-        (derivative of log-likelihood) and Fisher information vector
-        all in one go as function of `coef` (:math:`w`) and the data.
+        """
+        Compute the gradient and Hessian of the log-likelihood row-wise.
 
         Returns
         -------
-        (eta, mu, score, fisher) : tuple with 4 elements
-            The 4 elements are:
-
-            * eta: ndarray, shape (X.shape[0],)
-            * mu: ndarray, shape (X.shape[0],)
-            * score: ndarray, shape (X.shape[1],)
-            * fisher_W: ndarray, shape (X.shape[0,)
+        (gradient_rows, hessian_rows) : tuple with 4 elements
+            The elements are:
+            * gradient_rows: ndarray, shape (X.shape[0],)
+            * hessian_rows: ndarray, shape (X.shape[0],)
         """
-        intercept = coef.size == X.shape[1] + 1
         gradient_rows = np.empty_like(mu)
-        fisher_W = np.empty_like(mu)
+        hessian_rows = np.empty_like(mu)
         self._rowwise_gradient_hessian(
-            link, y, weights, eta, mu, gradient_rows, fisher_W
+            link, y, weights, eta, mu, gradient_rows, hessian_rows
         )
 
-        score = gradient_rows @ X
-        if intercept:
-            score = np.concatenate(([gradient_rows.sum()], score))
-
-        # To form the fisher matrix:
-        # fisher_matrix = _safe_sandwich_dot(X, fisher_W, intercept=intercept)
-        return score, fisher_W
+        # To form the full Hessian matrix from the IRLS weights:
+        # hessian_matrix = _safe_sandwich_dot(X, hessian_rows, intercept=intercept)
+        return gradient_rows, hessian_rows
 
     def _rowwise_gradient_hessian(
-        self, link, y, weights, eta, mu, gradient_rows, fisher_W
+        self, link, y, weights, eta, mu, gradient_rows, hessian_rows
     ):
+        """
+        This is a default implementation that should work for all valid
+        distributions and link functions. To implement a custom optimized
+        version for a specific distribution and link function, please override
+        this function in the subclass.
+        """
+
         # # FOR TWEEDIE: sigma_inv = weights / (mu ** p) during optimization bc phi = 1
         sigma_inv = get_one_over_variance(self, link, mu, eta, 1.0, weights)
         d1 = link.inverse_derivative(eta)  # = h'(eta)
@@ -377,7 +387,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         # d1 = 1./link.derivative(mu)
         d1_sigma_inv = d1 * sigma_inv
         gradient_rows[:] = d1_sigma_inv * (y - mu)
-        fisher_W[:] = d1 * d1_sigma_inv
+        hessian_rows[:] = d1 * d1_sigma_inv
 
 
 class TweedieDistribution(ExponentialDispersionModel):
@@ -520,9 +530,35 @@ class PoissonDistribution(TweedieDistribution):
     def __init__(self):
         super(PoissonDistribution, self).__init__(power=1)
 
-    # gradient_hessian_fncs = [(LogLink, poisson_log_gradient_hessian_update)]
-    # line_search_deviance_fncs = [(LogLink, poisson_log_line_search_deviance)]
-    # line_search_update_fncs = [(LogLink, poisson_log_line_search_update)]
+    def _rowwise_gradient_hessian(
+        self, link, y, weights, eta, mu, gradient_rows, hessian_rows
+    ):
+        if isinstance(link, LogLink):
+            return poisson_log_rowwise_gradient_hessian(
+                y, weights, eta, mu, gradient_rows, hessian_rows
+            )
+        super()._rowwise_gradient_hessian(
+            link, y, weights, eta, mu, gradient_rows, hessian_rows
+        )
+
+    def _eta_mu_deviance(
+        self,
+        link: Link,
+        factor: float,
+        cur_eta: np.ndarray,
+        X_dot_d: np.ndarray,
+        y: np.ndarray,
+        weights: np.ndarray,
+        eta_out: np.ndarray,
+        mu_out: np.ndarray,
+    ):
+        if isinstance(link, LogLink):
+            return poisson_log_eta_mu_deviance(
+                factor, cur_eta, X_dot_d, y, weights, eta_out, mu_out
+            )
+        super()._eta_mu_deviance(
+            link, factor, cur_eta, X_dot_d, y, weights, eta_out, mu_out
+        )
 
 
 class GammaDistribution(TweedieDistribution):

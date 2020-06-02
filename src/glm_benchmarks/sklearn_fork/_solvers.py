@@ -115,7 +115,7 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
     """
 
     state = IRLSState(coef, data)
-    # TODO: update eta_mu_deviance
+
     state.eta, state.mu, state.obj_val = update_predictions(state, data, state.coef)
     state.score, state.fisher_W, state.coef_P2 = update_quadratic(state, data)
     state.converged, state.mn_subgrad_norm, state.inner_tol = check_convergence(
@@ -135,7 +135,7 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
         )
 
         # 3) Update the quadratic approximation
-        (state.score, state.fisher_W, state.coef_P2,) = update_quadratic(state, data)
+        state.score, state.fisher_W, state.coef_P2 = update_quadratic(state, data)
 
         # 4) Check if we've converged
         state.converged, state.mn_subgrad_norm, state.inner_tol = check_convergence(
@@ -352,7 +352,7 @@ def update_predictions(state, data, coef, X_dot_step=None, factor=1.0):
 
 
 def update_quadratic(state, data):
-    score, fisher_W = data.family.gradient_hessian(
+    gradient_rows, hessian_rows = data.family.rowwise_gradient_hessian(
         data.link,
         coef=state.coef,
         phi=1,
@@ -363,9 +363,14 @@ def update_quadratic(state, data):
         eta=state.eta,
         mu=state.mu,
     )
+
+    grad = gradient_rows @ data.X
+    if data.fit_intercept:
+        grad = np.concatenate(([gradient_rows.sum()], grad))
+
     coef_P2 = make_coef_P2(data, state.coef)
-    score -= coef_P2
-    return score, fisher_W, coef_P2
+    grad -= coef_P2
+    return grad, hessian_rows, coef_P2
 
 
 def make_coef_P2(data, coef):
@@ -406,15 +411,16 @@ def line_search(state, data, d):
 
     # Try progressively shorter line search steps.
     # variables suffixed with wd are for the new coefficient values
-    # TODO: multiply at end of loop to avoid this silliness
-    factor = 1.0 / beta
+    factor = 1.0
     for k in range(20):
-        factor *= beta  # starts with factor=1
         step = factor * d
         coef_wd = state.coef + step
-        eta_wd, mu_wd, obj_val_wd = update_predictions(state, data, coef_wd, X_dot_d)
+        eta_wd, mu_wd, obj_val_wd = update_predictions(
+            state, data, coef_wd, X_dot_d, factor=factor
+        )
         if obj_val_wd - state.obj_val <= sigma * factor * bound:
             break
+        factor *= beta
 
     # obj_val in the next iteration will be equal to obj_val_wd this iteration.
     # We can avoid a matrix-vector product inside _eta_mu_score_fisher by
