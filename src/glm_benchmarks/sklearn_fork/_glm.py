@@ -254,8 +254,7 @@ def _unstandardize(
     X : optional
         If X is None, we only unstandardize the coefficients and intercept
     """
-
-    intercept -= coef.dot(np.squeeze(col_means / col_stds))
+    intercept -= np.squeeze(np.squeeze(col_means / col_stds).dot(np.atleast_1d(coef).T))
     coef /= col_stds
     if X is not None:
         X = X.unstandardize(col_means, col_stds)
@@ -363,7 +362,7 @@ def setup_p1(
 
     # P1 and P2 are now for sure copies
     P1 = alpha * l1_ratio * P1
-    return P1
+    return P1.astype(_dtype)
 
 
 def setup_p2(
@@ -844,8 +843,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         self.coef_path_ = np.empty((len(alphas), len(coef)))
 
-        self.path_diagnostics_ = []
-
         for k, alpha in enumerate(alphas):
             P1 = P1_no_alpha * alpha
             P2 = P2_no_alpha * alpha
@@ -864,10 +861,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
             self.coef_path_[k, :] = coef
 
-            for elmt in self.diagnostics_:
-                elmt["alpha_search"] = k  # type: ignore
-                self.path_diagnostics_.append(elmt)
-
         return self.coef_path_
 
     def report_diagnostics(self):
@@ -878,20 +871,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             with pd.option_context("max_rows", None):
                 print(
                     pd.DataFrame(data=self.diagnostics_).set_index("n_iter", drop=True)
-                )
-        else:
-            print("solver does not report diagnostics")
-
-    def report_path_diagnostics(self):
-        if hasattr(self, "path_diagnostics_"):
-            print("diagnostics:")
-            import pandas as pd
-
-            with pd.option_context("max_rows", None):
-                print(
-                    pd.DataFrame(data=self.path_diagnostics_).set_index(
-                        ["alpha_search", "n_iter"], drop=True
-                    )
                 )
         else:
             print("solver does not report diagnostics")
@@ -1546,14 +1525,14 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
 
     def _validate_hyperparameters(self) -> None:
 
-        # if (
-        #     not (isinstance(self.alpha, float) or isinstance(self.alpha, int))
-        #     or self.alpha < 0
-        # ):
-        #     raise ValueError(
-        #         "Penalty term must be a non-negative number;"
-        #         " got (alpha={})".format(self.alpha)
-        #     )
+        if (
+            not (isinstance(self.alpha, float) or isinstance(self.alpha, int))
+            or self.alpha < 0
+        ):
+            raise ValueError(
+                "Penalty term must be a non-negative number;"
+                " got (alpha={})".format(self.alpha)
+            )
 
         if (
             not np.isscalar(self.l1_ratio)
