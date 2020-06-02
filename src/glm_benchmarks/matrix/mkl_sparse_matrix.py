@@ -1,3 +1,5 @@
+from typing import List, Union
+
 import numpy as np
 from scipy import sparse as sps
 from sparse_dot_mkl import dot_product_mkl
@@ -6,6 +8,7 @@ from glm_benchmarks.matrix.sandwich.sandwich import csr_dense_sandwich, sparse_s
 
 from . import MatrixBase
 from .standardize import _scale_csc_columns_inplace
+from .util import check_1d
 
 
 class MKLSparseMatrix(sps.csc_matrix, MatrixBase):
@@ -72,8 +75,11 @@ class MKLSparseMatrix(sps.csc_matrix, MatrixBase):
     def _get_col_stds(self, weights: np.ndarray, col_means: np.ndarray) -> np.ndarray:
         return np.sqrt(self.power(2).T.dot(weights) - col_means ** 2)
 
-    def transpose_dot_vec(self, vec: np.ndarray) -> np.ndarray:
-        return self.T.dot(vec)
+    def transpose_dot_vec(self, vec: Union[np.ndarray, List]) -> np.ndarray:
+        vec = check_1d(vec)
+        if len(vec.shape) == 1:
+            return dot_product_mkl(self.T, vec)
+        return dot_product_mkl(self.T, np.squeeze(vec))[None, :]
 
     def scale_cols_inplace(self, col_scaling: np.ndarray) -> None:
         _scale_csc_columns_inplace(self, col_scaling)

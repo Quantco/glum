@@ -40,9 +40,9 @@ def test_setup_and_densify_row():
 
     np.random.seed(0)
     sp_mat = sps.random(n_rows, n_cols, density=0.8)
-    shift = np.random.uniform(0, 1, sp_mat.shape[ColScaledMat.scale_axis()])
+    shift = np.random.uniform(0, 1, sp_mat.shape[1])
     scaled_mat = ColScaledMat(sp_mat, shift)
-    expected = sp_mat.A + np.expand_dims(shift, 1 - scaled_mat.scale_axis())
+    expected = sp_mat.A + np.expand_dims(shift, 0)
     assert scaled_mat.A.shape == (n_rows, n_cols)
     np.testing.assert_almost_equal(scaled_mat.A, expected)
 

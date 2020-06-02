@@ -118,7 +118,7 @@ class SplitMatrix(MatrixBase):
           sum_{k in self.sparse_indices} self[k, i] vec[k]
         = self.X_dense.T.dot(vec) + self.X_sparse.T.dot(vec)
         """
-        out = np.empty(self.shape[0])
+        out = np.empty(self.shape[1])
         out[self.dense_indices] = self.X_dense_F.T.dot(vec)
         out[self.sparse_indices] = self.X_sparse.T.dot(vec)
         return out
