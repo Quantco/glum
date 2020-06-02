@@ -48,8 +48,8 @@ matrices = unscaled_matrices + scaled_matrices  # type: ignore
 
 
 @pytest.mark.parametrize("mat", matrices)
-def test_get_col(mat):
-    i = 1
+@pytest.mark.parametrize("i", [1, -2])
+def test_getcol(mat, i):
     mat_ = mat()
     col = mat_.getcol(i)
     if not isinstance(col, np.ndarray):
@@ -75,60 +75,41 @@ def test_to_array_scaled(mat, order):
 
 @pytest.mark.parametrize("mat", matrices)
 @pytest.mark.parametrize(
-    "vec_type", [lambda x: x, np.array, mx.DenseGLMDataMatrix],
+    "other_type", [lambda x: x, np.array, mx.DenseGLMDataMatrix],
 )
-def test_dot_vector(mat: type, vec_type):
-    vec_as_list = [3.0, -0.1]
-    vec = vec_type(vec_as_list)
-    mat_ = mat()
-    res = mat_.dot(vec)
-    expected = mat_.A.dot(vec_as_list)
+@pytest.mark.parametrize(
+    "other_as_list", [[3.0, -0.1], [[3.0], [-0.1]], [[0.0, 2], [-1, 0]]]
+)
+@pytest.mark.parametrize("order", ["F", "C"])
+def test_dot(mat: type, other_type, other_as_list, order: str):
+    other = other_type(other_as_list)
+    mat_ = mat(order)
+    res = mat_.dot(other)
+    res2 = mat_ @ other
+    expected = mat_.A.dot(other_as_list)
     np.testing.assert_allclose(res, expected)
+    np.testing.assert_allclose(res2, expected)
     assert isinstance(res, np.ndarray)
 
 
 @pytest.mark.parametrize("mat", matrices)
 @pytest.mark.parametrize(
-    "vec_type", [lambda x: x, np.array, mx.DenseGLMDataMatrix],
+    "other_type", [lambda x: x, np.array, mx.DenseGLMDataMatrix],
 )
-@pytest.mark.parametrize("order", ["F", "C"])
-def test_dot_vector_matmul(mat: type, vec_type, order):
-    vec_as_list = [3.0, -0.1]
-    vec = vec_type(vec_as_list)
-    mat_ = mat(order)
-    res = mat_ @ vec
-    expected = mat_.A @ vec_as_list
-    np.testing.assert_allclose(res, expected)
-
-
-@pytest.mark.parametrize("mat", matrices)
 @pytest.mark.parametrize(
-    "vec_type", [lambda x: x, np.array, mx.DenseGLMDataMatrix],
+    "other_as_list",
+    # shapes (3,); (3,1); (3, 2)
+    [[3.0, -0.1, 0], [[3.0], [-0.1], [0]], [[0, 1.0], [-0.1, 0], [0, 3.0]]],
 )
 @pytest.mark.parametrize("order", ["F", "C"])
-def test_dot_dense_matrix(mat: type, vec_type, order):
-    vec_as_list = [[3.0], [-0.1]]
-    vec = vec_type(vec_as_list)
+def test_transpose_dot(mat: type, other_type, other_as_list, order: str):
+    other = other_type(other_as_list)
     mat_ = mat(order)
-    res = mat_.dot(vec)
+    assert np.shape(other)[0] == mat_.shape[0]
+    res = mat_.transpose_dot(other)
+    expected = mat_.A.T.dot(other_as_list)
+    np.testing.assert_allclose(res, expected)
     assert isinstance(res, np.ndarray)
-    expected = mat_.A.dot(vec_as_list)
-    assert isinstance(expected, np.ndarray)
-    np.testing.assert_allclose(res, expected)
-
-
-@pytest.mark.parametrize("mat", matrices)
-@pytest.mark.parametrize(
-    "vec_type", [lambda x: x, np.array, mx.DenseGLMDataMatrix],
-)
-@pytest.mark.parametrize("order", ["F", "C"])
-def test_dot_dense_matrix_matmul(mat: type, vec_type, order):
-    vec_as_list = [[3.0], [-0.1]]
-    vec = vec_type(vec_as_list)
-    mat_ = mat(order)
-    res = mat_ @ vec
-    expected = mat_.A @ vec_as_list
-    np.testing.assert_allclose(res, expected)
 
 
 def test_dense_sandwich():
@@ -165,18 +146,25 @@ def test_transpose(mat: type, order):
     np.testing.assert_allclose(res, expected)
 
 
-@pytest.mark.parametrize("matrix_shape", [(3,), (1, 3)])
+@pytest.mark.parametrize("mat", matrices)
 @pytest.mark.parametrize(
-    "mat",
-    [dense_glm_data_matrix, mkl_sparse_matrix, col_scaled_dense, col_scaled_sparse],
+    "vec_type", [lambda x: x, np.array, mx.DenseGLMDataMatrix],
+)
+@pytest.mark.parametrize(
+    "vec_as_list",
+    # shapes (3,); (1,3); (2, 3)
+    [[3.0, -0.1, 0], [[3.0, -0.1, 0]], [[0, -0.1, 1.0], [-0.1, 0, 3]]],
 )
 @pytest.mark.parametrize("order", ["F", "C"])
-def test_r_matmul(mat, matrix_shape, order):
-    v = np.ones(matrix_shape)
+def test_rmatmul(mat: type, vec_type, vec_as_list, order: str):
+    vec = vec_type(vec_as_list)
     mat_ = mat(order)
-    result = v @ mat_
-    expected = v @ mat_.A
-    np.testing.assert_allclose(result, expected)
+    res = mat_.__rmatmul__(vec)
+    res2 = vec @ mat_
+    expected = vec_as_list @ mat_.A
+    np.testing.assert_allclose(res, expected)
+    np.testing.assert_allclose(res2, expected)
+    assert isinstance(res, np.ndarray)
 
 
 @pytest.mark.parametrize("mat", matrices)
