@@ -1,5 +1,5 @@
 import copy as copy_
-from typing import Union
+from typing import List, Union
 
 import numpy as np
 from scipy import sparse as sps
@@ -51,10 +51,12 @@ class SplitMatrix(MatrixBase):
         return out
 
     def getcol(self, i: int) -> Union[np.ndarray, sps.csr_matrix]:
+        # wrap-around indexing
+        i %= self.shape[1]
         if i in self.dense_indices:
-            idx = np.where(self.dense_indices == i)[0]
-            return self.X_dense_F[:, idx]
-        idx = np.where(self.sparse_indices == i)[0]
+            idx = np.where(self.dense_indices == i)[0][0]
+            return self.X_dense_F.getcol(idx)
+        idx = np.where(self.sparse_indices == i)[0][0]
         return self.X_sparse.getcol(idx)
 
     def sandwich(self, d: np.ndarray) -> np.ndarray:
@@ -100,28 +102,23 @@ class SplitMatrix(MatrixBase):
         sparse_out = self.X_sparse.dot(v[self.sparse_indices, ...])
         return dense_out + sparse_out
 
-    def __rmatmul__(self, v) -> np.ndarray:
-        dense_component = self.X_dense_F.__rmatmul__(v)
-        sparse_component = self.X_sparse.__rmatmul__(v)
-        out_shape = list(dense_component.shape)
-        out_shape[-1] = self.shape[1]
-        out = np.empty(out_shape, dtype=v.dtype)
-        out[..., self.dense_indices] = dense_component
-        out[..., self.sparse_indices] = sparse_component
-        return out
-
-    def transpose_dot_vec(self, vec: np.ndarray) -> np.ndarray:
-        # TODO: tests
+    def transpose_dot(self, vec: Union[np.ndarray, List]) -> np.ndarray:
         """
         self.T.dot(vec)[i] = sum_k self[k, i] vec[k]
         = sum_{k in self.dense_indices} self[k, i] vec[k] +
           sum_{k in self.sparse_indices} self[k, i] vec[k]
         = self.X_dense.T.dot(vec) + self.X_sparse.T.dot(vec)
         """
-        out = np.empty(self.shape[1])
-        out[self.dense_indices] = self.X_dense_F.T.dot(vec)
-        out[self.sparse_indices] = self.X_sparse.T.dot(vec)
+        vec = np.asarray(vec)
+        dense_component = self.X_dense_F.transpose_dot(vec)
+        sparse_component = self.X_sparse.transpose_dot(vec)
+        out_shape = list(dense_component.shape)
+        out_shape[0] = self.shape[1]
+        out = np.empty(out_shape, dtype=vec.dtype)
+        out[self.dense_indices, ...] = dense_component
+        out[self.sparse_indices, ...] = sparse_component
         return out
+        # return self.__rmatmul__(np.transpose(vec)).T
 
     def scale_cols_inplace(self, col_scaling: np.ndarray):
         self.X_sparse.scale_cols_inplace(col_scaling[self.sparse_indices])

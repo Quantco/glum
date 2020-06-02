@@ -1,3 +1,5 @@
+from typing import List, Union
+
 import numpy as np
 
 from glm_benchmarks.matrix.sandwich.sandwich import dense_sandwich
@@ -43,7 +45,7 @@ class DenseGLMDataMatrix(np.ndarray, MatrixBase):
         # TODO: avoid copying X - the X ** 2 makes a copy
         return np.sqrt((self ** 2).T.dot(weights) - col_means ** 2)
 
-    def transpose_dot_vec(self, vec: np.ndarray) -> np.ndarray:
+    def transpose_dot(self, vec: Union[np.ndarray, List]) -> np.ndarray:
         return self.T.dot(vec)
 
     def scale_cols_inplace(self, col_scaling: np.ndarray) -> None:

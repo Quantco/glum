@@ -4,8 +4,6 @@ import numpy as np
 
 from glm_benchmarks.matrix import MatrixBase
 
-from .util import rmatmul_vector_only
-
 
 class ColScaledMat:
     """
@@ -79,25 +77,41 @@ class ColScaledMat:
         self.mat.scale_cols_inplace(col_stds)
         return self.mat
 
-    def transpose_dot_vec(self, other: np.ndarray) -> np.ndarray:
+    def transpose_dot(self, other: Union[np.ndarray, List]) -> np.ndarray:
         """
         Let self.shape = (N, K) and other.shape = (M, N).
-        Remember self.shift = ones(N, 1) x (1, K)
+        Let shift_mat = outer(ones(N), shift)
 
-        (other @ X)[i, j] = (other @ x.mat)[i, j] + other @ x.shift
-        (other @ shift)[i, j] = (other @ ones(n, 1) @ self.shift)[i, j]
-        = sum_k other[i, k] self.shift[j]
-        = other.sum(1) @ shift
+        (X.T @ other)[k, i] = (X.mat.T @ other)[k, i] + (shift_mat @ other)[k, i]
+        (shift_mat @ other)[k, i] = (outer(shift, ones(N)) @ other)[k, i]
+        = sum_j outer(shift, ones(N))[k, j] other[j, i]
+        = sum_j shift[k] other[j, i]
+        = shift[k] other.sum(0)[i]
+        = outer(shift, other.sum(0))[k, i]
         """
-        other = np.atleast_1d(np.squeeze(other))
-        other_sum = other.sum()
-        mat_part = self.mat.transpose_dot_vec(other)
-        shift_part = self.shift * other_sum
-        result = mat_part + shift_part
-        return result
+        mat_part = self.mat.transpose_dot(other)
+
+        other_sum = np.sum(other, 0)
+        shift_part = np.reshape(np.outer(self.shift, other_sum), mat_part.shape)
+
+        return mat_part + shift_part
 
     def __rmatmul__(self, other: Union[np.ndarray, List]) -> np.ndarray:
-        return rmatmul_vector_only(self, np.asarray(other).T)
+        """
+        other @ X = (X.T @ other.T).T = X.transpose_dot(other.T).T
+
+        Parameters
+        ----------
+        other: array-like
+
+        Returns
+        -------
+        array
+
+        """
+        if not hasattr(other, "T"):
+            other = np.asarray(other)
+        return self.transpose_dot(other.T).T  # type: ignore
 
     def __matmul__(self, other):
         """ Defines the behavior of 'self @ other'. """

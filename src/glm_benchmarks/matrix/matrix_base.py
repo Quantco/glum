@@ -4,7 +4,6 @@ from typing import List, Tuple, Union
 import numpy as np
 
 from .standardize import one_over_var_inf_to_zero
-from .util import rmatmul_vector_only
 
 
 class MatrixBase(ABC):
@@ -42,18 +41,32 @@ class MatrixBase(ABC):
         pass
 
     @abstractmethod
-    def transpose_dot_vec(self, vec: Union[np.ndarray, List]) -> np.ndarray:
+    def transpose_dot(self, vec: Union[np.ndarray, List]) -> np.ndarray:
         pass
 
     def __rmatmul__(self, other: Union[np.ndarray, List]) -> np.ndarray:
-        return rmatmul_vector_only(self, np.asarray(other).T)
+        """
+        other @ X = (X.T @ other.T).T = X.transpose_dot(other.T).T
+
+        Parameters
+        ----------
+        other: array-like
+
+        Returns
+        -------
+        array
+
+        """
+        if not hasattr(other, "T"):
+            other = np.asarray(other)
+        return self.transpose_dot(other.T).T  # type: ignore
 
     @abstractmethod
     def astype(self, dtype, order="K", casting="unsafe", copy=True):
         pass
 
     def _get_col_means(self, weights: np.ndarray) -> np.ndarray:
-        return self.transpose_dot_vec(weights)
+        return self.transpose_dot(weights)
 
     @abstractmethod
     def _get_col_stds(self, weights: np.ndarray, col_means: np.ndarray) -> np.ndarray:
