@@ -65,7 +65,7 @@ class MatrixBase(ABC):
         if scale_predictors:
             col_stds = self._get_col_stds(weights, col_means)
         else:
-            col_stds = np.ones(self.shape[1])
+            col_stds = np.ones(self.shape[1], self.dtype)
 
         one_over_col_sds = one_over_var_inf_to_zero(col_stds)
 
