@@ -1223,3 +1223,25 @@ def test_step_size_tolerance(tol):
     glm = build_glm(tol)
     assert_allclose(baseline.intercept_, glm.intercept_, atol=tol)
     assert_allclose(baseline.coef_, glm.coef_, atol=tol)
+
+
+def test_alpha_search(regression_data):
+    X, y = regression_data
+    mdl_no_path = GeneralizedLinearRegressor(
+        alpha=0.001, l1_ratio=1, family="normal", link="identity", gradient_tol=1e-10,
+    )
+    mdl_no_path.fit(X=X, y=y)
+
+    mdl_path = GeneralizedLinearRegressor(
+        alpha_search=True,
+        min_alpha=0.001,
+        n_alphas=5,
+        l1_ratio=1,
+        family="normal",
+        link="identity",
+        gradient_tol=1e-10,
+    )
+    mdl_path.fit(X=X, y=y)
+
+    assert_allclose(mdl_path.coef_[-1], mdl_no_path.coef_)
+    assert_allclose(mdl_path.intercept_[-1], mdl_no_path.intercept_)

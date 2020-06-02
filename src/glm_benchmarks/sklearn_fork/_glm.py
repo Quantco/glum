@@ -652,16 +652,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         # 5a. undo standardization
         #######################################################################
         if self._center_predictors:
-            if self.alpha_search:
-                # TODO: check that we are not unstandardizing X many times.
-                for i in range(self.coef_.shape[0]):
-                    X, self.intercept_[i], self.coef_[i, :] = _unstandardize(
-                        col_means, col_stds, self.intercept_[i], self.coef_[i, :], X=X
-                    )
-            else:
-                X, self.intercept_, self.coef_ = _unstandardize(
-                    col_means, col_stds, self.intercept_, self.coef_, X=X
-                )
+            X, self.intercept_, self.coef_ = _unstandardize(
+                col_means, col_stds, self.intercept_, self.coef_, X=X
+            )
 
         if self.fit_dispersion in ["chisqr", "deviance"]:
             # attention because of rescaling of weights
@@ -1662,7 +1655,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         if self.alpha_search:
             if self.alphas is None:
                 self._alphas = self._get_alpha_path(
-                    l1_ratio=self.l1_ratio, X=X, y=y, w=sample_weight, offset=offset
+                    l1_ratio=self.l1_ratio, X=X, y=y, w=weights, offset=offset
                 )
             else:
                 self._alphas = self.alphas

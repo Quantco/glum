@@ -21,7 +21,6 @@ from ._util import _safe_lin_pred
 
 
 class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
-    # TODO: add n_jobs
     """
     Generalized linear model like GeneralizedLinearRegressor with iterative fitting
     along a regularization path. See glossary entry for
