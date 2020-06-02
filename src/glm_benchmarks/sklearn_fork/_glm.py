@@ -232,12 +232,35 @@ def check_bounds(
 
 
 def _unstandardize(
-    X, col_means: np.ndarray, col_stds: np.ndarray, intercept: float, coef
-) -> Tuple[Any, float, np.ndarray]:
-    X = X.unstandardize(col_means, col_stds)
-    intercept -= float(np.squeeze(col_means / col_stds).dot(coef))
+    col_means: np.ndarray,
+    col_stds: np.ndarray,
+    intercept: Union[float, np.ndarray],
+    coef: np.ndarray,
+    X=None,
+) -> Union[Tuple[Any, float, np.ndarray], Tuple[float, np.ndarray]]:
+    """
+    Unstandardize X and estimated coefficients.
+
+    Parameters
+    ----------
+    col_means : np.ndarray, shape (n_features,)
+
+    col_stds : np.ndarray, shape (n_features,)
+
+    intercept : {float, np.ndarray shape (n_folds)}
+
+    coef : np.ndarray, shape (n_features,) or (n_folds, n_features)
+
+    X : optional
+        If X is None, we only unstandardize the coefficients and intercept
+    """
+
+    intercept -= coef.dot(np.squeeze(col_means / col_stds))
     coef /= col_stds
-    return X, intercept, coef
+    if X is not None:
+        X = X.unstandardize(col_means, col_stds)
+        return X, intercept, coef
+    return intercept, coef
 
 
 def _standardize_warm_start(coef, col_means, col_stds):
@@ -631,13 +654,14 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         #######################################################################
         if self._center_predictors:
             if self.alpha_search:
+                # TODO: check that we are not unstandardizing X many times.
                 for i in range(self.coef_.shape[0]):
                     X, self.intercept_[i], self.coef_[i, :] = _unstandardize(
-                        X, col_means, col_stds, self.intercept_[i], self.coef_[i, :]
+                        col_means, col_stds, self.intercept_[i], self.coef_[i, :], X=X
                     )
             else:
                 X, self.intercept_, self.coef_ = _unstandardize(
-                    X, col_means, col_stds, self.intercept_, self.coef_
+                    col_means, col_stds, self.intercept_, self.coef_, X=X
                 )
 
         if self.fit_dispersion in ["chisqr", "deviance"]:
@@ -1343,6 +1367,22 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         does not exit (first call to ``fit``), option ``start_params`` sets the
         start values for ``coef_`` and ``intercept_``.
 
+    n_alphas : int, optional (default=100)
+        Number of alphas along the regularization path
+
+    alphas : numpy array, optional (default=None)
+        List of alphas where to compute the models.
+        If ``None`` alphas are set automatically. Setting 'None' is preferred.
+
+    min_alpha_ratio : float, optional (default=1e-6)
+        Length of the path. ``min_alpha_ratio=1e-6`` means that
+        ``min_alpha / max_alpha = 1e-6``.
+
+    min_alpha : float, optional (default=None)
+        Minimum alpha to estimate the model with. The grid will then be created
+        over [max_alpha, min_alpha].
+
+
     start_params : array of shape (n_features*, ), optional (default=None)
         Relevant only if ``warm_start=False`` or if fit is called
         the first time (``self.coef_`` does not yet exist).
@@ -1668,7 +1708,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
                 # set intercept to zero as the other linear models do
                 self.intercept_ = np.zeros(len(self.alpha))
                 self.coef_ = coef
-
         else:
             coef = self.solve(
                 X=X,
