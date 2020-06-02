@@ -377,7 +377,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             else:
                 coef_path_ = coef
 
-            deviance_path_ = [_get_deviance(coef_) for coef_ in coef_path_]
+            deviance_path_ = [_get_deviance(_coef) for _coef in coef_path_]
 
             return coef_path_, deviance_path_
 
@@ -419,8 +419,12 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             np.argmin(avg_deviance), avg_deviance.shape
         )
 
-        self.l1_ratio_ = l1_ratio[best_l1]
-        self.alpha_ = self.alphas_[best_l1, best_alpha]
+        if len(l1_ratio) > 1:
+            self.l1_ratio_ = l1_ratio[best_l1]
+            self.alpha_ = self.alphas_[best_l1, best_alpha]
+        else:
+            self.l1_ratio_ = l1_ratio[best_l1]
+            self.alpha_ = self.alphas_[best_alpha]
 
         P1 = setup_p1(self.P1, X, X.dtype, self.alpha_, self.l1_ratio_)
         P2 = setup_p2(self.P2, X, _stype, X.dtype, self.alpha_, self.l1_ratio_)
