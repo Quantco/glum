@@ -20,11 +20,26 @@
 //
 //
 // Also included is a csr_dense_sandwich function for computing the
-// off-diagonal blocks when using a dense-sparse split matrix. 
-#include "xsimd/xsimd.hpp"
+// off-diagonal blocks when using a dense-sparse split matrix.
+
+#define JEMALLOC_NO_DEMANGLE
+#define JEMALLOC_NO_RENAME
+#include <jemalloc/jemalloc.h>
+#include <xsimd/xsimd.hpp>
 #include <iostream>
 #include <omp.h>
+
 namespace xs = xsimd;
+
+std::size_t round_to_align(std::size_t size, std::size_t alignment) {
+  std::size_t remainder = size % alignment;
+
+  if (remainder == 0) {
+    return size;
+  } else {
+    return size + alignment - remainder;
+  }
+}
 
 <%def name="middle_j(kparallel, IBLOCK, JBLOCK, KBLOCKS)">
     int jmaxblock = jmin + ((jmaxinner - jmin) / ${JBLOCK}) * ${JBLOCK};
@@ -237,15 +252,15 @@ void _dense${order}_sandwich(F* X, F* d, F* out,
         int m, int n, int thresh1d, int kratio, int innerblock) 
 {
     constexpr std::size_t simd_size = xsimd::simd_type<F>::size;
-    constexpr auto alignment = std::align_val_t{simd_size*sizeof(F)};
+    constexpr auto alignment = simd_size * sizeof(F);
 
     bool kparallel = (n / (kratio*thresh1d)) > (m / thresh1d);
     size_t Rsize = thresh1d*thresh1d*kratio*kratio;
     if (kparallel) {
         Rsize *= omp_get_max_threads();
     }
-    auto Rglobal = new (alignment) F[Rsize];
-    auto Lglobal = new (alignment) F[omp_get_max_threads()*thresh1d*thresh1d*kratio];
+    F* Rglobal = static_cast<F*>(je_aligned_alloc(alignment, round_to_align(Rsize * sizeof(F), alignment)));
+    F* Lglobal = static_cast<F*>(je_aligned_alloc(alignment, round_to_align(omp_get_max_threads() * thresh1d * thresh1d * kratio * sizeof(F), alignment)));
     for (int j = 0; j < m; j+=kratio*thresh1d) {
         int jmax2 = j + kratio*thresh1d; 
         if (jmax2 > m) {
@@ -257,8 +272,8 @@ void _dense${order}_sandwich(F* X, F* d, F* out,
             ${k_loop(False, order)}
         }
     }
-    ::operator delete(Lglobal, alignment);
-    ::operator delete(Rglobal, alignment);
+    je_free(Lglobal);
+    je_free(Rglobal);
 
     #pragma omp parallel if(m > 100)
     for (int i = 0; i < m; i++) {
@@ -281,16 +296,16 @@ void _csr_dense${order}_sandwich(
     int m, int n, int r) 
 {
     constexpr int simd_size = xsimd::simd_type<F>::size;
-    constexpr auto alignment = std::align_val_t{simd_size*sizeof(F)};
+    constexpr auto alignment = simd_size*sizeof(F);
 
     int kblock = 128;
     int jblock = 128;
-    F* Rglobal = new (alignment) F[omp_get_max_threads()*kblock*jblock];
+    F* Rglobal = static_cast<F*>(je_aligned_alloc(alignment, round_to_align(omp_get_max_threads() * kblock * jblock * sizeof(F), alignment)));
 
     #pragma omp parallel
     {
         int r2 = ceil(((float)r) / ((float)simd_size)) * simd_size;
-        F* outtemp = new (alignment) F[m*r2];
+        F* outtemp = static_cast<F*>(je_aligned_alloc(alignment,  round_to_align(m * r2 * sizeof(F), alignment)));
         for (int i = 0; i < m; i++) {
             for (int j = 0; j < r; j++) {
                 outtemp[i*r2+j] = 0.0;
@@ -350,8 +365,10 @@ void _csr_dense${order}_sandwich(
                 out[i*r+j] += outtemp[i*r2+j];
             }
         }
-        ::operator delete(outtemp, alignment);
+        je_free(outtemp);
     }
+
+    je_free(Rglobal);
 }
 </%def>
 
