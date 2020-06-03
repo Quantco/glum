@@ -298,7 +298,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
 
         Returns
         -------
-        (eta, mu) : tuple with 4 elements
+        (eta, mu, deviance) : tuple with 3 elements
             The elements are:
             * eta: ndarray, shape (X.shape[0],)
             * mu: ndarray, shape (X.shape[0],)
@@ -306,6 +306,9 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         """
         eta_out = np.empty_like(cur_eta)
         mu_out = np.empty_like(cur_eta)
+        # Note: eta_out and mu_out are filled inside self._eta_mu_deviance.
+        # This will be useful in the future to avoid allocating new eta/mu
+        # arrays for every line search loop.
         return (
             eta_out,
             mu_out,
@@ -515,6 +518,36 @@ class TweedieDistribution(ExponentialDispersionModel):
                 - y * np.power(mu, 1 - p) / (1 - p)
                 + np.power(mu, 2 - p) / (2 - p)
             )
+
+    def _rowwise_gradient_hessian(
+        self, link, y, weights, eta, mu, gradient_rows, hessian_rows
+    ):
+        if self.power == 1 and isinstance(link, LogLink):
+            return poisson_log_rowwise_gradient_hessian(
+                y, weights, eta, mu, gradient_rows, hessian_rows
+            )
+        return super()._rowwise_gradient_hessian(
+            link, y, weights, eta, mu, gradient_rows, hessian_rows
+        )
+
+    def _eta_mu_deviance(
+        self,
+        link: Link,
+        factor: float,
+        cur_eta: np.ndarray,
+        X_dot_d: np.ndarray,
+        y: np.ndarray,
+        weights: np.ndarray,
+        eta_out: np.ndarray,
+        mu_out: np.ndarray,
+    ):
+        if self.power == 1 and isinstance(link, LogLink):
+            return poisson_log_eta_mu_deviance(
+                factor, cur_eta, X_dot_d, y, weights, eta_out, mu_out
+            )
+        return super()._eta_mu_deviance(
+            link, factor, cur_eta, X_dot_d, y, weights, eta_out, mu_out
+        )
 
 
 class NormalDistribution(TweedieDistribution):
