@@ -39,7 +39,7 @@ Generalized Linear Models with Exponential Dispersion Family
 from __future__ import division
 
 import warnings
-from typing import Any, Iterable, List, Optional, Tuple, Type, Union
+from typing import Iterable, List, Optional, Tuple, Type, Union
 
 import numpy as np
 import scipy.sparse.linalg as splinalg
@@ -55,12 +55,7 @@ from sklearn.utils.validation import (
     column_or_1d,
 )
 
-from glm_benchmarks.matrix import (
-    DenseGLMDataMatrix,
-    MatrixBase,
-    MKLSparseMatrix,
-    SplitMatrix,
-)
+import glm_benchmarks.matrix as mx
 
 from ._distribution import (
     BinomialDistribution,
@@ -86,7 +81,7 @@ _float_itemsize_to_dtype = {8: np.float64, 4: np.float32, 2: np.float16}
 
 
 def check_X_y_matrix(
-    X: MatrixBase,
+    X: mx.MatrixBase,
     y: Union[np.ndarray, List, sparse.spmatrix],
     *,
     accept_sparse: Union[str, bool, List[str]] = False,
@@ -95,7 +90,7 @@ def check_X_y_matrix(
     copy: bool = False,
     ensure_min_samples: int = 1,
     estimator: Optional[str] = None,
-) -> Tuple[Union[MatrixBase, sparse.spmatrix, np.ndarray], np.ndarray]:
+) -> Tuple[Union[mx.MatrixBase, sparse.spmatrix, np.ndarray], np.ndarray]:
     """
     See documentation for sklearn.utils.check_X_y. This function behaves identically
     for inputs that are not from the Matrix package, and has some parameters,
@@ -136,17 +131,17 @@ def check_X_y_matrix(
 
     check_consistent_length(X, y)
 
-    if isinstance(X, SplitMatrix):
+    if isinstance(X, mx.SplitMatrix):
         X.X_sparse = _check_array(X.X_sparse, ensure_min_features=0)
-        X.X_dense_F = DenseGLMDataMatrix(
+        X.X_dense_F = mx.DenseGLMDataMatrix(
             _check_array(X.X_dense_F, ensure_min_features=0)
         )
 
     else:
         original_type = type(X)
         X = _check_array(X, ensure_min_features=1)
-        if original_type is DenseGLMDataMatrix:
-            X = DenseGLMDataMatrix(X)
+        if original_type is mx.DenseGLMDataMatrix:
+            X = mx.DenseGLMDataMatrix(X)
 
     return X, y
 
@@ -232,17 +227,30 @@ def check_bounds(
 
 
 def _unstandardize(
-    X, col_means: np.ndarray, col_stds: np.ndarray, intercept: float, coef
-) -> Tuple[Any, float, np.ndarray]:
-    X = X.unstandardize(col_stds)
-    intercept -= float(np.squeeze(col_means / col_stds).dot(coef))
-    coef /= col_stds
-    return X, intercept, coef
+    X: mx.ColScaledMat,
+    col_means: np.ndarray,
+    col_stds: Optional[np.ndarray],
+    intercept: float,
+    coef: np.ndarray,
+) -> Tuple[mx.MatrixBase, float, np.ndarray]:
+    assert coef is not None
+    X_mat: mx.MatrixBase = X.unstandardize(col_stds)
+    if col_stds is None:
+        intercept -= float(np.squeeze(col_means).dot(coef))
+    else:
+        intercept -= float(np.squeeze(col_means / col_stds).dot(coef))
+        coef /= col_stds
+    return X_mat, intercept, coef
 
 
-def _standardize_warm_start(coef, col_means, col_stds):
-    coef[1:] *= col_stds
-    coef[0] += np.squeeze(col_means / col_stds).dot(coef[1:])
+def _standardize_warm_start(
+    coef: np.ndarray, col_means: np.ndarray, col_stds: Optional[np.ndarray]
+) -> None:
+    if col_stds is None:
+        coef[0] += np.squeeze(col_means).dot(coef[1:])
+    else:
+        coef[1:] *= col_stds
+        coef[0] += np.squeeze(col_means / col_stds).dot(coef[1:])
 
 
 def get_family(
@@ -634,7 +642,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
     def solve(
         self,
-        X: Union[DenseGLMDataMatrix, MKLSparseMatrix],
+        X: mx.MatrixBase,
         y: np.ndarray,
         weights: np.ndarray,
         P2,
@@ -809,7 +817,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         """
         check_is_fitted(self, "coef_")
         _dtype = [np.float64, np.float32]
-        if isinstance(X, MatrixBase):
+        if isinstance(X, mx.MatrixBase):
             X, y = check_X_y_matrix(
                 X, y, accept_sparse=["csr", "csc", "coo"], dtype=_dtype
             )
@@ -996,11 +1004,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         solver: str,
         copy_X: bool,
     ) -> Tuple[
-        Union[MKLSparseMatrix, DenseGLMDataMatrix],
-        np.ndarray,
-        np.ndarray,
-        Union[np.ndarray, None],
-        float,
+        mx.MatrixBase, np.ndarray, np.ndarray, Union[np.ndarray, None], float,
     ]:
         _dtype = [np.float64, np.float32]
         if solver == "irls-cd":
@@ -1015,7 +1019,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             # do that if X was intially int64.
             X = X.astype(np.float64)
 
-        if isinstance(X, MatrixBase):
+        if isinstance(X, mx.MatrixBase):
             X, y = check_X_y_matrix(
                 X, y, accept_sparse=_stype, dtype=_dtype, copy=copy_X
             )
@@ -1046,9 +1050,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         # 2b. convert to wrapper matrix types
         #######################################################################
         if sparse.issparse(X):
-            X = MKLSparseMatrix(X)
+            X = mx.MKLSparseMatrix(X)
         elif isinstance(X, np.ndarray):
-            X = DenseGLMDataMatrix(X)
+            X = mx.DenseGLMDataMatrix(X)
 
         return X, y, weights, offset, weights_sum
 
@@ -1370,7 +1374,14 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             )
         super()._validate_hyperparameters()
 
-    def fit(self, X, y, sample_weight=None, offset=None, weights_sum: float = None):
+    def fit(
+        self,
+        X: Union[List, np.ndarray, sparse.spmatrix, mx.MatrixBase, mx.ColScaledMat],
+        y: Union[List, np.ndarray],
+        sample_weight: Optional[Union[List, np.ndarray]] = None,
+        offset: Optional[Union[List, np.ndarray]] = None,
+        weights_sum: Optional[float] = None,
+    ):
         """Fit a Generalized Linear Model.
 
         Parameters
@@ -1408,6 +1419,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             )
         else:
             weights = sample_weight
+        assert isinstance(X, mx.MatrixBase)
 
         self.set_up_for_fit(y)
 

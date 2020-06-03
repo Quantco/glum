@@ -1,4 +1,4 @@
-from typing import List, Union
+from typing import List, Optional, Union
 
 import numpy as np
 
@@ -70,11 +70,12 @@ class ColScaledMat:
         term4 = np.outer(self.shift, self.shift) * d.sum()
         return term1 + term2 + term3 + term4
 
-    def unstandardize(self, col_stds: np.ndarray) -> MatrixBase:
+    def unstandardize(self, col_stds: Optional[np.ndarray]) -> MatrixBase:
         """
         Doesn't need to use col_means because those are assumed to equal 'shift'.
         """
-        self.mat.scale_cols_inplace(col_stds)
+        if col_stds is not None:
+            self.mat.scale_cols_inplace(col_stds)
         return self.mat
 
     def transpose_dot(self, other: Union[np.ndarray, List]) -> np.ndarray:
