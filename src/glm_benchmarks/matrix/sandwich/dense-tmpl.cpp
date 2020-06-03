@@ -345,11 +345,7 @@ template <typename F>
 void _dense${order}_matvec(int* rows, int* cols, F* X, F* v, F* out,
         int n_rows, int n_cols, int m, int n) 
 {
-    constexpr std::size_t simd_size = xsimd::simd_type<F>::size;
-    constexpr auto alignment = std::align_val_t{simd_size*sizeof(F)};
-
     constexpr int rowblocksize = 256;
-    constexpr int colblocksize = 4;
 
     #pragma omp parallel for
     for (int Ci = 0; Ci < n_rows; Ci += rowblocksize) {
