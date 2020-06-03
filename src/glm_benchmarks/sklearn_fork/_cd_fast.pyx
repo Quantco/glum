@@ -62,11 +62,11 @@ cdef inline floating fsign(floating f) nogil:
     else:
         return -1.0
 
-def identify_active_rows(floating[::1] fisher_W, floating[::1] old_fisher_W, floating C):
-    cdef int n = fisher_W.shape[0]
+def identify_active_rows(floating[::1] hessian_rows, floating[::1] old_hessian_rows, floating C):
+    cdef int n = hessian_rows.shape[0]
 
-    fisher_W_diff_arr = np.empty_like(fisher_W)
-    cdef floating[::1] fisher_W_diff = fisher_W_diff_arr
+    hessian_rows_diff_arr = np.empty_like(hessian_rows)
+    cdef floating[::1] hessian_rows_diff = hessian_rows_diff_arr
 
     cdef floating max_diff = 0
     cdef floating abs_val
@@ -74,22 +74,22 @@ def identify_active_rows(floating[::1] fisher_W, floating[::1] old_fisher_W, flo
 
     # TODO: This reduction could be parallelized
     for i in range(n):
-        fisher_W_diff[i] = fisher_W[i] - old_fisher_W[i]
-        abs_val = fabs(fisher_W_diff[i])
-        if fisher_W_diff[i] > max_diff:
-            max_diff = fisher_W_diff[i]
+        hessian_rows_diff[i] = hessian_rows[i] - old_hessian_rows[i]
+        abs_val = fabs(hessian_rows_diff[i])
+        if abs_val > max_diff:
+            max_diff = abs_val
 
     cdef bint exclude
     for i in prange(n, nogil=True):
-        abs_val = fabs(fisher_W_diff[i])
+        abs_val = fabs(hessian_rows_diff[i])
         exclude = abs_val < C * max_diff
         if exclude:
-            fisher_W_diff[i] = 0.0
-            fisher_W[i] = old_fisher_W[i]
+            hessian_rows_diff[i] = 0.0
+            hessian_rows[i] = old_hessian_rows[i]
 
-    active_rows_arr = np.where(fisher_W_diff_arr != 0)[0].astype(np.int32)
+    active_rows_arr = np.where(hessian_rows_diff_arr != 0)[0].astype(np.int32)
 
-    return fisher_W_diff_arr, active_rows_arr
+    return hessian_rows_diff_arr, active_rows_arr
     
 def enet_coordinate_descent_gram(int[::1] active_set,
                                  floating[::1] w,
