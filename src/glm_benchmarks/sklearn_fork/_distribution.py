@@ -519,28 +519,14 @@ class TweedieDistribution(ExponentialDispersionModel):
                 + np.power(mu, 2 - p) / (2 - p)
             )
 
-
-class NormalDistribution(TweedieDistribution):
-    """Class for the Normal (aka Gaussian) distribution"""
-
-    def __init__(self):
-        super(NormalDistribution, self).__init__(power=0)
-
-
-class PoissonDistribution(TweedieDistribution):
-    """Class for the scaled Poisson distribution"""
-
-    def __init__(self):
-        super(PoissonDistribution, self).__init__(power=1)
-
     def _rowwise_gradient_hessian(
         self, link, y, weights, eta, mu, gradient_rows, hessian_rows
     ):
-        if isinstance(link, LogLink):
+        if self.power == 1 and isinstance(link, LogLink):
             return poisson_log_rowwise_gradient_hessian(
                 y, weights, eta, mu, gradient_rows, hessian_rows
             )
-        super()._rowwise_gradient_hessian(
+        return super()._rowwise_gradient_hessian(
             link, y, weights, eta, mu, gradient_rows, hessian_rows
         )
 
@@ -555,13 +541,27 @@ class PoissonDistribution(TweedieDistribution):
         eta_out: np.ndarray,
         mu_out: np.ndarray,
     ):
-        if isinstance(link, LogLink):
+        if self.power == 1 and isinstance(link, LogLink):
             return poisson_log_eta_mu_deviance(
                 factor, cur_eta, X_dot_d, y, weights, eta_out, mu_out
             )
-        super()._eta_mu_deviance(
+        return super()._eta_mu_deviance(
             link, factor, cur_eta, X_dot_d, y, weights, eta_out, mu_out
         )
+
+
+class NormalDistribution(TweedieDistribution):
+    """Class for the Normal (aka Gaussian) distribution"""
+
+    def __init__(self):
+        super(NormalDistribution, self).__init__(power=0)
+
+
+class PoissonDistribution(TweedieDistribution):
+    """Class for the scaled Poisson distribution"""
+
+    def __init__(self):
+        super(PoissonDistribution, self).__init__(power=1)
 
 
 class GammaDistribution(TweedieDistribution):
