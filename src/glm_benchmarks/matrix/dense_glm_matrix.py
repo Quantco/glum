@@ -50,8 +50,10 @@ class DenseGLMDataMatrix(np.ndarray, MatrixBase):
         # Because the dense_rmatvec takes a row array and col array, it has
         # added overhead compared to a raw matrix vector product. So, when
         # we're not filtering at all, let's just use default numpy dot product.
+        #
         # TODO: related to above, it could be nice to have a version that only
-        # filters rows and a version that only filters columns.
+        # filters rows and a version that only filters columns. How do we do
+        # this without an explosion of code?
         if rows.shape[0] == self.shape[0] and cols.shape[0] == self.shape[1]:
             return self.T.dot(v)
         else:

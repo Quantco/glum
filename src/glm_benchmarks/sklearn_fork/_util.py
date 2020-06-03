@@ -4,7 +4,6 @@ from scipy import sparse
 from glm_benchmarks.matrix import MatrixBase
 
 
-@profile
 def _safe_lin_pred(
     X: MatrixBase, coef: np.ndarray, offset: np.ndarray = None
 ) -> np.ndarray:
@@ -21,7 +20,6 @@ def _safe_lin_pred(
     return res
 
 
-@profile
 def _safe_sandwich_dot(
     X: MatrixBase, d: np.ndarray, rows: np.ndarray, cols: np.ndarray, intercept=False
 ) -> np.ndarray:
@@ -30,11 +28,7 @@ def _safe_sandwich_dot(
     With ``intercept=True``, X is treated as if a column of 1 were appended as
     first column of X.
     X can be sparse, d must be an ndarray. Always returns a ndarray."""
-    import time
-
-    start = time.time()
     result = X.sandwich(d, rows, cols)
-    print(len(cols), time.time() - start)
 
     if intercept:
         dim = cols.shape[0] + 1

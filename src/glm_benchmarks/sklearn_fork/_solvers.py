@@ -24,9 +24,12 @@ from ._util import _safe_lin_pred, _safe_sandwich_dot
 def _least_squares_solver(state, data):
     if data.has_lower_bounds or data.has_upper_bounds:
         raise ValueError("Bounds are not supported with the least squares solver.")
-    hessian = build_hessian(
-        data.X, state.hessian_rows, data.fit_intercept, data.P2,
-        np.arange(state.coef.shape[0], dtype=np.int32)
+    hessian = build_hessian_delta(
+        data.X,
+        state.hessian_rows,
+        data.fit_intercept,
+        data.P2,
+        np.arange(state.coef.shape[0], dtype=np.int32),
     )
 
     # TODO: In cases where we have lots of columns, we might want to avoid the
@@ -42,13 +45,13 @@ total = 0
 
 def _cd_solver(state, data):
     hessian_rows_diff, active_rows = identify_active_rows(
-        state.hessian_rows, state.old_hessian_rows, 0.0
+        state.hessian_rows, state.old_hessian_rows, 0.5
     )
 
     import time
 
     start = time.time()
-    state.hessian_delta = build_hessian(
+    state.hessian_delta = build_hessian_delta(
         data.X,
         hessian_rows_diff,
         data.fit_intercept,
@@ -89,7 +92,7 @@ def _cd_solver(state, data):
     return new_coef - state.coef, n_cycles
 
 
-def build_hessian(X, fisher_W, intercept, P2, active_rows, active_cols):
+def build_hessian_delta(X, fisher_W, intercept, P2, active_rows, active_cols):
     idx = 1 if intercept else 0
     active_cols_non_intercept = active_cols[idx:] - idx
     fisher = _safe_sandwich_dot(
@@ -108,7 +111,7 @@ def build_hessian(X, fisher_W, intercept, P2, active_rows, active_cols):
         ]
     return fisher
 
-@profile
+
 def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[List]]:
     """Solve GLM with L1 and L2 penalty by IRLS
 
