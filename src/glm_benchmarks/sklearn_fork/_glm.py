@@ -26,7 +26,7 @@ Generalized Linear Models with Exponential Dispersion Family
 #   a 1st or 2nd order difference matrix (compare B-spline penalties and
 #   Tikhonov regularization).
 # - The link function (instance of class Link) is necessary for the evaluation
-#   of deviance, score, Fisher and Hessian matrix as functions of the
+#   of deviance, score, Hessian matrix as functions of the
 #   coefficients, which is needed by optimizers.
 #   Solution: link as argument in those functions
 # - Which name/symbol for sample_weight in docu?
@@ -232,9 +232,14 @@ def check_bounds(
 
 
 def _unstandardize(
-    X, col_means: np.ndarray, col_stds: np.ndarray, intercept: float, coef
+    X,
+    col_means: np.ndarray,
+    col_stds: np.ndarray,
+    intercept: float,
+    coef,
+    scale_predictors: bool,
 ) -> Tuple[Any, float, np.ndarray]:
-    X = X.unstandardize(col_means, col_stds)
+    X = X.unstandardize(col_means, col_stds, scale_predictors)
     intercept -= float(np.squeeze(col_means / col_stds).dot(coef))
     coef /= col_stds
     return X, intercept, coef
@@ -621,7 +626,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         #######################################################################
         if self._center_predictors:
             X, self.intercept_, self.coef_ = _unstandardize(
-                X, col_means, col_stds, self.intercept_, self.coef_
+                X,
+                col_means,
+                col_stds,
+                self.intercept_,
+                self.coef_,
+                self.scale_predictors,
             )
         if self.fit_dispersion in ["chisqr", "deviance"]:
             # attention because of rescaling of weights
@@ -1171,9 +1181,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         'lbfgs'
             Calls scipy's L-BFGS-B optimizer. It cannot deal with L1 penalties.
 
-        Note that all solvers except lbfgs use the fisher matrix, i.e. the
-        expected Hessian instead of the Hessian matrix.
-
     max_iter : int, optional (default=100)
         The maximal number of iterations for solver algorithms.
 
@@ -1403,6 +1410,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         """
 
         if self.fit_args_reformat == "safe":
+            # NOTE: This function checks if all the entries in X and y are
+            # finite. That can be expensive. But probably worthwhile.
             X, y, weights, offset, weights_sum = self.set_up_and_check_fit_args(
                 X, y, sample_weight, offset, solver=self.solver, copy_X=self.copy_X
             )

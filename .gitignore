@@ -135,3 +135,6 @@ mlruns
 # others
 *.pdf
 *.lprof
+
+# GLM_BENCHMARKS_CACHE
+cache
