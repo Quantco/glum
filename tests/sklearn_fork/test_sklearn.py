@@ -162,8 +162,8 @@ def test_deviance_zero(family, chk_values):
     ],
     ids=lambda args: args.__class__.__name__,
 )
-def test_fisher_matrix(family, link):
-    """Test the Fisher matrix numerically.
+def test_hessian_matrix(family, link):
+    """Test the Hessian matrix numerically.
     Trick: Use numerical differentiation with y = mu"""
     coef = np.array([-2, 1, 0, 1, 2.5])
     phi = 0.5
@@ -172,28 +172,45 @@ def test_fisher_matrix(family, link):
     lin_pred = np.dot(X, coef)
     mu = link.inverse(lin_pred)
     weights = rng.randn(10) ** 2 + 1
-    _, _, _, fisher_W = family._eta_mu_score_fisher(
-        coef=coef, phi=phi, X=X, y=weights, weights=weights, link=link
+    _, hessian_rows = family.rowwise_gradient_hessian(
+        link=link,
+        coef=coef,
+        phi=phi,
+        X=X,
+        y=weights,
+        weights=weights,
+        eta=lin_pred,
+        mu=mu,
     )
-    fisher = _safe_sandwich_dot(X, fisher_W)
-    # check that the Fisher matrix is square and positive definite
-    assert fisher.ndim == 2
-    assert fisher.shape[0] == fisher.shape[1]
-    assert np.all(np.linalg.eigvals(fisher) >= 0)
+    hessian = _safe_sandwich_dot(X, hessian_rows)
+    # check that the Hessian matrix is square and positive definite
+    assert hessian.ndim == 2
+    assert hessian.shape[0] == hessian.shape[1]
+    assert np.all(np.linalg.eigvals(hessian) >= 0)
 
     approx = np.array([]).reshape(0, coef.shape[0])
     for i in range(coef.shape[0]):
 
         def f(coef):
-            _, _, score, _ = family._eta_mu_score_fisher(
-                coef=coef, phi=phi, X=X, y=mu, weights=weights, link=link
+            this_eta = X.dot(coef)
+            this_mu = link.inverse(this_eta)
+            gradient_rows, _ = family.rowwise_gradient_hessian(
+                link=link,
+                coef=coef,
+                phi=phi,
+                X=X,
+                y=mu,
+                weights=weights,
+                eta=this_eta,
+                mu=this_mu,
             )
+            score = gradient_rows @ X
             return -score[i]
 
         approx = np.vstack(
             [approx, sp.optimize.approx_fprime(xk=coef, f=f, epsilon=1e-5)]
         )
-    assert_allclose(fisher, approx, rtol=1e-3)
+    assert_allclose(hessian, approx, rtol=1e-3)
 
 
 @pytest.mark.parametrize("estimator, kwargs", estimators)
@@ -1128,7 +1145,12 @@ def test_standardize(use_sparse, scale_predictors):
     intercept_standardized = 0.0
     coef_standardized = col_stds
     X2, intercept, coef = _unstandardize(
-        X, col_means, col_stds, intercept_standardized, coef_standardized
+        X,
+        col_means,
+        col_stds,
+        intercept_standardized,
+        coef_standardized,
+        scale_predictors,
     )
     if use_sparse:
         assert id(X2) == id(X.mat)
