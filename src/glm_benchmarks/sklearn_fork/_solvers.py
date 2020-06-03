@@ -24,12 +24,8 @@ from ._util import _safe_lin_pred, _safe_sandwich_dot
 def _least_squares_solver(state, data):
     if data.has_lower_bounds or data.has_upper_bounds:
         raise ValueError("Bounds are not supported with the least squares solver.")
-    hessian = build_hessian_delta(
-        data.X,
-        state.hessian_rows,
-        data.fit_intercept,
-        data.P2,
-        np.arange(state.coef.shape[0], dtype=np.int32),
+    hessian, n_active_rows = update_hessian(
+        state, data, np.arange(state.coef.shape[0], dtype=np.int32)
     )
 
     # TODO: In cases where we have lots of columns, we might want to avoid the
@@ -37,47 +33,19 @@ def _least_squares_solver(state, data):
     d = linalg.solve(
         hessian, state.score, overwrite_a=True, overwrite_b=True, assume_a="pos"
     )
-    return d, 1
+    return d, 1, n_active_rows
 
 
 total = 0
 
 
 def _cd_solver(state, data):
-    hessian_rows_diff, active_rows = identify_active_rows(
-        state.hessian_rows, state.old_hessian_rows, 0.5
-    )
-
-    import time
-
-    start = time.time()
-    state.hessian_delta = build_hessian_delta(
-        data.X,
-        hessian_rows_diff,
-        data.fit_intercept,
-        data.P2,
-        active_rows,
-        state.active_set,
-    )
-    print(
-        f"n_rows={active_rows.shape[0]} n_cols={len(state.active_set)} time={time.time() - start}"
-    )
-    global total
-    total += time.time() - start
-    print(total)
-
-    if state.hessian is None:
-        state.hessian = state.hessian_delta
-    else:
-        state.hessian[np.ix_(state.active_set, state.active_set)] += state.hessian_delta
-
-    F = state.hessian[np.ix_(state.active_set, state.active_set)]
-
+    active_hessian, n_active_rows = update_hessian(state, data, state.active_set)
     new_coef, gap, _, _, n_cycles = enet_coordinate_descent_gram(
         state.active_set,
         state.coef.copy(),
         data.P1,
-        F,
+        active_hessian,
         -state.score,
         data.max_inner_iter,
         state.inner_tol,
@@ -89,27 +57,46 @@ def _cd_solver(state, data):
         data.has_upper_bounds,
         data._upper_bounds,
     )
-    return new_coef - state.coef, n_cycles
+    return new_coef - state.coef, n_cycles, n_active_rows
 
 
-def build_hessian_delta(X, fisher_W, intercept, P2, active_rows, active_cols):
+def update_hessian(state, data, active_set):
+    hessian_rows_diff, active_rows = identify_active_rows(
+        state.hessian_rows, state.old_hessian_rows, 0.0
+    )
+
+    state.hessian_delta = build_hessian_delta(
+        data.X, hessian_rows_diff, data.fit_intercept, data.P2, active_rows, active_set,
+    )
+    if state.hessian is None:
+        state.hessian = state.hessian_delta
+    else:
+        state.hessian[np.ix_(state.active_set, state.active_set)] += state.hessian_delta
+
+    return (
+        state.hessian[np.ix_(state.active_set, state.active_set)],
+        active_rows.shape[0],
+    )
+
+
+def build_hessian_delta(X, hessian_rows, intercept, P2, active_rows, active_cols):
     idx = 1 if intercept else 0
     active_cols_non_intercept = active_cols[idx:] - idx
-    fisher = _safe_sandwich_dot(
-        X, fisher_W, active_rows, active_cols_non_intercept, intercept
+    delta = _safe_sandwich_dot(
+        X, hessian_rows, active_rows, active_cols_non_intercept, intercept
     )
     if P2.ndim == 1:
-        idiag = np.arange(start=idx, stop=fisher.shape[0])
-        fisher[(idiag, idiag)] += P2[active_cols_non_intercept]
+        idiag = np.arange(start=idx, stop=delta.shape[0])
+        delta[(idiag, idiag)] += P2[active_cols_non_intercept]
     else:
         if sparse.issparse(P2):
             P2_temp = P2.toarray()
         else:
             P2_temp = P2
-        fisher[idx:, idx:] += P2_temp[
+        delta[idx:, idx:] += P2_temp[
             np.ix_(active_cols_non_intercept, active_cols_non_intercept)
         ]
-    return fisher
+    return delta
 
 
 def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[List]]:
@@ -182,7 +169,7 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
         state.active_set = identify_active_set(state, data)
 
         # 1) Solve the L1 and L2 penalized least squares problem
-        d, n_cycles_this_iter = inner_solver(state, data)
+        d, n_cycles_this_iter, state.n_active_rows = inner_solver(state, data)
         state.n_cycles += n_cycles_this_iter
 
         # 2) Line search
@@ -194,6 +181,7 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
             state.mu,
             state.obj_val,
             coef_P2,
+            state.n_updated,
         ) = line_search(state, data, d)
 
         # 3) Update the quadratic approximation
@@ -207,6 +195,7 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
             state.inner_tol,
         ) = check_convergence(state, data)
         state.record_iteration()
+        print(state.diagnostics[-1])
 
     if not state.converged:
         warnings.warn(
@@ -330,6 +319,8 @@ class IRLSState:
         self.norm_min_subgrad = None
         self.max_min_subgrad = None
         self.inner_tol = None
+        self.n_updated = 0
+        self.n_active_rows = data.X.shape[0]
         self.active_set = np.arange(self.coef.shape[0], dtype=np.int32)
 
     def record_iteration(self):
@@ -347,7 +338,9 @@ class IRLSState:
                 "L1(coef)": coef_l1,
                 "L2(coef)": coef_l2,
                 "L2(step)": step_l2,
-                "n_active": self.active_set.shape[0],
+                "n_coef_updated": self.n_updated,
+                "n_active_cols": self.active_set.shape[0],
+                "n_active_rows": self.n_active_rows,
                 "n_iter": self.n_iter,
                 "n_cycles": self.n_cycles,
                 "runtime": iteration_runtime,
@@ -492,8 +485,8 @@ def line_search(state, data, d):
     # The step direction in row space. We'll be multiplying this by varying
     # step sizes during the line search. Factoring this matrix-vector product
     # out of the inner loop improve performance a lot!
+    n_updated = np.sum(np.abs(d) > 0)
     X_dot_d = _safe_lin_pred(data.X, d)
-    print(f"updated: {np.sum(np.abs(d) > 0)}")
 
     # Try progressively shorter line search steps.
     # variables suffixed with wd are for the new coefficient values
@@ -515,7 +508,7 @@ def line_search(state, data, d):
     # of iterations since we aren't calculating eta or mu from scratch but
     # instead adding the delta from the previous iteration. Maybe we should
     # completely recompute eta every N iterations?
-    return state.coef + step, step, eta_wd, mu_wd, obj_val_wd, coef_wd_P2
+    return state.coef + step, step, eta_wd, mu_wd, obj_val_wd, coef_wd_P2, n_updated
 
 
 def _lbfgs_solver(
