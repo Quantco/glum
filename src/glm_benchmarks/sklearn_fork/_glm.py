@@ -680,7 +680,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         If l1_ratio is zero, use the sklearn RidgeCV default path [10, 1, 0.1] or
         whatever is specified by the input parameters min_alpha_ratio and n_alphas..
 
-        min_alpha_ratio is the length of the path, with 1e-3 as the default.
+        min_alpha_ratio governs the length of the path, with 1e-3 as the default.
+        Smaller values will lead to a longer path.
         """
 
         def _make_grid(max_alpha: float) -> np.ndarray:
@@ -1678,7 +1679,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
                 self.coef_ = coef[:, 1:]
             else:
                 # set intercept to zero as the other linear models do
-                self.intercept_ = np.zeros(len(self.alpha))
+                self.intercept_ = np.zeros(len(self._alphas))
                 self.coef_ = coef
         else:
             coef = self.solve(
