@@ -24,7 +24,6 @@ from ._util import _safe_lin_pred, _safe_sandwich_dot
 def _least_squares_solver(state, data):
     if data.has_lower_bounds or data.has_upper_bounds:
         raise ValueError("Bounds are not supported with the least squares solver.")
-
     hessian = build_hessian(
         data.X, state.hessian_rows, data.fit_intercept, data.P2,
         np.arange(state.coef.shape[0], dtype=np.int32)
@@ -43,7 +42,7 @@ total = 0
 
 def _cd_solver(state, data):
     hessian_rows_diff, active_rows = identify_active_rows(
-        state.hessian_rows, state.old_hessian_rows, 0.1
+        state.hessian_rows, state.old_hessian_rows, 0.0
     )
 
     import time
