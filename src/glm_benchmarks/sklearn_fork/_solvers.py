@@ -36,9 +36,6 @@ def _least_squares_solver(state, data):
     return d, 1, n_active_rows
 
 
-total = 0
-
-
 def _cd_solver(state, data):
     active_hessian, n_active_rows = update_hessian(state, data, state.active_set)
     new_coef, gap, _, _, n_cycles = enet_coordinate_descent_gram(
@@ -62,19 +59,22 @@ def _cd_solver(state, data):
 
 def update_hessian(state, data, active_set):
     hessian_rows_diff, active_rows = identify_active_rows(
-        state.hessian_rows, state.old_hessian_rows, 0.0
+        state.hessian_rows, state.old_hessian_rows, 0.2
     )
 
-    state.hessian_delta = build_hessian_delta(
-        data.X, hessian_rows_diff, data.fit_intercept, data.P2, active_rows, active_set,
-    )
     if state.hessian is None:
-        state.hessian = state.hessian_delta
+        hessian_delta = build_hessian_delta(
+            data.X, hessian_rows_diff, data.fit_intercept, data.P2, active_rows, active_set,
+        )
+        state.hessian = hessian_delta
     else:
-        state.hessian[np.ix_(state.active_set, state.active_set)] += state.hessian_delta
+        hessian_delta = build_hessian_delta(
+            data.X, hessian_rows_diff, data.fit_intercept, None, active_rows, active_set,
+        )
+        state.hessian[np.ix_(active_set, active_set)] += hessian_delta
 
     return (
-        state.hessian[np.ix_(state.active_set, state.active_set)],
+        state.hessian[np.ix_(active_set, active_set)],
         active_rows.shape[0],
     )
 
@@ -85,17 +85,18 @@ def build_hessian_delta(X, hessian_rows, intercept, P2, active_rows, active_cols
     delta = _safe_sandwich_dot(
         X, hessian_rows, active_rows, active_cols_non_intercept, intercept
     )
-    if P2.ndim == 1:
-        idiag = np.arange(start=idx, stop=delta.shape[0])
-        delta[(idiag, idiag)] += P2[active_cols_non_intercept]
-    else:
-        if sparse.issparse(P2):
-            P2_temp = P2.toarray()
+    if P2 is not None:
+        if P2.ndim == 1:
+            idiag = np.arange(start=idx, stop=delta.shape[0])
+            delta[(idiag, idiag)] += P2[active_cols_non_intercept]
         else:
-            P2_temp = P2
-        delta[idx:, idx:] += P2_temp[
-            np.ix_(active_cols_non_intercept, active_cols_non_intercept)
-        ]
+            if sparse.issparse(P2):
+                P2_temp = P2.toarray()
+            else:
+                P2_temp = P2
+            delta[idx:, idx:] += P2_temp[
+                np.ix_(active_cols_non_intercept, active_cols_non_intercept)
+            ]
     return delta
 
 
