@@ -26,7 +26,7 @@ Generalized Linear Models with Exponential Dispersion Family
 #   a 1st or 2nd order difference matrix (compare B-spline penalties and
 #   Tikhonov regularization).
 # - The link function (instance of class Link) is necessary for the evaluation
-#   of deviance, score, Fisher and Hessian matrix as functions of the
+#   of deviance, score, Hessian matrix as functions of the
 #   coefficients, which is needed by optimizers.
 #   Solution: link as argument in those functions
 # - Which name/symbol for sample_weight in docu?
@@ -233,7 +233,6 @@ def _unstandardize(
     intercept: float,
     coef: np.ndarray,
 ) -> Tuple[mx.MatrixBase, float, np.ndarray]:
-    assert coef is not None
     X_mat: mx.MatrixBase = X.unstandardize(col_stds)
     if col_stds is None:
         intercept -= float(np.squeeze(col_means).dot(coef))
@@ -629,7 +628,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         #######################################################################
         if self._center_predictors:
             X, self.intercept_, self.coef_ = _unstandardize(
-                X, col_means, col_stds, self.intercept_, self.coef_
+                X, col_means, col_stds, self.intercept_, self.coef_,
             )
         if self.fit_dispersion in ["chisqr", "deviance"]:
             # attention because of rescaling of weights
@@ -1175,9 +1174,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         'lbfgs'
             Calls scipy's L-BFGS-B optimizer. It cannot deal with L1 penalties.
 
-        Note that all solvers except lbfgs use the fisher matrix, i.e. the
-        expected Hessian instead of the Hessian matrix.
-
     max_iter : int, optional (default=100)
         The maximal number of iterations for solver algorithms.
 
@@ -1414,6 +1410,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         """
 
         if self.fit_args_reformat == "safe":
+            # NOTE: This function checks if all the entries in X and y are
+            # finite. That can be expensive. But probably worthwhile.
             X, y, weights, offset, weights_sum = self.set_up_and_check_fit_args(
                 X, y, sample_weight, offset, solver=self.solver, copy_X=self.copy_X
             )
