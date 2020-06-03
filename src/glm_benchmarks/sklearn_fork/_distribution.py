@@ -298,7 +298,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
 
         Returns
         -------
-        (eta, mu) : tuple with 4 elements
+        (eta, mu, deviance) : tuple with 3 elements
             The elements are:
             * eta: ndarray, shape (X.shape[0],)
             * mu: ndarray, shape (X.shape[0],)
@@ -306,6 +306,9 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         """
         eta_out = np.empty_like(cur_eta)
         mu_out = np.empty_like(cur_eta)
+        # Note: eta_out and mu_out are filled inside self._eta_mu_deviance.
+        # This will be useful in the future to avoid allocating new eta/mu
+        # arrays for every line search loop.
         return (
             eta_out,
             mu_out,
