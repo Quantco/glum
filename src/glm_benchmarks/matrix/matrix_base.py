@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List, Tuple, Union
+from typing import Any, List, Optional, Tuple, Union
 
 import numpy as np
 
@@ -72,7 +72,9 @@ class MatrixBase(ABC):
     def _get_col_stds(self, weights: np.ndarray, col_means: np.ndarray) -> np.ndarray:
         pass
 
-    def standardize(self, weights: np.ndarray, scale_predictors: bool):
+    def standardize(
+        self, weights: np.ndarray, scale_predictors: bool
+    ) -> Tuple[Any, np.ndarray, Optional[np.ndarray]]:
         """
         Returns a ColScaledMat, col_means, and col_stds
         """
@@ -81,13 +83,14 @@ class MatrixBase(ABC):
         col_means = self._get_col_means(weights)
         if scale_predictors:
             col_stds = self._get_col_stds(weights, col_means)
+            one_over_col_sds = one_over_var_inf_to_zero(col_stds)
+            shifter = -col_means * one_over_col_sds
+            self.scale_cols_inplace(one_over_col_sds)
         else:
-            col_stds = np.ones(self.shape[1], self.dtype)
+            col_stds = None
+            shifter = -col_means
 
-        one_over_col_sds = one_over_var_inf_to_zero(col_stds)
-
-        self.scale_cols_inplace(one_over_col_sds)
-        return ColScaledMat(self, -col_means * one_over_col_sds), col_means, col_stds
+        return ColScaledMat(self, shifter), col_means, col_stds
 
     def scale_cols_inplace(self, col_scaling: np.ndarray) -> None:
         pass

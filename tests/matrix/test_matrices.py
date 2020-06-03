@@ -201,11 +201,14 @@ def test_standardize(mat, scale_predictors: bool):
     standardized, means, stds = mat_.standardize(weights, scale_predictors)
     assert isinstance(standardized, mx.ColScaledMat)
     assert isinstance(standardized.mat, type(mat_))
-    expected_sds = true_sds if scale_predictors else np.ones_like(true_sds)
 
     np.testing.assert_allclose(means, asarray.T.dot(weights))
-    np.testing.assert_allclose(stds, expected_sds)
+    if scale_predictors:
+        np.testing.assert_allclose(stds, true_sds)
+    else:
+        assert stds is None
 
+    expected_sds = true_sds if scale_predictors else np.ones_like(true_sds)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", category=RuntimeWarning)
         one_over_sds = np.nan_to_num(1 / expected_sds)
