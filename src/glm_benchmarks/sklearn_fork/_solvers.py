@@ -20,23 +20,25 @@ from ._util import _safe_lin_pred, _safe_sandwich_dot
 def _least_squares_solver(state, data):
     if data.has_lower_bounds or data.has_upper_bounds:
         raise ValueError("Bounds are not supported with the least squares solver.")
-    hessian = build_hessian(data.X, state.hessian_rows, data.fit_intercept, data.P2)
+    hessian = Hessian(data.X, state.hessian_rows, data.fit_intercept, data.P2, False)
 
     # TODO: In cases where we have lots of columns, we might want to avoid the
     # sandwich product and use something like iterative lsqr or lsmr.
     d = linalg.solve(
-        hessian, state.score, overwrite_a=True, overwrite_b=True, assume_a="pos"
+        hessian.mat, state.score, overwrite_a=True, overwrite_b=True, assume_a="pos"
     )
     return d, 1
 
 
 def _cd_solver(state, data):
-    hessian = build_hessian(data.X, state.hessian_rows, data.fit_intercept, data.P2)
+    hessian = Hessian(data.X, state.hessian_rows, data.fit_intercept, data.P2, True)
     new_coef, gap, _, _, n_cycles = enet_coordinate_descent_gram(
         state.active_set,
         state.coef.copy(),
         data.P1,
-        hessian,
+        hessian.mat,
+        hessian.row_loaded,
+        hessian.load_row,
         -state.score,
         data.max_inner_iter,
         state.inner_tol,
@@ -51,18 +53,69 @@ def _cd_solver(state, data):
     return new_coef - state.coef, n_cycles
 
 
-def build_hessian(X, hessian_rows, intercept, P2):
-    idx = 1 if intercept else 0
-    hessian = _safe_sandwich_dot(X, hessian_rows, intercept)
-    if P2.ndim == 1:
-        idiag = np.arange(start=idx, stop=hessian.shape[0])
-        hessian[(idiag, idiag)] += P2
-    else:
-        if sparse.issparse(P2):
-            hessian[idx:, idx:] += P2.toarray()
+class Hessian:
+    def __init__(self, X, hessian_rows, intercept, P2, incremental):
+        self.X = X
+        self.hessian_rows = hessian_rows
+        self.P2 = P2
+
+        self.idx = 1 if intercept else 0
+        self.ncols = self.X.shape[1] + self.idx
+        self.mat = np.zeros((self.ncols, self.ncols), dtype=self.X.dtype)
+
+        if incremental:
+            self._init_incremental()
         else:
-            hessian[idx:, idx:] += P2
-    return hessian
+            self._init_full()
+
+    def _init_full(self):
+        self.mat = _safe_sandwich_dot(self.X, self.hessian_rows, self.idx == 1)
+        idiag = np.arange(start=self.idx, stop=self.ncols)
+        if self.P2.ndim == 1:
+            self.mat[(idiag, idiag)] += self.P2
+        else:
+            if sparse.issparse(self.P2):
+                self.mat[self.idx :, self.idx :] += self.P2.toarray()
+            else:
+                self.mat[self.idx :, self.idx :] += self.P2
+        self.row_loaded = np.ones(self.mat.shape[0], dtype=np.uint8)
+
+    def _init_incremental(self):
+        idiag = np.arange(start=self.idx, stop=self.ncols)
+
+        # Set up the diagonal since it's necessary to determine if a feature is
+        # active.
+        self.mat[(idiag, idiag)] += (self.X ** 2).T.dot(self.hessian_rows)
+        if self.P2.ndim == 1:
+            self.mat[(idiag, idiag)] += self.P2
+        else:
+            pass
+            # TODO: handle 2d P2
+
+        # Set up intercept since it will always be active
+        if self.idx == 1:
+            self.mat[0, 0] = self.hessian_rows.sum()
+            self.mat[1:, 0] = self.hessian_rows @ self.X
+            self.mat[0, 1:] = self.mat[1:, 0].T
+
+        self.row_loaded = np.zeros(self.mat.shape[0], dtype=np.uint8)
+        self.row_loaded[0] = 1
+
+    def load_row(self, ii):
+        # Because the intercept was loaded in __init__, we know that ii >= self.idx
+        ii_no_intercept = ii - self.idx
+
+        self.mat[ii, self.idx :] = (self.X[:, ii_no_intercept] * self.hessian_rows).dot(
+            self.X
+        )
+
+        if self.P2.ndim == 1:
+            self.mat[ii, ii] += self.P2[ii_no_intercept]
+        else:
+            pass
+            # TODO: handle 2d P2
+            # self.mat[ii,
+        self.row_loaded[ii] = 1
 
 
 def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[List]]:
@@ -137,6 +190,7 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
         # 1) Solve the L1 and L2 penalized least squares problem
         d, n_cycles_this_iter = inner_solver(state, data)
         state.n_cycles += n_cycles_this_iter
+        print("updated", np.sum(d != 0))
 
         # 2) Line search
         (

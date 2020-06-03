@@ -29,6 +29,7 @@ from sklearn.utils._random cimport our_rand_r
 
 ctypedef np.float64_t DOUBLE
 ctypedef np.uint32_t UINT32_t
+ctypedef np.uint8_t uint8
 
 np.import_array()
 
@@ -61,11 +62,15 @@ cdef inline floating fsign(floating f) nogil:
     else:
         return -1.0
 
+cdef void load_hessian_row(floating[:,:] Q, uint8[:] loaded, int row_idx) nogil:
+    pass
 
 def enet_coordinate_descent_gram(int[::1] active_set,
                                  floating[::1] w,
                                  floating[::1] P1,
                                  floating[:,:] Q,
+                                 uint8[:] row_loaded,
+                                 load_hessian_row,
                                  floating[::1] q,
                                  int max_iter, floating tol, object rng,
                                  bint intercept, bint random,
@@ -87,6 +92,8 @@ def enet_coordinate_descent_gram(int[::1] active_set,
     cdef unsigned int n_features = Q.shape[0]
 
     cdef floating w_ii
+    cdef floating delta_ii
+    cdef floating q_0
     cdef floating P1_ii
     cdef floating d_w_max
     cdef floating w_max
@@ -100,9 +107,6 @@ def enet_coordinate_descent_gram(int[::1] active_set,
     cdef unsigned int f_iter
     cdef UINT32_t rand_r_state_seed = rng.randint(0, RAND_R_MAX)
     cdef UINT32_t* rand_r_state = &rand_r_state_seed
-
-    cdef floating* Q_ptr = &Q[0, 0]
-    cdef floating* q_ptr = &q[0]
 
     with nogil:
         for n_iter in range(max_iter):
@@ -124,13 +128,8 @@ def enet_coordinate_descent_gram(int[::1] active_set,
                     continue
 
                 w_ii = w[ii]  # Store previous value
-
-                if w_ii != 0.0:
-                    # q -= w_ii * Q[ii]
-                    _axpy(n_features, -w_ii, Q_ptr + ii * n_features, 1,
-                          q_ptr, 1)
-
-                w[ii] = fsign(-q[ii]) * fmax(fabs(q[ii]) - P1_ii, 0) / Q[ii, ii]
+                q_0 = q[ii] - w[ii] * Q[ii,ii]
+                w[ii] = fsign(-q_0) * fmax(fabs(q_0) - P1_ii, 0) / Q[ii,ii]
 
                 if ii >= <unsigned int>intercept:
                     if has_lower_bounds:
@@ -140,13 +139,18 @@ def enet_coordinate_descent_gram(int[::1] active_set,
                         if w[ii] > upper_bounds[ii - intercept]:
                             w[ii] = upper_bounds[ii - intercept]
 
-                if w[ii] != 0.0:
+                delta_ii = w[ii] - w_ii
+
+                if delta_ii != 0.0:
                     # q +=  w[ii] * Q[ii] # Update q = X.T (X w - y)
-                    _axpy(n_features, w[ii], Q_ptr + ii * n_features, 1,
-                          q_ptr, 1)
+                    if not row_loaded[ii]:
+                        with gil:
+                            load_hessian_row(ii)
+                    for jj in range(n_features):
+                        q[jj] += delta_ii * Q[ii, jj]
 
                 # update the maximum absolute coefficient update
-                d_w_ii = fabs(w[ii] - w_ii)
+                d_w_ii = fabs(delta_ii)
                 if d_w_ii > d_w_max:
                     d_w_max = d_w_ii
 
