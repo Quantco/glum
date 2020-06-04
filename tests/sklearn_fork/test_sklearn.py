@@ -172,13 +172,13 @@ def test_gradients(family, link):
         y = np.random.rand(nrows)
         weights = np.ones(nrows)
 
-        eta, mu, _ = family.eta_mu_loglikelihood(
+        eta, mu, ll_center = family.eta_mu_loglikelihood(
             link, 1.0, np.zeros(nrows), X.dot(coef), y, weights
         )
         gradient_rows, _ = family.rowwise_gradient_hessian(
             link=link, coef=coef, phi=1.0, X=X, y=y, weights=weights, eta=eta, mu=mu,
         )
-        score_est = gradient_rows @ X
+        score_analytic = gradient_rows @ X
 
         def f(coef2):
             _, _, ll = family.eta_mu_loglikelihood(
@@ -186,8 +186,15 @@ def test_gradients(family, link):
             )
             return -0.5 * ll
 
-        score_true = sp.optimize.approx_fprime(xk=coef, f=f, epsilon=1e-7)
-        assert_allclose(score_true, score_est, rtol=5e-4)
+        score_numeric = np.empty_like(score_analytic)
+        epsilon = 1e-7
+        for k in range(score_numeric.shape[0]):
+            L = coef.copy()
+            L[k] -= epsilon
+            R = coef.copy()
+            R[k] += epsilon
+            score_numeric[k] = (f(R) - f(L)) / (2 * epsilon)
+        assert_allclose(score_numeric, score_analytic, rtol=5e-5)
 
 
 @pytest.mark.parametrize(
