@@ -99,7 +99,7 @@ def test_gm_benchmarks(
             all_expected[1:],
         )
         raise AssertionError(
-            f"""Failed with error {e}.
+            f"""Failed with error {e} on problem {Pn}.
             New objective function value is higher by {obj_result - expected_result}."""
         )
 
