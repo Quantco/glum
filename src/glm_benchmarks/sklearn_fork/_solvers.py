@@ -362,10 +362,10 @@ def update_predictions(state, data, coef, X_dot_step=None, factor=1.0):
     if X_dot_step is None:
         X_dot_step = _safe_lin_pred(data.X, coef, data.offset)
 
-    eta, mu, deviance = data.family.eta_mu_deviance(
+    eta, mu, loglikelihood = data.family.eta_mu_loglikelihood(
         data.link, factor, state.eta, X_dot_step, data.y, data.weights
     )
-    obj_val = 0.5 * deviance
+    obj_val = 0.5 * loglikelihood
     obj_val += linalg.norm(data.P1 * coef[data.intercept_offset :], ord=1)
     coef_P2 = make_coef_P2(data, coef)
     obj_val += 0.5 * (coef_P2 @ coef)
