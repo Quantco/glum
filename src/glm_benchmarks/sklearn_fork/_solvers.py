@@ -58,20 +58,23 @@ def _cd_solver(state, data):
 
 
 def update_hessian(state, data, active_set):
-    hessian_rows_diff, active_rows = identify_active_rows(
-        state.hessian_rows, state.old_hessian_rows, 0.2
-    )
-
-    if state.hessian is None:
-        hessian_delta = build_hessian_delta(
-            data.X, hessian_rows_diff, data.fit_intercept, data.P2, active_rows, active_set,
+    all_rows = np.arange(data.X.shape[0], dtype=np.int32)
+    if state.hessian_initialized:
+        P2 = None
+        threshold = 0.1
+        hessian_rows_diff, active_rows = identify_active_rows(
+            state.gradient_rows, state.hessian_rows, state.old_hessian_rows, threshold
         )
-        state.hessian = hessian_delta
     else:
-        hessian_delta = build_hessian_delta(
-            data.X, hessian_rows_diff, data.fit_intercept, None, active_rows, active_set,
-        )
-        state.hessian[np.ix_(active_set, active_set)] += hessian_delta
+        P2 = data.P2
+        hessian_rows_diff = state.hessian_rows - state.old_hessian_rows
+        active_rows = all_rows
+    state.hessian_initialized = True
+
+    hessian_delta = build_hessian_delta(
+        data.X, hessian_rows_diff, data.fit_intercept, P2, active_rows, active_set,
+    )
+    state.hessian[np.ix_(active_set, active_set)] += hessian_delta
 
     return (
         state.hessian[np.ix_(active_set, active_set)],
@@ -155,7 +158,7 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
     state.eta, state.mu, state.obj_val, coef_P2 = update_predictions(
         state, data, state.coef
     )
-    state.score, state.hessian_rows = update_quadratic(state, data, coef_P2)
+    state.gradient_rows, state.score, state.hessian_rows = update_quadratic(state, data, coef_P2)
     (
         state.converged,
         state.norm_min_subgrad,
@@ -186,7 +189,7 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
         ) = line_search(state, data, d)
 
         # 3) Update the quadratic approximation
-        state.score, state.hessian_rows = update_quadratic(state, data, coef_P2)
+        state.gradient_rows, state.score, state.hessian_rows = update_quadratic(state, data, coef_P2)
 
         # 4) Check if we've converged
         (
@@ -196,7 +199,6 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
             state.inner_tol,
         ) = check_convergence(state, data)
         state.record_iteration()
-        print(state.diagnostics[-1])
 
     if not state.converged:
         warnings.warn(
@@ -315,7 +317,8 @@ class IRLSState:
         self.score = None
         self.old_hessian_rows = np.zeros(data.X.shape[0], dtype=data.X.dtype)
         self.hessian_rows = None
-        self.hessian = None
+        self.hessian = np.zeros((self.coef.shape[0], self.coef.shape[0]), dtype=data.X.dtype)
+        self.hessian_initialized = False
         self.coef_P2 = None
         self.norm_min_subgrad = None
         self.max_min_subgrad = None
@@ -433,7 +436,7 @@ def update_quadratic(state, data, coef_P2):
     if data.fit_intercept:
         grad = np.concatenate(([gradient_rows.sum()], grad))
     grad -= coef_P2
-    return grad, hessian_rows
+    return gradient_rows, grad, hessian_rows
 
 
 def make_coef_P2(data, coef):
