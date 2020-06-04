@@ -518,7 +518,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         alpha_search: bool = False,
         n_alphas: int = 100,
         alphas: Optional[np.ndarray] = None,
-        min_alpha_ratio: float = 1e-6,
+        min_alpha_ratio: Optional[float] = None,
         min_alpha: Optional[float] = None,
         start_params: Optional[np.ndarray] = None,
         selection="cyclic",
@@ -686,6 +686,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         def _make_grid(max_alpha: float) -> np.ndarray:
             if self.min_alpha is None:
+                if self.min_alpha_ratio is None:
+                    self.min_alpha_ratio = 1e-6
                 min_alpha = max_alpha * self.min_alpha_ratio
             else:
                 if self.min_alpha >= max_alpha:
@@ -1347,9 +1349,9 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         List of alphas where to compute the models.
         If ``None`` alphas are set automatically. Setting 'None' is preferred.
 
-    min_alpha_ratio : float, optional (default=1e-6)
+    min_alpha_ratio : float, optional (default=None)
         Length of the path. ``min_alpha_ratio=1e-6`` means that
-        ``min_alpha / max_alpha = 1e-6``.
+        ``min_alpha / max_alpha = 1e-6``. If None, 1e-6 is used.
 
     min_alpha : float, optional (default=None)
         Minimum alpha to estimate the model with. The grid will then be created
@@ -1473,7 +1475,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         alpha_search: bool = False,
         n_alphas: int = 100,
         alphas: Optional[np.ndarray] = None,
-        min_alpha_ratio: float = 1e-6,
+        min_alpha_ratio: Optional[float] = None,
         min_alpha: Optional[float] = None,
         start_params: Optional[np.ndarray] = None,
         selection: str = "cyclic",
