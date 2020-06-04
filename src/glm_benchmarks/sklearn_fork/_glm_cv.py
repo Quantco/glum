@@ -1,16 +1,14 @@
 from __future__ import division
 
 import copy
-from typing import List, Optional, Union
+from typing import Optional, Union
 
 import numpy as np
-from scipy import sparse as sparse
 from sklearn.model_selection._split import check_cv
-
-import glm_benchmarks.matrix as mx
 
 from ._distribution import ExponentialDispersionModel, TweedieDistribution
 from ._glm import (
+    ArrayLike,
     GeneralizedLinearRegressorBase,
     _unstandardize,
     check_bounds,
@@ -23,15 +21,6 @@ from ._glm import (
 )
 from ._link import IdentityLink, Link, LogLink
 from ._util import _safe_lin_pred
-
-IndexableArrayLike = Union[
-    List,
-    np.ndarray,
-    sparse.spmatrix,
-    mx.DenseGLMDataMatrix,
-    mx.MKLSparseMatrix,
-    mx.ColScaledMat,
-]
 
 
 class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
@@ -262,7 +251,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
                     mu = offset + (y - offset).dot(w)
             else:
                 mu = 0
-            return X.T.dot(w * (y - mu))
+            return X.transpose_dot(w * (y - mu))
 
         def _get_tweedie_log_grad_at_zeros_with_optimal_intercept() -> np.ndarray:
             if self.fit_intercept:
@@ -299,17 +288,14 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
 
     def fit(
         self,
-        # Can't be ArrayLike or contain mx.MatrixBase because mx.SplitMatrix is not
-        # indexable
-        X: IndexableArrayLike,
-        y: IndexableArrayLike,
-        sample_weight: Optional[IndexableArrayLike] = None,
-        offset: Optional[IndexableArrayLike] = None,
+        X: ArrayLike,
+        y: ArrayLike,
+        sample_weight: Optional[ArrayLike] = None,
+        offset: Optional[ArrayLike] = None,
     ):
         X, y, weights, offset, weights_sum = self.set_up_and_check_fit_args(
             X, y, sample_weight, offset, solver=self.solver, copy_X=self.copy_X
         )
-        assert isinstance(X, (mx.MKLSparseMatrix, mx.DenseGLMDataMatrix))
 
         self.set_up_for_fit(y)
         if (
