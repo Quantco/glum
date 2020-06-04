@@ -172,7 +172,7 @@ def test_gradients(family, link):
         y = np.random.rand(nrows)
         weights = np.ones(nrows)
 
-        eta, mu, _ = family.eta_mu_deviance(
+        eta, mu, _ = family.eta_mu_loglikelihood(
             link, 1.0, np.zeros(nrows), X.dot(coef), y, weights
         )
         gradient_rows, _ = family.rowwise_gradient_hessian(
@@ -181,10 +181,10 @@ def test_gradients(family, link):
         score_est = gradient_rows @ X
 
         def f(coef2):
-            _, _, deviance = family.eta_mu_deviance(
+            _, _, ll = family.eta_mu_loglikelihood(
                 link, 1.0, np.zeros(nrows), X.dot(coef2), y, weights
             )
-            return -0.5 * deviance
+            return -0.5 * ll
 
         score_true = sp.optimize.approx_fprime(xk=coef, f=f, epsilon=1e-7)
         assert_allclose(score_true, score_est, rtol=5e-4)
