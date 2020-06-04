@@ -57,19 +57,30 @@ class SplitMatrix(MatrixBase):
         idx = np.where(self.sparse_indices == i)[0]
         return self.X_sparse.getcol(idx)
 
-    def sandwich(self, d: np.ndarray, cols: np.ndarray) -> np.ndarray:
+    def sandwich(self, d: np.ndarray, rows: np.ndarray, cols: np.ndarray) -> np.ndarray:
+        # TODO: need to filter cols!
         out = np.empty((self.shape[1], self.shape[1]))
         if self.X_sparse.shape[1] > 0:
-            SS = self.X_sparse.sandwich(d, cols)
+            SS = self.X_sparse.sandwich(d, rows, cols)
             out[np.ix_(self.sparse_indices, self.sparse_indices)] = SS
         if self.X_dense_F.shape[1] > 0:
-            DD = self.X_dense_F.sandwich(d, cols)
+            DD = self.X_dense_F.sandwich(d, rows, cols)
             out[np.ix_(self.dense_indices, self.dense_indices)] = DD
             if self.X_sparse.shape[1] > 0:
                 DS = self.X_sparse.sandwich_dense(self.X_dense_F, d)
                 out[np.ix_(self.sparse_indices, self.dense_indices)] = DS
                 out[np.ix_(self.dense_indices, self.sparse_indices)] = DS.T
         return out
+
+    def limited_rmatvec(
+        self, v: np.ndarray, rows: np.ndarray, cols: np.ndarray
+    ) -> np.ndarray:
+        pass
+
+    def limited_matvec(
+        self, v: np.ndarray, rows: np.ndarray, cols: np.ndarray
+    ) -> np.ndarray:
+        pass
 
     def standardize(
         self, weights: np.ndarray, scale_predictors: bool
