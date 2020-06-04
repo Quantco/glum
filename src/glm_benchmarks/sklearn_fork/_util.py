@@ -1,11 +1,13 @@
+from typing import Union
+
 import numpy as np
 from scipy import sparse
 
-from glm_benchmarks.matrix import MatrixBase
+from glm_benchmarks.matrix import ColScaledMat, MatrixBase
 
 
 def _safe_lin_pred(
-    X: MatrixBase, coef: np.ndarray, offset: np.ndarray = None
+    X: Union[MatrixBase, ColScaledMat], coef: np.ndarray, offset: np.ndarray = None
 ) -> np.ndarray:
     """Compute the linear predictor taking care if intercept is present."""
     res = X.dot(coef[1:]) + coef[0] if coef.size == X.shape[1] + 1 else X.dot(coef)
@@ -14,7 +16,9 @@ def _safe_lin_pred(
     return res
 
 
-def _safe_sandwich_dot(X: MatrixBase, d: np.ndarray, intercept=False) -> np.ndarray:
+def _safe_sandwich_dot(
+    X: Union[MatrixBase, ColScaledMat], d: np.ndarray, intercept=False
+) -> np.ndarray:
     """Compute sandwich product X.T @ diag(d) @ X.
 
     With ``intercept=True``, X is treated as if a column of 1 were appended as
@@ -34,7 +38,7 @@ def _safe_sandwich_dot(X: MatrixBase, d: np.ndarray, intercept=False) -> np.ndar
     return res_including_intercept
 
 
-def _safe_toarray(X):
+def _safe_toarray(X) -> np.ndarray:
     """Returns a numpy array."""
     if sparse.issparse(X):
         return X.toarray()
