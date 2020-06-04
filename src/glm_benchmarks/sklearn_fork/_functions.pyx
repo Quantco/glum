@@ -40,10 +40,5 @@ def poisson_log_rowwise_gradient_hessian(
     cdef int i
     cdef floating unit_variance, sigma_inv, d1, d1_sigma_inv
     for i in prange(n, nogil=True):
-        unit_variance = mu[i]
-        sigma_inv = weights[i] / unit_variance
-        d1 = mu[i]
-        d1_sigma_inv = d1 * sigma_inv
-        gradient_rows_out[i] = d1_sigma_inv * (y[i] - mu[i])
-        hessian_rows_out[i] = d1 * d1_sigma_inv
-
+        gradient_rows_out[i] = weights[i] * (y[i] - mu[i])
+        hessian_rows_out[i] = weights[i] * mu[i]

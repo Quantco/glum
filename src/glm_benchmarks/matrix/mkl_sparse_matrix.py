@@ -40,7 +40,7 @@ class MKLSparseMatrix(sps.csc_matrix, MatrixBase):
     def to_scipy_sparse(self, shape=None, dtype=None, copy=False) -> sps.csc_matrix:
         return self.tocsc(shape, dtype, copy)
 
-    def sandwich(self, d: np.ndarray, cols: np.ndarray) -> np.ndarray:
+    def sandwich(self, d: np.ndarray, rows: np.ndarray, cols: np.ndarray) -> np.ndarray:
         if not hasattr(d, "dtype"):
             d = np.asarray(d)
         if not self.dtype == d.dtype:
@@ -52,6 +52,16 @@ class MKLSparseMatrix(sps.csc_matrix, MatrixBase):
 
         self._check_csr()
         return sparse_sandwich(self.tocsc(copy=False), self.x_csr, d)
+
+    def limited_rmatvec(
+        self, v: np.ndarray, rows: np.ndarray, cols: np.ndarray
+    ) -> np.ndarray:
+        pass
+
+    def limited_matvec(
+        self, v: np.ndarray, rows: np.ndarray, cols: np.ndarray
+    ) -> np.ndarray:
+        pass
 
     def sandwich_dense(self, B: np.ndarray, d: np.ndarray) -> np.ndarray:
         """

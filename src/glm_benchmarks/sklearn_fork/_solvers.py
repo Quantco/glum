@@ -158,7 +158,9 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
     state.eta, state.mu, state.obj_val, coef_P2 = update_predictions(
         state, data, state.coef
     )
-    state.gradient_rows, state.score, state.hessian_rows = update_quadratic(state, data, coef_P2)
+    state.gradient_rows, state.score, state.hessian_rows = update_quadratic(
+        state, data, coef_P2
+    )
     (
         state.converged,
         state.norm_min_subgrad,
@@ -189,7 +191,9 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
         ) = line_search(state, data, d)
 
         # 3) Update the quadratic approximation
-        state.gradient_rows, state.score, state.hessian_rows = update_quadratic(state, data, coef_P2)
+        state.gradient_rows, state.score, state.hessian_rows = update_quadratic(
+            state, data, coef_P2
+        )
 
         # 4) Check if we've converged
         (
@@ -316,8 +320,11 @@ class IRLSState:
         self.mu = None
         self.score = None
         self.old_hessian_rows = np.zeros(data.X.shape[0], dtype=data.X.dtype)
+        self.gradient_rows = None
         self.hessian_rows = None
-        self.hessian = np.zeros((self.coef.shape[0], self.coef.shape[0]), dtype=data.X.dtype)
+        self.hessian = np.zeros(
+            (self.coef.shape[0], self.coef.shape[0]), dtype=data.X.dtype
+        )
         self.hessian_initialized = False
         self.coef_P2 = None
         self.norm_min_subgrad = None
@@ -478,8 +485,6 @@ def line_search(state, data, d):
     # F(w + lambda d) - F(w) <= lambda * bound
     # bound = sigma * (f'(w)*d + w*P2*d
     #                  +||P1 (w+d)||_1 - ||P1 w||_1)
-    # TODO: check this line search for correctness.
-    # TODO: potentially use different line search algorithm?
     P1w_1 = linalg.norm(data.P1 * state.coef[data.intercept_offset :], ord=1)
     P1wd_1 = linalg.norm(data.P1 * (state.coef + d)[data.intercept_offset :], ord=1)
 
