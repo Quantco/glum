@@ -109,6 +109,7 @@ def check_X_y_matrix(
     copy: bool = False,
     ensure_min_samples: int = 1,
     estimator: Optional[str] = None,
+    force_all_finite: bool = True,
 ) -> Tuple[Union[mx.MatrixBase, sparse.spmatrix, np.ndarray], np.ndarray]:
     """
     See documentation for sklearn.utils.check_X_y. This function behaves identically
@@ -133,7 +134,7 @@ def check_X_y_matrix(
             dtype=dtype,
             order=order,
             copy=copy,
-            force_all_finite=True,
+            force_all_finite=force_all_finite,
             ensure_2d=True,
             allow_nd=False,
             ensure_min_samples=ensure_min_samples,
@@ -167,7 +168,10 @@ def check_X_y_matrix(
 
 
 def _check_weights(
-    sample_weight: Union[float, np.ndarray, None], n_samples: int, dtype
+    sample_weight: Union[float, np.ndarray, None],
+    n_samples: int,
+    dtype,
+    force_all_finite: bool = True,
 ) -> np.ndarray:
     """Check that sample weights are non-negative and have the right shape."""
     if sample_weight is None:
@@ -181,7 +185,7 @@ def _check_weights(
         weights = check_array(
             sample_weight,
             accept_sparse=False,
-            force_all_finite=True,
+            force_all_finite=force_all_finite,
             ensure_2d=False,
             dtype=_dtype,
         )
@@ -532,6 +536,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         scale_predictors=False,
         lower_bounds: Optional[np.ndarray] = None,
         upper_bounds: Optional[np.ndarray] = None,
+        force_all_finite: bool = True,
     ):
         self.l1_ratio = l1_ratio
         self.P1 = P1
@@ -554,6 +559,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self.scale_predictors = scale_predictors
         self.lower_bounds = lower_bounds
         self.upper_bounds = upper_bounds
+        self.force_all_finite = force_all_finite
 
     def get_start_coef(
         self,
@@ -1055,6 +1061,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         offset: Union[np.ndarray, None],
         solver: str,
         copy_X: bool,
+        force_all_finite,
     ) -> Tuple[
         mx.MatrixBase, np.ndarray, np.ndarray, Union[np.ndarray, None], float,
     ]:
@@ -1073,12 +1080,23 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         if isinstance(X, mx.MatrixBase):
             X, y = check_X_y_matrix(
-                X, y, accept_sparse=_stype, dtype=_dtype, copy=copy_X
+                X,
+                y,
+                accept_sparse=_stype,
+                dtype=_dtype,
+                copy=copy_X,
+                force_all_finite=force_all_finite,
             )
             self._check_n_features(X, reset=True)
         else:
             X, y = self._validate_data(
-                X, y, ensure_2d=True, accept_sparse=_stype, dtype=_dtype, copy=copy_X
+                X,
+                y,
+                ensure_2d=True,
+                accept_sparse=_stype,
+                dtype=_dtype,
+                copy=copy_X,
+                force_all_finite=force_all_finite,
             )
 
         # Without converting y to float, deviance might raise
@@ -1088,7 +1106,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         # This will prevent accidental upcasting later and slow operations on
         # mixed-precision numbers
         y = np.asarray(y, dtype=X.dtype)
-        weights = _check_weights(sample_weight, y.shape[0], X.dtype)
+        weights = _check_weights(
+            sample_weight, y.shape[0], X.dtype, force_all_finite=force_all_finite
+        )
         offset = _check_offset(offset, y.shape[0], X.dtype)
 
         # IMPORTANT NOTE: Since we want to minimize
@@ -1097,7 +1117,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         # we rescale weights such that sum(weights) = 1 and this becomes
         # 1/2*deviance + L1 + L2 with deviance=sum(weights * unit_deviance)
         weights_sum: float = np.sum(weights)
-        weights /= weights_sum
+        weights *= 1.0 / weights_sum
         #######################################################################
         # 2b. convert to wrapper matrix types
         #######################################################################
@@ -1372,6 +1392,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         lower_bounds: Optional[np.ndarray] = None,
         upper_bounds: Optional[np.ndarray] = None,
         fit_args_reformat="safe",
+        force_all_finite: bool = True,
     ):
         self.alpha = alpha
         self.fit_args_reformat = fit_args_reformat
@@ -1397,6 +1418,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             scale_predictors=scale_predictors,
             lower_bounds=lower_bounds,
             upper_bounds=upper_bounds,
+            force_all_finite=force_all_finite,
         )
 
     def _validate_hyperparameters(self) -> None:
@@ -1466,7 +1488,13 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             # NOTE: This function checks if all the entries in X and y are
             # finite. That can be expensive. But probably worthwhile.
             X, y, weights, offset, weights_sum = self.set_up_and_check_fit_args(
-                X, y, sample_weight, offset, solver=self.solver, copy_X=self.copy_X
+                X,
+                y,
+                sample_weight,
+                offset,
+                solver=self.solver,
+                copy_X=self.copy_X,
+                force_all_finite=self.force_all_finite,
             )
         else:
             weights = sample_weight
