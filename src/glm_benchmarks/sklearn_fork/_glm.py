@@ -518,7 +518,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         alpha_search: bool = False,
         n_alphas: int = 100,
         alphas: Optional[np.ndarray] = None,
-        min_alpha_ratio: float = 1e-3,
+        min_alpha_ratio: float = 1e-6,
         min_alpha: Optional[float] = None,
         start_params: Optional[np.ndarray] = None,
         selection="cyclic",
@@ -680,7 +680,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         If l1_ratio is zero, use the sklearn RidgeCV default path [10, 1, 0.1] or
         whatever is specified by the input parameters min_alpha_ratio and n_alphas..
 
-        min_alpha_ratio governs the length of the path, with 1e-3 as the default.
+        min_alpha_ratio governs the length of the path, with 1e-6 as the default.
         Smaller values will lead to a longer path.
         """
 
@@ -1473,7 +1473,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         alpha_search: bool = False,
         n_alphas: int = 100,
         alphas: Optional[np.ndarray] = None,
-        min_alpha_ratio: float = 1e-3,
+        min_alpha_ratio: float = 1e-6,
         min_alpha: Optional[float] = None,
         start_params: Optional[np.ndarray] = None,
         selection: str = "cyclic",
@@ -1674,13 +1674,18 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
                 upper_bounds=upper_bounds,
             )
 
+            # intercept_ and coef_ return the last estimated alpha
             if self.fit_intercept:
-                self.intercept_ = coef[:, 0]
-                self.coef_ = coef[:, 1:]
+                self.intercept_ = coef[-1, 0]
+                self.intercept_path_ = coef[:, 0]
+                self.coef_ = coef[-1, 1:]
+                self.coef_path_ = coef[:, 1:]
             else:
                 # set intercept to zero as the other linear models do
-                self.intercept_ = np.zeros(len(self._alphas))
-                self.coef_ = coef
+                self.intercept_ = 0.0
+                self.intercept_path_ = np.zeros(coef.shape[0])
+                self.coef_ = coef[-1, :]
+                self.coef_path_ = coef
         else:
             coef = self.solve(
                 X=X,
