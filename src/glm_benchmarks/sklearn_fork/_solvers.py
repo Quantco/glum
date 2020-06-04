@@ -431,8 +431,8 @@ def line_search(state, data, d):
     # F(w + lambda d) - F(w) <= lambda * bound
     # bound = sigma * (f'(w)*d + w*P2*d
     #                  +||P1 (w+d)||_1 - ||P1 w||_1)
-    # TODO: check this line search for correctness.
-    # TODO: potentially use different line search algorithm?
+    # This is a standard Armijo-Goldstein backtracking line search algorithm:
+    # https://en.wikipedia.org/wiki/Backtracking_line_search
     P1w_1 = linalg.norm(data.P1 * state.coef[data.intercept_offset :], ord=1)
     P1wd_1 = linalg.norm(data.P1 * (state.coef + d)[data.intercept_offset :], ord=1)
 
