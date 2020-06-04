@@ -11,15 +11,9 @@ conda activate $(yq -r .name environment.yml)
 pre-commit install
 pre-commit run -a
 pip install --no-use-pep517 --no-deps --disable-pip-version-check -e .
-pytest -nauto tests
+pytest -nauto tests --doctest-modules src/
 
 # TODO: Add sphinx documentation
 # pushd $(pwd)/docs
 # make html
 # popd
-
-# TODO: Adjust the docker container to the cookiecutter
-# docker-compose run work pre-commit install
-# docker-compose run work pre-commit run --all
-# docker-compose run work pytest
-# docker-compose run work pytest --doctest-modules src/

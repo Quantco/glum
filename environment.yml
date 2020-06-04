@@ -13,6 +13,7 @@ dependencies:
   - h2o-py
   - ipdb
   - ipython
+  - jemalloc
   - johnlees-glmnet_python
   - jupyterlab
   - libblas>=0=*mkl
