@@ -21,7 +21,8 @@ pre-commit install
 conda config --system --prepend channels quantco_main
   
 # Set up a conda environment with name "quantcore.glm"
-conda env create
+conda install mamba=0.2.12
+mamba env create
 
 # Install this package in editable mode. 
 pip install --no-use-pep517 --disable-pip-version-check -e .
