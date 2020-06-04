@@ -25,6 +25,7 @@ conda install mamba=0.2.12
 mamba env create
 
 # Install this package in editable mode. 
+conda activate quantcore.glm
 pip install --no-use-pep517 --disable-pip-version-check -e .
 ```
 
