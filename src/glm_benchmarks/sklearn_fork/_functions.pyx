@@ -5,7 +5,7 @@ from cython.parallel import prange
 
 from libc.math cimport exp, log
 
-def poisson_log_eta_mu_deviance(
+def poisson_log_eta_mu_loglikelihood(
     floating factor,
     floating[:] cur_eta,
     floating[:] X_dot_d,
@@ -16,17 +16,15 @@ def poisson_log_eta_mu_deviance(
 ):
     cdef int n = cur_eta.shape[0]
     cdef int i
-    cdef floating unit_deviance
-    cdef floating deviance = 0.0
+    cdef floating unit_loglikelihood
+    cdef floating loglikelihood = 0.0
     for i in prange(n, nogil=True):
         eta_out[i] = cur_eta[i] + factor * X_dot_d[i]
         mu_out[i] = exp(eta_out[i])
-        if y[i] == 0:
-            unit_deviance = 2 * (-y[i] + mu_out[i])
-        else:
-            unit_deviance = 2 * ((y[i] * (log(y[i]) - eta_out[i] - 1)) + mu_out[i])
-        deviance += weights[i] * unit_deviance
-    return deviance
+        # Note: this is equal to the log likelihood or deviance up to a
+        # constant.
+        loglikelihood += weights[i] * (-2 * (y[i] * eta_out[i] - mu_out[i]))
+    return loglikelihood
 
 def poisson_log_rowwise_gradient_hessian(
     floating[:] y,
@@ -38,12 +36,6 @@ def poisson_log_rowwise_gradient_hessian(
 ):
     cdef int n = eta.shape[0]
     cdef int i
-    cdef floating unit_variance, sigma_inv, d1, d1_sigma_inv
     for i in prange(n, nogil=True):
-        unit_variance = mu[i]
-        sigma_inv = weights[i] / unit_variance
-        d1 = mu[i]
-        d1_sigma_inv = d1 * sigma_inv
-        gradient_rows_out[i] = d1_sigma_inv * (y[i] - mu[i])
-        hessian_rows_out[i] = d1 * d1_sigma_inv
-
+        gradient_rows_out[i] = weights[i] * (y[i] - mu[i])
+        hessian_rows_out[i] = weights[i] * mu[i]
