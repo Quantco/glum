@@ -6,7 +6,7 @@ import numexpr
 import numpy as np
 from scipy import special
 
-from glm_benchmarks.matrix import MatrixBase
+from glm_benchmarks.matrix import ColScaledMat, MatrixBase
 
 from ._functions import (
     poisson_log_eta_mu_deviance,
@@ -345,7 +345,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         link: Link,
         coef: np.ndarray,
         phi,
-        X: MatrixBase,
+        X: Union[MatrixBase, ColScaledMat],
         y: np.ndarray,
         weights: np.ndarray,
         eta: np.ndarray,
