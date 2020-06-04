@@ -8,7 +8,10 @@ from scipy import special
 
 from glm_benchmarks.matrix import MatrixBase
 
-from ._functions import poisson_log_eta_mu_logloss, poisson_log_rowwise_gradient_hessian
+from ._functions import (
+    poisson_log_eta_mu_loglikelihood,
+    poisson_log_rowwise_gradient_hessian,
+)
 from ._link import IdentityLink, Link, LogitLink, LogLink
 from ._util import _safe_lin_pred
 
@@ -49,7 +52,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
     starting_mu
 
     _mu_deviance_derivative
-    eta_mu_logloss
+    eta_mu_loglikelihood
     gradient_hessian
 
     References
@@ -278,7 +281,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
             devp = temp @ X  # same as X.T @ temp
         return mu, devp
 
-    def eta_mu_logloss(
+    def eta_mu_loglikelihood(
         self,
         link: Link,
         factor: float,
@@ -296,26 +299,26 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
 
         Returns
         -------
-        (eta, mu, logloss) : tuple with 3 elements
+        (eta, mu, loglikelihood) : tuple with 3 elements
             The elements are:
             * eta: ndarray, shape (X.shape[0],)
             * mu: ndarray, shape (X.shape[0],)
-            * logloss: float
+            * loglikelihood: float
         """
         eta_out = np.empty_like(cur_eta)
         mu_out = np.empty_like(cur_eta)
-        # Note: eta_out and mu_out are filled inside self._eta_mu_logloss.
+        # Note: eta_out and mu_out are filled inside self._eta_mu_loglikelihood.
         # This will be useful in the future to avoid allocating new eta/mu
         # arrays for every line search loop.
         return (
             eta_out,
             mu_out,
-            self._eta_mu_logloss(
+            self._eta_mu_loglikelihood(
                 link, factor, cur_eta, X_dot_d, y, weights, eta_out, mu_out
             ),
         )
 
-    def _eta_mu_logloss(
+    def _eta_mu_loglikelihood(
         self,
         link: Link,
         factor: float,
@@ -335,8 +338,8 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
 
         eta_out[:] = cur_eta + factor * X_dot_d
         mu_out[:] = link.inverse(eta_out)
-        logloss = self.deviance(y, mu_out, weights=weights)
-        return logloss
+        loglikelihood = self.deviance(y, mu_out, weights=weights)
+        return loglikelihood
 
     def rowwise_gradient_hessian(
         self,
@@ -528,7 +531,7 @@ class TweedieDistribution(ExponentialDispersionModel):
             link, y, weights, eta, mu, gradient_rows, hessian_rows
         )
 
-    def _eta_mu_logloss(
+    def _eta_mu_loglikelihood(
         self,
         link: Link,
         factor: float,
@@ -540,10 +543,10 @@ class TweedieDistribution(ExponentialDispersionModel):
         mu_out: np.ndarray,
     ):
         if self.power == 1 and isinstance(link, LogLink):
-            return poisson_log_eta_mu_logloss(
+            return poisson_log_eta_mu_loglikelihood(
                 factor, cur_eta, X_dot_d, y, weights, eta_out, mu_out
             )
-        return super()._eta_mu_logloss(
+        return super()._eta_mu_loglikelihood(
             link, factor, cur_eta, X_dot_d, y, weights, eta_out, mu_out
         )
 
