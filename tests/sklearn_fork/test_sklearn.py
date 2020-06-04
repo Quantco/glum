@@ -164,6 +164,7 @@ def test_deviance_zero(family, chk_values):
     ids=lambda args: args.__class__.__name__,
 )
 def test_gradients(family, link):
+    np.random.seed(1001)
     for i in range(5):
         nrows = 100
         ncols = 10
@@ -186,8 +187,8 @@ def test_gradients(family, link):
             )
             return -0.5 * deviance
 
-        score_true = sp.optimize.approx_fprime(xk=coef, f=f, epsilon=1e-5)
-        assert_allclose(score_true, score_est, rtol=1e-3)
+        score_true = sp.optimize.approx_fprime(xk=coef, f=f, epsilon=1e-7)
+        assert_allclose(score_true, score_est, rtol=5e-4)
 
 
 @pytest.mark.parametrize(
