@@ -1,10 +1,11 @@
 black
-compilers 
+compilers
 cython
 flake8
 git_root
 ipdb
 ipython
+jemalloc
 jupyterlab
 libblas=*=*mkl
 line_profiler
