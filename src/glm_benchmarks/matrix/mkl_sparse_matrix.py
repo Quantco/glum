@@ -71,7 +71,7 @@ class MKLSparseMatrix(sps.csc_matrix, MatrixBase):
 
     __array_priority__ = 12
 
-    def _get_col_stds(self, weights: np.ndarray, col_means: np.ndarray) -> np.ndarray:
+    def get_col_stds(self, weights: np.ndarray, col_means: np.ndarray) -> np.ndarray:
         return np.sqrt(self.power(2).T.dot(weights) - col_means ** 2)
 
     def transpose_dot(self, vec: Union[np.ndarray, List]) -> np.ndarray:

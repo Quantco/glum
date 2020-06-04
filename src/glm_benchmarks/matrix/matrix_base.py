@@ -65,11 +65,11 @@ class MatrixBase(ABC):
     def astype(self, dtype, order="K", casting="unsafe", copy=True):
         pass
 
-    def _get_col_means(self, weights: np.ndarray) -> np.ndarray:
+    def get_col_means(self, weights: np.ndarray) -> np.ndarray:
         return self.transpose_dot(weights)
 
     @abstractmethod
-    def _get_col_stds(self, weights: np.ndarray, col_means: np.ndarray) -> np.ndarray:
+    def get_col_stds(self, weights: np.ndarray, col_means: np.ndarray) -> np.ndarray:
         pass
 
     def standardize(
@@ -80,9 +80,9 @@ class MatrixBase(ABC):
         """
         from .scaled_mat import ColScaledMat
 
-        col_means = self._get_col_means(weights)
+        col_means = self.get_col_means(weights)
         if scale_predictors:
-            col_stds = self._get_col_stds(weights, col_means)
+            col_stds = self.get_col_stds(weights, col_means)
             one_over_col_sds = one_over_var_inf_to_zero(col_stds)
             shifter = -col_means * one_over_col_sds
             self.scale_cols_inplace(one_over_col_sds)

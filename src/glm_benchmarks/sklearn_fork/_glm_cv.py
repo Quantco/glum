@@ -1,10 +1,13 @@
 from __future__ import division
 
 import copy
-from typing import Optional, Union
+from typing import List, Optional, Union
 
 import numpy as np
+from scipy import sparse as sparse
 from sklearn.model_selection._split import check_cv
+
+import glm_benchmarks.matrix as mx
 
 from ._distribution import ExponentialDispersionModel, TweedieDistribution
 from ._glm import (
@@ -21,9 +24,17 @@ from ._glm import (
 from ._link import IdentityLink, Link, LogLink
 from ._util import _safe_lin_pred
 
+IndexableArrayLike = Union[
+    List,
+    np.ndarray,
+    sparse.spmatrix,
+    mx.DenseGLMDataMatrix,
+    mx.MKLSparseMatrix,
+    mx.ColScaledMat,
+]
+
 
 class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
-    # TODO: add n_jobs
     """
     Generalized linear model like GeneralizedLinearRegressor with iterative fitting
     along a regularization path. See glossary entry for
@@ -225,7 +236,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         X,
         y: np.ndarray,
         w: np.ndarray,
-        offset: np.ndarray = None,
+        offset: Optional[np.ndarray] = None,
     ) -> np.ndarray:
         """
         If l1_ratio is positive, the highest alpha is the lowest alpha such that no
@@ -286,15 +297,24 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         alpha_max = np.max(np.abs(grad)) / l1_ratio
         return _make_grid(alpha_max)
 
-    def fit(self, X, y, sample_weight=None, offset=None):
+    def fit(
+        self,
+        # Can't be ArrayLike or contain mx.MatrixBase because mx.SplitMatrix is not
+        # indexable
+        X: IndexableArrayLike,
+        y: IndexableArrayLike,
+        sample_weight: Optional[IndexableArrayLike] = None,
+        offset: Optional[IndexableArrayLike] = None,
+    ):
         X, y, weights, offset, weights_sum = self.set_up_and_check_fit_args(
             X, y, sample_weight, offset, solver=self.solver, copy_X=self.copy_X
         )
+        assert isinstance(X, (mx.MKLSparseMatrix, mx.DenseGLMDataMatrix))
 
         self.set_up_for_fit(y)
         if (
             hasattr(self._family_instance, "_power")
-            and self._family_instance._power == 1.5
+            and self._family_instance._power == 1.5  # type: ignore
         ):
             assert isinstance(self._link_instance, LogLink)
 
@@ -379,7 +399,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
 
                 if (
                     hasattr(self._family_instance, "_power")
-                    and self._family_instance._power == 1.5
+                    and self._family_instance._power == 1.5  # type: ignore
                 ):
                     assert isinstance(self._link_instance, LogLink)
 
