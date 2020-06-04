@@ -18,13 +18,10 @@ cd glm_benchmarks
 pre-commit install
 
 # Set up the quantco_main conda channel.
-conda config --system --set auto_update_conda false && \
-  conda config --system --prepend channels quantco_main && \
-  conda config --system --set custom_channels.quantco_main https://dil_ro:eeph8Toongah0ohpheva@conda.quantco.cloud && \
-  conda install -y git conda-build conda-channel-client mamba=0.2.12 gsutil yq jq patch
+conda config --system --prepend channels quantco_main
   
 # Set up a conda environment with name "quantcore.glm"
-mamba env create
+conda env create
 
 # Install this package in editable mode. 
 pip install --no-use-pep517 --disable-pip-version-check -e .
