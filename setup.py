@@ -53,6 +53,7 @@ ext_modules = [
     Extension(
         name="glm_benchmarks.matrix.sandwich.sandwich",
         sources=["src/glm_benchmarks/matrix/sandwich/sandwich.pyx"],
+        libraries=["jemalloc"],
         **extension_args,
     ),
     Extension(
