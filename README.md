@@ -11,9 +11,22 @@ Python package to benchmark GLM implementations.
 You can install the package in development mode using:
 
 ```bash
-git clone https://github.com/Quantco/glm_benchmarks
+git clone git@github.com:Quantco/glm_benchmarks.git
 cd glm_benchmarks
+
+# Set up our pre-commit hooks for black, mypy, isort and flake8.
 pre-commit install
+
+# Set up the ***REMOVED*** conda channel. For the password, substitute in the correct password. You should be able to get the password by searching around on slack or asking on the glm_benchmarks slack channel!
+conda config --system --prepend channels ***REMOVED***
+conda config --system --set custom_channels.***REMOVED*** https://***REMOVED***:password@conda.***REMOVED***
+  
+# Set up a conda environment with name "quantcore.glm"
+conda install mamba=0.2.12
+mamba env create
+
+# Install this package in editable mode. 
+conda activate quantcore.glm
 pip install --no-use-pep517 --disable-pip-version-check -e .
 ```
 
