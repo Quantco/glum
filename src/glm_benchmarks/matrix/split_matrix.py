@@ -73,19 +73,18 @@ class SplitMatrix(MatrixBase):
                 out[np.ix_(self.dense_indices, self.sparse_indices)] = DS.T
         return out
 
-    def _get_col_means(self, weights: np.ndarray) -> np.ndarray:
+    def get_col_means(self, weights: np.ndarray) -> np.ndarray:
         col_means = np.empty(self.shape[1], dtype=self.dtype)
-        col_means[self.dense_indices] = self.X_dense_F._get_col_means(weights)
-        col_means[self.sparse_indices] = self.X_sparse._get_col_means(weights)
+        col_means[self.dense_indices] = self.X_dense_F.get_col_means(weights)
+        col_means[self.sparse_indices] = self.X_sparse.get_col_means(weights)
         return col_means
 
-    def _get_col_stds(self, weights: np.ndarray, col_means: np.ndarray) -> np.ndarray:
-        dense_col_stds = np.sqrt(
-            (self.X_dense_F ** 2).T.dot(weights) - col_means[self.dense_indices] ** 2
+    def get_col_stds(self, weights: np.ndarray, col_means: np.ndarray) -> np.ndarray:
+        dense_col_stds = self.X_dense_F.get_col_stds(
+            weights, col_means[self.dense_indices]
         )
-
-        sparse_col_stds = np.sqrt(
-            self.X_sparse.power(2).T.dot(weights) - col_means[self.sparse_indices] ** 2
+        sparse_col_stds = self.X_sparse.get_col_stds(
+            weights, col_means[self.sparse_indices]
         )
 
         col_stds = np.empty(self.shape[1], dtype=self.dtype)

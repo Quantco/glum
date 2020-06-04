@@ -42,6 +42,7 @@ import warnings
 from typing import Iterable, List, Optional, Tuple, Type, Union
 
 import numpy as np
+import pandas as pd
 import scipy.sparse.linalg as splinalg
 from scipy import linalg, sparse
 from sklearn.base import BaseEstimator, RegressorMixin
@@ -79,6 +80,24 @@ from ._solvers import (
 
 _float_itemsize_to_dtype = {8: np.float64, 4: np.float32, 2: np.float16}
 
+ArrayLike = Union[
+    pd.DataFrame,
+    pd.Series,
+    List,
+    np.ndarray,
+    sparse.spmatrix,
+    mx.MatrixBase,
+    mx.ColScaledMat,
+]
+ShapedArrayLike = Union[
+    pd.DataFrame,
+    pd.Series,
+    np.ndarray,
+    sparse.spmatrix,
+    mx.MatrixBase,
+    mx.ColScaledMat,
+]
+
 
 def check_X_y_matrix(
     X: mx.MatrixBase,
@@ -103,6 +122,7 @@ def check_X_y_matrix(
     y_converted : object
         The converted and validated y.
     """
+    assert isinstance(X, mx.MatrixBase)
 
     def _check_array(mat, ensure_min_features: int):
 
@@ -233,6 +253,7 @@ def _unstandardize(
     intercept: float,
     coef: np.ndarray,
 ) -> Tuple[mx.MatrixBase, float, np.ndarray]:
+    assert isinstance(X, mx.ColScaledMat)
     X_mat: mx.MatrixBase = X.unstandardize(col_stds)
     if col_stds is None:
         intercept -= float(np.squeeze(col_means).dot(coef))
@@ -320,12 +341,13 @@ def get_link(link: Union[str, Link], family: ExponentialDispersionModel) -> Link
 
 def setup_p1(
     P1: Union[str, np.ndarray],
-    X: Union[np.ndarray, sparse.spmatrix],
+    X: Union[mx.MatrixBase, mx.ColScaledMat],
     _dtype,
     alpha: float,
     l1_ratio: float,
 ) -> np.ndarray:
     n_features = X.shape[1]
+    assert isinstance(X, (mx.MatrixBase, mx.ColScaledMat))
     if isinstance(P1, str) and P1 == "identity":
         P1 = np.ones(n_features, dtype=_dtype)
     else:
@@ -352,12 +374,13 @@ def setup_p1(
 
 def setup_p2(
     P2: Union[str, np.ndarray],
-    X: Union[np.ndarray, sparse.spmatrix],
+    X: Union[mx.MatrixBase, mx.ColScaledMat],
     _stype,
     _dtype,
     alpha: float,
     l1_ratio: float,
 ) -> Union[np.ndarray, sparse.spmatrix]:
+    assert isinstance(X, (mx.MatrixBase, mx.ColScaledMat))
     n_features = X.shape[1]
 
     # If X is sparse, make P2 sparse, too.
@@ -441,7 +464,7 @@ def initialize_start_params(
     return start_params
 
 
-def is_pos_semidef(p: Union[np.ndarray, sparse.spmatrix]) -> bool:
+def is_pos_semidef(p: Union[sparse.spmatrix, np.ndarray]) -> bool:
     """
     Checks for positive semidefiniteness of p if p is a matrix, or diag(p) if p is a
     vector.
@@ -490,7 +513,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self,
         l1_ratio: Union[int, float] = 0,
         P1="identity",
-        P2: Union[np.ndarray, Iterable, int, float] = "identity",
+        P2: Union[int, float, str, np.ndarray, sparse.spmatrix] = "identity",
         fit_intercept=True,
         family: Union[str, ExponentialDispersionModel] = "normal",
         link: Union[str, Link] = "auto",
@@ -533,11 +556,18 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self.upper_bounds = upper_bounds
 
     def get_start_coef(
-        self, start_params, X, y, weights, offset, col_means, col_stds
+        self,
+        start_params,
+        X: Union[mx.MatrixBase, mx.ColScaledMat],
+        y: np.ndarray,
+        weights: np.ndarray,
+        offset: Optional[np.ndarray],
+        col_means: Optional[np.ndarray],
+        col_stds: Optional[np.ndarray],
     ) -> np.ndarray:
         if self.warm_start and hasattr(self, "coef_"):
-            coef = self.coef_
-            intercept = self.intercept_
+            coef = self.coef_  # type: ignore
+            intercept = self.intercept_  # type: ignore
             if self.fit_intercept:
                 coef = np.concatenate((np.array([intercept]), coef))
             if self._center_predictors:
@@ -547,7 +577,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 coef = np.zeros(
                     X.shape[1] + 1, dtype=_float_itemsize_to_dtype[X.dtype.itemsize]
                 )
-                coef[0] = guess_intercept(y, weights, self._link_instance, offset)
+                coef[0] = guess_intercept(
+                    y, weights, self._link_instance, self._family_instance, offset
+                )
             else:
                 coef = np.zeros(
                     X.shape[1], dtype=_float_itemsize_to_dtype[X.dtype.itemsize]
@@ -577,7 +609,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         return coef
 
-    def set_up_for_fit(self, y) -> None:
+    def set_up_for_fit(self, y: np.ndarray) -> None:
         #######################################################################
         # 1. input validation                                                 #
         #######################################################################
@@ -619,7 +651,15 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                     )
                 )
 
-    def tear_down_from_fit(self, X, y, col_means, col_stds, weights, weights_sum):
+    def tear_down_from_fit(
+        self,
+        X: Union[mx.MatrixBase, mx.ColScaledMat],
+        y: np.ndarray,
+        col_means: Optional[np.ndarray],
+        col_stds: Optional[np.ndarray],
+        weights: np.ndarray,
+        weights_sum: Optional[float],
+    ):
         """
         Delete attributes that were only needed for the fit method.
         """
@@ -627,8 +667,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         # 5a. undo standardization
         #######################################################################
         if self._center_predictors:
+            assert isinstance(X, mx.ColScaledMat)
             X, self.intercept_, self.coef_ = _unstandardize(
-                X, col_means, col_stds, self.intercept_, self.coef_,
+                X, col_means, col_stds, self.intercept_, self.coef_,  # type: ignore
             )
         if self.fit_dispersion in ["chisqr", "deviance"]:
             # attention because of rescaling of weights
@@ -641,7 +682,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
     def solve(
         self,
-        X: mx.MatrixBase,
+        X: Union[mx.MatrixBase, mx.ColScaledMat],
         y: np.ndarray,
         weights: np.ndarray,
         P2,
@@ -719,7 +760,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             )
         return coef
 
-    def report_diagnostics(self):
+    def report_diagnostics(self) -> None:
         if hasattr(self, "diagnostics_"):
             print("diagnostics:")
             import pandas as pd
@@ -731,7 +772,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         else:
             print("solver does not report diagnostics")
 
-    def linear_predictor(self, X, offset: np.ndarray = None):
+    def linear_predictor(self, X: ArrayLike, offset: Optional[ArrayLike] = None):
         """Compute the linear_predictor = X*coef_ + intercept_.
 
         Parameters
@@ -758,7 +799,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             return xb
         return xb + offset
 
-    def predict(self, X, sample_weight=None, offset: np.ndarray = None):
+    def predict(
+        self,
+        X: ShapedArrayLike,
+        sample_weight: Optional[ArrayLike] = None,
+        offset: Optional[ArrayLike] = None,
+    ):
         """Predict using GLM with feature matrix X.
 
         If sample_weight is given, returns prediction*sample_weight.
@@ -794,7 +840,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         return mu * weights
 
-    def estimate_phi(self, X, y, sample_weight=None):
+    def estimate_phi(
+        self, X: ArrayLike, y: ArrayLike, sample_weight: Optional[ArrayLike] = None
+    ):
         """Estimate/fit the dispersion parameter phi.
 
         Parameters
@@ -849,7 +897,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
     # Note: check_estimator(GeneralizedLinearRegressor) might raise
     # "AssertionError: -0.28014056555724598 not greater than 0.5"
     # unless GeneralizedLinearRegressor has a score which passes the test.
-    def score(self, X, y, sample_weight=None):
+    def score(
+        self,
+        X: ShapedArrayLike,
+        y: ShapedArrayLike,
+        sample_weight: Optional[ArrayLike] = None,
+    ):
         """Compute D^2, the percentage of deviance explained.
 
         D^2 is a generalization of the coefficient of determination R^2.
@@ -996,8 +1049,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
     def set_up_and_check_fit_args(
         self,
-        X,
-        y: np.ndarray,
+        X: ArrayLike,
+        y: ArrayLike,
         sample_weight: Union[np.ndarray, None],
         offset: Union[np.ndarray, None],
         solver: str,
@@ -1011,12 +1064,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         else:
             _stype = ["csc", "csr"]
 
-        if hasattr(X, "dtype") and X.dtype == np.int64:
+        if hasattr(X, "dtype") and X.dtype == np.int64:  # type: ignore
             # check_X_y will convert to float32 if we don't do this, which causes
             # precision issues with the new handling of single precision. The new
             # behavior is to give everything the precision of X, but we don't want to
             # do that if X was intially int64.
-            X = X.astype(np.float64)
+            X = X.astype(np.float64)  # type: ignore
 
         if isinstance(X, mx.MatrixBase):
             X, y = check_X_y_matrix(
@@ -1372,10 +1425,10 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
 
     def fit(
         self,
-        X: Union[List, np.ndarray, sparse.spmatrix, mx.MatrixBase, mx.ColScaledMat],
-        y: Union[List, np.ndarray],
-        sample_weight: Optional[Union[List, np.ndarray]] = None,
-        offset: Optional[Union[List, np.ndarray]] = None,
+        X: ArrayLike,
+        y: ArrayLike,
+        sample_weight: Optional[ArrayLike] = None,
+        offset: Optional[ArrayLike] = None,
         weights_sum: Optional[float] = None,
     ):
         """Fit a Generalized Linear Model.
@@ -1418,6 +1471,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         else:
             weights = sample_weight
         assert isinstance(X, mx.MatrixBase)
+        assert isinstance(y, np.ndarray)
 
         self.set_up_for_fit(y)
 

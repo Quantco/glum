@@ -41,7 +41,7 @@ class DenseGLMDataMatrix(np.ndarray, MatrixBase):
         d = np.asarray(d)
         return dense_sandwich(self, d)
 
-    def _get_col_stds(self, weights: np.ndarray, col_means: np.ndarray) -> np.ndarray:
+    def get_col_stds(self, weights: np.ndarray, col_means: np.ndarray) -> np.ndarray:
         # TODO: avoid copying X - the X ** 2 makes a copy
         return np.sqrt((self ** 2).T.dot(weights) - col_means ** 2)
 
