@@ -75,9 +75,9 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         List of alphas where to compute the models.
         If ``None`` alphas are set automatically. Setting 'None' is preferred.
 
-    min_alpha_ratio : float, optional (default=1e-6)
+    min_alpha_ratio : float, optional (default=None)
         Length of the path. ``min_alpha_ratio=1e-6`` means that
-        ``min_alpha / max_alpha = 1e-6``.
+        ``min_alpha / max_alpha = 1e-6``. None will default to 1e-6.
 
     min_alpha : float, optional (default=None)
         Minimum alpha to estimate the model with. The grid will then be created
@@ -170,7 +170,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         warm_start: bool = False,
         n_alphas: int = 100,
         alphas: Optional[np.ndarray] = None,
-        min_alpha_ratio: float = 1e-6,
+        min_alpha_ratio: Optional[float] = None,
         min_alpha: Optional[float] = None,
         start_params: Optional[np.ndarray] = None,
         selection: str = "cyclic",
