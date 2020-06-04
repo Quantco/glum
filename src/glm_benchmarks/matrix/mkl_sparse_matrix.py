@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import List, Union
 
 import numpy as np
 from scipy import sparse as sps
@@ -6,7 +6,8 @@ from sparse_dot_mkl import dot_product_mkl
 
 from glm_benchmarks.matrix.sandwich.sandwich import csr_dense_sandwich, sparse_sandwich
 
-from .matrix_base import MatrixBase
+from . import MatrixBase
+from .standardize import _scale_csc_columns_inplace
 
 
 class MKLSparseMatrix(sps.csc_matrix, MatrixBase):
@@ -26,19 +27,6 @@ class MKLSparseMatrix(sps.csc_matrix, MatrixBase):
     def _check_csr(self):
         if self.x_csr is None:
             self.x_csr = self.tocsr(copy=False)
-
-    def tocsc(self, shape=None, dtype=None, copy=False) -> sps.csc_matrix:
-        if shape is None:
-            shape = self.shape
-        if dtype is None:
-            dtype = self.dtype
-
-        return sps.csc_matrix(
-            (self.data, self.indices, self.indptr), shape, dtype, copy=copy
-        )
-
-    def to_scipy_sparse(self, shape=None, dtype=None, copy=False) -> sps.csc_matrix:
-        return self.tocsc(shape, dtype, copy)
 
     def sandwich(self, d: np.ndarray) -> np.ndarray:
         if not hasattr(d, "dtype"):
@@ -81,21 +69,18 @@ class MKLSparseMatrix(sps.csc_matrix, MatrixBase):
             return dot_product_mkl(self, v[:, 0])[:, None]
         return sps.csc_matrix.dot(self, v)
 
-    def __rmatmul__(self, v):
-        if len(v.shape) == 1:
-            return dot_product_mkl(self.T, v)
-        if len(v.shape) == 2 and v.shape[0] == 1:
-            return dot_product_mkl(self.T, np.squeeze(v))[None, :]
-        return sps.csc_matrix.__rmatmul__(self, v)
-
     __array_priority__ = 12
 
-    def standardize(self, weights, scale_predictors) -> Tuple:
-        from glm_benchmarks.matrix.standardize import standardize, zero_center
+    def get_col_stds(self, weights: np.ndarray, col_means: np.ndarray) -> np.ndarray:
+        return np.sqrt(self.power(2).T.dot(weights) - col_means ** 2)
 
-        if scale_predictors:
-            return standardize(self, weights=weights)
-        else:
-            X, col_means = zero_center(self, weights=weights)
-            col_stds = np.ones(self.shape[1])
-            return X, col_means, col_stds
+    def transpose_dot(self, vec: Union[np.ndarray, List]) -> np.ndarray:
+        vec = np.asarray(vec)
+        if vec.ndim == 1:
+            return dot_product_mkl(self.T, vec)
+        if vec.ndim == 2 and vec.shape[1] == 1:
+            return dot_product_mkl(self.T, np.squeeze(vec))[:, None]
+        return self.T.dot(vec)
+
+    def scale_cols_inplace(self, col_scaling: np.ndarray) -> None:
+        _scale_csc_columns_inplace(self, col_scaling)

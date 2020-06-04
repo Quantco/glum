@@ -4,7 +4,6 @@ import scipy.sparse as sps
 
 from glm_benchmarks.matrix.sandwich.sandwich import csr_dense_sandwich
 from glm_benchmarks.matrix.split_matrix import SplitMatrix
-from glm_benchmarks.sklearn_fork._glm import DenseGLMDataMatrix
 
 N = 100
 
@@ -48,25 +47,3 @@ def test_sandwich(X: np.ndarray):
         np.testing.assert_allclose(y1, y2, atol=1e-12)
         maxdiff = np.max(np.abs(y1 - y2))
         assert maxdiff < 1e-12
-
-
-@pytest.mark.parametrize("scale_predictors", [True, False])
-def test_standardize(X: np.ndarray, scale_predictors):
-    weights = np.random.rand(X.shape[0])
-    weights /= weights.sum()
-
-    X_GLM = DenseGLMDataMatrix(X.copy())
-    X_GLM_standardized, means, stds = X_GLM.standardize(weights, scale_predictors)
-
-    X_split = SplitMatrix(sps.csc_matrix(X), 0.2)
-    X_split_standardized, means_split, stds_split = X_split.standardize(
-        weights, scale_predictors
-    )
-
-    np.testing.assert_almost_equal(means, means_split)
-    np.testing.assert_almost_equal(stds, stds_split)
-
-    X_GLM_unstandardized = X_GLM_standardized.unstandardize(
-        means, stds, scale_predictors
-    )
-    np.testing.assert_almost_equal(X_GLM_unstandardized, X)
