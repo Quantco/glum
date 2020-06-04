@@ -292,7 +292,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
     ):
         """
         Compute:
-        * the linear predictor, eta
+        * the linear predictor, eta as cur_eta + factor * X_dot_d
         * the link-function-transformed prediction, mu
         * the deviance
 
