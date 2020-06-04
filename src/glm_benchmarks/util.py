@@ -2,6 +2,7 @@ import glob
 import os
 import shutil
 import time
+import warnings
 from functools import reduce
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
@@ -67,7 +68,14 @@ def _get_minus_binomial_ll_by_obs(eta: np.ndarray, y: np.ndarray) -> np.ndarray:
     = y * (eta - log(1 + exp(eta))) - (1 - y) * log(1 + exp(eta))
     = y * eta - log(1 + exp(eta))
     """
-    return y * eta - np.log(1 + np.exp(eta))
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        expeta = np.exp(eta)
+    # when eta is very large, np.exp(eta) is inf in floating point.
+    # however, in that situation, 1 + exp(eta) ~ exp(eta) and thus
+    # log(1 + exp(eta)) ~ eta
+    return np.where(np.isinf(expeta), y * eta - eta, y * eta - np.log(1 + expeta))
 
 
 def _get_linear_prediction_part(

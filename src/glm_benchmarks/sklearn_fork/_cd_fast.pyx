@@ -62,7 +62,12 @@ cdef inline floating fsign(floating f) nogil:
     else:
         return -1.0
 
-def identify_active_rows(floating[::1] hessian_rows, floating[::1] old_hessian_rows, floating C):
+def identify_active_rows(
+    floating[::1] gradient_rows,
+    floating[::1] hessian_rows,
+    floating[::1] old_hessian_rows,
+    floating C
+):
     cdef int n = hessian_rows.shape[0]
 
     hessian_rows_diff_arr = np.empty_like(hessian_rows)
