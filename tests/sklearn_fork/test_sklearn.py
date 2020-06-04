@@ -157,6 +157,47 @@ def test_deviance_zero(family, chk_values):
         (GammaDistribution(), LogLink()),
         (InverseGaussianDistribution(), LogLink()),
         (TweedieDistribution(power=1.5), LogLink()),
+        (TweedieDistribution(power=2.5), LogLink()),
+        (BinomialDistribution(), LogitLink()),
+    ],
+    ids=lambda args: args.__class__.__name__,
+)
+def test_gradients(family, link):
+    np.random.seed(1001)
+    for i in range(5):
+        nrows = 100
+        ncols = 10
+        X = np.random.rand(nrows, ncols)
+        coef = np.random.rand(ncols)
+        y = np.random.rand(nrows)
+        weights = np.ones(nrows)
+
+        eta, mu, _ = family.eta_mu_deviance(
+            link, 1.0, np.zeros(nrows), X.dot(coef), y, weights
+        )
+        gradient_rows, _ = family.rowwise_gradient_hessian(
+            link=link, coef=coef, phi=1.0, X=X, y=y, weights=weights, eta=eta, mu=mu,
+        )
+        score_est = gradient_rows @ X
+
+        def f(coef2):
+            _, _, deviance = family.eta_mu_deviance(
+                link, 1.0, np.zeros(nrows), X.dot(coef2), y, weights
+            )
+            return -0.5 * deviance
+
+        score_true = sp.optimize.approx_fprime(xk=coef, f=f, epsilon=1e-7)
+        assert_allclose(score_true, score_est, rtol=5e-4)
+
+
+@pytest.mark.parametrize(
+    "family, link",
+    [
+        (NormalDistribution(), IdentityLink()),
+        (PoissonDistribution(), LogLink()),
+        (GammaDistribution(), LogLink()),
+        (InverseGaussianDistribution(), LogLink()),
+        (TweedieDistribution(power=1.5), LogLink()),
         (TweedieDistribution(power=4.5), LogLink()),
     ],
     ids=lambda args: args.__class__.__name__,
