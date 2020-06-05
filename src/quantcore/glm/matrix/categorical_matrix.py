@@ -8,10 +8,6 @@ from quantcore.glm.matrix.matrix_base import MatrixBase
 from quantcore.glm.matrix.sandwich.categorical_sandwich import sandwich_categorical
 
 
-def csr_dot_categorical(mat_indices: np.ndarray, vec: np.ndarray) -> np.ndarray:
-    return np.asarray(vec)[mat_indices]
-
-
 def sandwich_old(indices: np.ndarray, indptr: np.ndarray, d: np.ndarray) -> np.ndarray:
     """
     Returns a 1d array. The sandwich output is a diagonal matrix with this array on
@@ -40,16 +36,26 @@ class CategoricalCSRMatrix(MatrixBase):
         return self.cat.categories[self.cat.codes]
 
     def dot(self, other: Union[List, np.ndarray]) -> np.ndarray:
-        return _dot(self, other)
+        """
+        When other is 1d:
+        mat.dot(other)[i] = sum_j mat[i, j] other[j] = other[mat.indices[i]]
+
+        When other is 2d:
+        mat.dot(other)[i, k] = sum_j mat[i, j] other[j, k] = other[mat.indices[i], k]
+        """
+        other = np.asarray(other)
+        if other.shape[0] != self.shape[1]:
+            raise ValueError(
+                f"""Needed other to have first dimension {self.shape[1]},
+                but it has shape {other.shape}"""
+            )
+        return np.asarray(other)[self.indices, ...]
 
     def _check_csc(self) -> Tuple[np.ndarray, np.ndarray]:
         if self.x_csc is None:
             csc = self.tocsr().tocsc()
             self.x_csc = (csc.indices, csc.indptr)
         return self.x_csc
-
-    def _matvec(self, other: np.ndarray) -> np.ndarray:
-        return csr_dot_categorical(self.indices, other)
 
     # TODO: best way to return this depends on the use case. See what that is
     # See how csr getcol works
@@ -90,6 +96,7 @@ class CategoricalCSRMatrix(MatrixBase):
         This method doesn't make a lot of sense since indices needs to be of int dtype,
         but it needs to be implemented.
         """
+        self.dtype = dtype
         return self
 
     def get_col_stds(self, weights: np.ndarray, col_means: np.ndarray) -> np.ndarray:
@@ -100,21 +107,13 @@ class CategoricalCSRMatrix(MatrixBase):
             """CategoricalMatrix does not currently support scaling columns."""
         )
 
-
-def _dot(mat: CategoricalCSRMatrix, other: Union[np.ndarray, List],) -> np.ndarray:
-    other = np.asarray(other)
-    original_ndim = other.ndim
-    if original_ndim > 2:
-        raise NotImplementedError
-    other = np.squeeze(other)
-    if other.ndim > 1:
-        raise NotImplementedError
-    if other.shape[0] != mat.shape[1]:
-        raise ValueError(
-            f"""Needed vec to have first dimension {mat.shape[1]}, but vec is of
-        shape {other.shape[0]}"""
-        )
-    res = mat._matvec(other)
-    if original_ndim == 1:
-        return res
-    return res[:, np.newaxis]
+    def __getitem__(self, item):
+        if isinstance(item, tuple):
+            row, col = item
+            if not col == slice(None, None, None):
+                raise IndexError("Only column indexing is supported.")
+        else:
+            row = item
+        if isinstance(row, int):
+            row = [row]
+        return CategoricalCSRMatrix(self.cat[row])

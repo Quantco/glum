@@ -130,3 +130,18 @@ class ColScaledMat:
             self.mat.astype(dtype, casting=casting, copy=copy),
             self.shift.astype(dtype, order=order, casting=casting, copy=copy),
         )
+
+    def __getitem__(self, item):
+        if isinstance(item, tuple):
+            row, col = item
+        else:
+            row = item
+            col = slice(None, None, None)
+
+        mat_part = self.mat.__getitem__(item)
+        shift_part = self.shift[col]
+
+        if isinstance(row, int):
+            return mat_part.A + shift_part
+
+        return ColScaledMat(mat_part, np.atleast_1d(shift_part))
