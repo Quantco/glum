@@ -92,6 +92,7 @@ class MatrixBase(ABC):
 
         return ColScaledMat(self, shifter), col_means, col_stds
 
+    @abstractmethod
     def scale_cols_inplace(self, col_scaling: np.ndarray) -> None:
         pass
 
