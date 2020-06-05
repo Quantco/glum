@@ -1,11 +1,10 @@
 import time
 
 import numpy as np
-from scipy import sparse as sps
-
 from glm_benchmarks.matrix.categorical_matrix import CategoricalCSRMatrix
 from glm_benchmarks.matrix.mkl_sparse_matrix import MKLSparseMatrix
 from glm_benchmarks.sklearn_fork import GeneralizedLinearRegressor
+from scipy import sparse as sps
 
 
 def _timeit(func, n_iters=1):

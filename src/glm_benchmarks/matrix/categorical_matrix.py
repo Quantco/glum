@@ -2,10 +2,9 @@ from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
-from scipy import sparse as sps
-
 from glm_benchmarks.matrix.matrix_base import MatrixBase
 from glm_benchmarks.matrix.sandwich.categorical_sandwich import sandwich_categorical
+from scipy import sparse as sps
 
 
 def csr_dot_categorical(mat_indices: np.ndarray, vec: np.ndarray) -> np.ndarray:
