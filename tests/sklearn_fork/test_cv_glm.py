@@ -43,6 +43,7 @@ def test_normal_elastic_net_comparison(l1_ratio, fit_intercept):
         fit_intercept=fit_intercept,
         link="identity",
         gradient_tol=tol,
+        min_alpha_ratio=1e-3,
     ).fit(X, y)
 
     glm_pred = glm.predict(T)
@@ -53,7 +54,10 @@ def test_normal_elastic_net_comparison(l1_ratio, fit_intercept):
     np.testing.assert_allclose(glm.intercept_, elastic_net.intercept_)
     np.testing.assert_allclose(glm.coef_, elastic_net.coef_)
     np.testing.assert_allclose(glm_pred, el_pred)
-    np.testing.assert_allclose(glm.mse_path_, elastic_net.mse_path_)
+    # need to divide mse by number of folds
+    np.testing.assert_allclose(
+        np.moveaxis(np.squeeze(glm.deviance_path_), 0, -1), elastic_net.mse_path_ / 5
+    )
 
 
 @pytest.mark.parametrize("fit_intercept", [False, True])
@@ -88,6 +92,7 @@ def test_normal_ridge_comparison(fit_intercept):
         gradient_tol=tol,
         alphas=alphas,
         l1_ratio=0,
+        min_alpha_ratio=1e-3,
     ).fit(X, y)
     glm_pred = glm.predict(T)
 
