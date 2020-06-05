@@ -16,10 +16,10 @@ from sklearn.linear_model import ElasticNet, LogisticRegression, Ridge
 from sklearn.metrics import mean_absolute_error
 from sklearn.utils.estimator_checks import check_estimator
 
-import glm_benchmarks.matrix as mx
-from glm_benchmarks.sklearn_fork import GeneralizedLinearRegressorCV
-from glm_benchmarks.sklearn_fork._distribution import guess_intercept
-from glm_benchmarks.sklearn_fork._glm import (
+import quantcore.glm.matrix as mx
+from quantcore.glm.sklearn_fork import GeneralizedLinearRegressorCV
+from quantcore.glm.sklearn_fork._distribution import guess_intercept
+from quantcore.glm.sklearn_fork._glm import (
     BinomialDistribution,
     ExponentialDispersionModel,
     GammaDistribution,
@@ -36,7 +36,7 @@ from glm_benchmarks.sklearn_fork._glm import (
     _unstandardize,
     is_pos_semidef,
 )
-from glm_benchmarks.sklearn_fork._util import _safe_sandwich_dot
+from quantcore.glm.sklearn_fork._util import _safe_sandwich_dot
 
 GLM_SOLVERS = ["irls-ls", "lbfgs", "irls-cd"]
 

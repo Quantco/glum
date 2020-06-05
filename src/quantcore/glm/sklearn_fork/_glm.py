@@ -56,7 +56,7 @@ from sklearn.utils.validation import (
     column_or_1d,
 )
 
-import glm_benchmarks.matrix as mx
+import quantcore.glm.matrix as mx
 
 from ._distribution import (
     BinomialDistribution,
