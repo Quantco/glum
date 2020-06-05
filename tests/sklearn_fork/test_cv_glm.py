@@ -3,7 +3,7 @@ import pytest
 from sklearn.datasets import make_regression
 from sklearn.linear_model import ElasticNetCV, RidgeCV
 
-from glm_benchmarks.sklearn_fork import GeneralizedLinearRegressorCV
+from quantcore.glm.sklearn_fork import GeneralizedLinearRegressorCV
 
 GLM_SOLVERS = ["irls", "lbfgs", "cd"]
 

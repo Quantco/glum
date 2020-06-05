@@ -8,7 +8,7 @@ from joblib import Parallel, delayed
 from scipy import sparse as sparse
 from sklearn.model_selection._split import check_cv
 
-import glm_benchmarks.matrix as mx
+import quantcore.glm.matrix as mx
 
 from ._distribution import ExponentialDispersionModel
 from ._glm import (

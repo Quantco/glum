@@ -3,7 +3,7 @@ import pytest
 import scipy as sp
 import scipy.sparse
 
-from glm_benchmarks.matrix.sandwich.sandwich import dense_sandwich, sparse_sandwich
+from quantcore.glm.matrix.sandwich.sandwich import dense_sandwich, sparse_sandwich
 
 
 @pytest.mark.parametrize("dtype", [np.float64, np.float32])
