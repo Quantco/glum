@@ -51,7 +51,7 @@ jobs:
          python_version: ${{ matrix.PYTHON_VERSION }}
      # - name: Publish Docs
      #   run: cd docs/_build/html && gsutil -m cp -r * gs://***REMOVED***/${GITHUB_REPOSITORY}/${GITHUB_SHA}/
-  acos-deployment:
+  macos:
     name: "MacOS - tests - Python ${{ matrix.PYTHON_VERSION }}"
     runs-on: macos-latest
     env:
