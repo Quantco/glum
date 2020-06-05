@@ -1213,29 +1213,15 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             # do that if X was intially int64.
             X = X.astype(np.float64)  # type: ignore
 
-        if isinstance(X, mx.CategoricalCSRMatrix):
-            dtype = np.float64
         if isinstance(X, mx.MatrixBase):
             X, y = check_X_y_matrix(
                 X, y, accept_sparse=_stype, dtype=_dtype, copy=copy_X
             )
             self._check_n_features(X, reset=True)
         else:
-            if isinstance(X, mx.MatrixBase):
-                X, y = check_X_y_matrix(
-                    X, y, accept_sparse=_stype, dtype=_dtype, copy=copy_X
-                )
-                self._check_n_features(X, reset=True)
-            else:
-                X, y = self._validate_data(
-                    X,
-                    y,
-                    ensure_2d=True,
-                    accept_sparse=_stype,
-                    dtype=_dtype,
-                    copy=copy_X,
-                )
-            dtype = X.dtype
+            X, y = self._validate_data(
+                X, y, ensure_2d=True, accept_sparse=_stype, dtype=_dtype, copy=copy_X,
+            )
 
         # Without converting y to float, deviance might raise
         # ValueError: Integers to negative integer powers are not allowed.
@@ -1243,6 +1229,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         # Make sure everything has the same precision as X
         # This will prevent accidental upcasting later and slow operations on
         # mixed-precision numbers
+        dtype = np.float64 if isinstance(X, mx.CategoricalCSRMatrix) else X.dtype
         y = np.asarray(y, dtype=dtype)
         weights = _check_weights(sample_weight, y.shape[0], dtype)
         offset = _check_offset(offset, y.shape[0], dtype)

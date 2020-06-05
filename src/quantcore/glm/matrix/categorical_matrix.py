@@ -2,9 +2,10 @@ from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
-from glm_benchmarks.matrix.matrix_base import MatrixBase
-from glm_benchmarks.matrix.sandwich.categorical_sandwich import sandwich_categorical
 from scipy import sparse as sps
+
+from quantcore.glm.matrix.matrix_base import MatrixBase
+from quantcore.glm.matrix.sandwich.categorical_sandwich import sandwich_categorical
 
 
 def csr_dot_categorical(mat_indices: np.ndarray, vec: np.ndarray) -> np.ndarray:
@@ -53,6 +54,7 @@ class CategoricalCSRMatrix(MatrixBase):
     # TODO: best way to return this depends on the use case. See what that is
     # See how csr getcol works
     def getcol(self, i: int) -> np.ndarray:
+        i %= self.shape[1]  # wrap-around indexing
         return (self.indices == i).astype(int)[:, None]
 
     def sandwich(self, d: Union[np.ndarray, List]) -> sps.spmatrix:
@@ -80,8 +82,8 @@ class CategoricalCSRMatrix(MatrixBase):
     def toarray(self) -> np.ndarray:
         return self.tocsr().A
 
-    def transpose(self):
-        return self.tocsr().T
+    def transpose_dot(self, vec: Union[np.ndarray, List]) -> np.ndarray:
+        return self.tocsr().T.dot(vec)
 
     def astype(self, dtype, order="K", casting="unsafe", copy=True):
         """
@@ -90,8 +92,13 @@ class CategoricalCSRMatrix(MatrixBase):
         """
         return self
 
-    def standardize(self):
-        pass
+    def get_col_stds(self, weights: np.ndarray, col_means: np.ndarray) -> np.ndarray:
+        return np.sqrt(self.transpose_dot(weights) - col_means ** 2)
+
+    def scale_cols_inplace(self, col_scaling: np.ndarray) -> None:
+        raise NotImplementedError(
+            """CategoricalMatrix does not currently support scaling columns."""
+        )
 
 
 def _dot(mat: CategoricalCSRMatrix, other: Union[np.ndarray, List],) -> np.ndarray:

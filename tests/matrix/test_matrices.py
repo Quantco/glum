@@ -68,7 +68,11 @@ def test_getcol(mat, i):
 def test_to_array(mat, order):
     mat_ = mat(order)
     assert isinstance(mat_.A, np.ndarray)
-    np.testing.assert_allclose(mat_.A, base_array(order))
+    if isinstance(mat_, mx.CategoricalCSRMatrix):
+        expected = np.array([[0, 1], [1, 0], [0, 1]])
+    else:
+        expected = base_array(order)
+    np.testing.assert_allclose(mat_.A, expected)
 
 
 @pytest.mark.parametrize("mat", scaled_matrices)
@@ -76,7 +80,7 @@ def test_to_array(mat, order):
 def test_to_array_scaled(mat, order):
     mat_ = mat(order)
     assert isinstance(mat_.A, np.ndarray)
-    np.testing.assert_allclose(mat_.A, base_array(order) + np.array([[0, 1]]))
+    np.testing.assert_allclose(mat_.A, mat_.mat.A + np.array([[0, 1]]))
 
 
 @pytest.mark.parametrize("mat", matrices)
