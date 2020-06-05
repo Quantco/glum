@@ -1,8 +1,19 @@
 #!/bin/bash
 
-set -eo pipefail
+set -exo pipefail
 
-docker-compose run work pre-commit install
-docker-compose run work pre-commit run --all
-docker-compose run work pytest
-docker-compose run work pytest --doctest-modules src/
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+source ${SCRIPT_DIR}/base.sh $*
+
+yq -Y ". + {dependencies: [.dependencies[], \"python=${PYTHON_VERSION}\"] }" environment.yml > /tmp/environment.yml
+mamba env create -f /tmp/environment.yml
+conda activate $(yq -r .name environment.yml)
+pre-commit install
+pre-commit run -a
+pip install --no-use-pep517 --no-deps --disable-pip-version-check -e .
+pytest -nauto tests --doctest-modules src/
+
+# TODO: Add sphinx documentation
+# pushd $(pwd)/docs
+# make html
+# popd
