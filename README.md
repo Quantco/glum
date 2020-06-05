@@ -6,6 +6,7 @@ Python package to benchmark GLM implementations.
 
 [Link to Google Sheet that compares various existing implementations.](https://docs.google.com/spreadsheets/d/1C-n3YTzPR47Sf8M04eEaX4RbNomM13dk_BZaPHGgWXg/edit)
 
+
 ## Installation
 
 You can install the package in development mode using:
@@ -111,3 +112,7 @@ python tests/sklearn_fork/test_benchmark_golden_master.py
 
 Add the `--overwrite` flag if you want to overwrite already existing golden master results.
 
+
+## Methods used in sklearn_fork.GeneralizedLinearRegressor
+
+Note that the optimization algorithm used here is a type of Gauss-Newton method where the Hessian is approximated as the outer product of the gradient (https://en.wikipedia.org/wiki/Gauss%E2%80%93Newton_algorithm). The same approximation can be inspired via arguments relating to the Fisher information matrix (https://en.wikipedia.org/wiki/Information_matrix_test). For canonical link functions, the Hessian and gradient outer product should be exactly equal. The gradient outer product can be particularly valuable for non-canonical link functions because the gradient outer product (`J.T @ J`) is guaranteed to be symmetric and positive definite whereas the true Hessian is not. Some interesting discussion and further links to literature on why the Gauss-Newton matrix can even outperform the true Hessian in some optimization problems: https://math.stackexchange.com/questions/2733257/approximation-of-hessian-jtj-for-general-non-linear-optimization-problems
