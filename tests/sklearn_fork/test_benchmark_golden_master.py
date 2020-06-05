@@ -160,8 +160,9 @@ def run_and_store_golden_master(overwrite, problem_name):
     with open(git_root("golden_master/benchmark_gm.json"), "w") as fh:
         json.dump(gm_dict, fh, indent=2)
 
-    with open(git_root("golden_master/skipped_benchmark_gm.json"), "w") as fh:
-        json.dump(skipped_problems, fh, indent=2)
+    if len(skipped_problems > 0):
+        with open(git_root("golden_master/skipped_benchmark_gm.json"), "w") as fh:
+            json.dump(skipped_problems, fh, indent=2)
 
 
 if __name__ == "__main__":
