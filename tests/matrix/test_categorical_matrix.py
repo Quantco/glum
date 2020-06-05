@@ -1,7 +1,8 @@
 import numpy as np
 import pytest
-from glm_benchmarks.matrix.categorical_matrix import csr_dot_categorical
 from sklearn.preprocessing import OneHotEncoder
+
+from quantcore.glm.matrix.categorical_matrix import csr_dot_categorical
 
 
 @pytest.mark.parametrize("vec_dtype", [np.float64, np.float32, np.int64, np.int32])

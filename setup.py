@@ -67,8 +67,8 @@ ext_modules = [
         include_dirs=[np.get_include()],
     ),
     Extension(
-        name="glm_benchmarks.matrix.sandwich.categorical_sandwich",
-        sources=["src/glm_benchmarks/matrix/sandwich/categorical_sandwich.pyx"],
+        name="quantcore.glm.matrix.sandwich.categorical_sandwich",
+        sources=["src/quantcore/glm/matrix/sandwich/categorical_sandwich.pyx"],
         include_dirs=[np.get_include()],
     ),
 ]
