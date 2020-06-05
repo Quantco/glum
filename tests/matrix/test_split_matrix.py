@@ -2,8 +2,8 @@ import numpy as np
 import pytest
 import scipy.sparse as sps
 
-from glm_benchmarks.matrix.sandwich.sandwich import csr_dense_sandwich
-from glm_benchmarks.matrix.split_matrix import SplitMatrix
+from quantcore.glm.matrix.sandwich.sandwich import csr_dense_sandwich
+from quantcore.glm.matrix.split_matrix import SplitMatrix
 
 N = 100
 

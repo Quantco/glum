@@ -2,7 +2,7 @@ from typing import List, Union
 
 import numpy as np
 
-from glm_benchmarks.matrix.sandwich.sandwich import dense_sandwich
+from quantcore.glm.matrix.sandwich.sandwich import dense_sandwich
 
 from .matrix_base import MatrixBase
 
