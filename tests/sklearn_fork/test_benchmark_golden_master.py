@@ -7,9 +7,9 @@ import pytest
 from git_root import git_root
 from sklearn.exceptions import ConvergenceWarning
 
-from glm_benchmarks.cli_run import execute_problem_library
-from glm_benchmarks.problems import Problem, get_all_problems
-from glm_benchmarks.util import BenchmarkParams, get_obj_val
+from quantcore.glm.cli_run import execute_problem_library
+from quantcore.glm.problems import Problem, get_all_problems
+from quantcore.glm.util import BenchmarkParams, get_obj_val
 
 bench_cfg = dict(
     num_rows=10000,
