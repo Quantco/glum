@@ -2,6 +2,24 @@ name: CI
 on: [push]
 
 jobs:
+  linter:
+    name: "Linter (pre-commit)"
+    runs-on: ubuntu-latest
+    env:
+      CI: True
+    strategy:
+      fail-fast: false
+    steps:
+     - name: Docker login
+       run: docker login docker.pkg.github.com -u ${{ github.actor }} -p ${{ secrets.FQ_GH_TOKEN }}
+     - name: Pull image
+       run: docker pull docker.pkg.github.com/***REMOVED***/***REMOVED***:latest
+     - name: Checkout branch
+       uses: actions/checkout@v2.1.0
+       with:
+         ref: ${{ github.head_ref }}
+     - name: Run linter inside of container
+       uses: ./.github/actions/linter
   linux:
     name: "Linux - tests - Py${{ matrix.PYTHON_VERSION }}"
     runs-on: ubuntu-latest
@@ -10,7 +28,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        PYTHON_VERSION: ['3.7', '3.8']
+        PYTHON_VERSION: ['3.6', '3.7', '3.8']
     steps:
      - name: Docker login
        run: docker login docker.pkg.github.com -u ${{ github.actor }} -p ${{ secrets.FQ_GH_TOKEN }}
@@ -33,3 +51,22 @@ jobs:
          python_version: ${{ matrix.PYTHON_VERSION }}
      # - name: Publish Docs
      #   run: cd docs/_build/html && gsutil -m cp -r * gs://***REMOVED***/${GITHUB_REPOSITORY}/${GITHUB_SHA}/
+  acos-deployment:
+    name: "MacOS - tests - Python ${{ matrix.PYTHON_VERSION }}"
+    runs-on: macos-latest
+    env:
+      CI: True
+      ***REMOVED***: ${{ secrets.***REMOVED*** }}
+      ***REMOVED***: ${{ secrets.***REMOVED*** }}
+      PYTHON_VERSION: ${{ matrix.PYTHON_VERSION }}
+    strategy:
+      fail-fast: false
+      matrix:
+        PYTHON_VERSION: ['3.6', '3.7', '3.8']
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v2.1.0
+        with:
+          ref: ${{ github.head_ref }}
+      - name: Run Unit Tests
+        run: ./.github/workflows/macos.sh
