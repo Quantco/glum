@@ -19,7 +19,6 @@ dependencies:
   - libblas>=0=*mkl
   - line_profiler
   - mako
-  - matplotlib
   - memory_profiler
   - mkl-include
   - numexpr
@@ -33,5 +32,4 @@ dependencies:
   - scikit-learn
   - setuptools_scm
   - sparse_dot_mkl>=0.4.0
-  - statsmodels
   - xsimd
