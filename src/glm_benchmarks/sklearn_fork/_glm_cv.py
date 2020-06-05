@@ -1,10 +1,14 @@
 from __future__ import division
 
-from typing import Optional, Union
+import copy
+from typing import List, Optional, Union
 
 import numpy as np
 from joblib import Parallel, delayed
+from scipy import sparse as sparse
 from sklearn.model_selection._split import check_cv
+
+import glm_benchmarks.matrix as mx
 
 from ._distribution import ExponentialDispersionModel
 from ._glm import (
@@ -18,6 +22,15 @@ from ._glm import (
 )
 from ._link import Link, LogLink
 from ._util import _safe_lin_pred
+
+IndexableArrayLike = Union[
+    List,
+    np.ndarray,
+    sparse.spmatrix,
+    mx.DenseGLMDataMatrix,
+    mx.MKLSparseMatrix,
+    mx.ColScaledMat,
+]
 
 
 class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
@@ -230,17 +243,26 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             )
         super()._validate_hyperparameters()
 
-    def fit(self, X, y, sample_weight=None, offset=None):
+    def fit(
+        self,
+        # Can't be ArrayLike or contain mx.MatrixBase because mx.SplitMatrix is not
+        # indexable
+        X: IndexableArrayLike,
+        y: IndexableArrayLike,
+        sample_weight: Optional[IndexableArrayLike] = None,
+        offset: Optional[IndexableArrayLike] = None,
+    ):
         X, y, weights, offset, weights_sum = self.set_up_and_check_fit_args(
             X, y, sample_weight, offset, solver=self.solver, copy_X=self.copy_X
         )
+        assert isinstance(X, (mx.MKLSparseMatrix, mx.DenseGLMDataMatrix))
 
         #########
         # Checks
         self.set_up_for_fit(y)
         if (
             hasattr(self._family_instance, "_power")
-            and self._family_instance._power == 1.5
+            and self._family_instance._power == 1.5  # type: ignore
         ):
             assert isinstance(self._link_instance, LogLink)
 
@@ -367,8 +389,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             )
 
             if self._center_predictors:
-                intercept, coef_tmp = _unstandardize(
-                    col_means, col_stds, coef[:, 0], coef[:, 1:]
+                _, intercept, coef_tmp = _unstandardize(
+                    copy.copy(x_train), col_means, col_stds, coef[:, 0], coef[:, 1:]
                 )
                 coef_path_ = np.concatenate(
                     [intercept[:, np.newaxis], coef_tmp], axis=1
@@ -412,7 +434,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             self.deviance_path_, (cv.get_n_splits(), len(l1_ratio), len(alphas[0]))
         )
 
-        avg_deviance = self.deviance_path_.mean(axis=0)
+        avg_deviance = self.deviance_path_.mean(axis=0)  # type: ignore
 
         best_l1, best_alpha = np.unravel_index(
             np.argmin(avg_deviance), avg_deviance.shape

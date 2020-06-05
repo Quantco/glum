@@ -16,11 +16,11 @@ from sklearn.linear_model import ElasticNet, LogisticRegression, Ridge
 from sklearn.metrics import mean_absolute_error
 from sklearn.utils.estimator_checks import check_estimator
 
+import glm_benchmarks.matrix as mx
 from glm_benchmarks.sklearn_fork import GeneralizedLinearRegressorCV
 from glm_benchmarks.sklearn_fork._distribution import guess_intercept
 from glm_benchmarks.sklearn_fork._glm import (
     BinomialDistribution,
-    DenseGLMDataMatrix,
     ExponentialDispersionModel,
     GammaDistribution,
     GeneralizedHyperbolicSecant,
@@ -30,7 +30,6 @@ from glm_benchmarks.sklearn_fork._glm import (
     Link,
     LogitLink,
     LogLink,
-    MKLSparseMatrix,
     NormalDistribution,
     PoissonDistribution,
     TweedieDistribution,
@@ -158,42 +157,100 @@ def test_deviance_zero(family, chk_values):
         (GammaDistribution(), LogLink()),
         (InverseGaussianDistribution(), LogLink()),
         (TweedieDistribution(power=1.5), LogLink()),
+        (TweedieDistribution(power=2.5), LogLink()),
+        (BinomialDistribution(), LogitLink()),
+    ],
+    ids=lambda args: args.__class__.__name__,
+)
+def test_gradients(family, link):
+    np.random.seed(1001)
+    for i in range(5):
+        nrows = 100
+        ncols = 10
+        X = np.random.rand(nrows, ncols)
+        coef = np.random.rand(ncols)
+        y = np.random.rand(nrows)
+        weights = np.ones(nrows)
+
+        eta, mu, _ = family.eta_mu_loglikelihood(
+            link, 1.0, np.zeros(nrows), X.dot(coef), y, weights
+        )
+        gradient_rows, _ = family.rowwise_gradient_hessian(
+            link=link, coef=coef, phi=1.0, X=X, y=y, weights=weights, eta=eta, mu=mu,
+        )
+        score_est = gradient_rows @ X
+
+        def f(coef2):
+            _, _, ll = family.eta_mu_loglikelihood(
+                link, 1.0, np.zeros(nrows), X.dot(coef2), y, weights
+            )
+            return -0.5 * ll
+
+        score_true = sp.optimize.approx_fprime(xk=coef, f=f, epsilon=1e-7)
+        assert_allclose(score_true, score_est, rtol=5e-4)
+
+
+@pytest.mark.parametrize(
+    "family, link",
+    [
+        (NormalDistribution(), IdentityLink()),
+        (PoissonDistribution(), LogLink()),
+        (GammaDistribution(), LogLink()),
+        (InverseGaussianDistribution(), LogLink()),
+        (TweedieDistribution(power=1.5), LogLink()),
         (TweedieDistribution(power=4.5), LogLink()),
     ],
     ids=lambda args: args.__class__.__name__,
 )
-def test_fisher_matrix(family, link):
-    """Test the Fisher matrix numerically.
+def test_hessian_matrix(family, link):
+    """Test the Hessian matrix numerically.
     Trick: Use numerical differentiation with y = mu"""
     coef = np.array([-2, 1, 0, 1, 2.5])
     phi = 0.5
     rng = np.random.RandomState(42)
-    X = DenseGLMDataMatrix(rng.randn(10, 5))
+    X = mx.DenseGLMDataMatrix(rng.randn(10, 5))
     lin_pred = np.dot(X, coef)
     mu = link.inverse(lin_pred)
     weights = rng.randn(10) ** 2 + 1
-    _, _, _, fisher_W = family._eta_mu_score_fisher(
-        coef=coef, phi=phi, X=X, y=weights, weights=weights, link=link
+    _, hessian_rows = family.rowwise_gradient_hessian(
+        link=link,
+        coef=coef,
+        phi=phi,
+        X=X,
+        y=weights,
+        weights=weights,
+        eta=lin_pred,
+        mu=mu,
     )
-    fisher = _safe_sandwich_dot(X, fisher_W)
-    # check that the Fisher matrix is square and positive definite
-    assert fisher.ndim == 2
-    assert fisher.shape[0] == fisher.shape[1]
-    assert np.all(np.linalg.eigvals(fisher) >= 0)
+    hessian = _safe_sandwich_dot(X, hessian_rows)
+    # check that the Hessian matrix is square and positive definite
+    assert hessian.ndim == 2
+    assert hessian.shape[0] == hessian.shape[1]
+    assert np.all(np.linalg.eigvals(hessian) >= 0)
 
     approx = np.array([]).reshape(0, coef.shape[0])
     for i in range(coef.shape[0]):
 
         def f(coef):
-            _, _, score, _ = family._eta_mu_score_fisher(
-                coef=coef, phi=phi, X=X, y=mu, weights=weights, link=link
+            this_eta = X.dot(coef)
+            this_mu = link.inverse(this_eta)
+            gradient_rows, _ = family.rowwise_gradient_hessian(
+                link=link,
+                coef=coef,
+                phi=phi,
+                X=X,
+                y=mu,
+                weights=weights,
+                eta=this_eta,
+                mu=this_mu,
             )
+            score = gradient_rows @ X
             return -score[i]
 
         approx = np.vstack(
             [approx, sp.optimize.approx_fprime(xk=coef, f=f, epsilon=1e-5)]
         )
-    assert_allclose(fisher, approx, rtol=1e-3)
+    assert_allclose(hessian, approx, rtol=1e-3)
 
 
 @pytest.mark.parametrize("estimator, kwargs", estimators)
@@ -1081,6 +1138,9 @@ def test_convergence_warning(solver, regression_data):
 @pytest.mark.parametrize("use_sparse", [False, True])
 @pytest.mark.parametrize("scale_predictors", [False, True])
 def test_standardize(use_sparse, scale_predictors):
+    def _arrays_share_data(arr1: np.ndarray, arr2: np.ndarray) -> bool:
+        return arr1.__array_interface__["data"] == arr2.__array_interface__["data"]
+
     NR = 101
     NC = 10
     col_mults = np.arange(1, NC + 1)
@@ -1088,28 +1148,20 @@ def test_standardize(use_sparse, scale_predictors):
     M = row_mults[:, None] * col_mults[None, :]
 
     if use_sparse:
-        M = MKLSparseMatrix(sparse.csc_matrix(M))
+        M = mx.MKLSparseMatrix(sparse.csc_matrix(M))
     else:
-        M = DenseGLMDataMatrix(M)
+        M = mx.DenseGLMDataMatrix(M)
     MC = copy.deepcopy(M)
 
     X, col_means, col_stds = M.standardize(np.ones(NR) / NR, scale_predictors)
     if use_sparse:
-        assert (
-            X.mat.data.__array_interface__["data"] == M.data.__array_interface__["data"]
-        )
-        assert (
-            X.mat.indices.__array_interface__["data"]
-            == M.indices.__array_interface__["data"]
-        )
-        assert (
-            X.mat.indptr.__array_interface__["data"]
-            == M.indptr.__array_interface__["data"]
-        )
+        assert _arrays_share_data(X.mat.data, M.data)
+        assert _arrays_share_data(X.mat.indices, M.indices)
+        assert _arrays_share_data(X.mat.indptr, M.indptr)
     else:
         # Check that the underlying data pointer is the same
-        assert X.__array_interface__["data"] == M.__array_interface__["data"]
-    np.testing.assert_almost_equal(col_means[0, :], col_mults)
+        assert _arrays_share_data(X.mat, M)
+    np.testing.assert_almost_equal(col_means, col_mults)
 
     # After standardization, all the columns will have the same values.
     # To check that, just convert to dense first.
@@ -1119,9 +1171,16 @@ def test_standardize(use_sparse, scale_predictors):
         Xdense = X
     for i in range(1, NC):
         if scale_predictors:
-            np.testing.assert_almost_equal(Xdense[:, 0], Xdense[:, i])
+            if isinstance(Xdense, mx.ColScaledMat):
+                one, two = Xdense.A[:, 0], Xdense.A[:, i]
+            else:
+                one, two = Xdense[:, 0], Xdense[:, i]
         else:
-            np.testing.assert_almost_equal((i + 1) * Xdense[:, 0], Xdense[:, i])
+            if isinstance(Xdense, mx.ColScaledMat):
+                one, two = (i + 1) * Xdense.A[:, 0], Xdense.A[:, i]
+            else:
+                one, two = (i + 1) * Xdense[:, 0], Xdense[:, i]
+        np.testing.assert_almost_equal(one, two)
 
     if scale_predictors:
         # The sample variance of row_mults is 0.34. This is scaled up by the col_mults
@@ -1129,22 +1188,23 @@ def test_standardize(use_sparse, scale_predictors):
         np.testing.assert_almost_equal(col_stds, true_std * col_mults)
 
     intercept_standardized = 0.0
-    coef_standardized = copy.copy(col_stds)
-
+    coef_standardized = (
+        np.ones_like(col_means) if col_stds is None else copy.copy(col_stds)
+    )
     X2, intercept, coef = _unstandardize(
-        col_means, col_stds, intercept_standardized, coef_standardized, X=X
+        X, col_means, col_stds, intercept_standardized, coef_standardized,
     )
     if use_sparse:
-        assert id(X2) == id(X.mat)
+        assert _arrays_share_data(X2.data, X.mat.data)
     else:
-        assert id(X2) == id(X)
+        assert _arrays_share_data(X2, X.mat)
     np.testing.assert_almost_equal(intercept, -(NC + 1) * NC / 2)
     if scale_predictors:
         np.testing.assert_almost_equal(coef, 1.0)
 
     if use_sparse:
-        assert type(X.mat) in [sparse.csc_matrix, MKLSparseMatrix]
-        assert type(X2) in [sparse.csc_matrix, MKLSparseMatrix]
+        assert type(X.mat) in [sparse.csc_matrix, mx.MKLSparseMatrix]
+        assert type(X2) in [sparse.csc_matrix, mx.MKLSparseMatrix]
         np.testing.assert_almost_equal(MC.toarray(), X2.toarray())
     else:
         np.testing.assert_almost_equal(MC, X2)
@@ -1243,5 +1303,5 @@ def test_alpha_search(regression_data):
     )
     mdl_path.fit(X=X, y=y)
 
-    assert_allclose(mdl_path.coef_[-1], mdl_no_path.coef_)
-    assert_allclose(mdl_path.intercept_[-1], mdl_no_path.intercept_)
+    assert_allclose(mdl_path.coef_, mdl_no_path.coef_)
+    assert_allclose(mdl_path.intercept_, mdl_no_path.intercept_)

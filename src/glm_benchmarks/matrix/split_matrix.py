@@ -1,11 +1,11 @@
 import copy as copy_
-from typing import Any, Tuple, Union
+from typing import List, Union
 
 import numpy as np
 from scipy import sparse as sps
 
+from . import MatrixBase
 from .dense_glm_matrix import DenseGLMDataMatrix
-from .matrix_base import MatrixBase
 from .mkl_sparse_matrix import MKLSparseMatrix
 
 
@@ -51,10 +51,12 @@ class SplitMatrix(MatrixBase):
         return out
 
     def getcol(self, i: int) -> Union[np.ndarray, sps.csr_matrix]:
+        # wrap-around indexing
+        i %= self.shape[1]
         if i in self.dense_indices:
-            idx = np.where(self.dense_indices == i)[0]
-            return self.X_dense_F[:, idx]
-        idx = np.where(self.sparse_indices == i)[0]
+            idx = np.where(self.dense_indices == i)[0][0]
+            return self.X_dense_F.getcol(idx)
+        idx = np.where(self.sparse_indices == i)[0][0]
         return self.X_sparse.getcol(idx)
 
     def sandwich(self, d: np.ndarray) -> np.ndarray:
@@ -71,36 +73,27 @@ class SplitMatrix(MatrixBase):
                 out[np.ix_(self.dense_indices, self.sparse_indices)] = DS.T
         return out
 
-    def standardize(
-        self, weights: np.ndarray, scale_predictors: bool
-    ) -> Tuple[Any, np.ndarray, np.ndarray]:
-        self.X_dense_F, dense_col_means, dense_col_stds = self.X_dense_F.standardize(
-            weights, scale_predictors
-        )
-        self.X_sparse, sparse_col_means, sparse_col_stds = self.X_sparse.standardize(
-            weights, scale_predictors
-        )
+    def get_col_means(self, weights: np.ndarray) -> np.ndarray:
+        col_means = np.empty(self.shape[1], dtype=self.dtype)
+        col_means[self.dense_indices] = self.X_dense_F.get_col_means(weights)
+        col_means[self.sparse_indices] = self.X_sparse.get_col_means(weights)
+        return col_means
 
-        col_means = np.empty((1, self.shape[1]), dtype=self.dtype)
-        col_means[0, self.dense_indices] = dense_col_means
-        col_means[0, self.sparse_indices] = sparse_col_means
+    def get_col_stds(self, weights: np.ndarray, col_means: np.ndarray) -> np.ndarray:
+        dense_col_stds = self.X_dense_F.get_col_stds(
+            weights, col_means[self.dense_indices]
+        )
+        sparse_col_stds = self.X_sparse.get_col_stds(
+            weights, col_means[self.sparse_indices]
+        )
 
         col_stds = np.empty(self.shape[1], dtype=self.dtype)
         col_stds[self.dense_indices] = dense_col_stds
         col_stds[self.sparse_indices] = sparse_col_stds
-
-        return self, col_means, col_stds
-
-    def unstandardize(self, col_means: np.ndarray, col_stds: np.ndarray):
-        self.X_dense_F = self.X_dense_F.unstandardize(
-            col_means[0, self.dense_indices], col_stds[self.dense_indices]
-        )
-        self.X_sparse = self.X_sparse.unstandardize(
-            col_means[0, self.sparse_indices], col_stds[self.sparse_indices]
-        )
-        return self
+        return col_stds
 
     def dot(self, v: np.ndarray) -> np.ndarray:
+        assert not isinstance(v, sps.spmatrix)
         v = np.asarray(v)
         if v.shape[0] != self.shape[1]:
             raise ValueError(f"shapes {self.shape} and {v.shape} not aligned")
@@ -108,17 +101,26 @@ class SplitMatrix(MatrixBase):
         sparse_out = self.X_sparse.dot(v[self.sparse_indices, ...])
         return dense_out + sparse_out
 
-    def __rmatmul__(self, v) -> np.ndarray:
-        dense_component = self.X_dense_F.__rmatmul__(v)
-        sparse_component = self.X_sparse.__rmatmul__(v)
+    def transpose_dot(self, vec: Union[np.ndarray, List]) -> np.ndarray:
+        """
+        self.T.dot(vec)[i] = sum_k self[k, i] vec[k]
+        = sum_{k in self.dense_indices} self[k, i] vec[k] +
+          sum_{k in self.sparse_indices} self[k, i] vec[k]
+        = self.X_dense.T.dot(vec) + self.X_sparse.T.dot(vec)
+        """
+        vec = np.asarray(vec)
+        dense_component = self.X_dense_F.transpose_dot(vec)
+        sparse_component = self.X_sparse.transpose_dot(vec)
         out_shape = list(dense_component.shape)
-        out_shape[-1] = self.shape[1]
-        out = np.empty(out_shape, dtype=v.dtype)
-        out[..., self.dense_indices] = dense_component
-        out[..., self.sparse_indices] = sparse_component
+        out_shape[0] = self.shape[1]
+        out = np.empty(out_shape, dtype=vec.dtype)
+        out[self.dense_indices, ...] = dense_component
+        out[self.sparse_indices, ...] = sparse_component
         return out
+        # return self.__rmatmul__(np.transpose(vec)).T
 
-    def transpose(self):
-        raise NotImplementedError("Oops, this library is not finished.")
+    def scale_cols_inplace(self, col_scaling: np.ndarray):
+        self.X_sparse.scale_cols_inplace(col_scaling[self.sparse_indices])
+        self.X_dense_F.scale_cols_inplace(col_scaling[self.dense_indices])
 
     __array_priority__ = 13
