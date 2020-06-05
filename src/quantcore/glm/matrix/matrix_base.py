@@ -95,6 +95,10 @@ class MatrixBase(ABC):
     def scale_cols_inplace(self, col_scaling: np.ndarray) -> None:
         pass
 
+    @abstractmethod
+    def __getitem__(self, item):
+        pass
+
     # Higher priority than numpy arrays, so behavior for funcs like "@" defaults to the
     # behavior of this class
     __array_priority__ = 11
