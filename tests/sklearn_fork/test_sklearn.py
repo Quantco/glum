@@ -678,8 +678,7 @@ def test_glm_log_regression(family, solver, tol, fit_intercept, offset):
         X = X[:, 1:]
     res = glm.fit(X, y, offset=offset)
     if fit_intercept:
-        assert isinstance(res.intercept_, float)
-        fit_coef = np.concatenate([[res.intercept_], res.coef_])
+        fit_coef = np.concatenate([np.atleast_1d(res.intercept_), res.coef_])
     else:
         fit_coef = res.coef_
     assert_allclose(fit_coef, coef, rtol=8e-6)
@@ -1078,7 +1077,10 @@ def test_solver_equivalence_cv(params, use_offset):
         offset = None
 
     est_ref = GeneralizedLinearRegressorCV(
-        random_state=2, n_alphas=n_alphas, gradient_tol=gradient_tol
+        random_state=2,
+        n_alphas=n_alphas,
+        gradient_tol=gradient_tol,
+        min_alpha_ratio=1e-3,
     )
     est_ref.fit(X, y, offset=offset)
 
@@ -1088,6 +1090,7 @@ def test_solver_equivalence_cv(params, use_offset):
             max_iter=1000,
             gradient_tol=gradient_tol,
             **{k: v for k, v in params.items() if k != "rtol"},
+            min_alpha_ratio=1e-3,
         )
         .set_params(random_state=2)
         .fit(X, y, offset=offset)
@@ -1100,7 +1103,7 @@ def test_solver_equivalence_cv(params, use_offset):
     _assert_all_close(est_2.alpha_, est_ref.alpha_)
     _assert_all_close(est_2.l1_ratio_, est_ref.l1_ratio_)
     _assert_all_close(est_2.coef_path_, est_ref.coef_path_)
-    _assert_all_close(est_2.mse_path_, est_ref.mse_path_)
+    _assert_all_close(est_2.deviance_path_, est_ref.deviance_path_)
     _assert_all_close(est_2.intercept_, est_ref.intercept_)
     _assert_all_close(est_2.coef_, est_ref.coef_)
     _assert_all_close(
@@ -1192,7 +1195,9 @@ def test_standardize(use_sparse, scale_predictors):
         np.testing.assert_almost_equal(col_stds, true_std * col_mults)
 
     intercept_standardized = 0.0
-    coef_standardized = np.ones_like(col_means) if col_stds is None else col_stds
+    coef_standardized = (
+        np.ones_like(col_means) if col_stds is None else copy.copy(col_stds)
+    )
     X2, intercept, coef = _unstandardize(
         X, col_means, col_stds, intercept_standardized, coef_standardized,
     )
@@ -1285,3 +1290,25 @@ def test_step_size_tolerance(tol):
     glm = build_glm(tol)
     assert_allclose(baseline.intercept_, glm.intercept_, atol=tol)
     assert_allclose(baseline.coef_, glm.coef_, atol=tol)
+
+
+def test_alpha_search(regression_data):
+    X, y = regression_data
+    mdl_no_path = GeneralizedLinearRegressor(
+        alpha=0.001, l1_ratio=1, family="normal", link="identity", gradient_tol=1e-10,
+    )
+    mdl_no_path.fit(X=X, y=y)
+
+    mdl_path = GeneralizedLinearRegressor(
+        alpha_search=True,
+        min_alpha=0.001,
+        n_alphas=5,
+        l1_ratio=1,
+        family="normal",
+        link="identity",
+        gradient_tol=1e-10,
+    )
+    mdl_path.fit(X=X, y=y)
+
+    assert_allclose(mdl_path.coef_, mdl_no_path.coef_)
+    assert_allclose(mdl_path.intercept_, mdl_no_path.intercept_)
