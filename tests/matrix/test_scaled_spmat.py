@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from scipy import sparse as sps
 
-from glm_benchmarks.matrix import ColScaledMat
+from quantcore.glm.matrix import ColScaledMat
 
 
 def col_scaled_mat() -> ColScaledMat:

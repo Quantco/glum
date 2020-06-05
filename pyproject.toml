@@ -17,6 +17,6 @@ multi_line_output = 3
 include_trailing_comma = true
 ensure_newline_before_comments = true
 line_length = 88
-known_first_party = "glm_benchmarks"
+known_first_party = "quantcore.glm"
 skip_glob = '\.eggs/*,\.git/*,\.venv/*,build/*,dist/*'
 default_section = 'THIRDPARTY'

@@ -4,8 +4,8 @@ import numpy as np
 import pytest
 from scipy import sparse as sps
 
-import glm_benchmarks.matrix as mx
-from glm_benchmarks.matrix.sandwich.sandwich import csr_dense_sandwich
+import quantcore.glm.matrix as mx
+from quantcore.glm.matrix.sandwich.sandwich import csr_dense_sandwich
 
 
 def base_array(order="F") -> np.ndarray:
