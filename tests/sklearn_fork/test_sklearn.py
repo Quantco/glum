@@ -620,7 +620,18 @@ def test_glm_check_input_argument(estimator, check_input):
 @pytest.mark.parametrize("solver", GLM_SOLVERS)
 @pytest.mark.parametrize("fit_intercept", [False, True])
 @pytest.mark.parametrize("offset", [None, np.array([-0.1, 0, 0.1, 0, -0.2]), 0.1])
-def test_glm_identity_regression(solver, fit_intercept, offset):
+@pytest.mark.parametrize(
+    "convert_x_fn",
+    [
+        np.asarray,
+        sparse.csc_matrix,
+        sparse.csr_matrix,
+        mx.DenseGLMDataMatrix,
+        lambda x: mx.MKLSparseMatrix(sparse.csc_matrix(x)),
+        lambda x: mx.SplitMatrix(sparse.csc_matrix(x)),
+    ],
+)
+def test_glm_identity_regression(solver, fit_intercept, offset, convert_x_fn):
     """Test GLM regression with identity link on a simple dataset."""
     coef = [1.0, 2.0]
     X = np.array([[1, 1, 1, 1, 1], [0, 1, 2, 3, 4]]).T
@@ -635,6 +646,8 @@ def test_glm_identity_regression(solver, fit_intercept, offset):
     )
     if fit_intercept:
         X = X[:, 1:]
+
+    X = convert_x_fn(X.astype(float))
     res = glm.fit(X, y, offset=offset)
     if fit_intercept:
         fit_coef = np.concatenate([[res.intercept_], res.coef_])
