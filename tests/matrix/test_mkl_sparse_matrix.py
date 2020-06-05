@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from scipy import sparse as sps
 
-from glm_benchmarks.matrix import MKLSparseMatrix
+from quantcore.glm.matrix import MKLSparseMatrix
 
 
 @pytest.fixture

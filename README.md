@@ -6,6 +6,7 @@ Python package to benchmark GLM implementations.
 
 [Link to Google Sheet that compares various existing implementations.](https://docs.google.com/spreadsheets/d/1C-n3YTzPR47Sf8M04eEaX4RbNomM13dk_BZaPHGgWXg/edit)
 
+
 ## Installation
 
 You can install the package in development mode using:
@@ -32,7 +33,7 @@ pip install --no-use-pep517 --disable-pip-version-check -e .
 
 ## Running the benchmarks
 
-After installing the package, you should have two CLI tools: `glm_benchmarks_run` and `glm_benchmarks_analyze`. Use the `--help` flag for full details. Look in `src/glm_benchmarks/problems.py` to see the list of problems that will be run through each library. 
+After installing the package, you should have two CLI tools: `glm_benchmarks_run` and `glm_benchmarks_analyze`. Use the `--help` flag for full details. Look in `src/quantcore/glm/problems.py` to see the list of problems that will be run through each library.
 
 To run the full benchmarking suite, just run `glm_benchmarks_run` with no flags. 
 
@@ -69,21 +70,21 @@ H2O: https://github.com/h2oai/h2o-tutorials/blob/master/tutorials/glm/glm_h2owor
 
 ## Profiling
 
-For line-by-line profiling, use line_profiler `kernprof -lbv src/glm_benchmarks/main.py --problem_name narrow_insurance_l2_poisson --library_name sklearn_fork`
+For line-by-line profiling, use line_profiler `kernprof -lbv src/quantcore/glm/main.py --problem_name narrow_insurance_l2_poisson --library_name sklearn_fork`
 
-For stack sampling profiling, use py-spy: `py-spy top -- python src/glm_benchmarks/main.py --problem_name narrow_insurance_l2_poisson --library_name sklearn_fork`
+For stack sampling profiling, use py-spy: `py-spy top -- python src/quantcore/glm/main.py --problem_name narrow_insurance_l2_poisson --library_name sklearn_fork`
 
 ## Memory profiling
 
 To create a graph of memory usage:
 ```
-mprof run --python -o mprofresults.dat --interval 0.01 src/glm_benchmarks/main.py --problem_name narrow_insurance_l2_poisson --library_name sklearn_fork --num_rows 100000
+mprof run --python -o mprofresults.dat --interval 0.01 src/quantcore/glm/main.py --problem_name narrow_insurance_l2_poisson --library_name sklearn_fork --num_rows 100000
 mprof plot mprofresults.dat -o prof2.png
 ```
 
 To do line-by-line memory profiling, add a `@profile` decorator to the functions you care about and then run:
 ```
-python -m memory_profiler src/glm_benchmarks/main.py --problem_name narrow_insurance_l2_poisson --library_name sklearn_fork --num_rows 100000
+python -m memory_profiler src/quantcore/glm/main.py --problem_name narrow_insurance_l2_poisson --library_name sklearn_fork --num_rows 100000
 ```
 
 ## Golden master tests
@@ -111,3 +112,7 @@ python tests/sklearn_fork/test_benchmark_golden_master.py
 
 Add the `--overwrite` flag if you want to overwrite already existing golden master results.
 
+
+## Methods used in sklearn_fork.GeneralizedLinearRegressor
+
+Note that the optimization algorithm used here is a type of Gauss-Newton method where the Hessian is approximated as the outer product of the gradient (https://en.wikipedia.org/wiki/Gauss%E2%80%93Newton_algorithm). The same approximation can be inspired via arguments relating to the Fisher information matrix (https://en.wikipedia.org/wiki/Information_matrix_test). For canonical link functions, the Hessian and gradient outer product should be exactly equal. The gradient outer product can be particularly valuable for non-canonical link functions because the gradient outer product (`J.T @ J`) is guaranteed to be symmetric and positive definite whereas the true Hessian is not. Some interesting discussion and further links to literature on why the Gauss-Newton matrix can even outperform the true Hessian in some optimization problems: https://math.stackexchange.com/questions/2733257/approximation-of-hessian-jtj-for-general-non-linear-optimization-problems

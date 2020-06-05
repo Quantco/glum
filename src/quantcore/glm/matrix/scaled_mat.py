@@ -2,7 +2,7 @@ from typing import List, Optional, Union
 
 import numpy as np
 
-from glm_benchmarks.matrix import MatrixBase
+from quantcore.glm.matrix import MatrixBase
 
 
 class ColScaledMat:

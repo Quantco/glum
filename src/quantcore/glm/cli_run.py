@@ -4,27 +4,27 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import click
 
-from glm_benchmarks.bench_orig_sklearn_fork import orig_sklearn_fork_bench
-from glm_benchmarks.bench_sklearn_fork import sklearn_fork_bench
-from glm_benchmarks.problems import Problem, get_all_problems
-from glm_benchmarks.util import (
+from quantcore.glm.bench_orig_sklearn_fork import orig_sklearn_fork_bench
+from quantcore.glm.bench_sklearn_fork import sklearn_fork_bench
+from quantcore.glm.problems import Problem, get_all_problems
+from quantcore.glm.util import (
     BenchmarkParams,
     benchmark_params_cli,
     clear_cache,
     get_default_val,
     get_obj_val,
 )
-from glm_benchmarks.zeros_benchmark import zeros_bench
+from quantcore.glm.zeros_benchmark import zeros_bench
 
 try:
-    from glm_benchmarks.bench_glmnet_python import glmnet_python_bench  # isort:skip
+    from quantcore.glm.bench_glmnet_python import glmnet_python_bench  # isort:skip
 
     GLMNET_PYTHON_INSTALLED = True
 except ImportError:
     GLMNET_PYTHON_INSTALLED = False
 
 try:
-    from glm_benchmarks.bench_h2o import h2o_bench  # isort:skip
+    from quantcore.glm.bench_h2o import h2o_bench  # isort:skip
 
     H20_INSTALLED = True
 except ImportError:
