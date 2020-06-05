@@ -33,7 +33,7 @@ pip install --no-use-pep517 --disable-pip-version-check -e .
 
 ## Running the benchmarks
 
-After installing the package, you should have two CLI tools: `glm_benchmarks_run` and `glm_benchmarks_analyze`. Use the `--help` flag for full details. Look in `src/glm_benchmarks/problems.py` to see the list of problems that will be run through each library. 
+After installing the package, you should have two CLI tools: `glm_benchmarks_run` and `glm_benchmarks_analyze`. Use the `--help` flag for full details. Look in `src/quantcore/glm/problems.py` to see the list of problems that will be run through each library.
 
 To run the full benchmarking suite, just run `glm_benchmarks_run` with no flags. 
 
@@ -70,21 +70,21 @@ H2O: https://github.com/h2oai/h2o-tutorials/blob/master/tutorials/glm/glm_h2owor
 
 ## Profiling
 
-For line-by-line profiling, use line_profiler `kernprof -lbv src/glm_benchmarks/main.py --problem_name narrow_insurance_l2_poisson --library_name sklearn_fork`
+For line-by-line profiling, use line_profiler `kernprof -lbv src/quantcore/glm/main.py --problem_name narrow_insurance_l2_poisson --library_name sklearn_fork`
 
-For stack sampling profiling, use py-spy: `py-spy top -- python src/glm_benchmarks/main.py --problem_name narrow_insurance_l2_poisson --library_name sklearn_fork`
+For stack sampling profiling, use py-spy: `py-spy top -- python src/quantcore/glm/main.py --problem_name narrow_insurance_l2_poisson --library_name sklearn_fork`
 
 ## Memory profiling
 
 To create a graph of memory usage:
 ```
-mprof run --python -o mprofresults.dat --interval 0.01 src/glm_benchmarks/main.py --problem_name narrow_insurance_l2_poisson --library_name sklearn_fork --num_rows 100000
+mprof run --python -o mprofresults.dat --interval 0.01 src/quantcore/glm/main.py --problem_name narrow_insurance_l2_poisson --library_name sklearn_fork --num_rows 100000
 mprof plot mprofresults.dat -o prof2.png
 ```
 
 To do line-by-line memory profiling, add a `@profile` decorator to the functions you care about and then run:
 ```
-python -m memory_profiler src/glm_benchmarks/main.py --problem_name narrow_insurance_l2_poisson --library_name sklearn_fork --num_rows 100000
+python -m memory_profiler src/quantcore/glm/main.py --problem_name narrow_insurance_l2_poisson --library_name sklearn_fork --num_rows 100000
 ```
 
 ## Golden master tests

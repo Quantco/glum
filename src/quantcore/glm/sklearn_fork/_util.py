@@ -3,7 +3,7 @@ from typing import Union
 import numpy as np
 from scipy import sparse
 
-from glm_benchmarks.matrix import ColScaledMat, MatrixBase
+from quantcore.glm.matrix import ColScaledMat, MatrixBase
 
 
 def _safe_lin_pred(
