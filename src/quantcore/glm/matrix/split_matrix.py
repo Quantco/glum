@@ -1,4 +1,4 @@
-from typing import List, Optional, Tuple, Union
+from typing import List, Tuple, Union
 
 import numpy as np
 from scipy import sparse as sps
@@ -14,7 +14,7 @@ class SplitMatrix(MatrixBase):
         arg1: Union[
             sps.csc_matrix, Tuple[np.ndarray, sps.csc_matrix, np.ndarray, np.ndarray]
         ],
-        threshold: Optional[float] = None,
+        threshold: float = 0.1,
     ):
         if isinstance(arg1, tuple):
             dense, sparse, self.dense_indices, self.sparse_indices = arg1
@@ -44,11 +44,8 @@ class SplitMatrix(MatrixBase):
                 raise TypeError(
                     "X must be of type scipy.sparse.csc_matrix or matrix.MKLSparseMatrix"
                 )
-            if threshold is None:
-                threshold = 0.1
-            else:
-                if not 0 <= threshold <= 1:
-                    raise ValueError("Threshold must be between 0 and 1.")
+            if not 0 <= threshold <= 1:
+                raise ValueError("Threshold must be between 0 and 1.")
             densities = np.diff(arg1.indptr) / arg1.shape[0]
             self.dense_indices = np.where(densities > threshold)[0]
             self.sparse_indices = np.setdiff1d(
@@ -65,7 +62,6 @@ class SplitMatrix(MatrixBase):
             self.X_dense_F.shape[0],
             len(self.dense_indices) + len(self.sparse_indices),
         )
-        self.threshold = threshold
 
     def astype(self, dtype, order="K", casting="unsafe", copy=True):
         dense = self.X_dense_F.astype(dtype, order, casting, copy=copy)
