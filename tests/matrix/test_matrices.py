@@ -29,6 +29,11 @@ def categorical_matrix(order="F"):
     return mx.CategoricalCSRMatrix(vec)
 
 
+def categorical_matrix_col_mult(order="F"):
+    vec = [1, 0, 1]
+    return mx.CategoricalCSRMatrix(vec, [0.5, 3])
+
+
 def col_scaled_dense(order="F") -> mx.ColScaledMat:
     return mx.ColScaledMat(dense_glm_data_matrix(order), [0.0, 1.0])
 
@@ -46,6 +51,7 @@ unscaled_matrices = [
     split_matrix,
     mkl_sparse_matrix,
     categorical_matrix,
+    categorical_matrix_col_mult,
 ]
 
 scaled_matrices = [col_scaled_dense, col_scaled_sparse, col_scaled_split]
@@ -70,6 +76,8 @@ def test_to_array(mat, order):
     assert isinstance(mat_.A, np.ndarray)
     if isinstance(mat_, mx.CategoricalCSRMatrix):
         expected = np.array([[0, 1], [1, 0], [0, 1]])
+        if mat_.col_mult is not None:
+            expected = expected * mat_.col_mult[None, :]
     else:
         expected = base_array(order)
     np.testing.assert_allclose(mat_.A, expected)
@@ -204,6 +212,52 @@ def test_astype(mat, dtype, order):
 
 
 @pytest.mark.parametrize("mat", unscaled_matrices)
+def test_get_col_means(mat):
+    mat_ = mat()
+    weights = np.random.random(mat_.shape[0])
+    # TODO: make weights sum to 1 within functions
+    weights /= weights.sum()
+    means = mat_.get_col_means(weights)
+    expected = mat_.A.T.dot(weights)
+    np.testing.assert_allclose(means, expected)
+
+
+@pytest.mark.parametrize("mat", unscaled_matrices)
+def test_get_col_means_unweighted(mat):
+    mat_ = mat()
+    weights = np.ones(mat_.shape[0])
+    # TODO: make weights sum to 1 within functions
+    weights /= weights.sum()
+    means = mat_.get_col_means(weights)
+    expected = mat_.A.mean(0)
+    np.testing.assert_allclose(means, expected)
+
+
+@pytest.mark.parametrize("mat", unscaled_matrices)
+def test_get_col_stds(mat):
+    mat_ = mat()
+    weights = np.random.random(mat_.shape[0])
+    # TODO: make weights sum to 1
+    weights /= weights.sum()
+    means = mat_.get_col_means(weights)
+    expected = np.sqrt((mat_.A ** 2).T.dot(weights) - means ** 2)
+    stds = mat_.get_col_stds(weights, means)
+    np.testing.assert_allclose(stds, expected)
+
+
+@pytest.mark.parametrize("mat", unscaled_matrices)
+def test_get_col_stds_unweighted(mat):
+    mat_ = mat()
+    weights = np.ones(mat_.shape[0])
+    # TODO: make weights sum to 1
+    weights /= weights.sum()
+    means = mat_.get_col_means(weights)
+    expected = mat_.A.std(0)
+    stds = mat_.get_col_stds(weights, means)
+    np.testing.assert_allclose(stds, expected)
+
+
+@pytest.mark.parametrize("mat", unscaled_matrices)
 @pytest.mark.parametrize("scale_predictors", [False, True])
 def test_standardize(mat, scale_predictors: bool):
     mat_: mx.MatrixBase = mat()
@@ -217,6 +271,7 @@ def test_standardize(mat, scale_predictors: bool):
     standardized, means, stds = mat_.standardize(weights, scale_predictors)
     assert isinstance(standardized, mx.ColScaledMat)
     assert isinstance(standardized.mat, type(mat_))
+    np.testing.assert_allclose(standardized.transpose_dot(weights), 0, atol=1e-11)
 
     np.testing.assert_allclose(means, asarray.T.dot(weights))
     if scale_predictors:
