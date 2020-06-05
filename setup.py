@@ -5,7 +5,7 @@ import mako.runtime
 import mako.template
 import numpy as np
 from Cython.Build import cythonize
-from setuptools import Extension, find_packages, setup
+from setuptools import Extension, find_namespace_packages, setup
 
 here = path.abspath(path.dirname(__file__))
 
@@ -14,7 +14,7 @@ with open(path.join(here, "README.md")) as f:
 
 # TODO: this should be moved inside the compilation of the extension
 print("templating C source")
-for fn in ["src/glm_benchmarks/matrix/sandwich/dense-tmpl.cpp"]:
+for fn in ["src/quantcore/glm/matrix/sandwich/dense-tmpl.cpp"]:
     tmpl = mako.template.Template(filename=fn)
 
     buf = io.StringIO()
@@ -51,25 +51,25 @@ extension_args = dict(
 )
 ext_modules = [
     Extension(
-        name="glm_benchmarks.matrix.sandwich.sandwich",
-        sources=["src/glm_benchmarks/matrix/sandwich/sandwich.pyx"],
+        name="quantcore.glm.matrix.sandwich.sandwich",
+        sources=["src/quantcore/glm/matrix/sandwich/sandwich.pyx"],
         libraries=["jemalloc"],
         **extension_args,
     ),
     Extension(
-        name="glm_benchmarks.sklearn_fork._functions",
-        sources=["src/glm_benchmarks/sklearn_fork/_functions.pyx"],
+        name="quantcore.glm.sklearn_fork._functions",
+        sources=["src/quantcore/glm/sklearn_fork/_functions.pyx"],
         **extension_args,
     ),
     Extension(
-        name="glm_benchmarks.sklearn_fork._cd_fast",
-        sources=["src/glm_benchmarks/sklearn_fork/_cd_fast.pyx"],
+        name="quantcore.glm.sklearn_fork._cd_fast",
+        sources=["src/quantcore/glm/sklearn_fork/_cd_fast.pyx"],
         include_dirs=[np.get_include()],
     ),
 ]
 
 setup(
-    name="glm_benchmarks",
+    name="quantcore.glm",
     use_scm_version={"version_scheme": "post-release"},
     setup_requires=["setuptools_scm"],
     description="Python package to benchmark GLM implementations.",
@@ -82,14 +82,15 @@ setup(
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.8",
     ],
     package_dir={"": "src"},
-    packages=find_packages(where="src"),
+    packages=find_namespace_packages(where="src"),
     install_requires=[],
     entry_points="""
         [console_scripts]
-        glm_benchmarks_run = glm_benchmarks.cli_run:cli_run
-        glm_benchmarks_analyze = glm_benchmarks.cli_analyze:cli_analyze
+        glm_benchmarks_run = quantcore.glm.cli_run:cli_run
+        glm_benchmarks_analyze = quantcore.glm.cli_analyze:cli_analyze
     """,
     ext_modules=cythonize(ext_modules, annotate=False),
     zip_safe=False,

@@ -6,7 +6,7 @@ import numexpr
 import numpy as np
 from scipy import special
 
-from glm_benchmarks.matrix import ColScaledMat, MatrixBase
+from quantcore.glm.matrix import ColScaledMat, MatrixBase
 
 from ._functions import (
     poisson_log_eta_mu_loglikelihood,

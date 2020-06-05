@@ -8,8 +8,8 @@ import pytest
 from git_root import git_root
 from scipy import sparse
 
-from glm_benchmarks.matrix import DenseGLMDataMatrix, MKLSparseMatrix, SplitMatrix
-from glm_benchmarks.sklearn_fork._glm import (
+from quantcore.glm.matrix import DenseGLMDataMatrix, MKLSparseMatrix, SplitMatrix
+from quantcore.glm.sklearn_fork._glm import (
     GeneralizedLinearRegressor,
     TweedieDistribution,
 )
