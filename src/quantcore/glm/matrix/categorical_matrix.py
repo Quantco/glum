@@ -85,16 +85,7 @@ class CategoricalCSRMatrix(MatrixBase):
             return col_i
         return col_i * self.col_mult[i]
 
-    def sandwich(self, d: Union[np.ndarray, List]) -> np.ndarray:
-        d = np.asarray(d)
-        indices, indptr = self._check_csc()
-        res_diag = sandwich_categorical(indices, indptr, d)
-        if self.col_mult is not None:
-            res_diag *= self.col_mult ** 2
-        # TODO: this is very inefficient downstream
-        return np.diag(res_diag)
-
-    def sandwich_python(self, d: Union[np.ndarray, List]) -> np.ndarray:
+    def sandwich(self, d: Union[np.ndarray, List]) -> sps.spmatrix:
         """
         sandwich(self, d)[i, j] = (self.T @ diag(d) @ self)[i, j]
             = sum_k (self[k, i] (diag(d) @ self)[k, j])
@@ -104,6 +95,16 @@ class CategoricalCSRMatrix(MatrixBase):
         sandwich(self, d)[i, i] = sum_k self[k, i] ** 2 * d(k)
                = col_mult[i] ** 2 *  sum_k self.mat[k, i]** 2
         """
+        # TODO: make all calls to this compliant with a diagonal matrix
+        d = np.asarray(d)
+        indices, indptr = self._check_csc()
+        res_diag = sandwich_categorical(indices, indptr, d)
+        if self.col_mult is not None:
+            res_diag *= self.col_mult ** 2
+        return sps.diags(res_diag)
+
+    def sandwich_python(self, d: Union[np.ndarray, List]) -> np.ndarray:
+
         d = np.asarray(d)
         indices, indptr = self._check_csc()
         res = sandwich_python(indices, indptr, d)
