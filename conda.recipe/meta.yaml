@@ -40,7 +40,7 @@ requirements:
     - pandas
     - scikit-learn >=0.23
     - scipy
-    - sparse_dot_mkl
+    - sparse_dot_mkl >=0.4.0
 
 test:
   requires:
