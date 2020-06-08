@@ -8,55 +8,60 @@ from .dense_glm_matrix import DenseGLMDataMatrix
 from .mkl_sparse_matrix import MKLSparseMatrix
 
 
+def split_sparse_and_dense_parts(
+    arg1: sps.csc_matrix, threshold: float = 0.1
+) -> Tuple[np.ndarray, sps.csc_matrix, np.ndarray, np.ndarray]:
+    if not isinstance(arg1, sps.csc_matrix):
+        raise TypeError(
+            "X must be of type scipy.sparse.csc_matrix or matrix.MKLSparseMatrix"
+        )
+    if not 0 <= threshold <= 1:
+        raise ValueError("Threshold must be between 0 and 1.")
+    densities = np.diff(arg1.indptr) / arg1.shape[0]
+    dense_indices = np.where(densities > threshold)[0]
+    sparse_indices = np.setdiff1d(np.arange(densities.shape[0]), dense_indices)
+
+    X_dense_F = np.asfortranarray(arg1.toarray()[:, dense_indices])
+    X_sparse = arg1[:, sparse_indices]
+    return X_dense_F, X_sparse, dense_indices, sparse_indices
+
+
 class SplitMatrix(MatrixBase):
     def __init__(
         self,
-        arg1: Union[
-            sps.csc_matrix, Tuple[np.ndarray, sps.csc_matrix, np.ndarray, np.ndarray]
-        ],
-        threshold: float = 0.1,
+        dense: np.ndarray,
+        sparse: sps.csc_matrix,
+        dense_indices: np.ndarray,
+        sparse_indices: np.ndarray,
     ):
-        if isinstance(arg1, tuple):
-            dense, sparse, self.dense_indices, self.sparse_indices = arg1
-            if not dense.shape[0] == sparse.shape[0]:
-                raise ValueError(
-                    f"""
-                    X_dense_F and X_sparse should have the same length,
-                    but X_dense_F has shape {dense.shape} and X_sparse has shape {sparse.shape}.
-            """
-                )
-            if not dense.shape[1] == len(self.dense_indices):
-                raise ValueError(
-                    f"""dense_indices should have length X_dense_F.shape[1],
-                but dense_indices has shape {self.dense_indices.shape} and X_dense_F
-                has shape {dense.shape}"""
-                )
-            if not sparse.shape[1] == len(self.sparse_indices):
-                raise ValueError(
-                    f"""sparse_indices should have length X_sparse.shape[1],
-                but sparse_indices has shape {self.sparse_indices.shape} and X_sparse
-                has shape {sparse.shape}"""
-                )
-            self.X_dense_F = DenseGLMDataMatrix(dense)
-            self.X_sparse = MKLSparseMatrix(sparse)
-        else:
-            if not isinstance(arg1, sps.csc_matrix):
-                raise TypeError(
-                    "X must be of type scipy.sparse.csc_matrix or matrix.MKLSparseMatrix"
-                )
-            if not 0 <= threshold <= 1:
-                raise ValueError("Threshold must be between 0 and 1.")
-            densities = np.diff(arg1.indptr) / arg1.shape[0]
-            self.dense_indices = np.where(densities > threshold)[0]
-            self.sparse_indices = np.setdiff1d(
-                np.arange(densities.shape[0]), self.dense_indices
-            )
+        self.dense_indices = dense_indices
+        self.sparse_indices = sparse_indices
 
-            self.X_dense_F = DenseGLMDataMatrix(
-                np.asfortranarray(arg1.toarray()[:, self.dense_indices])
+        if not dense.shape[0] == sparse.shape[0]:
+            raise ValueError(
+                f"""
+                X_dense_F and X_sparse should have the same length,
+                but X_dense_F has shape {dense.shape} and X_sparse has shape {sparse.shape}.
+        """
             )
-            self.X_sparse = MKLSparseMatrix(arg1[:, self.sparse_indices])
-
+        if not isinstance(dense, np.ndarray):
+            raise ValueError("Expected dense to be a dense matrix.")
+        if not isinstance(sparse, sps.csc_matrix):
+            raise ValueError("Expected sparse to be a csc sparse matrix.")
+        if not dense.shape[1] == len(self.dense_indices):
+            raise ValueError(
+                f"""dense_indices should have length X_dense_F.shape[1],
+            but dense_indices has shape {self.dense_indices.shape} and X_dense_F
+            has shape {dense.shape}"""
+            )
+        if not sparse.shape[1] == len(self.sparse_indices):
+            raise ValueError(
+                f"""sparse_indices should have length X_sparse.shape[1],
+            but sparse_indices has shape {self.sparse_indices.shape} and X_sparse
+            has shape {sparse.shape}"""
+            )
+        self.X_dense_F = DenseGLMDataMatrix(dense)
+        self.X_sparse = MKLSparseMatrix(sparse)
         self.dtype = self.X_sparse.dtype
         self.shape = (
             self.X_dense_F.shape[0],
@@ -66,7 +71,7 @@ class SplitMatrix(MatrixBase):
     def astype(self, dtype, order="K", casting="unsafe", copy=True):
         dense = self.X_dense_F.astype(dtype, order, casting, copy=copy)
         sparse = self.X_sparse.astype(dtype=dtype, casting=casting, copy=copy)
-        return SplitMatrix((dense, sparse, self.dense_indices, self.sparse_indices,))
+        return SplitMatrix(dense, sparse, self.dense_indices, self.sparse_indices)
 
     def toarray(self) -> np.ndarray:
         out = np.empty(self.shape)
@@ -158,12 +163,10 @@ class SplitMatrix(MatrixBase):
                 row = [row]
 
             return SplitMatrix(
-                (
-                    self.X_dense_F[row, :],
-                    self.X_sparse[row, :],
-                    self.dense_indices,
-                    self.sparse_indices,
-                )
+                self.X_dense_F[row, :],
+                self.X_sparse[row, :],
+                self.dense_indices,
+                self.sparse_indices,
             )
         else:
             raise NotImplementedError(

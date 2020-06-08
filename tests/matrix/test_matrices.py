@@ -17,7 +17,8 @@ def dense_glm_data_matrix(order="F") -> mx.DenseGLMDataMatrix:
 
 
 def split_matrix(order="F") -> mx.SplitMatrix:
-    return mx.SplitMatrix(sps.csc_matrix(base_array(order)), threshold=0.1)
+    args = mx.split_sparse_and_dense_parts(sps.csc_matrix(base_array(order)))
+    return mx.SplitMatrix(*args)
 
 
 def mkl_sparse_matrix(order="F") -> mx.MKLSparseMatrix:

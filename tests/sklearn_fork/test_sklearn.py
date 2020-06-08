@@ -628,7 +628,9 @@ def test_glm_check_input_argument(estimator, check_input):
         sparse.csr_matrix,
         mx.DenseGLMDataMatrix,
         lambda x: mx.MKLSparseMatrix(sparse.csc_matrix(x)),
-        lambda x: mx.SplitMatrix(sparse.csc_matrix(x)),
+        lambda x: mx.SplitMatrix(
+            *mx.split_sparse_and_dense_parts(sparse.csc_matrix(x)),
+        ),
     ],
 )
 def test_glm_identity_regression(solver, fit_intercept, offset, convert_x_fn):
@@ -667,7 +669,9 @@ def test_glm_identity_regression(solver, fit_intercept, offset, convert_x_fn):
         sparse.csr_matrix,
         lambda x: mx.DenseGLMDataMatrix(x.astype(float)),
         lambda x: mx.MKLSparseMatrix(sparse.csc_matrix(x)),
-        lambda x: mx.SplitMatrix(sparse.csc_matrix(x.astype(float))),
+        lambda x: mx.SplitMatrix(
+            *mx.split_sparse_and_dense_parts(sparse.csc_matrix(x.astype(float)))
+        ),
         lambda x: mx.CategoricalMatrix(x.dot([0, 1])),
     ],
 )

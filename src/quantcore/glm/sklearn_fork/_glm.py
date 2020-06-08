@@ -103,12 +103,10 @@ def check_array_matrix_compliant(mat: ArrayLike, **kwargs):
     if isinstance(mat, mx.SplitMatrix):
         kwargs.update({"ensure_min_features": 0})
         return mx.SplitMatrix(
-            (
-                check_array(mat.X_dense_F, **kwargs),
-                check_array(mat.X_sparse, **kwargs),
-                mat.dense_indices,
-                mat.sparse_indices,
-            )
+            check_array(mat.X_dense_F, **kwargs),
+            check_array(mat.X_sparse, **kwargs),
+            mat.dense_indices,
+            mat.sparse_indices,
         )
 
     if isinstance(mat, mx.ColScaledMat):
