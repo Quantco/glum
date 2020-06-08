@@ -3,7 +3,7 @@ import pytest
 import scipy.sparse as sps
 
 from quantcore.glm.matrix.sandwich.sandwich import csr_dense_sandwich
-from quantcore.glm.matrix.split_matrix import SplitMatrix
+from quantcore.glm.matrix.split_matrix import SplitMatrix, split_sparse_and_dense_parts
 
 N = 100
 
@@ -20,7 +20,7 @@ def X():
 
 def test_split_matrix_init(X: np.ndarray):
     for T, D, S in [(0.05, 4, 0), (0.1, 3, 1), (0.2, 2, 2), (0.3, 2, 2), (1.0, 0, 4)]:
-        fully_dense = SplitMatrix(sps.csc_matrix(X), T)
+        fully_dense = SplitMatrix(*split_sparse_and_dense_parts(sps.csc_matrix(X), T))
         assert fully_dense.dense_indices.shape[0] == D
         assert fully_dense.sparse_indices.shape[0] == S
 
@@ -41,7 +41,7 @@ def test_sandwich(X: np.ndarray):
         m = np.random.randint(2, n)
         X = sps.random(n, m, density=0.2)
         v = np.random.rand(n)
-        Xsplit = SplitMatrix(sps.csc_matrix(X), 0.2)
+        Xsplit = SplitMatrix(*split_sparse_and_dense_parts(sps.csc_matrix(X), 0.2))
         y1 = Xsplit.sandwich(v)
         y2 = ((X.T.multiply(v)) @ X).toarray()
         np.testing.assert_allclose(y1, y2, atol=1e-12)

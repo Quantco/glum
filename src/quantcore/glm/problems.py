@@ -15,6 +15,7 @@ from .data import (
     generate_wide_insurance_dataset,
 )
 from .matrix import SplitMatrix
+from .matrix.split_matrix import split_sparse_and_dense_parts
 from .util import cache_location
 
 joblib_memory = Memory(cache_location, verbose=0)
@@ -61,7 +62,8 @@ def load_data(
         X = csc_matrix(X)
     elif storage.startswith("split"):
         threshold = float(storage.split("split")[1])
-        X = SplitMatrix(csc_matrix(X), threshold)
+        args = split_sparse_and_dense_parts(csc_matrix(X), threshold)
+        X = SplitMatrix(*args)
     if data_setup == "weights":
         return dict(X=X, y=y, weights=exposure)
     if data_setup == "offset":

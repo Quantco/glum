@@ -20,7 +20,9 @@ GLM_SOLVERS = ["irls", "lbfgs", "cd"]
         sparse.csr_matrix,
         mx.DenseGLMDataMatrix,
         lambda x: mx.MKLSparseMatrix(sparse.csc_matrix(x)),
-        lambda x: mx.SplitMatrix(sparse.csc_matrix(x)),
+        lambda x: mx.SplitMatrix(
+            *mx.split_sparse_and_dense_parts(sparse.csc_matrix(x))
+        ),
     ],
 )
 def test_normal_elastic_net_comparison(l1_ratio, fit_intercept, convert_x_fn):
