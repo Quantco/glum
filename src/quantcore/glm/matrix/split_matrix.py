@@ -1,5 +1,4 @@
-import copy as copy_
-from typing import List, Union
+from typing import List, Tuple, Union
 
 import numpy as np
 from scipy import sparse as sps
@@ -11,38 +10,63 @@ from .mkl_sparse_matrix import MKLSparseMatrix
 
 class SplitMatrix(MatrixBase):
     def __init__(
-        self, X: Union[sps.csc_matrix, MKLSparseMatrix], threshold: float = 0.1
+        self,
+        arg1: Union[
+            sps.csc_matrix, Tuple[np.ndarray, sps.csc_matrix, np.ndarray, np.ndarray]
+        ],
+        threshold: float = 0.1,
     ):
-        if not isinstance(X, sps.csc_matrix) and not isinstance(X, MKLSparseMatrix):
-            raise TypeError(
-                "X must be of type scipy.sparse.csc_matrix or matrix.MKLSparseMatrix"
+        if isinstance(arg1, tuple):
+            dense, sparse, self.dense_indices, self.sparse_indices = arg1
+            if not dense.shape[0] == sparse.shape[0]:
+                raise ValueError(
+                    f"""
+                    X_dense_F and X_sparse should have the same length,
+                    but X_dense_F has shape {dense.shape} and X_sparse has shape {sparse.shape}.
+            """
+                )
+            if not dense.shape[1] == len(self.dense_indices):
+                raise ValueError(
+                    f"""dense_indices should have length X_dense_F.shape[1],
+                but dense_indices has shape {self.dense_indices.shape} and X_dense_F
+                has shape {dense.shape}"""
+                )
+            if not sparse.shape[1] == len(self.sparse_indices):
+                raise ValueError(
+                    f"""sparse_indices should have length X_sparse.shape[1],
+                but sparse_indices has shape {self.sparse_indices.shape} and X_sparse
+                has shape {sparse.shape}"""
+                )
+            self.X_dense_F = DenseGLMDataMatrix(dense)
+            self.X_sparse = MKLSparseMatrix(sparse)
+        else:
+            if not isinstance(arg1, sps.csc_matrix):
+                raise TypeError(
+                    "X must be of type scipy.sparse.csc_matrix or matrix.MKLSparseMatrix"
+                )
+            if not 0 <= threshold <= 1:
+                raise ValueError("Threshold must be between 0 and 1.")
+            densities = np.diff(arg1.indptr) / arg1.shape[0]
+            self.dense_indices = np.where(densities > threshold)[0]
+            self.sparse_indices = np.setdiff1d(
+                np.arange(densities.shape[0]), self.dense_indices
             )
-        self.shape = X.shape
-        self.threshold = threshold
-        self.dtype = X.dtype
 
-        densities = np.diff(X.indptr) / X.shape[0]
-        self.dense_indices = np.where(densities > threshold)[0]
-        self.sparse_indices = np.setdiff1d(
-            np.arange(densities.shape[0]), self.dense_indices
-        )
+            self.X_dense_F = DenseGLMDataMatrix(
+                np.asfortranarray(arg1.toarray()[:, self.dense_indices])
+            )
+            self.X_sparse = MKLSparseMatrix(arg1[:, self.sparse_indices])
 
-        self.X_dense_F = DenseGLMDataMatrix(
-            np.asfortranarray(X.toarray()[:, self.dense_indices])
+        self.dtype = self.X_sparse.dtype
+        self.shape = (
+            self.X_dense_F.shape[0],
+            len(self.dense_indices) + len(self.sparse_indices),
         )
-        self.X_sparse = MKLSparseMatrix(X[:, self.sparse_indices])
 
     def astype(self, dtype, order="K", casting="unsafe", copy=True):
-        if copy:
-            new = copy_.copy(self)
-            new.X_dense_F = self.X_dense_F.astype(dtype, order, casting, copy=copy)
-            new.X_sparse = self.X_sparse.astype(dtype, casting, copy)
-            new.dtype = new.X_dense_F.dtype
-            return new
-        self.X_dense_F = self.X_dense_F.astype(dtype, order, casting, copy=copy)
-        self.X_sparse = self.X_sparse.astype(dtype, casting, copy)
-        self.dtype = self.X_dense_F.dtype
-        return self
+        dense = self.X_dense_F.astype(dtype, order, casting, copy=copy)
+        sparse = self.X_sparse.astype(dtype=dtype, casting=casting, copy=copy)
+        return SplitMatrix((dense, sparse, self.dense_indices, self.sparse_indices,))
 
     def toarray(self) -> np.ndarray:
         out = np.empty(self.shape)
@@ -117,10 +141,33 @@ class SplitMatrix(MatrixBase):
         out[self.dense_indices, ...] = dense_component
         out[self.sparse_indices, ...] = sparse_component
         return out
-        # return self.__rmatmul__(np.transpose(vec)).T
 
     def scale_cols_inplace(self, col_scaling: np.ndarray):
         self.X_sparse.scale_cols_inplace(col_scaling[self.sparse_indices])
         self.X_dense_F.scale_cols_inplace(col_scaling[self.dense_indices])
+
+    def __getitem__(self, key):
+        if isinstance(key, tuple):
+            row, col = key
+        else:
+            row = key
+            col = slice(None, None, None)  # all columns
+
+        if col == slice(None, None, None):
+            if isinstance(row, int):
+                row = [row]
+
+            return SplitMatrix(
+                (
+                    self.X_dense_F[row, :],
+                    self.X_sparse[row, :],
+                    self.dense_indices,
+                    self.sparse_indices,
+                )
+            )
+        else:
+            raise NotImplementedError(
+                f"Only row indexing is supported. Index passed was {key}."
+            )
 
     __array_priority__ = 13
