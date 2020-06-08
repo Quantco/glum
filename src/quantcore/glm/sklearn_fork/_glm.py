@@ -587,6 +587,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 coef = np.zeros(
                     X.shape[1], dtype=_float_itemsize_to_dtype[X.dtype.itemsize]
                 )
+
         else:  # assign given array as start values
             coef = start_params
             if self._center_predictors:
