@@ -1,16 +1,15 @@
 from __future__ import division
 
 import copy
-from typing import List, Optional, Union
+from typing import Optional, Union
 
 import numpy as np
 from joblib import Parallel, delayed
-from scipy import sparse as sparse
 from sklearn.model_selection._split import check_cv
 
-from .. import matrix as mx
 from ._distribution import ExponentialDispersionModel
 from ._glm import (
+    ArrayLike,
     GeneralizedLinearRegressorBase,
     _unstandardize,
     check_bounds,
@@ -21,15 +20,6 @@ from ._glm import (
 )
 from ._link import Link, LogLink
 from ._util import _safe_lin_pred
-
-IndexableArrayLike = Union[
-    List,
-    np.ndarray,
-    sparse.spmatrix,
-    mx.DenseGLMDataMatrix,
-    mx.MKLSparseMatrix,
-    mx.ColScaledMat,
-]
 
 
 class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
@@ -181,7 +171,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         step_size_tol: Optional[float] = None,
         warm_start: bool = False,
         n_alphas: int = 100,
-        alphas: Optional[np.ndarray] = None,
+        alphas: Optional[ArrayLike] = None,
         min_alpha_ratio: Optional[float] = None,
         min_alpha: Optional[float] = None,
         start_params: Optional[np.ndarray] = None,
@@ -244,17 +234,14 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
 
     def fit(
         self,
-        # Can't be ArrayLike or contain mx.MatrixBase because mx.SplitMatrix is not
-        # indexable
-        X: IndexableArrayLike,
-        y: IndexableArrayLike,
-        sample_weight: Optional[IndexableArrayLike] = None,
-        offset: Optional[IndexableArrayLike] = None,
+        X: ArrayLike,
+        y: ArrayLike,
+        sample_weight: Optional[ArrayLike] = None,
+        offset: Optional[ArrayLike] = None,
     ):
         X, y, weights, offset, weights_sum = self.set_up_and_check_fit_args(
             X, y, sample_weight, offset, solver=self.solver, copy_X=self.copy_X
         )
-        assert isinstance(X, (mx.MKLSparseMatrix, mx.DenseGLMDataMatrix))
 
         #########
         # Checks
@@ -293,18 +280,13 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             test_idx,
             X,
             y,
-            P1,
-            P2,
             l1,
             alphas,
             weights,
             offset,
             lower_bounds,
             upper_bounds,
-            fit_intercept,
         ):
-            deviance_path_ = np.full(len(alphas), np.nan)
-            coef_path_ = np.full((len(alphas), X.shape[1] + int(fit_intercept)), np.nan)
 
             x_train, y_train, w_train = (
                 X[train_idx, :],
@@ -408,15 +390,12 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
                 test_idx=test_idx,
                 X=X,
                 y=y,
-                P1=self.P1,
-                P2=self.P2,
                 l1=this_l1_ratio,
                 alphas=this_alphas,
                 weights=weights,
                 offset=offset,
                 lower_bounds=lower_bounds,
                 upper_bounds=upper_bounds,
-                fit_intercept=self.fit_intercept,
             )
             for train_idx, test_idx in cv.split(X, y)
             for this_l1_ratio, this_alphas in zip(l1_ratio, alphas)

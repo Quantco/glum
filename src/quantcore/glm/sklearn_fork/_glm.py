@@ -39,7 +39,7 @@ Generalized Linear Models with Exponential Dispersion Family
 from __future__ import division
 
 import warnings
-from typing import Iterable, List, Optional, Tuple, Type, Union
+from typing import Iterable, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -98,16 +98,33 @@ ShapedArrayLike = Union[
 ]
 
 
-def check_X_y_matrix(
-    X: mx.MatrixBase,
-    y: Union[np.ndarray, List, sparse.spmatrix],
-    *,
-    accept_sparse: Union[str, bool, List[str]] = False,
-    dtype: Union[str, Type, List[Type], None] = "numeric",
-    order: Optional[str] = None,
-    copy: bool = False,
-    ensure_min_samples: int = 1,
-    estimator: Optional[str] = None,
+def check_array_matrix_compliant(mat: ArrayLike, **kwargs):
+    if isinstance(mat, mx.SplitMatrix):
+        kwargs.update({"ensure_min_features": 0})
+        return mx.SplitMatrix(
+            (
+                check_array(mat.X_dense_F, **kwargs),
+                check_array(mat.X_sparse, **kwargs),
+                mat.dense_indices,
+                mat.sparse_indices,
+            )
+        )
+
+    if isinstance(mat, mx.ColScaledMat):
+        return mx.ColScaledMat(
+            check_array_matrix_compliant(mat.mat, **kwargs),
+            check_array(mat.shift, **kwargs),
+        )
+    original_type = type(mat)
+    res = check_array(mat, **kwargs)
+
+    if original_type in (mx.DenseGLMDataMatrix, mx.MKLSparseMatrix):
+        res = original_type(res)  # type: ignore
+    return res
+
+
+def check_X_y_matrix_compliant(
+    X: ArrayLike, y: Union[np.ndarray, sparse.spmatrix], **kwargs
 ) -> Tuple[Union[mx.MatrixBase, sparse.spmatrix, np.ndarray], np.ndarray]:
     """
     See documentation for sklearn.utils.check_X_y. This function behaves identically
@@ -121,25 +138,6 @@ def check_X_y_matrix(
     y_converted : object
         The converted and validated y.
     """
-    assert isinstance(X, mx.MatrixBase)
-
-    def _check_array(mat, ensure_min_features: int):
-
-        return check_array(
-            mat,
-            accept_sparse=accept_sparse,
-            accept_large_sparse=True,
-            dtype=dtype,
-            order=order,
-            copy=copy,
-            force_all_finite=True,
-            ensure_2d=True,
-            allow_nd=False,
-            ensure_min_samples=ensure_min_samples,
-            ensure_min_features=ensure_min_features,
-            estimator=estimator,
-        )
-
     if y is None:
         raise ValueError("y cannot be None")
 
@@ -149,18 +147,7 @@ def check_X_y_matrix(
         y = y.astype(np.float64)
 
     check_consistent_length(X, y)
-
-    if isinstance(X, mx.SplitMatrix):
-        X.X_sparse = _check_array(X.X_sparse, ensure_min_features=0)
-        X.X_dense_F = mx.DenseGLMDataMatrix(
-            _check_array(X.X_dense_F, ensure_min_features=0)
-        )
-
-    else:
-        original_type = type(X)
-        X = _check_array(X, ensure_min_features=1)
-        if original_type is mx.DenseGLMDataMatrix:
-            X = mx.DenseGLMDataMatrix(X)
+    X = check_array_matrix_compliant(X, **kwargs)
 
     return X, y
 
@@ -923,7 +910,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             Returns predicted values of linear predictor.
         """
         check_is_fitted(self, "coef_")
-        X = check_array(
+        X = check_array_matrix_compliant(
             X,
             accept_sparse=["csr", "csc", "coo"],
             dtype="numeric",
@@ -963,7 +950,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             Returns predicted values times sample_weight.
         """
         # TODO: Is copy=True necessary?
-        X = check_array(
+        X = check_array_matrix_compliant(
             X,
             accept_sparse=["csr", "csc", "coo"],
             dtype="numeric",
@@ -1002,7 +989,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         check_is_fitted(self, "coef_")
         _dtype = [np.float64, np.float32]
         if isinstance(X, mx.MatrixBase):
-            X, y = check_X_y_matrix(
+            X, y = check_X_y_matrix_compliant(
                 X, y, accept_sparse=["csr", "csc", "coo"], dtype=_dtype
             )
         else:
@@ -1209,7 +1196,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             X = X.astype(np.float64)  # type: ignore
 
         if isinstance(X, mx.MatrixBase):
-            X, y = check_X_y_matrix(
+            X, y = check_X_y_matrix_compliant(
                 X, y, accept_sparse=_stype, dtype=_dtype, copy=copy_X
             )
             self._check_n_features(X, reset=True)
