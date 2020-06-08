@@ -668,7 +668,7 @@ def test_glm_identity_regression(solver, fit_intercept, offset, convert_x_fn):
         lambda x: mx.DenseGLMDataMatrix(x.astype(float)),
         lambda x: mx.MKLSparseMatrix(sparse.csc_matrix(x)),
         lambda x: mx.SplitMatrix(sparse.csc_matrix(x.astype(float))),
-        lambda x: mx.CategoricalCSRMatrix(x.dot([0, 1])),
+        lambda x: mx.CategoricalMatrix(x.dot([0, 1])),
     ],
 )
 def test_glm_identity_regression_categorical_data(solver, offset, convert_x_fn):
