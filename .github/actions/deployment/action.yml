@@ -14,4 +14,4 @@ runs:
    - /bin/bash
    - "-l"
    - "-c"
-   - "./.github/workflows/tag.sh ${{ inputs.python_version }}" "${{ inputs.glm_architecture }}"
+   - "./.github/workflows/tag.sh ${{ inputs.python_version }} ${{ inputs.glm_architecture }}"
