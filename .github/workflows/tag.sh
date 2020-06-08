@@ -1,4 +1,4 @@
-.github/workflows/tag.sh#!/bin/bash
+#!/bin/bash
 
 set -eo pipefail
 
