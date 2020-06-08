@@ -26,12 +26,12 @@ def mkl_sparse_matrix(order="F") -> mx.MKLSparseMatrix:
 
 def categorical_matrix(order="F"):
     vec = [1, 0, 1]
-    return mx.CategoricalCSRMatrix(vec)
+    return mx.CategoricalMatrix(vec)
 
 
 def categorical_matrix_col_mult(order="F"):
     vec = [1, 0, 1]
-    return mx.CategoricalCSRMatrix(vec, [0.5, 3])
+    return mx.CategoricalMatrix(vec, [0.5, 3])
 
 
 def col_scaled_dense(order="F") -> mx.ColScaledMat:
@@ -74,7 +74,7 @@ def test_getcol(mat, i):
 def test_to_array(mat, order):
     mat_ = mat(order)
     assert isinstance(mat_.A, np.ndarray)
-    if isinstance(mat_, mx.CategoricalCSRMatrix):
+    if isinstance(mat_, mx.CategoricalMatrix):
         expected = np.array([[0, 1], [1, 0], [0, 1]])
         if mat_.col_mult is not None:
             expected = expected * mat_.col_mult[None, :]

@@ -149,7 +149,7 @@ def check_X_y_matrix_compliant(
 
     check_consistent_length(X, y)
     # TODO: check_array
-    if not isinstance(X, mx.CategoricalCSRMatrix):
+    if not isinstance(X, mx.CategoricalMatrix):
         X = check_array_matrix_compliant(X, **kwargs)
 
     return X, y
@@ -1192,7 +1192,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             _stype = ["csc", "csr"]
 
         if (
-            not isinstance(X, mx.CategoricalCSRMatrix)
+            not isinstance(X, mx.CategoricalMatrix)
             and hasattr(X, "dtype")
             and X.dtype == np.int64  # type: ignore
         ):
@@ -1218,7 +1218,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         # Make sure everything has the same precision as X
         # This will prevent accidental upcasting later and slow operations on
         # mixed-precision numbers
-        dtype = np.float64 if isinstance(X, mx.CategoricalCSRMatrix) else X.dtype
+        dtype = np.float64 if isinstance(X, mx.CategoricalMatrix) else X.dtype
         y = np.asarray(y, dtype=dtype)
         weights = _check_weights(sample_weight, y.shape[0], dtype)
         offset = _check_offset(offset, y.shape[0], dtype)

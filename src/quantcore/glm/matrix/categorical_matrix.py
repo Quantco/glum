@@ -22,7 +22,7 @@ def sandwich_python(
     return res
 
 
-class CategoricalCSRMatrix(MatrixBase):
+class CategoricalMatrix(MatrixBase):
     def __init__(
         self,
         cat_vec: Union[List, np.ndarray, pd.Categorical],
@@ -72,6 +72,7 @@ class CategoricalCSRMatrix(MatrixBase):
 
     def _check_csc(self) -> Tuple[np.ndarray, np.ndarray]:
         if self.x_csc is None:
+            # Currently taking up a lot of time
             csc = self.tocsr().tocsc()
             self.x_csc = (csc.indices, csc.indptr)
         return self.x_csc
@@ -85,7 +86,7 @@ class CategoricalCSRMatrix(MatrixBase):
             return col_i
         return col_i * self.col_mult[i]
 
-    def sandwich(self, d: Union[np.ndarray, List]) -> sps.spmatrix:
+    def sandwich(self, d: Union[np.ndarray, List]) -> sps.dia_matrix:
         """
         sandwich(self, d)[i, j] = (self.T @ diag(d) @ self)[i, j]
             = sum_k (self[k, i] (diag(d) @ self)[k, j])
@@ -103,14 +104,14 @@ class CategoricalCSRMatrix(MatrixBase):
             res_diag *= self.col_mult ** 2
         return sps.diags(res_diag)
 
-    def sandwich_python(self, d: Union[np.ndarray, List]) -> np.ndarray:
+    def sandwich_python(self, d: Union[np.ndarray, List]) -> sps.dia_matrix:
 
         d = np.asarray(d)
         indices, indptr = self._check_csc()
         res = sandwich_python(indices, indptr, d)
         if self.col_mult is not None:
             res *= self.col_mult ** 2
-        return np.diag(res)
+        return sps.diags(res)
 
     def tocsr(self) -> sps.csr_matrix:
         # TODO: write a test for this
@@ -128,8 +129,11 @@ class CategoricalCSRMatrix(MatrixBase):
         return self.tocsr().A
 
     def transpose_dot(self, vec: Union[np.ndarray, List]) -> np.ndarray:
-        # TODO: there is probably a more efficient method for this
-        return self.tocsr().T.dot(vec)
+        # TODO: write a function that doesn't reference the data
+        indices, indptr = self._check_csc()
+        data = np.ones(self.shape[0], dtype=int)
+        as_csc = sps.csc_matrix((data, indices, indptr))
+        return as_csc.T.dot(vec)
 
     def astype(self, dtype, order="K", casting="unsafe", copy=True):
         """
@@ -167,4 +171,4 @@ class CategoricalCSRMatrix(MatrixBase):
             row = item
         if isinstance(row, int):
             row = [row]
-        return CategoricalCSRMatrix(self.cat[row], self.col_mult)
+        return CategoricalMatrix(self.cat[row], self.col_mult)
