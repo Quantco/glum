@@ -5,6 +5,7 @@ import numpy as np
 from scipy import sparse as sps
 
 from . import MatrixBase
+from .categorical_matrix import CategoricalMatrix
 from .dense_glm_matrix import DenseGLMDataMatrix
 from .mkl_sparse_matrix import MKLSparseMatrix
 
@@ -32,15 +33,38 @@ def csc_to_split(mat: sps.csc_matrix, threshold=0.1):
     return SplitMatrix([dense, sparse], [dense_idx, sparse_idx])
 
 
+def _sandwich_cat_other(
+    mat_i: CategoricalMatrix, mat_j: MatrixBase, d: np.ndarray
+) -> np.ndarray:
+    term_1 = mat_i.tocsr()
+    term_1.data = d
+    res = term_1.T.dot(mat_j)
+    if sps.issparse(res):
+        res = res.A
+    assert isinstance(res, np.ndarray)
+    return res
+
+
 def mat_sandwich(mat_i: MatrixBase, mat_j: MatrixBase, d: np.ndarray) -> np.ndarray:
     if type(mat_i) == type(mat_j):
         return mat_i.sandwich(d)
-    elif isinstance(mat_i, MKLSparseMatrix) and isinstance(mat_j, DenseGLMDataMatrix):
-        return mat_i.sandwich_dense(mat_j, d)
-    elif isinstance(mat_i, DenseGLMDataMatrix) and isinstance(mat_j, MKLSparseMatrix):
-        return mat_j.sandwich_dense(mat_i, d).T
-    else:
+    elif isinstance(mat_i, MKLSparseMatrix):
+        if isinstance(mat_j, DenseGLMDataMatrix):
+            return mat_i.sandwich_dense(mat_j, d)
+        if isinstance(mat_j, CategoricalMatrix):
+            return _sandwich_cat_other(mat_j, mat_i, d).T
         raise NotImplementedError
+    elif isinstance(mat_i, DenseGLMDataMatrix):
+        if isinstance(mat_j, MKLSparseMatrix):
+            return mat_j.sandwich_dense(mat_i, d).T
+        if isinstance(mat_j, CategoricalMatrix):
+            return _sandwich_cat_other(mat_j, mat_i, d).T
+    elif isinstance(mat_i, CategoricalMatrix):
+        return _sandwich_cat_other(mat_i, mat_j, d)
+    else:
+        raise NotImplementedError(
+            f"Not implemented with {type(mat_i)} or {type(mat_j)}"
+        )
 
 
 class SplitMatrix(MatrixBase):
@@ -109,7 +133,9 @@ class SplitMatrix(MatrixBase):
         raise RuntimeError(f"Column {i} was not found.")
 
     def sandwich(self, d: np.ndarray) -> np.ndarray:
-        out = np.empty((self.shape[1], self.shape[1]))
+        if np.shape(d) != (self.shape[0],):
+            raise ValueError
+        out = np.zeros((self.shape[1], self.shape[1]))
         for i in range(len(self.indices)):
             for j in range(i, len(self.indices)):
                 idx_i = self.indices[i]
@@ -117,8 +143,12 @@ class SplitMatrix(MatrixBase):
                 idx_j = self.indices[j]
                 mat_j = self.matrices[j]
                 res = mat_sandwich(mat_i, mat_j, d)
-                out[np.ix_(idx_i, idx_j)] = res
-                out[np.ix_(idx_j, idx_i)] = res.T
+                if isinstance(res, sps.dia_matrix):
+                    out[(idx_i, idx_i)] += np.squeeze(res.data)
+                else:
+                    out[np.ix_(idx_i, idx_j)] = res
+                    if i != j:
+                        out[np.ix_(idx_j, idx_i)] = res.T
         return out
 
     def get_col_means(self, weights: np.ndarray) -> np.ndarray:
