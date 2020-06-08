@@ -5,9 +5,8 @@ import numpy as np
 import pandas as pd
 from scipy import sparse as sps
 
-from quantcore.glm.matrix import SplitMatrix
+import quantcore.glm.matrix as mx
 from quantcore.glm.matrix.sandwich.sandwich import dense_sandwich, sparse_sandwich
-from quantcore.glm.matrix.split_matrix import split_sparse_and_dense_parts
 from quantcore.glm.problems import (
     generate_narrow_insurance_dataset,
     generate_wide_insurance_dataset,
@@ -34,8 +33,7 @@ def _fast_sandwich(X, d):
 
 
 def split_sandwich(X, threshold):
-    args = split_sparse_and_dense_parts(X, threshold)
-    Xsplit = SplitMatrix(*args)
+    Xsplit = mx.split_matrix.csc_to_split(X, threshold)
     return lambda _, d: Xsplit.sandwich(d)
 
 
