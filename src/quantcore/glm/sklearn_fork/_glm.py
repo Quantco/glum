@@ -102,12 +102,14 @@ ShapedArrayLike = Union[
 def check_array_matrix_compliant(mat: ArrayLike, **kwargs):
     if isinstance(mat, mx.SplitMatrix):
         kwargs.update({"ensure_min_features": 0})
-        return mx.SplitMatrix(
-            check_array(mat.X_dense_F, **kwargs),
-            check_array(mat.X_sparse, **kwargs),
-            mat.dense_indices,
-            mat.sparse_indices,
-        )
+        new_matrices = [check_array(m, **kwargs) for m in mat.matrices]
+        for i, m in enumerate(new_matrices):
+            if isinstance(m, np.ndarray):
+                new_matrices[i] = mx.DenseGLMDataMatrix(m)
+            elif isinstance(mat, sparse.spmatrix):
+                new_matrices[i] = mx.MKLSparseMatrix(m)
+
+        return mx.SplitMatrix(new_matrices, mat.indices)
 
     if isinstance(mat, mx.ColScaledMat):
         return mx.ColScaledMat(

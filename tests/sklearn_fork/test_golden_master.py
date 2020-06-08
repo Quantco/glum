@@ -96,9 +96,10 @@ def data_all(request):
         elif request.param == "sparse":
             data_dist["X"] = MKLSparseMatrix(sparse.csc_matrix(data_dist["X"]))
         elif request.param == "split":
-            data_dist["X"] = SplitMatrix(
-                *split_sparse_and_dense_parts(sparse.csc_matrix(data_dist["X"]))
+            dense, sp, dense_ix, sparse_ix = split_sparse_and_dense_parts(
+                sparse.csc_matrix(data_dist["X"])
             )
+            data_dist["X"] = SplitMatrix([dense, sp], [dense_ix, sparse_ix])
 
         data[dist] = data_dist
 
