@@ -8,14 +8,14 @@ from git_root import git_root
 from joblib import Memory
 from scipy.sparse import csc_matrix
 
+import quantcore.glm.matrix as mx
+
 from .data import (
     generate_intermediate_insurance_dataset,
     generate_narrow_insurance_dataset,
     generate_real_insurance_dataset,
     generate_wide_insurance_dataset,
 )
-from .matrix import SplitMatrix
-from .matrix.split_matrix import split_sparse_and_dense_parts
 from .util import cache_location
 
 joblib_memory = Memory(cache_location, verbose=0)
@@ -62,8 +62,7 @@ def load_data(
         X = csc_matrix(X)
     elif storage.startswith("split"):
         threshold = float(storage.split("split")[1])
-        args = split_sparse_and_dense_parts(csc_matrix(X), threshold)
-        X = SplitMatrix(*args)
+        X = mx.split_matrix.csc_to_split(csc_matrix(X), threshold)
     if data_setup == "weights":
         return dict(X=X, y=y, weights=exposure)
     if data_setup == "offset":
