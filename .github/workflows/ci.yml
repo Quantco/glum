@@ -113,3 +113,41 @@ jobs:
           ref: ${{ github.head_ref }}
       - name: Run Unit Tests
         run: ./.github/workflows/macos-conda-build.sh
+  windows-conda-build:
+    name: "Windows - conda-build - Python ${{ matrix.PYTHON_VERSION }}"
+    runs-on: windows-latest
+    env:
+      CI: True
+      CONDA_CHANNEL_UPLOAD_USER: ${{ secrets.CONDA_CHANNEL_UPLOAD_USER }}
+      CONDA_CHANNEL_UPLOAD_PASSWORD: ${{ secrets.CONDA_CHANNEL_UPLOAD_PASSWORD }}
+      PYTHON_VERSION: ${{ matrix.PYTHON_VERSION }}
+    strategy:
+      fail-fast: false
+      matrix:
+        PYTHON_VERSION: ['3.6', '3.7', '3.8']
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v2.1.0
+        with:
+          ref: ${{ github.head_ref }}
+      - name: Fetch full git history
+        run: git fetch --prune --unshallow
+      - uses: goanpeca/setup-miniconda@v1
+        with:
+          auto-update-conda: true
+          auto-activate-base: true
+          activate-environment: ""
+          python-version: ${{ matrix.python-version }}
+          channels: conda-forge
+      - name: Setup custom channel
+        shell: pwsh
+        run: >
+          conda config --system --prepend channels quantco_main;
+          conda config --system --set custom_channels.quantco_main https://${Env:CONDA_CHANNEL_UPLOAD_USER}:${Env:CONDA_CHANNEL_UPLOAD_PASSWORD}@conda.quantco.cloud;
+          conda info
+      - name: Install dependencies
+        shell: pwsh
+        run: conda install -y conda-build conda-channel-client
+      - name: conda-build
+        shell: pwsh
+        run: conda build --python $Env:PYTHON_VERSION conda.recipe
