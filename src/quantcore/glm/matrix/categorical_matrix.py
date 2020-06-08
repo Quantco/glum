@@ -13,7 +13,7 @@ class CategoricalMatrix(MatrixBase):
         self,
         cat_vec: Union[List, np.ndarray, pd.Categorical],
         col_mult: Optional[Union[List, np.ndarray]] = None,
-        dtype: np.dtype = np.float64,
+        dtype: np.dtype = np.dtype("float64"),
     ):
         if isinstance(cat_vec, pd.Categorical):
             self.cat = cat_vec
@@ -22,7 +22,7 @@ class CategoricalMatrix(MatrixBase):
 
         self.shape = (len(self.cat), len(self.cat.categories))
         self.indices = self.cat.codes
-        self.x_csc: Optional[Tuple[np.ndarray, np.ndarray]] = None
+        self.x_csc: Optional[Tuple[Optional[np.ndarray], np.ndarray, np.ndarray]] = None
         self.col_mult = None if col_mult is None else np.squeeze(col_mult)
         if self.col_mult is None:
             self.dtype = dtype
@@ -56,11 +56,18 @@ class CategoricalMatrix(MatrixBase):
             other_m = other * self.col_mult[:, None]
         return other_m[self.indices, ...]
 
-    def _check_csc(self) -> Tuple[np.ndarray, np.ndarray]:
-        if self.x_csc is None:
+    def _check_csc(
+        self, force_reset=False
+    ) -> Tuple[Optional[np.ndarray], np.ndarray, np.ndarray]:
+        if self.x_csc is None or force_reset:
             # Currently taking up a lot of time
             csc = self.tocsr().tocsc()
-            self.x_csc = (csc.indices, csc.indptr)
+            if self.col_mult is None:
+                np.testing.assert_allclose(csc.data, np.ones(self.shape[0]))
+                data = None
+            else:
+                data = csc.data
+            self.x_csc = (data, csc.indices, csc.indptr)
         return self.x_csc
 
     # TODO: best way to return this depends on the use case. See what that is
@@ -84,7 +91,7 @@ class CategoricalMatrix(MatrixBase):
         """
         # TODO: make downstream calls to this exploit the sparse structure
         d = np.asarray(d)
-        indices, indptr = self._check_csc()
+        _, indices, indptr = self._check_csc()
         res_diag = sandwich_categorical(indices, indptr, d)
         if self.col_mult is not None:
             res_diag *= self.col_mult ** 2
@@ -99,17 +106,19 @@ class CategoricalMatrix(MatrixBase):
             data = self.col_mult[self.indices]
 
         return sps.csr_matrix(
-            (data, self.indices, np.arange(self.shape[0] + 1, dtype=int),)
+            (data, self.indices, np.arange(self.shape[0] + 1, dtype=int)),
+            shape=self.shape,
         )
 
     def toarray(self) -> np.ndarray:
         return self.tocsr().A
 
     def transpose_dot(self, vec: Union[np.ndarray, List]) -> np.ndarray:
-        # TODO: write a function that doesn't reference the data
-        indices, indptr = self._check_csc()
-        data = np.ones(self.shape[0], dtype=int)
-        as_csc = sps.csc_matrix((data, indices, indptr))
+        # TODO: write a function that doesn't reference the data. That will be
+        # especially helpful with a col_mult
+        data, indices, indptr = self._check_csc()
+        data = np.ones(self.shape[0], dtype=int) if data is None else data
+        as_csc = sps.csc_matrix((data, indices, indptr), shape=self.shape)
         return as_csc.T.dot(vec)
 
     def astype(self, dtype, order="K", casting="unsafe", copy=True):
@@ -138,6 +147,9 @@ class CategoricalMatrix(MatrixBase):
             # should become 1, which is the same as not having a col_mult.
             if np.all(np.abs(self.col_mult - 1) < 1e-12):
                 self.col_mult = None
+
+        if self.x_csc is not None:
+            self._check_csc(force_reset=True)
 
     def __getitem__(self, item):
         if isinstance(item, tuple):
