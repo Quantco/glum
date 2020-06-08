@@ -30,7 +30,7 @@ jobs:
         run: git fetch --depth=1 origin +refs/tags/*:refs/tags/*
       - name: Fetch all
         run: git fetch --prune --unshallow
-      - name: Deploy package from container
+      - name: Build and upload conda package
         uses: ./.github/actions/deployment
         with:
           python_version: ${{ matrix.PYTHON_VERSION }}
@@ -38,7 +38,7 @@ jobs:
 
   macos-deployment:
     name: "MacOS - deployment - Python ${{ matrix.PYTHON_VERSION }} - ${{ matrix.GLM_ARCHITECTURE }}"
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     env:
       CI: True
       ***REMOVED***: ${{ secrets.***REMOVED*** }}
@@ -55,6 +55,6 @@ jobs:
         uses: actions/checkout@v2.1.0
         with:
           ref: ${{ github.head_ref }}
-      - name: Run Unit Tests
+      - name: Build and upload conda package
         run: ./.github/workflows/macos-tag.sh
 
