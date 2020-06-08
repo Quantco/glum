@@ -58,13 +58,8 @@ def main():
     times = {}
 
     start = time.time()
-    python_res = cat_mat.sandwich_python(d)
-    times["python_sand"] = time.time() - start
-
-    start = time.time()
     cython_res = cat_mat.sandwich(d)
     times["cython_sand"] = time.time() - start
-    np.testing.assert_allclose(cython_res.data, python_res.data)
 
     start = time.time()
     csr_res = csr_mat.sandwich(d)
