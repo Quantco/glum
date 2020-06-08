@@ -8,7 +8,12 @@ import pytest
 from git_root import git_root
 from scipy import sparse
 
-from quantcore.glm.matrix import DenseGLMDataMatrix, MKLSparseMatrix, SplitMatrix
+from quantcore.glm.matrix import (
+    DenseGLMDataMatrix,
+    MKLSparseMatrix,
+    SplitMatrix,
+    split_sparse_and_dense_parts,
+)
 from quantcore.glm.sklearn_fork._glm import (
     GeneralizedLinearRegressor,
     TweedieDistribution,
@@ -91,7 +96,9 @@ def data_all(request):
         elif request.param == "sparse":
             data_dist["X"] = MKLSparseMatrix(sparse.csc_matrix(data_dist["X"]))
         elif request.param == "split":
-            data_dist["X"] = SplitMatrix(sparse.csc_matrix(data_dist["X"]), 0.1)
+            data_dist["X"] = SplitMatrix(
+                *split_sparse_and_dense_parts(sparse.csc_matrix(data_dist["X"]))
+            )
 
         data[dist] = data_dist
 
