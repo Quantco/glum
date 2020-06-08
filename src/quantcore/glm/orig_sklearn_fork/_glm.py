@@ -107,7 +107,7 @@ def _safe_sandwich_dot(X, d, intercept=False):
     first column of X.
     X can be sparse, d must be an ndarray. Always returns a ndarray."""
     if sparse.issparse(X):
-        temp = X.to_cat_csr() @ X.multiply(d[:, np.newaxis])
+        temp = X.transpose() @ X.multiply(d[:, np.newaxis])
         # for older versions of numpy and scipy, temp may be a np.matrix
         temp = _safe_toarray(temp)
     else:
@@ -955,7 +955,7 @@ def _irls_step(X, W, P2, z, fit_intercept=True):
     if fit_intercept:
         Wz = W * z
         if sparse.issparse(X):
-            b = np.concatenate(([Wz.sum()], X.to_cat_csr() @ Wz))
+            b = np.concatenate(([Wz.sum()], X.transpose() @ Wz))
         else:
             b = np.concatenate(([Wz.sum()], X.T @ Wz))
         A = _safe_sandwich_dot(X, W, intercept=fit_intercept)
@@ -968,7 +968,7 @@ def _irls_step(X, W, P2, z, fit_intercept=True):
             A[1:, 1:] += P2
     else:
         if sparse.issparse(X):
-            XtW = X.to_cat_csr().multiply(W)
+            XtW = X.transpose().multiply(W)
             # for older versions of numpy and scipy, A may be a np.matrix
             A = _safe_toarray(XtW @ X)
         else:
@@ -1041,7 +1041,7 @@ def _irls_solver(coef, X, y, weights, P2, fit_intercept, family, link, max_iter,
         # gradient = -X' D (y-mu)/V(mu) + l2 P2 w
         temp = hp * (y - mu) / V
         if sparse.issparse(X):
-            gradient = -(X.to_cat_csr() @ temp)
+            gradient = -(X.transpose() @ temp)
         else:
             gradient = -(X.T @ temp)
         idx = 1 if fit_intercept else 0  # offset if coef[0] is intercept
@@ -1144,7 +1144,7 @@ def _cd_cycle(
                     Bj[0] = fisher.sum()
                 if sparse.issparse(X):
                     Bj[idx:] = _safe_toarray(
-                        X[:, j].to_cat_csr() @ X.multiply(fisher[:, np.newaxis])
+                        X[:, j].transpose() @ X.multiply(fisher[:, np.newaxis])
                     ).ravel()
                 else:
                     Bj[idx:] = (fisher * X[:, j]) @ X

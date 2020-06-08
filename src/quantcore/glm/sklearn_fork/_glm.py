@@ -1218,10 +1218,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         # Make sure everything has the same precision as X
         # This will prevent accidental upcasting later and slow operations on
         # mixed-precision numbers
-        dtype = np.float64 if isinstance(X, mx.CategoricalMatrix) else X.dtype
-        y = np.asarray(y, dtype=dtype)
-        weights = _check_weights(sample_weight, y.shape[0], dtype)
-        offset = _check_offset(offset, y.shape[0], dtype)
+        y = np.asarray(y, dtype=X.dtype)
+        weights = _check_weights(sample_weight, y.shape[0], dtype=X.dtype)
+        offset = _check_offset(offset, y.shape[0], dtype=X.dtype)
 
         # IMPORTANT NOTE: Since we want to minimize
         # 1/(2*sum(sample_weight)) * deviance + L1 + L2,

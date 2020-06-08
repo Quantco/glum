@@ -8,25 +8,12 @@ from quantcore.glm.matrix.matrix_base import MatrixBase
 from quantcore.glm.matrix.sandwich.categorical_sandwich import sandwich_categorical
 
 
-def sandwich_python(
-    indices: np.ndarray, indptr: np.ndarray, d: np.ndarray
-) -> np.ndarray:
-    """
-    Returns a 1d array. The sandwich output is a diagonal matrix with this array on
-    the diagonal.
-    """
-    tmp = d[indices]
-    res = np.zeros(len(indptr) - 1, dtype=d.dtype)
-    for i in range(len(res)):
-        res[i] = tmp[indptr[i] : indptr[i + 1]].sum()
-    return res
-
-
 class CategoricalMatrix(MatrixBase):
     def __init__(
         self,
         cat_vec: Union[List, np.ndarray, pd.Categorical],
         col_mult: Optional[Union[List, np.ndarray]] = None,
+        dtype: np.dtype = np.float64,
     ):
         if isinstance(cat_vec, pd.Categorical):
             self.cat = cat_vec
@@ -38,8 +25,7 @@ class CategoricalMatrix(MatrixBase):
         self.x_csc: Optional[Tuple[np.ndarray, np.ndarray]] = None
         self.col_mult = None if col_mult is None else np.squeeze(col_mult)
         if self.col_mult is None:
-            # Indices may actually be stored as int8, but that is not Numexpr compatible
-            self.dtype = np.dtype("float64")
+            self.dtype = dtype
         else:
             self.dtype = self.col_mult.dtype
 
@@ -96,22 +82,13 @@ class CategoricalMatrix(MatrixBase):
         sandwich(self, d)[i, i] = sum_k self[k, i] ** 2 * d(k)
                = col_mult[i] ** 2 *  sum_k self.mat[k, i]** 2
         """
-        # TODO: make all calls to this compliant with a diagonal matrix
+        # TODO: make downstream calls to this exploit the sparse structure
         d = np.asarray(d)
         indices, indptr = self._check_csc()
         res_diag = sandwich_categorical(indices, indptr, d)
         if self.col_mult is not None:
             res_diag *= self.col_mult ** 2
         return sps.diags(res_diag)
-
-    def sandwich_python(self, d: Union[np.ndarray, List]) -> sps.dia_matrix:
-
-        d = np.asarray(d)
-        indices, indptr = self._check_csc()
-        res = sandwich_python(indices, indptr, d)
-        if self.col_mult is not None:
-            res *= self.col_mult ** 2
-        return sps.diags(res)
 
     def tocsr(self) -> sps.csr_matrix:
         # TODO: write a test for this
