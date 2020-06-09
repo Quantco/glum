@@ -2,23 +2,114 @@ name: CI
 on: [push]
 
 jobs:
-    linux:
-      name: "Linux"
-      runs-on: ubuntu-latest
-      env:
-        CI: True
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      strategy:
-        fail-fast: false
-      steps:
-        - name: Checkout branch
-          uses: actions/checkout@v2.1.0
-          with:
-            ref: ${{ github.head_ref }}
-        # - name: Fetch tags
-        #   run: git fetch --depth=1 origin +refs/tags/*:refs/tags/*
-        # - name: Fetch all
-        #   run: git fetch --prune --unshallow
-        - name: Run CI
-          shell: bash -l {0}
-          run: ./.github/workflows/test.sh
+  linter:
+    name: "Linter (pre-commit)"
+    runs-on: ubuntu-latest
+    env:
+      CI: True
+    strategy:
+      fail-fast: false
+    steps:
+     - name: Docker login
+       run: docker login docker.pkg.github.com -u ${{ github.actor }} -p ${{ secrets.FQ_GH_TOKEN }}
+     - name: Pull image
+       run: docker pull docker.pkg.github.com/quantco/miniforge3-qc-dev/miniconda3-qc-base:latest
+     - name: Checkout branch
+       uses: actions/checkout@v2.1.0
+       with:
+         ref: ${{ github.head_ref }}
+     - name: Run linter inside of container
+       uses: ./.github/actions/linter
+  linux:
+    name: "Linux - tests - Py${{ matrix.PYTHON_VERSION }}"
+    runs-on: ubuntu-latest
+    env:
+      CI: True
+    strategy:
+      fail-fast: false
+      matrix:
+        PYTHON_VERSION: ['3.6', '3.7', '3.8']
+    steps:
+     - name: Docker login
+       run: docker login docker.pkg.github.com -u ${{ github.actor }} -p ${{ secrets.FQ_GH_TOKEN }}
+     - name: Pull image
+       run: docker pull docker.pkg.github.com/quantco/miniforge3-qc-dev/miniconda3-qc-base:latest
+     - name: Checkout branch
+       uses: actions/checkout@v2.1.0
+       with:
+         ref: ${{ github.head_ref }}
+     - uses: GoogleCloudPlatform/github-actions/setup-gcloud@master
+       with:
+         version: '290.0.1'
+         project_id: ${{ secrets.GCP_UPLOAD_PROJECT_ID }}
+         service_account_email: ${{ secrets.GCP_UPLOAD_SA_EMAIL }}
+         service_account_key: ${{ secrets.GCP_UPLOAD_SA_KEY }}
+         export_default_credentials: true
+     - name: Run CI inside of container
+       uses: ./.github/actions/unittests
+       with:
+         python_version: ${{ matrix.PYTHON_VERSION }}
+     # - name: Publish Docs
+     #   run: cd docs/_build/html && gsutil -m cp -r * gs://qc-github-artifacts/${GITHUB_REPOSITORY}/${GITHUB_SHA}/
+  linux-conda-build:
+    name: "Linux - conda-build - Python ${{ matrix.PYTHON_VERSION }}"
+    runs-on: ubuntu-latest
+    env:
+      CI: True
+    strategy:
+      fail-fast: false
+      matrix:
+        PYTHON_VERSION: ['3.6', '3.7', '3.8']
+    steps:
+      - name: Docker login
+        run: docker login docker.pkg.github.com -u ${{ github.actor }} -p ${{ secrets.FQ_GH_TOKEN }}
+      - name: Pull image
+        run: docker pull docker.pkg.github.com/quantco/miniforge3-qc-dev/miniconda3-qc-base:latest
+      - name: Checkout branch
+        uses: actions/checkout@v2.1.0
+        with:
+          ref: ${{ github.head_ref }}
+      - name: Fetch full git history
+        run: git fetch --prune --unshallow
+      - name: Run CI inside of container
+        uses: ./.github/actions/conda-build
+        with:
+          python_version: ${{ matrix.PYTHON_VERSION }}
+  macos:
+    name: "MacOS - tests - Python ${{ matrix.PYTHON_VERSION }}"
+    runs-on: macos-latest
+    env:
+      CI: True
+      CONDA_CHANNEL_UPLOAD_USER: ${{ secrets.CONDA_CHANNEL_UPLOAD_USER }}
+      CONDA_CHANNEL_UPLOAD_PASSWORD: ${{ secrets.CONDA_CHANNEL_UPLOAD_PASSWORD }}
+      PYTHON_VERSION: ${{ matrix.PYTHON_VERSION }}
+    strategy:
+      fail-fast: false
+      matrix:
+        PYTHON_VERSION: ['3.6', '3.7', '3.8']
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v2.1.0
+        with:
+          ref: ${{ github.head_ref }}
+      - name: Run Unit Tests
+        run: ./.github/workflows/macos.sh
+  macos-conda-build:
+    name: "MacOS - conda-build - Python ${{ matrix.PYTHON_VERSION }}"
+    runs-on: macos-latest
+    env:
+      CI: True
+      CONDA_CHANNEL_UPLOAD_USER: ${{ secrets.CONDA_CHANNEL_UPLOAD_USER }}
+      CONDA_CHANNEL_UPLOAD_PASSWORD: ${{ secrets.CONDA_CHANNEL_UPLOAD_PASSWORD }}
+      PYTHON_VERSION: ${{ matrix.PYTHON_VERSION }}
+    strategy:
+      fail-fast: false
+      matrix:
+        PYTHON_VERSION: ['3.6', '3.7', '3.8']
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v2.1.0
+        with:
+          ref: ${{ github.head_ref }}
+      - name: Run Unit Tests
+        run: ./.github/workflows/macos-conda-build.sh
