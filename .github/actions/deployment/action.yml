@@ -1,0 +1,17 @@
+name: Run CD inside of container
+description: Deploy package from the private container from GitHub Packages Registry after Docker login
+inputs:
+  python_version:
+    description: 'Python version'
+    required: true
+  glm_architecture:
+    description: 'GLM architecture'
+    required: true
+runs:
+  using: 'docker'
+  image: docker.pkg.github.com/***REMOVED***/***REMOVED***:latest
+  args:
+   - /bin/bash
+   - "-l"
+   - "-c"
+   - "./.github/workflows/tag.sh ${{ inputs.python_version }} ${{ inputs.glm_architecture }}"

@@ -16,11 +16,11 @@ from sklearn.linear_model import ElasticNet, LogisticRegression, Ridge
 from sklearn.metrics import mean_absolute_error
 from sklearn.utils.estimator_checks import check_estimator
 
-from glm_benchmarks.sklearn_fork import GeneralizedLinearRegressorCV
-from glm_benchmarks.sklearn_fork._distribution import guess_intercept
-from glm_benchmarks.sklearn_fork._glm import (
+import quantcore.glm.matrix as mx
+from quantcore.glm.sklearn_fork import GeneralizedLinearRegressorCV
+from quantcore.glm.sklearn_fork._distribution import guess_intercept
+from quantcore.glm.sklearn_fork._glm import (
     BinomialDistribution,
-    DenseGLMDataMatrix,
     ExponentialDispersionModel,
     GammaDistribution,
     GeneralizedHyperbolicSecant,
@@ -30,14 +30,13 @@ from glm_benchmarks.sklearn_fork._glm import (
     Link,
     LogitLink,
     LogLink,
-    MKLSparseMatrix,
     NormalDistribution,
     PoissonDistribution,
     TweedieDistribution,
     _unstandardize,
     is_pos_semidef,
 )
-from glm_benchmarks.sklearn_fork._util import _safe_sandwich_dot
+from quantcore.glm.sklearn_fork._util import _safe_sandwich_dot
 
 GLM_SOLVERS = ["irls-ls", "lbfgs", "irls-cd"]
 
@@ -158,6 +157,54 @@ def test_deviance_zero(family, chk_values):
         (GammaDistribution(), LogLink()),
         (InverseGaussianDistribution(), LogLink()),
         (TweedieDistribution(power=1.5), LogLink()),
+        (TweedieDistribution(power=2.5), LogLink()),
+        (BinomialDistribution(), LogitLink()),
+    ],
+    ids=lambda args: args.__class__.__name__,
+)
+def test_gradients(family, link):
+    np.random.seed(1001)
+    for i in range(5):
+        nrows = 100
+        ncols = 10
+        X = np.random.rand(nrows, ncols)
+        coef = np.random.rand(ncols)
+        y = np.random.rand(nrows)
+        weights = np.ones(nrows)
+
+        eta, mu, ll_center = family.eta_mu_loglikelihood(
+            link, 1.0, np.zeros(nrows), X.dot(coef), y, weights
+        )
+        gradient_rows, _ = family.rowwise_gradient_hessian(
+            link=link, coef=coef, phi=1.0, X=X, y=y, weights=weights, eta=eta, mu=mu,
+        )
+        score_analytic = gradient_rows @ X
+
+        def f(coef2):
+            _, _, ll = family.eta_mu_loglikelihood(
+                link, 1.0, np.zeros(nrows), X.dot(coef2), y, weights
+            )
+            return -0.5 * ll
+
+        score_numeric = np.empty_like(score_analytic)
+        epsilon = 1e-7
+        for k in range(score_numeric.shape[0]):
+            L = coef.copy()
+            L[k] -= epsilon
+            R = coef.copy()
+            R[k] += epsilon
+            score_numeric[k] = (f(R) - f(L)) / (2 * epsilon)
+        assert_allclose(score_numeric, score_analytic, rtol=5e-5)
+
+
+@pytest.mark.parametrize(
+    "family, link",
+    [
+        (NormalDistribution(), IdentityLink()),
+        (PoissonDistribution(), LogLink()),
+        (GammaDistribution(), LogLink()),
+        (InverseGaussianDistribution(), LogLink()),
+        (TweedieDistribution(power=1.5), LogLink()),
         (TweedieDistribution(power=4.5), LogLink()),
     ],
     ids=lambda args: args.__class__.__name__,
@@ -168,7 +215,7 @@ def test_hessian_matrix(family, link):
     coef = np.array([-2, 1, 0, 1, 2.5])
     phi = 0.5
     rng = np.random.RandomState(42)
-    X = DenseGLMDataMatrix(rng.randn(10, 5))
+    X = mx.DenseGLMDataMatrix(rng.randn(10, 5))
     lin_pred = np.dot(X, coef)
     mu = link.inverse(lin_pred)
     weights = rng.randn(10) ** 2 + 1
@@ -573,7 +620,18 @@ def test_glm_check_input_argument(estimator, check_input):
 @pytest.mark.parametrize("solver", GLM_SOLVERS)
 @pytest.mark.parametrize("fit_intercept", [False, True])
 @pytest.mark.parametrize("offset", [None, np.array([-0.1, 0, 0.1, 0, -0.2]), 0.1])
-def test_glm_identity_regression(solver, fit_intercept, offset):
+@pytest.mark.parametrize(
+    "convert_x_fn",
+    [
+        np.asarray,
+        sparse.csc_matrix,
+        sparse.csr_matrix,
+        mx.DenseGLMDataMatrix,
+        lambda x: mx.MKLSparseMatrix(sparse.csc_matrix(x)),
+        lambda x: mx.SplitMatrix(sparse.csc_matrix(x)),
+    ],
+)
+def test_glm_identity_regression(solver, fit_intercept, offset, convert_x_fn):
     """Test GLM regression with identity link on a simple dataset."""
     coef = [1.0, 2.0]
     X = np.array([[1, 1, 1, 1, 1], [0, 1, 2, 3, 4]]).T
@@ -588,6 +646,8 @@ def test_glm_identity_regression(solver, fit_intercept, offset):
     )
     if fit_intercept:
         X = X[:, 1:]
+
+    X = convert_x_fn(X.astype(float))
     res = glm.fit(X, y, offset=offset)
     if fit_intercept:
         fit_coef = np.concatenate([[res.intercept_], res.coef_])
@@ -631,8 +691,7 @@ def test_glm_log_regression(family, solver, tol, fit_intercept, offset):
         X = X[:, 1:]
     res = glm.fit(X, y, offset=offset)
     if fit_intercept:
-        assert isinstance(res.intercept_, float)
-        fit_coef = np.concatenate([[res.intercept_], res.coef_])
+        fit_coef = np.concatenate([np.atleast_1d(res.intercept_), res.coef_])
     else:
         fit_coef = res.coef_
     assert_allclose(fit_coef, coef, rtol=8e-6)
@@ -1031,7 +1090,10 @@ def test_solver_equivalence_cv(params, use_offset):
         offset = None
 
     est_ref = GeneralizedLinearRegressorCV(
-        random_state=2, n_alphas=n_alphas, gradient_tol=gradient_tol
+        random_state=2,
+        n_alphas=n_alphas,
+        gradient_tol=gradient_tol,
+        min_alpha_ratio=1e-3,
     )
     est_ref.fit(X, y, offset=offset)
 
@@ -1041,6 +1103,7 @@ def test_solver_equivalence_cv(params, use_offset):
             max_iter=1000,
             gradient_tol=gradient_tol,
             **{k: v for k, v in params.items() if k != "rtol"},
+            min_alpha_ratio=1e-3,
         )
         .set_params(random_state=2)
         .fit(X, y, offset=offset)
@@ -1053,7 +1116,7 @@ def test_solver_equivalence_cv(params, use_offset):
     _assert_all_close(est_2.alpha_, est_ref.alpha_)
     _assert_all_close(est_2.l1_ratio_, est_ref.l1_ratio_)
     _assert_all_close(est_2.coef_path_, est_ref.coef_path_)
-    _assert_all_close(est_2.mse_path_, est_ref.mse_path_)
+    _assert_all_close(est_2.deviance_path_, est_ref.deviance_path_)
     _assert_all_close(est_2.intercept_, est_ref.intercept_)
     _assert_all_close(est_2.coef_, est_ref.coef_)
     _assert_all_close(
@@ -1095,6 +1158,9 @@ def test_convergence_warning(solver, regression_data):
 @pytest.mark.parametrize("use_sparse", [False, True])
 @pytest.mark.parametrize("scale_predictors", [False, True])
 def test_standardize(use_sparse, scale_predictors):
+    def _arrays_share_data(arr1: np.ndarray, arr2: np.ndarray) -> bool:
+        return arr1.__array_interface__["data"] == arr2.__array_interface__["data"]
+
     NR = 101
     NC = 10
     col_mults = np.arange(1, NC + 1)
@@ -1102,28 +1168,20 @@ def test_standardize(use_sparse, scale_predictors):
     M = row_mults[:, None] * col_mults[None, :]
 
     if use_sparse:
-        M = MKLSparseMatrix(sparse.csc_matrix(M))
+        M = mx.MKLSparseMatrix(sparse.csc_matrix(M))
     else:
-        M = DenseGLMDataMatrix(M)
+        M = mx.DenseGLMDataMatrix(M)
     MC = copy.deepcopy(M)
 
     X, col_means, col_stds = M.standardize(np.ones(NR) / NR, scale_predictors)
     if use_sparse:
-        assert (
-            X.mat.data.__array_interface__["data"] == M.data.__array_interface__["data"]
-        )
-        assert (
-            X.mat.indices.__array_interface__["data"]
-            == M.indices.__array_interface__["data"]
-        )
-        assert (
-            X.mat.indptr.__array_interface__["data"]
-            == M.indptr.__array_interface__["data"]
-        )
+        assert _arrays_share_data(X.mat.data, M.data)
+        assert _arrays_share_data(X.mat.indices, M.indices)
+        assert _arrays_share_data(X.mat.indptr, M.indptr)
     else:
         # Check that the underlying data pointer is the same
-        assert X.__array_interface__["data"] == M.__array_interface__["data"]
-    np.testing.assert_almost_equal(col_means[0, :], col_mults)
+        assert _arrays_share_data(X.mat, M)
+    np.testing.assert_almost_equal(col_means, col_mults)
 
     # After standardization, all the columns will have the same values.
     # To check that, just convert to dense first.
@@ -1133,9 +1191,16 @@ def test_standardize(use_sparse, scale_predictors):
         Xdense = X
     for i in range(1, NC):
         if scale_predictors:
-            np.testing.assert_almost_equal(Xdense[:, 0], Xdense[:, i])
+            if isinstance(Xdense, mx.ColScaledMat):
+                one, two = Xdense.A[:, 0], Xdense.A[:, i]
+            else:
+                one, two = Xdense[:, 0], Xdense[:, i]
         else:
-            np.testing.assert_almost_equal((i + 1) * Xdense[:, 0], Xdense[:, i])
+            if isinstance(Xdense, mx.ColScaledMat):
+                one, two = (i + 1) * Xdense.A[:, 0], Xdense.A[:, i]
+            else:
+                one, two = (i + 1) * Xdense[:, 0], Xdense[:, i]
+        np.testing.assert_almost_equal(one, two)
 
     if scale_predictors:
         # The sample variance of row_mults is 0.34. This is scaled up by the col_mults
@@ -1143,26 +1208,23 @@ def test_standardize(use_sparse, scale_predictors):
         np.testing.assert_almost_equal(col_stds, true_std * col_mults)
 
     intercept_standardized = 0.0
-    coef_standardized = col_stds
+    coef_standardized = (
+        np.ones_like(col_means) if col_stds is None else copy.copy(col_stds)
+    )
     X2, intercept, coef = _unstandardize(
-        X,
-        col_means,
-        col_stds,
-        intercept_standardized,
-        coef_standardized,
-        scale_predictors,
+        X, col_means, col_stds, intercept_standardized, coef_standardized,
     )
     if use_sparse:
-        assert id(X2) == id(X.mat)
+        assert _arrays_share_data(X2.data, X.mat.data)
     else:
-        assert id(X2) == id(X)
+        assert _arrays_share_data(X2, X.mat)
     np.testing.assert_almost_equal(intercept, -(NC + 1) * NC / 2)
     if scale_predictors:
         np.testing.assert_almost_equal(coef, 1.0)
 
     if use_sparse:
-        assert type(X.mat) in [sparse.csc_matrix, MKLSparseMatrix]
-        assert type(X2) in [sparse.csc_matrix, MKLSparseMatrix]
+        assert type(X.mat) in [sparse.csc_matrix, mx.MKLSparseMatrix]
+        assert type(X2) in [sparse.csc_matrix, mx.MKLSparseMatrix]
         np.testing.assert_almost_equal(MC.toarray(), X2.toarray())
     else:
         np.testing.assert_almost_equal(MC, X2)
@@ -1241,3 +1303,25 @@ def test_step_size_tolerance(tol):
     glm = build_glm(tol)
     assert_allclose(baseline.intercept_, glm.intercept_, atol=tol)
     assert_allclose(baseline.coef_, glm.coef_, atol=tol)
+
+
+def test_alpha_search(regression_data):
+    X, y = regression_data
+    mdl_no_path = GeneralizedLinearRegressor(
+        alpha=0.001, l1_ratio=1, family="normal", link="identity", gradient_tol=1e-10,
+    )
+    mdl_no_path.fit(X=X, y=y)
+
+    mdl_path = GeneralizedLinearRegressor(
+        alpha_search=True,
+        min_alpha=0.001,
+        n_alphas=5,
+        l1_ratio=1,
+        family="normal",
+        link="identity",
+        gradient_tol=1e-10,
+    )
+    mdl_path.fit(X=X, y=y)
+
+    assert_allclose(mdl_path.coef_, mdl_no_path.coef_)
+    assert_allclose(mdl_path.intercept_, mdl_no_path.intercept_)
