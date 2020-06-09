@@ -1,0 +1,55 @@
+{% set build_number = "0" %}
+{% set build_string = "py{}h{}_{}_{}".format(CONDA_PY, PKG_HASH, build_number, GLM_ARCHITECTURE) %}
+
+package:
+  name: quantcore.glm
+  version: {{ environ.get('GIT_DESCRIBE_TAG', '').lstrip('v') }}{% if environ.get('GIT_DESCRIBE_NUMBER', 0)|int != 0 %}.post{{ GIT_DESCRIBE_NUMBER }}+{{ GIT_DESCRIBE_HASH }}{% endif %}
+
+source:
+  git_url: ../
+
+
+build:
+  number: {{ build_number }}
+  string: "{{ build_string }}"
+  track_features:
+    {{ "- quantcore-glm-{}".format(GLM_ARCHITECTURE) if GLM_ARCHITECTURE != "default" else "" }}
+
+
+requirements:
+  build:
+    - {{ compiler("c") }}
+    - {{ compiler("cxx") }}
+    - llvm-openmp  # [osx]
+  host:
+    - python
+    - cython
+    - jemalloc
+    - llvm-openmp  # [osx]
+    - mako
+    - numpy 1.16
+    - pip
+    - scikit-learn >=0.23
+    - setuptools_scm
+    - xsimd
+  run:
+    - python
+    - joblib
+    - numexpr
+    - {{ pin_compatible('numpy', lower_bound='1.16') }}
+    - pandas
+    - scikit-learn >=0.23
+    - scipy
+    - sparse_dot_mkl >=0.4.0
+
+test:
+  requires:
+    - pip
+  commands:
+    - pip check
+  imports:
+    - quantcore.glm.sklearn_fork
+
+about:
+  home: https://github.com/Quantco/quantcore.glm
+  license: Proprietary
