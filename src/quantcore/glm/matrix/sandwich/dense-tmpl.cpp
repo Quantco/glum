@@ -22,11 +22,13 @@
 // Also included is a csr_dense_sandwich function for computing the
 // off-diagonal blocks when using a dense-sparse split matrix.
 
-#define JEMALLOC_NO_DEMANGLE
-#if __APPLE__
-#define JEMALLOC_NO_RENAME
+#ifndef _WIN32
+  #define JEMALLOC_NO_DEMANGLE
+  #if __APPLE__
+    #define JEMALLOC_NO_RENAME
+  #endif
+  #include <jemalloc/jemalloc.h>
 #endif
-#include <jemalloc/jemalloc.h>
 #include <xsimd/xsimd.hpp>
 #include <iostream>
 #include <omp.h>
@@ -262,9 +264,14 @@ void _dense${order}_sandwich(F* X, F* d, F* out,
         Rsize *= omp_get_max_threads();
     }
     std::size_t Rglobal_size = round_to_align(Rsize * sizeof(F), alignment);
-    F* Rglobal = static_cast<F*>(je_aligned_alloc(alignment, Rglobal_size));
     std::size_t Lglobal_size = round_to_align(omp_get_max_threads() * thresh1d * thresh1d * kratio * sizeof(F), alignment);
+#ifndef _WIN32
+    F* Rglobal = static_cast<F*>(je_aligned_alloc(alignment, Rglobal_size));
     F* Lglobal = static_cast<F*>(je_aligned_alloc(alignment, Lglobal_size));
+#else
+    F* Rglobal = static_cast<F*>(_aligned_malloc(Rglobal_size, alignment));
+    F* Lglobal = static_cast<F*>(_aligned_malloc(Lglobal_size, alignment));
+#endif
     for (int j = 0; j < m; j+=kratio*thresh1d) {
         int jmax2 = j + kratio*thresh1d; 
         if (jmax2 > m) {
@@ -276,8 +283,13 @@ void _dense${order}_sandwich(F* X, F* d, F* out,
             ${k_loop(False, order)}
         }
     }
+#ifndef _WIN32
     je_sdallocx(Lglobal, Lglobal_size, 0);
     je_sdallocx(Rglobal, Rglobal_size, 0);
+#else
+    _aligned_free(Lglobal);
+    _aligned_free(Rglobal);
+#endif
 
     #pragma omp parallel if(m > 100)
     for (int i = 0; i < m; i++) {
@@ -305,13 +317,21 @@ void _csr_dense${order}_sandwich(
     int kblock = 128;
     int jblock = 128;
     std::size_t Rglobal_size = round_to_align(omp_get_max_threads() * kblock * jblock * sizeof(F), alignment);
+#ifndef _WIN32
     F* Rglobal = static_cast<F*>(je_aligned_alloc(alignment, Rglobal_size));
+#else
+    F* Rglobal = static_cast<F*>(_aligned_malloc(Rglobal_size, alignment));
+#endif
 
     #pragma omp parallel
     {
         int r2 = ceil(((float)r) / ((float)simd_size)) * simd_size;
         std::size_t outtemp_size = round_to_align(m * r2 * sizeof(F), alignment);
+#ifndef _WIN32
         F* outtemp = static_cast<F*>(je_aligned_alloc(alignment, outtemp_size));
+#else
+        F* outtemp = static_cast<F*>(_aligned_malloc(outtemp_size, alignment));
+#endif
         for (int i = 0; i < m; i++) {
             for (int j = 0; j < r; j++) {
                 outtemp[i*r2+j] = 0.0;
@@ -371,10 +391,19 @@ void _csr_dense${order}_sandwich(
                 out[i*r+j] += outtemp[i*r2+j];
             }
         }
+#ifndef _WIN32
         je_sdallocx(outtemp, outtemp_size, 0);
+#else
+        _aligned_free(outtemp);
+#endif
+
     }
 
+#ifndef _WIN32
     je_sdallocx(Rglobal, Rglobal_size, 0);
+#else
+    _aligned_free(Rglobal);
+#endif
 }
 </%def>
 
