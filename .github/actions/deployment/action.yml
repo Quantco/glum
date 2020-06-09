@@ -4,6 +4,9 @@ inputs:
   python_version:
     description: 'Python version'
     required: true
+  glm_architecture:
+    description: 'GLM architecture'
+    required: true
 runs:
   using: 'docker'
   image: docker.pkg.github.com/quantco/miniforge3-qc-dev/miniconda3-qc-base:latest
@@ -11,4 +14,4 @@ runs:
    - /bin/bash
    - "-l"
    - "-c"
-   - "./.github/workflows/tag.sh ${{ inputs.python_version }}"
+   - "./.github/workflows/tag.sh ${{ inputs.python_version }} ${{ inputs.glm_architecture }}"
