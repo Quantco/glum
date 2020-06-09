@@ -116,3 +116,26 @@ Add the `--overwrite` flag if you want to overwrite already existing golden mast
 ## Methods used in sklearn_fork.GeneralizedLinearRegressor
 
 Note that the optimization algorithm used here is a type of Gauss-Newton method where the Hessian is approximated as the outer product of the gradient (https://en.wikipedia.org/wiki/Gauss%E2%80%93Newton_algorithm). The same approximation can be inspired via arguments relating to the Fisher information matrix (https://en.wikipedia.org/wiki/Information_matrix_test). For canonical link functions, the Hessian and gradient outer product should be exactly equal. The gradient outer product can be particularly valuable for non-canonical link functions because the gradient outer product (`J.T @ J`) is guaranteed to be symmetric and positive definite whereas the true Hessian is not. Some interesting discussion and further links to literature on why the Gauss-Newton matrix can even outperform the true Hessian in some optimization problems: https://math.stackexchange.com/questions/2733257/approximation-of-hessian-jtj-for-general-non-linear-optimization-problems
+
+## Building a conda package
+
+To use the package in another project, we distribute it as a conda package.
+For building the package locally, you can use the following command:
+
+```
+conda build conda.recipe
+```
+
+This will build the recipe using the standard compiler flags set by the conda-forge activation scripts.
+Instead, we can override to build the architecture using a variant. 
+
+```
+conda build conda.recipe --variants "{GLM_ARCHITECTURE: ['skylake']}"
+```
+
+By default, `conda` will always install the variant with the default compiler flags.
+To explicitly install a version optimised for your CPU, you need to specify it as part of the build string:
+
+```
+conda install quantcore.glm=*=*skylake
+```
