@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from glm_benchmarks.matrix import DenseGLMDataMatrix
+from quantcore.glm.matrix import DenseGLMDataMatrix
 
 
 @pytest.mark.parametrize("scale_predictors", [False, True])
