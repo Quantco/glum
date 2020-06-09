@@ -1,4 +1,5 @@
 import io
+import os
 from os import path
 
 import mako.runtime
@@ -37,15 +38,20 @@ for fn in ["src/quantcore/glm/matrix/sandwich/dense-tmpl.cpp"]:
         with open(out_fn, "w") as f:
             f.write(rendered_src)
 
+extra_compile_args = [
+    "-fopenmp",
+    "-O3",
+    "-ffast-math",
+    "--std=c++17",
+]
+
+architecture = os.environ.get("GLM_ARCHITECTURE", "native")
+if architecture != "default":
+    extra_compile_args.append("-march=" + architecture)
+
 extension_args = dict(
     include_dirs=[np.get_include()],
-    extra_compile_args=[
-        "-fopenmp",
-        "-O3",
-        "-ffast-math",
-        "-march=native",
-        "--std=c++17",
-    ],
+    extra_compile_args=extra_compile_args,
     extra_link_args=["-fopenmp"],
     language="c++",
 )
@@ -64,7 +70,7 @@ ext_modules = [
     Extension(
         name="quantcore.glm.sklearn_fork._cd_fast",
         sources=["src/quantcore/glm/sklearn_fork/_cd_fast.pyx"],
-        include_dirs=[np.get_include()],
+        **extension_args,
     ),
 ]
 
