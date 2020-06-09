@@ -1,16 +1,29 @@
 import numpy as np
 import pytest
+from scipy import sparse as sparse
 from sklearn.datasets import make_regression
 from sklearn.linear_model import ElasticNetCV, RidgeCV
 
-from glm_benchmarks.sklearn_fork import GeneralizedLinearRegressorCV
+import quantcore.glm.matrix as mx
+from quantcore.glm.sklearn_fork import GeneralizedLinearRegressorCV
 
 GLM_SOLVERS = ["irls", "lbfgs", "cd"]
 
 
 @pytest.mark.parametrize("l1_ratio", [0.5, 1, [0.3, 0.6]])
 @pytest.mark.parametrize("fit_intercept", [False, True])
-def test_normal_elastic_net_comparison(l1_ratio, fit_intercept):
+@pytest.mark.parametrize(
+    "convert_x_fn",
+    [
+        np.asarray,
+        sparse.csc_matrix,
+        sparse.csr_matrix,
+        mx.DenseGLMDataMatrix,
+        lambda x: mx.MKLSparseMatrix(sparse.csc_matrix(x)),
+        lambda x: mx.SplitMatrix(sparse.csc_matrix(x)),
+    ],
+)
+def test_normal_elastic_net_comparison(l1_ratio, fit_intercept, convert_x_fn):
     """
     Not testing l1_ratio = 0 because automatic grid generation is not supported
     in ElasticNetCV for l1_ratio = 0.
@@ -29,13 +42,16 @@ def test_normal_elastic_net_comparison(l1_ratio, fit_intercept):
         coef=True,
         random_state=42,
     )
+    X = convert_x_fn(X)
     y = y[0:n_samples]
     X, T = X[0:n_samples], X[n_samples:]
 
+    x_arr = X if isinstance(X, np.ndarray) else X.A
+    t_arr = T if isinstance(T, np.ndarray) else T.A
     elastic_net = ElasticNetCV(
         l1_ratio=l1_ratio, n_alphas=n_alphas, fit_intercept=fit_intercept, tol=tol,
-    ).fit(X, y)
-    el_pred = elastic_net.predict(T)
+    ).fit(x_arr, y)
+    el_pred = elastic_net.predict(t_arr)
 
     glm = GeneralizedLinearRegressorCV(
         l1_ratio=l1_ratio,
@@ -43,6 +59,7 @@ def test_normal_elastic_net_comparison(l1_ratio, fit_intercept):
         fit_intercept=fit_intercept,
         link="identity",
         gradient_tol=tol,
+        min_alpha_ratio=1e-3,
     ).fit(X, y)
 
     glm_pred = glm.predict(T)
@@ -53,7 +70,10 @@ def test_normal_elastic_net_comparison(l1_ratio, fit_intercept):
     np.testing.assert_allclose(glm.intercept_, elastic_net.intercept_)
     np.testing.assert_allclose(glm.coef_, elastic_net.coef_)
     np.testing.assert_allclose(glm_pred, el_pred)
-    np.testing.assert_allclose(glm.mse_path_, elastic_net.mse_path_)
+    # need to divide mse by number of folds
+    np.testing.assert_allclose(
+        np.moveaxis(np.squeeze(glm.deviance_path_), 0, -1), elastic_net.mse_path_ / 5
+    )
 
 
 @pytest.mark.parametrize("fit_intercept", [False, True])
@@ -88,6 +108,7 @@ def test_normal_ridge_comparison(fit_intercept):
         gradient_tol=tol,
         alphas=alphas,
         l1_ratio=0,
+        min_alpha_ratio=1e-3,
     ).fit(X, y)
     glm_pred = glm.predict(T)
 

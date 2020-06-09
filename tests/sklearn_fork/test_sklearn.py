@@ -16,10 +16,10 @@ from sklearn.linear_model import ElasticNet, LogisticRegression, Ridge
 from sklearn.metrics import mean_absolute_error
 from sklearn.utils.estimator_checks import check_estimator
 
-import glm_benchmarks.matrix as mx
-from glm_benchmarks.sklearn_fork import GeneralizedLinearRegressorCV
-from glm_benchmarks.sklearn_fork._distribution import guess_intercept
-from glm_benchmarks.sklearn_fork._glm import (
+import quantcore.glm.matrix as mx
+from quantcore.glm.sklearn_fork import GeneralizedLinearRegressorCV
+from quantcore.glm.sklearn_fork._distribution import guess_intercept
+from quantcore.glm.sklearn_fork._glm import (
     BinomialDistribution,
     ExponentialDispersionModel,
     GammaDistribution,
@@ -36,7 +36,7 @@ from glm_benchmarks.sklearn_fork._glm import (
     _unstandardize,
     is_pos_semidef,
 )
-from glm_benchmarks.sklearn_fork._util import _safe_sandwich_dot
+from quantcore.glm.sklearn_fork._util import _safe_sandwich_dot
 
 GLM_SOLVERS = ["irls-ls", "lbfgs", "irls-cd"]
 
@@ -178,7 +178,7 @@ def test_gradients(family, link):
         gradient_rows, _ = family.rowwise_gradient_hessian(
             link=link, coef=coef, phi=1.0, X=X, y=y, weights=weights, eta=eta, mu=mu,
         )
-        score_est = gradient_rows @ X
+        score_analytic = gradient_rows @ X
 
         def f(coef2):
             _, _, ll = family.eta_mu_loglikelihood(
@@ -186,8 +186,15 @@ def test_gradients(family, link):
             )
             return -0.5 * ll
 
-        score_true = sp.optimize.approx_fprime(xk=coef, f=f, epsilon=1e-7)
-        assert_allclose(score_true, score_est, rtol=5e-4)
+        score_numeric = np.empty_like(score_analytic)
+        epsilon = 1e-7
+        for k in range(score_numeric.shape[0]):
+            L = coef.copy()
+            L[k] -= epsilon
+            R = coef.copy()
+            R[k] += epsilon
+            score_numeric[k] = (f(R) - f(L)) / (2 * epsilon)
+        assert_allclose(score_numeric, score_analytic, rtol=5e-5)
 
 
 @pytest.mark.parametrize(
@@ -613,7 +620,18 @@ def test_glm_check_input_argument(estimator, check_input):
 @pytest.mark.parametrize("solver", GLM_SOLVERS)
 @pytest.mark.parametrize("fit_intercept", [False, True])
 @pytest.mark.parametrize("offset", [None, np.array([-0.1, 0, 0.1, 0, -0.2]), 0.1])
-def test_glm_identity_regression(solver, fit_intercept, offset):
+@pytest.mark.parametrize(
+    "convert_x_fn",
+    [
+        np.asarray,
+        sparse.csc_matrix,
+        sparse.csr_matrix,
+        mx.DenseGLMDataMatrix,
+        lambda x: mx.MKLSparseMatrix(sparse.csc_matrix(x)),
+        lambda x: mx.SplitMatrix(sparse.csc_matrix(x)),
+    ],
+)
+def test_glm_identity_regression(solver, fit_intercept, offset, convert_x_fn):
     """Test GLM regression with identity link on a simple dataset."""
     coef = [1.0, 2.0]
     X = np.array([[1, 1, 1, 1, 1], [0, 1, 2, 3, 4]]).T
@@ -628,6 +646,8 @@ def test_glm_identity_regression(solver, fit_intercept, offset):
     )
     if fit_intercept:
         X = X[:, 1:]
+
+    X = convert_x_fn(X.astype(float))
     res = glm.fit(X, y, offset=offset)
     if fit_intercept:
         fit_coef = np.concatenate([[res.intercept_], res.coef_])
@@ -671,8 +691,7 @@ def test_glm_log_regression(family, solver, tol, fit_intercept, offset):
         X = X[:, 1:]
     res = glm.fit(X, y, offset=offset)
     if fit_intercept:
-        assert isinstance(res.intercept_, float)
-        fit_coef = np.concatenate([[res.intercept_], res.coef_])
+        fit_coef = np.concatenate([np.atleast_1d(res.intercept_), res.coef_])
     else:
         fit_coef = res.coef_
     assert_allclose(fit_coef, coef, rtol=8e-6)
@@ -1071,7 +1090,10 @@ def test_solver_equivalence_cv(params, use_offset):
         offset = None
 
     est_ref = GeneralizedLinearRegressorCV(
-        random_state=2, n_alphas=n_alphas, gradient_tol=gradient_tol
+        random_state=2,
+        n_alphas=n_alphas,
+        gradient_tol=gradient_tol,
+        min_alpha_ratio=1e-3,
     )
     est_ref.fit(X, y, offset=offset)
 
@@ -1081,6 +1103,7 @@ def test_solver_equivalence_cv(params, use_offset):
             max_iter=1000,
             gradient_tol=gradient_tol,
             **{k: v for k, v in params.items() if k != "rtol"},
+            min_alpha_ratio=1e-3,
         )
         .set_params(random_state=2)
         .fit(X, y, offset=offset)
@@ -1093,7 +1116,7 @@ def test_solver_equivalence_cv(params, use_offset):
     _assert_all_close(est_2.alpha_, est_ref.alpha_)
     _assert_all_close(est_2.l1_ratio_, est_ref.l1_ratio_)
     _assert_all_close(est_2.coef_path_, est_ref.coef_path_)
-    _assert_all_close(est_2.mse_path_, est_ref.mse_path_)
+    _assert_all_close(est_2.deviance_path_, est_ref.deviance_path_)
     _assert_all_close(est_2.intercept_, est_ref.intercept_)
     _assert_all_close(est_2.coef_, est_ref.coef_)
     _assert_all_close(
@@ -1185,7 +1208,9 @@ def test_standardize(use_sparse, scale_predictors):
         np.testing.assert_almost_equal(col_stds, true_std * col_mults)
 
     intercept_standardized = 0.0
-    coef_standardized = np.ones_like(col_means) if col_stds is None else col_stds
+    coef_standardized = (
+        np.ones_like(col_means) if col_stds is None else copy.copy(col_stds)
+    )
     X2, intercept, coef = _unstandardize(
         X, col_means, col_stds, intercept_standardized, coef_standardized,
     )
@@ -1278,3 +1303,25 @@ def test_step_size_tolerance(tol):
     glm = build_glm(tol)
     assert_allclose(baseline.intercept_, glm.intercept_, atol=tol)
     assert_allclose(baseline.coef_, glm.coef_, atol=tol)
+
+
+def test_alpha_search(regression_data):
+    X, y = regression_data
+    mdl_no_path = GeneralizedLinearRegressor(
+        alpha=0.001, l1_ratio=1, family="normal", link="identity", gradient_tol=1e-10,
+    )
+    mdl_no_path.fit(X=X, y=y)
+
+    mdl_path = GeneralizedLinearRegressor(
+        alpha_search=True,
+        min_alpha=0.001,
+        n_alphas=5,
+        l1_ratio=1,
+        family="normal",
+        link="identity",
+        gradient_tol=1e-10,
+    )
+    mdl_path.fit(X=X, y=y)
+
+    assert_allclose(mdl_path.coef_, mdl_no_path.coef_)
+    assert_allclose(mdl_path.intercept_, mdl_no_path.intercept_)
