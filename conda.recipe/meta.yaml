@@ -24,7 +24,7 @@ requirements:
   host:
     - python
     - cython
-    - jemalloc
+    - jemalloc     # [not win]
     - llvm-openmp  # [osx]
     - mako
     - numpy 1.16
