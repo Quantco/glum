@@ -4,8 +4,8 @@ import numpy as np
 import pytest
 from scipy import sparse as sps
 
-import glm_benchmarks.matrix as mx
-from glm_benchmarks.matrix.sandwich.sandwich import csr_dense_sandwich
+import quantcore.glm.matrix as mx
+from quantcore.glm.matrix.sandwich.sandwich import csr_dense_sandwich
 
 
 def base_array(order="F") -> np.ndarray:
@@ -218,3 +218,23 @@ def test_standardize(mat, scale_predictors: bool):
     unstandardized = standardized.unstandardize(stds)
     assert isinstance(unstandardized, type(mat_))
     np.testing.assert_allclose(unstandardized.A, asarray)
+
+
+@pytest.mark.parametrize("mat", matrices)
+def test_indexing_int_row(mat):
+    mat_ = mat()
+    res = mat_[0, :]
+    if not isinstance(res, np.ndarray):
+        res = res.A
+    expected = mat_.A[0, :]
+    np.testing.assert_allclose(np.squeeze(res), expected)
+
+
+@pytest.mark.parametrize("mat", matrices)
+def test_indexing_range_row(mat):
+    mat_ = mat()
+    res = mat_[0:2, :]
+    if not isinstance(res, np.ndarray):
+        res = res.A
+    expected = mat_.A[0:2, :]
+    np.testing.assert_allclose(np.squeeze(res), expected)

@@ -5,9 +5,9 @@ import numpy as np
 import pandas as pd
 from scipy import sparse as sps
 
-from glm_benchmarks.matrix import SplitMatrix
-from glm_benchmarks.matrix.sandwich.sandwich import dense_sandwich, sparse_sandwich
-from glm_benchmarks.problems import (
+from quantcore.glm.matrix import SplitMatrix
+from quantcore.glm.matrix.sandwich.sandwich import dense_sandwich, sparse_sandwich
+from quantcore.glm.problems import (
     generate_narrow_insurance_dataset,
     generate_wide_insurance_dataset,
     load_data,

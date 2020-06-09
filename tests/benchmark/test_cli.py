@@ -7,9 +7,9 @@ import click
 import pytest
 from click.testing import CliRunner
 
-from glm_benchmarks.cli_analyze import identify_parameter_fnames
-from glm_benchmarks.cli_run import cli_run
-from glm_benchmarks.util import BenchmarkParams, benchmark_params_cli, get_default_val
+from quantcore.glm.cli_analyze import identify_parameter_fnames
+from quantcore.glm.cli_run import cli_run
+from quantcore.glm.util import BenchmarkParams, benchmark_params_cli, get_default_val
 
 
 @pytest.mark.parametrize(

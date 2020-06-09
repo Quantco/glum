@@ -7,9 +7,9 @@ import pytest
 from git_root import git_root
 from sklearn.exceptions import ConvergenceWarning
 
-from glm_benchmarks.cli_run import execute_problem_library
-from glm_benchmarks.problems import Problem, get_all_problems
-from glm_benchmarks.util import BenchmarkParams, get_obj_val
+from quantcore.glm.cli_run import execute_problem_library
+from quantcore.glm.problems import Problem, get_all_problems
+from quantcore.glm.util import BenchmarkParams, get_obj_val
 
 bench_cfg = dict(
     num_rows=10000,
@@ -99,7 +99,7 @@ def test_gm_benchmarks(
             all_expected[1:],
         )
         raise AssertionError(
-            f"""Failed with error {e}.
+            f"""Failed with error {e} on problem {Pn}.
             New objective function value is higher by {obj_result - expected_result}."""
         )
 
@@ -160,8 +160,9 @@ def run_and_store_golden_master(overwrite, problem_name):
     with open(git_root("golden_master/benchmark_gm.json"), "w") as fh:
         json.dump(gm_dict, fh, indent=2)
 
-    with open(git_root("golden_master/skipped_benchmark_gm.json"), "w") as fh:
-        json.dump(skipped_problems, fh, indent=2)
+    if len(skipped_problems > 0):
+        with open(git_root("golden_master/skipped_benchmark_gm.json"), "w") as fh:
+            json.dump(skipped_problems, fh, indent=2)
 
 
 if __name__ == "__main__":

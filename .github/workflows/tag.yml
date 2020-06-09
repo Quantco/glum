@@ -1,0 +1,60 @@
+name: Deploy on tag
+on:
+  push:
+    tags:
+      - '*'
+
+jobs:
+  linux-deployment:
+    name: "Linux - deployment - Python ${{ matrix.PYTHON_VERSION }} - ${{ matrix.GLM_ARCHITECTURE }}"
+    runs-on: ubuntu-latest
+    env:
+      CI: True
+      CONDA_CHANNEL_UPLOAD_USER: ${{ secrets.CONDA_CHANNEL_UPLOAD_USER }}
+      CONDA_CHANNEL_UPLOAD_PASSWORD: ${{ secrets.CONDA_CHANNEL_UPLOAD_PASSWORD }}
+    strategy:
+      fail-fast: false
+      matrix:
+        PYTHON_VERSION: ['3.6', '3.7', '3.8']
+        GLM_ARCHITECTURE: ['default', 'westmere', 'haswell', 'skylake']
+    steps:
+      - name: Docker login
+        run: docker login docker.pkg.github.com -u ${{ github.actor }} -p ${{ secrets.FQ_GH_TOKEN }}
+      - name: Pull image
+        run: docker pull docker.pkg.github.com/quantco/miniforge3-qc-dev/miniconda3-qc-base:latest
+      - name: Checkout branch
+        uses: actions/checkout@v2.1.0
+        with:
+          ref: ${{ github.head_ref }}
+      - name: Fetch tags
+        run: git fetch --depth=1 origin +refs/tags/*:refs/tags/*
+      - name: Fetch all
+        run: git fetch --prune --unshallow
+      - name: Build and upload conda package
+        uses: ./.github/actions/deployment
+        with:
+          python_version: ${{ matrix.PYTHON_VERSION }}
+          glm_architecture: ${{ matrix.GLM_ARCHITECTURE }}
+
+  macos-deployment:
+    name: "MacOS - deployment - Python ${{ matrix.PYTHON_VERSION }} - ${{ matrix.GLM_ARCHITECTURE }}"
+    runs-on: macos-latest
+    env:
+      CI: True
+      CONDA_CHANNEL_UPLOAD_USER: ${{ secrets.CONDA_CHANNEL_UPLOAD_USER }}
+      CONDA_CHANNEL_UPLOAD_PASSWORD: ${{ secrets.CONDA_CHANNEL_UPLOAD_PASSWORD }}
+      PYTHON_VERSION: ${{ matrix.PYTHON_VERSION }}
+      GLM_ARCHITECTURE: ${{ matrix.GLM_ARCHITECTURE }}
+    strategy:
+      fail-fast: false
+      matrix:
+        PYTHON_VERSION: ['3.6', '3.7', '3.8']
+        GLM_ARCHITECTURE: ['default', 'westmere', 'haswell', 'skylake']
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v2.1.0
+        with:
+          ref: ${{ github.head_ref }}
+      - name: Build and upload conda package
+        run: ./.github/workflows/macos-tag.sh
+
