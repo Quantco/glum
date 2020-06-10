@@ -414,7 +414,7 @@ def identify_active_set(state, data):
     # https://www.csie.ntu.edu.tw/~cjlin/papers/l1_glmnet/long-glmnet.pdf
     T = data.P1 - state.max_min_subgrad
     abs_score = np.abs(state.score[data.intercept_offset :])
-    active = abs_score >= T
+    active = np.logical_or(state.coef[data.intercept_offset :] != 0, abs_score >= T)
 
     active_set = np.concatenate(
         ([0] if data.fit_intercept else [], np.where(active)[0] + data.intercept_offset)
