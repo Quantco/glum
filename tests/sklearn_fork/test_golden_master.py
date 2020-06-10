@@ -8,12 +8,7 @@ import pytest
 from git_root import git_root
 from scipy import sparse
 
-from quantcore.glm.matrix import (
-    DenseGLMDataMatrix,
-    MKLSparseMatrix,
-    SplitMatrix,
-    split_sparse_and_dense_parts,
-)
+import quantcore.glm.matrix as mx
 from quantcore.glm.sklearn_fork._glm import (
     GeneralizedLinearRegressor,
     TweedieDistribution,
@@ -92,14 +87,11 @@ def data_all(request):
         data_dist = create_reg_data(distribution=dist)
 
         if request.param == "dense":
-            data_dist["X"] = DenseGLMDataMatrix(data_dist["X"])
+            data_dist["X"] = mx.DenseGLMDataMatrix(data_dist["X"])
         elif request.param == "sparse":
-            data_dist["X"] = MKLSparseMatrix(sparse.csc_matrix(data_dist["X"]))
+            data_dist["X"] = mx.MKLSparseMatrix(sparse.csc_matrix(data_dist["X"]))
         elif request.param == "split":
-            dense, sp, dense_ix, sparse_ix = split_sparse_and_dense_parts(
-                sparse.csc_matrix(data_dist["X"])
-            )
-            data_dist["X"] = SplitMatrix([dense, sp], [dense_ix, sparse_ix])
+            data_dist["X"] = mx.csc_to_split(sparse.csc_matrix(data_dist["X"]))
 
         data[dist] = data_dist
 

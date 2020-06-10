@@ -1,6 +1,3 @@
-# distutils: extra_compile_args=-fopenmp -O3 -ffast-math -march=native --std=c++17
-# distutils: extra_link_args=-fopenmp
-# distutils: language = c++
 import numpy as np
 from cython cimport floating
 cimport cython

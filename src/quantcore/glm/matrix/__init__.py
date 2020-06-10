@@ -3,7 +3,7 @@ from .dense_glm_matrix import DenseGLMDataMatrix
 from .matrix_base import MatrixBase
 from .mkl_sparse_matrix import MKLSparseMatrix
 from .scaled_mat import ColScaledMat
-from .split_matrix import SplitMatrix, split_sparse_and_dense_parts
+from .split_matrix import SplitMatrix, csc_to_split
 
 __all__ = [
     "DenseGLMDataMatrix",
@@ -12,5 +12,5 @@ __all__ = [
     "MKLSparseMatrix",
     "SplitMatrix",
     "CategoricalMatrix",
-    "split_sparse_and_dense_parts",
+    "csc_to_split",
 ]
