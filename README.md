@@ -12,6 +12,11 @@ Python package to benchmark GLM implementations.
 You can install the package in development mode using:
 
 ```bash
+# First, make sure you have conda-forge as your primary conda channel:
+conda config --add channels conda-forge
+# And install pre-commit
+conda install -y pre-commit
+
 git clone git@github.com:Quantco/glm_benchmarks.git
 cd glm_benchmarks
 
