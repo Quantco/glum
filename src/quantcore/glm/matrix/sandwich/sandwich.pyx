@@ -54,12 +54,14 @@ def sparse_sandwich(A, AT, floating[:] d, int[:] rows, int[:] cols):
             Ci = 0
             for AT_idx in range(ATindptrp[k], ATindptrp[k+1]):
                 i = ATindicesp[AT_idx]
+                if i > j:
+                    break
+
                 while cols[Ci] < i:
                     Ci = Ci + 1
                 if cols[Ci] > i:
                     continue
-                if i > j:
-                    break
+
                 AT_val = ATdatap[AT_idx]
                 outp[Cj * m + Ci] = outp[Cj * m + Ci] + AT_val * A_val
 
