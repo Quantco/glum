@@ -33,7 +33,7 @@ def _fast_sandwich(X, d):
 
 
 def split_sandwich(X, threshold):
-    Xsplit = mx.split_matrix.csc_to_split(X, threshold)
+    Xsplit = mx.csc_to_split(X, threshold)
     return lambda _, d: Xsplit.sandwich(d)
 
 

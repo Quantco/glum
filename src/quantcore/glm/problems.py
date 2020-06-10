@@ -62,7 +62,7 @@ def load_data(
         X = csc_matrix(X)
     elif storage.startswith("split"):
         threshold = float(storage.split("split")[1])
-        X = mx.split_matrix.csc_to_split(csc_matrix(X), threshold)
+        X = mx.csc_to_split(csc_matrix(X), threshold)
     if data_setup == "weights":
         return dict(X=X, y=y, weights=exposure)
     if data_setup == "offset":
