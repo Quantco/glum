@@ -68,7 +68,7 @@ class DenseGLMDataMatrix(np.ndarray, MatrixBase):
         # TODO: related to above, it could be nice to have a version that only
         # filters rows and a version that only filters columns. How do we do
         # this without an explosion of code?
-        vec = np.squeeze(np.asarray(vec))
+        vec = np.asarray(vec)
         if rows is None and cols is None:
             return self.T.dot(vec)
         else:
@@ -76,7 +76,12 @@ class DenseGLMDataMatrix(np.ndarray, MatrixBase):
                 rows = np.arange(self.shape[0], dtype=np.int32)
             if cols is None:
                 cols = np.arange(self.shape[1], dtype=np.int32)
-            return dense_rmatvec(self, vec, rows, cols)
+            if vec.ndim == 1:
+                return dense_rmatvec(self, vec, rows, cols)
+            elif vec.ndim == 2 and vec.shape[1] == 1:
+                return dense_rmatvec(self, vec[:, 0], rows, cols)[:, None]
+            else:
+                return self[np.ix_(rows, cols)].T.dot(vec[rows])
 
     def dot(
         self,

@@ -68,27 +68,27 @@ class MKLSparseMatrix(sps.csc_matrix, MatrixBase):
         self._check_csr()
         return csr_dense_sandwich(self.x_csr, B, d)
 
-    def dot(self, v, rows: np.ndarray = None, cols: np.ndarray = None):
-        if not isinstance(v, np.ndarray) and not sps.issparse(v):
-            v = np.asarray(v)
+    def dot(self, vec, rows: np.ndarray = None, cols: np.ndarray = None):
+        if not isinstance(vec, np.ndarray) and not sps.issparse(vec):
+            vec = np.asarray(vec)
         if rows is None and cols is None:
-            if len(v.shape) == 1:
-                return dot_product_mkl(self, v)
-            if len(v.shape) == 2 and v.shape[1] == 1:
-                return dot_product_mkl(self, v[:, 0])[:, None]
+            if len(vec.shape) == 1:
+                return dot_product_mkl(self, vec)
+            if len(vec.shape) == 2 and vec.shape[1] == 1:
+                return dot_product_mkl(self, vec[:, 0])[:, None]
             # TODO: warn that the rows and cols parameters aren't used with matrix-multiplies
-            return sps.csc_matrix.dot(self, v)
+            return sps.csc_matrix.dot(self, vec)
         else:
             if rows is None:
                 rows = np.arange(self.shape[0], dtype=np.int32)
             if cols is None:
                 cols = np.arange(self.shape[1], dtype=np.int32)
-            if len(v.shape) == 1:
-                return dot_product_mkl(self[np.ix_(rows, cols)], v[cols])
-            elif len(v.shape) == 2 and v.shape[1] == 1:
-                return dot_product_mkl(self[np.ix_(rows, cols)], v[cols, 0])[:, None]
+            if vec.ndim == 1:
+                return dot_product_mkl(self[np.ix_(rows, cols)], vec[cols])
+            elif vec.ndim == 2 and vec.shape[1] == 1:
+                return dot_product_mkl(self[np.ix_(rows, cols)], vec[cols, 0])[:, None]
             else:
-                return self[np.ix_(rows, cols)].dot(v[cols])
+                return self[np.ix_(rows, cols)].dot(vec[cols])
 
     __array_priority__ = 12
 
@@ -98,7 +98,7 @@ class MKLSparseMatrix(sps.csc_matrix, MatrixBase):
         rows: np.ndarray = None,
         cols: np.ndarray = None,
     ) -> np.ndarray:
-        vec = np.squeeze(np.asarray(vec))
+        vec = np.asarray(vec)
         if rows is None and cols is None:
             return dot_product_mkl(self.T, vec)
         else:
@@ -106,7 +106,14 @@ class MKLSparseMatrix(sps.csc_matrix, MatrixBase):
                 rows = np.arange(self.shape[0], dtype=np.int32)
             if cols is None:
                 cols = np.arange(self.shape[1], dtype=np.int32)
-            return dot_product_mkl(self[np.ix_(rows, cols)].T, vec[rows])
+            if vec.ndim == 1:
+                return dot_product_mkl(self[np.ix_(rows, cols)].T, vec[rows])
+            elif vec.ndim == 2 and vec.shape[1] == 1:
+                return dot_product_mkl(self[np.ix_(rows, cols)].T, vec[rows, 0])[
+                    :, None
+                ]
+            else:
+                return self[np.ix_(rows, cols)].T.dot(vec[rows])
 
     def get_col_stds(self, weights: np.ndarray, col_means: np.ndarray) -> np.ndarray:
         return np.sqrt(self.power(2).T.dot(weights) - col_means ** 2)

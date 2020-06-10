@@ -14,7 +14,13 @@ def test_fast_sandwich_sparse(dtype):
     true = A.T.dot(A).toarray()
     AT = A.T.tocsc()
 
-    out = sparse_sandwich(A, AT, d)
+    out = sparse_sandwich(
+        A,
+        AT,
+        d,
+        np.arange(A.shape[0], dtype=np.int32),
+        np.arange(A.shape[1], dtype=np.int32),
+    )
     np.testing.assert_allclose(true, out, atol=np.sqrt(np.finfo(dtype).eps))
 
 

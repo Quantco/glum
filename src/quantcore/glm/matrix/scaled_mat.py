@@ -41,13 +41,14 @@ class ColScaledMat:
         """
 
         other_mat = np.asarray(other_mat)
+        mat_part = self.mat.dot(other_mat, rows, cols)
+
         if rows is None:
             rows = np.arange(self.shape[0], dtype=np.int32)
         if cols is None:
             cols = np.arange(self.shape[1], dtype=np.int32)
-        return self.mat.dot(other_mat, rows, cols) + self.shift[cols].dot(
-            other_mat[cols]
-        )
+        shift_part = self.shift[cols].dot(other_mat[cols])
+        return mat_part + shift_part
 
     def getcol(self, i: int):
         """
@@ -118,12 +119,12 @@ class ColScaledMat:
         = outer(shift, other.sum(0))[k, i]
         """
         other = np.asarray(other)
+        mat_part = self.mat.transpose_dot(other, rows, cols)
+
         if rows is None:
             rows = np.arange(self.shape[0], dtype=np.int32)
         if cols is None:
             cols = np.arange(self.shape[1], dtype=np.int32)
-        mat_part = self.mat.transpose_dot(other, rows, cols)
-
         other_sum = np.sum(other[rows], 0)
         shift_part = np.reshape(np.outer(self.shift[cols], other_sum), mat_part.shape)
 
