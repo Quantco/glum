@@ -183,6 +183,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         scale_predictors: bool = False,
         lower_bounds: Optional[np.ndarray] = None,
         upper_bounds: Optional[np.ndarray] = None,
+        force_all_finite: bool = True,
         cv=None,
         n_jobs: Optional[int] = None,
     ):
@@ -214,6 +215,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             scale_predictors=scale_predictors,
             lower_bounds=lower_bounds,
             upper_bounds=upper_bounds,
+            force_all_finite=force_all_finite,
         )
 
     def _validate_hyperparameters(self) -> None:
@@ -240,7 +242,13 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         offset: Optional[ArrayLike] = None,
     ):
         X, y, weights, offset, weights_sum = self.set_up_and_check_fit_args(
-            X, y, sample_weight, offset, solver=self.solver, copy_X=self.copy_X
+            X,
+            y,
+            sample_weight,
+            offset,
+            solver=self.solver,
+            copy_X=self.copy_X,
+            force_all_finite=self.force_all_finite,
         )
 
         #########
