@@ -6,7 +6,7 @@ from cython.parallel import prange
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-def sparse_sandwich(A, AT, floating[:] d):
+def sparse_sandwich(A, AT, floating[:] d, int[:] rows, int[:] cols):
     # AT is CSC
     # A is CSC
     # Computes AT @ diag(d) @ A
@@ -27,29 +27,41 @@ def sparse_sandwich(A, AT, floating[:] d):
 
     cdef floating* dp = &d[0]
 
-    cdef int m = Aindptr.shape[0] - 1
+    cdef int m = cols.shape[0]
     cdef int n = d.shape[0]
     cdef int nnz = Adata.shape[0]
-    out = np.zeros((m,m), dtype=A.dtype)
+    out = np.zeros((m, m), dtype=A.dtype)
     cdef floating[:, :] out_view = out
     cdef floating* outp = &out_view[0,0]
 
     cdef int AT_idx, A_idx
     cdef int AT_row, A_col
-    cdef int i, j, k
+    cdef int Ci, i, Cj, j, Ck, k
     cdef floating A_val, AT_val
 
     #TODO: see what happens when we swap to having k as the outer loop here?
-    for j in prange(m, nogil=True):
+    for Cj in prange(m, nogil=True):
+        j = cols[Cj]
+        Ck = 0
         for A_idx in range(Aindptr[j], Aindptr[j+1]):
             k = Aindicesp[A_idx]
+            while rows[Ck] < k: 
+                Ck = Ck + 1
+            if rows[Ck] > k:
+                continue
+
             A_val = Adatap[A_idx] * dp[k]
+            Ci = 0
             for AT_idx in range(ATindptrp[k], ATindptrp[k+1]):
                 i = ATindicesp[AT_idx]
+                while cols[Ci] < i:
+                    Ci = Ci + 1
+                if cols[Ci] > i:
+                    continue
                 if i > j:
                     break
                 AT_val = ATdatap[AT_idx]
-                outp[j * m + i] = outp[j * m + i] + AT_val * A_val
+                outp[Cj * m + Ci] = outp[Cj * m + Ci] + AT_val * A_val
 
     out += np.tril(out, -1).T
     return out
