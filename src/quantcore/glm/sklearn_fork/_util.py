@@ -10,9 +10,12 @@ def _safe_lin_pred(
     X: Union[MatrixBase, ColScaledMat], coef: np.ndarray, offset: np.ndarray = None
 ) -> np.ndarray:
     """Compute the linear predictor taking care if intercept is present."""
-    nonzero_coefs = np.where(coef[1:] != 0.0)[0].astype(np.int32)
+    idx_offset = 0 if X.shape[1] == coef.shape[0] else 1
+    nonzero_coefs = np.where(coef[idx_offset:] != 0.0)[0].astype(np.int32)
     res = X.dot(
-        coef[1:], rows=np.arange(X.shape[0], dtype=np.int32), cols=nonzero_coefs
+        coef[idx_offset:],
+        rows=np.arange(X.shape[0], dtype=np.int32),
+        cols=nonzero_coefs,
     )
 
     if coef.size == X.shape[1] + 1:

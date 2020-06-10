@@ -104,11 +104,14 @@ class SplitMatrix(MatrixBase):
             out[np.ix_(sparse_cols_indices, sparse_cols_indices)] = SS
         if dense_cols_indices.shape[0] > 0:
             DD = self.X_dense_F.sandwich(d, rows, dense_cols)
+            import ipdb
+
+            ipdb.set_trace()
             out[np.ix_(dense_cols_indices, dense_cols_indices)] = DD
             if sparse_cols_indices.shape[0] > 0:
-                DS = self.X_sparse[rows, :].sandwich_dense(self.X_dense_F[rows, :], d)[
-                    sparse_cols, dense_cols
-                ]
+                DS = self.X_sparse[rows, :].sandwich_dense(
+                    self.X_dense_F[rows, :], d[rows]
+                )[np.ix_(sparse_cols, dense_cols)]
                 out[np.ix_(sparse_cols_indices, dense_cols_indices)] = DS
                 out[np.ix_(dense_cols_indices, sparse_cols_indices)] = DS.T
         return out
@@ -165,8 +168,8 @@ class SplitMatrix(MatrixBase):
             sparse_cols_indices,
         ) = self.split_row_col_subsets(rows, cols)
 
-        dense_out = self.X_dense_F.dot(v[dense_cols_indices, ...], rows, dense_cols)
-        sparse_out = self.X_sparse.dot(v[sparse_cols_indices, ...], rows, sparse_cols)
+        dense_out = self.X_dense_F.dot(v[self.dense_indices, ...], rows, dense_cols)
+        sparse_out = self.X_sparse.dot(v[self.sparse_indices, ...], rows, sparse_cols)
         return dense_out + sparse_out
 
     def transpose_dot(
