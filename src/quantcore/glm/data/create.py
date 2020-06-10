@@ -125,12 +125,7 @@ def gen_col_trans() -> Tuple[Any, List[str]]:
                                 lambda x: np.minimum(x, 9), validate=False
                             ),
                         ),
-                        (
-                            "OHE",
-                            OneHotEncoder(
-                                categories="auto", drop=dd["VehPower"], sparse=False
-                            ),
-                        ),
+                        ("OHE", OneHotEncoder(),),
                     ]
                 ),
                 ["VehPower"],
@@ -149,12 +144,7 @@ def gen_col_trans() -> Tuple[Any, List[str]]:
                                 validate=False,
                             ),
                         ),
-                        (
-                            "OHE",
-                            OneHotEncoder(
-                                categories="auto", drop=dd["VehAge"], sparse=False
-                            ),
-                        ),
+                        ("OHE", OneHotEncoder(),),
                     ]
                 ),
                 ["VehAge"],
@@ -171,12 +161,7 @@ def gen_col_trans() -> Tuple[Any, List[str]]:
                                 validate=False,
                             ),
                         ),
-                        (
-                            "OHE",
-                            OneHotEncoder(
-                                categories="auto", drop=dd["DrivAge"], sparse=False
-                            ),
-                        ),
+                        ("OHE", OneHotEncoder(),),
                     ]
                 ),
                 ["DrivAge"],
@@ -195,16 +180,8 @@ def gen_col_trans() -> Tuple[Any, List[str]]:
                 ),
                 ["BonusMalus"],
             ),
-            (
-                "VehBrand_cat",
-                OneHotEncoder(drop=dd["VehBrand"], sparse=False),
-                ["VehBrand"],
-            ),
-            (
-                "VehGas_Regular",
-                OneHotEncoder(drop=dd["VehGas"], sparse=False),
-                ["VehGas"],
-            ),
+            ("VehBrand_cat", OneHotEncoder(), ["VehBrand"],),
+            ("VehGas_Regular", OneHotEncoder(), ["VehGas"],),
             (
                 "Density_log",
                 Pipeline(
@@ -212,7 +189,7 @@ def gen_col_trans() -> Tuple[Any, List[str]]:
                 ),
                 ["Density"],
             ),
-            ("Region_cat", OneHotEncoder(drop=dd["Region"]), ["Region"]),
+            ("Region_cat", OneHotEncoder(), ["Region"]),
             (
                 "Area_ord",
                 Pipeline(
@@ -451,11 +428,7 @@ def generate_intermediate_insurance_dataset(
 
     col_trans_GLM1, _ = gen_col_trans()
     col_trans_GLM1.transformers.append(
-        (
-            "BonusMalusClipped",
-            OneHotEncoder(sparse=False, drop="first"),
-            ["BonusMalusClipped"],
-        )
+        ("BonusMalusClipped", OneHotEncoder(), ["BonusMalusClipped"],)
     )
     y, exposure = compute_y_exposure(df, distribution)
 
