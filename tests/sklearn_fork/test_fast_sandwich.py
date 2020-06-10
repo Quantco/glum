@@ -8,20 +8,23 @@ from quantcore.glm.matrix.sandwich.sandwich import dense_sandwich, sparse_sandwi
 
 @pytest.mark.parametrize("dtype", [np.float64, np.float32])
 def test_fast_sandwich_sparse(dtype):
-    A = simulate_matrix(dtype=dtype).tocsc()
+    np.random.seed(123)
+    for i in range(1000):
+        nrows, ncols = np.random.randint(200, size=2)
 
-    d = np.ones(A.shape[0], dtype=dtype)
-    true = A.T.dot(A).toarray()
-    AT = A.T.tocsc()
+        A = simulate_matrix(shape=(nrows, ncols), seed=None, dtype=dtype).tocsc()
 
-    out = sparse_sandwich(
-        A,
-        AT,
-        d,
-        np.arange(A.shape[0], dtype=np.int32),
-        np.arange(A.shape[1], dtype=np.int32),
-    )
-    np.testing.assert_allclose(true, out, atol=np.sqrt(np.finfo(dtype).eps))
+        d = np.random.rand(A.shape[0]).astype(dtype)
+        true = (A.T.multiply(d)).dot(A).toarray()
+
+        out = sparse_sandwich(
+            A,
+            A.tocsr(),
+            d,
+            np.arange(A.shape[0], dtype=np.int32),
+            np.arange(A.shape[1], dtype=np.int32),
+        )
+        np.testing.assert_allclose(true, out, atol=np.sqrt(np.finfo(dtype).eps))
 
 
 def test_fast_sandwich_dense():
@@ -49,7 +52,8 @@ def check(A, d, cols):
 
 def simulate_matrix(nonzero_frac=0.05, shape=(100, 50), seed=0, dtype=np.float64):
 
-    np.random.seed(seed)
+    if seed is not None:
+        np.random.seed(seed)
     nnz = int(np.prod(shape) * nonzero_frac)
     row_index = np.random.randint(shape[0], size=nnz)
     col_index = np.random.randint(shape[1], size=nnz)
