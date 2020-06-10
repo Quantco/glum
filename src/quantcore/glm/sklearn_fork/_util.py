@@ -11,8 +11,8 @@ def _safe_lin_pred(
 ) -> np.ndarray:
     """Compute the linear predictor taking care if intercept is present."""
     nonzero_coefs = np.where(coef[1:] != 0.0)[0].astype(np.int32)
-    res = X.limited_matvec(
-        coef[1:], np.arange(X.shape[0], dtype=np.int32), nonzero_coefs
+    res = X.dot(
+        coef[1:], rows=np.arange(X.shape[0], dtype=np.int32), cols=nonzero_coefs
     )
 
     if coef.size == X.shape[1] + 1:
@@ -25,8 +25,8 @@ def _safe_lin_pred(
 def _safe_sandwich_dot(
     X: Union[MatrixBase, ColScaledMat],
     d: np.ndarray,
-    rows: np.ndarray,
-    cols: np.ndarray,
+    rows: np.ndarray = None,
+    cols: np.ndarray = None,
     intercept=False,
 ) -> np.ndarray:
     """Compute sandwich product X.T @ diag(d) @ X.
@@ -37,10 +37,10 @@ def _safe_sandwich_dot(
     result = X.sandwich(d, rows, cols)
 
     if intercept:
-        dim = cols.shape[0] + 1
+        dim = result.shape[0] + 1
         res_including_intercept = np.empty((dim, dim), dtype=X.dtype)
         res_including_intercept[0, 0] = d.sum()
-        res_including_intercept[1:, 0] = X.limited_rmatvec(d, rows, cols)
+        res_including_intercept[1:, 0] = X.transpose_dot(d, rows, cols)
         res_including_intercept[0, 1:] = res_including_intercept[1:, 0]
         res_including_intercept[1:, 1:] = result
     else:
