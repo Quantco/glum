@@ -863,7 +863,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         upper_bounds: Optional[np.ndarray],
     ) -> np.ndarray:
 
-        self.coef_path_ = np.empty((len(alphas), len(coef)))
+        self.coef_path_ = np.empty((len(alphas), len(coef)), dtype=X.dtype)
 
         for k, alpha in enumerate(alphas):
             P1 = P1_no_alpha * alpha

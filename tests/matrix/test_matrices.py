@@ -134,7 +134,7 @@ def test_transpose_dot(mat: type, other_type, other_as_list, order: str, rows, c
     mat_subset, vec_subset = process_mat_vec_subsets(
         mat_, other_as_list, rows, cols, rows
     )
-    expected = np.squeeze(mat_subset.T.dot(vec_subset))
+    expected = mat_subset.T.dot(vec_subset)
     np.testing.assert_allclose(res, expected)
     assert isinstance(res, np.ndarray)
 
