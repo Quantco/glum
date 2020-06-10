@@ -86,6 +86,7 @@ class SplitMatrix(MatrixBase):
     def sandwich(
         self, d: np.ndarray, rows: np.ndarray = None, cols: np.ndarray = None
     ) -> np.ndarray:
+        d = np.asarray(d)
         if rows is None:
             rows = np.arange(self.shape[0], dtype=np.int32)
         if cols is None:
@@ -96,7 +97,7 @@ class SplitMatrix(MatrixBase):
             dense_cols_indices,
             sparse_cols,
             sparse_cols_indices,
-        ) = self.split_row_col_subsets(rows, cols)
+        ) = self.split_col_subsets(cols)
 
         out = np.empty((cols.shape[0], cols.shape[0]))
         if sparse_cols_indices.shape[0] > 0:
@@ -113,19 +114,47 @@ class SplitMatrix(MatrixBase):
                 out[np.ix_(dense_cols_indices, sparse_cols_indices)] = DS.T
         return out
 
-    def split_row_col_subsets(self, rows, cols):
-        # NOTE: with a more general implementation involving more than two
-        # matrices, it could be good to fuse these intersect1d calls into a
-        # single loop
-        dense_cols_indices, dense_cols, _ = np.intersect1d(
-            self.dense_indices, cols, return_indices=True
+    def split_col_subsets(self, cols):
+        next_dense_idx = 0
+        next_sparse_idx = 0
+        dense_cols_indices = []
+        dense_cols = []
+        sparse_cols_indices = []
+        sparse_cols = []
+        for i in range(cols.shape[0]):
+            while (
+                next_dense_idx < self.dense_indices.shape[0]
+                and self.dense_indices[next_dense_idx] < cols[i]
+            ):
+                next_dense_idx += 1
+            while (
+                next_sparse_idx < self.sparse_indices.shape[0]
+                and self.sparse_indices[next_sparse_idx] < cols[i]
+            ):
+                next_sparse_idx += 1
+
+            if (
+                next_dense_idx < self.dense_indices.shape[0]
+                and self.dense_indices[next_dense_idx] == cols[i]
+            ):
+                dense_cols_indices.append(i)
+                dense_cols.append(next_dense_idx)
+                next_dense_idx += 1
+            else:
+                is_sparse = (
+                    next_sparse_idx < self.sparse_indices.shape[0]
+                    and self.sparse_indices[next_sparse_idx] == cols[i]
+                )
+                assert is_sparse
+                sparse_cols_indices.append(i)
+                sparse_cols.append(next_sparse_idx)
+                next_sparse_idx += 1
+        return (
+            np.array(dense_cols, dtype=np.int32),
+            np.array(dense_cols_indices),
+            np.array(sparse_cols, dtype=np.int32),
+            np.array(sparse_cols_indices),
         )
-        sparse_cols_indices, sparse_cols, _ = np.intersect1d(
-            self.sparse_indices, cols, return_indices=True
-        )
-        dense_cols = dense_cols.astype(np.int32)
-        sparse_cols = sparse_cols.astype(np.int32)
-        return dense_cols, dense_cols_indices, sparse_cols, sparse_cols_indices
 
     def get_col_means(self, weights: np.ndarray) -> np.ndarray:
         col_means = np.empty(self.shape[1], dtype=self.dtype)
@@ -163,7 +192,7 @@ class SplitMatrix(MatrixBase):
             dense_cols_indices,
             sparse_cols,
             sparse_cols_indices,
-        ) = self.split_row_col_subsets(rows, cols)
+        ) = self.split_col_subsets(cols)
 
         dense_out = self.X_dense_F.dot(v[self.dense_indices, ...], rows, dense_cols)
         sparse_out = self.X_sparse.dot(v[self.sparse_indices, ...], rows, sparse_cols)
@@ -192,16 +221,17 @@ class SplitMatrix(MatrixBase):
             dense_cols_indices,
             sparse_cols,
             sparse_cols_indices,
-        ) = self.split_row_col_subsets(rows, cols)
+        ) = self.split_col_subsets(cols)
 
         vec = np.asarray(vec)
-        dense_component = self.X_dense_F.transpose_dot(vec, rows, dense_cols)
-        sparse_component = self.X_sparse.transpose_dot(vec, rows, sparse_cols)
-        out_shape = list(dense_component.shape)
-        out_shape[0] = cols.shape[0]
+        out_shape = [cols.shape[0]] + list(vec.shape[1:])
         out = np.empty(out_shape, dtype=vec.dtype)
-        out[dense_cols_indices, ...] = dense_component
-        out[sparse_cols_indices, ...] = sparse_component
+        if dense_cols_indices.shape[0] > 0:
+            dense_component = self.X_dense_F.transpose_dot(vec, rows, dense_cols)
+            out[dense_cols_indices, ...] = dense_component
+        if sparse_cols_indices.shape[0] > 0:
+            sparse_component = self.X_sparse.transpose_dot(vec, rows, sparse_cols)
+            out[sparse_cols_indices, ...] = sparse_component
         return out
 
     def scale_cols_inplace(self, col_scaling: np.ndarray):

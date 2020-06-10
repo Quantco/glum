@@ -22,6 +22,8 @@ class MKLSparseMatrix(sps.csc_matrix, MatrixBase):
         Instantiate in the same way as scipy.sparse.csc_matrix
         """
         super().__init__(arg1, shape, dtype, copy)
+        if not self.has_sorted_indices:
+            self.sort_indices()
         self.x_csr = None
 
     def _check_csr(self):
