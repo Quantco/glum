@@ -104,9 +104,6 @@ class SplitMatrix(MatrixBase):
             out[np.ix_(sparse_cols_indices, sparse_cols_indices)] = SS
         if dense_cols_indices.shape[0] > 0:
             DD = self.X_dense_F.sandwich(d, rows, dense_cols)
-            import ipdb
-
-            ipdb.set_trace()
             out[np.ix_(dense_cols_indices, dense_cols_indices)] = DD
             if sparse_cols_indices.shape[0] > 0:
                 DS = self.X_sparse[rows, :].sandwich_dense(
