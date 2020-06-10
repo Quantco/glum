@@ -1,4 +1,6 @@
 import io
+import os
+import sys
 from os import path
 
 import mako.runtime
@@ -37,23 +39,36 @@ for fn in ["src/quantcore/glm/matrix/sandwich/dense-tmpl.cpp"]:
         with open(out_fn, "w") as f:
             f.write(rendered_src)
 
-extension_args = dict(
-    include_dirs=[np.get_include()],
-    extra_compile_args=[
+if sys.platform == "win32":
+    allocator_libs = []
+    extra_compile_args = ["/openmp", "/O2"]
+    extra_link_args = ["/openmp"]
+else:
+    allocator_libs = ["jemalloc"]
+    extra_compile_args = [
         "-fopenmp",
         "-O3",
         "-ffast-math",
-        "-march=native",
         "--std=c++17",
-    ],
-    extra_link_args=["-fopenmp"],
+    ]
+    extra_link_args = ["-fopenmp"]
+
+
+architecture = os.environ.get("GLM_ARCHITECTURE", "native")
+if architecture != "default":
+    extra_compile_args.append("-march=" + architecture)
+
+extension_args = dict(
+    include_dirs=[np.get_include()],
+    extra_compile_args=extra_compile_args,
+    extra_link_args=extra_link_args,
     language="c++",
 )
 ext_modules = [
     Extension(
         name="quantcore.glm.matrix.sandwich.sandwich",
         sources=["src/quantcore/glm/matrix/sandwich/sandwich.pyx"],
-        libraries=["jemalloc"],
+        libraries=allocator_libs,
         **extension_args,
     ),
     Extension(
@@ -64,7 +79,7 @@ ext_modules = [
     Extension(
         name="quantcore.glm.sklearn_fork._cd_fast",
         sources=["src/quantcore/glm/sklearn_fork/_cd_fast.pyx"],
-        include_dirs=[np.get_include()],
+        **extension_args,
     ),
     Extension(
         name="quantcore.glm.matrix.sandwich.categorical_sandwich",

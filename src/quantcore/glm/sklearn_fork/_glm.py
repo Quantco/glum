@@ -56,8 +56,7 @@ from sklearn.utils.validation import (
     column_or_1d,
 )
 
-import quantcore.glm.matrix as mx
-
+from .. import matrix as mx
 from ._distribution import (
     BinomialDistribution,
     ExponentialDispersionModel,
