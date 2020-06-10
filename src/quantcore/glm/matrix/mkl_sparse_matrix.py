@@ -28,7 +28,9 @@ class MKLSparseMatrix(sps.csc_matrix, MatrixBase):
         if self.x_csr is None:
             self.x_csr = self.tocsr(copy=False)
 
-    def sandwich(self, d: np.ndarray, rows: np.ndarray, cols: np.ndarray) -> np.ndarray:
+    def sandwich(
+        self, d: np.ndarray, rows: np.ndarray = None, cols: np.ndarray = None
+    ) -> np.ndarray:
         if not hasattr(d, "dtype"):
             d = np.asarray(d)
         if not self.dtype == d.dtype:
@@ -39,17 +41,13 @@ class MKLSparseMatrix(sps.csc_matrix, MatrixBase):
             )
 
         self._check_csr()
-        return sparse_sandwich(self.tocsc(copy=False), self.x_csr, d)
 
-    def limited_rmatvec(
-        self, v: np.ndarray, rows: np.ndarray, cols: np.ndarray
-    ) -> np.ndarray:
-        pass
+        if rows is None:
+            rows = np.arange(self.shape[0], dtype=np.int32)
+        if cols is None:
+            cols = np.arange(self.shape[1], dtype=np.int32)
 
-    def limited_matvec(
-        self, v: np.ndarray, rows: np.ndarray, cols: np.ndarray
-    ) -> np.ndarray:
-        pass
+        return sparse_sandwich(self.tocsc(copy=False), self.x_csr, d, rows, cols)
 
     def sandwich_dense(self, B: np.ndarray, d: np.ndarray) -> np.ndarray:
         """
@@ -70,27 +68,48 @@ class MKLSparseMatrix(sps.csc_matrix, MatrixBase):
         self._check_csr()
         return csr_dense_sandwich(self.x_csr, B, d)
 
-    def dot(self, v):
+    def dot(self, v, rows: np.ndarray = None, cols: np.ndarray = None):
         if not isinstance(v, np.ndarray) and not sps.issparse(v):
             v = np.asarray(v)
-        if len(v.shape) == 1:
-            return dot_product_mkl(self, v)
-        if len(v.shape) == 2 and v.shape[1] == 1:
-            return dot_product_mkl(self, v[:, 0])[:, None]
-        return sps.csc_matrix.dot(self, v)
+        if rows is None and cols is None:
+            if len(v.shape) == 1:
+                return dot_product_mkl(self, v)
+            if len(v.shape) == 2 and v.shape[1] == 1:
+                return dot_product_mkl(self, v[:, 0])[:, None]
+            # TODO: warn that the rows and cols parameters aren't used with matrix-multiplies
+            return sps.csc_matrix.dot(self, v)
+        else:
+            if rows is None:
+                rows = np.arange(self.shape[0], dtype=np.int32)
+            if cols is None:
+                cols = np.arange(self.shape[1], dtype=np.int32)
+            if len(v.shape) == 1:
+                return dot_product_mkl(self[np.ix_(rows, cols)], v[cols])
+            elif len(v.shape) == 2 and v.shape[1] == 1:
+                return dot_product_mkl(self[np.ix_(rows, cols)], v[cols, 0])[:, None]
+            else:
+                return self[np.ix_(rows, cols)].dot(v[cols])
 
     __array_priority__ = 12
 
+    def transpose_dot(
+        self,
+        vec: Union[np.ndarray, List],
+        rows: np.ndarray = None,
+        cols: np.ndarray = None,
+    ) -> np.ndarray:
+        vec = np.squeeze(np.asarray(vec))
+        if rows is None and cols is None:
+            return dot_product_mkl(self.T, vec)
+        else:
+            if rows is None:
+                rows = np.arange(self.shape[0], dtype=np.int32)
+            if cols is None:
+                cols = np.arange(self.shape[1], dtype=np.int32)
+            return dot_product_mkl(self[np.ix_(rows, cols)].T, vec[rows])
+
     def get_col_stds(self, weights: np.ndarray, col_means: np.ndarray) -> np.ndarray:
         return np.sqrt(self.power(2).T.dot(weights) - col_means ** 2)
-
-    def transpose_dot(self, vec: Union[np.ndarray, List]) -> np.ndarray:
-        vec = np.asarray(vec)
-        if vec.ndim == 1:
-            return dot_product_mkl(self.T, vec)
-        if vec.ndim == 2 and vec.shape[1] == 1:
-            return dot_product_mkl(self.T, np.squeeze(vec))[:, None]
-        return self.T.dot(vec)
 
     def scale_cols_inplace(self, col_scaling: np.ndarray) -> None:
         _scale_csc_columns_inplace(self, col_scaling)

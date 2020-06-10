@@ -29,12 +29,25 @@ class ColScaledMat:
         self.ndim = mat.ndim
         self.dtype = mat.dtype
 
-    def dot(self, other_mat: Union[np.ndarray, List]) -> np.ndarray:
+    def dot(
+        self,
+        other_mat: Union[np.ndarray, List],
+        rows: np.ndarray = None,
+        cols: np.ndarray = None,
+    ) -> np.ndarray:
         """
         This function returns a dense output, so it is best geared for the
         matrix-vector case.
         """
-        return self.mat.dot(other_mat) + self.shift.dot(other_mat)
+
+        other_mat = np.asarray(other_mat)
+        if rows is None:
+            rows = np.arange(self.shape[0], dtype=np.int32)
+        if cols is None:
+            cols = np.arange(self.shape[1], dtype=np.int32)
+        return self.mat.dot(other_mat, rows, cols) + self.shift[cols].dot(
+            other_mat[cols]
+        )
 
     def getcol(self, i: int):
         """
@@ -52,7 +65,9 @@ class ColScaledMat:
         """
         return ColScaledMat(self.mat.getcol(i), [self.shift[i]])
 
-    def sandwich(self, d: np.ndarray) -> np.ndarray:
+    def sandwich(
+        self, d: np.ndarray, rows: np.ndarray = None, cols: np.ndarray = None
+    ) -> np.ndarray:
         """
         Performs a sandwich product: X.T @ diag(d) @ X
         """
@@ -64,10 +79,17 @@ class ColScaledMat:
                 np.float64 or np.float32. This matrix is of type {self.mat.dtype},
                 while d is of type {d.dtype}."""
             )
-        term1 = self.mat.sandwich(d)
-        term2 = (d @ self.mat)[:, np.newaxis] * self.shift
+
+        if rows is None:
+            rows = np.arange(self.shape[0], dtype=np.int32)
+        if cols is None:
+            cols = np.arange(self.shape[1], dtype=np.int32)
+
+        term1 = self.mat.sandwich(d, rows, cols)
+        term2 = self.mat.transpose_dot(d, rows, cols)[:, np.newaxis] * self.shift[cols]
         term3 = term2.T
-        term4 = np.outer(self.shift, self.shift) * d.sum()
+        shift_subset = self.shift[cols]
+        term4 = np.outer(shift_subset, shift_subset) * d[rows].sum()
         return term1 + term2 + term3 + term4
 
     def unstandardize(self, col_stds: Optional[np.ndarray]) -> MatrixBase:
@@ -78,7 +100,12 @@ class ColScaledMat:
             self.mat.scale_cols_inplace(col_stds)
         return self.mat
 
-    def transpose_dot(self, other: Union[np.ndarray, List]) -> np.ndarray:
+    def transpose_dot(
+        self,
+        other: Union[np.ndarray, List],
+        rows: np.ndarray = None,
+        cols: np.ndarray = None,
+    ) -> np.ndarray:
         """
         Let self.shape = (N, K) and other.shape = (M, N).
         Let shift_mat = outer(ones(N), shift)
@@ -90,10 +117,15 @@ class ColScaledMat:
         = shift[k] other.sum(0)[i]
         = outer(shift, other.sum(0))[k, i]
         """
-        mat_part = self.mat.transpose_dot(other)
+        other = np.asarray(other)
+        if rows is None:
+            rows = np.arange(self.shape[0], dtype=np.int32)
+        if cols is None:
+            cols = np.arange(self.shape[1], dtype=np.int32)
+        mat_part = self.mat.transpose_dot(other, rows, cols)
 
-        other_sum = np.sum(other, 0)
-        shift_part = np.reshape(np.outer(self.shift, other_sum), mat_part.shape)
+        other_sum = np.sum(other[rows], 0)
+        shift_part = np.reshape(np.outer(self.shift[cols], other_sum), mat_part.shape)
 
         return mat_part + shift_part
 

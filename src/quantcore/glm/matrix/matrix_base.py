@@ -16,7 +16,7 @@ class MatrixBase(ABC):
     dtype: np.dtype
 
     @abstractmethod
-    def dot(self, other):
+    def dot(self, other, rows: np.ndarray = None, cols: np.ndarray = None):
         """ Matrix multiplication. """
         pass
 
@@ -29,7 +29,9 @@ class MatrixBase(ABC):
         pass
 
     @abstractmethod
-    def sandwich(self, d: np.ndarray, rows: np.ndarray, cols: np.ndarray) -> np.ndarray:
+    def sandwich(
+        self, d: np.ndarray, rows: np.ndarray = None, cols: np.ndarray = None
+    ) -> np.ndarray:
         pass
 
     @property
@@ -41,7 +43,12 @@ class MatrixBase(ABC):
         pass
 
     @abstractmethod
-    def transpose_dot(self, vec: Union[np.ndarray, List]) -> np.ndarray:
+    def transpose_dot(
+        self,
+        vec: Union[np.ndarray, List],
+        rows: np.ndarray = None,
+        cols: np.ndarray = None,
+    ) -> np.ndarray:
         pass
 
     def __rmatmul__(self, other: Union[np.ndarray, List]) -> np.ndarray:
