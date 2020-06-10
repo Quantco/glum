@@ -172,7 +172,7 @@ def test_gradients(family, link):
         y = np.random.rand(nrows)
         weights = np.ones(nrows)
 
-        eta, mu, ll_center = family.eta_mu_loglikelihood(
+        eta, mu, _ = family.eta_mu_loglikelihood(
             link, 1.0, np.zeros(nrows), X.dot(coef), y, weights
         )
         gradient_rows, _ = family.rowwise_gradient_hessian(
