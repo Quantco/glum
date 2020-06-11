@@ -56,7 +56,14 @@ class MKLSparseMatrix(sps.csc_matrix, MatrixBase):
 
         return sparse_sandwich(self.tocsc(copy=False), self.x_csr, d, rows, cols)
 
-    def sandwich_dense(self, B: np.ndarray, d: np.ndarray) -> np.ndarray:
+    def sandwich_dense(
+        self,
+        B: np.ndarray,
+        d: np.ndarray,
+        rows: np.ndarray,
+        L_cols: np.ndarray,
+        R_cols: np.ndarray,
+    ) -> np.ndarray:
         """
         sandwich product: self.T @ diag(d) @ B
         """
@@ -73,7 +80,7 @@ class MKLSparseMatrix(sps.csc_matrix, MatrixBase):
             d = d.astype(float)
 
         self._check_csr()
-        return csr_dense_sandwich(self.x_csr, B, d)
+        return csr_dense_sandwich(self.x_csr, B, d, rows, L_cols, R_cols)
 
     def dot(self, vec, rows: np.ndarray = None, cols: np.ndarray = None):
         if not isinstance(vec, np.ndarray) and not sps.issparse(vec):

@@ -147,10 +147,16 @@ def csc_rmatvec(XT, floating[:] v, int[:] rows, int[:] cols):
     return out
 
 cdef extern from "sparse_helpers.cpp":
-    void _csr_denseC_sandwich[F](F*, int*, int*, F*, F*, F*, int, int, int) nogil
-    void _csr_denseF_sandwich[F](F*, int*, int*, F*, F*, F*, int, int, int) nogil
+    void _csr_denseC_sandwich[F](
+        F*, int*, int*, F*, F*, F*, int, int, int,
+        int*, int*, int*, int, int, int
+    ) nogil
+    void _csr_denseF_sandwich[F](
+        F*, int*, int*, F*, F*, F*, int, int, int,
+        int*, int*, int*, int, int, int
+    ) nogil
 
-def csr_dense_sandwich(A, B, floating[:] d):
+def csr_dense_sandwich(A, B, floating[:] d, int[:] rows, int[:] A_cols, int[:] B_cols):
     # computes where (A.T * d) @ B
     # assumes that A is in csr form
     cdef floating[:] Adata = A.data
@@ -163,7 +169,11 @@ def csr_dense_sandwich(A, B, floating[:] d):
     cdef int n = d.shape[0]
     cdef int r = B.shape[1]
 
-    out = np.zeros((m, r), dtype=A.dtype)
+    cdef int nr = rows.shape[0]
+    cdef int nAc = A_cols.shape[0]
+    cdef int nBc = B_cols.shape[0]
+
+    out = np.zeros((nAc, nBc), dtype=A.dtype)
     if Aindptr[-1] - Aindptr[0] == 0:
         return out
 
@@ -173,10 +183,20 @@ def csr_dense_sandwich(A, B, floating[:] d):
     cdef floating[:, :] B_view = B;
     cdef floating* Bp = &B_view[0, 0];
 
+    cdef int* rowsp = &rows[0];
+    cdef int* A_colsp = &A_cols[0];
+    cdef int* B_colsp = &B_cols[0];
+
     if B.flags['C_CONTIGUOUS']:
-        _csr_denseC_sandwich(&Adata[0], &Aindices[0], &Aindptr[0], Bp, &d[0], outp, m, n, r)
+        _csr_denseC_sandwich(
+            &Adata[0], &Aindices[0], &Aindptr[0], Bp, &d[0], outp, m, n, r, 
+            rowsp, A_colsp, B_colsp, nr, nAc, nBc
+        )
     elif B.flags['F_CONTIGUOUS']:
-        _csr_denseF_sandwich(&Adata[0], &Aindices[0], &Aindptr[0], Bp, &d[0], outp, m, n, r)
+        _csr_denseF_sandwich(
+            &Adata[0], &Aindices[0], &Aindptr[0], Bp, &d[0], outp, m, n, r, 
+            rowsp, A_colsp, B_colsp, nr, nAc, nBc
+        )
     else:
         raise Exception()
     return out
