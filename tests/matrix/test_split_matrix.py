@@ -49,6 +49,33 @@ def split_mat() -> SplitMatrix:
     return mat
 
 
+@pytest.fixture()
+def split_mat_2() -> SplitMatrix:
+    """
+    Initialized with multiple sparse and dense parts and no indices.
+    """
+    n_rows = 10
+    np.random.seed(0)
+    dense_1 = mx.DenseGLMDataMatrix(np.random.random((n_rows, 3)))
+    sparse_1 = mx.MKLSparseMatrix(sps.random(n_rows, 3).tocsc())
+    cat = mx.CategoricalMatrix(np.random.choice(range(3), n_rows))
+    dense_2 = mx.DenseGLMDataMatrix(np.random.random((n_rows, 3)))
+    sparse_2 = mx.MKLSparseMatrix(sps.random(n_rows, 3, density=0.5).tocsc())
+    cat_2 = mx.CategoricalMatrix(np.random.choice(range(3), n_rows))
+    return mx.SplitMatrix([dense_1, sparse_1, cat, dense_2, sparse_2, cat_2])
+
+
+def test_init(split_mat_2: SplitMatrix):
+    assert len(split_mat_2.indices) == 4
+    assert len(split_mat_2.matrices) == 4
+    assert (
+        split_mat_2.indices[0] == np.concatenate([np.arange(3), np.arange(9, 12)])
+    ).all()
+    assert split_mat_2.matrices[0].shape == (10, 6)
+    assert split_mat_2.matrices[1].shape == (10, 6)
+    assert split_mat_2.matrices[2].shape == (10, 3)
+
+
 def test_sandwich_sparse_dense(X: np.ndarray):
     np.random.seed(0)
     n, k = X.shape
@@ -64,13 +91,18 @@ def test_sandwich(split_mat: SplitMatrix):
         v = np.random.rand(split_mat.shape[0])
         y1 = split_mat.sandwich(v)
         y2 = (split_mat.A.T * v[None, :]) @ split_mat.A
-        try:
-            np.testing.assert_allclose(y1, y2, atol=1e-12)
-        except AssertionError:
-            tmp = np.abs(y1 - y2)
-            print(np.where(tmp == tmp.max()))
-            import ipdb
+        np.testing.assert_allclose(y1, y2, atol=1e-12)
 
-            ipdb.set_trace()
-        maxdiff = np.max(np.abs(y1 - y2))
-        assert maxdiff < 1e-12
+
+def test_sandwich_many_types():
+    n_rows = 10
+    np.random.seed(0)
+    dense_1 = mx.DenseGLMDataMatrix(np.random.random((n_rows, 3)))
+    sparse = mx.MKLSparseMatrix(sps.random(n_rows, 3).tocsc())
+    cat = mx.CategoricalMatrix(np.random.choice(range(3), n_rows))
+    dense_2 = mx.DenseGLMDataMatrix(np.random.random((n_rows, 3)))
+    mat = mx.SplitMatrix([dense_1, sparse, cat, dense_2])
+    d = np.random.random(n_rows)
+    res = mat.sandwich(d)
+    expected = (mat.A.T * d[None, :]) @ mat.A
+    np.testing.assert_allclose(res, expected)

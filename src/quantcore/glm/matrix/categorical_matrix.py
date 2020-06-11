@@ -15,6 +15,14 @@ class CategoricalMatrix(MatrixBase):
         col_mult: Optional[Union[List, np.ndarray]] = None,
         dtype: np.dtype = np.dtype("float64"),
     ):
+        """
+        Constructs an object that behaves like cat_vec with one-hot encoding, but
+        with more memory efficiency and speed.
+        ---
+        cat_vec: array-like vector of categorical data.
+        col_mult: Column multiplier; if col_mult[i] = 3, the data in column i will be 0's and 3's.
+        dtype:
+        """
         if isinstance(cat_vec, pd.Categorical):
             self.cat = cat_vec
         else:
