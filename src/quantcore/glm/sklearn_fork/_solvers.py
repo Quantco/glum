@@ -53,13 +53,21 @@ def _cd_solver(state, data):
 
 def build_hessian(X, hessian_rows, intercept, P2):
     idx = 1 if intercept else 0
+    # Almost all time spent in this function is here
     hessian = _safe_sandwich_dot(X, hessian_rows, intercept)
+    if sparse.issparse(P2) and P2.nnz == 0:
+        return hessian
     if P2.ndim == 1:
         idiag = np.arange(start=idx, stop=hessian.shape[0])
         hessian[(idiag, idiag)] += P2
     else:
         if sparse.issparse(P2):
-            hessian[idx:, idx:] += P2.toarray()
+            is_diagonal = P2.nnz == P2.shape[0] and (P2.data == P2.diagonal()).all()
+            if is_diagonal:
+                idiag = np.arange(start=idx, stop=hessian.shape[0])
+                hessian[(idiag, idiag)] += P2.data
+            else:
+                hessian[idx:, idx:] += P2.toarray()
         else:
             hessian[idx:, idx:] += P2
     return hessian
