@@ -4,7 +4,12 @@ import numpy as np
 from scipy import sparse as sps
 from sparse_dot_mkl import dot_product_mkl
 
-from quantcore.glm.matrix.sandwich.sandwich import csr_dense_sandwich, sparse_sandwich
+from quantcore.glm.matrix.ext.sparse import (
+    csc_rmatvec,
+    csr_dense_sandwich,
+    csr_matvec,
+    sparse_sandwich,
+)
 
 from . import MatrixBase
 from .standardize import _scale_csc_columns_inplace
@@ -79,16 +84,18 @@ class MKLSparseMatrix(sps.csc_matrix, MatrixBase):
             if len(vec.shape) == 2 and vec.shape[1] == 1:
                 return dot_product_mkl(self, vec[:, 0])[:, None]
             # TODO: warn that the rows and cols parameters aren't used with matrix-multiplies
-            return sps.csc_matrix.dot(self, vec)
+            return super().dot(vec)
         else:
             if rows is None:
                 rows = np.arange(self.shape[0], dtype=np.int32)
             if cols is None:
                 cols = np.arange(self.shape[1], dtype=np.int32)
             if vec.ndim == 1:
-                return dot_product_mkl(self[np.ix_(rows, cols)], vec[cols])
+                self._check_csr()
+                return csr_matvec(self.x_csr, vec, rows, cols)
             elif vec.ndim == 2 and vec.shape[1] == 1:
-                return dot_product_mkl(self[np.ix_(rows, cols)], vec[cols, 0])[:, None]
+                self._check_csr()
+                return csr_matvec(self.x_csr, vec[:, 0], rows, cols)[:, None]
             else:
                 return self[np.ix_(rows, cols)].dot(vec[cols])
 
@@ -102,18 +109,20 @@ class MKLSparseMatrix(sps.csc_matrix, MatrixBase):
     ) -> np.ndarray:
         vec = np.asarray(vec)
         if rows is None and cols is None:
-            return dot_product_mkl(self.T, vec)
+            if vec.ndim == 1:
+                return dot_product_mkl(self.T, vec)
+            elif vec.ndim == 2 and vec.shape[1] == 1:
+                return dot_product_mkl(self.T, vec[:, 0])[:, None]
+            return super().T.dot(vec)
         else:
             if rows is None:
                 rows = np.arange(self.shape[0], dtype=np.int32)
             if cols is None:
                 cols = np.arange(self.shape[1], dtype=np.int32)
             if vec.ndim == 1:
-                return dot_product_mkl(self[np.ix_(rows, cols)].T, vec[rows])
+                return csc_rmatvec(self, vec, rows, cols)
             elif vec.ndim == 2 and vec.shape[1] == 1:
-                return dot_product_mkl(self[np.ix_(rows, cols)].T, vec[rows, 0])[
-                    :, None
-                ]
+                return csc_rmatvec(self, vec[:, 0], rows, cols)[:, None]
             else:
                 return self[np.ix_(rows, cols)].T.dot(vec[rows])
 
