@@ -1,5 +1,5 @@
 import warnings
-from typing import List, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 from scipy import sparse as sps
@@ -46,14 +46,13 @@ def _sandwich_cat_other(
 
 
 def mat_sandwich(mat_i: MatrixBase, mat_j: MatrixBase, d: np.ndarray) -> np.ndarray:
-    if type(mat_i) == type(mat_j):
+    if mat_i is mat_j:
         return mat_i.sandwich(d)
-    elif isinstance(mat_i, MKLSparseMatrix):
+    if isinstance(mat_i, MKLSparseMatrix):
         if isinstance(mat_j, DenseGLMDataMatrix):
             return mat_i.sandwich_dense(mat_j, d)
         if isinstance(mat_j, CategoricalMatrix):
             return _sandwich_cat_other(mat_j, mat_i, d).T
-        raise NotImplementedError
     elif isinstance(mat_i, DenseGLMDataMatrix):
         if isinstance(mat_j, MKLSparseMatrix):
             return mat_j.sandwich_dense(mat_i, d).T
@@ -61,17 +60,26 @@ def mat_sandwich(mat_i: MatrixBase, mat_j: MatrixBase, d: np.ndarray) -> np.ndar
             return _sandwich_cat_other(mat_j, mat_i, d).T
     elif isinstance(mat_i, CategoricalMatrix):
         return _sandwich_cat_other(mat_i, mat_j, d)
-    else:
-        raise NotImplementedError(
-            f"Not implemented with {type(mat_i)} or {type(mat_j)}"
-        )
+    raise NotImplementedError(f"Not implemented with {type(mat_i)} or {type(mat_j)}")
 
 
 class SplitMatrix(MatrixBase):
-    def __init__(self, matrices: List[MatrixBase], indices: List[np.ndarray]):
+    def __init__(
+        self, matrices: List[MatrixBase], indices: Optional[List[np.ndarray]] = None
+    ):
+
+        if indices is None:
+            indices = []
+            current_idx = 0
+            for mat in matrices:
+                indices.append(
+                    np.arange(current_idx, current_idx + mat.shape[1], dtype=np.int)
+                )
+                current_idx += mat.shape[1]
+
         assert isinstance(indices, list)
         n_row = matrices[0].shape[0]
-        dtype = matrices[0].dtype
+        self.dtype = matrices[0].dtype
 
         for i, (mat, idx) in enumerate(zip(matrices, indices)):
             if not mat.shape[0] == n_row:
@@ -92,15 +100,41 @@ class SplitMatrix(MatrixBase):
                     f"""Element {i} of indices should should have length {mat.shape[1]},
                 but it has shape {idx.shape}"""
                 )
-            if mat.dtype != dtype:
+            if mat.dtype != self.dtype:
                 warnings.warn(
                     f"""Matrices do not all have the same dtype. Dtypes are
                 {[elt.dtype for elt in matrices]}."""
                 )
 
+        # If there are multiple spares and dense matrices, combine them
+        for mat_type_, stack_fn in [
+            (DenseGLMDataMatrix, np.hstack),
+            (MKLSparseMatrix, sps.hstack),
+        ]:
+            this_type_matrices = [
+                i for i, mat in enumerate(matrices) if isinstance(mat, mat_type_)
+            ]
+            if len(this_type_matrices) > 1:
+                matrices[this_type_matrices[0]] = mat_type_(
+                    stack_fn([matrices[i] for i in this_type_matrices])
+                )
+                assert matrices[this_type_matrices[0]].shape[0] == n_row
+                indices[this_type_matrices[0]] = np.concatenate(
+                    [indices[i] for i in this_type_matrices]
+                )
+                indices = [
+                    idx
+                    for i, idx in enumerate(indices)
+                    if i not in this_type_matrices[1:]
+                ]
+                matrices = [
+                    mat
+                    for i, mat in enumerate(matrices)
+                    if i not in this_type_matrices[1:]
+                ]
+
         self.matrices = matrices
         self.indices = indices
-        self.dtype = dtype
         self.shape = (n_row, sum([len(elt) for elt in indices]))
         assert self.shape[1] > 0
 
@@ -111,7 +145,7 @@ class SplitMatrix(MatrixBase):
                 for mat in self.matrices
             ]
             return SplitMatrix(new_matrices, self.indices)
-        for i in len(self.matrices):
+        for i in range(len(self.matrices)):
             self.matrices[i] = self.matrices[i].astype(
                 dtype=dtype, order=order, casting=casting, copy=False
             )
@@ -143,6 +177,10 @@ class SplitMatrix(MatrixBase):
                 idx_j = self.indices[j]
                 mat_j = self.matrices[j]
                 res = mat_sandwich(mat_i, mat_j, d)
+                if res is None:
+                    print(type(mat_i))
+                    print(type(mat_j))
+                assert res is not None
                 if isinstance(res, sps.dia_matrix):
                     out[(idx_i, idx_i)] += np.squeeze(res.data)
                 else:
