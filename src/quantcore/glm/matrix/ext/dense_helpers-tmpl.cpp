@@ -17,33 +17,14 @@
 // It looks scary, but it makes the loop unrolling and generalization across
 // matrix orderings and parallelization schemes much simpler than it would be
 // if implemented directly.
-//
-//
-// Also included is a csr_dense_sandwich function for computing the
-// off-diagonal blocks when using a dense-sparse split matrix.
 
-#ifndef _WIN32
-  #define JEMALLOC_NO_DEMANGLE
-  #if __APPLE__
-    #define JEMALLOC_NO_RENAME
-  #endif
-  #include <jemalloc/jemalloc.h>
-#endif
 #include <xsimd/xsimd.hpp>
 #include <iostream>
 #include <omp.h>
 
+#include "alloc.h"
+
 namespace xs = xsimd;
-
-std::size_t round_to_align(std::size_t size, std::size_t alignment) {
-  std::size_t remainder = size % alignment;
-
-  if (remainder == 0) {
-    return size;
-  } else {
-    return size + alignment - remainder;
-  }
-}
 
 <%def name="middle_j(kparallel, IBLOCK, JBLOCK)">
     int jmaxblock = jmin + ((jmaxinner - jmin) / ${JBLOCK}) * ${JBLOCK};
@@ -401,143 +382,7 @@ void _dense${order}_matvec(int* rows, int* cols, F* X, F* v, F* out,
             out[Cii] = out_entry;
         }
     }
-    // #pragma omp parallel for
-    // for (int Ci = 0; Ci < n_rows; Ci += rowblocksize) {
-    //     int Cimax = Ci + rowblocksize;
-    //     if (Cimax > n_rows) {
-    //         Cimax = n_rows;
-    //     }
-
-    //     for (int Cj = 0; Cj < n_cols; Cj += colblocksize) {
-    //         int Cjmax = Cj + colblocksize;
-    //         if (Cjmax > n_cols) {
-    //             Cjmax = n_cols;
-    //         }
-
-    //         for (int Cii = Ci; Cii < Cimax; Cii++) {
-    //             F out_entry = 0.0;
-    //             int i = rows[Cii];
-    //             for (int Cjj = Cj; Cjj < Cjmax; Cjj++) {
-    //                 int j = cols[Cjj];
-    //                 F vv = v[j];
-    //                 % if order == 'F':
-    //                     F Xv = X[j * n + i];
-    //                 % else:
-    //                     F Xv = X[i * m + j];
-    //                 % endif
-    //                 out_entry += Xv * vv;
-    //             }
-    //             out[Cii] = out_entry;
-    //         }
-    //     }
-    // }
 }
 </%def>
 ${dense_matvec_tmpl('C')}
 ${dense_matvec_tmpl('F')}
-
-<%def name="csr_dense_sandwich_tmpl(order)">
-template <typename F>
-void _csr_dense${order}_sandwich(
-    F* Adata, int* Aindices, int* Aindptr,
-    F* B, F* d, F* out,
-    int m, int n, int r) 
-{
-    constexpr int simd_size = xsimd::simd_type<F>::size;
-    constexpr auto alignment = simd_size*sizeof(F);
-
-    int kblock = 128;
-    int jblock = 128;
-    std::size_t Rglobal_size = round_to_align(omp_get_max_threads() * kblock * jblock * sizeof(F), alignment);
-#ifndef _WIN32
-    F* Rglobal = static_cast<F*>(je_aligned_alloc(alignment, Rglobal_size));
-#else
-    F* Rglobal = static_cast<F*>(_aligned_malloc(Rglobal_size, alignment));
-#endif
-
-    #pragma omp parallel
-    {
-        int r2 = ceil(((float)r) / ((float)simd_size)) * simd_size;
-        std::size_t outtemp_size = round_to_align(m * r2 * sizeof(F), alignment);
-#ifndef _WIN32
-        F* outtemp = static_cast<F*>(je_aligned_alloc(alignment, outtemp_size));
-#else
-        F* outtemp = static_cast<F*>(_aligned_malloc(outtemp_size, alignment));
-#endif
-        for (int i = 0; i < m; i++) {
-            for (int j = 0; j < r; j++) {
-                outtemp[i*r2+j] = 0.0;
-            }
-        }
-
-        #pragma omp for
-        for (int kk = 0; kk < n; kk+=kblock) {
-            int kmax = kk + kblock;
-            if (kmax > n) {
-                kmax = n;
-            }
-            for (int jj = 0; jj < r; jj+=jblock) {
-                int jmax = jj + jblock;
-                if (jmax > r) {
-                    jmax = r;
-                }
-
-                F* R = &Rglobal[omp_get_thread_num()*kblock*jblock];
-                for (int k = kk; k < kmax; k++) {
-                    for (int j = jj; j < jmax; j++) {
-                        %if order == 'C':
-                            F Bv = B[k * r + j];
-                        % else:
-                            F Bv = B[j * n + k];
-                        % endif
-                        R[(k-kk) * jblock + (j-jj)] = d[k] * Bv;
-                    }
-                }
-
-                for (int k = kk; k < kmax; k++) {
-                    for (int A_idx = Aindptr[k]; A_idx < Aindptr[k+1]; A_idx++) {
-                        int i = Aindices[A_idx];
-                        F Q = Adata[A_idx];
-                        auto Qsimd = xs::set_simd(Q);
-
-                        int j = jj;
-                        int jmax2 = jj + ((jmax - jj) / simd_size) * simd_size;
-                        for (; j < jmax2; j+=simd_size) {
-                            auto Bsimd = xs::load_aligned(&R[(k-kk)*jblock+(j-jj)]);
-                            auto outsimd = xs::load_aligned(&outtemp[i*r2+j]);
-                            outsimd = xs::fma(Qsimd, Bsimd, outsimd);
-                            outsimd.store_aligned(&outtemp[i*r2+j]);
-                        }
-
-                        for (; j < jmax; j++) {
-                            outtemp[i*r2+j] += Q * R[(k-kk)*jblock+(j-jj)];
-                        }
-                    }
-                }
-            }
-        }
-
-        for (int i = 0; i < m; i++) {
-            for (int j = 0; j < r; j++) {
-                #pragma omp atomic
-                out[i*r+j] += outtemp[i*r2+j];
-            }
-        }
-#ifndef _WIN32
-        je_sdallocx(outtemp, outtemp_size, 0);
-#else
-        _aligned_free(outtemp);
-#endif
-
-    }
-
-#ifndef _WIN32
-    je_sdallocx(Rglobal, Rglobal_size, 0);
-#else
-    _aligned_free(Rglobal);
-#endif
-}
-</%def>
-
-${csr_dense_sandwich_tmpl('C')}
-${csr_dense_sandwich_tmpl('F')}

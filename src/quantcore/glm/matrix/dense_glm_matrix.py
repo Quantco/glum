@@ -2,11 +2,7 @@ from typing import List, Union
 
 import numpy as np
 
-from quantcore.glm.matrix.sandwich.sandwich import (
-    dense_matvec,
-    dense_rmatvec,
-    dense_sandwich,
-)
+from quantcore.glm.matrix.ext.dense import dense_matvec, dense_rmatvec, dense_sandwich
 
 from .matrix_base import MatrixBase
 
