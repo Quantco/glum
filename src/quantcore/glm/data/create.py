@@ -329,7 +329,7 @@ def read_insurance_data(
 
 def generate_narrow_insurance_dataset(
     num_rows=None, noise=None, distribution="poisson"
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> Tuple[pd.DataFrame, np.ndarray, np.ndarray, List[str], ColumnTransformer]:
     """Generate the tutorial data set from the sklearn fork and save it to disk."""
 
     df = read_insurance_data(num_rows, noise, distribution)
@@ -337,12 +337,13 @@ def generate_narrow_insurance_dataset(
     col_trans_GLM1, _ = gen_col_trans()
     y, exposure = compute_y_exposure(df, distribution)
 
-    return col_trans_GLM1.fit_transform(df), y, exposure
+    categoricals: List[str] = []
+    return df, y, exposure, categoricals, col_trans_GLM1
 
 
 def generate_real_insurance_dataset(
     num_rows=None, noise=None, distribution="poisson"
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> Tuple[pd.DataFrame, np.ndarray, np.ndarray, List[str], ColumnTransformer]:
     """Load real insurance data set."""
 
     df = pd.read_parquet(git_root("data", "outcomes.parquet"))
@@ -370,12 +371,13 @@ def generate_real_insurance_dataset(
         offset=df["offset_kh_sach_frequenz"],
     )
 
-    return (X.to_numpy(), y, weights)
+    categoricals: List[str] = []
+    return X, y, weights, categoricals, ColumnTransformer()
 
 
 def generate_wide_insurance_dataset(
     num_rows=None, noise=None, distribution="poisson"
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> Tuple[pd.DataFrame, np.ndarray, np.ndarray, List[str], ColumnTransformer]:
     """Generate a version of the tutorial data set with many features."""
     df = read_insurance_data(num_rows, noise, distribution)
 
@@ -405,13 +407,14 @@ def generate_wide_insurance_dataset(
         sparse_threshold=0.0,
     )
     y, exposure = compute_y_exposure(df, distribution)
+    categoricals: List[str] = []
 
-    return transformer.fit_transform(df), y, exposure
+    return df, y, exposure, categoricals, transformer
 
 
 def generate_intermediate_insurance_dataset(
     num_rows=None, noise=None, distribution="poisson"
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> Tuple[pd.DataFrame, np.ndarray, np.ndarray, List[str], ColumnTransformer]:
     """Generate the tutorial data set from the sklearn fork and save it to disk."""
 
     df = read_insurance_data(num_rows, noise, distribution)
@@ -422,5 +425,6 @@ def generate_intermediate_insurance_dataset(
         ("BonusMalusClipped", OneHotEncoder(), ["BonusMalusClipped"],)
     )
     y, exposure = compute_y_exposure(df, distribution)
+    categoricals: List[str] = []
 
-    return col_trans_GLM1.fit_transform(df), y, exposure
+    return df, y, exposure, categoricals, col_trans_GLM1
