@@ -1,20 +1,16 @@
-from typing import Any, List, Tuple
+from typing import Any, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 from git_root import git_root
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import (
-    FunctionTransformer,
-    OneHotEncoder,
-    OrdinalEncoder,
-    StandardScaler,
-)
+from sklearn.preprocessing import FunctionTransformer, OneHotEncoder, OrdinalEncoder
 
 from ..util import exposure_correction
 
 # taken from https://github.com/lorentzenchr/Tutorial_freMTPL2/blob/master/glm_freMTPL2_example.ipynb
+# Modified to generate data sets of different sizes
 
 
 def create_raw_data() -> None:
@@ -88,7 +84,18 @@ def create_raw_data() -> None:
     df.to_parquet(git_root("data/insurance.parquet"))
 
 
-def gen_col_trans(drop=True, standardize=False) -> Tuple[Any, List[str]]:
+class PdCategoricalEncoder:
+    def fit_transform(self, x):
+        return pd.Categorical(x)
+
+
+def categorical_encoder(one_hot_encode: bool, *args, **kwargs):
+    if one_hot_encode:
+        return OneHotEncoder(*args, **kwargs)
+    return PdCategoricalEncoder()
+
+
+def gen_col_trans() -> Tuple[Any, List[str]]:
     """Generate a ColumnTransformer and list of names.
 
     With drop=False and standardize=False, the transformer corresponds to the GLM of the case study paper.
@@ -96,18 +103,6 @@ def gen_col_trans(drop=True, standardize=False) -> Tuple[Any, List[str]]:
     drop = False does encode k categories with k binary features (redundant).
     standardize = True standardizes numerical features.
     """
-    # drop dictionary
-    dd = {
-        "VehPower": [4],
-        "VehAge": [1],
-        "DrivAge": [4],
-        "VehBrand": ["B1"],
-        "VehGas": ["Diesel"],
-        "Region": ["R24"],
-    }
-    if drop is False:
-        for key, value in dd.items():
-            dd[key] = None
     column_trans = ColumnTransformer(
         [
             # VehPower 4, 5, 6, 7, 8, 9, drop=4
@@ -173,7 +168,6 @@ def gen_col_trans(drop=True, standardize=False) -> Tuple[Any, List[str]]:
                             ),
                         )
                     ]
-                    + ([("norm", StandardScaler())] if standardize else [])
                 ),
                 ["BonusMalus"],
             ),
@@ -183,7 +177,6 @@ def gen_col_trans(drop=True, standardize=False) -> Tuple[Any, List[str]]:
                 "Density_log",
                 Pipeline(
                     [("log", FunctionTransformer(lambda x: np.log(x), validate=False))]
-                    + ([("norm", StandardScaler())] if standardize else [])
                 ),
                 ["Density"],
             ),
@@ -198,7 +191,6 @@ def gen_col_trans(drop=True, standardize=False) -> Tuple[Any, List[str]]:
                             FunctionTransformer(lambda x: x + 1, validate=False),
                         ),
                     ]
-                    + ([("norm", StandardScaler())] if standardize else [])
                 ),
                 ["Area"],
             ),
@@ -262,20 +254,19 @@ def gen_col_trans(drop=True, standardize=False) -> Tuple[Any, List[str]]:
         "Region_R94",
         "Area_ord",
     ]
-    if drop:
-        column_trans_names = [
-            i
-            for i in column_trans_names
-            if i
-            not in [
-                "VehPower_4",
-                "VehAge_[1, 10]",
-                "DrivAge_[41,51)",
-                "VehBrand_B1",
-                "VehGas_Diesel",
-                "Region_R24",
-            ]
+    column_trans_names = [
+        i
+        for i in column_trans_names
+        if i
+        not in [
+            "VehPower_4",
+            "VehAge_[1, 10]",
+            "DrivAge_[41,51)",
+            "VehBrand_B1",
+            "VehGas_Diesel",
+            "Region_R24",
         ]
+    ]
     return column_trans, column_trans_names
 
 
@@ -316,11 +307,9 @@ def compute_y_exposure(df, distribution):
     return y, exposure
 
 
-def generate_narrow_insurance_dataset(
-    num_rows=None, noise=None, distribution="poisson"
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Generate the tutorial data set from the sklearn fork and save it to disk."""
-
+def read_insurance_data(
+    num_rows: Optional[int], noise: Optional[float], distribution: str
+) -> pd.DataFrame:
     df = pd.read_parquet(git_root("data/insurance.parquet"))
 
     if distribution in ["gamma", "gaussian"]:
@@ -335,8 +324,17 @@ def generate_narrow_insurance_dataset(
 
     if noise is not None:
         df = add_noise(df, noise=noise)
+    return df
 
-    col_trans_GLM1, col_trans_GLM1_names = gen_col_trans(drop=True, standardize=False)
+
+def generate_narrow_insurance_dataset(
+    num_rows=None, noise=None, distribution="poisson"
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Generate the tutorial data set from the sklearn fork and save it to disk."""
+
+    df = read_insurance_data(num_rows, noise, distribution)
+
+    col_trans_GLM1, _ = gen_col_trans()
     y, exposure = compute_y_exposure(df, distribution)
 
     return col_trans_GLM1.fit_transform(df), y, exposure
@@ -351,7 +349,7 @@ def generate_real_insurance_dataset(
     X = pd.read_parquet(git_root("data", "X.parquet"))
 
     if distribution != "poisson":
-        raise NotImplementedError("distibution must be poisson")
+        raise NotImplementedError("distribution must be poisson")
 
     # restrict X and df to train set
     train_set = df["sample"] == "train"
@@ -379,20 +377,7 @@ def generate_wide_insurance_dataset(
     num_rows=None, noise=None, distribution="poisson"
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Generate a version of the tutorial data set with many features."""
-    df = pd.read_parquet(git_root("data/insurance.parquet"))
-
-    if distribution in ["gamma", "gaussian"]:
-        df = df.query("ClaimAmountCut > 0")
-
-    if num_rows is not None:
-        # if we're oversampling, set default value for noise to 0.05
-        # can be turned off by setting noise to zero
-        if noise is None and num_rows > len(df):
-            noise = 0.05
-        df = df.sample(n=num_rows, replace=True, random_state=12345)
-
-    if noise is not None:
-        df = add_noise(df, noise=noise)
+    df = read_insurance_data(num_rows, noise, distribution)
 
     transformer = ColumnTransformer(
         [
@@ -429,24 +414,10 @@ def generate_intermediate_insurance_dataset(
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Generate the tutorial data set from the sklearn fork and save it to disk."""
 
-    df = pd.read_parquet(git_root("data/insurance.parquet"))
-
+    df = read_insurance_data(num_rows, noise, distribution)
     df["BonusMalusClipped"] = df["BonusMalus"].clip(50, 100)
 
-    if distribution in ["gamma", "gaussian"]:
-        df = df.query("ClaimAmountCut > 0")
-
-    if num_rows is not None:
-        # if we're oversampling, set default value for noise to 0.05
-        # can be turned off by setting noise to zero
-        if noise is None and num_rows > len(df):
-            noise = 0.05
-        df = df.sample(n=num_rows, replace=True, random_state=12345)
-
-    if noise is not None:
-        df = add_noise(df, noise=noise)
-
-    col_trans_GLM1, _ = gen_col_trans(drop=True, standardize=False)
+    col_trans_GLM1, _ = gen_col_trans()
     col_trans_GLM1.transformers.append(
         ("BonusMalusClipped", OneHotEncoder(), ["BonusMalusClipped"],)
     )

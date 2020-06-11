@@ -81,6 +81,11 @@ ext_modules = [
         sources=["src/quantcore/glm/sklearn_fork/_cd_fast.pyx"],
         **extension_args,
     ),
+    Extension(
+        name="quantcore.glm.matrix.sandwich.categorical_sandwich",
+        sources=["src/quantcore/glm/matrix/sandwich/categorical_sandwich.pyx"],
+        include_dirs=[np.get_include()],
+    ),
 ]
 
 setup(
