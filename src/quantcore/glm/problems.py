@@ -1,12 +1,15 @@
 import os
 from functools import partial
-from typing import Callable, Dict, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import attr
 import numpy as np
+import pandas as pd
 from git_root import git_root
 from joblib import Memory
 from scipy.sparse import csc_matrix
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import OneHotEncoder
 
 import quantcore.glm.matrix as mx
 
@@ -29,11 +32,31 @@ class Problem:
     l1_ratio = attr.ib(type=float)
 
 
+def transform_and_convert_format(
+    X: pd.DataFrame,
+    storage: str,
+    categoricals: List[str],
+    one_hot_encode: bool,
+    col_trans: ColumnTransformer,
+) -> Union[np.ndarray, csc_matrix, mx.SplitMatrix]:
+    if one_hot_encode:
+        for col in categoricals:
+            col_trans.transformers.append((col, OneHotEncoder(), [col]))
+
+    X = col_trans.fit_transform(X)
+    if storage == "sparse":
+        X = csc_matrix(X)
+    elif storage.startswith("split"):
+        threshold = float(storage.split("split")[1])
+        X = mx.csc_to_split(csc_matrix(X), threshold)
+    return X
+
+
 @joblib_memory.cache
 def load_data(
     loader_func: Callable[
         [Optional[int], Optional[float], Optional[str]],
-        Tuple[np.ndarray, np.ndarray, np.ndarray],
+        Tuple[pd.DataFrame, np.ndarray, np.ndarray, List[str], ColumnTransformer],
     ],
     num_rows: int = None,
     storage: str = "dense",
@@ -41,6 +64,7 @@ def load_data(
     noise: float = None,
     distribution: str = "poisson",
     data_setup: str = "weights",
+    one_hot_encode: bool = True,
 ) -> Dict[str, np.ndarray]:
     """
     Due to the way we have set up this problem, by rescaling the target variable, it
@@ -50,7 +74,11 @@ def load_data(
     # TODO: add a weights_and_offset option
     if data_setup not in ["weights", "offset", "no-weights"]:
         raise NotImplementedError
-    X, y, exposure = loader_func(num_rows, noise, distribution)
+    X, y, exposure, categoricals, col_trans = loader_func(num_rows, noise, distribution)
+
+    X = transform_and_convert_format(
+        X, storage, categoricals, one_hot_encode, col_trans
+    )
 
     if single_precision:
         X = X.astype(np.float32)
@@ -58,11 +86,6 @@ def load_data(
         if exposure is not None:
             exposure = exposure.astype(np.float32)
 
-    if storage == "sparse":
-        X = csc_matrix(X)
-    elif storage.startswith("split"):
-        threshold = float(storage.split("split")[1])
-        X = mx.csc_to_split(csc_matrix(X), threshold)
     if data_setup == "weights":
         return dict(X=X, y=y, weights=exposure)
     if data_setup == "offset":
@@ -70,6 +93,7 @@ def load_data(
         assert np.all(np.isfinite(offset))
         # y has already been divided by exposure loader_func, so undo it here
         return dict(X=X, y=y * exposure, offset=offset)
+
     # data_setup = "no_weights"
     return dict(X=X, y=y)
 
