@@ -177,10 +177,6 @@ class SplitMatrix(MatrixBase):
                 idx_j = self.indices[j]
                 mat_j = self.matrices[j]
                 res = mat_sandwich(mat_i, mat_j, d)
-                if res is None:
-                    print(type(mat_i))
-                    print(type(mat_j))
-                assert res is not None
                 if isinstance(res, sps.dia_matrix):
                     out[(idx_i, idx_i)] += np.squeeze(res.data)
                 else:
