@@ -103,15 +103,6 @@ def gen_col_trans() -> Tuple[Any, List[str]]:
     drop = False does encode k categories with k binary features (redundant).
     standardize = True standardizes numerical features.
     """
-    # drop dictionary
-    dd = {
-        "VehPower": [4],
-        "VehAge": [1],
-        "DrivAge": [4],
-        "VehBrand": ["B1"],
-        "VehGas": ["Diesel"],
-        "Region": ["R24"],
-    }
     column_trans = ColumnTransformer(
         [
             # VehPower 4, 5, 6, 7, 8, 9, drop=4
