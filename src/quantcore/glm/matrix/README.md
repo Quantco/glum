@@ -63,3 +63,93 @@ Individual subclasses may support significantly more operations.
     
 ## Benchmarks
 ???
+
+## Categorical data
+One-hot encoding a feature creates a sparse matrix that has some special properties: 
+All of its nonzero elements are ones, and since each element starts a new row, it's `indptr`,
+which indicates where rows start and end, will increment by 1 every time.
+
+### sandwich
+
+Sandwich products can be computed very efficiently.
+```
+sandwich(X, d)[i, j] = sum_k X[k, i] d[k] X[k, j]
+```
+If `i != j`, `sum_k X[k, i] d[k] X[k, j]` = 0. If `i = j`,
+```
+sandwich(X, d)[i, j] = sum_k X[k, i] d[k] X[k, i]
+= sum_k X[k, i] d[k]
+= d[X[:, i]].sum()
+= (X.T @ d)[i]
+```
+
+So `sandwich(X, d) = diag(X.T @ d)`. This will be especially efficient if `X` is 
+available in CSC format.
+
+### csr dot
+```
+>>> import numpy as np
+>>> from scipy import sparse
+>>> import pandas as pd
+
+>>> arr = [1, 0, 1]
+>>> dummies = pd.get_dummies(arr)
+>>> csr = sparse.csr_matrix(dummies.values)
+>>> csr.data
+array([1, 1, 1], dtype=uint8)
+>>> csr.indices
+array([1, 0, 1], dtype=int32)
+>>> csr.indptr
+array([0, 1, 2, 3], dtype=int32)
+```
+
+The size of this matrix, if the original array is of length `n`, is `n` bytes for the 
+data (stored as quarter-precision integers), `4n` for `indices`, and `4(n+1)` for 
+`indptr`. However, if we know the matrix results from one-hot encoding, we only need to
+store the `indices`, so we can reduce memory usage to slightly less than 4/9 of the 
+original.
+
+Computations will also be more efficient. Sparse CSR matrix-vector products in psedocode,
+modeled on [scipy sparse](https://github.com/scipy/scipy/blob/1dc960a33b000b95b1e399582c154efc0360a576/scipy/sparse/sparsetools/csr.h#L1120):
+```
+>>> def matvec(mat, vec):
+>>>     n_row = mat.shape[0]
+>>>     res = np.zeros(n_row)
+>>>     for i in range(n_row):
+>>>         for j in range(mat.indptr[i], mat.indptr[i+1]):
+>>>             res[i] += mat.data[j] * vec[mat.indices[j]]
+>>>     return res
+```
+With a CSR categorical matrix, `data` is all 1 and `j` always equals `i`, so we can
+simplify this function to be
+```
+>>> def matvec(mat, vec):
+>>>     n_row = mat.shape[0]
+>>>     res = np.zeros(n_row)
+>>>     for i in range(n_row):
+>>>         res[i] = vec[mat.indices[j]]
+>>>     return res
+```
+The original function involved `6N` lookups, `N` multiplications, and `N` additions, 
+while the new function involves only `3N` lookups. It thus has the potential to be
+significantly faster.
+
+### csc
+The case is not quite so simple for csc (column-major) sparse matrices.
+However, we still do not need to store the data.
+
+```
+>>> import numpy as np
+>>> from scipy import sparse
+>>> import pandas as pd
+
+>>> arr = [1, 0, 1]
+>>> dummies = pd.get_dummies(arr)
+>>> csc = sparse.csc_matrix(dummies.values)
+>>> csc.data
+array([1, 1, 1], dtype=uint8)
+>>> csc.indices
+array([1, 0, 2], dtype=int32)
+>>> csc.indptr
+array([0, 1, 3], dtype=int32)
+```

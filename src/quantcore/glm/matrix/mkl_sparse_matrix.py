@@ -84,3 +84,6 @@ class MKLSparseMatrix(sps.csc_matrix, MatrixBase):
 
     def scale_cols_inplace(self, col_scaling: np.ndarray) -> None:
         _scale_csc_columns_inplace(self, col_scaling)
+
+    def astype(self, dtype, order="K", casting="unsafe", copy=True):
+        return super(MKLSparseMatrix, self).astype(dtype, casting, copy)
