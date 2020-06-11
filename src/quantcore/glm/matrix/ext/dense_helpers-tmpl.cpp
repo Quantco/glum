@@ -175,7 +175,7 @@ ${dense_base_tmpl(False)}
         Rkmax2 = in_n; 
     }
 
-    F* R = Rglobal;
+    F* R = Rglobal.get();
     % if kparallel:
     R += omp_get_thread_num()*thresh1d*thresh1d*kratio*kratio;
     for (int Cjj = Cj; Cjj < Cjmax2; Cjj++) {
@@ -210,7 +210,7 @@ ${dense_base_tmpl(False)}
         if (Cimax2 > out_m) {
             Cimax2 = out_m; 
         }
-        F* L = &Lglobal[omp_get_thread_num()*thresh1d*thresh1d*kratio];
+        F* L = &Lglobal.get()[omp_get_thread_num()*thresh1d*thresh1d*kratio];
         for (int Cii = Ci; Cii < Cimax2; Cii++) {
             int ii = cols[Cii];
             %if order == 'F':
@@ -244,16 +244,12 @@ void _dense${order}_sandwich(int* rows, int* cols, F* X, F* d, F* out,
     if (kparallel) {
         Rsize *= omp_get_max_threads();
     }
-    std::size_t Rglobal_size = round_to_align(Rsize * sizeof(F), alignment);
-    std::size_t Lglobal_size = round_to_align(omp_get_max_threads() * thresh1d * thresh1d * kratio * sizeof(F), alignment);
-// TODO: hide this ifndef inside a function
-#ifndef _WIN32
-    F* Rglobal = static_cast<F*>(je_aligned_alloc(alignment, Rglobal_size));
-    F* Lglobal = static_cast<F*>(je_aligned_alloc(alignment, Lglobal_size));
-#else
-    F* Rglobal = static_cast<F*>(_aligned_malloc(Rglobal_size, alignment));
-    F* Lglobal = static_cast<F*>(_aligned_malloc(Lglobal_size, alignment));
-#endif
+
+    auto Rglobal = make_aligned_unique<F>(Rsize, alignment);
+    auto Lglobal = make_aligned_unique<F>(
+        omp_get_max_threads() * thresh1d * thresh1d * kratio, 
+        alignment
+    );
     for (int Cj = 0; Cj < out_m; Cj+=kratio*thresh1d) {
         int Cjmax2 = Cj + kratio*thresh1d; 
         if (Cjmax2 > out_m) {
@@ -265,13 +261,6 @@ void _dense${order}_sandwich(int* rows, int* cols, F* X, F* d, F* out,
             ${k_loop(False, order)}
         }
     }
-#ifndef _WIN32
-    je_sdallocx(Lglobal, Lglobal_size, 0);
-    je_sdallocx(Rglobal, Rglobal_size, 0);
-#else
-    _aligned_free(Lglobal);
-    _aligned_free(Rglobal);
-#endif
 
     #pragma omp parallel for if(out_m > 100)
     for (int Ci = 0; Ci < out_m; Ci++) {
@@ -292,9 +281,9 @@ void _dense${order}_rmatvec(int* rows, int* cols, F* X, F* v, F* out,
         int n_rows, int n_cols, int m, int n) 
 {
     constexpr std::size_t simd_size = xsimd::simd_type<F>::size;
-    constexpr auto alignment = std::align_val_t{simd_size*sizeof(F)};
+    constexpr std::size_t alignment = simd_size * sizeof(F);
 
-    auto outglobal = new (alignment) F[omp_get_max_threads()*n_cols];
+    auto outglobal = make_aligned_unique<F>(omp_get_max_threads()*n_cols, alignment);
 
     constexpr int rowblocksize = 256;
     constexpr int colblocksize = 4;
@@ -306,7 +295,7 @@ void _dense${order}_rmatvec(int* rows, int* cols, F* X, F* v, F* out,
             Cimax = n_rows;
         }
 
-        F* outlocal = &outglobal[omp_get_thread_num()*n_cols];
+        F* outlocal = &outglobal.get()[omp_get_thread_num()*n_cols];
 
         for (int Cj = 0; Cj < n_cols; Cj += colblocksize) {
             int Cjmax = Cj + colblocksize;
