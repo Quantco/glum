@@ -39,9 +39,11 @@ def transform_and_convert_format(
     one_hot_encode: bool,
     col_trans: ColumnTransformer,
 ) -> Union[np.ndarray, csc_matrix, mx.SplitMatrix]:
-    if one_hot_encode:
-        for col in categoricals:
+    for col in categoricals:
+        if one_hot_encode:
             col_trans.transformers.append((col, OneHotEncoder(), [col]))
+        else:
+            X[col] = X[col].astype("category")
 
     X = col_trans.fit_transform(X)
     if storage == "sparse":
