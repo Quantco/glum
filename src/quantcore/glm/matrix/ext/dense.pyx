@@ -4,112 +4,14 @@ import cython
 from cython cimport floating
 from cython.parallel import prange
 
-@cython.boundscheck(False)
-@cython.wraparound(False)
-def sparse_sandwich(A, AT, floating[:] d, int[:] rows, int[:] cols):
-    # AT is CSC
-    # A is CSC
-    # Computes AT @ diag(d) @ A
 
-    cdef floating[:] Adata = A.data
-    cdef int[:] Aindices = A.indices
-    cdef int[:] Aindptr = A.indptr
-
-    cdef floating[:] ATdata = AT.data
-    cdef int[:] ATindices = AT.indices
-    cdef int[:] ATindptr = AT.indptr
-
-    cdef floating* Adatap = &Adata[0]
-    cdef int* Aindicesp = &Aindices[0]
-    cdef floating* ATdatap = &ATdata[0]
-    cdef int* ATindicesp = &ATindices[0]
-    cdef int* ATindptrp = &ATindptr[0]
-
-    cdef floating* dp = &d[0]
-
-    cdef int m = cols.shape[0]
-    cdef int n = d.shape[0]
-    cdef int nnz = Adata.shape[0]
-    out = np.zeros((m, m), dtype=A.dtype)
-    cdef floating[:, :] out_view = out
-    cdef floating* outp = &out_view[0,0]
-
-    cdef int AT_idx, A_idx
-    cdef int AT_row, A_col
-    cdef int Ci, i, Cj, j, Ck, k
-    cdef floating A_val, AT_val
-
-    #TODO: see what happens when we swap to having k as the outer loop here?
-    for Cj in prange(m, nogil=True):
-        j = cols[Cj]
-        Ck = 0
-        for A_idx in range(Aindptr[j], Aindptr[j+1]):
-            k = Aindicesp[A_idx]
-            while rows[Ck] < k: 
-                Ck = Ck + 1
-            if rows[Ck] > k:
-                continue
-
-            A_val = Adatap[A_idx] * dp[k]
-            Ci = 0
-            for AT_idx in range(ATindptrp[k], ATindptrp[k+1]):
-                i = ATindicesp[AT_idx]
-                if i > j:
-                    break
-
-                while cols[Ci] < i:
-                    Ci = Ci + 1
-                if cols[Ci] > i:
-                    continue
-
-                AT_val = ATdatap[AT_idx]
-                outp[Cj * m + Ci] = outp[Cj * m + Ci] + AT_val * A_val
-
-    out += np.tril(out, -1).T
-    return out
-
-cdef extern from "dense.cpp":
+cdef extern from "dense_helpers.cpp":
     void _denseC_sandwich[F](int*, int*, F*, F*, F*, int, int, int, int, int, int, int) nogil
     void _denseF_sandwich[F](int*, int*, F*, F*, F*, int, int, int, int, int, int, int) nogil
     void _denseC_rmatvec[F](int*, int*, F*, F*, F*, int, int, int, int) nogil
     void _denseF_rmatvec[F](int*, int*, F*, F*, F*, int, int, int, int) nogil
     void _denseC_matvec[F](int*, int*, F*, F*, F*, int, int, int, int) nogil
     void _denseF_matvec[F](int*, int*, F*, F*, F*, int, int, int, int) nogil
-    void _csr_denseC_sandwich[F](F*, int*, int*, F*, F*, F*, int, int, int) nogil
-    void _csr_denseF_sandwich[F](F*, int*, int*, F*, F*, F*, int, int, int) nogil
-
-def csr_dense_sandwich(A, B, floating[:] d):
-    # computes where (A.T * d) @ B
-    # assumes that A is in csr form
-    cdef floating[:] Adata = A.data
-    cdef int[:] Aindices = A.indices
-    cdef int[:] Aindptr = A.indptr
-
-    # A has shape (n, m)
-    # B has shape (n, r)
-    cdef int m = A.shape[1]
-    cdef int n = d.shape[0]
-    cdef int r = B.shape[1]
-
-    out = np.zeros((m, r), dtype=A.dtype)
-    if Aindptr[-1] - Aindptr[0] == 0:
-        return out
-
-    cdef floating[:, :] out_view = out
-    cdef floating* outp = &out_view[0,0]
-
-    cdef floating[:, :] B_view = B;
-    cdef floating* Bp = &B_view[0, 0];
-
-    if B.flags['C_CONTIGUOUS']:
-        _csr_denseC_sandwich(&Adata[0], &Aindices[0], &Aindptr[0], Bp, &d[0], outp, m, n, r)
-    elif B.flags['F_CONTIGUOUS']:
-        _csr_denseF_sandwich(&Adata[0], &Aindices[0], &Aindptr[0], Bp, &d[0], outp, m, n, r)
-    else:
-        raise Exception()
-    return out
-
-
 
 def dense_sandwich(X, floating[:] d, int[:] rows, int[:] cols, int thresh1d = 32, int kratio = 16, int innerblock = 128):
     cdef int n = X.shape[0]
