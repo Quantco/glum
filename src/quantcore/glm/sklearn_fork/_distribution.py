@@ -554,18 +554,22 @@ class TweedieDistribution(ExponentialDispersionModel):
         eta_out: np.ndarray,
         mu_out: np.ndarray,
     ):
+        f = None
         if self.power == 0 and isinstance(link, IdentityLink):
-            return normal_identity_eta_mu_loglikelihood(
-                factor, cur_eta, X_dot_d, y, weights, eta_out, mu_out
-            )
+            f = normal_identity_eta_mu_loglikelihood
         if self.power == 1 and isinstance(link, LogLink):
-            return poisson_log_eta_mu_loglikelihood(
-                factor, cur_eta, X_dot_d, y, weights, eta_out, mu_out
-            )
+            f = poisson_log_eta_mu_loglikelihood
         if self.power == 2 and isinstance(link, LogLink):
-            return gamma_log_eta_mu_loglikelihood(
-                factor, cur_eta, X_dot_d, y, weights, eta_out, mu_out
-            )
+            f = gamma_log_eta_mu_loglikelihood
+
+        if f is not None:
+            try:
+                return f(cur_eta, X_dot_d, y, weights, eta_out, mu_out, factor)
+            except ValueError:
+                import ipdb
+
+                ipdb.set_trace()
+
         return super()._eta_mu_loglikelihood(
             link, factor, cur_eta, X_dot_d, y, weights, eta_out, mu_out
         )
