@@ -88,16 +88,27 @@ def build_hessian_delta(X, hessian_rows, intercept, P2, active_rows, active_cols
     delta = _safe_sandwich_dot(
         X, hessian_rows, active_rows, active_cols_non_intercept, intercept
     )
-    if P2 is not None:
-        if P2.ndim == 1:
-            idiag = np.arange(start=idx, stop=delta.shape[0])
-            delta[(idiag, idiag)] += P2[active_cols_non_intercept]
-        else:
-            if sparse.issparse(P2):
-                P2_temp = P2.toarray()
+    if P2 is None:
+        return delta
+
+    if sparse.issparse(P2) and P2.nnz == 0:
+        return delta
+
+    if P2.ndim == 1:
+        idiag = np.arange(start=idx, stop=delta.shape[0])
+        delta[(idiag, idiag)] += P2[active_cols_non_intercept]
+    else:
+        if sparse.issparse(P2):
+            is_diagonal = P2.nnz == P2.shape[0] and (P2.data == P2.diagonal()).all()
+            if is_diagonal:
+                idiag = np.arange(start=idx, stop=delta.shape[0])
+                delta[(idiag, idiag)] += P2.data[active_cols_non_intercept]
             else:
-                P2_temp = P2
-            delta[idx:, idx:] += P2_temp[
+                delta[idx:, idx:] += P2.toarray()[
+                    np.ix_(active_cols_non_intercept, active_cols_non_intercept)
+                ]
+        else:
+            delta[idx:, idx:] += P2[
                 np.ix_(active_cols_non_intercept, active_cols_non_intercept)
             ]
     return delta

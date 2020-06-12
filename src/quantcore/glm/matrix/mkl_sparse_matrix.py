@@ -76,6 +76,12 @@ class MKLSparseMatrix(sps.csc_matrix, MatrixBase):
         if np.issubdtype(d.dtype, np.signedinteger):
             d = d.astype(float)
 
+        if rows is None:
+            rows = np.arange(self.shape[0], dtype=np.int32)
+        if L_cols is None:
+            L_cols = np.arange(self.shape[1], dtype=np.int32)
+        if R_cols is None:
+            R_cols = np.arange(B.shape[1], dtype=np.int32)
         return csr_dense_sandwich(self.x_csr, B, d, rows, L_cols, R_cols)
 
     def dot_helper(self, vec, rows, cols, transpose):
@@ -127,3 +133,6 @@ class MKLSparseMatrix(sps.csc_matrix, MatrixBase):
 
     def scale_cols_inplace(self, col_scaling: np.ndarray) -> None:
         _scale_csc_columns_inplace(self, col_scaling)
+
+    def astype(self, dtype, order="K", casting="unsafe", copy=True):
+        return super(MKLSparseMatrix, self).astype(dtype, casting, copy)

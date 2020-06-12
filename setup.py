@@ -83,6 +83,11 @@ ext_modules = [
         **extension_args,
     ),
     Extension(
+        name="quantcore.glm.matrix.ext.categorical",
+        sources=["src/quantcore/glm/matrix/ext/categorical.pyx"],
+        include_dirs=[np.get_include()],
+    ),
+    Extension(
         name="quantcore.glm.sklearn_fork._functions",
         sources=["src/quantcore/glm/sklearn_fork/_functions.pyx"],
         **extension_args,

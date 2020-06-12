@@ -628,7 +628,7 @@ def test_glm_check_input_argument(estimator, check_input):
         sparse.csr_matrix,
         mx.DenseGLMDataMatrix,
         lambda x: mx.MKLSparseMatrix(sparse.csc_matrix(x)),
-        lambda x: mx.SplitMatrix(sparse.csc_matrix(x)),
+        lambda x: mx.split_matrix.csc_to_split(sparse.csc_matrix(x)),
     ],
 )
 def test_glm_identity_regression(solver, fit_intercept, offset, convert_x_fn):
@@ -655,6 +655,44 @@ def test_glm_identity_regression(solver, fit_intercept, offset, convert_x_fn):
         fit_coef = res.coef_
     assert fit_coef.dtype.itemsize == X.dtype.itemsize
     assert_allclose(fit_coef, coef, rtol=1e-6)
+
+
+@pytest.mark.parametrize("solver", GLM_SOLVERS)
+@pytest.mark.parametrize("offset", [None, np.array([-0.1, 0, 0.1, 0, -0.2]), 0.1])
+@pytest.mark.parametrize(
+    "convert_x_fn",
+    [
+        np.asarray,
+        sparse.csc_matrix,
+        sparse.csr_matrix,
+        lambda x: mx.DenseGLMDataMatrix(x.astype(float)),
+        lambda x: mx.MKLSparseMatrix(sparse.csc_matrix(x)),
+        lambda x: mx.split_matrix.csc_to_split(sparse.csc_matrix(x).astype(float)),
+        lambda x: mx.CategoricalMatrix(x.dot([0, 1])),
+    ],
+)
+def test_glm_identity_regression_categorical_data(solver, offset, convert_x_fn):
+    """Test GLM regression with identity link on a simple dataset."""
+    coef = [1.0, 2.0]
+    x_vec = np.array([1, 0, 0, 1, 0])
+    x_mat = np.stack([x_vec, 1 - x_vec]).T
+    y = np.dot(x_mat, coef) + (0 if offset is None else offset)
+
+    glm = GeneralizedLinearRegressor(
+        alpha=0,
+        family="normal",
+        link="identity",
+        fit_intercept=False,
+        solver=solver,
+        gradient_tol=1e-7,
+    )
+    X = convert_x_fn(x_mat)
+    np.testing.assert_almost_equal(X.A if hasattr(X, "A") else X, x_mat)
+    res = glm.fit(X, y, offset=offset)
+
+    fit_coef = res.coef_
+    assert fit_coef.dtype.itemsize == X.dtype.itemsize
+    assert_allclose(res.coef_, coef, rtol=1e-6)
 
 
 @pytest.mark.parametrize(

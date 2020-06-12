@@ -101,14 +101,14 @@ ShapedArrayLike = Union[
 def check_array_matrix_compliant(mat: ArrayLike, **kwargs):
     if isinstance(mat, mx.SplitMatrix):
         kwargs.update({"ensure_min_features": 0})
-        return mx.SplitMatrix(
-            (
-                check_array(mat.X_dense_F, **kwargs),
-                check_array(mat.X_sparse, **kwargs),
-                mat.dense_indices,
-                mat.sparse_indices,
-            )
-        )
+        new_matrices = [check_array(m, **kwargs) for m in mat.matrices]
+        for i, m in enumerate(new_matrices):
+            if isinstance(m, np.ndarray):
+                new_matrices[i] = mx.DenseGLMDataMatrix(m)
+            elif isinstance(mat, sparse.spmatrix):
+                new_matrices[i] = mx.MKLSparseMatrix(m)
+
+        return mx.SplitMatrix(new_matrices, mat.indices)
 
     if isinstance(mat, mx.ColScaledMat):
         return mx.ColScaledMat(
@@ -147,7 +147,9 @@ def check_X_y_matrix_compliant(
         y = y.astype(np.float64)
 
     check_consistent_length(X, y)
-    X = check_array_matrix_compliant(X, **kwargs)
+    # TODO: check_array
+    if not isinstance(X, mx.CategoricalMatrix):
+        X = check_array_matrix_compliant(X, **kwargs)
 
     return X, y
 
@@ -589,6 +591,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 coef = np.zeros(
                     X.shape[1], dtype=_float_itemsize_to_dtype[X.dtype.itemsize]
                 )
+
         else:  # assign given array as start values
             coef = start_params
             if self._center_predictors:
@@ -1194,7 +1197,11 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         else:
             _stype = ["csc", "csr"]
 
-        if hasattr(X, "dtype") and X.dtype == np.int64:  # type: ignore
+        if (
+            not isinstance(X, mx.CategoricalMatrix)
+            and hasattr(X, "dtype")
+            and X.dtype == np.int64  # type: ignore
+        ):
             # check_X_y will convert to float32 if we don't do this, which causes
             # precision issues with the new handling of single precision. The new
             # behavior is to give everything the precision of X, but we don't want to

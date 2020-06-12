@@ -38,6 +38,8 @@ def _safe_sandwich_dot(
     first column of X.
     X can be sparse, d must be an ndarray. Always returns a ndarray."""
     result = X.sandwich(d, rows, cols)
+    if isinstance(result, sparse.dia_matrix):
+        result = result.A
 
     if intercept:
         dim = result.shape[0] + 1

@@ -1,6 +1,7 @@
 from typing import List, Optional, Union
 
 import numpy as np
+from scipy import sparse as sps
 
 from quantcore.glm.matrix import MatrixBase
 
@@ -87,11 +88,18 @@ class ColScaledMat:
             cols = np.arange(self.shape[1], dtype=np.int32)
 
         term1 = self.mat.sandwich(d, rows, cols)
-        term2 = self.mat.transpose_dot(d, rows, cols)[:, np.newaxis] * self.shift[cols]
-        term3 = term2.T
-        shift_subset = self.shift[cols]
-        term4 = np.outer(shift_subset, shift_subset) * d[rows].sum()
-        return term1 + term2 + term3 + term4
+        d_mat = self.mat.transpose_dot(d, rows, cols)
+        term2 = np.outer(d_mat, self.shift[cols])
+        term3_and_4 = np.outer(
+            self.shift[cols], d_mat + self.shift[cols] * d[rows].sum()
+        )
+        res = term2 + term3_and_4
+        if isinstance(term1, sps.dia_matrix):
+            idx = np.arange(res.shape[0])
+            res[idx, idx] += term1.data[0, :]
+        else:
+            res += term1
+        return res
 
     def unstandardize(self, col_stds: Optional[np.ndarray]) -> MatrixBase:
         """
