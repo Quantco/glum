@@ -119,8 +119,8 @@ def process_mat_vec_subsets(mat, vec, mat_rows, mat_cols, vec_idxs):
 )
 @pytest.mark.parametrize(
     "other_as_list",
-    # shapes (3,); (3,1);
-    [[3.0, -0.1, 0], [[3.0], [-0.1], [0]]],
+    # shapes (3,); (3,1), (3, 2);
+    [[3.0, -0.1, 0], [[3.0], [-0.1], [0]], [[0, 1.0], [-0.1, 0], [0, 3.0]]],
 )
 @pytest.mark.parametrize("order", ["F", "C"])
 @pytest.mark.parametrize("rows", [None, np.arange(2, dtype=np.int32)])

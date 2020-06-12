@@ -5,6 +5,7 @@ import numpy as np
 from quantcore.glm.matrix.ext.dense import dense_matvec, dense_rmatvec, dense_sandwich
 
 from .matrix_base import MatrixBase
+from .util import setup_restrictions
 
 
 class DenseGLMDataMatrix(np.ndarray, MatrixBase):
@@ -51,12 +52,7 @@ class DenseGLMDataMatrix(np.ndarray, MatrixBase):
         # TODO: avoid copying X - the X ** 2 makes a copy
         return np.sqrt((self ** 2).T.dot(weights) - col_means ** 2)
 
-    def transpose_dot(
-        self,
-        vec: Union[np.ndarray, List],
-        rows: np.ndarray = None,
-        cols: np.ndarray = None,
-    ) -> np.ndarray:
+    def dot_helper(self, vec, rows, cols, transpose):
         # Because the dense_rmatvec takes a row array and col array, it has
         # added overhead compared to a raw matrix vector product. So, when
         # we're not filtering at all, let's just use default numpy dot product.
@@ -64,20 +60,34 @@ class DenseGLMDataMatrix(np.ndarray, MatrixBase):
         # TODO: related to above, it could be nice to have a version that only
         # filters rows and a version that only filters columns. How do we do
         # this without an explosion of code?
+        X = self.T if transpose else self
         vec = np.asarray(vec)
-        if rows is None and cols is None:
-            return self.T.dot(vec)
+
+        # NOTE: We assume that rows and cols are unique
+        unrestricted_rows = rows is None or rows.shape[0] == self.shape[0]
+        unrestricted_cols = cols is None or cols.shape[0] == self.shape[1]
+        if unrestricted_rows and unrestricted_cols:
+            return X.toarray().dot(vec)
         else:
-            if rows is None:
-                rows = np.arange(self.shape[0], dtype=np.int32)
-            if cols is None:
-                cols = np.arange(self.shape[1], dtype=np.int32)
-            if vec.ndim == 1:
-                return dense_rmatvec(self, vec, rows, cols)
-            elif vec.ndim == 2 and vec.shape[1] == 1:
-                return dense_rmatvec(self, vec[:, 0], rows, cols)[:, None]
+            rows, cols = setup_restrictions(self.shape, rows, cols)
+            if transpose:
+                fast_fnc = dense_rmatvec
             else:
-                return self[np.ix_(rows, cols)].T.dot(vec[rows])
+                fast_fnc = dense_matvec
+            if vec.ndim == 1:
+                return fast_fnc(self, vec, rows, cols)
+            elif vec.ndim == 2 and vec.shape[1] == 1:
+                return fast_fnc(self, vec[:, 0], rows, cols)[:, None]
+            subset = self[np.ix_(rows, cols)]
+            return subset.T.dot(vec[rows]) if transpose else subset.dot(vec[cols])
+
+    def transpose_dot(
+        self,
+        vec: Union[np.ndarray, List],
+        rows: np.ndarray = None,
+        cols: np.ndarray = None,
+    ) -> np.ndarray:
+        return self.dot_helper(vec, rows, cols, True)
 
     def dot(
         self,
@@ -85,20 +95,7 @@ class DenseGLMDataMatrix(np.ndarray, MatrixBase):
         rows: np.ndarray = None,
         cols: np.ndarray = None,
     ) -> np.ndarray:
-        if rows is None and cols is None:
-            return super().dot(vec)
-        else:
-            vec = np.asarray(vec)
-            if rows is None:
-                rows = np.arange(self.shape[0], dtype=np.int32)
-            if cols is None:
-                cols = np.arange(self.shape[1], dtype=np.int32)
-            if vec.ndim == 1:
-                return dense_matvec(self, vec, rows, cols)
-            elif vec.ndim == 2 and vec.shape[1] == 1:
-                return dense_matvec(self, vec[:, 0], rows, cols)[:, None]
-            else:
-                return self[np.ix_(rows, cols)].dot(vec[cols])
+        return self.dot_helper(vec, rows, cols, False)
 
     def scale_cols_inplace(self, col_scaling: np.ndarray) -> None:
         self *= col_scaling[None, :]
