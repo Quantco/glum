@@ -11,12 +11,7 @@ from quantcore.glm.cli_run import execute_problem_library
 from quantcore.glm.problems import Problem, get_all_problems
 from quantcore.glm.util import BenchmarkParams, get_obj_val
 
-bench_cfg = dict(
-    num_rows=10000,
-    regularization_strength=0.1,
-    storage="dense",
-    print_diagnostics=False,
-)
+bench_cfg = dict(num_rows=10000, regularization_strength=0.1, print_diagnostics=False,)
 
 all_test_problems = get_all_problems()
 
@@ -50,9 +45,11 @@ def skipped_benchmark_gm():
     ],  # mark the "wide" problems as "slow" so that we can call pytest -m "not slow"
     ids=all_test_problems.keys(),
 )
+@pytest.mark.parametrize("storage", ["sparse", "dense", "split0.1"])
 def test_gm_benchmarks(
     Pn: str,
     P: Problem,
+    storage: str,
     bench_cfg_fix: dict,
     expected_all: dict,
     skipped_benchmark_gm: list,
@@ -64,6 +61,7 @@ def test_gm_benchmarks(
     params = BenchmarkParams(
         problem_name=Pn,
         library_name="sklearn-fork",
+        storage=storage,
         **{k: v for k, v in bench_cfg_fix.items() if k not in execute_args},
     )
     if bench_cfg_fix["print_diagnostics"]:
