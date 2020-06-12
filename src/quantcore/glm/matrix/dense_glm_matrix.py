@@ -70,10 +70,7 @@ class DenseGLMDataMatrix(np.ndarray, MatrixBase):
             return X.toarray().dot(vec)
         else:
             rows, cols = setup_restrictions(self.shape, rows, cols)
-            if transpose:
-                fast_fnc = dense_rmatvec
-            else:
-                fast_fnc = dense_matvec
+            fast_fnc = dense_rmatvec if transpose else dense_matvec
             if vec.ndim == 1:
                 return fast_fnc(self, vec, rows, cols)
             elif vec.ndim == 2 and vec.shape[1] == 1:
