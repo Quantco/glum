@@ -461,7 +461,7 @@ def line_search(state, data, d):
         eta_wd, mu_wd, obj_val_wd, coef_wd_P2 = update_predictions(
             state, data, coef_wd, X_dot_d, factor=factor
         )
-        if (mu_wd.max() < 1e20) and (
+        if (mu_wd.max() < 1e43) and (
             obj_val_wd - state.obj_val <= sigma * factor * bound
         ):
             break
