@@ -61,7 +61,7 @@ def update_hessian(state, data, active_set):
     all_rows = np.arange(data.X.shape[0], dtype=np.int32)
     if state.hessian_initialized:
         P2 = None
-        threshold = 0.1
+        threshold = 0.0
         hessian_rows_diff, active_rows = identify_active_rows(
             state.gradient_rows, state.hessian_rows, state.old_hessian_rows, threshold
         )

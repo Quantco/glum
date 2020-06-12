@@ -3,13 +3,14 @@ import pytest
 import scipy as sp
 import scipy.sparse
 
-from quantcore.glm.matrix.sandwich.sandwich import dense_sandwich, sparse_sandwich
+from quantcore.glm.matrix.ext.dense import dense_sandwich
+from quantcore.glm.matrix.ext.sparse import sparse_sandwich
 
 
 @pytest.mark.parametrize("dtype", [np.float64, np.float32])
 def test_fast_sandwich_sparse(dtype):
     np.random.seed(123)
-    for i in range(1000):
+    for i in range(10):
         nrows, ncols = np.random.randint(200, size=2)
 
         A = simulate_matrix(shape=(nrows, ncols), seed=None, dtype=dtype).tocsc()
