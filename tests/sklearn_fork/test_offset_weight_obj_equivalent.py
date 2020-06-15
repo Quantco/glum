@@ -10,8 +10,6 @@ from quantcore.glm.util import (
     get_tweedie_p,
 )
 
-# TODO
-
 all_test_problems_offset = {
     k: v
     for k, v in get_all_problems().items()
@@ -28,7 +26,6 @@ bench_cfg = dict(num_rows=10000, regularization_strength=0.1, storage="dense",)
     ],  # mark the "wide" problems as "slow" so that we can call pytest -m "not slow"
     ids=all_test_problems_offset.keys(),
 )
-# TODO: storage
 def test_offset_solution_matches_weights_solution(
     Pn: str, P: Problem,
 ):
@@ -85,7 +82,5 @@ def test_offset_solution_matches_weights_solution(
     print(offset_result)
     print(weights_result)
     np.testing.assert_allclose(
-        offset_result_2 - offset_result,
-        weights_result_2 - weights_result,
-        # rtol=4e-5
+        offset_result_2 - offset_result, weights_result_2 - weights_result,
     )
