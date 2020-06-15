@@ -351,14 +351,14 @@ def get_comma_sep_names(xs: str) -> List[str]:
     return [x.strip() for x in xs.split(",")]
 
 
-def get_tweedie_p(problem_name):
-    tweedie = "tweedie" in problem_name
+def get_tweedie_p(distribution):
+    tweedie = "tweedie" in distribution
     if tweedie:
-        return float(problem_name.split("=")[-1])
-    if "poisson" in problem_name:
+        return float(distribution.split("=")[-1])
+    if "poisson" == distribution:
         return 1
-    if "gamma" in problem_name:
+    if "gamma" == distribution:
         return 2
-    if "gaussian" in problem_name:
+    if "gaussian" in distribution:
         return 0
     return None

@@ -118,7 +118,7 @@ def execute_problem_library(
             P.l1_ratio,
             result["intercept"],
             result["coef"],
-            tweedie_p=get_tweedie_p(params.problem_name),
+            tweedie_p=get_tweedie_p(P.distribution),
         )
 
         result["obj_val"] = obj_val

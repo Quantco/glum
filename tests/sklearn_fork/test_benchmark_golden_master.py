@@ -9,7 +9,7 @@ from sklearn.exceptions import ConvergenceWarning
 
 from quantcore.glm.cli_run import execute_problem_library
 from quantcore.glm.problems import Problem, get_all_problems
-from quantcore.glm.util import BenchmarkParams, get_obj_val
+from quantcore.glm.util import BenchmarkParams, get_obj_val, get_tweedie_p
 
 bench_cfg = dict(
     num_rows=10000,
@@ -93,7 +93,7 @@ def test_gm_benchmarks(
     all_result = np.concatenate(([result["intercept"]], result["coef"]))
     all_expected = np.concatenate(([expected["intercept"]], expected["coef"]))
 
-    tweedie_p = float(Pn.split("=")[-1]) if "tweedie" in Pn else None
+    tweedie_p = get_tweedie_p(P.distribution)
 
     try:
         np.testing.assert_allclose(all_result, all_expected, rtol=2e-4, atol=2e-4)
