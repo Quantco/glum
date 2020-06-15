@@ -29,8 +29,6 @@ bench_cfg = dict(num_rows=10000, regularization_strength=0.1, storage="dense",)
 def test_offset_solution_matches_weights_solution(
     Pn: str, P: Problem,
 ):
-    print()
-    print(Pn)
     params = BenchmarkParams(
         problem_name=Pn,
         library_name="sklearn-fork",
@@ -38,7 +36,7 @@ def test_offset_solution_matches_weights_solution(
         **bench_cfg,
     )
 
-    tweedie_p = get_tweedie_p(Pn)
+    tweedie_p = get_tweedie_p(P.distribution)
 
     dat = P.data_loader(num_rows=params.num_rows,)
     weights_dat = {"X": dat["X"]}
@@ -79,8 +77,6 @@ def test_offset_solution_matches_weights_solution(
     weights_result = get_obj_val_(weights_dat, coefs)
     weights_result_2 = get_obj_val_(weights_dat, coefs_2)
 
-    print(offset_result)
-    print(weights_result)
     np.testing.assert_allclose(
         offset_result_2 - offset_result, weights_result_2 - weights_result,
     )
