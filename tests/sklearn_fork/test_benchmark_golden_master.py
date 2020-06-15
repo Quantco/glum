@@ -9,7 +9,7 @@ from sklearn.exceptions import ConvergenceWarning
 
 from quantcore.glm.cli_run import execute_problem_library
 from quantcore.glm.problems import Problem, get_all_problems
-from quantcore.glm.util import BenchmarkParams, get_obj_val, get_tweedie_p
+from quantcore.glm.util import BenchmarkParams, get_obj_val
 
 bench_cfg = dict(
     num_rows=10000,
@@ -19,11 +19,18 @@ bench_cfg = dict(
 )
 
 all_test_problems = get_all_problems()
-all_test_problems_offset = {
-    k: v
-    for k, v in all_test_problems.items()
-    if "offset" in k and "gaussian" not in k and "binomial" not in k
-}
+
+
+def is_weights_problem_with_offset_match(problem_name):
+    return (
+        "no-weights" not in problem_name
+        and "weights" in problem_name
+        and (
+            "gamma" in problem_name
+            or "poisson" in problem_name
+            or "tweedie" in problem_name
+        )
+    )
 
 
 @pytest.fixture(scope="module")
@@ -45,72 +52,6 @@ def skipped_benchmark_gm():
     except FileNotFoundError:
         skipped_problems = []
     return skipped_problems
-
-
-@pytest.mark.parametrize(
-    ["Pn", "P"],
-    [
-        x if "wide" not in x[0] else pytest.param(x[0], x[1], marks=pytest.mark.slow)
-        for x in all_test_problems_offset.items()
-    ],  # mark the "wide" problems as "slow" so that we can call pytest -m "not slow"
-    ids=all_test_problems_offset.keys(),
-)
-# TODO: storage
-def test_offset_solution_matches_weights_solution(
-    Pn: str,
-    P: Problem,
-    bench_cfg_fix: dict,
-    expected_all: dict,
-    skipped_benchmark_gm: list,
-):
-    # gamma: .04, .05, .1, offset slightly better
-    # tweedie: .4, .2, .2, offset much better
-    same_with_weights = "weights".join(Pn.split("offset"))
-    if Pn in skipped_benchmark_gm or same_with_weights in skipped_benchmark_gm:
-        pytest.skip("Skipping problem with convergence issue.")
-
-    execute_args = ["print_diagnostics"]
-    params = BenchmarkParams(
-        problem_name=Pn,
-        library_name="sklearn-fork",
-        # storage=storage,
-        **{k: v for k, v in bench_cfg_fix.items() if k not in execute_args},
-    )
-    if bench_cfg_fix["print_diagnostics"]:
-        print(Pn)
-
-    result, _ = execute_problem_library(
-        params, **{k: v for k, v in bench_cfg_fix.items() if k in execute_args}
-    )
-
-    all_result = np.concatenate(([result["intercept"]], result["coef"]))
-
-    tweedie_p = get_tweedie_p(Pn)
-
-    expected = expected_all[same_with_weights]
-    all_expected = np.concatenate(([expected["intercept"]], expected["coef"]))
-
-    def get_obj(coefs):
-        return get_obj_val(
-            dat,
-            P.distribution,
-            P.regularization_strength,
-            P.l1_ratio,
-            coefs[0],
-            coefs[1:],
-            tweedie_p=tweedie_p,
-        )
-
-    try:
-        np.testing.assert_allclose(all_result, all_expected, rtol=2e-4, atol=2e-4)
-    except AssertionError:
-        dat = P.data_loader(num_rows=params.num_rows,)
-        obj_result = get_obj(all_result)
-        weights_result = get_obj(all_expected)
-        raise AssertionError(
-            f"""Offset result doesn't match weights result on problem {Pn}.
-                Objective function with offset is higher by {obj_result - weights_result}"""
-        )
 
 
 @pytest.mark.parametrize(
@@ -144,7 +85,10 @@ def test_gm_benchmarks(
         params, **{k: v for k, v in bench_cfg_fix.items() if k in execute_args}
     )
 
-    expected = expected_all[Pn]
+    if is_weights_problem_with_offset_match(Pn):
+        expected = expected_all["offset".join(Pn.split("weights"))]
+    else:
+        expected = expected_all[Pn]
 
     all_result = np.concatenate(([result["intercept"]], result["coef"]))
     all_expected = np.concatenate(([expected["intercept"]], expected["coef"]))
@@ -199,6 +143,8 @@ def run_and_store_golden_master(overwrite, problem_name):
         skipped_problems = []
 
     for Pn, P in get_all_problems().items():
+        if is_weights_problem_with_offset_match(Pn):
+            continue
         if problem_name is not None:
             if Pn != problem_name:
                 continue
