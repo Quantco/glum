@@ -5,8 +5,8 @@ import pandas as pd
 from scipy import sparse as sps
 
 from quantcore.glm.matrix.ext.categorical import sandwich_categorical
-from .matrix_base import MatrixBase
 
+from .matrix_base import MatrixBase
 from .mkl_sparse_matrix import MKLSparseMatrix
 
 
