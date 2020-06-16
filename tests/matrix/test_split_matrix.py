@@ -97,15 +97,52 @@ def test_sandwich(split_mat: SplitMatrix):
         np.testing.assert_allclose(y1, y2, atol=1e-12)
 
 
-def test_sandwich_many_types():
-    n_rows = 10
-    np.random.seed(0)
-    dense_1 = mx.DenseGLMDataMatrix(np.random.random((n_rows, 3)))
-    sparse = mx.MKLSparseMatrix(sps.random(n_rows, 3).tocsc())
-    cat = mx.CategoricalMatrix(np.random.choice(range(3), n_rows))
-    dense_2 = mx.DenseGLMDataMatrix(np.random.random((n_rows, 3)))
+def random_split_matrix(seed=0, n_rows=10, n_cols_per=3):
+    if seed is not None:
+        np.random.seed(seed)
+    dense_1 = mx.DenseGLMDataMatrix(np.random.random((n_rows, n_cols_per)))
+    sparse = mx.MKLSparseMatrix(sps.random(n_rows, n_cols_per).tocsc())
+    cat = mx.CategoricalMatrix(np.random.choice(range(n_cols_per), n_rows))
+    dense_2 = mx.DenseGLMDataMatrix(np.random.random((n_rows, n_cols_per)))
     mat = mx.SplitMatrix([dense_1, sparse, cat, dense_2])
-    d = np.random.random(n_rows)
-    res = mat.sandwich(d)
-    expected = (mat.A.T * d[None, :]) @ mat.A
-    np.testing.assert_allclose(res, expected)
+    return mat
+
+
+def many_random_tests(checker):
+    for i in range(10):
+        mat = random_split_matrix(
+            seed=(1 if i == 0 else None),
+            n_rows=np.random.randint(130),
+            n_cols_per=1 + np.random.randint(10),
+        )
+        checker(mat)
+
+
+def test_sandwich_many_types():
+    def check(mat):
+        d = np.random.random(mat.shape[0])
+        res = mat.sandwich(d)
+        expected = (mat.A.T * d[None, :]) @ mat.A
+        np.testing.assert_allclose(res, expected)
+
+    many_random_tests(check)
+
+
+def test_transpose_dot_many_types():
+    def check(mat):
+        d = np.random.random(mat.shape[0])
+        res = mat.transpose_dot(d)
+        expected = mat.A.T.dot(d)
+        np.testing.assert_almost_equal(res, expected)
+
+    many_random_tests(check)
+
+
+def test_dot_many_types():
+    def check(mat):
+        d = np.random.random(mat.shape[1])
+        res = mat.dot(d)
+        expected = mat.A.dot(d)
+        np.testing.assert_almost_equal(res, expected)
+
+    many_random_tests(check)

@@ -269,12 +269,12 @@ class SplitMatrix(MatrixBase):
 
         if cols is None:
             cols = np.arange(self.shape[1], dtype=np.int32)
-        subset_cols_indices, subset_cols = self.split_col_subsets(cols)
+        _, subset_cols = self.split_col_subsets(cols)
 
         out_shape_base = [self.shape[0]] if rows is None else [rows.shape[0]]
         out_shape = out_shape_base + ([] if v.ndim == 1 else list(v.shape[1:]))
         out = np.zeros(out_shape, np.result_type(self.dtype, v.dtype))
-        for idx, sub_cols, mat in zip(subset_cols_indices, subset_cols, self.matrices):
+        for sub_cols, idx, mat in zip(subset_cols, self.indices, self.matrices):
             out += mat.dot(v[idx, ...], rows, sub_cols)
         return out
 
