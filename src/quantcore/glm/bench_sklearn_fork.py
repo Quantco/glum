@@ -30,6 +30,7 @@ def sklearn_fork_bench(
     cv: bool,
     print_diagnostics: bool = True,
     reg_multiplier: Optional[float] = None,
+    hessian_approx: float = 0.0,
     **kwargs,
 ):
     result = dict()
@@ -58,6 +59,7 @@ def sklearn_fork_bench(
         # TODO: try tightening this later
         gradient_tol=1 if cv else benchmark_convergence_tolerance,
         step_size_tol=0.01 * benchmark_convergence_tolerance,
+        hessian_approx=hessian_approx,
         force_all_finite=False,
     )
     if not cv:
