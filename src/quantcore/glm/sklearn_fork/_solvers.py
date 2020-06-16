@@ -53,13 +53,21 @@ def _cd_solver(state, data):
 
 def build_hessian(X, hessian_rows, intercept, P2):
     idx = 1 if intercept else 0
+    # Almost all time spent in this function is here
     hessian = _safe_sandwich_dot(X, hessian_rows, intercept)
+    if sparse.issparse(P2) and P2.nnz == 0:
+        return hessian
     if P2.ndim == 1:
         idiag = np.arange(start=idx, stop=hessian.shape[0])
         hessian[(idiag, idiag)] += P2
     else:
         if sparse.issparse(P2):
-            hessian[idx:, idx:] += P2.toarray()
+            is_diagonal = P2.nnz == P2.shape[0] and (P2.data == P2.diagonal()).all()
+            if is_diagonal:
+                idiag = np.arange(start=idx, stop=hessian.shape[0])
+                hessian[(idiag, idiag)] += P2.data
+            else:
+                hessian[idx:, idx:] += P2.toarray()
         else:
             hessian[idx:, idx:] += P2
     return hessian
@@ -414,7 +422,7 @@ def identify_active_set(state, data):
     # https://www.csie.ntu.edu.tw/~cjlin/papers/l1_glmnet/long-glmnet.pdf
     T = data.P1 - state.max_min_subgrad
     abs_score = np.abs(state.score[data.intercept_offset :])
-    active = abs_score >= T
+    active = np.logical_or(state.coef[data.intercept_offset :] != 0, abs_score >= T)
 
     active_set = np.concatenate(
         ([0] if data.fit_intercept else [], np.where(active)[0] + data.intercept_offset)
