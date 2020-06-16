@@ -13,6 +13,7 @@ from quantcore.glm.util import (
     clear_cache,
     get_default_val,
     get_obj_val,
+    get_tweedie_p,
 )
 from quantcore.glm.zeros_benchmark import zeros_bench
 
@@ -117,21 +118,13 @@ def execute_problem_library(
             P.l1_ratio,
             result["intercept"],
             result["coef"],
-            tweedie_p=get_tweedie_p(params.problem_name),
+            tweedie_p=get_tweedie_p(P.distribution),
         )
 
         result["obj_val"] = obj_val
         result["num_rows"] = dat["y"].shape[0]
 
     return result, params.regularization_strength
-
-
-def get_tweedie_p(problem_name):
-    tweedie = "tweedie" in problem_name
-    if tweedie:
-        return float(problem_name.split("=")[-1])
-    else:
-        return None
 
 
 def get_all_libraries() -> Dict[str, Any]:
