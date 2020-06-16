@@ -825,6 +825,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 gradient_tol=self.gradient_tol,
                 step_size_tol=self.step_size_tol,
                 fixed_inner_tol=fixed_inner_tol,
+                hessian_approx=self.hessian_approx,
                 selection=self.selection,
                 random_state=self.random_state,
                 offset=offset,
@@ -1392,8 +1393,14 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         of the subgradient ``g_i`` with the smallest L2-norm.
 
     step_size_tol: float, optional (default=None)
+        Alternative stopping criterion. For the IRLS-LS and IRLS-CD solvers,
+        the iteration will stop when the L2 norm of the step size is less than
+        step_size_tol.
 
     hessian_approx: float, optional (default=0.0)
+        The threshold below which data matrix rows will be ignored for updating
+        the hessian.  See the algorithm documentation for the IRLS algorithm
+        for further details.
 
     warm_start : boolean, optional (default=False)
         If set to ``True``, reuse the solution of the previous call to ``fit``
@@ -1564,6 +1571,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             max_iter=max_iter,
             gradient_tol=gradient_tol,
             step_size_tol=step_size_tol,
+            hessian_approx=hessian_approx,
             warm_start=warm_start,
             alpha_search=alpha_search,
             n_alphas=n_alphas,

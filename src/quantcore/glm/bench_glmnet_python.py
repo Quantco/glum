@@ -17,6 +17,7 @@ def glmnet_python_bench(
     cv: bool,
     print_diagnostics: bool = True,  # ineffective here
     reg_multiplier: Optional[float] = None,
+    **kwargs,
 ) -> Dict[str, Any]:
     result: Dict = dict()
 

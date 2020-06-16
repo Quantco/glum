@@ -11,7 +11,7 @@ from quantcore.glm.util import (
     BenchmarkParams,
     benchmark_params_cli,
     clear_cache,
-    get_default_val,
+    defaults,
     get_obj_val,
 )
 from quantcore.glm.zeros_benchmark import zeros_bench
@@ -80,7 +80,7 @@ def execute_problem_library(
 
     for k in params.param_names:
         if getattr(params, k) is None:
-            params.update_params(**{k: get_default_val(k)})
+            params.update_params(**{k: defaults[k]})
 
     dat = P.data_loader(
         num_rows=params.num_rows,
@@ -106,6 +106,7 @@ def execute_problem_library(
         cv=params.cv,
         print_diagnostics=print_diagnostics,
         reg_multiplier=reg_multiplier,
+        hessian_approx=params.hessian_approx,
         **kwargs,
     )
     if len(result) > 0:
