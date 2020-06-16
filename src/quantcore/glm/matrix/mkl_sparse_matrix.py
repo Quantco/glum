@@ -11,7 +11,7 @@ from quantcore.glm.matrix.ext.sparse import (
     sparse_sandwich,
 )
 
-from . import MatrixBase
+from .matrix_base import MatrixBase
 from .standardize import _scale_csc_columns_inplace
 from .util import setup_restrictions
 
