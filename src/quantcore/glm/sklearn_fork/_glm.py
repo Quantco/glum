@@ -517,6 +517,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         max_iter=100,
         gradient_tol: Optional[float] = 1e-4,
         step_size_tol: Optional[float] = None,
+        hessian_approx: float = 0.0,
         warm_start=False,
         alpha_search: bool = False,
         n_alphas: int = 100,
@@ -545,6 +546,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self.max_iter = max_iter
         self.gradient_tol = gradient_tol
         self.step_size_tol = step_size_tol
+        self.hessian_approx = hessian_approx
         self.warm_start = warm_start
         self.alpha_search = alpha_search
         self.n_alphas = n_alphas
@@ -1391,6 +1393,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
 
     step_size_tol: float, optional (default=None)
 
+    hessian_approx: float, optional (default=0.0)
+
     warm_start : boolean, optional (default=False)
         If set to ``True``, reuse the solution of the previous call to ``fit``
         as initialization for ``coef_`` and ``intercept_`` (supersedes option
@@ -1527,6 +1531,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         max_iter=100,
         gradient_tol: Optional[float] = 1e-4,
         step_size_tol: Optional[float] = None,
+        hessian_approx: float = 0.0,
         warm_start: bool = False,
         alpha_search: bool = False,
         n_alphas: int = 100,
