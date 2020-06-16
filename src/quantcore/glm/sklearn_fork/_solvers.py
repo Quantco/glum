@@ -61,7 +61,7 @@ def update_hessian(state, data, active_set):
     all_rows = np.arange(data.X.shape[0], dtype=np.int32)
     if state.hessian_initialized:
         P2 = None
-        threshold = 0.0
+        threshold = data.hessian_approx
         hessian_rows_diff, active_rows = identify_active_rows(
             state.gradient_rows, state.hessian_rows, state.old_hessian_rows, threshold
         )
@@ -240,6 +240,7 @@ class IRLSData:
         max_inner_iter: int = 100000,
         gradient_tol: Optional[float] = 1e-4,
         step_size_tol: Optional[float] = 1e-4,
+        hessian_approx: float = 0.0,
         fixed_inner_tol: Optional[Tuple] = None,
         selection="cyclic",
         random_state=None,
@@ -263,6 +264,7 @@ class IRLSData:
         self.max_inner_iter = max_inner_iter
         self.gradient_tol = gradient_tol
         self.step_size_tol = step_size_tol
+        self.hessian_approx = hessian_approx
         self.fixed_inner_tol = fixed_inner_tol
         self.selection = selection
         self.random_state = random_state
