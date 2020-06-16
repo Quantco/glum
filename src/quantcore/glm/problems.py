@@ -16,7 +16,7 @@ from .data import (
     generate_real_insurance_dataset,
     generate_wide_insurance_dataset,
 )
-from .util import cache_location
+from .util import cache_location, exposure_and_offset_to_weights, get_tweedie_p
 
 joblib_memory = Memory(cache_location, verbose=0)
 
@@ -64,12 +64,22 @@ def load_data(
         threshold = float(storage.split("split")[1])
         X = mx.csc_to_split(csc_matrix(X), threshold)
     if data_setup == "weights":
-        return dict(X=X, y=y, weights=exposure)
+        # The exposure correction doesn't make sense for these distributions since
+        # they don't use a log link (plus binomial isn't in the tweedie family),
+        # but this is what we were doing before.
+        if distribution in ["gaussian", "binomial"]:
+            return dict(X=X, y=y, weights=exposure)
+        # when poisson, should be y=y, weights=exposure
+        # instead have y = y / exposure, weight = exposure
+        y, sample_weight = exposure_and_offset_to_weights(
+            get_tweedie_p(distribution), y, exposure
+        )
+        return dict(X=X, y=y * exposure, weights=sample_weight)
     if data_setup == "offset":
-        offset = np.log(exposure)
-        assert np.all(np.isfinite(offset))
+        log_exposure = np.log(exposure)
+        assert np.all(np.isfinite(log_exposure))
         # y has already been divided by exposure loader_func, so undo it here
-        return dict(X=X, y=y * exposure, offset=offset)
+        return dict(X=X, y=y * exposure, offset=log_exposure)
     # data_setup = "no_weights"
     return dict(X=X, y=y)
 
@@ -90,8 +100,6 @@ def get_all_problems() -> Dict[str, Problem]:
         for distribution in distributions:
             suffix = penalty_str + "-" + distribution
             dist = distribution
-            if "tweedie" in dist:
-                dist = "tweedie"
 
             for problem_name, load_fn in load_funcs.items():
                 for data_setup in ["weights", "no-weights", "offset"]:
