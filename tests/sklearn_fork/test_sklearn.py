@@ -1363,3 +1363,21 @@ def test_alpha_search(regression_data):
 
     assert_allclose(mdl_path.coef_, mdl_no_path.coef_)
     assert_allclose(mdl_path.intercept_, mdl_no_path.intercept_)
+
+
+def test_very_large_initial_gradient():
+    # this is a problem where 0 is a starting value that produces
+    # a very large gradient initially
+    np.random.seed(1234)
+    y = np.exp(np.random.gamma(5, size=100))
+    X = np.ones([len(y), 1])
+
+    model_0 = GeneralizedLinearRegressor(
+        link="log", family="gamma", fit_intercept=False, alpha=0, start_params=[0.0]
+    ).fit(X, y)
+
+    model_5 = GeneralizedLinearRegressor(
+        link="log", family="gamma", fit_intercept=False, alpha=0, start_params=[5.0]
+    ).fit(X, y)
+
+    np.testing.assert_allclose(model_0.coef_, model_5.coef_, rtol=1e-5)
