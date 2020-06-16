@@ -7,7 +7,7 @@ from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer, OneHotEncoder, OrdinalEncoder
 
-from ..util import exposure_correction
+from ..util import exposure_and_offset_to_weights
 
 # taken from https://github.com/lorentzenchr/Tutorial_freMTPL2/blob/master/glm_freMTPL2_example.ipynb
 # Modified to generate data sets of different sizes
@@ -291,7 +291,7 @@ def compute_y_exposure(df, distribution):
     elif distribution in ["gamma", "gaussian"]:
         exposure = df["ClaimNb_pos"].values
         y = df["ClaimAmountCut"].values / exposure
-    elif distribution == "tweedie":
+    elif "tweedie" in distribution:
         exposure = df["Exposure"].values
         y = df["ClaimAmountCut"].values / exposure
     elif distribution == "binomial":
@@ -363,7 +363,7 @@ def generate_real_insurance_dataset(
         X = X.loc[idx].reset_index(drop=True)
 
     # account for exposure and offsets
-    y, weights = exposure_correction(
+    y, weights = exposure_and_offset_to_weights(
         power=1,
         y=df["sanzkh02"],
         exposure=df["je"],
