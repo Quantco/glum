@@ -538,7 +538,7 @@ class TweedieDistribution(ExponentialDispersionModel):
         elif self.power == 2 and isinstance(link, LogLink):
             f = gamma_log_rowwise_gradient_hessian
         elif isinstance(link, LogLink):
-            f = tweedie_log_rowwise_gradient_hessian(
+            return tweedie_log_rowwise_gradient_hessian(
                 y, weights, eta, mu, gradient_rows, hessian_rows, self.power
             )
 
