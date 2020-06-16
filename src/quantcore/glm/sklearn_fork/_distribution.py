@@ -1,5 +1,6 @@
 import numbers
 from abc import ABCMeta, abstractmethod
+from functools import partial
 from typing import Tuple, Union
 
 import numexpr
@@ -538,9 +539,7 @@ class TweedieDistribution(ExponentialDispersionModel):
         elif self.power == 2 and isinstance(link, LogLink):
             f = gamma_log_rowwise_gradient_hessian
         elif isinstance(link, LogLink):
-            return tweedie_log_rowwise_gradient_hessian(
-                y, weights, eta, mu, gradient_rows, hessian_rows, self.power
-            )
+            f = partial(tweedie_log_rowwise_gradient_hessian, p=self.power)
 
         if f is not None:
             return f(y, weights, eta, mu, gradient_rows, hessian_rows)
@@ -568,9 +567,7 @@ class TweedieDistribution(ExponentialDispersionModel):
         elif self.power == 2 and isinstance(link, LogLink):
             f = gamma_log_eta_mu_loglikelihood
         elif isinstance(link, LogLink):
-            return tweedie_log_eta_mu_loglikelihood(
-                cur_eta, X_dot_d, y, weights, eta_out, mu_out, factor, self.power
-            )
+            f = partial(tweedie_log_eta_mu_loglikelihood, p=self.power)
 
         if f is not None:
             return f(cur_eta, X_dot_d, y, weights, eta_out, mu_out, factor)
