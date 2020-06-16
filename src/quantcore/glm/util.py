@@ -122,7 +122,7 @@ def get_obj_val(
     return minus_log_like_by_ob.dot(weights) + penalty
 
 
-def exposure_correction(
+def exposure_and_offset_to_weights(
     power: float,
     y: np.ndarray,
     exposure: np.ndarray = None,
@@ -159,18 +159,17 @@ def exposure_correction(
     sample_weight = None if sample_weight is None else np.asanyarray(sample_weight)
 
     if offset is not None:
-        offset = np.exp(np.asanyarray(offset))
-        y = y / offset
-        sample_weight = (
-            offset ** (2 - power)
-            if sample_weight is None
-            else sample_weight * offset ** (2 - power)
-        )
-    if exposure is not None:
-        exposure = np.asanyarray(exposure)
-        y = y / exposure
-        sample_weight = exposure if sample_weight is None else sample_weight * exposure
-
+        exposure = np.exp(np.asanyarray(offset))
+    elif exposure is not None:
+        exposure = np.asarray(exposure)
+    else:
+        raise ValueError("Need offset or exposure.")
+    y = y / exposure
+    sample_weight = (
+        exposure ** (2 - power)
+        if sample_weight is None
+        else sample_weight * exposure ** (2 - power)
+    )
     return y, sample_weight
 
 
@@ -350,3 +349,16 @@ def clear_cache(force=False):
 
 def get_comma_sep_names(xs: str) -> List[str]:
     return [x.strip() for x in xs.split(",")]
+
+
+def get_tweedie_p(distribution):
+    tweedie = "tweedie" in distribution
+    if tweedie:
+        return float(distribution.split("=")[-1])
+    if "poisson" == distribution:
+        return 1
+    if "gamma" == distribution:
+        return 2
+    if "gaussian" in distribution:
+        return 0
+    return None
