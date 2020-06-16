@@ -36,8 +36,8 @@ def normal_identity_eta_mu_loglikelihood(
     for i in prange(n, nogil=True):
         eta_out[i] = cur_eta[i] + factor * X_dot_d[i]
         mu_out[i] = eta_out[i]
-        # Note: loglikelihood is equal to -2 times the true log likelihood to match
-        # the default calculation using unit_deviance in _distribution.py
+        # Note: loglikelihood is equal to the deviance, -2 times the true log likelihood,
+        # to match the default calculation using unit_deviance in _distribution.py
         loglikelihood += weights[i] * (y[i] - mu_out[i]) ** 2
     return loglikelihood
 
@@ -53,8 +53,8 @@ def normal_identity_rowwise_gradient_hessian(
     cdef int i
     for i in prange(n, nogil=True):
         gradient_rows_out[i] = weights[i] * (y[i] - mu[i])
-        # Note: hessian_rows_out yields -1 times the true hessian -2 to match
-        # the default calculation in _distribution.py
+        # Note: hessian_rows_out yields the Fisher information, -1 times the true hessian,
+        # to match the default calculation in _distribution.py
         hessian_rows_out[i] = weights[i]
 
 def poisson_log_eta_mu_loglikelihood(
@@ -206,3 +206,5 @@ def binomial_logit_rowwise_gradient_hessian(
         gradient_rows_out[i] = weights[i] * mu_unclipped * (1 - mu_unclipped) * \
         (exp(eta_clipped) + 2 + exp(-eta_clipped)) * (y[i] - mu[i])
         hessian_rows_out[i] = weights[i] * mu_unclipped * (1 - mu_unclipped)
+        """gradient_rows_out[i] = weights[i] * (y[i] - mu[i])
+        hessian_rows_out[i] = weights[i] * mu[i] * (1 - mu[i])"""
