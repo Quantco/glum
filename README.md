@@ -117,11 +117,6 @@ python tests/sklearn_fork/test_benchmark_golden_master.py
 
 Add the `--overwrite` flag if you want to overwrite already existing golden master results.
 
-
-## Methods used in sklearn_fork.GeneralizedLinearRegressor
-
-Note that the optimization algorithm used here is a type of Gauss-Newton method where the Hessian is approximated as the outer product of the gradient (https://en.wikipedia.org/wiki/Gauss%E2%80%93Newton_algorithm). The same approximation can be inspired via arguments relating to the Fisher information matrix (https://en.wikipedia.org/wiki/Information_matrix_test). For canonical link functions, the Hessian and gradient outer product should be exactly equal. The gradient outer product can be particularly valuable for non-canonical link functions because the gradient outer product (`J.T @ J`) is guaranteed to be symmetric and positive definite whereas the true Hessian is not. Some interesting discussion and further links to literature on why the Gauss-Newton matrix can even outperform the true Hessian in some optimization problems: https://math.stackexchange.com/questions/2733257/approximation-of-hessian-jtj-for-general-non-linear-optimization-problems
-
 ## Building a conda package
 
 To use the package in another project, we distribute it as a conda package.
@@ -144,3 +139,33 @@ To explicitly install a version optimised for your CPU, you need to specify it a
 ```
 conda install quantcore.glm=*=*skylake
 ```
+
+## The algorithm
+
+#### What kind of problems can we solve? 
+
+...
+
+#### Solvers overview
+
+There are three solvers implemented in the sklearn-fork subpackage. 
+
+The first solver, `lbfgs` uses the scipy `fmin_l_bfgs_b` optimizer to minimize L2-penalized GLMs. The L-BFGS solver does not work with L1-penalties. For more details, see: https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.fmin_l_bfgs_b.html
+
+The second and third solver are both based on Iteratively Reweighted Least Squares (IRLS). IRLS proceeds by iteratively approximating the objective function with a quadratic, then solving that quadratic for the optimal update. For purely L2-penalized settings, the `irls-ls` uses a least squares inner solver for each quadratic subproblem. For problems that have any L1-penalty component, the `irls-cd` uses a coordinate descent inner solver for each quadratic subproblem. 
+
+#### Active set tracking
+
+...
+
+#### Gauss-Newton Approximation
+
+The optimization algorithm used here is a type of Gauss-Newton method where the Hessian is approximated as the outer product of the gradient (https://en.wikipedia.org/wiki/Gauss%E2%80%93Newton_algorithm). The same approximation can be inspired via arguments relating to the Fisher information matrix (https://en.wikipedia.org/wiki/Information_matrix_test). For canonical link functions, the Hessian and gradient outer product should be exactly equal. The gradient outer product can be particularly valuable for non-canonical link functions because the gradient outer product (`J.T @ J`) is guaranteed to be symmetric and positive definite whereas the true Hessian is not. Some interesting discussion and further links to literature on why the Gauss-Newton matrix can even outperform the true Hessian in some optimization problems: https://math.stackexchange.com/questions/2733257/approximation-of-hessian-jtj-for-general-non-linear-optimization-problems
+
+#### Approximate Hessian updating
+
+...
+
+#### References
+
+...
