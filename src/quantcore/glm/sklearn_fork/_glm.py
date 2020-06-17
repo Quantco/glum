@@ -1247,7 +1247,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         # we rescale weights such that sum(weights) = 1 and this becomes
         # 1/2*deviance + L1 + L2 with deviance=sum(weights * unit_deviance)
         weights_sum: float = np.sum(weights)
-        weights *= 1.0 / weights_sum
+        weights = weights / weights_sum
         #######################################################################
         # 2b. convert to wrapper matrix types
         #######################################################################
