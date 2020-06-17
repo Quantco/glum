@@ -146,11 +146,17 @@ conda install quantcore.glm=*=*skylake
 
 #### What kind of problems can we solve? 
 
-Objective function: -sum_i weight_i LL_i + penalty
+This package is intended to fit Generalized Linear Models defined by a distribution and a link function. 
 
-Outer loop: Form a quadratic approximation to -LL, as in iteratively reweighted least squares. That is, find w and z so that the problem can be expressed as “min sum_i w_i (z_i - x_i beta)^2 + penalty”. Exit when the gradient is small.
+...definition of GLM...
 
-Inner loop: Use coordinate descent to find beta (holding w and z fixed). Exit when the gradient for the inner problem is small. 
+Given a number of observations, indexed by `i`, we optimize the objective function:
+
+```
+sum_i weight_i * -log_likelihood_i + sum_j alpha_j * [l1_ratio * abs(coef_j) + (1 - l1_ratio) * coef_j ** 2]
+```
+
+In words, we minimize the log likelihood plus a L1 and/or L2 penalty term.
 
 #### Solvers overview
 
@@ -159,6 +165,16 @@ There are three solvers implemented in the sklearn-fork subpackage.
 The first solver, `lbfgs` uses the scipy `fmin_l_bfgs_b` optimizer to minimize L2-penalized GLMs. The L-BFGS solver does not work with L1-penalties. For more details, see: https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.fmin_l_bfgs_b.html
 
 The second and third solver are both based on Iteratively Reweighted Least Squares (IRLS). IRLS proceeds by iteratively approximating the objective function with a quadratic, then solving that quadratic for the optimal update. For purely L2-penalized settings, the `irls-ls` uses a least squares inner solver for each quadratic subproblem. For problems that have any L1-penalty component, the `irls-cd` uses a coordinate descent inner solver for each quadratic subproblem. 
+
+The IRLS-LS and IRLS-CD implementations largely follow the algorithm described in `newglmnet` (see references below).
+
+#### IRLS
+
+Outer loop: Form a quadratic approximation to -LL, as in iteratively reweighted least squares. That is, find w and z so that the problem can be expressed as “min sum_i w_i (z_i - x_i beta)^2 + penalty”. Exit when the gradient is small.
+
+#### Coordinate descent
+
+Inner loop: Use coordinate descent to find beta (holding w and z fixed). Exit when the gradient for the inner problem is small. 
 
 #### Active set tracking
 
@@ -170,8 +186,49 @@ The optimization algorithm used here is a type of Gauss-Newton method where the 
 
 #### Approximate Hessian updating
 
-...
+When we compute the Gauss-Newton approximation to the Hessian, the computation takes the form:
+
+```
+H = X^T @ diag(hessian_rows) @ X
+```
+where `hessian_rows` is a vector with length equal to the number of observations and is equal to...
+
+Instead of computing `H` directly, we will compute updates to `H`: `dH`
+
+So, given `H0` from a previous iterations:
+```
+H0 = X^T @ diag(hessian_rows_0) @ X
+```
+we want to compute H1 from this iteration:
+```
+H1 = X^T @ diag(hessian_rows_1) @ X
+```
+
+However, we will instead compute:
+```
+H1 = H0 + dH
+```
+where
+```
+dH = X^T @ diag(hessian_rows_1 - hessian_rows_0) @ X
+```
+
+We will also refer to:
+```
+hessian_rows_diff = hessian_rows_1 - hessian_rows_0
+```
+
+The advantage of reframing the computation of `H` as an update is that the values in `hessian_rows_diff` will vary depending on how large the influence of the last coefficient update was on that row. As a result, in the majority of problems, many of the entries in `hessian_rows_diff` will be very very small.
+
+The goal of the approximate update is to filter to a subset of `hessian_rows_diff` that we will use to compute the sandwich product for `dH`. Let's use the simple threshold where we only take rows where the update is similarly large to the largest row-wise update. If
+```
+abs(hessian_rows_diff[i]) >= T * max(abs(hessian_rows_diff)
+```
+then, we will include row `i` in the update. Essentially, this criteria ignores data matrix rows that have not seen the second derivatives of their predictions change very much in the last iteration. Smaller values of `T` result in a more accurate update, while larger values will result in a faster but less accurate update. If `T = 0`, then the update is exact. Thresholds (`T`) between 0.001 and 0.1 seem to work well. 
+
+It is critical to only update our `hessian_rows_0` for those rows that were included. That way, hessian_rows_diff is no longer the change since the last iteration, but instead, the change since the last iteration that a row was active. This ensures that we handle situations where a row changes a small amount over several iterations, eventually accumulating into a large change.
 
 #### References
 
-...
+`glmnet` - [Regularization Paths for Generalized Linear Models via Coordinate Descent](https://web.stanford.edu/~hastie/Papers/glmnet.pdf)
+`newglmnet` - [An Improved GLMNET for L1-regularized LogisticRegression](https://www.csie.ntu.edu.tw/~cjlin/papers/l1_glmnet/long-glmnet.pdf)
