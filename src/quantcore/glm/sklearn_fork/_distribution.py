@@ -1,5 +1,6 @@
 import numbers
 from abc import ABCMeta, abstractmethod
+from functools import partial
 from typing import Tuple, Union
 
 import numexpr
@@ -9,8 +10,16 @@ from scipy import special
 from quantcore.glm.matrix import ColScaledMat, MatrixBase
 
 from ._functions import (
+    binomial_logit_eta_mu_loglikelihood,
+    binomial_logit_rowwise_gradient_hessian,
+    gamma_log_eta_mu_loglikelihood,
+    gamma_log_rowwise_gradient_hessian,
+    normal_identity_eta_mu_loglikelihood,
+    normal_identity_rowwise_gradient_hessian,
     poisson_log_eta_mu_loglikelihood,
     poisson_log_rowwise_gradient_hessian,
+    tweedie_log_eta_mu_loglikelihood,
+    tweedie_log_rowwise_gradient_hessian,
 )
 from ._link import IdentityLink, Link, LogitLink, LogLink
 from ._util import _safe_lin_pred
@@ -294,8 +303,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         Compute:
         * the linear predictor, eta as cur_eta + factor * X_dot_d
         * the link-function-transformed prediction, mu
-        * the "log loss", equal to the log likelihood or deviance up to a
-          constant
+        * the "log loss", equal to the log likelihood multiplied by -2
 
         Returns
         -------
@@ -354,7 +362,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         offset: np.ndarray = None,
     ):
         """
-        Compute the gradient and Hessian of the log-likelihood row-wise.
+        Compute the gradient and negative Hessian of the log-likelihood row-wise.
 
         Returns
         -------
@@ -523,10 +531,19 @@ class TweedieDistribution(ExponentialDispersionModel):
     def _rowwise_gradient_hessian(
         self, link, y, weights, eta, mu, gradient_rows, hessian_rows
     ):
-        if self.power == 1 and isinstance(link, LogLink):
-            return poisson_log_rowwise_gradient_hessian(
-                y, weights, eta, mu, gradient_rows, hessian_rows
-            )
+        f = None
+        if self.power == 0 and isinstance(link, IdentityLink):
+            f = normal_identity_rowwise_gradient_hessian
+        elif self.power == 1 and isinstance(link, LogLink):
+            f = poisson_log_rowwise_gradient_hessian
+        elif self.power == 2 and isinstance(link, LogLink):
+            f = gamma_log_rowwise_gradient_hessian
+        elif isinstance(link, LogLink):
+            f = partial(tweedie_log_rowwise_gradient_hessian, p=self.power)
+
+        if f is not None:
+            return f(y, weights, eta, mu, gradient_rows, hessian_rows)
+
         return super()._rowwise_gradient_hessian(
             link, y, weights, eta, mu, gradient_rows, hessian_rows
         )
@@ -542,10 +559,19 @@ class TweedieDistribution(ExponentialDispersionModel):
         eta_out: np.ndarray,
         mu_out: np.ndarray,
     ):
-        if self.power == 1 and isinstance(link, LogLink):
-            return poisson_log_eta_mu_loglikelihood(
-                factor, cur_eta, X_dot_d, y, weights, eta_out, mu_out
-            )
+        f = None
+        if self.power == 0 and isinstance(link, IdentityLink):
+            f = normal_identity_eta_mu_loglikelihood
+        elif self.power == 1 and isinstance(link, LogLink):
+            f = poisson_log_eta_mu_loglikelihood
+        elif self.power == 2 and isinstance(link, LogLink):
+            f = gamma_log_eta_mu_loglikelihood
+        elif isinstance(link, LogLink):
+            f = partial(tweedie_log_eta_mu_loglikelihood, p=self.power)
+
+        if f is not None:
+            return f(cur_eta, X_dot_d, y, weights, eta_out, mu_out, factor)
+
         return super()._eta_mu_loglikelihood(
             link, factor, cur_eta, X_dot_d, y, weights, eta_out, mu_out
         )
@@ -627,6 +653,36 @@ class BinomialDistribution(ExponentialDispersionModel):
             - special.xlogy(y, mu)
             + special.xlogy(1 - y, 1 - y)
             - special.xlogy(1 - y, 1 - mu)
+        )
+
+    def _rowwise_gradient_hessian(
+        self, link, y, weights, eta, mu, gradient_rows, hessian_rows
+    ):
+        if isinstance(link, LogitLink):
+            return binomial_logit_rowwise_gradient_hessian(
+                y, weights, eta, mu, gradient_rows, hessian_rows
+            )
+        return super()._rowwise_gradient_hessian(
+            link, y, weights, eta, mu, gradient_rows, hessian_rows
+        )
+
+    def _eta_mu_loglikelihood(
+        self,
+        link: Link,
+        factor: float,
+        cur_eta: np.ndarray,
+        X_dot_d: np.ndarray,
+        y: np.ndarray,
+        weights: np.ndarray,
+        eta_out: np.ndarray,
+        mu_out: np.ndarray,
+    ):
+        if isinstance(link, LogitLink):
+            return binomial_logit_eta_mu_loglikelihood(
+                cur_eta, X_dot_d, y, weights, eta_out, mu_out, factor
+            )
+        return super()._eta_mu_loglikelihood(
+            link, factor, cur_eta, X_dot_d, y, weights, eta_out, mu_out
         )
 
 
