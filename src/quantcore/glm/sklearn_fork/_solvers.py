@@ -38,11 +38,6 @@ def _least_squares_solver(state, data):
 
 def _cd_solver(state, data):
     active_hessian, n_active_rows = update_hessian(state, data, state.active_set)
-    # Understand me difference
-    print(list(state.active_set))
-    print(active_hessian.shape)
-    print(active_hessian)
-    print("\n-----------------------------------\n")
     new_coef, gap, _, _, n_cycles = enet_coordinate_descent_gram(
         state.active_set,
         state.coef.copy(),
@@ -63,31 +58,123 @@ def _cd_solver(state, data):
 
 
 def update_hessian(state, data, active_set):
-    all_rows = np.arange(data.X.shape[0], dtype=np.int32)
-    if state.hessian_initialized:
-        P2 = None
-        threshold = 0.0
-        hessian_rows_diff, active_rows = identify_active_rows(
-            state.gradient_rows, state.hessian_rows, state.old_hessian_rows, threshold
-        )
-    else:
-        P2 = data.P2
-        hessian_rows_diff = state.hessian_rows - state.old_hessian_rows
-        active_rows = all_rows
-    hessian_rows_diff = state.hessian_rows
-    state.hessian_initialized = False  # True
+    """
+    The approximate Hessian updating algorithm here...
 
-    hessian_delta = build_hessian_delta(
-        data.X, hessian_rows_diff, data.fit_intercept, P2, active_rows, active_set,
-    )
-    state.hessian = hessian_delta
-    # [np.ix_(active_set, active_set)]
+    The goal is to compute: H = X^T @ diag(hessian_rows) @ X
+    We will refer to H as the Hessian, even though technically we are
+    computing a Gauss-Newton approximation to the Hessian.
+
+    Instead of computing H directly, we will compute updates to H: dH
+    So, given H0 from a previous iterations:
+    H0 = X^T @ diag(hessian_rows_0) @ X
+    we want to compute H1 from this iteration:
+    H1 = X^T @ diag(hessian_rows_1) @ X
+
+    However, we will instead compute:
+    H1 = H0 + dH
+    where
+    dH = X^T @ diag(hessian_rows_1 - hessian_rows_0) @ X
+
+    We will also refer to:
+    hessian_rows_diff = hessian_rows_1 - hessian_rows_0
+
+    The advantage of reframing the computation of H as an update is that the
+    values in hessian_rows_diff will vary depending on how large the influence
+    of that last coefficient update was on that row. As a result, in lots of
+    problems, many of the entries in hessian_rows_diff will be very very small.
+
+    So, the goal with `identify_active_rows` is to filter to a subset of
+    hessian_rows_diff that we will use to compute the sandwich product for dH.
+    If threshold/data.hessian_approx == 0.0, then we will always use every row.
+    However, for data.hessian_approx != 0, we include rows for which:
+    include = (np.abs(hessian_rows_diff[i]) >= T * np.max(np.abs(hessian_rows_diff)))
+
+    Essentially, this criteria ignores data matrix rows that have not seen the
+    second derivatives of their predictions change very much in the last
+    iteration.
+
+    Critically, we set:
+    hessian_rows_old[include] += hessian_rows_diff[include]
+    That way, hessian_rows_diff is no longer the change since the last
+    iteration, but instead, the change since the last iteration that a row was
+    active. This ensures that we don't miss the situation where a row changes a
+    small amount over several iterations which accumulates into a large change.
+    """
+
+    # TODO: Updating just the active set results in errors if the active_set
+    # evers grows in size.I have never seen a situation where that happens
+    # outside of Ben Spector's column minibatching, but it may be possible.  I
+    # think it would be worthwhile to fix this issue and develop a workaround.
+    #
+    # The simplest, but expensive option is that if the active set increases in
+    # size, we can just recompute the full hessian for the new active set
+    # instead of an approximate update. This is what is currently implemented
+    # here.
+    #
+    # Another interesting option would be to keep track of two old sets of
+    # hessian_rows: one for the full dataset and one for the current reduced
+    # dataset. Restart from the full dataset version if we increase the size of
+    # the active_set. Though expensive, that would be a rare operation.
+    #
+    # Third thing: we could have a flag that swaps between computing H and
+    # delta H. If we just computed H directly, then this wouldn't be an issue.
+    # A slight modification of this: we could still use a baseline H from the
+    # first iteration with the entire column set.
+    first_iteration = not state.hessian_initialized
+    reset_iteration = not is_subset(state.old_active_set, active_set)
+    if first_iteration or reset_iteration:
+
+        # In the first iteration or in a reset iteration, we need to:
+        # 1) use hessian_rows, not the difference
+        # 2) use all the rows
+        # 3) Include the P2 components
+        # 4) just like an update, we only update the active_set
+        hessian_init = build_hessian_delta(
+            data.X,
+            state.hessian_rows,
+            data.fit_intercept,
+            data.P2,
+            np.arange(data.X.shape[0], dtype=np.int32),
+            active_set,
+        )
+        state.hessian[np.ix_(active_set, active_set)] = hessian_init
+        state.hessian_initialized = True
+        n_active_rows = data.X.shape[0]
+    else:
+        # In an update iteration, we want to:
+        # 1) use the difference in hessian_rows from the last iteration
+        # 2) filter for active_rows in case data.hessian_approx != 0
+        # 3) Ignore the P2 components because those don't change and have
+        #    already been added
+        # 4) only update the active set subset of the hessian.
+        hessian_rows_diff, active_rows = identify_active_rows(
+            state.gradient_rows,
+            state.hessian_rows,
+            state.old_hessian_rows,
+            data.hessian_approx,
+        )
+        hessian_delta = build_hessian_delta(
+            data.X,
+            hessian_rows_diff,
+            data.fit_intercept,
+            P2=None,
+            active_rows=active_rows,
+            active_cols=active_set,
+        )
+        state.hessian[np.ix_(active_set, active_set)] += hessian_delta
+        n_active_rows = active_rows.shape[0]
 
     return (
-        state.hessian,
-        # [np.ix_(active_set, active_set)]
-        active_rows.shape[0],
+        state.hessian[np.ix_(active_set, active_set)],
+        n_active_rows,
     )
+
+
+def is_subset(x, y):
+    # NOTE: This functions assumes entries in x and y are unique
+    intersection = np.intersect1d(x, y)
+    return intersection.size == y.size
 
 
 def build_hessian_delta(X, hessian_rows, intercept, P2, active_rows, active_cols):
@@ -122,9 +209,7 @@ def build_hessian_delta(X, hessian_rows, intercept, P2, active_rows, active_cols
     return delta
 
 
-def _irls_solver(
-    inner_solver, coef, data, minibatch=55
-) -> Tuple[np.ndarray, int, int, List[List]]:
+def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[List]]:
     """Solve GLM with L1 and L2 penalty by IRLS
 
     The objective being minimized in the coefficients w=coef is::
@@ -174,7 +259,22 @@ def _irls_solver(
     https://www.csie.ntu.edu.tw/~cjlin/papers/l1_glmnet/long-glmnet.pdf
     """
 
-    np.random.seed(1337)
+    if type(data.minibatch) == int:
+        pass
+    elif data.minibatch is True:
+        if len(coef) <= 30:
+            data.minibatch = 30
+        elif len(coef) <= 90:
+            data.minibatch = (2 * len(coef)) // 3
+        elif len(coef) <= 1000:
+            data.minibatch = len(coef) // 2
+        else:
+            data.minibatch = 500
+    elif data.minibatch is False:
+        data.minibatch = 1000000000  # Practically disabled
+    else:
+        raise TypeError("data.minibatch should be int or bool")
+    print("fit_intercept:", data.fit_intercept)
 
     state = IRLSState(coef, data)
 
@@ -195,17 +295,32 @@ def _irls_solver(
 
     while state.n_iter < data.max_iter and not state.converged:
 
+        state.old_active_set = state.active_set
         state.active_set = identify_active_set(state, data)
-        if len(state.active_set) > minibatch:
-            state.active_set = np.sort(
-                np.random.choice(state.active_set, minibatch, replace=False)
-            )
-            """
+        if len(state.active_set) > data.minibatch:
+            # Sample with probability according to previous step, plus small amount.
+            weights = np.abs(state.step[state.active_set]) + 0.0001
+            # If fit_intercept, definitely include the 0th index. Otherwise, treat all indices the same.
             if data.fit_intercept:
-                state.active_set = [0]+np.random.choice(state.active_set[1:], minibatch-1, replace=False)
+                weights /= np.sum(weights[1:])
+                state.active_set = np.concatenate(
+                    (
+                        [0],
+                        np.random.choice(
+                            state.active_set[1:],
+                            data.minibatch - 1,
+                            p=weights[1:],
+                            replace=False,
+                        ),
+                    )
+                ).astype(np.int32)
             else:
-                state.active_set = np.random.choice(state.active_set, minibatch, replace=False)
-            """
+                weights /= np.sum(weights)
+                state.active_set = np.random.choice(
+                    state.active_set, data.minibatch, p=weights, replace=False
+                )
+            # Keeping them sorted makes debugging easier and takes minimal time, although it's not strictly necessary.
+            state.active_set = np.sort(state.active_set)
 
         # 1) Solve the L1 and L2 penalized least squares problem
         d, n_cycles_this_iter, state.n_active_rows = inner_solver(state, data)
@@ -215,13 +330,15 @@ def _irls_solver(
         state.old_hessian_rows[:] = state.hessian_rows
         (
             state.coef,
-            state.step,
+            full_step,
             state.eta,
             state.mu,
             state.obj_val,
             coef_P2,
             state.n_updated,
         ) = line_search(state, data, d)
+        # This is necessary to not overwrite last steps of columns not previously in active set.
+        state.step[state.active_set] = full_step[state.active_set]
 
         # 3) Update the quadratic approximation
         state.gradient_rows, state.score, state.hessian_rows = update_quadratic(
@@ -262,12 +379,14 @@ class IRLSData:
         max_inner_iter: int = 100000,
         gradient_tol: Optional[float] = 1e-4,
         step_size_tol: Optional[float] = 1e-4,
+        hessian_approx: float = 0.0,
         fixed_inner_tol: Optional[Tuple] = None,
         selection="cyclic",
         random_state=None,
         offset: Optional[np.ndarray] = None,
         lower_bounds: Optional[np.ndarray] = None,
         upper_bounds: Optional[np.ndarray] = None,
+        minibatch: Union[int, bool] = True,
     ):
         self.X = X
         self.y = y
@@ -285,6 +404,7 @@ class IRLSData:
         self.max_inner_iter = max_inner_iter
         self.gradient_tol = gradient_tol
         self.step_size_tol = step_size_tol
+        self.hessian_approx = hessian_approx
         self.fixed_inner_tol = fixed_inner_tol
         self.selection = selection
         self.random_state = random_state
@@ -295,6 +415,7 @@ class IRLSData:
         self.has_upper_bounds, self._upper_bounds = setup_bounds(
             upper_bounds, self.X.dtype
         )
+        self.minibatch = minibatch
 
         self.intercept_offset = 1 if self.fit_intercept else 0
 
@@ -363,6 +484,7 @@ class IRLSState:
         self.inner_tol = None
         self.n_updated = 0
         self.n_active_rows = data.X.shape[0]
+        self.old_active_set = None
         self.active_set = np.arange(self.coef.shape[0], dtype=np.int32)
 
     def record_iteration(self):

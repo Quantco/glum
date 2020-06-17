@@ -11,8 +11,9 @@ from quantcore.glm.util import (
     BenchmarkParams,
     benchmark_params_cli,
     clear_cache,
-    get_default_val,
+    defaults,
     get_obj_val,
+    get_tweedie_p,
 )
 from quantcore.glm.zeros_benchmark import zeros_bench
 
@@ -80,7 +81,7 @@ def execute_problem_library(
 
     for k in params.param_names:
         if getattr(params, k) is None:
-            params.update_params(**{k: get_default_val(k)})
+            params.update_params(**{k: defaults[k]})
 
     dat = P.data_loader(
         num_rows=params.num_rows,
@@ -106,6 +107,7 @@ def execute_problem_library(
         cv=params.cv,
         print_diagnostics=print_diagnostics,
         reg_multiplier=reg_multiplier,
+        hessian_approx=params.hessian_approx,
         **kwargs,
     )
     if len(result) > 0:
@@ -117,21 +119,13 @@ def execute_problem_library(
             P.l1_ratio,
             result["intercept"],
             result["coef"],
-            tweedie_p=get_tweedie_p(params.problem_name),
+            tweedie_p=get_tweedie_p(P.distribution),
         )
 
         result["obj_val"] = obj_val
         result["num_rows"] = dat["y"].shape[0]
 
     return result, params.regularization_strength
-
-
-def get_tweedie_p(problem_name):
-    tweedie = "tweedie" in problem_name
-    if tweedie:
-        return float(problem_name.split("=")[-1])
-    else:
-        return None
 
 
 def get_all_libraries() -> Dict[str, Any]:
