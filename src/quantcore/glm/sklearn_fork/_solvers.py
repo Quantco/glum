@@ -38,6 +38,11 @@ def _least_squares_solver(state, data):
 
 def _cd_solver(state, data):
     active_hessian, n_active_rows = update_hessian(state, data, state.active_set)
+    # Understand me difference
+    print(list(state.active_set))
+    print(active_hessian.shape)
+    print(active_hessian)
+    print("\n-----------------------------------\n")
     new_coef, gap, _, _, n_cycles = enet_coordinate_descent_gram(
         state.active_set,
         state.coef.copy(),
@@ -69,15 +74,18 @@ def update_hessian(state, data, active_set):
         P2 = data.P2
         hessian_rows_diff = state.hessian_rows - state.old_hessian_rows
         active_rows = all_rows
-    state.hessian_initialized = True
+    hessian_rows_diff = state.hessian_rows
+    state.hessian_initialized = False  # True
 
     hessian_delta = build_hessian_delta(
         data.X, hessian_rows_diff, data.fit_intercept, P2, active_rows, active_set,
     )
-    state.hessian[np.ix_(active_set, active_set)] += hessian_delta
+    state.hessian = hessian_delta
+    # [np.ix_(active_set, active_set)]
 
     return (
-        state.hessian[np.ix_(active_set, active_set)],
+        state.hessian,
+        # [np.ix_(active_set, active_set)]
         active_rows.shape[0],
     )
 
@@ -114,7 +122,9 @@ def build_hessian_delta(X, hessian_rows, intercept, P2, active_rows, active_cols
     return delta
 
 
-def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[List]]:
+def _irls_solver(
+    inner_solver, coef, data, minibatch=55
+) -> Tuple[np.ndarray, int, int, List[List]]:
     """Solve GLM with L1 and L2 penalty by IRLS
 
     The objective being minimized in the coefficients w=coef is::
@@ -164,6 +174,8 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
     https://www.csie.ntu.edu.tw/~cjlin/papers/l1_glmnet/long-glmnet.pdf
     """
 
+    np.random.seed(1337)
+
     state = IRLSState(coef, data)
 
     state.eta, state.mu, state.obj_val, coef_P2 = update_predictions(
@@ -184,6 +196,16 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
     while state.n_iter < data.max_iter and not state.converged:
 
         state.active_set = identify_active_set(state, data)
+        if len(state.active_set) > minibatch:
+            state.active_set = np.sort(
+                np.random.choice(state.active_set, minibatch, replace=False)
+            )
+            """
+            if data.fit_intercept:
+                state.active_set = [0]+np.random.choice(state.active_set[1:], minibatch-1, replace=False)
+            else:
+                state.active_set = np.random.choice(state.active_set, minibatch, replace=False)
+            """
 
         # 1) Solve the L1 and L2 penalized least squares problem
         d, n_cycles_this_iter, state.n_active_rows = inner_solver(state, data)
@@ -321,9 +343,7 @@ class IRLSState:
 
         # We need to have an initial step value to make sure that the step size
         # convergence criteria fails on the first pass
-        initial_step = data.step_size_tol
-        if initial_step is None:
-            initial_step = 0.0
+        initial_step = np.maximum(1.0, data.step_size_tol)
         self.step = np.full_like(self.coef, initial_step)
 
         self.obj_val = None
