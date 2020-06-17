@@ -5,6 +5,8 @@
 Python package to benchmark GLM implementations. 
 
 [Link to Google Sheet that compares various existing implementations.](https://docs.google.com/spreadsheets/d/1C-n3YTzPR47Sf8M04eEaX4RbNomM13dk_BZaPHGgWXg/edit)
+[Link to Google Doc that compares the top contenders for libraries to improve.](https://docs.google.com/document/d/1hjmagUAS-NkUnD1r9Oyc8yL5NpeLHUyxprAIWWaVNAs/edit)
+[Link to google doc that discusses some of the optimizations and improvements we have made](https://docs.google.com/document/d/1wd6_bV9OUFjqc9WGtELDJ1Kdv1jrrticivd50POTeqo/edit)
 
 
 ## Installation
@@ -144,7 +146,11 @@ conda install quantcore.glm=*=*skylake
 
 #### What kind of problems can we solve? 
 
-...
+Objective function: -sum_i weight_i LL_i + penalty
+
+Outer loop: Form a quadratic approximation to -LL, as in iteratively reweighted least squares. That is, find w and z so that the problem can be expressed as “min sum_i w_i (z_i - x_i beta)^2 + penalty”. Exit when the gradient is small.
+
+Inner loop: Use coordinate descent to find beta (holding w and z fixed). Exit when the gradient for the inner problem is small. 
 
 #### Solvers overview
 
