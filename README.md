@@ -233,4 +233,25 @@ It is critical to only update our `hessian_rows_0` for those rows that were incl
 #### References
 
 `glmnet` - [Regularization Paths for Generalized Linear Models via Coordinate Descent](https://web.stanford.edu/~hastie/Papers/glmnet.pdf)
+
 `newglmnet` - [An Improved GLMNET for L1-regularized LogisticRegression](https://www.csie.ntu.edu.tw/~cjlin/papers/l1_glmnet/long-glmnet.pdf)
+
+` - [](https://dl.acm.org/doi/pdf/10.1145/2764454)
+
+## Matrix Types
+
+Along with the GLM solvers, this package supports dense, sparse, categorical matrix types and mixtures of these types. Using the most efficient matrix representations massively improves performacne. 
+
+For more details [see here](src/quantcore/glm/matrix/README.md)
+
+We support dense matrices via standard numpy arrays. 
+
+We support sparse CSR and CSC matrices via standard `scipy.sparse` objects. These `scipy.sparse` matrices have been modified in the `MKLSparseMatrix` class to use MKL via the `sparse_dot_mkl` package. As a result, sparse matrix-vector and matrix-matrix multiplies are optimized and parallelized. A user does not need to modify their code to take advantage of this optimization. If a `scipy.sparse.csc_matrix` object is passed in, it will be automatically converted to a `MKLSparseMatrix` object. This operation is almost free because no data needs to be copied.
+
+We implement a CategoricalMatrix object that efficiently represents these matrices without nearly as much overhead as a normal CSC or CSR sparse matrix.
+
+Finally, SplitMatrix allows mixing different matrix types for different columns to minimize overhead.
+
+## Standardization
+
+Internal to `GeneralizedLinearRegressor`, all matrix types are wrapped in a `ColScaledMat` which offsets columns to have mean zero and standard deviation one without modifying the matrix data itself. This avoids situations where modifying a matrix to have mean zero would result in losing the sparsity structure and avoids ever needing to copy or modify the input data matrix. As a result, memory usage is very low. 
