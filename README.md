@@ -148,23 +148,9 @@ conda install quantcore.glm=*=*skylake
 
 #### What kind of problems can we solve? 
 
-This package is intended to fit L1 and L2-norm penalized Generalized Linear Models where:
+This package is intended to fit L1 and L2-norm penalized Generalized Linear Models. Bounce over to [the Jupyter notebook for an introduction to GLMs](docs/glms.ipynb).
 
-```
-X*beta = y + e
-Variance(e) = sigma^2 * W^{-1}
-```
-where `X` is the data matrix, `beta` is the linear coefficients, `y` is the response/measurement, `e` is error with a variance/covariance matrix depending on the scalar `sigma` and the diagonal matrix `W`. This `W` will be defined by the distributional assumptions about `y`. Here, we handle distributions from the exponential family (Gaussian, Poisson, Gamma, Tweedie, Binomial, etc). 
-
-Oftentimes, there are bounds on the predictions `X*beta`. For example, in Poisson regression, we must enforce `X*beta > 0`. Rather than solve a constrained quadratic optimization, we will make use of a "link function" and instead solve:
-
-```
-f(X*beta) = y + e
-```
-
-Continuing with the Poisson regression example, `f = log(x)` is a common choice that enforces positive predictions while also having some nice mathematical properties (due to being a "Canonical link").
-
-Given a number of observations, indexed by `i`, we optimize the objective function:
+To summarize from that notebook, given a number of observations, indexed by `i`, and coefficients, indexed by `j`, we optimize the objective function:
 
 ```
 sum_i weight_i * -log_likelihood_i + sum_j alpha_j * [l1_ratio * abs(coef_j) + (1 - l1_ratio) * coef_j ** 2]
