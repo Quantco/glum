@@ -8,7 +8,7 @@ jobs:
     env:
       CI: True
     strategy:
-      fail-fast: false
+      fail-fast: true
     steps:
      - name: Docker login
        run: docker login docker.pkg.github.com -u ${{ github.actor }} -p ${{ secrets.FQ_GH_TOKEN }}
@@ -26,7 +26,7 @@ jobs:
     env:
       CI: True
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
         PYTHON_VERSION: ['3.6', '3.7', '3.8']
     steps:
@@ -57,9 +57,9 @@ jobs:
     env:
       CI: True
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
-        PYTHON_VERSION: ['3.6', '3.7', '3.8']
+        PYTHON_VERSION: ['3.7']
     steps:
       - name: Docker login
         run: docker login docker.pkg.github.com -u ${{ github.actor }} -p ${{ secrets.FQ_GH_TOKEN }}
@@ -75,41 +75,3 @@ jobs:
         uses: ./.github/actions/conda-build
         with:
           python_version: ${{ matrix.PYTHON_VERSION }}
-  macos:
-    name: "MacOS - tests - Python ${{ matrix.PYTHON_VERSION }}"
-    runs-on: macos-latest
-    env:
-      CI: True
-      ***REMOVED***: ${{ secrets.***REMOVED*** }}
-      ***REMOVED***: ${{ secrets.***REMOVED*** }}
-      PYTHON_VERSION: ${{ matrix.PYTHON_VERSION }}
-    strategy:
-      fail-fast: false
-      matrix:
-        PYTHON_VERSION: ['3.7']
-    steps:
-      - name: Checkout branch
-        uses: actions/checkout@v2.1.0
-        with:
-          ref: ${{ github.head_ref }}
-      - name: Run Unit Tests
-        run: ./.github/workflows/macos.sh
-  macos-conda-build:
-    name: "MacOS - conda-build - Python ${{ matrix.PYTHON_VERSION }}"
-    runs-on: macos-latest
-    env:
-      CI: True
-      ***REMOVED***: ${{ secrets.***REMOVED*** }}
-      ***REMOVED***: ${{ secrets.***REMOVED*** }}
-      PYTHON_VERSION: ${{ matrix.PYTHON_VERSION }}
-    strategy:
-      fail-fast: false
-      matrix:
-        PYTHON_VERSION: ['3.8']
-    steps:
-      - name: Checkout branch
-        uses: actions/checkout@v2.1.0
-        with:
-          ref: ${{ github.head_ref }}
-      - name: Run Unit Tests
-        run: ./.github/workflows/macos-conda-build.sh
