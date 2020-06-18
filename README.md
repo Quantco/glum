@@ -184,19 +184,21 @@ The IRLS-LS and IRLS-CD implementations largely follow the algorithm described i
 
 #### IRLS
 
-Outer loop: Form a quadratic approximation to -LL, as in iteratively reweighted least squares. That is, find w and z so that the problem can be expressed as “min sum_i w_i (z_i - x_i beta)^2 + penalty”. Exit when the gradient is small.
+In the `irls-cd` and `irls-ls` solvers, the outer loop is an IRLS iteration that forms a quadratic approximation to the negative loglikelihood. That is, we find `w` and `z` so that the problem can be expressed as `min sum_i w_i (z_i - x_i beta)^2 + penalty`. We exit when either the gradient is small (`gradient_tol`) or the step size is small (`step_size_tol`).
 
-#### Coordinate descent
+Within the `irls-cd` solver, the inner loop involves solving for `beta` with coordinate descent. We exit the inner loop when the quadratic problem's gradient is small. See the `coordinate_descent` reference. `irls-cd` is the only current algorithm implemented here that is able to solve L1-penalized GLMs.
 
-Inner loop: Use coordinate descent to find beta (holding w and z fixed). Exit when the gradient for the inner problem is small. 
+The "inner loop" of the `irls-ls` solver is simply a direct least squares solve.
 
 #### Active set tracking
 
-...
+When penalizing with an L1-norm, it is common for many coefficients to be exactly zero. And, it is possible to predict during a given iteration which of those coefficients will stay zero. As a result, we track the "active set" consisting of all the coefficients that are either currently non-zero or likely to remain non-zero. We follow the outer loop active set tracking algorithm in the `newglmnet` reference (though they refer to it as "shrinkage"). Currently, we have not yet implemented the inner loop active set tracking from that reference.
 
 #### Gauss-Newton Approximation
 
 The optimization algorithm used here is a type of Gauss-Newton method where the Hessian is approximated as the outer product of the gradient (https://en.wikipedia.org/wiki/Gauss%E2%80%93Newton_algorithm). The same approximation can be inspired via arguments relating to the Fisher information matrix (https://en.wikipedia.org/wiki/Information_matrix_test). For canonical link functions, the Hessian and gradient outer product should be exactly equal. The gradient outer product can be particularly valuable for non-canonical link functions because the gradient outer product (`J.T @ J`) is guaranteed to be symmetric and positive definite whereas the true Hessian is not. Some interesting discussion and further links to literature on why the Gauss-Newton matrix can even outperform the true Hessian in some optimization problems: https://math.stackexchange.com/questions/2733257/approximation-of-hessian-jtj-for-general-non-linear-optimization-problems
+
+An alternate derivation of this same approximation can be motivated by the Fisher information matrix. See [this discussion for an explanation of the BHHH algorithm.](https://github.com/Quantco/glm_benchmarks/pull/156#discussion_r434746239)
 
 #### Approximate Hessian updating
 
