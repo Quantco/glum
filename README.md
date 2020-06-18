@@ -148,9 +148,21 @@ conda install quantcore.glm=*=*skylake
 
 #### What kind of problems can we solve? 
 
-This package is intended to fit Generalized Linear Models defined by a distribution and a link function. 
+This package is intended to fit L1 and L2-norm penalized Generalized Linear Models where:
 
-...definition of GLM...
+```
+X*beta = y + e
+Variance(e) = sigma^2 * W^{-1}
+```
+where `X` is the data matrix, `beta` is the linear coefficients, `y` is the response/measurement, `e` is error with a variance/covariance matrix depending on the scalar `sigma` and the diagonal matrix `W`. This `W` will be defined by the distributional assumptions about `y`. Here, we handle distributions from the exponential family (Gaussian, Poisson, Gamma, Tweedie, Binomial, etc). 
+
+Oftentimes, there are bounds on the predictions `X*beta`. For example, in Poisson regression, we must enforce `X*beta > 0`. Rather than solve a constrained quadratic optimization, we will make use of a "link function" and instead solve:
+
+```
+f(X*beta) = y + e
+```
+
+Continuing with the Poisson regression example, `f = log(x)` is a common choice that enforces positive predictions while also having some nice mathematical properties (due to being a "Canonical link").
 
 Given a number of observations, indexed by `i`, we optimize the objective function:
 
@@ -236,7 +248,11 @@ It is critical to only update our `hessian_rows_0` for those rows that were incl
 
 `newglmnet` - [An Improved GLMNET for L1-regularized LogisticRegression](https://www.csie.ntu.edu.tw/~cjlin/papers/l1_glmnet/long-glmnet.pdf)
 
-` - [](https://dl.acm.org/doi/pdf/10.1145/2764454)
+`glmintro` - [Bryan Lewis on GLMs](https://bwlewis.github.io/GLM/)
+
+`blismatmul` - [Anatomy of High-Performance Many-ThreadedMatrix Multiplication](http://www.cs.utexas.edu/~flame/pubs/blis3_ipdps14.pdf)
+
+`coordinate_descent` - [Coordinate Descent Algorithms](http://www.optimization-online.org/DB_FILE/2014/12/4679.pdf)
 
 ## Matrix Types
 
