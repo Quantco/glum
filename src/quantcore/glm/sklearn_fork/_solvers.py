@@ -48,7 +48,7 @@ def _cd_solver(state, data):
         state.inner_tol,
         data.random_state,
         data.fit_intercept,
-        data.selection == "random",
+        data.inner_solver_selection == "random",
         data.has_lower_bounds,
         data._lower_bounds,
         data.has_upper_bounds,
@@ -307,7 +307,7 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
         state.inner_tol,
     ) = check_convergence_outer(state, data)
 
-    state.record_iteration()  # 0'th iteration
+    state.record_outer_iteration()  # 0'th iteration
 
     # Tracking change in columns over complete middle-loop cycles
     # This way we can sample proportionate to change
@@ -316,9 +316,8 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
     while state.n_iter < data.max_iter and not state.converged:
 
         state.column_batch = choose_column_batch(state, data)
-        print(data.column_batch_size, len(state.column_batch))
 
-        for _ in range(data.max_colbatch_iter):
+        for state.colbatch_iter in range(data.max_colbatch_iter):
 
             state.old_active_set = state.active_set
             state.active_set = identify_active_set(
@@ -354,9 +353,10 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
                 state.inner_tol,
             ) = check_convergence_inner(state, data)
 
+            state.record_inner_iteration()
+
             if state.converged:
                 break
-        print(_)
 
         # Update the outer step
         state.outer_step = state.coef - prev_coef
@@ -370,7 +370,7 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
             state.inner_tol,
         ) = check_convergence_outer(state, data)
 
-        state.record_iteration()
+        state.record_outer_iteration()
 
     if not state.converged:
         warnings.warn(
@@ -379,6 +379,8 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
             " (currently {})".format(data.max_iter),
             ConvergenceWarning,
         )
+
+    print(state.coef[:10])
     return state.coef, state.n_iter, state.n_cycles, state.diagnostics
 
 
@@ -394,10 +396,10 @@ class IRLSData:
         family: ExponentialDispersionModel,
         link: Link,
         max_iter: int = 100,
-        max_colbatch_iter: int = 20,
+        max_colbatch_iter: int = 100,
         max_inner_iter: int = 100000,
-        gradient_tol: Optional[float] = 1e-4,
-        step_size_tol: Optional[float] = 1e-4,
+        gradient_tol: Optional[float] = 1e-8,
+        step_size_tol: Optional[float] = 1e-8,
         hessian_approx: float = 0.1,
         fixed_inner_tol: Optional[Tuple] = None,
         selection="cyclic",
@@ -405,7 +407,7 @@ class IRLSData:
         offset: Optional[np.ndarray] = None,
         lower_bounds: Optional[np.ndarray] = None,
         upper_bounds: Optional[np.ndarray] = None,
-        column_batch_size: Union[int, bool] = False,
+        column_batch_size: Union[int, bool] = True,
     ):
         self.X = X
         self.y = y
@@ -426,7 +428,7 @@ class IRLSData:
         self.step_size_tol = step_size_tol
         self.hessian_approx = hessian_approx
         self.fixed_inner_tol = fixed_inner_tol
-        self.selection = selection
+        self.inner_solver_selection = selection
         self.random_state = random_state
         self.offset = offset
         self.has_lower_bounds, self._lower_bounds = setup_bounds(
@@ -485,9 +487,12 @@ class IRLSState:
 
         # some precalculations
         self.iteration_start = time.time()
+        self.outer_iteration_start = time.time()
 
         # number of outer iterations
         self.n_iter = -1
+
+        self.colbatch_iter = 0
 
         # number of inner iterations (for CD, this is the number of cycles over
         # all the features)
@@ -526,11 +531,11 @@ class IRLSState:
         self.active_set = np.arange(self.coef.shape[0], dtype=np.int32)
         self.column_batch = None
 
-    def record_iteration(self):
+    def record_outer_iteration(self):
         self.n_iter += 1
 
-        iteration_runtime = time.time() - self.iteration_start
-        self.iteration_start = time.time()
+        iteration_runtime = time.time() - self.outer_iteration_start
+        self.outer_iteration_start = time.time()
 
         coef_l1 = np.sum(np.abs(self.coef))
         coef_l2 = np.linalg.norm(self.coef)
@@ -544,7 +549,31 @@ class IRLSState:
                 "n_coef_updated": self.n_updated,
                 "n_active_cols": self.active_set.shape[0],
                 "n_active_rows": self.n_active_rows,
-                "n_iter": self.n_iter,
+                "n_iter": str(self.n_iter),
+                "n_cycles": self.n_cycles,
+                "runtime": iteration_runtime,
+                "intercept": self.coef[0],
+            }
+        )
+
+    def record_inner_iteration(self):
+
+        iteration_runtime = time.time() - self.iteration_start
+        self.iteration_start = time.time()
+
+        coef_l1 = np.sum(np.abs(self.coef))
+        coef_l2 = np.linalg.norm(self.coef)
+        step_l2 = np.linalg.norm(self.inner_step)
+        self.diagnostics.append(
+            {
+                "convergence": self.norm_min_subgrad,
+                "L1(coef)": coef_l1,
+                "L2(coef)": coef_l2,
+                "L2(step)": step_l2,
+                "n_coef_updated": self.n_updated,
+                "n_active_cols": self.active_set.shape[0],
+                "n_active_rows": self.n_active_rows,
+                "n_iter": str(self.n_iter + 1) + "-" + str(self.colbatch_iter),
                 "n_cycles": self.n_cycles,
                 "runtime": iteration_runtime,
                 "intercept": self.coef[0],
