@@ -26,19 +26,19 @@ template <typename F>
 std::unique_ptr<F, std::function<void(F*)>> make_aligned_unique(std::size_t size, std::size_t alignment) {
     std::size_t aligned_size = round_to_align(size * sizeof(F), alignment);
 
-    #ifndef _WIN32
+#ifndef _WIN32
     F* out = static_cast<F*>(je_aligned_alloc(alignment, aligned_size));
-    #else
+#else
     F* out = static_cast<F*>(_aligned_malloc(aligned_size, alignment));
-    #endif
+#endif
     return std::unique_ptr<F, std::function<void(F*)>>(
         out, 
         [=] (F* ptr) { 
-            #ifndef _WIN32
+#ifndef _WIN32
             je_sdallocx(ptr, aligned_size, 0);
-            #else
+#else
             _aligned_free(ptr);
-            #endif
+#endif
         }
     );
 }
