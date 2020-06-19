@@ -1,0 +1,27 @@
+name: CI
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  macos:
+    name: "MacOS - tests - Python ${{ matrix.PYTHON_VERSION }}"
+    runs-on: macos-latest
+    env:
+      CI: True
+      ***REMOVED***: ${{ secrets.***REMOVED*** }}
+      ***REMOVED***: ${{ secrets.***REMOVED*** }}
+      PYTHON_VERSION: ${{ matrix.PYTHON_VERSION }}
+    strategy:
+      fail-fast: true
+      matrix:
+        PYTHON_VERSION: ['3.7']
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v2.1.0
+        with:
+          ref: ${{ github.head_ref }}
+      - name: Run Unit Tests
+        run: ./.github/workflows/macos.sh
+
