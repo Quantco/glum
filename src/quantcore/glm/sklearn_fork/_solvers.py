@@ -274,7 +274,6 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
         data.minibatch = 1000000000  # Practically disabled
     else:
         raise TypeError("data.minibatch should be int or bool")
-    print("fit_intercept:", data.fit_intercept)
 
     state = IRLSState(coef, data)
 
@@ -386,7 +385,7 @@ class IRLSData:
         offset: Optional[np.ndarray] = None,
         lower_bounds: Optional[np.ndarray] = None,
         upper_bounds: Optional[np.ndarray] = None,
-        minibatch: Union[int, bool] = True,
+        minibatch: Union[int, bool] = 273,
     ):
         self.X = X
         self.y = y
