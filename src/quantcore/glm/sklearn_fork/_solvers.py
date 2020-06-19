@@ -210,6 +210,38 @@ def build_hessian_delta(X, hessian_rows, intercept, P2, active_rows, active_cols
     return delta
 
 
+def choose_column_batch(state, data):
+    if data.column_batch_size > len(state.coef):
+        return np.arange(len(state.coef)).astype(np.int32)
+    # OK, actually need to choose a batch
+    weights = np.abs(state.outer_step) + 0.0001
+    if data.fit_intercept:
+        weights /= np.sum(weights[1:])
+        return np.sort(
+            np.concatenate(
+                (
+                    [0],
+                    np.random.choice(
+                        np.arange(1, len(weights)),
+                        data.column_batch_size - 1,
+                        p=weights[1:],
+                        replace=False,
+                    ),
+                )
+            )
+        ).astype(np.int32)
+    else:
+        weights /= np.sum(weights)
+        return np.sort(
+            np.random.choice(
+                np.arange(len(weights)),
+                data.column_batch_size,
+                p=weights,
+                replace=False,
+            )
+        ).astype(np.int32)
+
+
 def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[List]]:
     """Solve GLM with L1 and L2 penalty by IRLS
 
@@ -273,43 +305,71 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
         state.norm_min_subgrad,
         state.max_min_subgrad,
         state.inner_tol,
-    ) = check_convergence(state, data)
+    ) = check_convergence_outer(state, data)
 
-    state.record_iteration()
+    state.record_iteration()  # 0'th iteration
+
+    # Tracking change in columns over complete middle-loop cycles
+    # This way we can sample proportionate to change
+    prev_coef = state.coef.copy()
 
     while state.n_iter < data.max_iter and not state.converged:
 
-        state.old_active_set = state.active_set
-        state.active_set = identify_active_set(state, data)
+        state.column_batch = choose_column_batch(state, data)
+        print(data.column_batch_size, len(state.column_batch))
 
-        # 1) Solve the L1 and L2 penalized least squares problem
-        d, n_cycles_this_iter, state.n_active_rows = inner_solver(state, data)
-        state.n_cycles += n_cycles_this_iter
+        for _ in range(data.max_colbatch_iter):
 
-        # 2) Line search
-        state.old_hessian_rows[:] = state.hessian_rows
-        (
-            state.coef,
-            state.step,
-            state.eta,
-            state.mu,
-            state.obj_val,
-            coef_P2,
-            state.n_updated,
-        ) = line_search(state, data, d)
+            state.old_active_set = state.active_set
+            state.active_set = identify_active_set(
+                state, data
+            )  # Chooses from within column batch
 
-        # 3) Update the quadratic approximation
-        state.gradient_rows, state.score, state.hessian_rows = update_quadratic(
-            state, data, coef_P2
-        )
+            # 1) Solve the L1 and L2 penalized least squares problem
+            d, n_cycles_this_iter, state.n_active_rows = inner_solver(state, data)
+            state.n_cycles += n_cycles_this_iter
 
-        # 4) Check if we've converged
+            # 2) Line search
+            state.old_hessian_rows[:] = state.hessian_rows
+            (
+                state.coef,
+                state.inner_step,
+                state.eta,
+                state.mu,
+                state.obj_val,
+                coef_P2,
+                state.n_updated,
+            ) = line_search(state, data, d)
+
+            # 3) Update the quadratic approximation
+            state.gradient_rows, state.score, state.hessian_rows = update_quadratic(
+                state, data, coef_P2
+            )
+
+            # 4) Check if we've converged internally
+            (
+                state.converged,
+                state.norm_min_subgrad,
+                state.max_min_subgrad,
+                state.inner_tol,
+            ) = check_convergence_inner(state, data)
+
+            if state.converged:
+                break
+        print(_)
+
+        # Update the outer step
+        state.outer_step = state.coef - prev_coef
+        prev_coef[:] = state.coef
+
+        # Check if we've converged globally. Need these parameters as first guess for next column batch
         (
             state.converged,
             state.norm_min_subgrad,
             state.max_min_subgrad,
             state.inner_tol,
-        ) = check_convergence(state, data)
+        ) = check_convergence_outer(state, data)
+
         state.record_iteration()
 
     if not state.converged:
@@ -334,16 +394,18 @@ class IRLSData:
         family: ExponentialDispersionModel,
         link: Link,
         max_iter: int = 100,
+        max_colbatch_iter: int = 20,
         max_inner_iter: int = 100000,
         gradient_tol: Optional[float] = 1e-4,
         step_size_tol: Optional[float] = 1e-4,
-        hessian_approx: float = 0.0,
+        hessian_approx: float = 0.1,
         fixed_inner_tol: Optional[Tuple] = None,
         selection="cyclic",
         random_state=None,
         offset: Optional[np.ndarray] = None,
         lower_bounds: Optional[np.ndarray] = None,
         upper_bounds: Optional[np.ndarray] = None,
+        column_batch_size: Union[int, bool] = False,
     ):
         self.X = X
         self.y = y
@@ -358,6 +420,7 @@ class IRLSData:
         self.family = family
         self.link = link
         self.max_iter = max_iter
+        self.max_colbatch_iter = max_colbatch_iter
         self.max_inner_iter = max_inner_iter
         self.gradient_tol = gradient_tol
         self.step_size_tol = step_size_tol
@@ -374,6 +437,24 @@ class IRLSData:
         )
 
         self.intercept_offset = 1 if self.fit_intercept else 0
+
+        self.column_batch_size = column_batch_size
+        if type(self.column_batch_size) == int:
+            if self.column_batch_size < 1 + self.intercept_offset:
+                raise ValueError("data.column_batch_size too small")
+        elif self.column_batch_size is True:
+            if self.X.shape[-1] <= 30:
+                self.column_batch_size = 30
+            elif self.X.shape[-1] <= 90:
+                self.column_batch_size = (2 * self.X.shape[-1]) // 3
+            elif self.X.shape[-1] <= 1000:
+                self.column_batch_size = self.X.shape[-1] // 2
+            else:
+                self.column_batch_size = 500
+        elif self.column_batch_size is False:
+            self.column_batch_size = 1000000000  # Practically disabled
+        else:
+            raise TypeError("data.column_batch_size should be int or bool")
 
         self.check_data()
 
@@ -420,10 +501,9 @@ class IRLSState:
 
         # We need to have an initial step value to make sure that the step size
         # convergence criteria fails on the first pass
-        initial_step = data.step_size_tol
-        if initial_step is None:
-            initial_step = 0.0
-        self.step = np.full_like(self.coef, initial_step)
+        initial_step = np.maximum(1.0, data.step_size_tol)
+        self.inner_step = np.full_like(self.coef, initial_step)
+        self.outer_step = np.full_like(self.coef, initial_step)
 
         self.obj_val = None
         self.eta = np.zeros(data.X.shape[0], dtype=data.X.dtype)
@@ -444,6 +524,7 @@ class IRLSState:
         self.n_active_rows = data.X.shape[0]
         self.old_active_set = None
         self.active_set = np.arange(self.coef.shape[0], dtype=np.int32)
+        self.column_batch = None
 
     def record_iteration(self):
         self.n_iter += 1
@@ -453,7 +534,7 @@ class IRLSState:
 
         coef_l1 = np.sum(np.abs(self.coef))
         coef_l2 = np.linalg.norm(self.coef)
-        step_l2 = np.linalg.norm(self.step)
+        step_l2 = np.linalg.norm(self.outer_step)
         self.diagnostics.append(
             {
                 "convergence": self.norm_min_subgrad,
@@ -471,7 +552,7 @@ class IRLSState:
         )
 
 
-def check_convergence(state, data):
+def check_convergence_outer(state, data):
     # stopping criterion for outer loop is a mix of a subgradient tolerance
     # and a step size tolerance
     # sum_i(|minimum-norm of subgrad of F(w)_i|)
@@ -497,7 +578,59 @@ def check_convergence(state, data):
     )
 
     # Simple L2 step length convergence criteria
-    step_size = linalg.norm(state.step)
+    step_size = linalg.norm(state.outer_step)
+    step_size_converged = (
+        state.data.step_size_tol is not None and step_size < state.data.step_size_tol
+    )
+
+    converged = gradient_converged or step_size_converged
+
+    # the ratio of inner tolerance to the minimum subgradient norm
+    # This wasn't explored in the newGLMNET paper linked above.
+    # That paper essentially uses inner_tol_ratio = 1.0, but using a slightly
+    # lower value is much faster.
+    # By comparison, the original GLMNET paper uses inner_tol = tol.
+    # So, inner_tol_ratio < 1 is sort of a compromise between the two papers.
+    # The value should probably be between 0.01 and 0.5. 0.1 works well for many problems
+    inner_tol_ratio = 0.1
+
+    if state.data.fixed_inner_tol is None:
+        # Another potential rule limits the inner tol to be no smaller than tol
+        # return max(norm_min_subgrad * inner_tol_ratio, tol)
+        inner_tol = norm_min_subgrad * inner_tol_ratio
+    else:
+        inner_tol = state.data.fixed_inner_tol[0]
+
+    return converged, norm_min_subgrad, max_min_subgrad, inner_tol
+
+
+def check_convergence_inner(state, data):
+    # stopping criterion for inner loop is a mix of a subgradient tolerance
+    # and a step size tolerance
+    # sum_i(|minimum-norm of subgrad of F(w)_i|)
+    # fp_wP2 = f'(w) + w*P2
+    # Note: eta, mu and score are already updated
+    # this also updates the inner tolerance for the next loop!
+
+    # L1 norm of the minimum norm subgradient
+    norm_min_subgrad, max_min_subgrad = _norm_min_subgrad(
+        np.arange(state.coef.shape[0], dtype=np.int32),  # state.column_batch,
+        state.coef,
+        -state.score,
+        state.data.P1,
+        state.data.intercept_offset,
+        data.has_lower_bounds,
+        data._lower_bounds,
+        data.has_upper_bounds,
+        data._upper_bounds,
+    )
+    gradient_converged = (
+        state.data.gradient_tol is not None
+        and norm_min_subgrad < state.data.gradient_tol
+    )
+
+    # Simple L2 step length convergence criteria
+    step_size = linalg.norm(state.inner_step)
     step_size_converged = (
         state.data.step_size_tol is not None and step_size < state.data.step_size_tol
     )
@@ -583,9 +716,9 @@ def identify_active_set(state, data):
 
     active_set = np.concatenate(
         ([0] if data.fit_intercept else [], np.where(active)[0] + data.intercept_offset)
-    ).astype(np.int32)
+    )
 
-    return active_set
+    return np.intersect1d(active_set, state.column_batch).astype(np.int32)
 
 
 def line_search(state, data, d):
