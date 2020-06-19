@@ -149,3 +149,4 @@ src/glm_benchmarks/sklearn_fork/_functions.cpp
 src/quantcore/glm/matrix/sandwich/categorical_sandwich.c
 src/quantcore/glm/sklearn_fork/_cd_fast.cpp
 src/quantcore/glm/sklearn_fork/_functions.cpp
+src/quantcore/glm/matrix/ext/categorical.c
