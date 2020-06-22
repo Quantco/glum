@@ -1,5 +1,6 @@
 from __future__ import division
 
+import functools
 import time
 import warnings
 from typing import List, Optional, Tuple, Union
@@ -17,10 +18,29 @@ from ._link import Link
 from ._util import _safe_lin_pred, _safe_sandwich_dot
 
 
-def _least_squares_solver(state, data):
+def timeit(runtime_attr: str):
+    """Decorator to computes the runtime of a function and updates the IRLSState
+    instance attribute called `runtime_attr` with the runtime of the function.
+    The first argument of fct should be an IRLSState instance.
+    """
+
+    def fct_wrap(fct):
+        @functools.wraps(fct)
+        def inner_fct(*args, **kwargs):
+            start = time.perf_counter()
+            out = fct(*args, **kwargs)
+            setattr(args[0], runtime_attr, time.perf_counter() - start)
+            return out
+
+        return inner_fct
+
+    return fct_wrap
+
+
+@timeit("inner_solver_runtime")
+def _least_squares_solver(state, data, hessian):
     if data.has_lower_bounds or data.has_upper_bounds:
         raise ValueError("Bounds are not supported with the least squares solver.")
-    hessian = build_hessian(data.X, state.hessian_rows, data.fit_intercept, data.P2)
 
     # TODO: In cases where we have lots of columns, we might want to avoid the
     # sandwich product and use something like iterative lsqr or lsmr.
@@ -30,8 +50,8 @@ def _least_squares_solver(state, data):
     return d, 1
 
 
-def _cd_solver(state, data):
-    hessian = build_hessian(data.X, state.hessian_rows, data.fit_intercept, data.P2)
+@timeit("inner_solver_runtime")
+def _cd_solver(state, data, hessian):
     new_coef, gap, _, _, n_cycles = enet_coordinate_descent_gram(
         state.active_set,
         state.coef.copy(),
@@ -51,10 +71,12 @@ def _cd_solver(state, data):
     return new_coef - state.coef, n_cycles
 
 
-def build_hessian(X, hessian_rows, intercept, P2):
-    idx = 1 if intercept else 0
+@timeit("build_hessian_runtime")
+def build_hessian(state, data):
+    P2 = data.P2
+    idx = 1 if data.fit_intercept else 0
     # Almost all time spent in this function is here
-    hessian = _safe_sandwich_dot(X, hessian_rows, intercept)
+    hessian = _safe_sandwich_dot(data.X, state.hessian_rows, data.fit_intercept)
     if sparse.issparse(P2) and P2.nnz == 0:
         return hessian
     if P2.ndim == 1:
@@ -142,8 +164,11 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
 
         state.active_set = identify_active_set(state, data)
 
+        # 0) Build the hessian
+        hessian = build_hessian(state, data)
+
         # 1) Solve the L1 and L2 penalized least squares problem
-        d, n_cycles_this_iter = inner_solver(state, data)
+        d, n_cycles_this_iter = inner_solver(state, data, hessian)
         state.n_cycles += n_cycles_this_iter
 
         # 2) Line search
@@ -289,6 +314,12 @@ class IRLSState:
         self.max_min_subgrad = None
         self.inner_tol = None
         self.active_set = np.arange(self.coef.shape[0])
+        self.n_line_search = None
+
+        self.build_hessian_runtime = None
+        self.inner_solver_runtime = None
+        self.line_search_runtime = None
+        self.quadratic_update_runtime = None
 
     def record_iteration(self):
         self.n_iter += 1
@@ -301,15 +332,22 @@ class IRLSState:
         step_l2 = np.linalg.norm(self.step)
         self.diagnostics.append(
             {
+                "n_iter": self.n_iter,
                 "convergence": self.norm_min_subgrad,
+                "objective_fct": self.obj_val,
                 "L1(coef)": coef_l1,
                 "L2(coef)": coef_l2,
                 "L2(step)": step_l2,
-                "n_active": self.active_set.shape[0],
-                "n_iter": self.n_iter,
-                "n_cycles": self.n_cycles,
-                "runtime": iteration_runtime,
                 "intercept": self.coef[0],
+                "n_active": self.active_set.shape[0],
+                "n_cycles": self.n_cycles,
+                "n_line_search": self.n_line_search,
+                # runtime
+                "iteration_runtime": iteration_runtime,
+                "build_hessian_runtime": self.build_hessian_runtime,
+                "inner_solver_runtime": self.inner_solver_runtime,
+                "line_search_runtime": self.line_search_runtime,
+                "quadratic_update_runtime": self.quadratic_update_runtime,
             }
         )
 
@@ -380,6 +418,7 @@ def update_predictions(state, data, coef, X_dot_step=None, factor=1.0):
     return eta, mu, obj_val, coef_P2
 
 
+@timeit("quadratic_update_runtime")
 def update_quadratic(state, data, coef_P2):
     gradient_rows, hessian_rows = data.family.rowwise_gradient_hessian(
         data.link,
@@ -431,6 +470,7 @@ def identify_active_set(state, data):
     return active_set
 
 
+@timeit("line_search_runtime")
 def line_search(state, data, d):
     # line search parameters
     (beta, sigma) = (0.5, 0.01)
@@ -466,6 +506,14 @@ def line_search(state, data, d):
         ):
             break
         factor *= beta
+    else:
+        warnings.warn(
+            "Line search failed. Next iteration will be very close to current "
+            "iteration. Might result in more convergence issues.",
+            ConvergenceWarning,
+        )
+
+    setattr(state, "n_line_search", k)
 
     # obj_val in the next iteration will be equal to obj_val_wd this iteration.
     # We can avoid a matrix-vector product inside _eta_mu_score_hessian by
