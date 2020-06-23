@@ -126,7 +126,7 @@ def gamma_log_rowwise_gradient_hessian(
     cdef int i
     for i in prange(n, nogil=True):
         gradient_rows_out[i] = weights[i] * (y[i] / mu[i] - 1)
-        hessian_rows_out[i] = weights[i]
+        hessian_rows_out[i] = weights[i] * y[i] / mu[i]
 
 def tweedie_log_eta_mu_loglikelihood(
     const_floating1d cur_eta,
@@ -187,7 +187,7 @@ def binomial_logit_eta_mu_loglikelihood(
         elif mu_out[i] < 1e-20:
             mu_out[i] = 1e-20
         # True log likelihood: log(mu) - eta * (1 - y)
-        loglikelihood += weights[i] * (-2 * (y[i] * log(mu_out[i]) + (1 - y[i]) * log(1 - mu_out[i])))
+        loglikelihood += weights[i] * -2 * (y[i] * log(mu_out[i]) + (1 - y[i]) * log(1 - mu_out[i]))
     return loglikelihood
 
 def binomial_logit_rowwise_gradient_hessian(
@@ -212,6 +212,5 @@ def binomial_logit_rowwise_gradient_hessian(
             eta_clipped = -max_float_for_exp
         else:
             eta_clipped = eta[i]
-        gradient_rows_out[i] = weights[i] * mu_unclipped * (1 - mu_unclipped) * \
-        (exp(eta_clipped) + 2 + exp(-eta_clipped)) * (y[i] - mu[i])
-        hessian_rows_out[i] = weights[i] * mu_unclipped * (1 - mu_unclipped)
+        gradient_rows_out[i] = weights[i] * (y[i] - mu[i])
+        hessian_rows_out[i] = weights[i] * mu[i] * (1 - mu[i])
