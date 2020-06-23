@@ -17,7 +17,39 @@ class MatrixBase(ABC):
 
     @abstractmethod
     def dot(self, other, rows: np.ndarray = None, cols: np.ndarray = None):
-        """ Matrix multiplication. """
+        """
+        Perform: self[rows, cols] @ other
+
+        The rows and cols parameters allow restricting to a subset of the
+        matrix without making a copy.
+        """
+        pass
+
+    @abstractmethod
+    def transpose_dot(
+        self,
+        vec: Union[np.ndarray, List],
+        rows: np.ndarray = None,
+        cols: np.ndarray = None,
+    ) -> np.ndarray:
+        """
+        Perform: self[rows, cols].T @ vec
+
+        The rows and cols parameters allow restricting to a subset of the
+        matrix without making a copy.
+        """
+        pass
+
+    @abstractmethod
+    def sandwich(
+        self, d: np.ndarray, rows: np.ndarray = None, cols: np.ndarray = None
+    ) -> np.ndarray:
+        """
+        Perform a sandwich product: (self[rows, cols].T * d[rows]) @ self[rows, cols]
+
+        The rows and cols parameters allow restricting to a subset of the
+        matrix without making a copy.
+        """
         pass
 
     def __matmul__(self, other):
@@ -28,27 +60,12 @@ class MatrixBase(ABC):
     def getcol(self, i: int):
         pass
 
-    @abstractmethod
-    def sandwich(
-        self, d: np.ndarray, rows: np.ndarray = None, cols: np.ndarray = None
-    ) -> np.ndarray:
-        pass
-
     @property
     def A(self) -> np.ndarray:
         return self.toarray()
 
     @abstractmethod
     def toarray(self) -> np.ndarray:
-        pass
-
-    @abstractmethod
-    def transpose_dot(
-        self,
-        vec: Union[np.ndarray, List],
-        rows: np.ndarray = None,
-        cols: np.ndarray = None,
-    ) -> np.ndarray:
         pass
 
     def __rmatmul__(self, other: Union[np.ndarray, List]) -> np.ndarray:

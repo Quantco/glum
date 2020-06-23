@@ -18,7 +18,7 @@ def _safe_lin_pred(
         cols=nonzero_coefs,
     )
 
-    if coef.size == X.shape[1] + 1:
+    if idx_offset == 1:
         res += coef[0]
     if offset is not None:
         return res + offset

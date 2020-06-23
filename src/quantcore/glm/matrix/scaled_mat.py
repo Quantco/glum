@@ -8,7 +8,7 @@ from quantcore.glm.matrix import MatrixBase
 
 class ColScaledMat:
     """
-    Matrix with ij element equal to mat[i, j] + shift[1, j]
+    Matrix with ij element equal to mat[i, j] + shift[0, j]
     """
 
     # TODO: make shift 1d
