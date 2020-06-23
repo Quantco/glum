@@ -242,9 +242,8 @@ def _unstandardize(
     col_stds: Optional[np.ndarray],
     intercept: float,
     coef: np.ndarray,
-) -> Tuple[mx.MatrixBase, float, np.ndarray]:
+) -> Tuple[float, np.ndarray]:
     assert isinstance(X, mx.StandardizedMat)
-    X_mat: mx.MatrixBase = X.unstandardize()
     if col_stds is None:
         intercept -= np.squeeze(np.squeeze(col_means).dot(np.atleast_1d(coef).T))
         # intercept -= float(np.squeeze(col_means).dot(coef))
@@ -254,7 +253,7 @@ def _unstandardize(
         )
         # intercept -= float(np.squeeze(col_means / col_stds).dot(coef))
         coef /= col_stds
-    return X_mat, intercept, coef
+    return intercept, coef
 
 
 def _standardize_warm_start(
@@ -679,18 +678,20 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         #######################################################################
         if self._center_predictors:
             assert isinstance(X, mx.StandardizedMat)
-            X, self.intercept_, self.coef_ = _unstandardize(
+            self.intercept_, self.coef_ = _unstandardize(
                 X, col_means, col_stds, self.intercept_, self.coef_,  # type: ignore
             )
 
         if self.fit_dispersion in ["chisqr", "deviance"]:
             # attention because of rescaling of weights
-            self.dispersion_ = self.estimate_phi(X, y, weights) * weights_sum
+            X_unstandardized = X.mat if isinstance(X, mx.StandardizedMat) else X
+            self.dispersion_ = (
+                self.estimate_phi(X_unstandardized, y, weights) * weights_sum
+            )
 
         del self._center_predictors
         del self._solver
         del self._random_state
-        return X
 
     def _get_alpha_path(
         self,
