@@ -244,7 +244,7 @@ def _unstandardize(
     coef: np.ndarray,
 ) -> Tuple[mx.MatrixBase, float, np.ndarray]:
     assert isinstance(X, mx.StandardizedMat)
-    X_mat: mx.MatrixBase = X.unstandardize(col_stds)
+    X_mat: mx.MatrixBase = X.unstandardize()
     if col_stds is None:
         intercept -= np.squeeze(np.squeeze(col_means).dot(np.atleast_1d(coef).T))
         # intercept -= float(np.squeeze(col_means).dot(coef))

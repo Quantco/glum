@@ -12,7 +12,6 @@ from quantcore.glm.matrix.ext.sparse import (
 )
 
 from .matrix_base import MatrixBase
-from .standardize import _scale_csc_columns_inplace
 from .util import setup_restrictions
 
 
@@ -130,9 +129,6 @@ class MKLSparseMatrix(sps.csc_matrix, MatrixBase):
 
     def get_col_stds(self, weights: np.ndarray, col_means: np.ndarray) -> np.ndarray:
         return np.sqrt(self.power(2).T.dot(weights) - col_means ** 2)
-
-    def scale_cols_inplace(self, col_scaling: np.ndarray) -> None:
-        _scale_csc_columns_inplace(self, col_scaling)
 
     def astype(self, dtype, order="K", casting="unsafe", copy=True):
         return super(MKLSparseMatrix, self).astype(dtype, casting, copy)

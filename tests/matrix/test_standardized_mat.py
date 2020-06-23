@@ -1,51 +1,37 @@
 import numpy as np
-import pytest
 from scipy import sparse as sps
 
-from quantcore.glm.matrix import StandardizedMat
+from quantcore.glm.matrix import MKLSparseMatrix, StandardizedMat
 
+# There's a lot more testing happening in the generic setting in
+# test_matrices.py
 
-def col_scaled_mat() -> StandardizedMat:
-    n_rows = 4
-    n_cols = 3
-
-    np.random.seed(0)
-    sp_mat = sps.random(n_rows, n_cols, density=0.8)
-    col_shift = np.random.uniform(0, 1, n_cols)
-    return StandardizedMat(sp_mat, col_shift)
-
-
-@pytest.fixture
-def col_scaled_mat_fixture():
-    return col_scaled_mat()
+np.random.seed(0)
+n_rows = 8
+n_cols = 5
+sp_mat = MKLSparseMatrix(sps.random(n_rows, n_cols, density=0.8))
+col_shift = np.random.uniform(0, 1, n_cols)
+col_mult = np.random.uniform(0.5, 1.5, n_cols)
+expected_mat = col_mult[None, :] * sp_mat.A + col_shift[None, :]
+standardized_mat = StandardizedMat(sp_mat, col_shift, col_mult)
 
 
 def test_setup_and_densify_col():
-
-    n_rows = 4
-    n_cols = 3
-
-    np.random.seed(0)
-    sp_mat = sps.random(n_rows, n_cols, density=0.8)
-    col_shift = np.random.uniform(0, 1, n_cols)
-    col_scaled_mat = StandardizedMat(sp_mat, col_shift)
-    expected = sp_mat.A + col_shift[None, :]
-    assert col_scaled_mat.A.shape == (n_rows, n_cols)
-    np.testing.assert_almost_equal(col_scaled_mat.A, expected)
+    assert standardized_mat.A.shape == (n_rows, n_cols)
+    np.testing.assert_almost_equal(standardized_mat.A, expected_mat)
 
 
-def test_setup_and_densify_row():
-    n_rows = 4
-    n_cols = 3
-
-    np.random.seed(0)
-    sp_mat = sps.random(n_rows, n_cols, density=0.8)
-    shift = np.random.uniform(0, 1, sp_mat.shape[1])
-    scaled_mat = StandardizedMat(sp_mat, shift)
-    expected = sp_mat.A + np.expand_dims(shift, 0)
-    assert scaled_mat.A.shape == (n_rows, n_cols)
-    np.testing.assert_almost_equal(scaled_mat.A, expected)
+def test_standardized_dot():
+    v = np.random.rand(standardized_mat.shape[1])
+    np.testing.assert_almost_equal(standardized_mat.dot(v), expected_mat.dot(v))
 
 
-def as_sparse(x: StandardizedMat) -> sps.csc_matrix:
-    return sps.csc_matrix(x.A)
+def test_standardized_transpose_dot():
+    v = np.random.rand(standardized_mat.shape[0])
+    np.testing.assert_almost_equal(standardized_mat.transpose_dot(v), v @ expected_mat)
+
+
+def test_standardized_sandwich():
+    v = np.random.rand(standardized_mat.shape[0])
+    expected = (expected_mat.T * v) @ expected_mat
+    np.testing.assert_almost_equal(standardized_mat.sandwich(v), expected)
