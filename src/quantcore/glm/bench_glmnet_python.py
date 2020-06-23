@@ -52,7 +52,7 @@ def glmnet_python_bench(
         thresh=benchmark_convergence_tolerance,
     )
     if "weights" in dat.keys():
-        glmnet_kws.update({"weights": dat["weights"]})
+        glmnet_kws.update({"weights": dat["weights"][:, None]})
     if "offset" in dat.keys():
         glmnet_kws.update({"offset": dat["offset"][:, None]})
 
