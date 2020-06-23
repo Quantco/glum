@@ -100,9 +100,9 @@ class MatrixBase(ABC):
         self, weights: np.ndarray, scale_predictors: bool
     ) -> Tuple[Any, np.ndarray, Optional[np.ndarray]]:
         """
-        Returns a ColScaledMat, col_means, and col_stds
+        Returns a StandardizedMat, col_means, and col_stds
         """
-        from .scaled_mat import ColScaledMat
+        from .standardized_mat import StandardizedMat
 
         col_means = self.get_col_means(weights)
         if scale_predictors:
@@ -114,7 +114,7 @@ class MatrixBase(ABC):
             col_stds = None
             shifter = -col_means
 
-        return ColScaledMat(self, shifter), col_means, col_stds
+        return StandardizedMat(self, shifter), col_means, col_stds
 
     @abstractmethod
     def scale_cols_inplace(self, col_scaling: np.ndarray) -> None:
