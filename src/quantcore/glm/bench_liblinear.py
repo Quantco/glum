@@ -48,6 +48,10 @@ def liblinear_bench(
         )
         return result
 
+    if "offset" in dat.keys():
+        warnings.warn("linear does not support offsets")
+        return result
+
     if cv:
         warnings.warn("liblinear does not yet support CV")
         return result
@@ -56,8 +60,7 @@ def liblinear_bench(
         penalty=pen,
         tol=benchmark_convergence_tolerance,
         C=1 / alpha if reg_multiplier is None else 1 / (alpha * reg_multiplier),
-        fit_intercept="offset" in dat.keys(),
-        # intercept_scaling=dat["offset"] if "offset" in dat.keys() else 1,
+        fit_intercept=False,
         solver="liblinear",
     )
 

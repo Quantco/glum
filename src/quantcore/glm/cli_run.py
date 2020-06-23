@@ -4,6 +4,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import click
 
+from quantcore.glm.bench_orig_sklearn_fork import orig_sklearn_fork_bench
+from quantcore.glm.bench_sklearn_fork import sklearn_fork_bench
 from quantcore.glm.problems import Problem, get_all_problems
 from quantcore.glm.util import (
     BenchmarkParams,
@@ -13,13 +15,9 @@ from quantcore.glm.util import (
     get_obj_val,
     get_tweedie_p,
 )
+from quantcore.glm.zeros_benchmark import zeros_bench
 
-"""from quantcore.glm.bench_orig_sklearn_fork import orig_sklearn_fork_bench
-from quantcore.glm.bench_sklearn_fork import sklearn_fork_bench"""
-
-# from quantcore.glm.zeros_benchmark import zeros_bench
-
-"""try:
+try:
     from quantcore.glm.bench_glmnet_python import glmnet_python_bench  # isort:skip
 
     GLMNET_PYTHON_INSTALLED = True
@@ -31,7 +29,7 @@ try:
 
     H20_INSTALLED = True
 except ImportError:
-    H20_INSTALLED = False"""
+    H20_INSTALLED = False
 
 try:
     from quantcore.glm.bench_liblinear import liblinear_bench  # isort:skip
@@ -138,16 +136,16 @@ def execute_problem_library(
 
 def get_all_libraries() -> Dict[str, Any]:
     all_libraries = {
-        # "sklearn-fork": sklearn_fork_bench,
-        # "orig-sklearn-fork": orig_sklearn_fork_bench,
-        # "zeros": zeros_bench,
+        "sklearn-fork": sklearn_fork_bench,
+        "orig-sklearn-fork": orig_sklearn_fork_bench,
+        "zeros": zeros_bench,
     }
 
-    # if GLMNET_PYTHON_INSTALLED:
-    #    all_libraries["glmnet-python"] = glmnet_python_bench
+    if GLMNET_PYTHON_INSTALLED:
+        all_libraries["glmnet-python"] = glmnet_python_bench
 
-    # if H20_INSTALLED:
-    #    all_libraries["h2o"] = h2o_bench
+    if H20_INSTALLED:
+        all_libraries["h2o"] = h2o_bench
 
     if LIBLINEAR_INSTALLED:
         all_libraries["liblinear"] = liblinear_bench
