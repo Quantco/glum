@@ -102,7 +102,7 @@ def update_hessian(state, data, active_set):
     small amount over several iterations which accumulates into a large change.
     """
 
-    # TODO: Updating just the active set results in errors if the active_set
+    # NOTE: Updating just the active set results in errors if the active_set
     # evers grows in size.I have never seen a situation where that happens
     # outside of Ben Spector's column minibatching, but it may be possible.  I
     # think it would be worthwhile to fix this issue and develop a workaround.
@@ -295,8 +295,8 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
             state.mu,
             state.obj_val,
             coef_P2,
-            state.n_updated,
         ) = line_search(state, data, d)
+        state.n_updated = np.sum(np.abs(d) > 0)
 
         # 3) Update the quadratic approximation
         state.gradient_rows, state.score, state.hessian_rows = update_quadratic(
@@ -607,7 +607,6 @@ def line_search(state, data, d):
     # The step direction in row space. We'll be multiplying this by varying
     # step sizes during the line search. Factoring this matrix-vector product
     # out of the inner loop improve performance a lot!
-    n_updated = np.sum(np.abs(d) > 0)
     X_dot_d = _safe_lin_pred(data.X, d)
 
     # Try progressively shorter line search steps.
@@ -632,7 +631,7 @@ def line_search(state, data, d):
     # of iterations since we aren't calculating eta or mu from scratch but
     # instead adding the delta from the previous iteration. Maybe we should
     # completely recompute eta every N iterations?
-    return state.coef + step, step, eta_wd, mu_wd, obj_val_wd, coef_wd_P2, n_updated
+    return state.coef + step, step, eta_wd, mu_wd, obj_val_wd, coef_wd_P2
 
 
 def _lbfgs_solver(

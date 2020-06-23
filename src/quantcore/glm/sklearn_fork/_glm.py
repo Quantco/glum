@@ -147,7 +147,6 @@ def check_X_y_matrix_compliant(
         y = y.astype(np.float64)
 
     check_consistent_length(X, y)
-    # TODO: check_array
     if not isinstance(X, mx.CategoricalMatrix):
         X = check_array_matrix_compliant(X, **kwargs)
 
@@ -306,8 +305,10 @@ def get_link(link: Union[str, Link], family: ExponentialDispersionModel) -> Link
             if family.power <= 0:
                 return IdentityLink()
             if family.power < 1:
-                # TODO: move more detailed error here
-                raise ValueError("No distribution")
+                raise ValueError(
+                    "For 0 < p < 1, no Tweedie distribution"
+                    " exists. Please choose a different distribution."
+                )
             return LogLink()
         if isinstance(family, GeneralizedHyperbolicSecant):
             return IdentityLink()
