@@ -142,10 +142,7 @@ cache
 # pkgs
 pkgs/*
 
-# Cython-generated .c/.cpp files
-# This is probably not comprehensive so do add more as located.
-src/glm_benchmarks/sklearn_fork/_cd_fast.c
-src/glm_benchmarks/sklearn_fork/_functions.cpp
-src/quantcore/glm/matrix/sandwich/categorical_sandwich.c
-src/quantcore/glm/sklearn_fork/_cd_fast.cpp
-src/quantcore/glm/sklearn_fork/_functions.cpp
+# Ignore .c/.cpp files (cython-generated) but keep the templates
+*.c
+*.cpp
+!*tmpl.cpp
