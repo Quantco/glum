@@ -33,16 +33,16 @@ def categorical_matrix_col_mult(order="F"):
     return mx.CategoricalMatrix(vec, [0.5, 3])
 
 
-def col_scaled_dense(order="F") -> mx.ColScaledMat:
-    return mx.ColScaledMat(dense_glm_data_matrix(order), [0.0, 1.0])
+def col_scaled_dense(order="F") -> mx.StandardizedMat:
+    return mx.StandardizedMat(dense_glm_data_matrix(order), [0.0, 1.0])
 
 
-def col_scaled_sparse(order="F") -> mx.ColScaledMat:
-    return mx.ColScaledMat(mkl_sparse_matrix(order), [0.0, 1.0])
+def col_scaled_sparse(order="F") -> mx.StandardizedMat:
+    return mx.StandardizedMat(mkl_sparse_matrix(order), [0.0, 1.0])
 
 
-def col_scaled_split(order="F") -> mx.ColScaledMat:
-    return mx.ColScaledMat(split_matrix(order), [0.0, 1.0])
+def col_scaled_split(order="F") -> mx.StandardizedMat:
+    return mx.StandardizedMat(split_matrix(order), [0.0, 1.0])
 
 
 unscaled_matrices = [
@@ -290,7 +290,7 @@ def test_standardize(mat, scale_predictors: bool):
     true_sds = np.sqrt((asarray ** 2).T.dot(weights) - true_means ** 2)
 
     standardized, means, stds = mat_.standardize(weights, scale_predictors)
-    assert isinstance(standardized, mx.ColScaledMat)
+    assert isinstance(standardized, mx.StandardizedMat)
     assert isinstance(standardized.mat, type(mat_))
     np.testing.assert_allclose(standardized.transpose_dot(weights), 0, atol=1e-11)
 

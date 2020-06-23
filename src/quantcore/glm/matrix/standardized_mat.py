@@ -6,7 +6,7 @@ from scipy import sparse as sps
 from quantcore.glm.matrix import MatrixBase
 
 
-class ColScaledMat:
+class StandardizedMat:
     """
     Matrix with ij element equal to mat[i, j] + shift[0, j]
     """
@@ -53,19 +53,19 @@ class ColScaledMat:
 
     def getcol(self, i: int):
         """
-        Returns a ColScaledSpMat.
+        Returns a StandardizedSpMat.
 
         >>> from scipy import sparse as sps
-        >>> x = ColScaledMat(sps.eye(3), shift=[0, 1, -2])
+        >>> x = StandardizedMat(sps.eye(3), shift=[0, 1, -2])
         >>> col_1 = x.getcol(1)
-        >>> isinstance(col_1, ColScaledMat)
+        >>> isinstance(col_1, StandardizedMat)
         True
         >>> col_1.A
         array([[1.],
                [2.],
                [1.]])
         """
-        return ColScaledMat(self.mat.getcol(i), [self.shift[i]])
+        return StandardizedMat(self.mat.getcol(i), [self.shift[i]])
 
     def sandwich(
         self, d: np.ndarray, rows: np.ndarray = None, cols: np.ndarray = None
@@ -185,4 +185,4 @@ class ColScaledMat:
         if isinstance(row, int):
             return mat_part.A + shift_part
 
-        return ColScaledMat(mat_part, np.atleast_1d(shift_part))
+        return StandardizedMat(mat_part, np.atleast_1d(shift_part))
