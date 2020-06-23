@@ -1,5 +1,12 @@
 [
   "wide-insurance-weights-l2-binomial",
   "wide-insurance-no-weights-l2-binomial",
-  "wide-insurance-offset-net-binomial"
+  "wide-insurance-offset-net-binomial",
+  "wide-insurance-weights-net-gaussian",
+  "wide-insurance-no-weights-net-gaussian",
+  "wide-insurance-no-weights-net-poisson",
+  "wide-insurance-offset-net-poisson",
+  "wide-insurance-no-weights-net-tweedie-p=1.5",
+  "wide-insurance-no-weights-lasso-gaussian",
+  "wide-insurance-offset-lasso-gaussian"
 ]

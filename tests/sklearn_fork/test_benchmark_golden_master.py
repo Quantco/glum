@@ -142,6 +142,11 @@ def run_and_store_golden_master(overwrite, problem_name):
     except FileNotFoundError:
         skipped_problems = []
 
+    # for setting the baseline, we want to have a more accurate estimate.
+    import quantcore.glm.util as util
+
+    util.benchmark_convergence_tolerance /= 100.0
+
     for Pn, P in get_all_problems().items():
         if is_weights_problem_with_offset_match(Pn):
             continue

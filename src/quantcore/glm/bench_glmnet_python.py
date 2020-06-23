@@ -5,7 +5,7 @@ import numpy as np
 from glmnet_python import cvglmnet, glmnet
 from scipy import sparse as sps
 
-from .util import benchmark_convergence_tolerance, runtime
+from .util import get_benchmark_convergence_tolerance, runtime
 
 
 def glmnet_python_bench(
@@ -49,7 +49,7 @@ def glmnet_python_bench(
         family=distribution,
         alpha=l1_ratio,
         standardize=False,
-        thresh=benchmark_convergence_tolerance,
+        thresh=get_benchmark_convergence_tolerance(),
     )
     if "weights" in dat.keys():
         glmnet_kws.update({"weights": dat["weights"][:, None]})

@@ -5,7 +5,7 @@ import numpy as np
 from scipy import sparse as sps
 
 from .orig_sklearn_fork import GeneralizedLinearRegressor, TweedieDistribution
-from .util import benchmark_convergence_tolerance, runtime
+from .util import get_benchmark_convergence_tolerance, runtime
 
 random_seed = 110
 
@@ -59,7 +59,7 @@ def orig_sklearn_fork_bench(
         random_state=random_seed,
         copy_X=False,
         selection="cyclic",
-        tol=benchmark_convergence_tolerance,
+        tol=get_benchmark_convergence_tolerance(),
     )
     model_args.update(kwargs)
 

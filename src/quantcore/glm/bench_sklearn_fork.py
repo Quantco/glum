@@ -10,7 +10,7 @@ from .sklearn_fork import (
     GeneralizedLinearRegressorCV,
     TweedieDistribution,
 )
-from .util import benchmark_convergence_tolerance, runtime
+from .util import get_benchmark_convergence_tolerance, runtime
 
 random_seed = 110
 
@@ -55,9 +55,8 @@ def sklearn_fork_bench(
         random_state=random_seed,
         copy_X=False,
         selection="cyclic",
-        # TODO: try tightening this later
-        gradient_tol=1 if cv else benchmark_convergence_tolerance,
-        step_size_tol=0.01 * benchmark_convergence_tolerance,
+        gradient_tol=1 if cv else get_benchmark_convergence_tolerance(),
+        step_size_tol=0.01 * get_benchmark_convergence_tolerance(),
         force_all_finite=False,
     )
     if not cv:
