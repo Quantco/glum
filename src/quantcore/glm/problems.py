@@ -86,9 +86,7 @@ def load_data(
 
 def get_all_problems() -> Dict[str, Problem]:
     regularization_strength = 0.001
-    distributions = [
-        "binomial"
-    ]  # ["gaussian", "poisson", "gamma", "tweedie-p=1.5", "binomial"]
+    distributions = ["gaussian", "poisson", "gamma", "tweedie-p=1.5", "binomial"]
     load_funcs = {
         "intermediate-insurance": generate_intermediate_insurance_dataset,
         "narrow-insurance": generate_narrow_insurance_dataset,
