@@ -236,6 +236,37 @@ def check_bounds(
     return bounds
 
 
+def _standardize(
+    X, weights, center_predictors, scale_predictors, lower_bounds, upper_bounds, P1, P2
+):
+    X, col_means, col_stds = X.standardize(weights, center_predictors, True)
+
+    if col_stds is not None:
+        # We copy the bounds when multiplying here so the we avoid
+        # side effects.
+        if lower_bounds is not None:
+            lower_bounds = lower_bounds * col_stds
+        if upper_bounds is not None:
+            upper_bounds = upper_bounds * col_stds
+
+    # NOTE: We always scale predictors. The only thing controlled by
+    # scale_predictors is whether or not we also scale the penalties.
+    # If scale_predictors=True, we do not scale penalties. This can be
+    # useful if the user wants to uniformly penalize in the scale
+    # coefficient space rather than in the original coefficient space.
+    if not scale_predictors and col_stds is not None:
+        penalty_mult = mx.one_over_var_inf_to_val(col_stds, 1.0)
+        P1 *= penalty_mult
+        if sparse.issparse(P2):
+            inv_col_stds_mat = sparse.diags(penalty_mult)
+            P2 = inv_col_stds_mat @ P2 @ inv_col_stds_mat
+        elif P2.ndim == 1:
+            P2 *= penalty_mult ** 2
+        else:
+            P2 = (penalty_mult[:, None] * P2) * penalty_mult[None, :]
+    return X, col_means, col_stds, lower_bounds, upper_bounds, P1, P2
+
+
 def _unstandardize(
     X: mx.StandardizedMat,
     col_means: np.ndarray,
@@ -246,13 +277,11 @@ def _unstandardize(
     assert isinstance(X, mx.StandardizedMat)
     if col_stds is None:
         intercept -= np.squeeze(np.squeeze(col_means).dot(np.atleast_1d(coef).T))
-        # intercept -= float(np.squeeze(col_means).dot(coef))
     else:
-        penalty_mult = mx.one_over_var_inf_to_zero(col_stds)
+        penalty_mult = mx.one_over_var_inf_to_val(col_stds, 1.0)
         intercept -= np.squeeze(
             np.squeeze(col_means * penalty_mult).dot(np.atleast_1d(coef).T)
         )
-        # intercept -= float(np.squeeze(col_means / col_stds).dot(coef))
         coef *= penalty_mult
     return intercept, coef
 
@@ -677,11 +706,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         #######################################################################
         # 5a. undo standardization
         #######################################################################
-        if self._center_predictors:
-            assert isinstance(X, mx.StandardizedMat)
-            self.intercept_, self.coef_ = _unstandardize(
-                X, col_means, col_stds, self.intercept_, self.coef_,  # type: ignore
-            )
+        assert isinstance(X, mx.StandardizedMat)
+        self.intercept_, self.coef_ = _unstandardize(
+            X, col_means, col_stds, self.intercept_, self.coef_,  # type: ignore
+        )
 
         if self.fit_dispersion in ["chisqr", "deviance"]:
             # attention because of rescaling of weights
@@ -1727,30 +1755,25 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         #######################################################################
         # 2c. potentially rescale predictors
         #######################################################################
-        if self._center_predictors:
-            X, col_means, col_stds = X.standardize(weights, True)
-            if not self.scale_predictors:
-                penalty_mult = mx.one_over_var_inf_to_zero(col_stds)
-                penalty_mult[penalty_mult == 0] = 1.0
-                P1_no_alpha *= penalty_mult
-                if sparse.issparse(P2_no_alpha):
-                    inv_col_stds_mat = sparse.diags(penalty_mult)
-                    P2_no_alpha = inv_col_stds_mat @ P2_no_alpha @ inv_col_stds_mat
-                elif P2_no_alpha.ndim == 1:
-                    P2_no_alpha *= penalty_mult ** 2
-                else:
-                    P2_no_alpha = (penalty_mult[:, None] * P2_no_alpha) * penalty_mult[
-                        None, :
-                    ]
-            if col_stds is not None:
-                # We copy the bounds when multiplying here so the we avoid
-                # side effects.
-                if lower_bounds is not None:
-                    lower_bounds = lower_bounds * col_stds
-                if upper_bounds is not None:
-                    upper_bounds = upper_bounds * col_stds
-        else:
-            col_means, col_stds = None, None
+
+        (
+            X,
+            col_means,
+            col_stds,
+            lower_bounds,
+            upper_bounds,
+            P1_no_alpha,
+            P2_no_alpha,
+        ) = _standardize(
+            X,
+            weights,
+            self._center_predictors,
+            self.scale_predictors,
+            lower_bounds,
+            upper_bounds,
+            P1_no_alpha,
+            P2_no_alpha,
+        )
 
         #######################################################################
         # 3. initialization of coef = (intercept_, coef_)                     #

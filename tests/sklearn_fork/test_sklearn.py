@@ -1248,7 +1248,7 @@ def test_standardize(use_sparse, scale_predictors):
     else:
         M = mx.DenseGLMDataMatrix(M)
 
-    X, col_means, col_stds = M.standardize(np.ones(NR) / NR, scale_predictors)
+    X, col_means, col_stds = M.standardize(np.ones(NR) / NR, True, scale_predictors)
     if use_sparse:
         assert _arrays_share_data(X.mat.data, M.data)
         assert _arrays_share_data(X.mat.indices, M.indices)
