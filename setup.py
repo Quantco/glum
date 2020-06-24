@@ -85,12 +85,7 @@ ext_modules = [
     Extension(
         name="quantcore.glm.matrix.ext.categorical",
         sources=["src/quantcore/glm/matrix/ext/categorical.pyx"],
-        **extension_args,
-    ),
-    Extension(
-        name="quantcore.glm.matrix.ext.split",
-        sources=["src/quantcore/glm/matrix/ext/split.pyx"],
-        **extension_args,
+        include_dirs=[np.get_include()],
     ),
     Extension(
         name="quantcore.glm.sklearn_fork._functions",

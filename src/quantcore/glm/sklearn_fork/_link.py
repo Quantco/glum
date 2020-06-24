@@ -121,7 +121,7 @@ class LogitLink(Link):
     def inverse(self, lin_pred):
         """Note: since passing a very large value might result in an output
         of 1, this function bounds the output to be between
-        [10^-14, 1 - 10^-14].
+        [50*eps, 1 - 50*eps] where eps is floating point epsilon.
         """
         inv_logit = special.expit(lin_pred)
         eps50 = 50 * np.finfo(inv_logit.dtype).eps

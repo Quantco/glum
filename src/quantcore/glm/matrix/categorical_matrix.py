@@ -4,8 +4,7 @@ import numpy as np
 import pandas as pd
 from scipy import sparse as sps
 
-from quantcore.glm.matrix.ext.categorical import sandwich_categorical
-
+from .ext.categorical import sandwich_categorical
 from .matrix_base import MatrixBase
 from .mkl_sparse_matrix import MKLSparseMatrix
 
@@ -56,6 +55,9 @@ class CategoricalMatrix(MatrixBase):
         When other is 2d:
         mat.dot(other)[i, k] = sum_j mat[i, j] other[j, k] * col_mult
                             = (other * col_mult[None, :])[mat.indices[i], k]
+
+        The rows and cols parameters allow restricting to a subset of the
+        matrix without making a copy.
         """
         other = np.asarray(other)
         if other.shape[0] != self.shape[1]:
@@ -91,6 +93,12 @@ class CategoricalMatrix(MatrixBase):
         rows: np.ndarray = None,
         cols: np.ndarray = None,
     ) -> np.ndarray:
+        """
+        Perform: self[rows, cols].T @ vec
+
+        The rows and cols parameters allow restricting to a subset of the
+        matrix without making a copy.
+        """
         # TODO: write a function that doesn't reference the data. That will be
         # especially helpful with a col_mult
         vec = np.asarray(vec)
@@ -113,6 +121,9 @@ class CategoricalMatrix(MatrixBase):
             = 0 if i != j
         sandwich(self, d)[i, i] = sum_k self[k, i] ** 2 * d(k)
                = col_mult[i] ** 2 *  sum_k self.mat[k, i]** 2
+
+        The rows and cols parameters allow restricting to a subset of the
+        matrix without making a copy.
         """
         # TODO: make downstream calls to this exploit the sparse structure
         d = np.asarray(d)
