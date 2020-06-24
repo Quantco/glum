@@ -16,6 +16,7 @@ bench_cfg = dict(
     regularization_strength=0.1,
     storage="dense",
     print_diagnostics=False,
+    single_precision=True,
 )
 
 all_test_problems = get_all_problems()
