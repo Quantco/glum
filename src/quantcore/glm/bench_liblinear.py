@@ -7,11 +7,11 @@ from sklearn.linear_model import LogisticRegression
 
 from .util import benchmark_convergence_tolerance, runtime
 
+random_seed = 110
+
 
 def build_and_fit(model_args, train_args):
-    clf = LogisticRegression(**model_args)
-    clf.fit(**train_args)
-    return clf
+    return LogisticRegression(**model_args).fit(**train_args)
 
 
 def liblinear_bench(
@@ -60,19 +60,19 @@ def liblinear_bench(
         penalty=pen,
         tol=benchmark_convergence_tolerance,
         C=1 / alpha if reg_multiplier is None else 1 / (alpha * reg_multiplier),
-        fit_intercept=False,
+        random_state=random_seed,
         solver="liblinear",
     )
 
-    train_args = dict(
+    fit_args = dict(
         X=X,
         y=dat["y"].astype(np.int64).copy(),
         sample_weight=dat["weights"] if "weights" in dat.keys() else None,
     )
 
-    result["runtime"], m = runtime(build_and_fit, iterations, model_args, train_args)
-    result["intercept"] = m.intercept_
+    result["runtime"], m = runtime(build_and_fit, iterations, model_args, fit_args)
+    result["intercept"] = m.intercept_[0]
     result["coef"] = np.squeeze(m.coef_)
-    result["n_iter"] = m.n_iter_
+    result["n_iter"] = m.n_iter_[0]
 
     return result
