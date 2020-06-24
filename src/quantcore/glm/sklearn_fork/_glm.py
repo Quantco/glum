@@ -1731,9 +1731,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             if not self.scale_predictors:
                 penalty_mult = mx.one_over_var_inf_to_zero(col_stds)
                 penalty_mult[penalty_mult == 0] = 1.0
-                import ipdb
-
-                ipdb.set_trace()
                 P1_no_alpha *= penalty_mult
                 if sparse.issparse(P2_no_alpha):
                     inv_col_stds_mat = sparse.diags(penalty_mult)
