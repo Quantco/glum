@@ -1,11 +1,12 @@
-from typing import Any, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
+from dask_ml.compose import ColumnTransformer
+from dask_ml.preprocessing import DummyEncoder
 from git_root import git_root
-from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import FunctionTransformer, OneHotEncoder, OrdinalEncoder
+from sklearn.preprocessing import FunctionTransformer, OrdinalEncoder
 
 from ..util import exposure_and_offset_to_weights
 
@@ -84,18 +85,27 @@ def create_raw_data() -> None:
     df.to_parquet(git_root("data/insurance.parquet"))
 
 
-class PdCategoricalEncoder:
-    def fit_transform(self, x):
-        return pd.Categorical(x)
+def get_to_df_trans(columns: List[str]) -> Tuple[str, FunctionTransformer]:
+    return "to_df", FunctionTransformer(lambda x: pd.DataFrame(x, columns=columns))
 
 
-def categorical_encoder(one_hot_encode: bool, *args, **kwargs):
-    if one_hot_encode:
-        return OneHotEncoder(*args, **kwargs)
-    return PdCategoricalEncoder()
+categorical_transformer = (
+    "to_cat",
+    FunctionTransformer(lambda x: x.astype("category"), validate=False),
+)
+reset_index_transformer = (
+    "reset_index",
+    FunctionTransformer(lambda x: x.reset_index(drop=True), validate=False),
+)
+
+categorical_trans_list = [
+    categorical_transformer,
+    ("OHE", DummyEncoder()),
+    reset_index_transformer,
+]
 
 
-def gen_col_trans() -> Tuple[Any, List[str]]:
+def gen_col_trans() -> Tuple[ColumnTransformer, List[str]]:
     """Generate a ColumnTransformer and list of names.
 
     With drop=False and standardize=False, the transformer corresponds to the GLM of the case study paper.
@@ -116,8 +126,8 @@ def gen_col_trans() -> Tuple[Any, List[str]]:
                                 lambda x: np.minimum(x, 9), validate=False
                             ),
                         ),
-                        ("OHE", OneHotEncoder(),),
                     ]
+                    + categorical_trans_list
                 ),
                 ["VehPower"],
             ),
@@ -135,8 +145,9 @@ def gen_col_trans() -> Tuple[Any, List[str]]:
                                 validate=False,
                             ),
                         ),
-                        ("OHE", OneHotEncoder(),),
+                        get_to_df_trans(["VehAge_cat"]),
                     ]
+                    + categorical_trans_list
                 ),
                 ["VehAge"],
             ),
@@ -152,8 +163,9 @@ def gen_col_trans() -> Tuple[Any, List[str]]:
                                 validate=False,
                             ),
                         ),
-                        ("OHE", OneHotEncoder(),),
+                        get_to_df_trans(["DrivAge_cat"]),
                     ]
+                    + categorical_trans_list
                 ),
                 ["DrivAge"],
             ),
@@ -166,21 +178,29 @@ def gen_col_trans() -> Tuple[Any, List[str]]:
                             FunctionTransformer(
                                 lambda x: np.minimum(x, 150), validate=False
                             ),
-                        )
+                        ),
+                        reset_index_transformer,
                     ]
                 ),
                 ["BonusMalus"],
             ),
-            ("VehBrand_cat", OneHotEncoder(), ["VehBrand"],),
-            ("VehGas_Regular", OneHotEncoder(), ["VehGas"],),
+            ("VehBrand_cat", Pipeline(categorical_trans_list), ["VehBrand"]),
+            ("VehGas_Regular", Pipeline(categorical_trans_list), ["VehGas"]),
             (
                 "Density_log",
                 Pipeline(
-                    [("log", FunctionTransformer(lambda x: np.log(x), validate=False))]
+                    [
+                        (
+                            "log",
+                            FunctionTransformer(lambda x: np.log(x), validate=False),
+                        ),
+                        get_to_df_trans(["Density"]),
+                        reset_index_transformer,
+                    ],
                 ),
                 ["Density"],
             ),
-            ("Region_cat", OneHotEncoder(), ["Region"]),
+            ("Region_cat", Pipeline(categorical_trans_list), ["Region"]),
             (
                 "Area_ord",
                 Pipeline(
@@ -190,6 +210,7 @@ def gen_col_trans() -> Tuple[Any, List[str]]:
                             "plus_1",
                             FunctionTransformer(lambda x: x + 1, validate=False),
                         ),
+                        get_to_df_trans(["Area"]),
                     ]
                 ),
                 ["Area"],
@@ -329,7 +350,7 @@ def read_insurance_data(
 
 def generate_narrow_insurance_dataset(
     num_rows=None, noise=None, distribution="poisson"
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> Tuple[pd.DataFrame, np.ndarray, np.ndarray]:
     """Generate the tutorial data set from the sklearn fork and save it to disk."""
 
     df = read_insurance_data(num_rows, noise, distribution)
@@ -370,12 +391,12 @@ def generate_real_insurance_dataset(
         offset=df["offset_kh_sach_frequenz"],
     )
 
-    return (X.to_numpy(), y, weights)
+    return X, y, weights
 
 
 def generate_wide_insurance_dataset(
     num_rows=None, noise=None, distribution="poisson"
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> Tuple[pd.DataFrame, np.ndarray, np.ndarray]:
     """Generate a version of the tutorial data set with many features."""
     df = read_insurance_data(num_rows, noise, distribution)
 
@@ -383,12 +404,12 @@ def generate_wide_insurance_dataset(
         [
             (
                 "numerics",
-                FunctionTransformer(),
+                Pipeline([("id", FunctionTransformer()), reset_index_transformer]),
                 lambda x: x.select_dtypes(["number"]).columns,
             ),
             (
                 "one_hot_encode",
-                OneHotEncoder(),
+                Pipeline(categorical_trans_list),
                 [
                     "Area",
                     "VehPower",
@@ -405,13 +426,12 @@ def generate_wide_insurance_dataset(
         sparse_threshold=0.0,
     )
     y, exposure = compute_y_exposure(df, distribution)
-
     return transformer.fit_transform(df), y, exposure
 
 
 def generate_intermediate_insurance_dataset(
     num_rows=None, noise=None, distribution="poisson"
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> Tuple[pd.DataFrame, np.ndarray, np.ndarray]:
     """Generate the tutorial data set from the sklearn fork and save it to disk."""
 
     df = read_insurance_data(num_rows, noise, distribution)
@@ -419,7 +439,7 @@ def generate_intermediate_insurance_dataset(
 
     col_trans_GLM1, _ = gen_col_trans()
     col_trans_GLM1.transformers.append(
-        ("BonusMalusClipped", OneHotEncoder(), ["BonusMalusClipped"],)
+        ("BonusMalusClipped", Pipeline(categorical_trans_list), ["BonusMalusClipped"],)
     )
     y, exposure = compute_y_exposure(df, distribution)
 
