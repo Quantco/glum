@@ -58,8 +58,8 @@ def sklearn_fork_bench(
         selection="cyclic",
         gradient_tol=1 if cv else benchmark_convergence_tolerance,
         step_size_tol=0.01 * benchmark_convergence_tolerance,
-        hessian_approx=hessian_approx,
         force_all_finite=False,
+        hessian_approx=hessian_approx,
     )
     if not cv:
         model_args["alpha"] = (
