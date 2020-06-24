@@ -6,7 +6,8 @@ import pandas as pd
 from scipy import sparse as sps
 
 import quantcore.glm.matrix as mx
-from quantcore.glm.matrix.sandwich.sandwich import dense_sandwich, sparse_sandwich
+from quantcore.glm.matrix.ext.dense import dense_sandwich
+from quantcore.glm.matrix.ext.sparse import sparse_sandwich
 from quantcore.glm.problems import (
     generate_narrow_insurance_dataset,
     generate_wide_insurance_dataset,
