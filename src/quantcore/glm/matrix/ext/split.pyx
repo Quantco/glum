@@ -33,7 +33,6 @@ def split_col_subsets(self, int[:] cols):
     cdef int i
     cdef int n_cols = cols.shape[0]
 
-
     for i in range(n_cols):
         for j in range(n_matrices):
             while (
@@ -60,4 +59,5 @@ def split_col_subsets(self, int[:] cols):
             np.array(subset_cols[j], dtype=np.int32)
             for j in range(n_matrices)
         ],
+        n_cols
     )
