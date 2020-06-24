@@ -875,11 +875,7 @@ def test_poisson_ridge(solver, tol, scale_predictors, use_sparse):
     check(glm2)
     assert glm2.n_iter_ <= 1
 
-
-# @pytest.mark.parametrize(
-#     "solver, tol", [("irls-ls", 1e-7), ("lbfgs", 1e-7), ("irls-cd", 1e-7)]
-# )
-# @pytest.mark.parametrize("use_sparse", [True, False])
+    
 @pytest.mark.parametrize("scale_predictors", [True, False])
 def test_poisson_ridge_bounded(scale_predictors):
     X = np.array([[-1, 1, 1, 2], [0, 0, 1, 1]], dtype=np.float).T
