@@ -1728,14 +1728,12 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         #######################################################################
         if self._center_predictors:
             X, col_means, col_stds = X.standardize(weights, True)
-            import ipdb
-
-            ipdb.set_trace()
             if not self.scale_predictors:
-                from quantcore.glm.matrix.matrix_base import one_over_var_inf_to_zero
-
-                penalty_mult = one_over_var_inf_to_zero(col_stds)
+                penalty_mult = mx.one_over_var_inf_to_zero(col_stds)
                 penalty_mult[penalty_mult == 0] = 1.0
+                import ipdb
+
+                ipdb.set_trace()
                 P1_no_alpha *= penalty_mult
                 if sparse.issparse(P2_no_alpha):
                     inv_col_stds_mat = sparse.diags(penalty_mult)
@@ -1746,6 +1744,13 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
                     P2_no_alpha = (penalty_mult[:, None] * P2_no_alpha) * penalty_mult[
                         None, :
                     ]
+            if col_stds is not None:
+                # We copy the bounds when multiplying here so the we avoid
+                # side effects.
+                if lower_bounds is not None:
+                    lower_bounds = lower_bounds * col_stds
+                if upper_bounds is not None:
+                    upper_bounds = upper_bounds * col_stds
         else:
             col_means, col_stds = None, None
 
