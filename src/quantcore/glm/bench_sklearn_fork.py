@@ -60,7 +60,6 @@ def sklearn_fork_bench(
         step_size_tol=0.01 * benchmark_convergence_tolerance,
         hessian_approx=hessian_approx,
         force_all_finite=False,
-        hessian_approx=hessian_approx,
     )
     if not cv:
         model_args["alpha"] = (
