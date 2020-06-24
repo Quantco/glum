@@ -102,7 +102,7 @@ def update_hessian(state, data, active_set):
     small amount over several iterations which accumulates into a large change.
     """
 
-    # TODO: Updating just the active set results in errors if the active_set
+    # NOTE: Updating just the active set results in errors if the active_set
     # evers grows in size.I have never seen a situation where that happens
     # outside of Ben Spector's column minibatching, but it may be possible.  I
     # think it would be worthwhile to fix this issue and develop a workaround.
@@ -297,6 +297,7 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
             coef_P2,
             state.n_updated,
         ) = line_search(state, data, d)
+        state.n_updated = np.sum(np.abs(d) > 0)
 
         # 3) Update the quadratic approximation
         state.gradient_rows, state.score, state.hessian_rows = update_quadratic(

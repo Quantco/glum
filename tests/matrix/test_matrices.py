@@ -33,16 +33,20 @@ def categorical_matrix_col_mult(order="F"):
     return mx.CategoricalMatrix(vec, [0.5, 3])
 
 
-def col_scaled_dense(order="F") -> mx.ColScaledMat:
-    return mx.ColScaledMat(dense_glm_data_matrix(order), [0.0, 1.0])
+def standardized_dense_shifted(order="F") -> mx.StandardizedMat:
+    return mx.StandardizedMat(dense_glm_data_matrix(order), [0.0, 1.0])
 
 
-def col_scaled_sparse(order="F") -> mx.ColScaledMat:
-    return mx.ColScaledMat(mkl_sparse_matrix(order), [0.0, 1.0])
+def standardized_dense_scaled_shifted(order="F") -> mx.StandardizedMat:
+    return mx.StandardizedMat(dense_glm_data_matrix(order), [0.0, 1.0], [0.6, 1.67])
 
 
-def col_scaled_split(order="F") -> mx.ColScaledMat:
-    return mx.ColScaledMat(split_matrix(order), [0.0, 1.0])
+def standardized_sparse(order="F") -> mx.StandardizedMat:
+    return mx.StandardizedMat(mkl_sparse_matrix(order), [0.0, 1.0])
+
+
+def standardized_split(order="F") -> mx.StandardizedMat:
+    return mx.StandardizedMat(split_matrix(order), [0.0, 1.0])
 
 
 unscaled_matrices = [
@@ -53,7 +57,12 @@ unscaled_matrices = [
     categorical_matrix_col_mult,
 ]
 
-scaled_matrices = [col_scaled_dense, col_scaled_sparse, col_scaled_split]
+scaled_matrices = [
+    standardized_dense_shifted,
+    standardized_dense_scaled_shifted,
+    standardized_sparse,
+    standardized_split,
+]
 
 matrices = unscaled_matrices + scaled_matrices  # type: ignore
 
@@ -87,7 +96,10 @@ def test_to_array(mat, order):
 def test_to_array_scaled(mat, order):
     mat_ = mat(order)
     assert isinstance(mat_.A, np.ndarray)
-    np.testing.assert_allclose(mat_.A, mat_.mat.A + np.array([[0, 1]]))
+    true_mat_part = mat_.mat.A
+    if mat_.mult is not None:
+        true_mat_part = mat_.mult[None, :] * mat_.mat.A
+    np.testing.assert_allclose(mat_.A, true_mat_part + mat_.shift)
 
 
 @pytest.mark.parametrize("mat", matrices)
@@ -290,7 +302,7 @@ def test_standardize(mat, scale_predictors: bool):
     true_sds = np.sqrt((asarray ** 2).T.dot(weights) - true_means ** 2)
 
     standardized, means, stds = mat_.standardize(weights, scale_predictors)
-    assert isinstance(standardized, mx.ColScaledMat)
+    assert isinstance(standardized, mx.StandardizedMat)
     assert isinstance(standardized.mat, type(mat_))
     np.testing.assert_allclose(standardized.transpose_dot(weights), 0, atol=1e-11)
 
@@ -307,7 +319,7 @@ def test_standardize(mat, scale_predictors: bool):
 
     np.testing.assert_allclose(standardized.A, (asarray - true_means) * one_over_sds)
 
-    unstandardized = standardized.unstandardize(stds)
+    unstandardized = standardized.unstandardize()
     assert isinstance(unstandardized, type(mat_))
     np.testing.assert_allclose(unstandardized.A, asarray)
 

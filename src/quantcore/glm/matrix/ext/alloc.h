@@ -22,6 +22,8 @@ std::size_t round_to_align(std::size_t size, std::size_t alignment) {
 
 // This function returns a safe smart pointer that will properly delete a
 // segment of alligned memory.
+// Internally, it handles distinguishing between Windows and non-Windows
+// allocation.
 template <typename F>
 std::unique_ptr<F, std::function<void(F*)>> make_aligned_unique(std::size_t size, std::size_t alignment) {
     std::size_t aligned_size = round_to_align(size * sizeof(F), alignment);

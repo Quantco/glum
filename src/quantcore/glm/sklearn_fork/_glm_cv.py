@@ -1,6 +1,5 @@
 from __future__ import division
 
-import copy
 from typing import Optional, Union
 
 import numpy as np
@@ -382,8 +381,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             )
 
             if self._center_predictors:
-                _, intercept, coef_tmp = _unstandardize(
-                    copy.copy(x_train), col_means, col_stds, coef[:, 0], coef[:, 1:]
+                intercept, coef_tmp = _unstandardize(
+                    x_train, col_means, col_stds, coef[:, 0], coef[:, 1:]
                 )
                 coef_path_ = np.concatenate(
                     [intercept[:, np.newaxis], coef_tmp], axis=1
