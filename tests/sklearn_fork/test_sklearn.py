@@ -875,7 +875,7 @@ def test_poisson_ridge(solver, tol, scale_predictors, use_sparse):
     check(glm2)
     assert glm2.n_iter_ <= 1
 
-    
+
 @pytest.mark.parametrize("scale_predictors", [True, False])
 def test_poisson_ridge_bounded(scale_predictors):
     X = np.array([[-1, 1, 1, 2], [0, 0, 1, 1]], dtype=np.float).T
@@ -910,7 +910,7 @@ def test_poisson_ridge_bounded(scale_predictors):
     )
     glm.fit(X, y)
 
-    # These correct values come from glmnet. 
+    # These correct values come from glmnet.
     assert_allclose(glm.intercept_, -0.13568186971946633, rtol=1e-5)
     assert_allclose(glm.coef_, [0.1, 0.1], rtol=1e-5)
 
