@@ -3,11 +3,11 @@ from typing import Union
 import numpy as np
 from scipy import sparse
 
-from quantcore.glm.matrix import ColScaledMat, MatrixBase
+from quantcore.glm.matrix import MatrixBase, StandardizedMat
 
 
 def _safe_lin_pred(
-    X: Union[MatrixBase, ColScaledMat], coef: np.ndarray, offset: np.ndarray = None
+    X: Union[MatrixBase, StandardizedMat], coef: np.ndarray, offset: np.ndarray = None
 ) -> np.ndarray:
     """Compute the linear predictor taking care if intercept is present."""
     idx_offset = 0 if X.shape[1] == coef.shape[0] else 1
@@ -26,7 +26,7 @@ def _safe_lin_pred(
 
 
 def _safe_sandwich_dot(
-    X: Union[MatrixBase, ColScaledMat],
+    X: Union[MatrixBase, StandardizedMat],
     d: np.ndarray,
     rows: np.ndarray = None,
     cols: np.ndarray = None,
