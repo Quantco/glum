@@ -1209,7 +1209,6 @@ def test_standardize(use_sparse, scale_predictors):
         M = mx.MKLSparseMatrix(sparse.csc_matrix(M))
     else:
         M = mx.DenseGLMDataMatrix(M)
-    MC = copy.deepcopy(M)
 
     X, col_means, col_stds = M.standardize(np.ones(NR) / NR, scale_predictors)
     if use_sparse:
@@ -1229,12 +1228,12 @@ def test_standardize(use_sparse, scale_predictors):
         Xdense = X
     for i in range(1, NC):
         if scale_predictors:
-            if isinstance(Xdense, mx.ColScaledMat):
+            if isinstance(Xdense, mx.StandardizedMat):
                 one, two = Xdense.A[:, 0], Xdense.A[:, i]
             else:
                 one, two = Xdense[:, 0], Xdense[:, i]
         else:
-            if isinstance(Xdense, mx.ColScaledMat):
+            if isinstance(Xdense, mx.StandardizedMat):
                 one, two = (i + 1) * Xdense.A[:, 0], Xdense.A[:, i]
             else:
                 one, two = (i + 1) * Xdense[:, 0], Xdense[:, i]
@@ -1249,23 +1248,12 @@ def test_standardize(use_sparse, scale_predictors):
     coef_standardized = (
         np.ones_like(col_means) if col_stds is None else copy.copy(col_stds)
     )
-    X2, intercept, coef = _unstandardize(
+    intercept, coef = _unstandardize(
         X, col_means, col_stds, intercept_standardized, coef_standardized,
     )
-    if use_sparse:
-        assert _arrays_share_data(X2.data, X.mat.data)
-    else:
-        assert _arrays_share_data(X2, X.mat)
     np.testing.assert_almost_equal(intercept, -(NC + 1) * NC / 2)
     if scale_predictors:
         np.testing.assert_almost_equal(coef, 1.0)
-
-    if use_sparse:
-        assert type(X.mat) in [sparse.csc_matrix, mx.MKLSparseMatrix]
-        assert type(X2) in [sparse.csc_matrix, mx.MKLSparseMatrix]
-        np.testing.assert_almost_equal(MC.toarray(), X2.toarray())
-    else:
-        np.testing.assert_almost_equal(MC, X2)
 
 
 @pytest.mark.parametrize("estimator, kwargs", estimators)

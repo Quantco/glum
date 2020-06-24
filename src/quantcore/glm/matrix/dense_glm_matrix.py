@@ -93,6 +93,3 @@ class DenseGLMDataMatrix(np.ndarray, MatrixBase):
         cols: np.ndarray = None,
     ) -> np.ndarray:
         return self.dot_helper(vec, rows, cols, False)
-
-    def scale_cols_inplace(self, col_scaling: np.ndarray) -> None:
-        self *= col_scaling[None, :]
