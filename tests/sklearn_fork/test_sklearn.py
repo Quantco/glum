@@ -837,8 +837,7 @@ def test_poisson_ridge(solver, tol, scale_predictors, use_sparse):
     else:
         X = X_dense
     y = np.array([0, 1, 1, 2], dtype=np.float)
-    rng = np.random.RandomState(42)
-    glm = GeneralizedLinearRegressor(
+    model_args = dict(
         alpha=1,
         l1_ratio=0,
         fit_intercept=True,
@@ -847,11 +846,11 @@ def test_poisson_ridge(solver, tol, scale_predictors, use_sparse):
         gradient_tol=1e-7,
         solver=solver,
         max_iter=300,
-        random_state=rng,
+        random_state=np.random.RandomState(42),
         copy_X=True,
         scale_predictors=scale_predictors,
     )
-
+    glm = GeneralizedLinearRegressor(**model_args)
     glm2 = copy.deepcopy(glm)
 
     def check(G):
@@ -875,6 +874,48 @@ def test_poisson_ridge(solver, tol, scale_predictors, use_sparse):
     glm2.start_params = np.concatenate(([glm.intercept_], glm.coef_))
     check(glm2)
     assert glm2.n_iter_ <= 1
+
+
+# @pytest.mark.parametrize(
+#     "solver, tol", [("irls-ls", 1e-7), ("lbfgs", 1e-7), ("irls-cd", 1e-7)]
+# )
+# @pytest.mark.parametrize("use_sparse", [True, False])
+@pytest.mark.parametrize("scale_predictors", [True, False])
+def test_poisson_ridge_bounded(scale_predictors):
+    X = np.array([[-1, 1, 1, 2], [0, 0, 1, 1]], dtype=np.float).T
+    y = np.array([0, 1, 1, 2], dtype=np.float)
+    lb = np.array([-0.1, -0.1])
+    ub = np.array([0.1, 0.1])
+
+    # For comparison!
+    # from glmnet_python import glmnet
+    # model = glmnet(x=X.copy(), y=y.copy(), alpha=0, family="poisson",
+    #               standardize=scale_predictors, thresh=1e-10, lambdau=np.array([1.0]),
+    #               cl = np.array([lb, ub])
+    #               )
+    # true_intercept = model["a0"][0]
+    # true_beta = model["beta"][:, 0]
+    # print(true_intercept, true_beta)
+
+    glm = GeneralizedLinearRegressor(
+        alpha=1,
+        l1_ratio=0,
+        fit_intercept=True,
+        family="poisson",
+        link="log",
+        gradient_tol=1e-7,
+        solver="irls-cd",
+        max_iter=300,
+        random_state=np.random.RandomState(42),
+        copy_X=True,
+        scale_predictors=scale_predictors,
+        lower_bounds=lb,
+        upper_bounds=ub,
+    )
+    glm.fit(X, y)
+
+    assert_allclose(glm.intercept_, -0.13568186971946633, rtol=1e-5)
+    assert_allclose(glm.coef_, [0.1, 0.1], rtol=1e-5)
 
 
 def test_normal_enet():
@@ -1369,3 +1410,27 @@ def test_very_large_initial_gradient():
     ).fit(X, y)
 
     np.testing.assert_allclose(model_0.coef_, model_5.coef_, rtol=1e-5)
+
+
+def test_fit_has_no_side_effects():
+    y = np.array([0, 1, 2])
+    w = np.array([0.5, 0.5, 0.5])
+    X = np.array([[1, 1, 1]]).reshape(-1, 1)
+    win = w.copy()
+    yin = y.copy()
+    Xin = X.copy()
+    GeneralizedLinearRegressor(family="poisson").fit(Xin, yin, sample_weight=win)
+    np.testing.assert_almost_equal(Xin, X)
+    np.testing.assert_almost_equal(yin, y)
+    np.testing.assert_almost_equal(win, w)
+    GeneralizedLinearRegressor(family="poisson").fit(Xin, yin, offset=win)
+    np.testing.assert_almost_equal(win, w)
+    lb = np.array([-1.2])
+    ub = np.array([1.2])
+    lbin = lb.copy()
+    ubin = ub.copy()
+    GeneralizedLinearRegressor(
+        family="poisson", scale_predictors=True, lower_bounds=lbin, upper_bounds=ubin
+    ).fit(Xin, yin)
+    np.testing.assert_almost_equal(lbin, lb)
+    np.testing.assert_almost_equal(ubin, ub)
