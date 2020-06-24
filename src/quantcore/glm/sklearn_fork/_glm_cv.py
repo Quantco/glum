@@ -394,15 +394,15 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
                 upper_bounds=upper_bounds,
             )
 
-            if self._center_predictors:
-                intercept, coef_tmp = _unstandardize(
-                    x_train, col_means, col_stds, coef[:, 0], coef[:, 1:]
-                )
+            intercept = coef[:, 0] if self.fit_intercept else 0.0
+            intercept_offset = 1 if self.fit_intercept else 0
+            intercept, coef_path_ = _unstandardize(
+                x_train, col_means, col_stds, intercept, coef[:, intercept_offset:]
+            )
+            if self.fit_intercept:
                 coef_path_ = np.concatenate(
-                    [intercept[:, np.newaxis], coef_tmp], axis=1
+                    [intercept[:, np.newaxis], coef_path_], axis=1
                 )
-            else:
-                coef_path_ = coef
 
             deviance_path_ = [_get_deviance(_coef) for _coef in coef_path_]
 
