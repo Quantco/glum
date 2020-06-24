@@ -212,5 +212,6 @@ def binomial_logit_rowwise_gradient_hessian(
             eta_clipped = -max_float_for_exp
         else:
             eta_clipped = eta[i]
-        gradient_rows_out[i] = weights[i] * (y[i] - mu[i])
-        hessian_rows_out[i] = weights[i] * mu[i] * (1 - mu[i])
+        gradient_rows_out[i] = weights[i] * mu_unclipped * (1 - mu_unclipped) * \
+        (exp(eta_clipped) + 2 + exp(-eta_clipped)) * (y[i] - mu[i])
+        hessian_rows_out[i] = weights[i] * mu_unclipped * (1 - mu_unclipped)
