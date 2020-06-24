@@ -887,7 +887,7 @@ def test_poisson_ridge_bounded(scale_predictors):
     lb = np.array([-0.1, -0.1])
     ub = np.array([0.1, 0.1])
 
-    # For comparison!
+    # For comparison, this is the source of truth for the assert_allclose below.
     # from glmnet_python import glmnet
     # model = glmnet(x=X.copy(), y=y.copy(), alpha=0, family="poisson",
     #               standardize=scale_predictors, thresh=1e-10, lambdau=np.array([1.0]),
@@ -914,6 +914,7 @@ def test_poisson_ridge_bounded(scale_predictors):
     )
     glm.fit(X, y)
 
+    # These correct values come from glmnet. 
     assert_allclose(glm.intercept_, -0.13568186971946633, rtol=1e-5)
     assert_allclose(glm.coef_, [0.1, 0.1], rtol=1e-5)
 
