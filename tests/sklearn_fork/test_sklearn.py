@@ -1437,3 +1437,12 @@ def test_fit_has_no_side_effects():
     np.testing.assert_almost_equal(win, w)
     GeneralizedLinearRegressor(family="poisson").fit(Xin, yin, offset=win)
     np.testing.assert_almost_equal(win, w)
+    lb = np.array([-1.2])
+    ub = np.array([1.2])
+    lbin = lb.copy()
+    ubin = ub.copy()
+    GeneralizedLinearRegressor(
+        family="poisson", scale_predictors=True, lower_bounds=lbin, upper_bounds=ubin
+    ).fit(Xin, yin)
+    np.testing.assert_almost_equal(lbin, lb)
+    np.testing.assert_almost_equal(ubin, ub)
