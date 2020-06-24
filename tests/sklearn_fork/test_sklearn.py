@@ -1381,3 +1381,18 @@ def test_very_large_initial_gradient():
     ).fit(X, y)
 
     np.testing.assert_allclose(model_0.coef_, model_5.coef_, rtol=1e-5)
+
+
+def test_fit_has_no_side_effects():
+    y = np.array([0, 1, 2])
+    w = np.array([0.5, 0.5, 0.5])
+    X = np.array([[1, 1, 1]]).reshape(-1, 1)
+    win = w.copy()
+    yin = y.copy()
+    Xin = X.copy()
+    GeneralizedLinearRegressor(family="poisson").fit(Xin, yin, sample_weight=win)
+    np.testing.assert_almost_equal(Xin, X)
+    np.testing.assert_almost_equal(yin, y)
+    np.testing.assert_almost_equal(win, w)
+    GeneralizedLinearRegressor(family="poisson").fit(Xin, yin, offset=win)
+    np.testing.assert_almost_equal(win, w)
