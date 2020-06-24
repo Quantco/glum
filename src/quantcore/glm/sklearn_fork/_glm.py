@@ -248,11 +248,12 @@ def _unstandardize(
         intercept -= np.squeeze(np.squeeze(col_means).dot(np.atleast_1d(coef).T))
         # intercept -= float(np.squeeze(col_means).dot(coef))
     else:
+        penalty_mult = mx.one_over_var_inf_to_zero(col_stds)
         intercept -= np.squeeze(
-            np.squeeze(col_means / col_stds).dot(np.atleast_1d(coef).T)
+            np.squeeze(col_means * penalty_mult).dot(np.atleast_1d(coef).T)
         )
         # intercept -= float(np.squeeze(col_means / col_stds).dot(coef))
-        coef /= col_stds
+        coef *= penalty_mult
     return intercept, coef
 
 

@@ -876,10 +876,6 @@ def test_poisson_ridge(solver, tol, scale_predictors, use_sparse):
     assert glm2.n_iter_ <= 1
 
 
-# @pytest.mark.parametrize(
-#     "solver, tol", [("irls-ls", 1e-7), ("lbfgs", 1e-7), ("irls-cd", 1e-7)]
-# )
-# @pytest.mark.parametrize("use_sparse", [True, False])
 @pytest.mark.parametrize("scale_predictors", [True, False])
 def test_poisson_ridge_bounded(scale_predictors):
     X = np.array([[-1, 1, 1, 2], [0, 0, 1, 1]], dtype=np.float).T
@@ -887,7 +883,7 @@ def test_poisson_ridge_bounded(scale_predictors):
     lb = np.array([-0.1, -0.1])
     ub = np.array([0.1, 0.1])
 
-    # For comparison!
+    # For comparison, this is the source of truth for the assert_allclose below.
     # from glmnet_python import glmnet
     # model = glmnet(x=X.copy(), y=y.copy(), alpha=0, family="poisson",
     #               standardize=scale_predictors, thresh=1e-10, lambdau=np.array([1.0]),
@@ -914,6 +910,7 @@ def test_poisson_ridge_bounded(scale_predictors):
     )
     glm.fit(X, y)
 
+    # These correct values come from glmnet.
     assert_allclose(glm.intercept_, -0.13568186971946633, rtol=1e-5)
     assert_allclose(glm.coef_, [0.1, 0.1], rtol=1e-5)
 
