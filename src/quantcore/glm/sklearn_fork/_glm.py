@@ -86,7 +86,7 @@ ArrayLike = Union[
     np.ndarray,
     sparse.spmatrix,
     mx.MatrixBase,
-    mx.ColScaledMat,
+    mx.StandardizedMat,
 ]
 ShapedArrayLike = Union[
     pd.DataFrame,
@@ -94,7 +94,7 @@ ShapedArrayLike = Union[
     np.ndarray,
     sparse.spmatrix,
     mx.MatrixBase,
-    mx.ColScaledMat,
+    mx.StandardizedMat,
 ]
 
 
@@ -110,8 +110,8 @@ def check_array_matrix_compliant(mat: ArrayLike, **kwargs):
 
         return mx.SplitMatrix(new_matrices, mat.indices)
 
-    if isinstance(mat, mx.ColScaledMat):
-        return mx.ColScaledMat(
+    if isinstance(mat, mx.StandardizedMat):
+        return mx.StandardizedMat(
             check_array_matrix_compliant(mat.mat, **kwargs),
             check_array(mat.shift, **kwargs),
         )
@@ -237,14 +237,13 @@ def check_bounds(
 
 
 def _unstandardize(
-    X: mx.ColScaledMat,
+    X: mx.StandardizedMat,
     col_means: np.ndarray,
     col_stds: Optional[np.ndarray],
     intercept: float,
     coef: np.ndarray,
-) -> Tuple[mx.MatrixBase, float, np.ndarray]:
-    assert isinstance(X, mx.ColScaledMat)
-    X_mat: mx.MatrixBase = X.unstandardize(col_stds)
+) -> Tuple[float, np.ndarray]:
+    assert isinstance(X, mx.StandardizedMat)
     if col_stds is None:
         intercept -= np.squeeze(np.squeeze(col_means).dot(np.atleast_1d(coef).T))
         # intercept -= float(np.squeeze(col_means).dot(coef))
@@ -254,7 +253,7 @@ def _unstandardize(
         )
         # intercept -= float(np.squeeze(col_means / col_stds).dot(coef))
         coef /= col_stds
-    return X_mat, intercept, coef
+    return intercept, coef
 
 
 def _standardize_warm_start(
@@ -337,13 +336,13 @@ def get_link(link: Union[str, Link], family: ExponentialDispersionModel) -> Link
 
 def setup_p1(
     P1: Union[str, np.ndarray],
-    X: Union[mx.MatrixBase, mx.ColScaledMat],
+    X: Union[mx.MatrixBase, mx.StandardizedMat],
     _dtype,
     alpha: float,
     l1_ratio: float,
 ) -> np.ndarray:
     n_features = X.shape[1]
-    assert isinstance(X, (mx.MatrixBase, mx.ColScaledMat))
+    assert isinstance(X, (mx.MatrixBase, mx.StandardizedMat))
     if isinstance(P1, str) and P1 == "identity":
         P1 = np.ones(n_features, dtype=_dtype)
     else:
@@ -370,13 +369,13 @@ def setup_p1(
 
 def setup_p2(
     P2: Union[str, np.ndarray],
-    X: Union[mx.MatrixBase, mx.ColScaledMat],
+    X: Union[mx.MatrixBase, mx.StandardizedMat],
     _stype,
     _dtype,
     alpha: float,
     l1_ratio: float,
 ) -> Union[np.ndarray, sparse.spmatrix]:
-    assert isinstance(X, (mx.MatrixBase, mx.ColScaledMat))
+    assert isinstance(X, (mx.MatrixBase, mx.StandardizedMat))
     n_features = X.shape[1]
 
     # If X is sparse, make P2 sparse, too.
@@ -568,7 +567,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
     def get_start_coef(
         self,
         start_params,
-        X: Union[mx.MatrixBase, mx.ColScaledMat],
+        X: Union[mx.MatrixBase, mx.StandardizedMat],
         y: np.ndarray,
         weights: np.ndarray,
         offset: Optional[np.ndarray],
@@ -664,7 +663,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
     def tear_down_from_fit(
         self,
-        X: Union[mx.MatrixBase, mx.ColScaledMat],
+        X: Union[mx.MatrixBase, mx.StandardizedMat],
         y: np.ndarray,
         col_means: Optional[np.ndarray],
         col_stds: Optional[np.ndarray],
@@ -678,19 +677,21 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         # 5a. undo standardization
         #######################################################################
         if self._center_predictors:
-            assert isinstance(X, mx.ColScaledMat)
-            X, self.intercept_, self.coef_ = _unstandardize(
+            assert isinstance(X, mx.StandardizedMat)
+            self.intercept_, self.coef_ = _unstandardize(
                 X, col_means, col_stds, self.intercept_, self.coef_,  # type: ignore
             )
 
         if self.fit_dispersion in ["chisqr", "deviance"]:
             # attention because of rescaling of weights
-            self.dispersion_ = self.estimate_phi(X, y, weights) * weights_sum
+            X_unstandardized = X.mat if isinstance(X, mx.StandardizedMat) else X
+            self.dispersion_ = (
+                self.estimate_phi(X_unstandardized, y, weights) * weights_sum
+            )
 
         del self._center_predictors
         del self._solver
         del self._random_state
-        return X
 
     def _get_alpha_path(
         self,
@@ -781,7 +782,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
     def solve(
         self,
-        X: Union[mx.MatrixBase, mx.ColScaledMat],
+        X: Union[mx.MatrixBase, mx.StandardizedMat],
         y: np.ndarray,
         weights: np.ndarray,
         P2,
@@ -862,7 +863,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
     def solve_regularization_path(
         self,
-        X: Union[mx.MatrixBase, mx.ColScaledMat],
+        X: Union[mx.MatrixBase, mx.StandardizedMat],
         y: np.ndarray,
         weights: np.ndarray,
         alphas: np.ndarray,

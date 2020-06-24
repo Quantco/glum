@@ -305,10 +305,6 @@ class SplitMatrix(MatrixBase):
             out[idx, ...] = mat.transpose_dot(vec, rows, sub_cols)
         return out
 
-    def scale_cols_inplace(self, col_scaling: np.ndarray):
-        for idx, mat in zip(self.indices, self.matrices):
-            mat.scale_cols_inplace(col_scaling[idx])
-
     def __getitem__(self, key):
         if isinstance(key, tuple):
             row, col = key

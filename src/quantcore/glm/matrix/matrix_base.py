@@ -3,8 +3,6 @@ from typing import Any, List, Optional, Tuple, Union
 
 import numpy as np
 
-from .standardize import one_over_var_inf_to_zero
-
 
 class MatrixBase(ABC):
     """
@@ -100,25 +98,22 @@ class MatrixBase(ABC):
         self, weights: np.ndarray, scale_predictors: bool
     ) -> Tuple[Any, np.ndarray, Optional[np.ndarray]]:
         """
-        Returns a ColScaledMat, col_means, and col_stds
+        Returns a StandardizedMat, col_means, and col_stds
         """
-        from .scaled_mat import ColScaledMat
+        from .standardized_mat import StandardizedMat
 
         col_means = self.get_col_means(weights)
         if scale_predictors:
             col_stds = self.get_col_stds(weights, col_means)
             one_over_col_sds = one_over_var_inf_to_zero(col_stds)
             shifter = -col_means * one_over_col_sds
-            self.scale_cols_inplace(one_over_col_sds)
+            mult = one_over_col_sds
         else:
             col_stds = None
             shifter = -col_means
+            mult = None
 
-        return ColScaledMat(self, shifter), col_means, col_stds
-
-    @abstractmethod
-    def scale_cols_inplace(self, col_scaling: np.ndarray) -> None:
-        pass
+        return StandardizedMat(self, shifter, mult), col_means, col_stds
 
     @abstractmethod
     def __getitem__(self, item):
@@ -127,3 +122,11 @@ class MatrixBase(ABC):
     # Higher priority than numpy arrays, so behavior for funcs like "@" defaults to the
     # behavior of this class
     __array_priority__ = 11
+
+
+def one_over_var_inf_to_zero(arr: np.ndarray) -> np.ndarray:
+    zeros = np.where(arr == 0)
+    with np.errstate(divide="ignore"):
+        one_over = 1 / arr
+    one_over[zeros] = 0
+    return one_over
