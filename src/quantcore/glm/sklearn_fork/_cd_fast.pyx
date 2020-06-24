@@ -17,6 +17,7 @@ from numpy.math cimport INFINITY
 cimport cython
 from cpython cimport bool
 from cython cimport floating
+from cython.parallel import prange
 import warnings
 from sklearn.exceptions import ConvergenceWarning
 
@@ -61,7 +62,40 @@ cdef inline floating fsign(floating f) nogil:
     else:
         return -1.0
 
+def identify_active_rows(
+    floating[::1] gradient_rows,
+    floating[::1] hessian_rows,
+    floating[::1] old_hessian_rows,
+    floating C
+):
+    cdef int n = hessian_rows.shape[0]
 
+    hessian_rows_diff_arr = np.empty_like(hessian_rows)
+    cdef floating[::1] hessian_rows_diff = hessian_rows_diff_arr
+
+    cdef floating max_diff = 0
+    cdef floating abs_val
+    cdef int i
+
+    # TODO: This reduction could be parallelized
+    for i in range(n):
+        hessian_rows_diff[i] = hessian_rows[i] - old_hessian_rows[i]
+        abs_val = fabs(hessian_rows_diff[i])
+        if abs_val > max_diff:
+            max_diff = abs_val
+
+    cdef bint exclude
+    for i in prange(n, nogil=True):
+        abs_val = fabs(hessian_rows_diff[i])
+        exclude = abs_val < C * max_diff
+        if exclude:
+            hessian_rows_diff[i] = 0.0
+            hessian_rows[i] = old_hessian_rows[i]
+
+    active_rows_arr = np.where(hessian_rows_diff_arr != 0)[0].astype(np.int32)
+
+    return hessian_rows_diff_arr, active_rows_arr
+    
 def enet_coordinate_descent_gram(int[::1] active_set,
                                  floating[::1] w,
                                  floating[::1] P1,
@@ -94,15 +128,12 @@ def enet_coordinate_descent_gram(int[::1] active_set,
     cdef floating d_w_tol = tol
     cdef floating norm_min_subgrad = 0
     cdef floating max_min_subgrad
-    cdef unsigned int active_set_ii
-    cdef unsigned int ii
+    cdef unsigned int active_set_ii, active_set_jj
+    cdef unsigned int ii, jj
     cdef int n_iter = 0
     cdef unsigned int f_iter
     cdef UINT32_t rand_r_state_seed = rng.randint(0, RAND_R_MAX)
     cdef UINT32_t* rand_r_state = &rand_r_state_seed
-
-    cdef floating* Q_ptr = &Q[0, 0]
-    cdef floating* q_ptr = &q[0]
 
     with nogil:
         for n_iter in range(max_iter):
@@ -120,17 +151,21 @@ def enet_coordinate_descent_gram(int[::1] active_set,
                 else:
                     P1_ii = P1[ii - intercept]
 
-                if Q[ii, ii] == 0.0:
+                if Q[active_set_ii, active_set_ii] == 0.0:
                     continue
 
                 w_ii = w[ii]  # Store previous value
 
                 if w_ii != 0.0:
                     # q -= w_ii * Q[ii]
-                    _axpy(n_features, -w_ii, Q_ptr + ii * n_features, 1,
-                          q_ptr, 1)
+                    # TODO: this update is unnecessary and could be combined
+                    # with the re-addition below.  just make sure to modify the
+                    # w[ii] update to account for the change in q[ii]
+                    for active_set_jj in range(n_active_features):
+                        jj = active_set[active_set_jj]
+                        q[jj] -= w[ii] * Q[active_set_ii, active_set_jj]
 
-                w[ii] = fsign(-q[ii]) * fmax(fabs(q[ii]) - P1_ii, 0) / Q[ii, ii]
+                w[ii] = fsign(-q[ii]) * fmax(fabs(q[ii]) - P1_ii, 0) / Q[active_set_ii, active_set_ii]
 
                 if ii >= <unsigned int>intercept:
                     if has_lower_bounds:
@@ -142,8 +177,9 @@ def enet_coordinate_descent_gram(int[::1] active_set,
 
                 if w[ii] != 0.0:
                     # q +=  w[ii] * Q[ii] # Update q = X.T (X w - y)
-                    _axpy(n_features, w[ii], Q_ptr + ii * n_features, 1,
-                          q_ptr, 1)
+                    for active_set_jj in range(n_active_features):
+                        jj = active_set[active_set_jj]
+                        q[jj] += w[ii] * Q[active_set_ii, active_set_jj]
 
                 # update the maximum absolute coefficient update
                 d_w_ii = fabs(w[ii] - w_ii)
@@ -175,8 +211,6 @@ def enet_coordinate_descent_gram(int[::1] active_set,
 
     return np.asarray(w), norm_min_subgrad, max_min_subgrad, tol, n_iter + 1
 
-
-
 cdef void cython_norm_min_subgrad(
     int[::1] active_set,
     floating[::1] coef,
@@ -188,7 +222,7 @@ cdef void cython_norm_min_subgrad(
     bint has_upper_bounds,
     floating[:] upper_bounds,
     floating* norm_out,
-    floating* max_out,
+    floating* max_out
 ) nogil:
     """Compute the gradient of all subgradients with minimal L2-norm.
 

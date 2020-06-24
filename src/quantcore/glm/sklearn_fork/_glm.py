@@ -147,7 +147,6 @@ def check_X_y_matrix_compliant(
         y = y.astype(np.float64)
 
     check_consistent_length(X, y)
-    # TODO: check_array
     if not isinstance(X, mx.CategoricalMatrix):
         X = check_array_matrix_compliant(X, **kwargs)
 
@@ -306,8 +305,10 @@ def get_link(link: Union[str, Link], family: ExponentialDispersionModel) -> Link
             if family.power <= 0:
                 return IdentityLink()
             if family.power < 1:
-                # TODO: move more detailed error here
-                raise ValueError("No distribution")
+                raise ValueError(
+                    "For 0 < p < 1, no Tweedie distribution"
+                    " exists. Please choose a different distribution."
+                )
             return LogLink()
         if isinstance(family, GeneralizedHyperbolicSecant):
             return IdentityLink()
@@ -517,6 +518,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         max_iter=100,
         gradient_tol: Optional[float] = 1e-4,
         step_size_tol: Optional[float] = None,
+        hessian_approx: float = 0.0,
         warm_start=False,
         alpha_search: bool = False,
         n_alphas: int = 100,
@@ -545,6 +547,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self.max_iter = max_iter
         self.gradient_tol = gradient_tol
         self.step_size_tol = step_size_tol
+        self.hessian_approx = hessian_approx
         self.warm_start = warm_start
         self.alpha_search = alpha_search
         self.n_alphas = n_alphas
@@ -823,6 +826,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 gradient_tol=self.gradient_tol,
                 step_size_tol=self.step_size_tol,
                 fixed_inner_tol=fixed_inner_tol,
+                hessian_approx=self.hessian_approx,
                 selection=self.selection,
                 random_state=self.random_state,
                 offset=offset,
@@ -870,7 +874,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         upper_bounds: Optional[np.ndarray],
     ) -> np.ndarray:
 
-        self.coef_path_ = np.empty((len(alphas), len(coef)))
+        self.coef_path_ = np.empty((len(alphas), len(coef)), dtype=X.dtype)
 
         for k, alpha in enumerate(alphas):
             P1 = P1_no_alpha * alpha
@@ -1390,6 +1394,14 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         of the subgradient ``g_i`` with the smallest L2-norm.
 
     step_size_tol: float, optional (default=None)
+        Alternative stopping criterion. For the IRLS-LS and IRLS-CD solvers,
+        the iteration will stop when the L2 norm of the step size is less than
+        step_size_tol.
+
+    hessian_approx: float, optional (default=0.0)
+        The threshold below which data matrix rows will be ignored for updating
+        the hessian.  See the algorithm documentation for the IRLS algorithm
+        for further details.
 
     warm_start : boolean, optional (default=False)
         If set to ``True``, reuse the solution of the previous call to ``fit``
@@ -1527,6 +1539,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         max_iter=100,
         gradient_tol: Optional[float] = 1e-4,
         step_size_tol: Optional[float] = None,
+        hessian_approx: float = 0.0,
         warm_start: bool = False,
         alpha_search: bool = False,
         n_alphas: int = 100,
@@ -1559,6 +1572,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             max_iter=max_iter,
             gradient_tol=gradient_tol,
             step_size_tol=step_size_tol,
+            hessian_approx=hessian_approx,
             warm_start=warm_start,
             alpha_search=alpha_search,
             n_alphas=n_alphas,

@@ -4,8 +4,9 @@ import numpy as np
 import pandas as pd
 from scipy import sparse as sps
 
-from quantcore.glm.matrix.matrix_base import MatrixBase
-from quantcore.glm.matrix.sandwich.categorical_sandwich import sandwich_categorical
+from .ext.categorical import sandwich_categorical
+from .matrix_base import MatrixBase
+from .mkl_sparse_matrix import MKLSparseMatrix
 
 
 class CategoricalMatrix(MatrixBase):
@@ -40,7 +41,12 @@ class CategoricalMatrix(MatrixBase):
     def recover_orig(self) -> np.ndarray:
         return self.cat.categories[self.cat.codes]
 
-    def dot(self, other: Union[List, np.ndarray]) -> np.ndarray:
+    def dot(
+        self,
+        other: Union[List, np.ndarray],
+        rows: np.ndarray = None,
+        cols: np.ndarray = None,
+    ) -> np.ndarray:
         """
         When other is 1d:
         mat.dot(other)[i] = sum_j mat[i, j] other[j] * col_mult[j]
@@ -49,6 +55,9 @@ class CategoricalMatrix(MatrixBase):
         When other is 2d:
         mat.dot(other)[i, k] = sum_j mat[i, j] other[j, k] * col_mult
                             = (other * col_mult[None, :])[mat.indices[i], k]
+
+        The rows and cols parameters allow restricting to a subset of the
+        matrix without making a copy.
         """
         other = np.asarray(other)
         if other.shape[0] != self.shape[1]:
@@ -56,13 +65,76 @@ class CategoricalMatrix(MatrixBase):
                 f"""Needed other to have first dimension {self.shape[1]},
                 but it has shape {other.shape}"""
             )
-        if self.col_mult is None:
+
+        if cols is None:
+            col_mult = self.col_mult
+        else:
+            col_mult = np.zeros(len(self.cat.categories), dtype=self.dtype)
+            if self.col_mult is None:
+                col_mult[cols] = 1.0
+            else:
+                col_mult[cols] = self.col_mult[cols]
+
+        if col_mult is None:
             other_m = other
         elif other.ndim == 1:
-            other_m = other * self.col_mult
+            other_m = other * col_mult
         else:
-            other_m = other * self.col_mult[:, None]
-        return other_m[self.indices, ...]
+            other_m = other * col_mult[:, None]
+
+        if rows is not None:
+            return other_m[self.indices[rows], ...]
+        else:
+            return other_m[self.indices, ...]
+
+    def transpose_dot(
+        self,
+        vec: Union[np.ndarray, List],
+        rows: np.ndarray = None,
+        cols: np.ndarray = None,
+    ) -> np.ndarray:
+        """
+        Perform: self[rows, cols].T @ vec
+
+        The rows and cols parameters allow restricting to a subset of the
+        matrix without making a copy.
+        """
+        # TODO: write a function that doesn't reference the data. That will be
+        # especially helpful with a col_mult
+        vec = np.asarray(vec)
+        data, indices, indptr = self._check_csc()
+        data = np.ones(self.shape[0], dtype=vec.dtype) if data is None else data
+        as_csc = MKLSparseMatrix((data, indices, indptr), shape=self.shape)
+        return as_csc.transpose_dot(vec, rows, cols)
+
+    def sandwich(
+        self,
+        d: Union[np.ndarray, List],
+        rows: np.ndarray = None,
+        cols: np.ndarray = None,
+    ) -> sps.dia_matrix:
+        """
+        sandwich(self, d)[i, j] = (self.T @ diag(d) @ self)[i, j]
+            = sum_k (self[k, i] (diag(d) @ self)[k, j])
+            = sum_k self[k, i] sum_m diag(d)[k, m] self[m, j]
+            = sum_k self[k, i] d[k] self[k, j]
+            = 0 if i != j
+        sandwich(self, d)[i, i] = sum_k self[k, i] ** 2 * d(k)
+               = col_mult[i] ** 2 *  sum_k self.mat[k, i]** 2
+
+        The rows and cols parameters allow restricting to a subset of the
+        matrix without making a copy.
+        """
+        # TODO: make downstream calls to this exploit the sparse structure
+        d = np.asarray(d)
+        _, indices, indptr = self._check_csc()
+        res_diag = sandwich_categorical(indices, indptr, d, rows, cols, d.dtype)
+        if self.col_mult is not None:
+            if cols is None:
+                res_diag *= self.col_mult ** 2
+            else:
+                res_diag *= self.col_mult[cols] ** 2
+        return sps.diags(res_diag)
 
     def _check_csc(
         self, force_reset=False
@@ -87,24 +159,6 @@ class CategoricalMatrix(MatrixBase):
             return col_i
         return col_i * self.col_mult[i]
 
-    def sandwich(self, d: Union[np.ndarray, List]) -> sps.dia_matrix:
-        """
-        sandwich(self, d)[i, j] = (self.T @ diag(d) @ self)[i, j]
-            = sum_k (self[k, i] (diag(d) @ self)[k, j])
-            = sum_k self[k, i] sum_m diag(d)[k, m] self[m, j]
-            = sum_k self[k, i] d[k] self[k, j]
-            = 0 if i != j
-        sandwich(self, d)[i, i] = sum_k self[k, i] ** 2 * d(k)
-               = col_mult[i] ** 2 *  sum_k self.mat[k, i]** 2
-        """
-        # TODO: make downstream calls to this exploit the sparse structure
-        d = np.asarray(d)
-        _, indices, indptr = self._check_csc()
-        res_diag = sandwich_categorical(indices, indptr, d)
-        if self.col_mult is not None:
-            res_diag *= self.col_mult ** 2
-        return sps.diags(res_diag)
-
     def tocsr(self) -> sps.csr_matrix:
         # TODO: write a test for this
         # TODO: data should be uint8
@@ -120,14 +174,6 @@ class CategoricalMatrix(MatrixBase):
 
     def toarray(self) -> np.ndarray:
         return self.tocsr().A
-
-    def transpose_dot(self, vec: Union[np.ndarray, List]) -> np.ndarray:
-        # TODO: write a function that doesn't reference the data. That will be
-        # especially helpful with a col_mult
-        data, indices, indptr = self._check_csc()
-        data = np.ones(self.shape[0], dtype=int) if data is None else data
-        as_csc = sps.csc_matrix((data, indices, indptr), shape=self.shape)
-        return as_csc.T.dot(vec)
 
     def astype(self, dtype, order="K", casting="unsafe", copy=True):
         """
