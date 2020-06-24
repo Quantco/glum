@@ -30,6 +30,7 @@ def sklearn_fork_bench(
     cv: bool,
     print_diagnostics: bool = True,
     reg_multiplier: Optional[float] = None,
+    hessian_approx: float = 0.0,
     **kwargs,
 ):
     result = dict()
@@ -58,13 +59,12 @@ def sklearn_fork_bench(
         gradient_tol=1 if cv else benchmark_convergence_tolerance,
         step_size_tol=0.01 * benchmark_convergence_tolerance,
         force_all_finite=False,
+        hessian_approx=hessian_approx,
     )
     if not cv:
         model_args["alpha"] = (
             alpha if reg_multiplier is None else alpha * reg_multiplier
         )
-
-    model_args.update(kwargs)
 
     result["runtime"], m = runtime(build_and_fit, iterations, model_args, fit_args, cv)
 
