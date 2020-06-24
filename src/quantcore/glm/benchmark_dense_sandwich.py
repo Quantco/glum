@@ -3,7 +3,7 @@ import time
 import numpy as np
 import pandas as pd
 
-from quantcore.glm.matrix.sandwich.sandwich import dense_sandwich
+from quantcore.glm.matrix.ext.dense import dense_sandwich
 
 
 def numpy_mklC(X, d):
