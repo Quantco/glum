@@ -68,6 +68,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
 
     step_size_tol: float, optional (default=None)
 
+    hessian_approx: float, optional (default=0.0)
+
     warm_start : boolean, optional (default=False)
 
     n_alphas : int, optional (default=100)
@@ -169,6 +171,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         max_iter=100,
         gradient_tol: Optional[float] = 1e-4,
         step_size_tol: Optional[float] = None,
+        hessian_approx: float = 0.0,
         warm_start: bool = False,
         n_alphas: int = 100,
         alphas: Optional[ArrayLike] = None,
@@ -201,6 +204,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             max_iter=max_iter,
             gradient_tol=gradient_tol,
             step_size_tol=step_size_tol,
+            hessian_approx=hessian_approx,
             warm_start=warm_start,
             n_alphas=n_alphas,
             alphas=alphas,

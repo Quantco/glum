@@ -16,7 +16,12 @@ with open(path.join(here, "README.md")) as f:
 
 # TODO: this should be moved inside the compilation of the extension
 print("templating C source")
-for fn in ["src/quantcore/glm/matrix/sandwich/dense-tmpl.cpp"]:
+templates = [
+    "src/quantcore/glm/matrix/ext/dense_helpers-tmpl.cpp",
+    "src/quantcore/glm/matrix/ext/sparse_helpers-tmpl.cpp",
+]
+
+for fn in templates:
     tmpl = mako.template.Template(filename=fn)
 
     buf = io.StringIO()
@@ -66,10 +71,21 @@ extension_args = dict(
 )
 ext_modules = [
     Extension(
-        name="quantcore.glm.matrix.sandwich.sandwich",
-        sources=["src/quantcore/glm/matrix/sandwich/sandwich.pyx"],
+        name="quantcore.glm.matrix.ext.sparse",
+        sources=["src/quantcore/glm/matrix/ext/sparse.pyx"],
         libraries=allocator_libs,
         **extension_args,
+    ),
+    Extension(
+        name="quantcore.glm.matrix.ext.dense",
+        sources=["src/quantcore/glm/matrix/ext/dense.pyx"],
+        libraries=allocator_libs,
+        **extension_args,
+    ),
+    Extension(
+        name="quantcore.glm.matrix.ext.categorical",
+        sources=["src/quantcore/glm/matrix/ext/categorical.pyx"],
+        include_dirs=[np.get_include()],
     ),
     Extension(
         name="quantcore.glm.sklearn_fork._functions",
@@ -80,11 +96,6 @@ ext_modules = [
         name="quantcore.glm.sklearn_fork._cd_fast",
         sources=["src/quantcore/glm/sklearn_fork/_cd_fast.pyx"],
         **extension_args,
-    ),
-    Extension(
-        name="quantcore.glm.matrix.sandwich.categorical_sandwich",
-        sources=["src/quantcore/glm/matrix/sandwich/categorical_sandwich.pyx"],
-        include_dirs=[np.get_include()],
     ),
 ]
 
