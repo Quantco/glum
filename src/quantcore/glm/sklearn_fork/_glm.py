@@ -1713,6 +1713,9 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         #######################################################################
         if self._center_predictors:
             X, col_means, col_stds = X.standardize(weights, self.scale_predictors)
+            if col_stds is not None:
+                lower_bounds *= col_stds
+                upper_bounds *= col_stds
         else:
             col_means, col_stds = None, None
 
