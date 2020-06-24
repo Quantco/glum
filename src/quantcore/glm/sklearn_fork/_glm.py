@@ -758,35 +758,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 np.log(max_alpha), np.log(min_alpha), self.n_alphas, base=np.e
             )
 
-        def _get_normal_identity_grad_at_zeros_with_optimal_intercept() -> np.ndarray:
-            if self.fit_intercept:
-                if offset is None:
-                    mu = y.dot(w)
-                else:
-                    mu = offset + (y - offset).dot(w)
-            else:
-                mu = 0
-            return X.T.dot(w * (y - mu))
-
-        def _get_tweedie_log_grad_at_zeros_with_optimal_intercept() -> np.ndarray:
-            if self.fit_intercept:
-                # if all non-intercept coefficients are zero and there is no offset,
-                # the best intercept makes the predicted mean the sample mean
-                mu = y.dot(w)
-            elif offset is not None:
-                mu = offset
-            else:
-                mu = 1
-
-            family = get_family(self.family)
-            if isinstance(family, TweedieDistribution):
-                p = family.power
-            else:
-                p = 0
-
-            # tweedie grad
-            return mu ** (1 - p) * X.T.dot(w * (y - mu))
-
         if l1_ratio == 0:
             alpha_max = 10
             return _make_grid(alpha_max)
