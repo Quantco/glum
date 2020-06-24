@@ -1727,7 +1727,25 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         # 2c. potentially rescale predictors
         #######################################################################
         if self._center_predictors:
-            X, col_means, col_stds = X.standardize(weights, self.scale_predictors)
+            X, col_means, col_stds = X.standardize(weights, True)
+            import ipdb
+
+            ipdb.set_trace()
+            if not self.scale_predictors:
+                from quantcore.glm.matrix.matrix_base import one_over_var_inf_to_zero
+
+                penalty_mult = one_over_var_inf_to_zero(col_stds)
+                penalty_mult[penalty_mult == 0] = 1.0
+                P1_no_alpha *= penalty_mult
+                if sparse.issparse(P2_no_alpha):
+                    inv_col_stds_mat = sparse.diags(penalty_mult)
+                    P2_no_alpha = inv_col_stds_mat @ P2_no_alpha @ inv_col_stds_mat
+                elif P2_no_alpha.ndim == 1:
+                    P2_no_alpha *= penalty_mult ** 2
+                else:
+                    P2_no_alpha = (penalty_mult[:, None] * P2_no_alpha) * penalty_mult[
+                        None, :
+                    ]
         else:
             col_means, col_stds = None, None
 
