@@ -5,7 +5,6 @@ import pytest
 from scipy import sparse as sps
 
 import quantcore.glm.matrix as mx
-from quantcore.glm.matrix.sandwich.sandwich import csr_dense_sandwich
 
 
 def base_array(order="F") -> np.ndarray:
@@ -99,15 +98,36 @@ def test_to_array_scaled(mat, order):
     "other_as_list", [[3.0, -0.1], [[3.0], [-0.1]], [[0.0, 2], [-1, 0]]]
 )
 @pytest.mark.parametrize("order", ["F", "C"])
-def test_dot(mat: type, other_type, other_as_list, order: str):
+@pytest.mark.parametrize("rows", [None, np.arange(2, dtype=np.int32)])
+@pytest.mark.parametrize("cols", [None, np.arange(1, dtype=np.int32)])
+def test_dot(mat: type, other_type, other_as_list, order: str, rows, cols):
     other = other_type(other_as_list)
     mat_ = mat(order)
-    res = mat_.dot(other)
-    res2 = mat_ @ other
-    expected = mat_.A.dot(other_as_list)
+    res = mat_.dot(other, rows, cols)
+
+    mat_subset, vec_subset = process_mat_vec_subsets(
+        mat_, other_as_list, rows, cols, cols
+    )
+    expected = mat_subset.dot(vec_subset)
+
     np.testing.assert_allclose(res, expected)
-    np.testing.assert_allclose(res2, expected)
     assert isinstance(res, np.ndarray)
+
+    if rows is None and cols is None:
+        res2 = mat_ @ other
+        np.testing.assert_allclose(res2, expected)
+
+
+def process_mat_vec_subsets(mat, vec, mat_rows, mat_cols, vec_idxs):
+    mat_subset = mat.A
+    vec_subset = vec
+    if mat_rows is not None:
+        mat_subset = mat_subset[mat_rows, :]
+    if mat_cols is not None:
+        mat_subset = mat_subset[:, mat_cols]
+    if vec_idxs is not None:
+        vec_subset = np.array(vec_subset)[vec_idxs]
+    return mat_subset, vec_subset
 
 
 @pytest.mark.parametrize("mat", matrices)
@@ -116,27 +136,24 @@ def test_dot(mat: type, other_type, other_as_list, order: str):
 )
 @pytest.mark.parametrize(
     "other_as_list",
-    # shapes (3,); (3,1); (3, 2)
+    # shapes (3,); (3,1), (3, 2);
     [[3.0, -0.1, 0], [[3.0], [-0.1], [0]], [[0, 1.0], [-0.1, 0], [0, 3.0]]],
 )
 @pytest.mark.parametrize("order", ["F", "C"])
-def test_transpose_dot(mat: type, other_type, other_as_list, order: str):
+@pytest.mark.parametrize("rows", [None, np.arange(2, dtype=np.int32)])
+@pytest.mark.parametrize("cols", [None, np.arange(1, dtype=np.int32)])
+def test_transpose_dot(mat: type, other_type, other_as_list, order: str, rows, cols):
     other = other_type(other_as_list)
     mat_ = mat(order)
     assert np.shape(other)[0] == mat_.shape[0]
-    res = mat_.transpose_dot(other)
-    expected = mat_.A.T.dot(other_as_list)
+    res = mat_.transpose_dot(other, rows, cols)
+
+    mat_subset, vec_subset = process_mat_vec_subsets(
+        mat_, other_as_list, rows, cols, rows
+    )
+    expected = mat_subset.T.dot(vec_subset)
     np.testing.assert_allclose(res, expected)
     assert isinstance(res, np.ndarray)
-
-
-def test_dense_sandwich():
-    sp_mat = sps.csr_matrix(sps.eye(3))
-    d = np.arange(3).astype(float)
-    B = np.ones((3, 2))
-    result = csr_dense_sandwich(sp_mat, B, d)
-    expected = sp_mat.A @ np.diag(d) @ B
-    np.testing.assert_allclose(result, expected)
 
 
 @pytest.mark.parametrize("mat", matrices)
@@ -144,16 +161,20 @@ def test_dense_sandwich():
     "vec_type", [lambda x: x, np.array, mx.DenseGLMDataMatrix],
 )
 @pytest.mark.parametrize("order", ["F", "C"])
-def test_sandwich(mat: type, vec_type, order):
-    mat_ = mat(order)
-    vec_as_list = [3, 0.1, 1][: mat_.shape[0]]
-    assert len(vec_as_list) == mat_.shape[0]
+@pytest.mark.parametrize("rows", [None, np.arange(2, dtype=np.int32)])
+@pytest.mark.parametrize("cols", [None, np.arange(1, dtype=np.int32)])
+def test_sandwich(mat: type, vec_type, order, rows, cols):
+    vec_as_list = [3, 0.1, 1]
     vec = vec_type(vec_as_list)
-    res = mat_.sandwich(vec)
+    mat_ = mat(order)
+    res = mat_.sandwich(vec, rows, cols)
+
+    mat_subset, vec_subset = process_mat_vec_subsets(
+        mat_, vec_as_list, rows, cols, rows
+    )
+    expected = mat_subset.T @ np.diag(vec_subset) @ mat_subset
     if sps.issparse(res):
         res = res.A
-
-    expected = mat_.A.T @ np.diag(vec_as_list) @ mat_.A
     np.testing.assert_allclose(res, expected)
 
 
