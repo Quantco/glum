@@ -10,6 +10,7 @@ from ._distribution import ExponentialDispersionModel
 from ._glm import (
     ArrayLike,
     GeneralizedLinearRegressorBase,
+    _standardize,
     _unstandardize,
     check_bounds,
     initialize_start_params,
@@ -312,13 +313,6 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
                 weights[test_idx],
             )
 
-            if self._center_predictors:
-                x_train, col_means, col_stds = x_train.standardize(
-                    w_train, self.scale_predictors
-                )
-            else:
-                col_means, col_stds = None, None
-
             if offset is not None:
                 offset_train = offset[train_idx]
                 offset_test = offset[test_idx]
@@ -344,6 +338,29 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
                 fit_intercept=self.fit_intercept,
                 _dtype=_dtype,
             )
+
+            P1_no_alpha = setup_p1(self.P1, X, X.dtype, 1, l1)
+            P2_no_alpha = setup_p2(self.P2, X, _stype, X.dtype, 1, l1)
+
+            (
+                x_train,
+                col_means,
+                col_stds,
+                lower_bounds,
+                upper_bounds,
+                P1_no_alpha,
+                P2_no_alpha,
+            ) = _standardize(
+                x_train,
+                w_train,
+                self._center_predictors,
+                self.scale_predictors,
+                lower_bounds,
+                upper_bounds,
+                P1_no_alpha,
+                P2_no_alpha,
+            )
+
             coef = self.get_start_coef(
                 start_params,
                 x_train,
@@ -353,9 +370,6 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
                 col_means,
                 col_stds,
             )
-
-            P1_no_alpha = setup_p1(self.P1, X, X.dtype, 1, l1)
-            P2_no_alpha = setup_p2(self.P2, X, _stype, X.dtype, 1, l1)
 
             if self.check_input:
                 # check if P2 is positive semidefinite
@@ -440,10 +454,16 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         P2 = setup_p2(self.P2, X, _stype, X.dtype, self.alpha_, self.l1_ratio_)
 
         # Refit with full data and best alpha and lambda
-        if self._center_predictors:
-            X, col_means, col_stds = X.standardize(weights, self.scale_predictors)
-        else:
-            col_means, col_stds = None, None
+        X, col_means, col_stds, lower_bounds, upper_bounds, P1, P2 = _standardize(
+            X,
+            weights,
+            self._center_predictors,
+            self.scale_predictors,
+            lower_bounds,
+            upper_bounds,
+            P1,
+            P2,
+        )
 
         start_params = initialize_start_params(
             self.start_params,
