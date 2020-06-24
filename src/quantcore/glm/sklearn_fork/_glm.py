@@ -1728,6 +1728,13 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         #######################################################################
         if self._center_predictors:
             X, col_means, col_stds = X.standardize(weights, self.scale_predictors)
+            if col_stds is not None:
+                # We copy the bounds when multiplying here so the we avoid
+                # side effects.
+                if lower_bounds is not None:
+                    lower_bounds = lower_bounds * col_stds
+                if upper_bounds is not None:
+                    upper_bounds = upper_bounds * col_stds
         else:
             col_means, col_stds = None, None
 
