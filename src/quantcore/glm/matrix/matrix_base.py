@@ -95,25 +95,38 @@ class MatrixBase(ABC):
         pass
 
     def standardize(
-        self, weights: np.ndarray, scale_predictors: bool
+        self, weights: np.ndarray, center_predictors: bool, scale_predictors: bool
     ) -> Tuple[Any, np.ndarray, Optional[np.ndarray]]:
         """
         Returns a StandardizedMat, col_means, and col_stds
+
+        If center_predictors is False, col_means will be zeros
+
+        If scale_predictors is False, col_stds will be None
         """
         from .standardized_mat import StandardizedMat
 
         col_means = self.get_col_means(weights)
         if scale_predictors:
             col_stds = self.get_col_stds(weights, col_means)
-            one_over_col_sds = one_over_var_inf_to_zero(col_stds)
-            shifter = -col_means * one_over_col_sds
-            mult = one_over_col_sds
+            mult = one_over_var_inf_to_val(col_stds, 1.0)
+            if center_predictors:
+                shifter = -col_means * mult
+                out_means = col_means
+            else:
+                shifter = np.zeros_like(col_means)
+                out_means = shifter
         else:
             col_stds = None
-            shifter = -col_means
+            if center_predictors:
+                shifter = -col_means
+                out_means = col_means
+            else:
+                shifter = np.zeros_like(col_means)
+                out_means = shifter
             mult = None
 
-        return StandardizedMat(self, shifter, mult), col_means, col_stds
+        return StandardizedMat(self, shifter, mult), out_means, col_stds
 
     @abstractmethod
     def __getitem__(self, item):
@@ -124,9 +137,9 @@ class MatrixBase(ABC):
     __array_priority__ = 11
 
 
-def one_over_var_inf_to_zero(arr: np.ndarray) -> np.ndarray:
+def one_over_var_inf_to_val(arr: np.ndarray, val: float) -> np.ndarray:
     zeros = np.where(arr == 0)
     with np.errstate(divide="ignore"):
         one_over = 1 / arr
-    one_over[zeros] = 0
+    one_over[zeros] = val
     return one_over

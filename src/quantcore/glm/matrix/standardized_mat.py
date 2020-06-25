@@ -114,7 +114,6 @@ class StandardizedMat:
         term1 = self.mat.sandwich(d, rows, cols)
         d_mat = self.mat.transpose_dot(d, rows, cols)
         if self.mult is not None:
-            term1 *= np.outer(self.mult[cols], self.mult[cols])
             d_mat *= self.mult[cols]
         term2 = np.outer(d_mat, self.shift[cols])
         term3_and_4 = np.outer(
@@ -123,9 +122,15 @@ class StandardizedMat:
         res = term2 + term3_and_4
         if isinstance(term1, sps.dia_matrix):
             idx = np.arange(res.shape[0])
-            res[idx, idx] += term1.data[0, :]
+            to_add = term1.data[0, :]
+            if self.mult is not None:
+                to_add *= self.mult[cols] ** 2
+            res[idx, idx] += to_add
         else:
-            res += term1
+            to_add = term1
+            if self.mult is not None:
+                to_add *= np.outer(self.mult[cols], self.mult[cols])
+            res += to_add
         return res
 
     def unstandardize(self) -> MatrixBase:
