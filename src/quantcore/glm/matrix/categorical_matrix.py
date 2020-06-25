@@ -208,7 +208,12 @@ class CategoricalMatrix(MatrixBase):
     def __getitem__(self, item):
         if isinstance(item, tuple):
             row, col = item
-            if not col == slice(None, None, None):
+            all_rows = (
+                isinstance(row, slice)
+                and row == slice(None, None, None)
+                or (row == np.arange(self.shape[0])).all()
+            )
+            if not all_rows:
                 raise IndexError("Only column indexing is supported.")
         else:
             row = item
