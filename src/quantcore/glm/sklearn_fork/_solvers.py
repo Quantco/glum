@@ -383,7 +383,6 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
             ConvergenceWarning,
         )
 
-    print(state.coef[:10])
     return state.coef, state.n_iter, state.n_cycles, state.diagnostics
 
 
