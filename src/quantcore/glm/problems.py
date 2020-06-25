@@ -1,6 +1,6 @@
 import os
 from functools import partial
-from typing import Callable, Dict, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import attr
 import numpy as np
@@ -53,7 +53,6 @@ def load_data(
     if data_setup not in ["weights", "offset", "no-weights"]:
         raise NotImplementedError
     X, y, exposure = loader_func(num_rows, noise, distribution)
-    assert len(set(X.columns)) == len(X.columns)
 
     if single_precision:
         X = X.astype(np.float32)
@@ -63,23 +62,49 @@ def load_data(
 
     assert not pd.isnull(X).any(None)
 
-    def transform_col(col_name, dtype) -> pd.DataFrame:
+    def transform_col(i: int, dtype) -> Union[pd.DataFrame, mx.CategoricalMatrix]:
         if dtype.name == "category":
             if "split" in storage:
-                raise NotImplementedError
-            return DummyEncoder().fit_transform(X[[col_name]])
-        return X[[col_name]]
+                return mx.CategoricalMatrix(X.iloc[:, i])
+            return DummyEncoder().fit_transform(X.iloc[:, [i]])
+        return X.iloc[:, [i]]
 
-    X = pd.concat(
-        [transform_col(col_name, dtype) for col_name, dtype in X.dtypes.iteritems()],
-        axis=1,
-    )
+    mat_parts = [transform_col(i, dtype) for i, dtype in enumerate(X.dtypes)]
+    if "split" in storage:
+        cat_indices_in_expanded_arr: List[np.ndarray] = []
+        dense_indices_in_expanded_arr: List[int] = []
+        i = 0
+        for elt in mat_parts:
+            assert elt.ndim == 2
+            if isinstance(elt, mx.CategoricalMatrix):
+                ncol = elt.shape[1]
+                cat_indices_in_expanded_arr.append(np.arange(i, i + ncol))
+                i += ncol
+            else:
+                dense_indices_in_expanded_arr.append(i)
+                i += 1
+
+        non_cat_part = mx.DenseGLMDataMatrix(
+            np.hstack(
+                [
+                    elt.values
+                    for elt in mat_parts
+                    if not isinstance(elt, mx.CategoricalMatrix)
+                ]
+            )
+        )
+        X = mx.SplitMatrix(
+            matrices=[non_cat_part]
+            + [elt for elt in mat_parts if isinstance(elt, mx.CategoricalMatrix)],
+            indices=[np.array(dense_indices_in_expanded_arr)]
+            + cat_indices_in_expanded_arr,
+        )
+
+    else:
+        X = pd.concat(mat_parts, axis=1)
 
     if storage == "sparse":
         X = csc_matrix(X)
-    elif storage.startswith("split"):
-        threshold = float(storage.split("split")[1])
-        X = mx.csc_to_split(csc_matrix(X), threshold)
 
     if data_setup == "weights":
         # The exposure correction doesn't make sense for these distributions since
