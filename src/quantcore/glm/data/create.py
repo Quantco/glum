@@ -3,7 +3,7 @@ from typing import Any, Callable, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 from dask_ml.compose import make_column_transformer
-from dask_ml.preprocessing import Categorizer, DummyEncoder, OrdinalEncoder
+from dask_ml.preprocessing import Categorizer, OrdinalEncoder
 from git_root import git_root
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer
@@ -97,7 +97,10 @@ def get_one_hot_transformations(col_name: str) -> List[Tuple[str, Any]]:
     """
     DummyEncoder requires a categorical input.
     """
-    return [get_categorizer(col_name), ("OHE", DummyEncoder())]
+    return [
+        get_categorizer(col_name)
+        #     , ("OHE", DummyEncoder())
+    ]
 
 
 def func_returns_df(
@@ -396,7 +399,7 @@ def generate_wide_insurance_dataset(
         (
             Pipeline(
                 [get_categorizer(col, "cat_" + col) for col in cat_cols]
-                + [("OHE", DummyEncoder())]
+                # + [("OHE", DummyEncoder())]
             ),
             cat_cols,
         ),
