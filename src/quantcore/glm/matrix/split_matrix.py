@@ -7,6 +7,7 @@ from scipy import sparse as sps
 from . import MatrixBase
 from .categorical_matrix import CategoricalMatrix
 from .dense_glm_matrix import DenseGLMDataMatrix
+from .ext.split import split_col_subsets
 from .mkl_sparse_matrix import MKLSparseMatrix
 
 
@@ -154,9 +155,17 @@ class SplitMatrix(MatrixBase):
                 ]
 
         self.matrices = matrices
-        self.indices = indices
+        self.indices = [np.asarray(I) for I in indices]
         self.shape = (n_row, sum([len(elt) for elt in indices]))
         assert self.shape[1] > 0
+
+    def _split_col_subsets(self, cols):
+        if cols is None:
+            subset_cols_indices = self.indices
+            subset_cols = [None for i in range(len(self.indices))]
+            return subset_cols_indices, subset_cols, self.shape[1]
+
+        return split_col_subsets(self, cols)
 
     def astype(self, dtype, order="K", casting="unsafe", copy=True):
         if copy:
@@ -192,7 +201,7 @@ class SplitMatrix(MatrixBase):
         if np.shape(d) != (self.shape[0],):
             raise ValueError
 
-        subset_cols_indices, subset_cols, n_cols = self.split_col_subsets(cols)
+        subset_cols_indices, subset_cols, n_cols = self._split_col_subsets(cols)
 
         out = np.zeros((n_cols, n_cols))
         for i in range(len(self.indices)):
@@ -211,42 +220,6 @@ class SplitMatrix(MatrixBase):
                     if i != j:
                         out[np.ix_(idx_j, idx_i)] = res.T
         return out
-
-    def split_col_subsets(self, cols):
-        if cols is None:
-            subset_cols_indices = self.indices
-            subset_cols = [None for i in range(len(self.indices))]
-            return subset_cols_indices, subset_cols, self.shape[1]
-
-        next_subset_idx = np.zeros(len(self.indices), dtype=np.int32)
-        subset_cols_indices = [[] for j in range(len(self.indices))]
-        subset_cols = [[] for j in range(len(self.indices))]
-        for i in range(cols.shape[0]):
-            for j in range(len(self.indices)):
-                while (
-                    next_subset_idx[j] < len(self.indices[j])
-                    and self.indices[j][next_subset_idx[j]] < cols[i]
-                ):
-                    next_subset_idx[j] += 1
-                if (
-                    next_subset_idx[j] < len(self.indices[j])
-                    and self.indices[j][next_subset_idx[j]] == cols[i]
-                ):
-                    subset_cols_indices[j].append(i)
-                    subset_cols[j].append(next_subset_idx[j])
-                    next_subset_idx[j] += 1
-                    break
-        return (
-            [
-                np.array(subset_cols_indices[j], dtype=np.int32)
-                for j in range(len(self.indices))
-            ],
-            [
-                np.array(subset_cols[j], dtype=np.int32)
-                for j in range(len(self.indices))
-            ],
-            cols.shape[0],
-        )
 
     def get_col_means(self, weights: np.ndarray) -> np.ndarray:
         col_means = np.empty(self.shape[1], dtype=self.dtype)
@@ -271,7 +244,7 @@ class SplitMatrix(MatrixBase):
 
         if cols is None:
             cols = np.arange(self.shape[1], dtype=np.int32)
-        _, subset_cols, n_cols = self.split_col_subsets(cols)
+        _, subset_cols, n_cols = self._split_col_subsets(cols)
 
         out_shape_base = [self.shape[0]] if rows is None else [rows.shape[0]]
         out_shape = out_shape_base + ([] if v.ndim == 1 else list(v.shape[1:]))
@@ -296,7 +269,7 @@ class SplitMatrix(MatrixBase):
         vec = np.asarray(vec)
         if cols is None:
             cols = np.arange(self.shape[1], dtype=np.int32)
-        subset_cols_indices, subset_cols, n_cols = self.split_col_subsets(cols)
+        subset_cols_indices, subset_cols, n_cols = self._split_col_subsets(cols)
 
         out_shape = [n_cols] + list(vec.shape[1:])
         out = np.empty(out_shape, dtype=vec.dtype)
