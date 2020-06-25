@@ -5,6 +5,7 @@ from typing import Callable, Dict, Optional, Tuple
 import attr
 import numpy as np
 import pandas as pd
+from dask_ml.preprocessing import DummyEncoder
 from git_root import git_root
 from joblib import Memory
 from scipy.sparse import csc_matrix
@@ -52,6 +53,7 @@ def load_data(
     if data_setup not in ["weights", "offset", "no-weights"]:
         raise NotImplementedError
     X, y, exposure = loader_func(num_rows, noise, distribution)
+    assert len(set(X.columns)) == len(X.columns)
 
     if single_precision:
         X = X.astype(np.float32)
@@ -59,11 +61,26 @@ def load_data(
         if exposure is not None:
             exposure = exposure.astype(np.float32)
 
+    assert not pd.isnull(X).any(None)
+
+    def transform_col(col_name, dtype) -> pd.DataFrame:
+        if dtype.name == "category":
+            if "split" in storage:
+                raise NotImplementedError
+            return DummyEncoder().fit_transform(X[[col_name]])
+        return X[[col_name]]
+
+    X = pd.concat(
+        [transform_col(col_name, dtype) for col_name, dtype in X.dtypes.iteritems()],
+        axis=1,
+    )
+
     if storage == "sparse":
         X = csc_matrix(X)
     elif storage.startswith("split"):
         threshold = float(storage.split("split")[1])
         X = mx.csc_to_split(csc_matrix(X), threshold)
+
     if data_setup == "weights":
         # The exposure correction doesn't make sense for these distributions since
         # they don't use a log link (plus binomial isn't in the tweedie family),
@@ -76,6 +93,7 @@ def load_data(
             get_tweedie_p(distribution), y, exposure
         )
         return dict(X=X, y=y * exposure, weights=sample_weight)
+
     if data_setup == "offset":
         log_exposure = np.log(exposure)
         assert np.all(np.isfinite(log_exposure))
