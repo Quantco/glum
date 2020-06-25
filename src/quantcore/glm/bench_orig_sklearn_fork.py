@@ -55,6 +55,7 @@ def orig_sklearn_fork_bench(
         family=family,
         alpha=alpha if reg_multiplier is None else alpha * reg_multiplier,
         l1_ratio=l1_ratio,
+        # fit_intercept=False,
         max_iter=150,
         random_state=random_seed,
         copy_X=False,
