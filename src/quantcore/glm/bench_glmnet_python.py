@@ -48,6 +48,7 @@ def glmnet_python_bench(
         y=dat["y"].astype(np.float64).copy(),
         family=distribution,
         alpha=l1_ratio,
+        # intr=False,
         standardize=False,
         thresh=benchmark_convergence_tolerance,
     )
