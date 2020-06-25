@@ -1,12 +1,12 @@
-from typing import List, Optional, Tuple
+from typing import Any, Callable, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 from dask_ml.compose import ColumnTransformer
-from dask_ml.preprocessing import DummyEncoder
+from dask_ml.preprocessing import Categorizer, DummyEncoder, OrdinalEncoder
 from git_root import git_root
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import FunctionTransformer, OrdinalEncoder
+from sklearn.preprocessing import FunctionTransformer
 
 from ..util import exposure_and_offset_to_weights
 
@@ -85,24 +85,31 @@ def create_raw_data() -> None:
     df.to_parquet(git_root("data/insurance.parquet"))
 
 
-def get_to_df_trans(columns: List[str]) -> Tuple[str, FunctionTransformer]:
-    return "to_df", FunctionTransformer(lambda x: pd.DataFrame(x, columns=columns))
+def get_categorizer(col_name: str, name="cat") -> Tuple[str, Categorizer]:
+    """
+    Categorizer only operates on object columns unless you explictily pass the column
+    name.
+    """
+    return name, Categorizer(columns=[col_name])
 
 
-categorical_transformer = (
-    "to_cat",
-    FunctionTransformer(lambda x: x.astype("category"), validate=False),
-)
-reset_index_transformer = (
-    "reset_index",
-    FunctionTransformer(lambda x: x.reset_index(drop=True), validate=False),
-)
+def get_one_hot_transformations(col_name: str) -> List[Tuple[str, Any]]:
+    """
+    DummyEncoder requires a categorical input.
+    """
+    return [get_categorizer(col_name), ("OHE", DummyEncoder())]
 
-categorical_trans_list = [
-    categorical_transformer,
-    ("OHE", DummyEncoder()),
-    reset_index_transformer,
-]
+
+def func_returns_df(
+    fn: Callable[[pd.DataFrame], np.ndarray]
+) -> Callable[[pd.DataFrame], pd.DataFrame]:
+    """
+    fn: Function that takes a dataframe and returns a numpy array
+    Returns: Function that takes a dataframe and returns a dataframe with the values
+        determined by the original function, and the index and columns of the original
+        dataframe.
+    """
+    return lambda x: x.assign(**{x.columns[0]: fn(x)})
 
 
 def gen_col_trans() -> Tuple[ColumnTransformer, List[str]]:
@@ -127,7 +134,7 @@ def gen_col_trans() -> Tuple[ColumnTransformer, List[str]]:
                             ),
                         ),
                     ]
-                    + categorical_trans_list
+                    + get_one_hot_transformations("VehPower"),
                 ),
                 ["VehPower"],
             ),
@@ -139,15 +146,16 @@ def gen_col_trans() -> Tuple[ColumnTransformer, List[str]]:
                         (
                             "bin",
                             FunctionTransformer(
-                                lambda x: np.digitize(
-                                    np.where(x == 10, 9, x), bins=[1, 10]
+                                func_returns_df(
+                                    lambda x: np.digitize(
+                                        np.where(x == 10, 9, x), bins=[1, 10]
+                                    )
                                 ),
                                 validate=False,
                             ),
                         ),
-                        get_to_df_trans(["VehAge_cat"]),
                     ]
-                    + categorical_trans_list
+                    + get_one_hot_transformations("VehAge"),
                 ),
                 ["VehAge"],
             ),
@@ -159,13 +167,16 @@ def gen_col_trans() -> Tuple[ColumnTransformer, List[str]]:
                         (
                             "bin",
                             FunctionTransformer(
-                                lambda x: np.digitize(x, bins=[21, 26, 31, 41, 51, 71]),
+                                func_returns_df(
+                                    lambda x: np.digitize(
+                                        x, bins=[21, 26, 31, 41, 51, 71]
+                                    )
+                                ),
                                 validate=False,
                             ),
                         ),
-                        get_to_df_trans(["DrivAge_cat"]),
                     ]
-                    + categorical_trans_list
+                    + get_one_hot_transformations("DrivAge"),
                 ),
                 ["DrivAge"],
             ),
@@ -178,39 +189,37 @@ def gen_col_trans() -> Tuple[ColumnTransformer, List[str]]:
                             FunctionTransformer(
                                 lambda x: np.minimum(x, 150), validate=False
                             ),
-                        ),
-                        reset_index_transformer,
+                        )
                     ]
                 ),
                 ["BonusMalus"],
             ),
-            ("VehBrand_cat", Pipeline(categorical_trans_list), ["VehBrand"]),
-            ("VehGas_Regular", Pipeline(categorical_trans_list), ["VehGas"]),
             (
-                "Density_log",
-                Pipeline(
-                    [
-                        (
-                            "log",
-                            FunctionTransformer(lambda x: np.log(x), validate=False),
-                        ),
-                        get_to_df_trans(["Density"]),
-                        reset_index_transformer,
-                    ],
-                ),
-                ["Density"],
+                "VehBrand_cat",
+                Pipeline(get_one_hot_transformations("VehBrand")),
+                ["VehBrand"],
             ),
-            ("Region_cat", Pipeline(categorical_trans_list), ["Region"]),
+            (
+                "VehGas_Regular",
+                Pipeline(get_one_hot_transformations("VehGas")),
+                ["VehGas"],
+            ),
+            ("Density_log", FunctionTransformer(np.log, validate=False), ["Density"]),
+            (
+                "Region_cat",
+                Pipeline(get_one_hot_transformations("Region")),
+                ["Region"],
+            ),
             (
                 "Area_ord",
                 Pipeline(
                     [
+                        get_categorizer("Area"),
                         ("OE", OrdinalEncoder()),
                         (
                             "plus_1",
                             FunctionTransformer(lambda x: x + 1, validate=False),
                         ),
-                        get_to_df_trans(["Area"]),
                     ]
                 ),
                 ["Area"],
@@ -399,33 +408,38 @@ def generate_wide_insurance_dataset(
 ) -> Tuple[pd.DataFrame, np.ndarray, np.ndarray]:
     """Generate a version of the tutorial data set with many features."""
     df = read_insurance_data(num_rows, noise, distribution)
+    cat_cols = [
+        "Area",
+        "VehPower",
+        "VehAge",
+        "DrivAge",
+        "BonusMalus",
+        "VehBrand",
+        "VehGas",
+        "Region",
+    ]
 
     transformer = ColumnTransformer(
         [
             (
                 "numerics",
-                Pipeline([("id", FunctionTransformer()), reset_index_transformer]),
+                FunctionTransformer(),
                 lambda x: x.select_dtypes(["number"]).columns,
             ),
             (
                 "one_hot_encode",
-                Pipeline(categorical_trans_list),
-                [
-                    "Area",
-                    "VehPower",
-                    "VehAge",
-                    "DrivAge",
-                    "BonusMalus",
-                    "VehBrand",
-                    "VehGas",
-                    "Region",
-                ],
+                Pipeline(
+                    [get_categorizer(col, "cat_" + col) for col in cat_cols]
+                    + [("OHE", DummyEncoder())]
+                ),
+                cat_cols,
             ),
         ],
         remainder="drop",
         sparse_threshold=0.0,
     )
     y, exposure = compute_y_exposure(df, distribution)
+
     return transformer.fit_transform(df), y, exposure
 
 
@@ -439,7 +453,11 @@ def generate_intermediate_insurance_dataset(
 
     col_trans_GLM1, _ = gen_col_trans()
     col_trans_GLM1.transformers.append(
-        ("BonusMalusClipped", Pipeline(categorical_trans_list), ["BonusMalusClipped"],)
+        (
+            "BonusMalusClipped",
+            Pipeline(get_one_hot_transformations("BonusMalusClipped")),
+            ["BonusMalusClipped"],
+        )
     )
     y, exposure = compute_y_exposure(df, distribution)
 
