@@ -237,8 +237,29 @@ def check_bounds(
 
 
 def _standardize(
-    X, weights, center_predictors, scale_predictors, lower_bounds, upper_bounds, P1, P2
+    X: mx.MatrixBase,
+    weights: np.ndarray,
+    center_predictors: bool,
+    scale_predictors: bool,
+    lower_bounds: np.ndarray,
+    upper_bounds: np.ndarray,
+    P1: Union[np.ndarray, sparse.spmatrix],
+    P2: Union[np.ndarray, sparse.spmatrix],
 ):
+    """
+    This function standardizes the data matrix X and then adjusts the bounds
+    and penalties to match the standardized data matrix.
+
+    Columns are always scaled to have standard deviation 1.
+
+    If center_predictors is True, the data matrix will be adjusted to have
+    columns with mean 0.
+
+    If scale_predictors is True, the penalties will not be scaled. The result
+    will be that the input penalty matrices are applied to the standardized
+    coefficients. This can be useful to scale
+    """
+
     X, col_means, col_stds = X.standardize(weights, center_predictors, True)
 
     if col_stds is not None:
