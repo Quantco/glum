@@ -534,6 +534,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         lower_bounds: Optional[np.ndarray] = None,
         upper_bounds: Optional[np.ndarray] = None,
         force_all_finite: bool = True,
+        column_batch_size: Union[bool, int] = True,
     ):
         self.l1_ratio = l1_ratio
         self.P1 = P1
@@ -563,6 +564,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self.lower_bounds = lower_bounds
         self.upper_bounds = upper_bounds
         self.force_all_finite = force_all_finite
+        self.column_batch_size = column_batch_size
 
     def get_start_coef(
         self,
@@ -783,12 +785,13 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         X: Union[mx.MatrixBase, mx.ColScaledMat],
         y: np.ndarray,
         weights: np.ndarray,
-        P2,
+        P2,  # What am I?
         P1: np.ndarray,
         coef: np.ndarray,
         offset: Optional[np.ndarray],
         lower_bounds: Optional[np.ndarray],
         upper_bounds: Optional[np.ndarray],
+        column_batch_size: Union[int, bool],
     ) -> np.ndarray:
         """
         Must be run after running set_up_for_fit and before running tear_down_from_fit.
@@ -799,6 +802,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             isinstance(self._family_instance, NormalDistribution)
             and isinstance(self._link_instance, IdentityLink)
             and "irls" in self._solver
+            and (column_batch_size is False or column_batch_size > X.shape[-1])
         ):
             # IRLS-CD and IRLS-LS should converge in one iteration for any
             # normal distribution problem with identity link.
@@ -806,6 +810,26 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             max_iter = 1
         else:
             max_iter = self.max_iter
+
+        # If column_batch_size True (auto), determine its value, else make valid.
+        if self._solver == "irls-ls" and column_batch_size is not False:
+            raise ValueError(
+                "column_batch_size currently not compatible with irls-ls. Please either disable or switch to irls-cd."
+            )
+        if type(column_batch_size) == int:
+            if column_batch_size < 1 + int(self.fit_intercept):
+                raise ValueError("column_batch_size too small")
+        elif column_batch_size is True:
+            if X.shape[-1] <= 30:
+                column_batch_size = 30
+            elif X.shape[-1] <= 90:
+                column_batch_size = (2 * X.shape[-1]) // 3
+            elif X.shape[-1] <= 1000:
+                column_batch_size = X.shape[-1] // 2
+            else:
+                column_batch_size = 500
+        elif column_batch_size is False:
+            column_batch_size = 1000000000  # Practically disabled
 
         # 4.1 IRLS ############################################################
         if "irls" in self._solver:
@@ -831,6 +855,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 offset=offset,
                 lower_bounds=lower_bounds,
                 upper_bounds=upper_bounds,
+                column_batch_size=column_batch_size,
             )
             if self._solver == "irls-ls":
                 coef, self.n_iter_, self._n_cycles, self.diagnostics_ = _irls_solver(
@@ -871,6 +896,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         offset: Optional[np.ndarray],
         lower_bounds: Optional[np.ndarray],
         upper_bounds: Optional[np.ndarray],
+        column_batch_size: Union[int, bool],
     ) -> np.ndarray:
 
         self.coef_path_ = np.empty((len(alphas), len(coef)), dtype=X.dtype)
@@ -889,6 +915,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 offset=offset,
                 lower_bounds=lower_bounds,
                 upper_bounds=upper_bounds,
+                column_batch_size=column_batch_size,
             )
 
             self.coef_path_[k, :] = coef
@@ -1556,6 +1583,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         upper_bounds: Optional[np.ndarray] = None,
         fit_args_reformat="safe",
         force_all_finite: bool = True,
+        column_batch_size: Union[bool, int] = True,
     ):
         self.alpha = alpha
         self.fit_args_reformat = fit_args_reformat
@@ -1588,6 +1616,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             lower_bounds=lower_bounds,
             upper_bounds=upper_bounds,
             force_all_finite=force_all_finite,
+            column_batch_size=column_batch_size,
         )
 
     def _validate_hyperparameters(self) -> None:
@@ -1762,6 +1791,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
                 offset=offset,
                 lower_bounds=lower_bounds,
                 upper_bounds=upper_bounds,
+                column_batch_size=self.column_batch_size,
             )
 
             # intercept_ and coef_ return the last estimated alpha
@@ -1787,6 +1817,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
                 offset=offset,
                 lower_bounds=lower_bounds,
                 upper_bounds=upper_bounds,
+                column_batch_size=self.column_batch_size,
             )
 
             if self.fit_intercept:

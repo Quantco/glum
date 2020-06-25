@@ -33,6 +33,7 @@ def _least_squares_solver(state, data):
     d = linalg.solve(
         hessian, state.score, overwrite_a=True, overwrite_b=True, assume_a="pos"
     )
+    print("Running least squares solver")
     return d, 1, n_active_rows
 
 
@@ -214,7 +215,7 @@ def choose_column_batch(state, data):
     if data.column_batch_size > len(state.coef):
         return np.arange(len(state.coef)).astype(np.int32)
     # OK, actually need to choose a batch
-    weights = np.abs(state.outer_step) + 0.0001
+    weights = np.abs(state.outer_step) + 1e-6
     if data.fit_intercept:
         weights /= np.sum(weights[1:])
         return np.sort(
@@ -359,7 +360,9 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
                 break
 
         # Update the outer step
-        state.outer_step = state.coef - prev_coef
+        state.outer_step[state.column_batch] = (state.coef - prev_coef)[
+            state.column_batch
+        ]
         prev_coef[:] = state.coef
 
         # Check if we've converged globally. Need these parameters as first guess for next column batch
@@ -396,10 +399,10 @@ class IRLSData:
         family: ExponentialDispersionModel,
         link: Link,
         max_iter: int = 100,
-        max_colbatch_iter: int = 100,
+        max_colbatch_iter: int = 10,
         max_inner_iter: int = 100000,
-        gradient_tol: Optional[float] = 1e-8,
-        step_size_tol: Optional[float] = 1e-8,
+        gradient_tol: Optional[float] = 1e-4,
+        step_size_tol: Optional[float] = 1e-4,
         hessian_approx: float = 0.1,
         fixed_inner_tol: Optional[Tuple] = None,
         selection="cyclic",
@@ -407,7 +410,7 @@ class IRLSData:
         offset: Optional[np.ndarray] = None,
         lower_bounds: Optional[np.ndarray] = None,
         upper_bounds: Optional[np.ndarray] = None,
-        column_batch_size: Union[int, bool] = True,
+        column_batch_size: int = 1000000000,
     ):
         self.X = X
         self.y = y
@@ -438,25 +441,9 @@ class IRLSData:
             upper_bounds, self.X.dtype
         )
 
-        self.intercept_offset = 1 if self.fit_intercept else 0
-
         self.column_batch_size = column_batch_size
-        if type(self.column_batch_size) == int:
-            if self.column_batch_size < 1 + self.intercept_offset:
-                raise ValueError("data.column_batch_size too small")
-        elif self.column_batch_size is True:
-            if self.X.shape[-1] <= 30:
-                self.column_batch_size = 30
-            elif self.X.shape[-1] <= 90:
-                self.column_batch_size = (2 * self.X.shape[-1]) // 3
-            elif self.X.shape[-1] <= 1000:
-                self.column_batch_size = self.X.shape[-1] // 2
-            else:
-                self.column_batch_size = 500
-        elif self.column_batch_size is False:
-            self.column_batch_size = 1000000000  # Practically disabled
-        else:
-            raise TypeError("data.column_batch_size should be int or bool")
+
+        self.intercept_offset = 1 if self.fit_intercept else 0
 
         self.check_data()
 
@@ -673,8 +660,7 @@ def check_convergence_inner(state, data):
     # By comparison, the original GLMNET paper uses inner_tol = tol.
     # So, inner_tol_ratio < 1 is sort of a compromise between the two papers.
     # The value should probably be between 0.01 and 0.5. 0.1 works well for many problems
-    inner_tol_ratio = 0.1
-
+    inner_tol_ratio = 1
     if state.data.fixed_inner_tol is None:
         # Another potential rule limits the inner tol to be no smaller than tol
         # return max(norm_min_subgrad * inner_tol_ratio, tol)

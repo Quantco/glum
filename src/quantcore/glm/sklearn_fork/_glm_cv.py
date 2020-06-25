@@ -189,6 +189,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         force_all_finite: bool = True,
         cv=None,
         n_jobs: Optional[int] = None,
+        column_batch_size: Union[bool, int] = True,
     ):
         self.cv = cv
         self.n_jobs = n_jobs
@@ -220,6 +221,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             lower_bounds=lower_bounds,
             upper_bounds=upper_bounds,
             force_all_finite=force_all_finite,
+            column_batch_size=column_batch_size,
         )
 
     def _validate_hyperparameters(self) -> None:
@@ -379,6 +381,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
                 offset=offset_train,
                 lower_bounds=lower_bounds,
                 upper_bounds=upper_bounds,
+                column_batch_size=self.column_batch_size,
             )
 
             if self._center_predictors:
@@ -467,6 +470,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             offset=offset,
             lower_bounds=lower_bounds,
             upper_bounds=upper_bounds,
+            column_batch_size=self.column_batch_size,
         )
 
         if self.fit_intercept:
