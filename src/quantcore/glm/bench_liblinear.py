@@ -7,8 +7,6 @@ from sklearn.linear_model import LogisticRegression
 
 from .util import benchmark_convergence_tolerance, runtime
 
-random_seed = 110
-
 
 def build_and_fit(model_args, train_args):
     return LogisticRegression(**model_args).fit(**train_args)
@@ -59,8 +57,12 @@ def liblinear_bench(
     model_args = dict(
         penalty=pen,
         tol=benchmark_convergence_tolerance,
-        C=1 / alpha if reg_multiplier is None else 1 / (alpha * reg_multiplier),
-        random_state=random_seed,
+        C=1 / (X.shape[0] * alpha)
+        if reg_multiplier is None
+        else 1 / (X.shape[0] * alpha * reg_multiplier),
+        # fit_intercept=False,
+        # Note that when an intercept is fitted, it is subject to regularization, unlike other solvers
+        intercept_scaling=1e6,
         solver="liblinear",
     )
 
