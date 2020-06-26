@@ -23,7 +23,7 @@ from ._util import _safe_lin_pred, _safe_sandwich_dot
 
 
 def timeit(runtime_attr: str):
-    """Decorator to computes the runtime of a function and updates the IRLSState
+    """Decorator to compute the runtime of a function and update the IRLSState
     instance attribute called `runtime_attr` with the runtime of the function.
     The first argument of fct should be an IRLSState instance.
     """
