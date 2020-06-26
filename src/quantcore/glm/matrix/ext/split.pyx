@@ -1,7 +1,9 @@
 import numpy as np
+cimport numpy as np
 
 from libcpp.vector cimport vector
 from libc.stdlib cimport malloc, free
+from cython cimport floating
 
 # This is necessary because it's quite difficult to have a dynamic array of
 # memoryviews in Cython
@@ -9,6 +11,36 @@ from libc.stdlib cimport malloc, free
 cdef struct ArrayableMemoryView:
     long* data
     long length
+
+
+def _sandwich_cat_cat(
+    signed char[:] i_indices,
+    signed char[:] j_indices,
+    int i_ncol,
+    int j_ncol,
+    floating[:] d
+):
+
+    # TODO: only use i_cols, j_cols. A csc setup might be better for that
+    # TODO: this is probably not right when columns are scaled
+    # TODO: support for single-precision d
+
+    cdef floating[:, :] res
+    res = np.zeros((i_ncol, j_ncol))
+    cdef int i
+    cdef int j
+    cdef int k
+    cdef floating d_
+
+    for k in range(len(d)):
+        i = i_indices[k]
+        j = j_indices[k]
+        d_ = d[k]
+        res[i, j] += d_
+
+    return res
+
+
 
 def split_col_subsets(self, int[:] cols):
     cdef int[:] next_subset_idx = np.zeros(len(self.indices), dtype=np.int32)

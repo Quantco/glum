@@ -7,7 +7,7 @@ from scipy import sparse as sps
 from . import MatrixBase
 from .categorical_matrix import CategoricalMatrix
 from .dense_glm_matrix import DenseGLMDataMatrix
-from .ext.split import split_col_subsets
+from .ext.split import _sandwich_cat_cat, split_col_subsets
 from .mkl_sparse_matrix import MKLSparseMatrix
 
 
@@ -42,6 +42,21 @@ def _sandwich_cat_other(
     L_cols: np.ndarray,
     R_cols: np.ndarray,
 ) -> np.ndarray:
+    if isinstance(mat_j, CategoricalMatrix):
+        if rows is None:
+            res = _sandwich_cat_cat(
+                mat_i.indices, mat_j.indices, mat_i.shape[1], mat_j.shape[1], d
+            )
+        else:
+            res = _sandwich_cat_cat(
+                mat_i.indices[rows],
+                mat_j.indices[rows],
+                mat_i.shape[1],
+                mat_j.shape[1],
+                d[rows],
+            )
+        return np.asarray(res)[L_cols, :][:, R_cols]
+
     if rows is None:
         rows = slice(None, None, None)
     if L_cols is None:
@@ -50,15 +65,14 @@ def _sandwich_cat_other(
         R_cols = slice(None, None, None)
 
     term_1 = mat_i.tocsr()
-    term_1.data = d
+    term_1.data = term_1.data * d
     term_1 = term_1[rows, :][:, L_cols]
     if isinstance(mat_j, CategoricalMatrix):
-        mat_j = mat_j.tocsr()
+        mat_j = mat_j.tocsc()
 
     res = term_1.T.dot(mat_j[rows, :][:, R_cols])
     if sps.issparse(res):
         res = res.A
-    assert isinstance(res, np.ndarray)
     return res
 
 
