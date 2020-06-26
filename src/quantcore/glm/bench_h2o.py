@@ -32,6 +32,7 @@ def h2o_bench(
     cv: bool,
     print_diagnostics: bool = True,  # ineffective here
     reg_multiplier: Optional[float] = None,
+    **kwargs,
 ):
 
     result: Dict = dict()

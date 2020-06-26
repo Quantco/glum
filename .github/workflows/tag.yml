@@ -16,7 +16,7 @@ jobs:
       fail-fast: false
       matrix:
         PYTHON_VERSION: ['3.6', '3.7', '3.8']
-        GLM_ARCHITECTURE: ['default', 'westmere', 'haswell', 'skylake']
+        GLM_ARCHITECTURE: ['default', 'skylake']
     steps:
       - name: Docker login
         run: docker login docker.pkg.github.com -u ${{ github.actor }} -p ${{ secrets.FQ_GH_TOKEN }}
@@ -48,8 +48,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        PYTHON_VERSION: ['3.6', '3.7', '3.8']
-        GLM_ARCHITECTURE: ['default', 'westmere', 'haswell', 'skylake']
+        PYTHON_VERSION: ['3.7', '3.8']
+        GLM_ARCHITECTURE: ['default', 'skylake']
     steps:
       - name: Checkout branch
         uses: actions/checkout@v2.1.0
