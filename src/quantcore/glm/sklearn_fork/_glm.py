@@ -918,15 +918,45 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         return self.coef_path_
 
-    def report_diagnostics(self) -> None:
+    def report_diagnostics(
+        self, full_report: bool = False, custom_columns: Optional[Iterable] = None
+    ) -> None:
+        """Print diagnostics to stdout.
+
+        Parameters
+        ----------
+        full_report: boolean (default False)
+            Print all available information. When False and custom_columns
+            is set to None, a restricted set of columns is printed out.
+        custom_columns: Iterable (optional, default None)
+            Print only the specified columns
+        """
         if hasattr(self, "diagnostics_"):
             print("diagnostics:")
             import pandas as pd
 
-            with pd.option_context("max_rows", None):
-                print(
-                    pd.DataFrame(data=self.diagnostics_).set_index("n_iter", drop=True)
-                )
+            with pd.option_context("max_rows", None, "max_columns", None):
+                if custom_columns is not None:
+                    print(pd.DataFrame(data=self.diagnostics_)[custom_columns])
+                elif full_report:
+                    print(
+                        pd.DataFrame(data=self.diagnostics_).set_index(
+                            "n_iter", drop=True
+                        )
+                    )
+                else:
+                    base_cols = [
+                        "n_iter",
+                        "convergence",
+                        "n_cycles",
+                        "iteration_runtime",
+                        "intercept",
+                    ]
+                    print(
+                        pd.DataFrame(data=self.diagnostics_)[base_cols].set_index(
+                            "n_iter", drop=True
+                        )
+                    )
         else:
             print("solver does not report diagnostics")
 
