@@ -52,6 +52,9 @@ def _sandwich_cat_other(
     term_1 = mat_i.tocsr()
     term_1.data = d
     term_1 = term_1[rows, :][:, L_cols]
+    if isinstance(mat_j, CategoricalMatrix):
+        mat_j = mat_j.tocsr()
+
     res = term_1.T.dot(mat_j[rows, :][:, R_cols])
     if sps.issparse(res):
         res = res.A
