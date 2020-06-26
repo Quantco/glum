@@ -57,7 +57,7 @@ def skipped_benchmark_gm():
     ],  # mark the "wide" problems as "slow" so that we can call pytest -m "not slow"
     ids=all_test_problems.keys(),
 )
-@pytest.mark.parametrize("storage", ["split0.1", "sparse", "dense"])
+@pytest.mark.parametrize("storage", ["cat", "split0.1", "sparse", "dense"])
 def test_gm_benchmarks(
     Pn: str,
     P: Problem,

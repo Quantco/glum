@@ -150,6 +150,13 @@ class CategoricalMatrix(MatrixBase):
             self.x_csc = (data, csc.indices, csc.indptr)
         return self.x_csc
 
+    def tocsc(self):
+        # TODO: needs to be tested
+        data, indices, indptr = self._check_csc()
+        if data is None:
+            data = np.ones(self.shape[0])
+        return sps.csc_matrix((data, indices, indptr))
+
     # TODO: best way to return this depends on the use case. See what that is
     # See how csr getcol works
     def getcol(self, i: int) -> np.ndarray:

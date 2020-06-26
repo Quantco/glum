@@ -59,6 +59,11 @@ directory within Docker, so it will cease to exist upon exiting the container. I
 are not using Docker, to enable caching, set the GLM_BENCHMARKS_CACHE environment
 variable to the directory you would like to write to.
 
+We support several types of matrix storage, passed with the argument "--storage". 
+"dense" is the default. "sparse" stores data as a csc sparse matrix. "cat" splits
+the matrix into a dense component and categorical components. "split0.1" splits the
+matrix into sparse and dense parts, where 
+
 ## Docker
 
 To build the image, make sure you have a functioning Docker and docker-compose installation. Then, `docker-compose build work`.

@@ -64,13 +64,14 @@ def load_data(
 
     def transform_col(i: int, dtype) -> Union[pd.DataFrame, mx.CategoricalMatrix]:
         if dtype.name == "category":
-            if "split" in storage:
+            if storage == "cat":
                 return mx.CategoricalMatrix(X.iloc[:, i])
             return DummyEncoder().fit_transform(X.iloc[:, [i]])
         return X.iloc[:, [i]]
 
     mat_parts = [transform_col(i, dtype) for i, dtype in enumerate(X.dtypes)]
-    if "split" in storage:
+    # TODO: add a threshold for the number of categories needed to make a
+    if storage == "cat":
         cat_indices_in_expanded_arr: List[np.ndarray] = []
         dense_indices_in_expanded_arr: List[int] = []
         i = 0
@@ -99,13 +100,14 @@ def load_data(
             indices=[np.array(dense_indices_in_expanded_arr)]
             + cat_indices_in_expanded_arr,
         )
-
     else:
         X = pd.concat(mat_parts, axis=1)
 
     if storage == "sparse":
         X = csc_matrix(X)
-
+    elif storage.startswith("split"):
+        threshold = float(storage.split("split")[1])
+        X = mx.csc_to_split(csc_matrix(X), threshold)
     if data_setup == "weights":
         # The exposure correction doesn't make sense for these distributions since
         # they don't use a log link (plus binomial isn't in the tweedie family),
