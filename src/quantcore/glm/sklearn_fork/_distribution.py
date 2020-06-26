@@ -7,7 +7,7 @@ import numexpr
 import numpy as np
 from scipy import special
 
-from quantcore.glm.matrix import ColScaledMat, MatrixBase
+from quantcore.glm.matrix import MatrixBase, StandardizedMat
 
 from ._functions import (
     binomial_logit_eta_mu_loglikelihood,
@@ -354,7 +354,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         link: Link,
         coef: np.ndarray,
         phi,
-        X: Union[MatrixBase, ColScaledMat],
+        X: Union[MatrixBase, StandardizedMat],
         y: np.ndarray,
         weights: np.ndarray,
         eta: np.ndarray,

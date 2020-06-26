@@ -837,8 +837,7 @@ def test_poisson_ridge(solver, tol, scale_predictors, use_sparse):
     else:
         X = X_dense
     y = np.array([0, 1, 1, 2], dtype=np.float)
-    rng = np.random.RandomState(42)
-    glm = GeneralizedLinearRegressor(
+    model_args = dict(
         alpha=1,
         l1_ratio=0,
         fit_intercept=True,
@@ -847,11 +846,11 @@ def test_poisson_ridge(solver, tol, scale_predictors, use_sparse):
         gradient_tol=1e-7,
         solver=solver,
         max_iter=300,
-        random_state=rng,
+        random_state=np.random.RandomState(42),
         copy_X=True,
         scale_predictors=scale_predictors,
     )
-
+    glm = GeneralizedLinearRegressor(**model_args)
     glm2 = copy.deepcopy(glm)
 
     def check(G):
@@ -875,6 +874,45 @@ def test_poisson_ridge(solver, tol, scale_predictors, use_sparse):
     glm2.start_params = np.concatenate(([glm.intercept_], glm.coef_))
     check(glm2)
     assert glm2.n_iter_ <= 1
+
+
+@pytest.mark.parametrize("scale_predictors", [True, False])
+def test_poisson_ridge_bounded(scale_predictors):
+    X = np.array([[-1, 1, 1, 2], [0, 0, 1, 1]], dtype=np.float).T
+    y = np.array([0, 1, 1, 2], dtype=np.float)
+    lb = np.array([-0.1, -0.1])
+    ub = np.array([0.1, 0.1])
+
+    # For comparison, this is the source of truth for the assert_allclose below.
+    # from glmnet_python import glmnet
+    # model = glmnet(x=X.copy(), y=y.copy(), alpha=0, family="poisson",
+    #               standardize=scale_predictors, thresh=1e-10, lambdau=np.array([1.0]),
+    #               cl = np.array([lb, ub])
+    #               )
+    # true_intercept = model["a0"][0]
+    # true_beta = model["beta"][:, 0]
+    # print(true_intercept, true_beta)
+
+    glm = GeneralizedLinearRegressor(
+        alpha=1,
+        l1_ratio=0,
+        fit_intercept=True,
+        family="poisson",
+        link="log",
+        gradient_tol=1e-7,
+        solver="irls-cd",
+        max_iter=300,
+        random_state=np.random.RandomState(42),
+        copy_X=True,
+        scale_predictors=scale_predictors,
+        lower_bounds=lb,
+        upper_bounds=ub,
+    )
+    glm.fit(X, y)
+
+    # These correct values come from glmnet.
+    assert_allclose(glm.intercept_, -0.13568186971946633, rtol=1e-5)
+    assert_allclose(glm.coef_, [0.1, 0.1], rtol=1e-5)
 
 
 def test_normal_enet():
@@ -1209,9 +1247,8 @@ def test_standardize(use_sparse, scale_predictors):
         M = mx.MKLSparseMatrix(sparse.csc_matrix(M))
     else:
         M = mx.DenseGLMDataMatrix(M)
-    MC = copy.deepcopy(M)
 
-    X, col_means, col_stds = M.standardize(np.ones(NR) / NR, scale_predictors)
+    X, col_means, col_stds = M.standardize(np.ones(NR) / NR, True, scale_predictors)
     if use_sparse:
         assert _arrays_share_data(X.mat.data, M.data)
         assert _arrays_share_data(X.mat.indices, M.indices)
@@ -1229,12 +1266,12 @@ def test_standardize(use_sparse, scale_predictors):
         Xdense = X
     for i in range(1, NC):
         if scale_predictors:
-            if isinstance(Xdense, mx.ColScaledMat):
+            if isinstance(Xdense, mx.StandardizedMat):
                 one, two = Xdense.A[:, 0], Xdense.A[:, i]
             else:
                 one, two = Xdense[:, 0], Xdense[:, i]
         else:
-            if isinstance(Xdense, mx.ColScaledMat):
+            if isinstance(Xdense, mx.StandardizedMat):
                 one, two = (i + 1) * Xdense.A[:, 0], Xdense.A[:, i]
             else:
                 one, two = (i + 1) * Xdense[:, 0], Xdense[:, i]
@@ -1249,23 +1286,12 @@ def test_standardize(use_sparse, scale_predictors):
     coef_standardized = (
         np.ones_like(col_means) if col_stds is None else copy.copy(col_stds)
     )
-    X2, intercept, coef = _unstandardize(
+    intercept, coef = _unstandardize(
         X, col_means, col_stds, intercept_standardized, coef_standardized,
     )
-    if use_sparse:
-        assert _arrays_share_data(X2.data, X.mat.data)
-    else:
-        assert _arrays_share_data(X2, X.mat)
     np.testing.assert_almost_equal(intercept, -(NC + 1) * NC / 2)
     if scale_predictors:
         np.testing.assert_almost_equal(coef, 1.0)
-
-    if use_sparse:
-        assert type(X.mat) in [sparse.csc_matrix, mx.MKLSparseMatrix]
-        assert type(X2) in [sparse.csc_matrix, mx.MKLSparseMatrix]
-        np.testing.assert_almost_equal(MC.toarray(), X2.toarray())
-    else:
-        np.testing.assert_almost_equal(MC, X2)
 
 
 @pytest.mark.parametrize("estimator, kwargs", estimators)
@@ -1381,3 +1407,27 @@ def test_very_large_initial_gradient():
     ).fit(X, y)
 
     np.testing.assert_allclose(model_0.coef_, model_5.coef_, rtol=1e-5)
+
+
+def test_fit_has_no_side_effects():
+    y = np.array([0, 1, 2])
+    w = np.array([0.5, 0.5, 0.5])
+    X = np.array([[1, 1, 1]]).reshape(-1, 1)
+    win = w.copy()
+    yin = y.copy()
+    Xin = X.copy()
+    GeneralizedLinearRegressor(family="poisson").fit(Xin, yin, sample_weight=win)
+    np.testing.assert_almost_equal(Xin, X)
+    np.testing.assert_almost_equal(yin, y)
+    np.testing.assert_almost_equal(win, w)
+    GeneralizedLinearRegressor(family="poisson").fit(Xin, yin, offset=win)
+    np.testing.assert_almost_equal(win, w)
+    lb = np.array([-1.2])
+    ub = np.array([1.2])
+    lbin = lb.copy()
+    ubin = ub.copy()
+    GeneralizedLinearRegressor(
+        family="poisson", scale_predictors=True, lower_bounds=lbin, upper_bounds=ubin
+    ).fit(Xin, yin)
+    np.testing.assert_almost_equal(lbin, lb)
+    np.testing.assert_almost_equal(ubin, ub)
