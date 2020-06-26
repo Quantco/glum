@@ -7,7 +7,7 @@ from scipy import sparse as sps
 from . import MatrixBase
 from .categorical_matrix import CategoricalMatrix
 from .dense_glm_matrix import DenseGLMDataMatrix
-from .ext.split import _sandwich_cat_cat, split_col_subsets
+from .ext.split import _sandwich_cat_cat, sandwich_cat_dense, split_col_subsets
 from .mkl_sparse_matrix import MKLSparseMatrix
 
 
@@ -42,20 +42,8 @@ def _sandwich_cat_other(
     L_cols: np.ndarray,
     R_cols: np.ndarray,
 ) -> np.ndarray:
-    if isinstance(mat_j, CategoricalMatrix):
-        if rows is None:
-            res = _sandwich_cat_cat(
-                mat_i.indices, mat_j.indices, mat_i.shape[1], mat_j.shape[1], d
-            )
-        else:
-            res = _sandwich_cat_cat(
-                mat_i.indices[rows],
-                mat_j.indices[rows],
-                mat_i.shape[1],
-                mat_j.shape[1],
-                d[rows],
-            )
-        return np.asarray(res)[L_cols, :][:, R_cols]
+
+    dim_2 = mat_j.shape[1] if R_cols is None else len(R_cols)
 
     if rows is None:
         rows = slice(None, None, None)
@@ -64,9 +52,30 @@ def _sandwich_cat_other(
     if R_cols is None:
         R_cols = slice(None, None, None)
 
+    # I don't think Cython can handle lower-precision ints. Look into this
+    i_indices = mat_i.indices[rows].astype(np.int32)
+
+    # TODO: make sure I haven't neglected col_mult
+    if isinstance(mat_j, CategoricalMatrix):
+        j_indices = mat_j.indices[rows].astype(np.int32)
+        d_ = d[rows]
+
+        res = _sandwich_cat_cat(
+            i_indices, j_indices, mat_i.shape[1], mat_j.shape[1], d_
+        )
+
+        return np.asarray(res)[L_cols, :][:, R_cols]
+
+    if isinstance(mat_j, np.ndarray) and mat_j.flags["C_CONTIGUOUS"]:
+        tmp = mat_j[rows, :][:, R_cols]
+        # TODO: figure out why this is extremely slow
+        res = sandwich_cat_dense(i_indices, mat_i.shape[1], dim_2, d, tmp)
+        return res[L_cols, :]
+
     term_1 = mat_i.tocsr()
     term_1.data = term_1.data * d
     term_1 = term_1[rows, :][:, L_cols]
+
     if isinstance(mat_j, CategoricalMatrix):
         mat_j = mat_j.tocsc()
 

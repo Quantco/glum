@@ -13,13 +13,40 @@ cdef struct ArrayableMemoryView:
     long length
 
 
+def sandwich_cat_dense(
+    int[:] i_indices,
+    int i_ncol,
+    int j_ncol,
+    floating[:] d,
+    floating[:, :] mat_j
+):
+    """
+    Expect mat_j to be C-contiguous (row major)
+    """
+
+    cdef Py_ssize_t i, j, k
+    cdef Py_ssize_t n_rows = len(i_indices)
+    cdef int* i_indices_p = &i_indices[0]
+
+    res = np.zeros((i_ncol, j_ncol))
+    for k in range(n_rows):
+        i = i_indices_p[k]
+        for j in range(j_ncol):
+            tmp = d[k] * mat_j[k, j]
+            res[i, j] += tmp
+    return res
+
+
 def _sandwich_cat_cat(
-    signed char[:] i_indices,
-    signed char[:] j_indices,
+    int[:] i_indices,
+    int[:] j_indices,
     int i_ncol,
     int j_ncol,
     floating[:] d
 ):
+    """
+    (X1.T @ diag(d) @ X2)[i, j] = sum_k X1[k, i] d[k] X2[k, j]
+    """
 
     # TODO: only use i_cols, j_cols. A csc setup might be better for that
     # TODO: this is probably not right when columns are scaled
