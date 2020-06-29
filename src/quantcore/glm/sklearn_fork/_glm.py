@@ -689,12 +689,13 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self._center_predictors: bool = self.fit_intercept
 
         if self.solver == "auto":
-            if (
-                (self.l1_ratio == 0)
-                and (self.lower_bounds is None)
-                and (self.upper_bounds is None)
-            ):
-                self._solver = "irls-ls"
+            if (self.lower_bounds is None) and (self.upper_bounds is None):
+                if self.l1_ratio == 0:
+                    self._solver = "irls-ls"
+                elif hasattr(self, "alpha") and (self.alpha == 0):
+                    self._solver = "irls-ls"
+                else:
+                    self._solver = "irls-cd"
             else:
                 self._solver = "irls-cd"
         else:
