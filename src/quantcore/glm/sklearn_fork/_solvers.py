@@ -1,5 +1,6 @@
 from __future__ import division
 
+import functools
 import time
 import warnings
 from typing import List, Optional, Tuple, Union
@@ -21,23 +22,40 @@ from ._link import Link
 from ._util import _safe_lin_pred, _safe_sandwich_dot
 
 
-def _least_squares_solver(state, data):
+def timeit(runtime_attr: str):
+    """Decorator to compute the runtime of a function and update the IRLSState
+    instance attribute called `runtime_attr` with the runtime of the function.
+    The first argument of fct should be an IRLSState instance.
+    """
+
+    def fct_wrap(fct):
+        @functools.wraps(fct)
+        def inner_fct(*args, **kwargs):
+            start = time.perf_counter()
+            out = fct(*args, **kwargs)
+            setattr(args[0], runtime_attr, time.perf_counter() - start)
+            return out
+
+        return inner_fct
+
+    return fct_wrap
+
+
+@timeit("inner_solver_runtime")
+def _least_squares_solver(state, data, hessian):
     if data.has_lower_bounds or data.has_upper_bounds:
         raise ValueError("Bounds are not supported with the least squares solver.")
-    hessian, n_active_rows = update_hessian(
-        state, data, np.arange(state.coef.shape[0], dtype=np.int32)
-    )
 
     # TODO: In cases where we have lots of columns, we might want to avoid the
     # sandwich product and use something like iterative lsqr or lsmr.
     d = linalg.solve(
         hessian, state.score, overwrite_a=True, overwrite_b=True, assume_a="pos"
     )
-    return d, 1, n_active_rows
+    return d, 1
 
 
-def _cd_solver(state, data):
-    active_hessian, n_active_rows = update_hessian(state, data, state.active_set)
+@timeit("inner_solver_runtime")
+def _cd_solver(state, data, active_hessian):
     new_coef, gap, _, _, n_cycles = enet_coordinate_descent_gram(
         state.active_set,
         state.coef.copy(),
@@ -54,9 +72,10 @@ def _cd_solver(state, data):
         data.has_upper_bounds,
         data._upper_bounds,
     )
-    return new_coef - state.coef, n_cycles, n_active_rows
+    return new_coef - state.coef, n_cycles
 
 
+@timeit("build_hessian_runtime")
 def update_hessian(state, data, active_set):
     """
     The approximate Hessian updating algorithm here...
@@ -102,11 +121,6 @@ def update_hessian(state, data, active_set):
     small amount over several iterations which accumulates into a large change.
     """
 
-    # NOTE: Updating just the active set results in errors if the active_set
-    # evers grows in size.I have never seen a situation where that happens
-    # outside of Ben Spector's column minibatching, but it may be possible.  I
-    # think it would be worthwhile to fix this issue and develop a workaround.
-    #
     # The simplest, but expensive option is that if the active set increases in
     # size, we can just recompute the full hessian for the new active set
     # instead of an approximate update. This is what is currently implemented
@@ -282,8 +296,11 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
         state.old_active_set = state.active_set
         state.active_set = identify_active_set(state, data)
 
+        # 0) Build the hessian
+        hessian, state.n_active_rows = update_hessian(state, data, state.active_set)
+
         # 1) Solve the L1 and L2 penalized least squares problem
-        d, n_cycles_this_iter, state.n_active_rows = inner_solver(state, data)
+        d, n_cycles_this_iter = inner_solver(state, data, hessian)
         state.n_cycles += n_cycles_this_iter
 
         # 2) Line search
@@ -440,10 +457,18 @@ class IRLSState:
         self.norm_min_subgrad = None
         self.max_min_subgrad = None
         self.inner_tol = None
+
+        self.n_line_search = None
+
         self.n_updated = 0
         self.n_active_rows = data.X.shape[0]
         self.old_active_set = None
         self.active_set = np.arange(self.coef.shape[0], dtype=np.int32)
+
+        self.build_hessian_runtime = None
+        self.inner_solver_runtime = None
+        self.line_search_runtime = None
+        self.quadratic_update_runtime = None
 
     def record_iteration(self):
         self.n_iter += 1
@@ -456,17 +481,24 @@ class IRLSState:
         step_l2 = np.linalg.norm(self.step)
         self.diagnostics.append(
             {
+                "n_iter": self.n_iter,
                 "convergence": self.norm_min_subgrad,
+                "objective_fct": self.obj_val,
                 "L1(coef)": coef_l1,
                 "L2(coef)": coef_l2,
                 "L2(step)": step_l2,
+                "intercept": self.coef[0],
                 "n_coef_updated": self.n_updated,
                 "n_active_cols": self.active_set.shape[0],
                 "n_active_rows": self.n_active_rows,
-                "n_iter": self.n_iter,
                 "n_cycles": self.n_cycles,
-                "runtime": iteration_runtime,
-                "intercept": self.coef[0],
+                "n_line_search": self.n_line_search,
+                # runtime
+                "iteration_runtime": iteration_runtime,
+                "build_hessian_runtime": self.build_hessian_runtime,
+                "inner_solver_runtime": self.inner_solver_runtime,
+                "line_search_runtime": self.line_search_runtime,
+                "quadratic_update_runtime": self.quadratic_update_runtime,
             }
         )
 
@@ -537,6 +569,7 @@ def update_predictions(state, data, coef, X_dot_step=None, factor=1.0):
     return eta, mu, obj_val, coef_P2
 
 
+@timeit("quadratic_update_runtime")
 def update_quadratic(state, data, coef_P2):
     gradient_rows, hessian_rows = data.family.rowwise_gradient_hessian(
         data.link,
@@ -588,6 +621,7 @@ def identify_active_set(state, data):
     return active_set
 
 
+@timeit("line_search_runtime")
 def line_search(state, data, d):
     # line search parameters
     (beta, sigma) = (0.5, 0.01)
@@ -623,6 +657,14 @@ def line_search(state, data, d):
         ):
             break
         factor *= beta
+    else:
+        warnings.warn(
+            "Line search failed. Next iteration will be very close to current "
+            "iteration. Might result in more convergence issues.",
+            ConvergenceWarning,
+        )
+
+    setattr(state, "n_line_search", k)
 
     # obj_val in the next iteration will be equal to obj_val_wd this iteration.
     # We can avoid a matrix-vector product inside _eta_mu_score_hessian by
