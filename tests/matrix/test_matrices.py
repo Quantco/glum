@@ -291,8 +291,9 @@ def test_get_col_stds_unweighted(mat):
 
 
 @pytest.mark.parametrize("mat", unscaled_matrices)
+@pytest.mark.parametrize("center_predictors", [False, True])
 @pytest.mark.parametrize("scale_predictors", [False, True])
-def test_standardize(mat, scale_predictors: bool):
+def test_standardize(mat, center_predictors: bool, scale_predictors: bool):
     mat_: mx.MatrixBase = mat()
     asarray = mat_.A.copy()
     weights = np.random.rand(mat_.shape[0])
@@ -301,12 +302,17 @@ def test_standardize(mat, scale_predictors: bool):
     true_means = asarray.T.dot(weights)
     true_sds = np.sqrt((asarray ** 2).T.dot(weights) - true_means ** 2)
 
-    standardized, means, stds = mat_.standardize(weights, scale_predictors)
+    standardized, means, stds = mat_.standardize(
+        weights, center_predictors, scale_predictors
+    )
     assert isinstance(standardized, mx.StandardizedMat)
     assert isinstance(standardized.mat, type(mat_))
-    np.testing.assert_allclose(standardized.transpose_dot(weights), 0, atol=1e-11)
+    if center_predictors:
+        np.testing.assert_allclose(standardized.transpose_dot(weights), 0, atol=1e-11)
+        np.testing.assert_allclose(means, asarray.T.dot(weights))
+    else:
+        np.testing.assert_almost_equal(means, 0)
 
-    np.testing.assert_allclose(means, asarray.T.dot(weights))
     if scale_predictors:
         np.testing.assert_allclose(stds, true_sds)
     else:
@@ -317,7 +323,10 @@ def test_standardize(mat, scale_predictors: bool):
         warnings.simplefilter("ignore", category=RuntimeWarning)
         one_over_sds = np.nan_to_num(1 / expected_sds)
 
-    np.testing.assert_allclose(standardized.A, (asarray - true_means) * one_over_sds)
+    expected_mat = asarray * one_over_sds
+    if center_predictors:
+        expected_mat -= true_means * one_over_sds
+    np.testing.assert_allclose(standardized.A, expected_mat)
 
     unstandardized = standardized.unstandardize()
     assert isinstance(unstandardized, type(mat_))

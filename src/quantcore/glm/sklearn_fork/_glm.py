@@ -240,6 +240,58 @@ def check_bounds(
     return bounds
 
 
+def _standardize(
+    X: mx.MatrixBase,
+    weights: np.ndarray,
+    center_predictors: bool,
+    scale_predictors: bool,
+    lower_bounds: np.ndarray,
+    upper_bounds: np.ndarray,
+    P1: Union[np.ndarray, sparse.spmatrix],
+    P2: Union[np.ndarray, sparse.spmatrix],
+):
+    """
+    This function standardizes the data matrix X and then adjusts the bounds
+    and penalties to match the standardized data matrix.
+
+    Columns are always scaled to have standard deviation 1.
+
+    If center_predictors is True, the data matrix will be adjusted to have
+    columns with mean 0.
+
+    If scale_predictors is True, the penalties will not be scaled. The result
+    will be that the input penalty matrices are applied to the standardized
+    coefficients. This can be useful to scale
+    """
+
+    X, col_means, col_stds = X.standardize(weights, center_predictors, True)
+
+    if col_stds is not None:
+        # We copy the bounds when multiplying here so the we avoid
+        # side effects.
+        if lower_bounds is not None:
+            lower_bounds = lower_bounds * col_stds
+        if upper_bounds is not None:
+            upper_bounds = upper_bounds * col_stds
+
+    # NOTE: We always scale predictors. The only thing controlled by
+    # scale_predictors is whether or not we also scale the penalties.
+    # If scale_predictors=True, we do not scale penalties. This can be
+    # useful if the user wants to uniformly penalize in the scale
+    # coefficient space rather than in the original coefficient space.
+    if not scale_predictors and col_stds is not None:
+        penalty_mult = mx.one_over_var_inf_to_val(col_stds, 1.0)
+        P1 *= penalty_mult
+        if sparse.issparse(P2):
+            inv_col_stds_mat = sparse.diags(penalty_mult)
+            P2 = inv_col_stds_mat @ P2 @ inv_col_stds_mat
+        elif P2.ndim == 1:
+            P2 *= penalty_mult ** 2
+        else:
+            P2 = (penalty_mult[:, None] * P2) * penalty_mult[None, :]
+    return X, col_means, col_stds, lower_bounds, upper_bounds, P1, P2
+
+
 def _unstandardize(
     X: mx.StandardizedMat,
     col_means: np.ndarray,
@@ -250,13 +302,12 @@ def _unstandardize(
     assert isinstance(X, mx.StandardizedMat)
     if col_stds is None:
         intercept -= np.squeeze(np.squeeze(col_means).dot(np.atleast_1d(coef).T))
-        # intercept -= float(np.squeeze(col_means).dot(coef))
     else:
+        penalty_mult = mx.one_over_var_inf_to_val(col_stds, 1.0)
         intercept -= np.squeeze(
-            np.squeeze(col_means / col_stds).dot(np.atleast_1d(coef).T)
+            np.squeeze(col_means * penalty_mult).dot(np.atleast_1d(coef).T)
         )
-        # intercept -= float(np.squeeze(col_means / col_stds).dot(coef))
-        coef /= col_stds
+        coef *= penalty_mult
     return intercept, coef
 
 
@@ -680,11 +731,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         #######################################################################
         # 5a. undo standardization
         #######################################################################
-        if self._center_predictors:
-            assert isinstance(X, mx.StandardizedMat)
-            self.intercept_, self.coef_ = _unstandardize(
-                X, col_means, col_stds, self.intercept_, self.coef_,  # type: ignore
-            )
+        assert isinstance(X, mx.StandardizedMat)
+        self.intercept_, self.coef_ = _unstandardize(
+            X, col_means, col_stds, self.intercept_, self.coef_,  # type: ignore
+        )
 
         if self.fit_dispersion in ["chisqr", "deviance"]:
             # attention because of rescaling of weights
@@ -732,35 +782,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             return np.logspace(
                 np.log(max_alpha), np.log(min_alpha), self.n_alphas, base=np.e
             )
-
-        def _get_normal_identity_grad_at_zeros_with_optimal_intercept() -> np.ndarray:
-            if self.fit_intercept:
-                if offset is None:
-                    mu = y.dot(w)
-                else:
-                    mu = offset + (y - offset).dot(w)
-            else:
-                mu = 0
-            return X.T.dot(w * (y - mu))
-
-        def _get_tweedie_log_grad_at_zeros_with_optimal_intercept() -> np.ndarray:
-            if self.fit_intercept:
-                # if all non-intercept coefficients are zero and there is no offset,
-                # the best intercept makes the predicted mean the sample mean
-                mu = y.dot(w)
-            elif offset is not None:
-                mu = offset
-            else:
-                mu = 1
-
-            family = get_family(self.family)
-            if isinstance(family, TweedieDistribution):
-                p = family.power
-            else:
-                p = 0
-
-            # tweedie grad
-            return mu ** (1 - p) * X.T.dot(w * (y - mu))
 
         if l1_ratio == 0:
             alpha_max = 10
@@ -901,15 +922,45 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         return self.coef_path_
 
-    def report_diagnostics(self) -> None:
+    def report_diagnostics(
+        self, full_report: bool = False, custom_columns: Optional[Iterable] = None
+    ) -> None:
+        """Print diagnostics to stdout.
+
+        Parameters
+        ----------
+        full_report: boolean (default False)
+            Print all available information. When False and custom_columns
+            is set to None, a restricted set of columns is printed out.
+        custom_columns: Iterable (optional, default None)
+            Print only the specified columns
+        """
         if hasattr(self, "diagnostics_"):
             print("diagnostics:")
             import pandas as pd
 
-            with pd.option_context("max_rows", None):
-                print(
-                    pd.DataFrame(data=self.diagnostics_).set_index("n_iter", drop=True)
-                )
+            with pd.option_context("max_rows", None, "max_columns", None):
+                if custom_columns is not None:
+                    print(pd.DataFrame(data=self.diagnostics_)[custom_columns])
+                elif full_report:
+                    print(
+                        pd.DataFrame(data=self.diagnostics_).set_index(
+                            "n_iter", drop=True
+                        )
+                    )
+                else:
+                    base_cols = [
+                        "n_iter",
+                        "convergence",
+                        "n_cycles",
+                        "iteration_runtime",
+                        "intercept",
+                    ]
+                    print(
+                        pd.DataFrame(data=self.diagnostics_)[base_cols].set_index(
+                            "n_iter", drop=True
+                        )
+                    )
         else:
             print("solver does not report diagnostics")
 
@@ -1730,17 +1781,25 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         #######################################################################
         # 2c. potentially rescale predictors
         #######################################################################
-        if self._center_predictors:
-            X, col_means, col_stds = X.standardize(weights, self.scale_predictors)
-            if col_stds is not None:
-                # We copy the bounds when multiplying here so the we avoid
-                # side effects.
-                if lower_bounds is not None:
-                    lower_bounds = lower_bounds * col_stds
-                if upper_bounds is not None:
-                    upper_bounds = upper_bounds * col_stds
-        else:
-            col_means, col_stds = None, None
+
+        (
+            X,
+            col_means,
+            col_stds,
+            lower_bounds,
+            upper_bounds,
+            P1_no_alpha,
+            P2_no_alpha,
+        ) = _standardize(
+            X,
+            weights,
+            self._center_predictors,
+            self.scale_predictors,
+            lower_bounds,
+            upper_bounds,
+            P1_no_alpha,
+            P2_no_alpha,
+        )
 
         #######################################################################
         # 3. initialization of coef = (intercept_, coef_)                     #

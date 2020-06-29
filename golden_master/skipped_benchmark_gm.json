@@ -1,5 +1,4 @@
 [
   "wide-insurance-weights-l2-binomial",
-  "wide-insurance-no-weights-l2-binomial",
-  "wide-insurance-offset-net-binomial"
+  "wide-insurance-no-weights-l2-binomial"
 ]
