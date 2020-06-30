@@ -8,7 +8,7 @@ import math
 import ipywidgets as widgets
 import numpy as np
 import pandas as pd
-from bokeh.io import export_png, output_file, show
+from bokeh.io import export_png, output_file, output_notebook, show
 from bokeh.layouts import gridplot
 from bokeh.models import (
     ColumnDataSource,
@@ -28,6 +28,8 @@ from .base import GLMBase
 class GLM(GLMBase):
     def view(self, data=None):
         """The main UI of the GLMUtility"""
+
+        output_notebook()
 
         def view_one_way(var, transform, obs, fitted, model, ci, data):
             if data is None:

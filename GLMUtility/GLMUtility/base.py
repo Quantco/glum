@@ -9,8 +9,6 @@ import pandas as pd
 import statsmodels.api as sm
 import yaml
 
-from .ui import GLM
-
 
 class GLMBase:
     """GLMUtility is built around the `statsmodels
@@ -130,7 +128,7 @@ class GLMBase:
             self.base_dict = {}
             for item in self.independent:
                 self.base_dict[item] = self._set_base_level(
-                    data[item], base_dict_override
+                    self.data[item], base_dict_override
                 )
             self.PDP = None
             self.variates = {}
@@ -186,7 +184,7 @@ class GLMBase:
             main_list = list_1 + list(np.setdiff1d(list_2, list_1))
         else:
             main_list = glm_config["structure"]["independent"]
-        model = GLM(
+        model = sm.GLM(
             data=train,
             independent=main_list,
             dependent=glm_config["structure"]["dependent"],
