@@ -16,25 +16,37 @@ cdef struct ArrayableMemoryView:
 def sandwich_cat_dense(
     int[:] i_indices,
     int i_ncol,
-    int j_ncol,
     floating[:] d,
-    floating[:, :] mat_j
+    floating[:, :] mat_j,
+    int[:] rows,
+    int[:] j_cols
 ):
     """
     Expect mat_j to be C-contiguous (row major)
     """
 
-    cdef Py_ssize_t i, j, k
-    cdef Py_ssize_t n_rows = len(i_indices)
-    cdef int* i_indices_p = &i_indices[0]
+    cdef floating[:, :] res
+    res = np.zeros((i_ncol, len(j_cols)))
 
-    res = np.zeros((i_ncol, j_ncol))
-    for k in range(n_rows):
+    if len(d) == 0 or len(rows) == 0 or len(j_cols) == 0 or i_ncol == 0:
+        return np.asarray(res)
+
+    # Ben says pointers are probably a < 5%-10% improvement over memoryviews
+    cdef size_t i, j, k, k_idx, j_idx
+    cdef floating* d_p = &d[0]
+    cdef int* i_indices_p = &i_indices[0]
+    cdef int* rows_p = &rows[0]
+    cdef int* j_cols_p = &j_cols[0]
+    cdef floating tmp
+
+    for k_idx in range(len(rows)):
+        k = rows_p[k_idx]
         i = i_indices_p[k]
-        for j in range(j_ncol):
-            tmp = d[k] * mat_j[k, j]
-            res[i, j] += tmp
-    return res
+        for j_idx in range(len(j_cols)):
+            j = j_cols_p[j_idx]
+            res[i, j_idx] += d_p[k] * mat_j[k, j]
+
+    return np.asarray(res)
 
 
 def _sandwich_cat_cat(
@@ -42,7 +54,8 @@ def _sandwich_cat_cat(
     int[:] j_indices,
     int i_ncol,
     int j_ncol,
-    floating[:] d
+    floating[:] d,
+    int[:] rows
 ):
     """
     (X1.T @ diag(d) @ X2)[i, j] = sum_k X1[k, i] d[k] X2[k, j]
@@ -54,19 +67,15 @@ def _sandwich_cat_cat(
 
     cdef floating[:, :] res
     res = np.zeros((i_ncol, j_ncol))
-    cdef int i
-    cdef int j
-    cdef int k
-    cdef floating d_
+    cdef size_t k_idx, k, i, j
 
-    for k in range(len(d)):
+    for k_idx in range(len(rows)):
+        k = rows[k_idx]
         i = i_indices[k]
         j = j_indices[k]
-        d_ = d[k]
-        res[i, j] += d_
+        res[i, j] += d[k]
 
     return res
-
 
 
 def split_col_subsets(self, int[:] cols):
