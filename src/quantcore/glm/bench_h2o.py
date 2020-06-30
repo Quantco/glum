@@ -62,7 +62,6 @@ def h2o_bench(
         family="tweedie" if tweedie else distribution,
         alpha=l1_ratio,
         lambda_=alpha if reg_multiplier is None else alpha * reg_multiplier,
-        # intercept=False,
         standardize=False,
         solver="IRLSM",
         objective_epsilon=benchmark_convergence_tolerance,

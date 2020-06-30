@@ -51,7 +51,6 @@ def sklearn_fork_bench(
     model_args = dict(
         family=family,
         l1_ratio=l1_ratio,
-        # fit_intercept=False,
         max_iter=1000,
         random_state=random_seed,
         copy_X=False,
