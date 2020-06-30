@@ -38,39 +38,42 @@ def _sandwich_cat_other(
     mat_i: CategoricalMatrix,
     mat_j: MatrixBase,
     d: np.ndarray,
-    rows: np.ndarray,
-    L_cols: np.ndarray,
-    R_cols: np.ndarray,
+    rows: Optional[np.ndarray],
+    L_cols: Optional[np.ndarray],
+    R_cols: Optional[np.ndarray],
 ) -> np.ndarray:
 
-    dim_2 = mat_j.shape[1] if R_cols is None else len(R_cols)
-
-    if rows is None:
-        rows = slice(None, None, None)
     if L_cols is None:
         L_cols = slice(None, None, None)
+
+    # I don't think Cython can handle lower-precision ints. Look into this
+    i_indices = mat_i.indices.astype(np.int32)
+
+    if isinstance(mat_j, np.ndarray) and mat_j.flags["C_CONTIGUOUS"]:
+        if rows is None:
+            rows = np.arange(mat_i.shape[0], dtype=np.int32)
+        if R_cols is None:
+            R_cols = np.arange(mat_j.shape[1], dtype=np.int32)
+
+        return sandwich_cat_dense(i_indices, mat_i.shape[1], d, mat_j, rows, R_cols)
+
     if R_cols is None:
         R_cols = slice(None, None, None)
 
-    # I don't think Cython can handle lower-precision ints. Look into this
-    i_indices = mat_i.indices[rows].astype(np.int32)
-
     # TODO: make sure I haven't neglected col_mult
     if isinstance(mat_j, CategoricalMatrix):
-        j_indices = mat_j.indices[rows].astype(np.int32)
-        d_ = d[rows]
+        j_indices = mat_j.indices.astype(np.int32)
+        if rows is None:
+            rows = np.arange(mat_i.shape[0], dtype=np.int32)
 
         res = _sandwich_cat_cat(
-            i_indices, j_indices, mat_i.shape[1], mat_j.shape[1], d_
+            i_indices, j_indices, mat_i.shape[1], mat_j.shape[1], d, rows
         )
 
         return np.asarray(res)[L_cols, :][:, R_cols]
 
-    if isinstance(mat_j, np.ndarray) and mat_j.flags["C_CONTIGUOUS"]:
-        tmp = mat_j[rows, :][:, R_cols]
-        # TODO: figure out why this is extremely slow
-        res = sandwich_cat_dense(i_indices, mat_i.shape[1], dim_2, d, tmp)
-        return res[L_cols, :]
+    if rows is None or len(rows) == mat_i.shape[0]:
+        rows = slice(None, None, None)
 
     term_1 = mat_i.tocsr()
     term_1.data = term_1.data * d
@@ -89,9 +92,9 @@ def mat_sandwich(
     mat_i: MatrixBase,
     mat_j: MatrixBase,
     d: np.ndarray,
-    rows: np.ndarray,
-    colsA: np.ndarray,
-    colsB: np.ndarray,
+    rows: Optional[np.ndarray],
+    colsA: Optional[np.ndarray],
+    colsB: Optional[np.ndarray],
 ) -> np.ndarray:
     if mat_i is mat_j:
         return mat_i.sandwich(d, rows, colsA)
