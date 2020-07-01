@@ -28,7 +28,7 @@ def sklearn_fork_bench(
     l1_ratio: float,
     iterations: int,
     cv: bool,
-    print_diagnostics: bool = True,
+    diagnostics_level: str = "basic",
     reg_multiplier: Optional[float] = None,
     hessian_approx: float = 0.0,
     **kwargs,
@@ -78,11 +78,16 @@ def sklearn_fork_bench(
         result["min_alpha"] = alphas.min()
         result["best_alpha"] = m.alpha_
 
-    if print_diagnostics:
+    if diagnostics_level == "basic":
         with pd.option_context(
             "display.expand_frame_repr", False, "max_columns", None, "max_rows", None
         ):
             m.report_diagnostics()
+    elif diagnostics_level == "full":
+        with pd.option_context(
+            "display.expand_frame_repr", False, "max_columns", None, "max_rows", None
+        ):
+            m.report_diagnostics(full_report=True)
     return result
 
 

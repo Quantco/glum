@@ -689,12 +689,13 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self._center_predictors: bool = self.fit_intercept
 
         if self.solver == "auto":
-            if (
-                (self.l1_ratio == 0)
-                and (self.lower_bounds is None)
-                and (self.upper_bounds is None)
-            ):
-                self._solver = "irls-ls"
+            if (self.lower_bounds is None) and (self.upper_bounds is None):
+                if self.l1_ratio == 0:
+                    self._solver = "irls-ls"
+                elif getattr(self, "alpha", 1) == 0 and not self.alpha_search:
+                    self._solver = "irls-ls"
+                else:
+                    self._solver = "irls-cd"
             else:
                 self._solver = "irls-cd"
         else:
@@ -918,15 +919,45 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         return self.coef_path_
 
-    def report_diagnostics(self) -> None:
+    def report_diagnostics(
+        self, full_report: bool = False, custom_columns: Optional[Iterable] = None
+    ) -> None:
+        """Print diagnostics to stdout.
+
+        Parameters
+        ----------
+        full_report: boolean (default False)
+            Print all available information. When False and custom_columns
+            is set to None, a restricted set of columns is printed out.
+        custom_columns: Iterable (optional, default None)
+            Print only the specified columns
+        """
         if hasattr(self, "diagnostics_"):
             print("diagnostics:")
             import pandas as pd
 
-            with pd.option_context("max_rows", None):
-                print(
-                    pd.DataFrame(data=self.diagnostics_).set_index("n_iter", drop=True)
-                )
+            with pd.option_context("max_rows", None, "max_columns", None):
+                if custom_columns is not None:
+                    print(pd.DataFrame(data=self.diagnostics_)[custom_columns])
+                elif full_report:
+                    print(
+                        pd.DataFrame(data=self.diagnostics_).set_index(
+                            "n_iter", drop=True
+                        )
+                    )
+                else:
+                    base_cols = [
+                        "n_iter",
+                        "convergence",
+                        "n_cycles",
+                        "iteration_runtime",
+                        "intercept",
+                    ]
+                    print(
+                        pd.DataFrame(data=self.diagnostics_)[base_cols].set_index(
+                            "n_iter", drop=True
+                        )
+                    )
         else:
             print("solver does not report diagnostics")
 
