@@ -1,5 +1,4 @@
 import os
-import warnings
 from typing import Dict, Optional, Union
 
 import h2o
@@ -30,18 +29,19 @@ def h2o_bench(
     l1_ratio: float,
     iterations: int,
     cv: bool,
-    print_diagnostics: bool = True,  # ineffective here
+    diagnostics_level: str = "basic",  # ineffective here
     reg_multiplier: Optional[float] = None,
+    hessian_approx: float = 0.0,  # ineffective here
     **kwargs,
 ):
 
     result: Dict = dict()
 
-    if not isinstance(dat["X"], np.ndarray) and not isinstance(dat["X"], sps.spmatrix):
+    """if not isinstance(dat["X"], np.ndarray) and not isinstance(dat["X"], sps.spmatrix):
         warnings.warn(
             "h2o requires data as scipy.sparse matrix or numpy array. Skipping."
         )
-        return result
+        return result"""
 
     h2o.init(nthreads=int(os.environ.get("OMP_NUM_THREADS", os.cpu_count())))  # type: ignore
 
