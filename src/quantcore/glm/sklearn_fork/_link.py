@@ -121,15 +121,16 @@ class LogitLink(Link):
     def inverse(self, lin_pred):
         """Note: since passing a very large value might result in an output
         of 1, this function bounds the output to be between
-        [10^-20, 1 - 10^-10].
+        [50*eps, 1 - 50*eps] where eps is floating point epsilon.
         """
         inv_logit = special.expit(lin_pred)
-        if np.any(inv_logit > 1 - 1e-10) or np.any(inv_logit < 1e-20):
+        eps50 = 50 * np.finfo(inv_logit.dtype).eps
+        if np.any(inv_logit > 1 - eps50) or np.any(inv_logit < eps50):
             warnings.warn(
                 "Computing sigmoid function gave results too close to 0 or 1. "
                 "Clipping."
             )
-            return np.clip(inv_logit, 1e-20, 1 - 1e-10)
+            return np.clip(inv_logit, eps50, 1 - eps50)
         return inv_logit
 
     def inverse_derivative(self, lin_pred):

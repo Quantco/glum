@@ -11,7 +11,7 @@ from quantcore.glm.util import (
     BenchmarkParams,
     benchmark_params_cli,
     clear_cache,
-    get_default_val,
+    defaults,
     get_obj_val,
     get_tweedie_p,
 )
@@ -78,7 +78,7 @@ def cli_run(
 def execute_problem_library(
     params: BenchmarkParams,
     iterations: int = 1,
-    print_diagnostics: bool = True,
+    diagnostics_level: str = "basic",
     **kwargs,
 ):
     assert params.problem_name is not None
@@ -88,7 +88,7 @@ def execute_problem_library(
 
     for k in params.param_names:
         if getattr(params, k) is None:
-            params.update_params(**{k: get_default_val(k)})
+            params.update_params(**{k: defaults[k]})
 
     dat = P.data_loader(
         num_rows=params.num_rows,
@@ -112,8 +112,9 @@ def execute_problem_library(
         l1_ratio=P.l1_ratio,
         iterations=iterations,
         cv=params.cv,
-        print_diagnostics=print_diagnostics,
+        diagnostics_level=diagnostics_level,
         reg_multiplier=reg_multiplier,
+        hessian_approx=params.hessian_approx,
         **kwargs,
     )
     if len(result) > 0:
