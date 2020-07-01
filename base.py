@@ -9,6 +9,8 @@ import pandas as pd
 import statsmodels.api as sm
 import yaml
 
+from quantcore.glm.sklearn_fork import GeneralizedLinearRegressor
+
 
 class GLMBase:
     """GLMUtility is built around the `statsmodels
@@ -113,12 +115,11 @@ class GLMBase:
         base_dict_override={},
     ):
         if independent is not None and dependent is not None and weight is not None:
-            self.data = data.reset_index().drop("index", axis=1)
+            self.data = data.reset_index().drop(data.index.name, axis=1)
             # make it a list of one if user only passed a single column
-            independent = (
+            self.independent = (
                 independent if isinstance(independent, list) else [independent]
             )
-            self.independent = independent
             self.dependent = dependent
             self.weight = weight
             self.scale = scale
@@ -184,7 +185,7 @@ class GLMBase:
             main_list = list_1 + list(np.setdiff1d(list_2, list_1))
         else:
             main_list = glm_config["structure"]["independent"]
-        model = sm.GLM(
+        model = GeneralizedLinearRegressor(
             data=train,
             independent=main_list,
             dependent=glm_config["structure"]["dependent"],
