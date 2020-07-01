@@ -28,8 +28,9 @@ def sklearn_fork_bench(
     l1_ratio: float,
     iterations: int,
     cv: bool,
-    print_diagnostics: bool = True,
+    diagnostics_level: str = "basic",
     reg_multiplier: Optional[float] = None,
+    hessian_approx: float = 0.0,
     **kwargs,
 ):
     result = dict()
@@ -55,17 +56,15 @@ def sklearn_fork_bench(
         random_state=random_seed,
         copy_X=False,
         selection="cyclic",
-        # TODO: try tightening this later
         gradient_tol=1 if cv else benchmark_convergence_tolerance,
         step_size_tol=0.01 * benchmark_convergence_tolerance,
         force_all_finite=False,
+        hessian_approx=hessian_approx,
     )
     if not cv:
         model_args["alpha"] = (
             alpha if reg_multiplier is None else alpha * reg_multiplier
         )
-
-    model_args.update(kwargs)
 
     result["runtime"], m = runtime(build_and_fit, iterations, model_args, fit_args, cv)
 
@@ -79,11 +78,16 @@ def sklearn_fork_bench(
         result["min_alpha"] = alphas.min()
         result["best_alpha"] = m.alpha_
 
-    if print_diagnostics:
+    if diagnostics_level == "basic":
         with pd.option_context(
             "display.expand_frame_repr", False, "max_columns", None, "max_rows", None
         ):
             m.report_diagnostics()
+    elif diagnostics_level == "full":
+        with pd.option_context(
+            "display.expand_frame_repr", False, "max_columns", None, "max_rows", None
+        ):
+            m.report_diagnostics(full_report=True)
     return result
 
 

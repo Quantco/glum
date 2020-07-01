@@ -7,6 +7,7 @@ from scipy import sparse as sps
 from . import MatrixBase
 from .categorical_matrix import CategoricalMatrix
 from .dense_glm_matrix import DenseGLMDataMatrix
+from .ext.split import split_col_subsets
 from .mkl_sparse_matrix import MKLSparseMatrix
 
 
@@ -34,32 +35,52 @@ def csc_to_split(mat: sps.csc_matrix, threshold=0.1):
 
 
 def _sandwich_cat_other(
-    mat_i: CategoricalMatrix, mat_j: MatrixBase, d: np.ndarray
+    mat_i: CategoricalMatrix,
+    mat_j: MatrixBase,
+    d: np.ndarray,
+    rows: np.ndarray,
+    L_cols: np.ndarray,
+    R_cols: np.ndarray,
 ) -> np.ndarray:
+    if rows is None:
+        rows = slice(None, None, None)
+    if L_cols is None:
+        L_cols = slice(None, None, None)
+    if R_cols is None:
+        R_cols = slice(None, None, None)
+
     term_1 = mat_i.tocsr()
     term_1.data = d
-    res = term_1.T.dot(mat_j)
+    term_1 = term_1[rows, :][:, L_cols]
+    res = term_1.T.dot(mat_j[rows, :][:, R_cols])
     if sps.issparse(res):
         res = res.A
     assert isinstance(res, np.ndarray)
     return res
 
 
-def mat_sandwich(mat_i: MatrixBase, mat_j: MatrixBase, d: np.ndarray) -> np.ndarray:
+def mat_sandwich(
+    mat_i: MatrixBase,
+    mat_j: MatrixBase,
+    d: np.ndarray,
+    rows: np.ndarray,
+    colsA: np.ndarray,
+    colsB: np.ndarray,
+) -> np.ndarray:
     if mat_i is mat_j:
-        return mat_i.sandwich(d)
+        return mat_i.sandwich(d, rows, colsA)
     if isinstance(mat_i, MKLSparseMatrix):
         if isinstance(mat_j, DenseGLMDataMatrix):
-            return mat_i.sandwich_dense(mat_j, d)
+            return mat_i.sandwich_dense(mat_j, d, rows, colsA, colsB)
         if isinstance(mat_j, CategoricalMatrix):
-            return _sandwich_cat_other(mat_j, mat_i, d).T
+            return _sandwich_cat_other(mat_j, mat_i, d, rows, colsB, colsA).T
     elif isinstance(mat_i, DenseGLMDataMatrix):
         if isinstance(mat_j, MKLSparseMatrix):
-            return mat_j.sandwich_dense(mat_i, d).T
+            return mat_j.sandwich_dense(mat_i, d, rows, colsB, colsA).T
         if isinstance(mat_j, CategoricalMatrix):
-            return _sandwich_cat_other(mat_j, mat_i, d).T
+            return _sandwich_cat_other(mat_j, mat_i, d, rows, colsB, colsA).T
     elif isinstance(mat_i, CategoricalMatrix):
-        return _sandwich_cat_other(mat_i, mat_j, d)
+        return _sandwich_cat_other(mat_i, mat_j, d, rows, colsA, colsB)
     raise NotImplementedError(f"Not implemented with {type(mat_i)} or {type(mat_j)}")
 
 
@@ -134,9 +155,17 @@ class SplitMatrix(MatrixBase):
                 ]
 
         self.matrices = matrices
-        self.indices = indices
+        self.indices = [np.asarray(I) for I in indices]
         self.shape = (n_row, sum([len(elt) for elt in indices]))
         assert self.shape[1] > 0
+
+    def _split_col_subsets(self, cols):
+        if cols is None:
+            subset_cols_indices = self.indices
+            subset_cols = [None for i in range(len(self.indices))]
+            return subset_cols_indices, subset_cols, self.shape[1]
+
+        return split_col_subsets(self, cols)
 
     def astype(self, dtype, order="K", casting="unsafe", copy=True):
         if copy:
@@ -166,17 +195,24 @@ class SplitMatrix(MatrixBase):
                 return mat.getcol(loc)
         raise RuntimeError(f"Column {i} was not found.")
 
-    def sandwich(self, d: np.ndarray) -> np.ndarray:
+    def sandwich(
+        self, d: np.ndarray, rows: np.ndarray = None, cols: np.ndarray = None
+    ) -> np.ndarray:
         if np.shape(d) != (self.shape[0],):
             raise ValueError
-        out = np.zeros((self.shape[1], self.shape[1]))
+
+        subset_cols_indices, subset_cols, n_cols = self._split_col_subsets(cols)
+
+        out = np.zeros((n_cols, n_cols))
         for i in range(len(self.indices)):
             for j in range(i, len(self.indices)):
-                idx_i = self.indices[i]
+                idx_i = subset_cols_indices[i]
                 mat_i = self.matrices[i]
-                idx_j = self.indices[j]
+                idx_j = subset_cols_indices[j]
                 mat_j = self.matrices[j]
-                res = mat_sandwich(mat_i, mat_j, d)
+                res = mat_sandwich(
+                    mat_i, mat_j, d, rows, subset_cols[i], subset_cols[j]
+                )
                 if isinstance(res, sps.dia_matrix):
                     out[(idx_i, idx_i)] += np.squeeze(res.data)
                 else:
@@ -198,41 +234,49 @@ class SplitMatrix(MatrixBase):
 
         return col_stds
 
-    def dot(self, v: np.ndarray) -> np.ndarray:
+    def dot(
+        self, v: np.ndarray, rows: np.ndarray = None, cols: np.ndarray = None
+    ) -> np.ndarray:
         assert not isinstance(v, sps.spmatrix)
         v = np.asarray(v)
         if v.shape[0] != self.shape[1]:
             raise ValueError(f"shapes {self.shape} and {v.shape} not aligned")
-        out_shape = (self.shape[0],) if v.ndim == 1 else (self.shape[0], v.shape[1])
+
+        if cols is None:
+            cols = np.arange(self.shape[1], dtype=np.int32)
+        _, subset_cols, n_cols = self._split_col_subsets(cols)
+
+        out_shape_base = [self.shape[0]] if rows is None else [rows.shape[0]]
+        out_shape = out_shape_base + ([] if v.ndim == 1 else list(v.shape[1:]))
         out = np.zeros(out_shape, np.result_type(self.dtype, v.dtype))
-        for idx, mat in zip(self.indices, self.matrices):
-            out += mat.dot(v[idx, ...])
+        for sub_cols, idx, mat in zip(subset_cols, self.indices, self.matrices):
+            out += mat.dot(v[idx, ...], rows, sub_cols)
         return out
 
-    def transpose_dot(self, vec: Union[np.ndarray, List]) -> np.ndarray:
+    def transpose_dot(
+        self,
+        vec: Union[np.ndarray, List],
+        rows: np.ndarray = None,
+        cols: np.ndarray = None,
+    ) -> np.ndarray:
         """
         self.T.dot(vec)[i] = sum_k self[k, i] vec[k]
         = sum_{k in self.dense_indices} self[k, i] vec[k] +
           sum_{k in self.sparse_indices} self[k, i] vec[k]
         = self.X_dense.T.dot(vec) + self.X_sparse.T.dot(vec)
         """
-        vec = np.asarray(vec)
-        if vec.ndim == 1:
-            out_shape = (self.shape[1],)
-        elif vec.ndim == 2:
-            out_shape = (self.shape[1], vec.shape[1])  # type: ignore
-        else:
-            raise NotImplementedError
 
+        vec = np.asarray(vec)
+        if cols is None:
+            cols = np.arange(self.shape[1], dtype=np.int32)
+        subset_cols_indices, subset_cols, n_cols = self._split_col_subsets(cols)
+
+        out_shape = [n_cols] + list(vec.shape[1:])
         out = np.empty(out_shape, dtype=vec.dtype)
 
-        for idx, mat in zip(self.indices, self.matrices):
-            out[idx, ...] = mat.transpose_dot(vec)
+        for idx, sub_cols, mat in zip(subset_cols_indices, subset_cols, self.matrices):
+            out[idx, ...] = mat.transpose_dot(vec, rows, sub_cols)
         return out
-
-    def scale_cols_inplace(self, col_scaling: np.ndarray):
-        for idx, mat in zip(self.indices, self.matrices):
-            mat.scale_cols_inplace(col_scaling[idx])
 
     def __getitem__(self, key):
         if isinstance(key, tuple):

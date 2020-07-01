@@ -4,6 +4,7 @@ from typing import Callable, Dict, Optional, Tuple
 
 import attr
 import numpy as np
+import pandas as pd
 from git_root import git_root
 from joblib import Memory
 from scipy.sparse import csc_matrix
@@ -33,7 +34,7 @@ class Problem:
 def load_data(
     loader_func: Callable[
         [Optional[int], Optional[float], Optional[str]],
-        Tuple[np.ndarray, np.ndarray, np.ndarray],
+        Tuple[pd.DataFrame, np.ndarray, np.ndarray],
     ],
     num_rows: int = None,
     storage: str = "dense",
