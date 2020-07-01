@@ -2,6 +2,7 @@ import warnings
 from typing import Dict, Optional, Union
 
 import numpy as np
+import pandas as pd
 from scipy import sparse as sps
 
 from .orig_sklearn_fork import GeneralizedLinearRegressor, TweedieDistribution
@@ -21,9 +22,7 @@ def orig_sklearn_fork_bench(
     l1_ratio: float,
     iterations: int,
     cv: bool,
-    diagnostics_level: str = "basic",  # ineffective here
     reg_multiplier: Optional[float] = True,
-    hessian_approx: float = 0.0,  # ineffective here
     **kwargs,
 ):
     if cv:
@@ -32,9 +31,9 @@ def orig_sklearn_fork_bench(
 
     X = dat["X"]
 
-    if X.shape[0] > 100000 and not isinstance(X, np.ndarray):
+    if X.shape[0] > 100000 and not isinstance(X, (np.ndarray, pd.DataFrame)):
         warnings.warn(
-            "original sklearn fork is too slow on sparse data sets with more than 100,000 rows skipping."
+            "original sklearn fork is too slow on sparse data sets with more than 100,000 rows. Skipping."
         )
         return result
 
@@ -62,7 +61,6 @@ def orig_sklearn_fork_bench(
         selection="cyclic",
         tol=benchmark_convergence_tolerance,
     )
-    model_args.update(kwargs)
 
     try:
         result["runtime"], m = runtime(build_and_fit, iterations, model_args, fit_args)

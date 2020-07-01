@@ -2,6 +2,7 @@ import warnings
 from typing import Any, Dict, Optional, Union
 
 import numpy as np
+import pandas as pd
 from glmnet_python import cvglmnet, glmnet
 from scipy import sparse as sps
 
@@ -15,9 +16,7 @@ def glmnet_python_bench(
     l1_ratio: float,
     iterations: int,
     cv: bool,
-    diagnostics_level: str = "basic",  # ineffective here
     reg_multiplier: Optional[float] = None,
-    hessian_approx: float = 0.0,  # ineffective here
     **kwargs,
 ) -> Dict[str, Any]:
     result: Dict = dict()
@@ -27,11 +26,13 @@ def glmnet_python_bench(
         if not isinstance(X, sps.csc.csc_matrix):
             warnings.warn("sparse matrix will be converted to csc format")
             X = X.tocsc()
-    """elif not isinstance(X, np.ndarray):
+    elif isinstance(X, pd.DataFrame):
+        X = X.to_numpy()
+    elif not isinstance(X, np.ndarray):
         warnings.warn(
-            "glmnet_python requires data as scipy.sparse matrix or numpy array. Skipping."
+            "glmnet_python requires data as scipy.sparse matrix, pandas dataframe, or numpy array. Skipping."
         )
-        return result"""
+        return result
 
     if len(dat["y"]) <= 650:
         warnings.warn("glmnet_python does not work with too few rows")
