@@ -43,6 +43,11 @@ def _sandwich_cat_other(
     R_cols: Optional[np.ndarray],
 ) -> np.ndarray:
 
+    expected_shape = (
+        mat_i.shape[1] if L_cols is None else len(L_cols),
+        mat_j.shape[1] if R_cols is None else len(R_cols),
+    )
+
     if L_cols is None:
         L_cols = slice(None, None, None)
 
@@ -55,7 +60,10 @@ def _sandwich_cat_other(
         if R_cols is None:
             R_cols = np.arange(mat_j.shape[1], dtype=np.int32)
 
-        return sandwich_cat_dense(i_indices, mat_i.shape[1], d, mat_j, rows, R_cols)
+        res = sandwich_cat_dense(i_indices, mat_i.shape[1], d, mat_j, rows, R_cols)
+        res = res[L_cols, :]
+        assert res.shape == expected_shape
+        return res
 
     if R_cols is None:
         R_cols = slice(None, None, None)
@@ -70,7 +78,9 @@ def _sandwich_cat_other(
             i_indices, j_indices, mat_i.shape[1], mat_j.shape[1], d, rows
         )
 
-        return np.asarray(res)[L_cols, :][:, R_cols]
+        res = np.asarray(res)[L_cols, :][:, R_cols]
+        assert res.shape == expected_shape
+        return res
 
     if rows is None or len(rows) == mat_i.shape[0]:
         rows = slice(None, None, None)
@@ -79,12 +89,10 @@ def _sandwich_cat_other(
     term_1.data = term_1.data * d
     term_1 = term_1[rows, :][:, L_cols]
 
-    if isinstance(mat_j, CategoricalMatrix):
-        mat_j = mat_j.tocsc()
-
     res = term_1.T.dot(mat_j[rows, :][:, R_cols])
     if sps.issparse(res):
         res = res.A
+    assert res.shape == expected_shape
     return res
 
 
@@ -96,20 +104,36 @@ def mat_sandwich(
     colsA: Optional[np.ndarray],
     colsB: Optional[np.ndarray],
 ) -> np.ndarray:
+    expected_shape = (
+        mat_i.shape[1] if colsA is None else len(colsA),
+        mat_j.shape[1] if colsB is None else len(colsB),
+    )
     if mat_i is mat_j:
-        return mat_i.sandwich(d, rows, colsA)
+        res = mat_i.sandwich(d, rows, colsA)
+        assert res.shape == expected_shape
+        return res
     if isinstance(mat_i, MKLSparseMatrix):
         if isinstance(mat_j, DenseGLMDataMatrix):
-            return mat_i.sandwich_dense(mat_j, d, rows, colsA, colsB)
+            res = mat_i.sandwich_dense(mat_j, d, rows, colsA, colsB)
+            assert res.shape == expected_shape
+            return res
         if isinstance(mat_j, CategoricalMatrix):
-            return _sandwich_cat_other(mat_j, mat_i, d, rows, colsB, colsA).T
+            res = _sandwich_cat_other(mat_j, mat_i, d, rows, colsB, colsA).T
+            assert res.shape == expected_shape
+            return res
     elif isinstance(mat_i, DenseGLMDataMatrix):
         if isinstance(mat_j, MKLSparseMatrix):
-            return mat_j.sandwich_dense(mat_i, d, rows, colsB, colsA).T
+            res = mat_j.sandwich_dense(mat_i, d, rows, colsB, colsA).T
+            assert res.shape == expected_shape
+            return res
         if isinstance(mat_j, CategoricalMatrix):
-            return _sandwich_cat_other(mat_j, mat_i, d, rows, colsB, colsA).T
+            res = _sandwich_cat_other(mat_j, mat_i, d, rows, colsB, colsA).T
+            assert res.shape == expected_shape
+            return res
     elif isinstance(mat_i, CategoricalMatrix):
-        return _sandwich_cat_other(mat_i, mat_j, d, rows, colsA, colsB)
+        res = _sandwich_cat_other(mat_i, mat_j, d, rows, colsA, colsB)
+        assert res.shape == expected_shape
+        return res
     raise NotImplementedError(f"Not implemented with {type(mat_i)} or {type(mat_j)}")
 
 
@@ -242,6 +266,11 @@ class SplitMatrix(MatrixBase):
                 res = mat_sandwich(
                     mat_i, mat_j, d, rows, subset_cols[i], subset_cols[j]
                 )
+                expected_shape = (
+                    mat_i.shape[1] if subset_cols[i] is None else len(subset_cols[i]),
+                    mat_j.shape[1] if subset_cols[j] is None else len(subset_cols[j]),
+                )
+                assert res.shape == expected_shape
                 if isinstance(res, sps.dia_matrix):
                     out[(idx_i, idx_i)] += np.squeeze(res.data)
                 else:
