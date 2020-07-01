@@ -2,8 +2,9 @@ import glob
 import os
 import shutil
 import time
+import warnings
 from functools import reduce
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import click
 import numpy as np
@@ -67,7 +68,14 @@ def _get_minus_binomial_ll_by_obs(eta: np.ndarray, y: np.ndarray) -> np.ndarray:
     = y * (eta - log(1 + exp(eta))) - (1 - y) * log(1 + exp(eta))
     = y * eta - log(1 + exp(eta))
     """
-    return y * eta - np.log(1 + np.exp(eta))
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        expeta = np.exp(eta)
+    # when eta is very large, np.exp(eta) is inf in floating point.
+    # however, in that situation, 1 + exp(eta) ~ exp(eta) and thus
+    # log(1 + exp(eta)) ~ eta
+    return np.where(np.isinf(expeta), y * eta - eta, y * eta - np.log(1 + expeta))
 
 
 def _get_linear_prediction_part(
@@ -189,6 +197,7 @@ class BenchmarkParams:
         single_precision: Optional[bool] = None,
         regularization_strength: Optional[float] = None,
         cv: Optional[bool] = None,
+        hessian_approx: Optional[float] = None,
     ):
 
         self.problem_name = problem_name
@@ -199,6 +208,7 @@ class BenchmarkParams:
         self.single_precision = single_precision
         self.regularization_strength = regularization_strength
         self.cv = cv
+        self.hessian_approx = hessian_approx
 
     param_names = [
         "problem_name",
@@ -209,6 +219,7 @@ class BenchmarkParams:
         "single_precision",
         "regularization_strength",
         "cv",
+        "hessian_approx",
     ]
 
     def update_params(self, **kwargs):
@@ -221,30 +232,17 @@ class BenchmarkParams:
         return "_".join(str(getattr(self, k)) for k in self.param_names)
 
 
-def get_default_val(k: str) -> Any:
-    """
-
-    Parameters
-    ----------
-    k: An element of BenchmarkParams.param_names
-
-    Returns
-    -------
-        Default value of parameter.
-    """
-    if k == "threads":
-        return os.environ.get("OMP_NUM_THREADS", os.cpu_count())
-    # For these parameters, value is fixed downstream,
-    # e.g. threads depends on hardware in cli_run and is 'all' for cli_analyze
-    if k in ["problem_name", "library_name", "num_rows", "regularization_strength"]:
-        return None
-    if k == "storage":
-        return "dense"
-    if k == "cv":
-        return False
-    if k == "single_precision":
-        return False
-    raise KeyError(f"Key {k} not found")
+defaults = dict(
+    threads=os.environ.get("OMP_NUM_THREADS", os.cpu_count()),
+    problem_name=None,
+    library_name=None,
+    num_rows=None,
+    regularization_strength=None,
+    storage="dense",
+    cv=False,
+    single_precision=False,
+    hessian_approx=0.0,
+)
 
 
 def benchmark_params_cli(func: Callable) -> Callable:
@@ -281,6 +279,11 @@ def benchmark_params_cli(func: Callable) -> Callable:
         type=float,
         help="Regularization strength. Set to None to use the default value of the problem.",
     )
+    @click.option(
+        "--hessian_approx",
+        type=float,
+        help="Threshold for dropping rows in the IRLS approximate Hessian update.",
+    )
     def wrapped_func(
         problem_name: Optional[str],
         library_name: Optional[str],
@@ -290,6 +293,7 @@ def benchmark_params_cli(func: Callable) -> Callable:
         cv: Optional[bool],
         single_precision: Optional[bool],
         regularization_strength: Optional[float],
+        hessian_approx: Optional[float],
         *args,
         **kwargs,
     ):
@@ -302,6 +306,7 @@ def benchmark_params_cli(func: Callable) -> Callable:
             single_precision,
             regularization_strength,
             cv,
+            hessian_approx,
         )
         return func(params, *args, **kwargs)
 

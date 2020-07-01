@@ -1,11 +1,12 @@
-from typing import Any, List, Optional, Tuple
+from typing import Any, Callable, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
+from dask_ml.compose import make_column_transformer
+from dask_ml.preprocessing import Categorizer, DummyEncoder, OrdinalEncoder
 from git_root import git_root
-from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import FunctionTransformer, OneHotEncoder, OrdinalEncoder
+from sklearn.preprocessing import FunctionTransformer
 
 from ..util import exposure_and_offset_to_weights
 
@@ -84,119 +85,120 @@ def create_raw_data() -> None:
     df.to_parquet(git_root("data/insurance.parquet"))
 
 
-class PdCategoricalEncoder:
-    def fit_transform(self, x):
-        return pd.Categorical(x)
+def get_categorizer(col_name: str, name="cat") -> Tuple[str, Categorizer]:
+    """
+    Categorizer only operates on object columns unless you explictily pass the column
+    name.
+    """
+    return name, Categorizer(columns=[col_name])
 
 
-def categorical_encoder(one_hot_encode: bool, *args, **kwargs):
-    if one_hot_encode:
-        return OneHotEncoder(*args, **kwargs)
-    return PdCategoricalEncoder()
+def get_one_hot_transformations(col_name: str) -> List[Tuple[str, Any]]:
+    """
+    DummyEncoder requires a categorical input.
+    """
+    return [get_categorizer(col_name), ("OHE", DummyEncoder())]
+
+
+def func_returns_df(
+    fn: Callable[[pd.DataFrame], np.ndarray]
+) -> Callable[[pd.DataFrame], pd.DataFrame]:
+    """
+    fn: Function that takes a dataframe and returns a numpy array
+    Returns: Function that takes a dataframe and returns a dataframe with the values
+        determined by the original function, and the index and columns of the original
+        dataframe.
+    """
+    return lambda x: x.assign(**{x.columns[0]: fn(x)})
 
 
 def gen_col_trans() -> Tuple[Any, List[str]]:
     """Generate a ColumnTransformer and list of names.
 
-    With drop=False and standardize=False, the transformer corresponds to the GLM of the case study paper.
+    The transformer corresponds to the GLM of the case study paper.
 
-    drop = False does encode k categories with k binary features (redundant).
-    standardize = True standardizes numerical features.
+    Encodes k categories with k binary features (redundant).
     """
-    column_trans = ColumnTransformer(
-        [
-            # VehPower 4, 5, 6, 7, 8, 9, drop=4
-            (
-                "VehPower_cat",
-                Pipeline(
-                    [
-                        (
-                            "cut_9",
-                            FunctionTransformer(
-                                lambda x: np.minimum(x, 9), validate=False
-                            ),
-                        ),
-                        ("OHE", OneHotEncoder(),),
-                    ]
-                ),
-                ["VehPower"],
+    column_trans = make_column_transformer(
+        # VehPower 4, 5, 6, 7, 8, 9, drop=4
+        (
+            Pipeline(
+                [
+                    (
+                        "cut_9",
+                        FunctionTransformer(lambda x: np.minimum(x, 9), validate=False),
+                    ),
+                ]
+                + get_one_hot_transformations("VehPower"),
             ),
-            # VehAge intervals [0,1), [1, 10], (10, inf), drop=[1,10]
-            (
-                "VehAge_cat",
-                Pipeline(
-                    [
-                        (
-                            "bin",
-                            FunctionTransformer(
+            ["VehPower"],
+        ),
+        # VehAge intervals [0,1), [1, 10], (10, inf), drop=[1,10]
+        (
+            Pipeline(
+                [
+                    (
+                        "bin",
+                        FunctionTransformer(
+                            func_returns_df(
                                 lambda x: np.digitize(
                                     np.where(x == 10, 9, x), bins=[1, 10]
-                                ),
-                                validate=False,
+                                )
                             ),
+                            validate=False,
                         ),
-                        ("OHE", OneHotEncoder(),),
-                    ]
-                ),
-                ["VehAge"],
+                    ),
+                ]
+                + get_one_hot_transformations("VehAge"),
             ),
-            # DrivAge intervals [18,21), [21,26), [26,31), [31,41), [41,51), [51,71),[71,∞), drop=[41,51)
-            (
-                "DrivAge_cat",
-                Pipeline(
-                    [
-                        (
-                            "bin",
-                            FunctionTransformer(
-                                lambda x: np.digitize(x, bins=[21, 26, 31, 41, 51, 71]),
-                                validate=False,
+            ["VehAge"],
+        ),
+        # DrivAge intervals [18,21), [21,26), [26,31), [31,41), [41,51), [51,71),[71,∞), drop=[41,51)
+        (
+            Pipeline(
+                [
+                    (
+                        "bin",
+                        FunctionTransformer(
+                            func_returns_df(
+                                lambda x: np.digitize(x, bins=[21, 26, 31, 41, 51, 71])
                             ),
+                            validate=False,
                         ),
-                        ("OHE", OneHotEncoder(),),
-                    ]
-                ),
-                ["DrivAge"],
+                    ),
+                ]
+                + get_one_hot_transformations("DrivAge"),
             ),
-            (
-                "BonusMalus",
-                Pipeline(
-                    [
-                        (
-                            "cutat150",
-                            FunctionTransformer(
-                                lambda x: np.minimum(x, 150), validate=False
-                            ),
-                        )
-                    ]
-                ),
-                ["BonusMalus"],
-            ),
-            ("VehBrand_cat", OneHotEncoder(), ["VehBrand"],),
-            ("VehGas_Regular", OneHotEncoder(), ["VehGas"],),
-            (
-                "Density_log",
-                Pipeline(
-                    [("log", FunctionTransformer(lambda x: np.log(x), validate=False))]
-                ),
-                ["Density"],
-            ),
-            ("Region_cat", OneHotEncoder(), ["Region"]),
-            (
-                "Area_ord",
-                Pipeline(
-                    [
-                        ("OE", OrdinalEncoder()),
-                        (
-                            "plus_1",
-                            FunctionTransformer(lambda x: x + 1, validate=False),
+            ["DrivAge"],
+        ),
+        (
+            Pipeline(
+                [
+                    (
+                        "cutat150",
+                        FunctionTransformer(
+                            lambda x: np.minimum(x, 150), validate=False
                         ),
-                    ]
-                ),
-                ["Area"],
+                    )
+                ]
             ),
-        ],
+            ["BonusMalus"],
+        ),
+        (Pipeline(get_one_hot_transformations("VehBrand")), ["VehBrand"],),
+        (Pipeline(get_one_hot_transformations("VehGas")), ["VehGas"],),
+        (FunctionTransformer(np.log, validate=False), ["Density"],),
+        (Pipeline(get_one_hot_transformations("Region")), ["Region"],),
+        (
+            Pipeline(
+                [
+                    get_categorizer("Area"),
+                    ("OE", OrdinalEncoder()),
+                    ("plus_1", FunctionTransformer(lambda x: x + 1, validate=False),),
+                ]
+            ),
+            ["Area"],
+        ),
         remainder="drop",
-        sparse_threshold=0.0,
     )
     column_trans_names = [
         "VehPower_4",
@@ -329,7 +331,7 @@ def read_insurance_data(
 
 def generate_narrow_insurance_dataset(
     num_rows=None, noise=None, distribution="poisson"
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> Tuple[pd.DataFrame, np.ndarray, np.ndarray]:
     """Generate the tutorial data set from the sklearn fork and save it to disk."""
 
     df = read_insurance_data(num_rows, noise, distribution)
@@ -370,39 +372,35 @@ def generate_real_insurance_dataset(
         offset=df["offset_kh_sach_frequenz"],
     )
 
-    return (X.to_numpy(), y, weights)
+    return X, y, weights
 
 
 def generate_wide_insurance_dataset(
     num_rows=None, noise=None, distribution="poisson"
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> Tuple[pd.DataFrame, np.ndarray, np.ndarray]:
     """Generate a version of the tutorial data set with many features."""
     df = read_insurance_data(num_rows, noise, distribution)
+    cat_cols = [
+        "Area",
+        "VehPower",
+        "VehAge",
+        "DrivAge",
+        "BonusMalus",
+        "VehBrand",
+        "VehGas",
+        "Region",
+    ]
 
-    transformer = ColumnTransformer(
-        [
-            (
-                "numerics",
-                FunctionTransformer(),
-                lambda x: x.select_dtypes(["number"]).columns,
+    transformer = make_column_transformer(
+        (FunctionTransformer(), lambda x: x.select_dtypes(["number"]).columns,),
+        (
+            Pipeline(
+                [get_categorizer(col, "cat_" + col) for col in cat_cols]
+                + [("OHE", DummyEncoder())]
             ),
-            (
-                "one_hot_encode",
-                OneHotEncoder(),
-                [
-                    "Area",
-                    "VehPower",
-                    "VehAge",
-                    "DrivAge",
-                    "BonusMalus",
-                    "VehBrand",
-                    "VehGas",
-                    "Region",
-                ],
-            ),
-        ],
+            cat_cols,
+        ),
         remainder="drop",
-        sparse_threshold=0.0,
     )
     y, exposure = compute_y_exposure(df, distribution)
 
@@ -411,7 +409,7 @@ def generate_wide_insurance_dataset(
 
 def generate_intermediate_insurance_dataset(
     num_rows=None, noise=None, distribution="poisson"
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> Tuple[pd.DataFrame, np.ndarray, np.ndarray]:
     """Generate the tutorial data set from the sklearn fork and save it to disk."""
 
     df = read_insurance_data(num_rows, noise, distribution)
@@ -419,7 +417,11 @@ def generate_intermediate_insurance_dataset(
 
     col_trans_GLM1, _ = gen_col_trans()
     col_trans_GLM1.transformers.append(
-        ("BonusMalusClipped", OneHotEncoder(), ["BonusMalusClipped"],)
+        (
+            "BonusMalusClipped",
+            Pipeline(get_one_hot_transformations("BonusMalusClipped")),
+            ["BonusMalusClipped"],
+        )
     )
     y, exposure = compute_y_exposure(df, distribution)
 

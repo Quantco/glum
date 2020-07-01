@@ -5,7 +5,6 @@ import pytest
 from scipy import sparse as sps
 
 import quantcore.glm.matrix as mx
-from quantcore.glm.matrix.sandwich.sandwich import csr_dense_sandwich
 
 
 def base_array(order="F") -> np.ndarray:
@@ -34,16 +33,20 @@ def categorical_matrix_col_mult(order="F"):
     return mx.CategoricalMatrix(vec, [0.5, 3])
 
 
-def col_scaled_dense(order="F") -> mx.ColScaledMat:
-    return mx.ColScaledMat(dense_glm_data_matrix(order), [0.0, 1.0])
+def standardized_dense_shifted(order="F") -> mx.StandardizedMat:
+    return mx.StandardizedMat(dense_glm_data_matrix(order), [0.0, 1.0])
 
 
-def col_scaled_sparse(order="F") -> mx.ColScaledMat:
-    return mx.ColScaledMat(mkl_sparse_matrix(order), [0.0, 1.0])
+def standardized_dense_scaled_shifted(order="F") -> mx.StandardizedMat:
+    return mx.StandardizedMat(dense_glm_data_matrix(order), [0.0, 1.0], [0.6, 1.67])
 
 
-def col_scaled_split(order="F") -> mx.ColScaledMat:
-    return mx.ColScaledMat(split_matrix(order), [0.0, 1.0])
+def standardized_sparse(order="F") -> mx.StandardizedMat:
+    return mx.StandardizedMat(mkl_sparse_matrix(order), [0.0, 1.0])
+
+
+def standardized_split(order="F") -> mx.StandardizedMat:
+    return mx.StandardizedMat(split_matrix(order), [0.0, 1.0])
 
 
 unscaled_matrices = [
@@ -54,7 +57,12 @@ unscaled_matrices = [
     categorical_matrix_col_mult,
 ]
 
-scaled_matrices = [col_scaled_dense, col_scaled_sparse, col_scaled_split]
+scaled_matrices = [
+    standardized_dense_shifted,
+    standardized_dense_scaled_shifted,
+    standardized_sparse,
+    standardized_split,
+]
 
 matrices = unscaled_matrices + scaled_matrices  # type: ignore
 
@@ -88,7 +96,10 @@ def test_to_array(mat, order):
 def test_to_array_scaled(mat, order):
     mat_ = mat(order)
     assert isinstance(mat_.A, np.ndarray)
-    np.testing.assert_allclose(mat_.A, mat_.mat.A + np.array([[0, 1]]))
+    true_mat_part = mat_.mat.A
+    if mat_.mult is not None:
+        true_mat_part = mat_.mult[None, :] * mat_.mat.A
+    np.testing.assert_allclose(mat_.A, true_mat_part + mat_.shift)
 
 
 @pytest.mark.parametrize("mat", matrices)
@@ -99,15 +110,36 @@ def test_to_array_scaled(mat, order):
     "other_as_list", [[3.0, -0.1], [[3.0], [-0.1]], [[0.0, 2], [-1, 0]]]
 )
 @pytest.mark.parametrize("order", ["F", "C"])
-def test_dot(mat: type, other_type, other_as_list, order: str):
+@pytest.mark.parametrize("rows", [None, np.arange(2, dtype=np.int32)])
+@pytest.mark.parametrize("cols", [None, np.arange(1, dtype=np.int32)])
+def test_dot(mat: type, other_type, other_as_list, order: str, rows, cols):
     other = other_type(other_as_list)
     mat_ = mat(order)
-    res = mat_.dot(other)
-    res2 = mat_ @ other
-    expected = mat_.A.dot(other_as_list)
+    res = mat_.dot(other, rows, cols)
+
+    mat_subset, vec_subset = process_mat_vec_subsets(
+        mat_, other_as_list, rows, cols, cols
+    )
+    expected = mat_subset.dot(vec_subset)
+
     np.testing.assert_allclose(res, expected)
-    np.testing.assert_allclose(res2, expected)
     assert isinstance(res, np.ndarray)
+
+    if rows is None and cols is None:
+        res2 = mat_ @ other
+        np.testing.assert_allclose(res2, expected)
+
+
+def process_mat_vec_subsets(mat, vec, mat_rows, mat_cols, vec_idxs):
+    mat_subset = mat.A
+    vec_subset = vec
+    if mat_rows is not None:
+        mat_subset = mat_subset[mat_rows, :]
+    if mat_cols is not None:
+        mat_subset = mat_subset[:, mat_cols]
+    if vec_idxs is not None:
+        vec_subset = np.array(vec_subset)[vec_idxs]
+    return mat_subset, vec_subset
 
 
 @pytest.mark.parametrize("mat", matrices)
@@ -116,27 +148,24 @@ def test_dot(mat: type, other_type, other_as_list, order: str):
 )
 @pytest.mark.parametrize(
     "other_as_list",
-    # shapes (3,); (3,1); (3, 2)
+    # shapes (3,); (3,1), (3, 2);
     [[3.0, -0.1, 0], [[3.0], [-0.1], [0]], [[0, 1.0], [-0.1, 0], [0, 3.0]]],
 )
 @pytest.mark.parametrize("order", ["F", "C"])
-def test_transpose_dot(mat: type, other_type, other_as_list, order: str):
+@pytest.mark.parametrize("rows", [None, np.arange(2, dtype=np.int32)])
+@pytest.mark.parametrize("cols", [None, np.arange(1, dtype=np.int32)])
+def test_transpose_dot(mat: type, other_type, other_as_list, order: str, rows, cols):
     other = other_type(other_as_list)
     mat_ = mat(order)
     assert np.shape(other)[0] == mat_.shape[0]
-    res = mat_.transpose_dot(other)
-    expected = mat_.A.T.dot(other_as_list)
+    res = mat_.transpose_dot(other, rows, cols)
+
+    mat_subset, vec_subset = process_mat_vec_subsets(
+        mat_, other_as_list, rows, cols, rows
+    )
+    expected = mat_subset.T.dot(vec_subset)
     np.testing.assert_allclose(res, expected)
     assert isinstance(res, np.ndarray)
-
-
-def test_dense_sandwich():
-    sp_mat = sps.csr_matrix(sps.eye(3))
-    d = np.arange(3).astype(float)
-    B = np.ones((3, 2))
-    result = csr_dense_sandwich(sp_mat, B, d)
-    expected = sp_mat.A @ np.diag(d) @ B
-    np.testing.assert_allclose(result, expected)
 
 
 @pytest.mark.parametrize("mat", matrices)
@@ -144,16 +173,20 @@ def test_dense_sandwich():
     "vec_type", [lambda x: x, np.array, mx.DenseGLMDataMatrix],
 )
 @pytest.mark.parametrize("order", ["F", "C"])
-def test_sandwich(mat: type, vec_type, order):
-    mat_ = mat(order)
-    vec_as_list = [3, 0.1, 1][: mat_.shape[0]]
-    assert len(vec_as_list) == mat_.shape[0]
+@pytest.mark.parametrize("rows", [None, np.arange(2, dtype=np.int32)])
+@pytest.mark.parametrize("cols", [None, np.arange(1, dtype=np.int32)])
+def test_sandwich(mat: type, vec_type, order, rows, cols):
+    vec_as_list = [3, 0.1, 1]
     vec = vec_type(vec_as_list)
-    res = mat_.sandwich(vec)
+    mat_ = mat(order)
+    res = mat_.sandwich(vec, rows, cols)
+
+    mat_subset, vec_subset = process_mat_vec_subsets(
+        mat_, vec_as_list, rows, cols, rows
+    )
+    expected = mat_subset.T @ np.diag(vec_subset) @ mat_subset
     if sps.issparse(res):
         res = res.A
-
-    expected = mat_.A.T @ np.diag(vec_as_list) @ mat_.A
     np.testing.assert_allclose(res, expected)
 
 
@@ -258,8 +291,9 @@ def test_get_col_stds_unweighted(mat):
 
 
 @pytest.mark.parametrize("mat", unscaled_matrices)
+@pytest.mark.parametrize("center_predictors", [False, True])
 @pytest.mark.parametrize("scale_predictors", [False, True])
-def test_standardize(mat, scale_predictors: bool):
+def test_standardize(mat, center_predictors: bool, scale_predictors: bool):
     mat_: mx.MatrixBase = mat()
     asarray = mat_.A.copy()
     weights = np.random.rand(mat_.shape[0])
@@ -268,12 +302,17 @@ def test_standardize(mat, scale_predictors: bool):
     true_means = asarray.T.dot(weights)
     true_sds = np.sqrt((asarray ** 2).T.dot(weights) - true_means ** 2)
 
-    standardized, means, stds = mat_.standardize(weights, scale_predictors)
-    assert isinstance(standardized, mx.ColScaledMat)
+    standardized, means, stds = mat_.standardize(
+        weights, center_predictors, scale_predictors
+    )
+    assert isinstance(standardized, mx.StandardizedMat)
     assert isinstance(standardized.mat, type(mat_))
-    np.testing.assert_allclose(standardized.transpose_dot(weights), 0, atol=1e-11)
+    if center_predictors:
+        np.testing.assert_allclose(standardized.transpose_dot(weights), 0, atol=1e-11)
+        np.testing.assert_allclose(means, asarray.T.dot(weights))
+    else:
+        np.testing.assert_almost_equal(means, 0)
 
-    np.testing.assert_allclose(means, asarray.T.dot(weights))
     if scale_predictors:
         np.testing.assert_allclose(stds, true_sds)
     else:
@@ -284,9 +323,12 @@ def test_standardize(mat, scale_predictors: bool):
         warnings.simplefilter("ignore", category=RuntimeWarning)
         one_over_sds = np.nan_to_num(1 / expected_sds)
 
-    np.testing.assert_allclose(standardized.A, (asarray - true_means) * one_over_sds)
+    expected_mat = asarray * one_over_sds
+    if center_predictors:
+        expected_mat -= true_means * one_over_sds
+    np.testing.assert_allclose(standardized.A, expected_mat)
 
-    unstandardized = standardized.unstandardize(stds)
+    unstandardized = standardized.unstandardize()
     assert isinstance(unstandardized, type(mat_))
     np.testing.assert_allclose(unstandardized.A, asarray)
 
