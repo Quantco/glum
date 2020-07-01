@@ -86,7 +86,7 @@ ArrayLike = Union[
     np.ndarray,
     sparse.spmatrix,
     mx.MatrixBase,
-    mx.ColScaledMat,
+    mx.StandardizedMat,
 ]
 ShapedArrayLike = Union[
     pd.DataFrame,
@@ -94,7 +94,7 @@ ShapedArrayLike = Union[
     np.ndarray,
     sparse.spmatrix,
     mx.MatrixBase,
-    mx.ColScaledMat,
+    mx.StandardizedMat,
 ]
 
 
@@ -110,8 +110,8 @@ def check_array_matrix_compliant(mat: ArrayLike, **kwargs):
 
         return mx.SplitMatrix(new_matrices, mat.indices)
 
-    if isinstance(mat, mx.ColScaledMat):
-        return mx.ColScaledMat(
+    if isinstance(mat, mx.StandardizedMat):
+        return mx.StandardizedMat(
             check_array_matrix_compliant(mat.mat, **kwargs),
             check_array(mat.shift, **kwargs),
         )
@@ -147,7 +147,6 @@ def check_X_y_matrix_compliant(
         y = y.astype(np.float64)
 
     check_consistent_length(X, y)
-    # TODO: check_array
     if not isinstance(X, mx.CategoricalMatrix):
         X = check_array_matrix_compliant(X, **kwargs)
 
@@ -237,25 +236,75 @@ def check_bounds(
     return bounds
 
 
+def _standardize(
+    X: mx.MatrixBase,
+    weights: np.ndarray,
+    center_predictors: bool,
+    scale_predictors: bool,
+    lower_bounds: np.ndarray,
+    upper_bounds: np.ndarray,
+    P1: Union[np.ndarray, sparse.spmatrix],
+    P2: Union[np.ndarray, sparse.spmatrix],
+):
+    """
+    This function standardizes the data matrix X and then adjusts the bounds
+    and penalties to match the standardized data matrix.
+
+    Columns are always scaled to have standard deviation 1.
+
+    If center_predictors is True, the data matrix will be adjusted to have
+    columns with mean 0.
+
+    If scale_predictors is True, the penalties will not be scaled. The result
+    will be that the input penalty matrices are applied to the standardized
+    coefficients. This can be useful to scale
+    """
+
+    X, col_means, col_stds = X.standardize(weights, center_predictors, True)
+
+    if col_stds is not None:
+        # We copy the bounds when multiplying here so the we avoid
+        # side effects.
+        if lower_bounds is not None:
+            lower_bounds = lower_bounds * col_stds
+        if upper_bounds is not None:
+            upper_bounds = upper_bounds * col_stds
+
+    # NOTE: We always scale predictors. The only thing controlled by
+    # scale_predictors is whether or not we also scale the penalties.
+    # If scale_predictors=True, we do not scale penalties. This can be
+    # useful if the user wants to uniformly penalize in the scale
+    # coefficient space rather than in the original coefficient space.
+    if not scale_predictors and col_stds is not None:
+        penalty_mult = mx.one_over_var_inf_to_val(col_stds, 1.0)
+        P1 *= penalty_mult
+        if sparse.issparse(P2):
+            inv_col_stds_mat = sparse.diags(penalty_mult)
+            P2 = inv_col_stds_mat @ P2 @ inv_col_stds_mat
+        elif P2.ndim == 1:
+            P2 *= penalty_mult ** 2
+        else:
+            P2 = (penalty_mult[:, None] * P2) * penalty_mult[None, :]
+    return X, col_means, col_stds, lower_bounds, upper_bounds, P1, P2
+
+
 def _unstandardize(
-    X: mx.ColScaledMat,
+    X: mx.StandardizedMat,
     col_means: np.ndarray,
     col_stds: Optional[np.ndarray],
     intercept: float,
     coef: np.ndarray,
-) -> Tuple[mx.MatrixBase, float, np.ndarray]:
-    assert isinstance(X, mx.ColScaledMat)
-    X_mat: mx.MatrixBase = X.unstandardize(col_stds)
+) -> Tuple[float, np.ndarray]:
+    assert isinstance(X, mx.StandardizedMat)
     if col_stds is None:
         intercept -= np.squeeze(np.squeeze(col_means).dot(np.atleast_1d(coef).T))
-        # intercept -= float(np.squeeze(col_means).dot(coef))
     else:
+        penalty_mult = mx.one_over_var_inf_to_val(col_stds, 1.0)
         intercept -= np.squeeze(
-            np.squeeze(col_means / col_stds).dot(np.atleast_1d(coef).T)
+            np.squeeze(col_means * penalty_mult).dot(np.atleast_1d(coef).T)
         )
-        # intercept -= float(np.squeeze(col_means / col_stds).dot(coef))
-        coef /= col_stds
-    return X_mat, intercept, coef
+        coef *= penalty_mult
+    return intercept, coef
 
 
 def _standardize_warm_start(
@@ -306,8 +355,10 @@ def get_link(link: Union[str, Link], family: ExponentialDispersionModel) -> Link
             if family.power <= 0:
                 return IdentityLink()
             if family.power < 1:
-                # TODO: move more detailed error here
-                raise ValueError("No distribution")
+                raise ValueError(
+                    "For 0 < p < 1, no Tweedie distribution"
+                    " exists. Please choose a different distribution."
+                )
             return LogLink()
         if isinstance(family, GeneralizedHyperbolicSecant):
             return IdentityLink()
@@ -336,13 +387,13 @@ def get_link(link: Union[str, Link], family: ExponentialDispersionModel) -> Link
 
 def setup_p1(
     P1: Union[str, np.ndarray],
-    X: Union[mx.MatrixBase, mx.ColScaledMat],
+    X: Union[mx.MatrixBase, mx.StandardizedMat],
     _dtype,
     alpha: float,
     l1_ratio: float,
 ) -> np.ndarray:
     n_features = X.shape[1]
-    assert isinstance(X, (mx.MatrixBase, mx.ColScaledMat))
+    assert isinstance(X, (mx.MatrixBase, mx.StandardizedMat))
     if isinstance(P1, str) and P1 == "identity":
         P1 = np.ones(n_features, dtype=_dtype)
     else:
@@ -369,13 +420,13 @@ def setup_p1(
 
 def setup_p2(
     P2: Union[str, np.ndarray],
-    X: Union[mx.MatrixBase, mx.ColScaledMat],
+    X: Union[mx.MatrixBase, mx.StandardizedMat],
     _stype,
     _dtype,
     alpha: float,
     l1_ratio: float,
 ) -> Union[np.ndarray, sparse.spmatrix]:
-    assert isinstance(X, (mx.MatrixBase, mx.ColScaledMat))
+    assert isinstance(X, (mx.MatrixBase, mx.StandardizedMat))
     n_features = X.shape[1]
 
     # If X is sparse, make P2 sparse, too.
@@ -517,6 +568,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         max_iter=100,
         gradient_tol: Optional[float] = 1e-4,
         step_size_tol: Optional[float] = None,
+        hessian_approx: float = 0.0,
         warm_start=False,
         alpha_search: bool = False,
         n_alphas: int = 100,
@@ -545,6 +597,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self.max_iter = max_iter
         self.gradient_tol = gradient_tol
         self.step_size_tol = step_size_tol
+        self.hessian_approx = hessian_approx
         self.warm_start = warm_start
         self.alpha_search = alpha_search
         self.n_alphas = n_alphas
@@ -565,7 +618,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
     def get_start_coef(
         self,
         start_params,
-        X: Union[mx.MatrixBase, mx.ColScaledMat],
+        X: Union[mx.MatrixBase, mx.StandardizedMat],
         y: np.ndarray,
         weights: np.ndarray,
         offset: Optional[np.ndarray],
@@ -636,12 +689,13 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self._center_predictors: bool = self.fit_intercept
 
         if self.solver == "auto":
-            if (
-                (self.l1_ratio == 0)
-                and (self.lower_bounds is None)
-                and (self.upper_bounds is None)
-            ):
-                self._solver = "irls-ls"
+            if (self.lower_bounds is None) and (self.upper_bounds is None):
+                if self.l1_ratio == 0:
+                    self._solver = "irls-ls"
+                elif getattr(self, "alpha", 1) == 0 and not self.alpha_search:
+                    self._solver = "irls-ls"
+                else:
+                    self._solver = "irls-cd"
             else:
                 self._solver = "irls-cd"
         else:
@@ -661,7 +715,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
     def tear_down_from_fit(
         self,
-        X: Union[mx.MatrixBase, mx.ColScaledMat],
+        X: Union[mx.MatrixBase, mx.StandardizedMat],
         y: np.ndarray,
         col_means: Optional[np.ndarray],
         col_stds: Optional[np.ndarray],
@@ -674,20 +728,21 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         #######################################################################
         # 5a. undo standardization
         #######################################################################
-        if self._center_predictors:
-            assert isinstance(X, mx.ColScaledMat)
-            X, self.intercept_, self.coef_ = _unstandardize(
-                X, col_means, col_stds, self.intercept_, self.coef_,  # type: ignore
-            )
+        assert isinstance(X, mx.StandardizedMat)
+        self.intercept_, self.coef_ = _unstandardize(
+            X, col_means, col_stds, self.intercept_, self.coef_,  # type: ignore
+        )
 
         if self.fit_dispersion in ["chisqr", "deviance"]:
             # attention because of rescaling of weights
-            self.dispersion_ = self.estimate_phi(X, y, weights) * weights_sum
+            X_unstandardized = X.mat if isinstance(X, mx.StandardizedMat) else X
+            self.dispersion_ = (
+                self.estimate_phi(X_unstandardized, y, weights) * weights_sum
+            )
 
         del self._center_predictors
         del self._solver
         del self._random_state
-        return X
 
     def _get_alpha_path(
         self,
@@ -725,35 +780,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 np.log(max_alpha), np.log(min_alpha), self.n_alphas, base=np.e
             )
 
-        def _get_normal_identity_grad_at_zeros_with_optimal_intercept() -> np.ndarray:
-            if self.fit_intercept:
-                if offset is None:
-                    mu = y.dot(w)
-                else:
-                    mu = offset + (y - offset).dot(w)
-            else:
-                mu = 0
-            return X.T.dot(w * (y - mu))
-
-        def _get_tweedie_log_grad_at_zeros_with_optimal_intercept() -> np.ndarray:
-            if self.fit_intercept:
-                # if all non-intercept coefficients are zero and there is no offset,
-                # the best intercept makes the predicted mean the sample mean
-                mu = y.dot(w)
-            elif offset is not None:
-                mu = offset
-            else:
-                mu = 1
-
-            family = get_family(self.family)
-            if isinstance(family, TweedieDistribution):
-                p = family.power
-            else:
-                p = 0
-
-            # tweedie grad
-            return mu ** (1 - p) * X.T.dot(w * (y - mu))
-
         if l1_ratio == 0:
             alpha_max = 10
             return _make_grid(alpha_max)
@@ -778,7 +804,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
     def solve(
         self,
-        X: Union[mx.MatrixBase, mx.ColScaledMat],
+        X: Union[mx.MatrixBase, mx.StandardizedMat],
         y: np.ndarray,
         weights: np.ndarray,
         P2,
@@ -823,6 +849,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 gradient_tol=self.gradient_tol,
                 step_size_tol=self.step_size_tol,
                 fixed_inner_tol=fixed_inner_tol,
+                hessian_approx=self.hessian_approx,
                 selection=self.selection,
                 random_state=self.random_state,
                 offset=offset,
@@ -858,7 +885,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
     def solve_regularization_path(
         self,
-        X: Union[mx.MatrixBase, mx.ColScaledMat],
+        X: Union[mx.MatrixBase, mx.StandardizedMat],
         y: np.ndarray,
         weights: np.ndarray,
         alphas: np.ndarray,
@@ -870,7 +897,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         upper_bounds: Optional[np.ndarray],
     ) -> np.ndarray:
 
-        self.coef_path_ = np.empty((len(alphas), len(coef)))
+        self.coef_path_ = np.empty((len(alphas), len(coef)), dtype=X.dtype)
 
         for k, alpha in enumerate(alphas):
             P1 = P1_no_alpha * alpha
@@ -892,15 +919,45 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         return self.coef_path_
 
-    def report_diagnostics(self) -> None:
+    def report_diagnostics(
+        self, full_report: bool = False, custom_columns: Optional[Iterable] = None
+    ) -> None:
+        """Print diagnostics to stdout.
+
+        Parameters
+        ----------
+        full_report: boolean (default False)
+            Print all available information. When False and custom_columns
+            is set to None, a restricted set of columns is printed out.
+        custom_columns: Iterable (optional, default None)
+            Print only the specified columns
+        """
         if hasattr(self, "diagnostics_"):
             print("diagnostics:")
             import pandas as pd
 
-            with pd.option_context("max_rows", None):
-                print(
-                    pd.DataFrame(data=self.diagnostics_).set_index("n_iter", drop=True)
-                )
+            with pd.option_context("max_rows", None, "max_columns", None):
+                if custom_columns is not None:
+                    print(pd.DataFrame(data=self.diagnostics_)[custom_columns])
+                elif full_report:
+                    print(
+                        pd.DataFrame(data=self.diagnostics_).set_index(
+                            "n_iter", drop=True
+                        )
+                    )
+                else:
+                    base_cols = [
+                        "n_iter",
+                        "convergence",
+                        "n_cycles",
+                        "iteration_runtime",
+                        "intercept",
+                    ]
+                    print(
+                        pd.DataFrame(data=self.diagnostics_)[base_cols].set_index(
+                            "n_iter", drop=True
+                        )
+                    )
         else:
             print("solver does not report diagnostics")
 
@@ -1390,6 +1447,14 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         of the subgradient ``g_i`` with the smallest L2-norm.
 
     step_size_tol: float, optional (default=None)
+        Alternative stopping criterion. For the IRLS-LS and IRLS-CD solvers,
+        the iteration will stop when the L2 norm of the step size is less than
+        step_size_tol.
+
+    hessian_approx: float, optional (default=0.0)
+        The threshold below which data matrix rows will be ignored for updating
+        the hessian.  See the algorithm documentation for the IRLS algorithm
+        for further details.
 
     warm_start : boolean, optional (default=False)
         If set to ``True``, reuse the solution of the previous call to ``fit``
@@ -1527,6 +1592,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         max_iter=100,
         gradient_tol: Optional[float] = 1e-4,
         step_size_tol: Optional[float] = None,
+        hessian_approx: float = 0.0,
         warm_start: bool = False,
         alpha_search: bool = False,
         n_alphas: int = 100,
@@ -1559,6 +1625,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             max_iter=max_iter,
             gradient_tol=gradient_tol,
             step_size_tol=step_size_tol,
+            hessian_approx=hessian_approx,
             warm_start=warm_start,
             alpha_search=alpha_search,
             n_alphas=n_alphas,
@@ -1711,10 +1778,25 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         #######################################################################
         # 2c. potentially rescale predictors
         #######################################################################
-        if self._center_predictors:
-            X, col_means, col_stds = X.standardize(weights, self.scale_predictors)
-        else:
-            col_means, col_stds = None, None
+
+        (
+            X,
+            col_means,
+            col_stds,
+            lower_bounds,
+            upper_bounds,
+            P1_no_alpha,
+            P2_no_alpha,
+        ) = _standardize(
+            X,
+            weights,
+            self._center_predictors,
+            self.scale_predictors,
+            lower_bounds,
+            upper_bounds,
+            P1_no_alpha,
+            P2_no_alpha,
+        )
 
         #######################################################################
         # 3. initialization of coef = (intercept_, coef_)                     #
