@@ -15,7 +15,7 @@ bench_cfg = dict(
     num_rows=10000,
     regularization_strength=0.1,
     storage="dense",
-    print_diagnostics=False,
+    diagnostics_level="full",
 )
 
 all_test_problems = get_all_problems()
@@ -72,13 +72,13 @@ def test_gm_benchmarks(
     if Pn in skipped_benchmark_gm:
         pytest.skip("Skipping problem with convergence issue.")
 
-    execute_args = ["print_diagnostics"]
+    execute_args = ["diagnostics_level"]
     params = BenchmarkParams(
         problem_name=Pn,
         library_name="sklearn-fork",
         **{k: v for k, v in bench_cfg_fix.items() if k not in execute_args},
     )
-    if bench_cfg_fix["print_diagnostics"]:
+    if bench_cfg_fix["diagnostics_level"] != "none":
         print(Pn)
 
     result, _ = execute_problem_library(
