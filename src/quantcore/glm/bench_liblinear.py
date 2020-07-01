@@ -2,6 +2,7 @@ import warnings
 from typing import Any, Dict, Optional, Union
 
 import numpy as np
+import pandas as pd
 from scipy import sparse as sps
 from sklearn.linear_model import LogisticRegression
 
@@ -19,19 +20,18 @@ def liblinear_bench(
     l1_ratio: float,
     iterations: int,
     cv: bool,
-    diagnostics_level: str = "basic",  # ineffective here
     reg_multiplier: Optional[float] = None,
-    hessian_approx: float = 0.0,
+    **kwargs,
 ) -> Dict[str, Any]:
 
     result: Dict = dict()
 
     X = dat["X"]
-    """if not isinstance(X, np.ndarray) and not isinstance(X, sps.spmatrix):
+    if not isinstance(X, (np.ndarray, sps.spmatrix, pd.DataFrame)):
         warnings.warn(
-            "liblinear requires data as scipy.sparse matrix or numpy array. Skipping."
+            "liblinear requires data as scipy.sparse matrix, pandas dataframe, or numpy array. Skipping."
         )
-        return result"""
+        return result
 
     if distribution != "binomial":
         warnings.warn("liblinear only supports binomial")
