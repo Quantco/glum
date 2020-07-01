@@ -21,8 +21,9 @@ def orig_sklearn_fork_bench(
     l1_ratio: float,
     iterations: int,
     cv: bool,
-    print_diagnostics: bool = True,
+    diagnostics_level: str = "basic",  # ineffective here
     reg_multiplier: Optional[float] = True,
+    hessian_approx: float = 0.0,  # ineffective here
     **kwargs,
 ):
     if cv:

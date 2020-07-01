@@ -19,18 +19,19 @@ def liblinear_bench(
     l1_ratio: float,
     iterations: int,
     cv: bool,
-    print_diagnostics: bool = True,  # ineffective here
+    diagnostics_level: str = "basic",  # ineffective here
     reg_multiplier: Optional[float] = None,
+    hessian_approx: float = 0.0,
 ) -> Dict[str, Any]:
 
     result: Dict = dict()
 
     X = dat["X"]
-    if not isinstance(X, np.ndarray) and not isinstance(X, sps.spmatrix):
+    """if not isinstance(X, np.ndarray) and not isinstance(X, sps.spmatrix):
         warnings.warn(
             "liblinear requires data as scipy.sparse matrix or numpy array. Skipping."
         )
-        return result
+        return result"""
 
     if distribution != "binomial":
         warnings.warn("liblinear only supports binomial")
