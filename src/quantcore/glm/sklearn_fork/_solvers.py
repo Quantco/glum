@@ -48,9 +48,7 @@ def _least_squares_solver(state, data, hessian):
 
     # TODO: In cases where we have lots of columns, we might want to avoid the
     # sandwich product and use something like iterative lsqr or lsmr.
-    d = linalg.solve(
-        hessian, state.score, overwrite_a=True, overwrite_b=True, assume_a="pos"
-    )
+    d = linalg.solve(hessian, state.score, assume_a="pos")
     return d, 1
 
 
@@ -624,7 +622,7 @@ def identify_active_set(state, data):
 @timeit("line_search_runtime")
 def line_search(state, data, d):
     # line search parameters
-    (beta, sigma) = (0.5, 0.01)
+    (beta, sigma) = (0.5, 0.0001)
 
     # line search by sequence beta^k, k=0, 1, ..
     # F(w + lambda d) - F(w) <= lambda * bound
@@ -652,9 +650,7 @@ def line_search(state, data, d):
         eta_wd, mu_wd, obj_val_wd, coef_wd_P2 = update_predictions(
             state, data, coef_wd, X_dot_d, factor=factor
         )
-        if (mu_wd.max() < 1e43) and (
-            obj_val_wd - state.obj_val <= sigma * factor * bound
-        ):
+        if (mu_wd.max() < 1e43) and (obj_val_wd - state.obj_val <= factor * bound):
             break
         factor *= beta
     else:
