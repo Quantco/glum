@@ -126,7 +126,7 @@ def gamma_log_rowwise_gradient_hessian(
     cdef int i
     for i in prange(n, nogil=True):
         gradient_rows_out[i] = weights[i] * (y[i] / mu[i] - 1)
-        hessian_rows_out[i] = weights[i]
+        hessian_rows_out[i] = weights[i] * (y[i] / mu[i])
 
 def tweedie_log_eta_mu_loglikelihood(
     const_floating1d cur_eta,
