@@ -62,7 +62,6 @@ def _sandwich_cat_cat(
     """
 
     # TODO: only use i_cols, j_cols. A csc setup might be better for that
-    # TODO: this is probably not right when columns are scaled
     # TODO: support for single-precision d
 
     cdef floating[:, :] res

@@ -29,21 +29,14 @@ def categorical_matrix():
     return mx.CategoricalMatrix(vec)
 
 
-def categorical_matrix_col_mult():
-    vec = [1, 0, 1]
-    return mx.CategoricalMatrix(vec, [0.5, 3])
-
-
-# TODO: see if there are col_mults for other types that need to be tested
-
-
-def get_unscaled_matrices() -> List[mx.MatrixBase]:
+def get_unscaled_matrices() -> List[
+    Union[mx.DenseGLMDataMatrix, mx.MKLSparseMatrix, mx.CategoricalMatrix]
+]:
     return [
         dense_glm_data_matrix_F(),
         dense_glm_data_matrix_C(),
         mkl_sparse_matrix(),
         categorical_matrix(),
-        categorical_matrix_col_mult(),
     ]
 
 
@@ -105,8 +98,6 @@ def test_to_array_matrix_base(mat: mx.MatrixBase):
     assert isinstance(mat.A, np.ndarray)
     if isinstance(mat, mx.CategoricalMatrix):
         expected = np.array([[0, 1], [1, 0], [0, 1]])
-        if mat.col_mult is not None:
-            expected = expected * mat.col_mult[None, :]
     elif isinstance(mat, mx.SplitMatrix):
         expected = np.hstack([elt.A for elt in mat.matrices])
     else:
@@ -194,24 +185,15 @@ def test_transpose_dot(
     [
         (dense_glm_data_matrix_C(), mkl_sparse_matrix()),
         (dense_glm_data_matrix_C(), categorical_matrix()),
-        (dense_glm_data_matrix_C(), categorical_matrix_col_mult()),
         (dense_glm_data_matrix_F(), mkl_sparse_matrix()),
         (dense_glm_data_matrix_F(), categorical_matrix()),
-        (dense_glm_data_matrix_F(), categorical_matrix_col_mult()),
         (mkl_sparse_matrix(), dense_glm_data_matrix_C()),
         (mkl_sparse_matrix(), dense_glm_data_matrix_F()),
         (mkl_sparse_matrix(), categorical_matrix()),
-        (mkl_sparse_matrix(), categorical_matrix_col_mult()),
         (categorical_matrix(), dense_glm_data_matrix_C()),
         (categorical_matrix(), dense_glm_data_matrix_F()),
         (categorical_matrix(), mkl_sparse_matrix()),
         (categorical_matrix(), categorical_matrix()),
-        (categorical_matrix(), categorical_matrix_col_mult()),
-        (categorical_matrix_col_mult(), dense_glm_data_matrix_C()),
-        (categorical_matrix_col_mult(), dense_glm_data_matrix_F()),
-        (categorical_matrix_col_mult(), mkl_sparse_matrix()),
-        (categorical_matrix_col_mult(), categorical_matrix()),
-        (categorical_matrix_col_mult(), categorical_matrix_col_mult()),
     ],
 )
 @pytest.mark.parametrize("rows", [None, np.arange(2, dtype=np.int32)])
@@ -272,7 +254,6 @@ def test_split_sandwich(rows: Optional[np.ndarray], cols: Optional[np.ndarray]):
     np.testing.assert_almost_equal(result, expected)
 
 
-# TODO: make sure we have sklearn tests for each matrix setup
 @pytest.mark.parametrize(
     "mat", [dense_glm_data_matrix_F(), dense_glm_data_matrix_C(), mkl_sparse_matrix()]
 )

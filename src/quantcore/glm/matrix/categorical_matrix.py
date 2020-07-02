@@ -21,7 +21,6 @@ class CategoricalMatrix(MatrixBase):
     def __init__(
         self,
         cat_vec: Union[List, np.ndarray, pd.Categorical],
-        col_mult: Optional[Union[List, np.ndarray]] = None,
         dtype: np.dtype = np.dtype("float64"),
     ):
         """
@@ -29,7 +28,6 @@ class CategoricalMatrix(MatrixBase):
         with more memory efficiency and speed.
         ---
         cat_vec: array-like vector of categorical data.
-        col_mult: Column multiplier; if col_mult[i] = 3, the data in column i will be 0's and 3's.
         dtype:
         """
         if isinstance(cat_vec, pd.Categorical):
@@ -40,11 +38,7 @@ class CategoricalMatrix(MatrixBase):
         self.shape = (len(self.cat), len(self.cat.categories))
         self.indices = self.cat.codes
         self.x_csc: Optional[Tuple[Optional[np.ndarray], np.ndarray, np.ndarray]] = None
-        self.col_mult = None if col_mult is None else np.squeeze(col_mult)
-        if self.col_mult is None:
-            self.dtype = dtype
-        else:
-            self.dtype = self.col_mult.dtype
+        self.dtype = dtype
 
     def recover_orig(self) -> np.ndarray:
         """
@@ -64,12 +58,12 @@ class CategoricalMatrix(MatrixBase):
     ) -> np.ndarray:
         """
         When other is 1d:
-        mat.dot(other)[i] = sum_j mat[i, j] other[j] * col_mult[j]
-                          = (other * col_mult)[mat.indices[i]]
+        mat.dot(other)[i] = sum_j mat[i, j] other[j]
+                          = other[mat.indices[i]]
 
         When other is 2d:
-        mat.dot(other)[i, k] = sum_j mat[i, j] other[j, k] * col_mult
-                            = (other * col_mult[None, :])[mat.indices[i], k]
+        mat.dot(other)[i, k] = sum_j mat[i, j] other[j, k]
+                            = other[mat.indices[i], k]
 
         The rows and cols parameters allow restricting to a subset of the
         matrix without making a copy.
@@ -85,20 +79,15 @@ class CategoricalMatrix(MatrixBase):
             )
 
         if cols is None:
-            col_mult = self.col_mult
+            other_m = other
         else:
             col_mult = np.zeros(len(self.cat.categories), dtype=self.dtype)
-            if self.col_mult is None:
-                col_mult[cols] = 1.0
-            else:
-                col_mult[cols] = self.col_mult[cols]
+            col_mult[cols] = 1.0
 
-        if col_mult is None:
-            other_m = other
-        elif other.ndim == 1:
-            other_m = other * col_mult
-        else:
-            other_m = other * col_mult[:, None]
+            if other.ndim == 1:
+                other_m = other * col_mult
+            else:
+                other_m = other * col_mult[:, None]
 
         if rows is not None:
             return other_m[self.indices[rows], ...]
@@ -119,8 +108,7 @@ class CategoricalMatrix(MatrixBase):
 
         Test: tests/test_matrices::test_transpose_dot
         """
-        # TODO: write a function that doesn't reference the data. That will be
-        # especially helpful with a col_mult
+        # TODO: write a function that doesn't reference the data
         vec = np.asarray(vec)
         data, indices, indptr = self._check_csc()
         data = np.ones(self.shape[0], dtype=vec.dtype) if data is None else data
@@ -140,7 +128,6 @@ class CategoricalMatrix(MatrixBase):
             = sum_k self[k, i] d[k] self[k, j]
             = 0 if i != j
         sandwich(self, d)[i, i] = sum_k self[k, i] ** 2 * d(k)
-               = col_mult[i] ** 2 *  sum_k self.mat[k, i]** 2
 
         The rows and cols parameters allow restricting to a subset of the
         matrix without making a copy.
@@ -149,11 +136,6 @@ class CategoricalMatrix(MatrixBase):
         d = np.asarray(d)
         _, indices, indptr = self._check_csc()
         res_diag = sandwich_categorical(indices, indptr, d, rows, cols, d.dtype)
-        if self.col_mult is not None:
-            if cols is None:
-                res_diag *= self.col_mult ** 2
-            else:
-                res_diag *= self.col_mult[cols] ** 2
         return sps.diags(res_diag)
 
     def cross_sandwich(
@@ -172,25 +154,17 @@ class CategoricalMatrix(MatrixBase):
             return self._cross_categorical(other, d, rows, L_cols, R_cols)
         raise TypeError
 
-    def _check_csc(
-        self, force_reset=False
-    ) -> Tuple[Optional[np.ndarray], np.ndarray, np.ndarray]:
+    def _check_csc(self, force_reset=False) -> Tuple[None, np.ndarray, np.ndarray]:
         if self.x_csc is None or force_reset:
             # Currently taking up a lot of time
             csc = self.tocsr().tocsc()
-            if self.col_mult is None:
-                np.testing.assert_allclose(csc.data, np.ones(self.shape[0]))
-                data = None
-            else:
-                data = csc.data
-            self.x_csc = (data, csc.indices, csc.indptr)
+            np.testing.assert_allclose(csc.data, np.ones(self.shape[0]))
+            self.x_csc = (None, csc.indices, csc.indptr)
         return self.x_csc
 
     def tocsc(self):
-        # TODO: needs to be tested
-        data, indices, indptr = self._check_csc()
-        if data is None:
-            data = np.ones(self.shape[0])
+        _, indices, indptr = self._check_csc()
+        data = np.ones(self.shape[0])
         return sps.csc_matrix((data, indices, indptr))
 
     # TODO: best way to return this depends on the use case. See what that is
@@ -198,17 +172,11 @@ class CategoricalMatrix(MatrixBase):
     def getcol(self, i: int) -> sps.csc_matrix:
         i %= self.shape[1]  # wrap-around indexing
         col_i = sps.csc_matrix((self.indices == i).astype(int)[:, None])
-        if self.col_mult is None:
-            return col_i
-        return col_i * self.col_mult[i]
+        return col_i
 
     def tocsr(self) -> sps.csr_matrix:
-        # TODO: write a test for this
         # TODO: data should be uint8
-        if self.col_mult is None:
-            data = np.ones(self.shape[0], dtype=int)
-        else:
-            data = self.col_mult[self.indices]
+        data = np.ones(self.shape[0], dtype=int)
 
         return sps.csr_matrix(
             (data, self.indices, np.arange(self.shape[0] + 1, dtype=int)),
@@ -223,30 +191,12 @@ class CategoricalMatrix(MatrixBase):
         This method doesn't make a lot of sense since indices needs to be of int dtype,
         but it needs to be implemented.
         """
-        if self.col_mult is not None:
-            self.col_mult = self.col_mult.astype(dtype, order, casting, copy)
         self.dtype = dtype
         return self
 
     def get_col_stds(self, weights: np.ndarray, col_means: np.ndarray) -> np.ndarray:
-        one = self.transpose_dot(weights)
-        if self.col_mult is not None:
-            one *= self.col_mult
-
-        return np.sqrt(one - col_means ** 2)
-
-    def scale_cols_inplace(self, col_scaling: np.ndarray) -> None:
-        if self.col_mult is None:
-            self.col_mult = col_scaling
-        else:
-            self.col_mult *= col_scaling
-            # If we have standardized then undstandardized, col_mult
-            # should become 1, which is the same as not having a col_mult.
-            if np.all(np.abs(self.col_mult - 1) < 1e-12):
-                self.col_mult = None
-
-        if self.x_csc is not None:
-            self._check_csc(force_reset=True)
+        mean = self.transpose_dot(weights)
+        return np.sqrt(mean - col_means ** 2)
 
     def __getitem__(self, item):
         if isinstance(item, tuple):
@@ -257,7 +207,7 @@ class CategoricalMatrix(MatrixBase):
             row = item
         if isinstance(row, int):
             row = [row]
-        return CategoricalMatrix(self.cat[row], self.col_mult)
+        return CategoricalMatrix(self.cat[row])
 
     def _cross_dense(
         self,
@@ -274,7 +224,7 @@ class CategoricalMatrix(MatrixBase):
                 where other is a C-contiguous Numpy array."""
             )
 
-        # I don't think Cython can handle lower-precision ints. Look into this
+        # TODO: I don't think Cython can handle lower-precision ints. Look into this
         i_indices = self.indices.astype(np.int32)
 
         if rows is None:
@@ -285,8 +235,6 @@ class CategoricalMatrix(MatrixBase):
         res = sandwich_cat_dense(i_indices, self.shape[1], d, other, rows, R_cols)
 
         res = res[_none_to_slice(L_cols), :]
-        if self.col_mult is not None:
-            res *= self.col_mult[_none_to_slice(L_cols), None]
         return res
 
     def _cross_categorical(
@@ -297,7 +245,8 @@ class CategoricalMatrix(MatrixBase):
         L_cols: Optional[np.ndarray],
         R_cols: Optional[np.ndarray],
     ) -> np.ndarray:
-        assert isinstance(other, CategoricalMatrix)
+        if not isinstance(other, CategoricalMatrix):
+            raise TypeError
 
         # I don't think Cython can handle lower-precision ints. Look into this
         i_indices = self.indices.astype(np.int32)
@@ -312,11 +261,6 @@ class CategoricalMatrix(MatrixBase):
         L_cols = _none_to_slice(L_cols)
         R_cols = _none_to_slice(R_cols)
         res = res[L_cols, :][:, R_cols]
-        if other.col_mult is not None:
-            res *= other.col_mult[None, R_cols]
-
-        if self.col_mult is not None:
-            res *= self.col_mult[L_cols, None]
         return res
 
     def _cross_sparse(

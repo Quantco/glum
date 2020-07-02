@@ -101,7 +101,7 @@ ShapedArrayLike = Union[
 def check_array_matrix_compliant(mat: ArrayLike, **kwargs):
     if isinstance(mat, mx.SplitMatrix):
         kwargs.update({"ensure_min_features": 0})
-        # Skip check for CategoricalMatrix for now
+        # TODO: Find a way to not skip check for CategoricalMatrix for now
         new_matrices = [
             m if isinstance(m, mx.CategoricalMatrix) else check_array(m, **kwargs)
             for m in mat.matrices
