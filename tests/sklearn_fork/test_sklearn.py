@@ -1442,7 +1442,7 @@ def test_fit_has_no_side_effects():
 
 def test_column_with_stddev_zero():
     np.random.seed(1234)
-    y = np.random.choice([1, 2, 3, 4], size=1000)  # works fine with size=100
+    y = np.random.choice([1, 2, 3, 4], size=1000)
     X = np.ones([len(y), 1])
 
     model = GeneralizedLinearRegressor(
