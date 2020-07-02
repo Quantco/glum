@@ -31,6 +31,13 @@ try:
 except ImportError:
     H20_INSTALLED = False
 
+try:
+    from quantcore.glm.bench_liblinear import liblinear_bench  # isort:skip
+
+    LIBLINEAR_INSTALLED = True
+except ImportError:
+    LIBLINEAR_INSTALLED = False
+
 
 @click.command()
 @click.option(
@@ -140,6 +147,9 @@ def get_all_libraries() -> Dict[str, Any]:
 
     if H20_INSTALLED:
         all_libraries["h2o"] = h2o_bench
+
+    if LIBLINEAR_INSTALLED:
+        all_libraries["liblinear"] = liblinear_bench
     return all_libraries
 
 

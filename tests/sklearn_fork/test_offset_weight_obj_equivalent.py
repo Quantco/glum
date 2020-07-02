@@ -78,5 +78,8 @@ def test_offset_solution_matches_weights_solution(
     weights_result_2 = get_obj_val_(weights_dat, coefs_2)
 
     np.testing.assert_allclose(
-        offset_result_2 - offset_result, weights_result_2 - weights_result,
+        offset_result_2 - offset_result,
+        weights_result_2 - weights_result,
+        rtol=1e-7,
+        atol=1e-14,
     )
