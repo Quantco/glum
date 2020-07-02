@@ -31,7 +31,6 @@ def h2o_bench(
     l1_ratio: float,
     iterations: int,
     cv: bool,
-    print_diagnostics: bool = True,  # ineffective here
     reg_multiplier: Optional[float] = None,
     **kwargs,
 ):
@@ -40,7 +39,7 @@ def h2o_bench(
 
     if not isinstance(dat["X"], (np.ndarray, sps.spmatrix, pd.DataFrame)):
         warnings.warn(
-            "h2o requires data as scipy.sparse matrix or numpy array. Skipping."
+            "h2o requires data as scipy.sparse matrix, pandas dataframe, or numpy array. Skipping."
         )
         return result
 
