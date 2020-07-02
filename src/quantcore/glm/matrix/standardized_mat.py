@@ -79,7 +79,7 @@ class StandardizedMat:
         Returns a StandardizedSpMat.
 
         >>> from scipy import sparse as sps
-        >>> x = StandardizedMat(sps.eye(3), shift=[0, 1, -2])
+        >>> x = StandardizedMat(MKLSparseMatrix(sps.eye(3).tocsc()), shift=[0, 1, -2])
         >>> col_1 = x.getcol(1)
         >>> isinstance(col_1, StandardizedMat)
         True
