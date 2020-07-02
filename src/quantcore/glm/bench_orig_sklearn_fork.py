@@ -22,7 +22,6 @@ def orig_sklearn_fork_bench(
     l1_ratio: float,
     iterations: int,
     cv: bool,
-    print_diagnostics: bool = True,
     reg_multiplier: Optional[float] = True,
     **kwargs,
 ):
@@ -34,7 +33,7 @@ def orig_sklearn_fork_bench(
 
     if X.shape[0] > 100000 and not isinstance(X, (np.ndarray, pd.DataFrame)):
         warnings.warn(
-            "original sklearn fork is too slow on sparse data sets with more than 100,000 rows skipping."
+            "original sklearn fork is too slow on sparse data sets with more than 100,000 rows. Skipping."
         )
         return result
 
