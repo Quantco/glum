@@ -48,7 +48,7 @@ def liblinear_bench(
         return result
 
     if "offset" in dat.keys():
-        warnings.warn("linear does not support offsets")
+        warnings.warn("liblinear does not support offsets")
         return result
 
     if cv:
@@ -61,8 +61,11 @@ def liblinear_bench(
         C=1 / (X.shape[0] * alpha)
         if reg_multiplier is None
         else 1 / (X.shape[0] * alpha * reg_multiplier),
-        # Note that when an intercept is fitted, it is subject to regularization, unlike other solvers
-        intercept_scaling=1e6,
+        # Note that when an intercept is fitted, it is subject to regularization, unlike other solvers.
+        # intercept_scaling helps combat this by inflating the intercept column, though too low of a value
+        # leaves too much regularization and too high of a value results in poor matrix properties.
+        # See https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.LogisticRegression.html
+        intercept_scaling=1e3,
         solver="liblinear",
     )
 
