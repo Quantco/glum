@@ -6,7 +6,6 @@ from cython.parallel import prange
 from libc.math cimport exp, log, fmax
 
 import numpy as np
-from numpy.math cimport INFINITY
 
 # If an argument is readonly, that will fail with a typical floating[:]
 # memoryview. However, const floating[:] causes failures because currently,
@@ -177,9 +176,10 @@ def binomial_logit_eta_mu_loglikelihood(
 ):
     cdef int n = cur_eta.shape[0]
     cdef int i
+    cdef floating unit_loglikelihood
     cdef floating loglikelihood = 0.0
     cdef floating expposeta, expnegeta
-    for i in range(n):
+    for i in prange(n, nogil=True):
         eta_out[i] = cur_eta[i] + factor * X_dot_d[i]
         # When eta is positive, we want to use formulas that depend on
         # exp(-eta), but when eta is negative we want to use formulas that
@@ -191,12 +191,13 @@ def binomial_logit_eta_mu_loglikelihood(
         # and in LIBLINEAR
         if eta_out[i] > 0:
             expnegeta = exp(-eta_out[i])
-            loglikelihood += weights[i] * (y[i] * eta_out[i] - eta_out[i] - log(1 + expnegeta))
+            unit_loglikelihood = weights[i] * (y[i] * eta_out[i] - eta_out[i] - log(1 + expnegeta))
             mu_out[i] = 1 / (1 + expnegeta)
         else:
             expposeta = exp(eta_out[i])
-            loglikelihood += weights[i] * (y[i] * eta_out[i] - log(1 + expposeta))
+            unit_loglikelihood = weights[i] * (y[i] * eta_out[i] - log(1 + expposeta))
             mu_out[i] = expposeta / (expposeta + 1)
+        loglikelihood += unit_loglikelihood
     return -2 * loglikelihood
 
 def binomial_logit_rowwise_gradient_hessian(

@@ -62,7 +62,7 @@ def liblinear_bench(
         if reg_multiplier is None
         else 1 / (X.shape[0] * alpha * reg_multiplier),
         # Note that when an intercept is fitted, it is subject to regularization, unlike other solvers
-        intercept_scaling=1e4,
+        intercept_scaling=1e3,
         solver="liblinear",
     )
 
