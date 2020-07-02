@@ -538,7 +538,7 @@ class TweedieDistribution(ExponentialDispersionModel):
             f = poisson_log_rowwise_gradient_hessian
         elif self.power == 2 and isinstance(link, LogLink):
             f = gamma_log_rowwise_gradient_hessian
-        elif isinstance(link, LogLink):
+        elif 1 < self.power < 2 and isinstance(link, LogLink):
             f = partial(tweedie_log_rowwise_gradient_hessian, p=self.power)
 
         if f is not None:
@@ -566,7 +566,7 @@ class TweedieDistribution(ExponentialDispersionModel):
             f = poisson_log_eta_mu_loglikelihood
         elif self.power == 2 and isinstance(link, LogLink):
             f = gamma_log_eta_mu_loglikelihood
-        elif isinstance(link, LogLink):
+        elif 1 < self.power < 2 and isinstance(link, LogLink):
             f = partial(tweedie_log_eta_mu_loglikelihood, p=self.power)
 
         if f is not None:

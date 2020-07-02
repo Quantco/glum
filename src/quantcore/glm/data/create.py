@@ -97,10 +97,7 @@ def get_one_hot_transformations(col_name: str) -> List[Tuple[str, Any]]:
     """
     DummyEncoder requires a categorical input.
     """
-    return [
-        get_categorizer(col_name)
-        #     , ("OHE", DummyEncoder())
-    ]
+    return [get_categorizer(col_name)]
 
 
 def func_returns_df(

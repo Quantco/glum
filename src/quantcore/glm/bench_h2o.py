@@ -4,6 +4,7 @@ from typing import Dict, Optional, Union
 
 import h2o
 import numpy as np
+import pandas as pd
 from h2o.estimators.glm import H2OGeneralizedLinearEstimator
 from scipy import sparse as sps
 
@@ -30,16 +31,15 @@ def h2o_bench(
     l1_ratio: float,
     iterations: int,
     cv: bool,
-    print_diagnostics: bool = True,  # ineffective here
     reg_multiplier: Optional[float] = None,
     **kwargs,
 ):
 
     result: Dict = dict()
 
-    if not isinstance(dat["X"], np.ndarray) and not isinstance(dat["X"], sps.spmatrix):
+    if not isinstance(dat["X"], (np.ndarray, sps.spmatrix, pd.DataFrame)):
         warnings.warn(
-            "h2o requires data as scipy.sparse matrix or numpy array. Skipping."
+            "h2o requires data as scipy.sparse matrix, pandas dataframe, or numpy array. Skipping."
         )
         return result
 
