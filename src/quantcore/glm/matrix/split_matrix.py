@@ -7,7 +7,7 @@ from scipy import sparse as sps
 from . import MatrixBase
 from .categorical_matrix import CategoricalMatrix
 from .dense_glm_matrix import DenseGLMDataMatrix
-from .ext.split import _sandwich_cat_cat, sandwich_cat_dense, split_col_subsets
+from .ext.split import split_col_subsets
 from .mkl_sparse_matrix import MKLSparseMatrix
 
 
@@ -34,112 +34,11 @@ def csc_to_split(mat: sps.csc_matrix, threshold=0.1):
     return SplitMatrix([dense, sparse], [dense_idx, sparse_idx])
 
 
-def _sandwich_cat_other(
-    mat_i: CategoricalMatrix,
-    mat_j: MatrixBase,
-    d: np.ndarray,
-    rows: Optional[np.ndarray],
-    L_cols: Optional[np.ndarray],
-    R_cols: Optional[np.ndarray],
-) -> np.ndarray:
-
-    expected_shape = (
-        mat_i.shape[1] if L_cols is None else len(L_cols),
-        mat_j.shape[1] if R_cols is None else len(R_cols),
-    )
-
-    if L_cols is None:
-        L_cols = slice(None, None, None)
-
-    # I don't think Cython can handle lower-precision ints. Look into this
-    i_indices = mat_i.indices.astype(np.int32)
-
-    if isinstance(mat_j, np.ndarray) and mat_j.flags["C_CONTIGUOUS"]:
-        if rows is None:
-            rows = np.arange(mat_i.shape[0], dtype=np.int32)
-        if R_cols is None:
-            R_cols = np.arange(mat_j.shape[1], dtype=np.int32)
-
-        res = sandwich_cat_dense(i_indices, mat_i.shape[1], d, mat_j, rows, R_cols)
-        res = res[L_cols, :]
-        assert res.shape == expected_shape
-        return res
-
-    if R_cols is None:
-        R_cols = slice(None, None, None)
-
-    # TODO: make sure I haven't neglected col_mult
-    if isinstance(mat_j, CategoricalMatrix):
-        j_indices = mat_j.indices.astype(np.int32)
-        if rows is None:
-            rows = np.arange(mat_i.shape[0], dtype=np.int32)
-
-        res = _sandwich_cat_cat(
-            i_indices, j_indices, mat_i.shape[1], mat_j.shape[1], d, rows
-        )
-
-        res = np.asarray(res)[L_cols, :][:, R_cols]
-        assert res.shape == expected_shape
-        return res
-
-    if rows is None or len(rows) == mat_i.shape[0]:
-        rows = slice(None, None, None)
-
-    term_1 = mat_i.tocsr()
-    term_1.data = term_1.data * d
-    term_1 = term_1[rows, :][:, L_cols]
-
-    res = term_1.T.dot(mat_j[rows, :][:, R_cols])
-    if sps.issparse(res):
-        res = res.A
-    assert res.shape == expected_shape
-    return res
-
-
-def mat_sandwich(
-    mat_i: MatrixBase,
-    mat_j: MatrixBase,
-    d: np.ndarray,
-    rows: Optional[np.ndarray],
-    colsA: Optional[np.ndarray],
-    colsB: Optional[np.ndarray],
-) -> np.ndarray:
-    expected_shape = (
-        mat_i.shape[1] if colsA is None else len(colsA),
-        mat_j.shape[1] if colsB is None else len(colsB),
-    )
-    if mat_i is mat_j:
-        res = mat_i.sandwich(d, rows, colsA)
-        assert res.shape == expected_shape
-        return res
-    if isinstance(mat_i, MKLSparseMatrix):
-        if isinstance(mat_j, DenseGLMDataMatrix):
-            res = mat_i.sandwich_dense(mat_j, d, rows, colsA, colsB)
-            assert res.shape == expected_shape
-            return res
-        if isinstance(mat_j, CategoricalMatrix):
-            res = _sandwich_cat_other(mat_j, mat_i, d, rows, colsB, colsA).T
-            assert res.shape == expected_shape
-            return res
-    elif isinstance(mat_i, DenseGLMDataMatrix):
-        if isinstance(mat_j, MKLSparseMatrix):
-            res = mat_j.sandwich_dense(mat_i, d, rows, colsB, colsA).T
-            assert res.shape == expected_shape
-            return res
-        if isinstance(mat_j, CategoricalMatrix):
-            res = _sandwich_cat_other(mat_j, mat_i, d, rows, colsB, colsA).T
-            assert res.shape == expected_shape
-            return res
-    elif isinstance(mat_i, CategoricalMatrix):
-        res = _sandwich_cat_other(mat_i, mat_j, d, rows, colsA, colsB)
-        assert res.shape == expected_shape
-        return res
-    raise NotImplementedError(f"Not implemented with {type(mat_i)} or {type(mat_j)}")
-
-
 class SplitMatrix(MatrixBase):
     def __init__(
-        self, matrices: List[MatrixBase], indices: Optional[List[np.ndarray]] = None
+        self,
+        matrices: List[Union[DenseGLMDataMatrix, MKLSparseMatrix, CategoricalMatrix]],
+        indices: Optional[List[np.ndarray]] = None,
     ):
 
         if indices is None:
@@ -212,7 +111,9 @@ class SplitMatrix(MatrixBase):
         self.shape = (n_row, sum([len(elt) for elt in indices]))
         assert self.shape[1] > 0
 
-    def _split_col_subsets(self, cols):
+    def _split_col_subsets(
+        self, cols
+    ) -> Tuple[List[np.ndarray], List[Optional[np.ndarray]], int]:
         if cols is None:
             subset_cols_indices = self.indices
             subset_cols = [None for i in range(len(self.indices))]
@@ -249,34 +150,48 @@ class SplitMatrix(MatrixBase):
         raise RuntimeError(f"Column {i} was not found.")
 
     def sandwich(
-        self, d: np.ndarray, rows: np.ndarray = None, cols: np.ndarray = None
+        self,
+        d: Union[np.ndarray, List],
+        rows: np.ndarray = None,
+        cols: np.ndarray = None,
     ) -> np.ndarray:
         if np.shape(d) != (self.shape[0],):
             raise ValueError
+        d = np.asarray(d)
 
         subset_cols_indices, subset_cols, n_cols = self._split_col_subsets(cols)
 
         out = np.zeros((n_cols, n_cols))
         for i in range(len(self.indices)):
-            for j in range(i, len(self.indices)):
-                idx_i = subset_cols_indices[i]
-                mat_i = self.matrices[i]
+            idx_i = subset_cols_indices[i]
+            mat_i = self.matrices[i]
+            expected_dim_1 = (
+                mat_i.shape[1] if subset_cols[i] is None else len(subset_cols[i])  # type: ignore
+            )
+            res = mat_i.sandwich(d, rows, subset_cols[i])
+            expected_shape = (expected_dim_1, expected_dim_1)
+            if isinstance(res, sps.dia_matrix):
+                out[(idx_i, idx_i)] += np.squeeze(res.data)
+            else:
+                out[np.ix_(idx_i, idx_i)] = res
+            assert res.shape == expected_shape
+
+            for j in range(i + 1, len(self.indices)):
                 idx_j = subset_cols_indices[j]
                 mat_j = self.matrices[j]
-                res = mat_sandwich(
-                    mat_i, mat_j, d, rows, subset_cols[i], subset_cols[j]
+                res = mat_i.cross_sandwich(
+                    mat_j, d, rows, subset_cols[i], subset_cols[j]
                 )
                 expected_shape = (
-                    mat_i.shape[1] if subset_cols[i] is None else len(subset_cols[i]),
-                    mat_j.shape[1] if subset_cols[j] is None else len(subset_cols[j]),
+                    expected_dim_1,
+                    mat_j.shape[1] if subset_cols[j] is None else len(subset_cols[j]),  # type: ignore
                 )
+
+                out[np.ix_(idx_i, idx_j)] = res
+                out[np.ix_(idx_j, idx_i)] = res.T
+
                 assert res.shape == expected_shape
-                if isinstance(res, sps.dia_matrix):
-                    out[(idx_i, idx_i)] += np.squeeze(res.data)
-                else:
-                    out[np.ix_(idx_i, idx_j)] = res
-                    if i != j:
-                        out[np.ix_(idx_j, idx_i)] = res.T
+
         return out
 
     def get_col_means(self, weights: np.ndarray) -> np.ndarray:

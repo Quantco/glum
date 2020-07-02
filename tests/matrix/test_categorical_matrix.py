@@ -16,6 +16,13 @@ def cat_vec():
 
 @pytest.mark.parametrize("vec_dtype", [np.float64, np.float32, np.int64, np.int32])
 @pytest.mark.parametrize("col_mult", [None, [0, -0.1, 2]])
+def test_recover_orig(cat_vec, vec_dtype, col_mult):
+    orig_recovered = CategoricalMatrix(cat_vec, col_mult).recover_orig()
+    np.testing.assert_equal(orig_recovered, cat_vec)
+
+
+@pytest.mark.parametrize("vec_dtype", [np.float64, np.float32, np.int64, np.int32])
+@pytest.mark.parametrize("col_mult", [None, [0, -0.1, 2]])
 def test_csr_dot_categorical(cat_vec, vec_dtype, col_mult):
     mat = OneHotEncoder().fit_transform(cat_vec[:, None])
     cat_mat = CategoricalMatrix(cat_vec, col_mult)

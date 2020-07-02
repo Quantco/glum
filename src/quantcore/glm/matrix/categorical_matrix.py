@@ -1,3 +1,4 @@
+import warnings
 from typing import List, Optional, Tuple, Union
 
 import numpy as np
@@ -5,8 +6,15 @@ import pandas as pd
 from scipy import sparse as sps
 
 from .ext.categorical import sandwich_categorical
+from .ext.split import _sandwich_cat_cat, sandwich_cat_dense
 from .matrix_base import MatrixBase
 from .mkl_sparse_matrix import MKLSparseMatrix
+
+
+def _none_to_slice(arr: Optional[np.ndarray]) -> Union[slice, np.ndarray]:
+    if arr is None:
+        return slice(None, None, None)
+    return arr
 
 
 class CategoricalMatrix(MatrixBase):
@@ -39,6 +47,13 @@ class CategoricalMatrix(MatrixBase):
             self.dtype = self.col_mult.dtype
 
     def recover_orig(self) -> np.ndarray:
+        """
+
+        Returns
+        -------
+        1d numpy array with same data as what was initially fed to __init__.
+        Test: matrix/test_categorical_matrix::test_recover_orig
+        """
         return self.cat.categories[self.cat.codes]
 
     def dot(
@@ -58,6 +73,9 @@ class CategoricalMatrix(MatrixBase):
 
         The rows and cols parameters allow restricting to a subset of the
         matrix without making a copy.
+
+        Test:
+        matrix/test_matrices::test_dot
         """
         other = np.asarray(other)
         if other.shape[0] != self.shape[1]:
@@ -98,6 +116,8 @@ class CategoricalMatrix(MatrixBase):
 
         The rows and cols parameters allow restricting to a subset of the
         matrix without making a copy.
+
+        Test: tests/test_matrices::test_transpose_dot
         """
         # TODO: write a function that doesn't reference the data. That will be
         # especially helpful with a col_mult
@@ -136,6 +156,22 @@ class CategoricalMatrix(MatrixBase):
                 res_diag *= self.col_mult[cols] ** 2
         return sps.diags(res_diag)
 
+    def cross_sandwich(
+        self,
+        other: MatrixBase,
+        d: Union[np.ndarray, List],
+        rows: Optional[np.ndarray] = None,
+        L_cols: Optional[np.ndarray] = None,
+        R_cols: Optional[np.ndarray] = None,
+    ) -> np.ndarray:
+        if isinstance(other, np.ndarray):
+            return self._cross_dense(other, d, rows, L_cols, R_cols)
+        if isinstance(other, sps.csc_matrix):
+            return self._cross_sparse(other, d, rows, L_cols, R_cols)
+        if isinstance(other, CategoricalMatrix):
+            return self._cross_categorical(other, d, rows, L_cols, R_cols)
+        raise TypeError
+
     def _check_csc(
         self, force_reset=False
     ) -> Tuple[Optional[np.ndarray], np.ndarray, np.ndarray]:
@@ -159,9 +195,9 @@ class CategoricalMatrix(MatrixBase):
 
     # TODO: best way to return this depends on the use case. See what that is
     # See how csr getcol works
-    def getcol(self, i: int) -> np.ndarray:
+    def getcol(self, i: int) -> sps.csc_matrix:
         i %= self.shape[1]  # wrap-around indexing
-        col_i = (self.indices == i).astype(int)[:, None]
+        col_i = sps.csc_matrix((self.indices == i).astype(int)[:, None])
         if self.col_mult is None:
             return col_i
         return col_i * self.col_mult[i]
@@ -222,3 +258,83 @@ class CategoricalMatrix(MatrixBase):
         if isinstance(row, int):
             row = [row]
         return CategoricalMatrix(self.cat[row], self.col_mult)
+
+    def _cross_dense(
+        self,
+        other: np.ndarray,
+        d: np.ndarray,
+        rows: Optional[np.ndarray],
+        L_cols: Optional[np.ndarray],
+        R_cols: Optional[np.ndarray],
+    ) -> np.ndarray:
+
+        if not other.flags["C_CONTIGUOUS"]:
+            warnings.warn(
+                """CategoricalMatrix._cross_dense(other, ...) is optimized for the case
+                where other is a C-contiguous Numpy array."""
+            )
+
+        # I don't think Cython can handle lower-precision ints. Look into this
+        i_indices = self.indices.astype(np.int32)
+
+        if rows is None:
+            rows = np.arange(self.shape[0], dtype=np.int32)
+        if R_cols is None:
+            R_cols = np.arange(other.shape[1], dtype=np.int32)
+
+        res = sandwich_cat_dense(i_indices, self.shape[1], d, other, rows, R_cols)
+
+        res = res[_none_to_slice(L_cols), :]
+        if self.col_mult is not None:
+            res *= self.col_mult[_none_to_slice(L_cols), None]
+        return res
+
+    def _cross_categorical(
+        self,
+        other,
+        d: np.ndarray,
+        rows: Optional[np.ndarray],
+        L_cols: Optional[np.ndarray],
+        R_cols: Optional[np.ndarray],
+    ) -> np.ndarray:
+        assert isinstance(other, CategoricalMatrix)
+
+        # I don't think Cython can handle lower-precision ints. Look into this
+        i_indices = self.indices.astype(np.int32)
+        j_indices = other.indices.astype(np.int32)
+        if rows is None:
+            rows = np.arange(self.shape[0], dtype=np.int32)
+
+        res = _sandwich_cat_cat(
+            i_indices, j_indices, self.shape[1], other.shape[1], d, rows
+        )
+
+        L_cols = _none_to_slice(L_cols)
+        R_cols = _none_to_slice(R_cols)
+        res = res[L_cols, :][:, R_cols]
+        if other.col_mult is not None:
+            res *= other.col_mult[None, R_cols]
+
+        if self.col_mult is not None:
+            res *= self.col_mult[L_cols, None]
+        return res
+
+    def _cross_sparse(
+        self,
+        other: sps.csc_matrix,
+        d: np.ndarray,
+        rows: Optional[np.ndarray],
+        L_cols: Optional[np.ndarray],
+        R_cols: Optional[np.ndarray],
+    ) -> np.ndarray:
+
+        term_1 = self.tocsr()
+        term_1.data = term_1.data * d
+
+        rows = _none_to_slice(rows)
+        L_cols = _none_to_slice(L_cols)
+        term_1 = term_1[rows, :][:, L_cols]
+
+        res = term_1.T.dot(other[rows, :][:, _none_to_slice(R_cols)]).A
+
+        return res

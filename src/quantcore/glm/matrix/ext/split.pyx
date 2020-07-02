@@ -75,7 +75,7 @@ def _sandwich_cat_cat(
         j = j_indices[k]
         res[i, j] += d[k]
 
-    return res
+    return np.asarray(res)
 
 
 def split_col_subsets(self, int[:] cols):
