@@ -71,11 +71,20 @@ def _get_minus_binomial_ll_by_obs(eta: np.ndarray, y: np.ndarray) -> np.ndarray:
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        expeta = np.exp(eta)
-    # when eta is very large, np.exp(eta) is inf in floating point.
-    # however, in that situation, 1 + exp(eta) ~ exp(eta) and thus
-    # log(1 + exp(eta)) ~ eta
-    return np.where(np.isinf(expeta), y * eta - eta, y * eta - np.log(1 + expeta))
+        expnegeta = np.exp(-eta)
+        expposeta = np.exp(eta)
+
+    # When eta is positive, we want to use formulas that depend on
+    # exp(-eta), but when eta is negative we want to use formulas that
+    # depend on exp(eta), rederived based on the suggestions here:
+    # http://fa.bianp.net/blog/2013/numerical-optimizers-for-logistic-regression/
+    # That article assumes y in {-1, +1} whereas we use y in {0, 1}. Thus
+    # the difference in formulas.
+    # The same approach is used in sklearn.linear_model.LogisticRegression
+    # and in LIBLINEAR
+    return -np.where(
+        eta > 0, y * eta - eta - np.log(1 + expnegeta), y * eta - np.log(1 + expposeta)
+    )
 
 
 def _get_linear_prediction_part(
@@ -92,7 +101,7 @@ def _get_linear_prediction_part(
 
 def _get_penalty(alpha: float, l1_ratio: float, coefs: np.ndarray) -> float:
     l1 = np.sum(np.abs(coefs))
-    l2 = np.sum(coefs ** 2)
+    l2 = 0.5 * np.sum(coefs ** 2)
     penalty = alpha * (l1_ratio * l1 + (1 - l1_ratio) * l2)
     return penalty
 
