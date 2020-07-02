@@ -48,9 +48,7 @@ def _least_squares_solver(state, data, hessian):
 
     # TODO: In cases where we have lots of columns, we might want to avoid the
     # sandwich product and use something like iterative lsqr or lsmr.
-    d = linalg.solve(
-        hessian, state.score, overwrite_a=True, overwrite_b=True, assume_a="pos"
-    )
+    d = linalg.solve(hessian, state.score, assume_a="pos")
     return d, 1
 
 
@@ -558,13 +556,40 @@ def check_convergence(state, data):
 def update_predictions(state, data, coef, X_dot_step=None, factor=1.0):
     if X_dot_step is None:
         X_dot_step = _safe_lin_pred(data.X, coef, data.offset)
+    return eta_mu_objective(
+        data.family,
+        data.link,
+        X_dot_step,
+        factor,
+        coef,
+        state.eta,
+        data.y,
+        data.weights,
+        data.P1,
+        data.P2,
+        data.intercept_offset,
+    )
 
-    eta, mu, loglikelihood = data.family.eta_mu_loglikelihood(
-        data.link, factor, state.eta, X_dot_step, data.y, data.weights
+
+def eta_mu_objective(
+    family,
+    link,
+    X_dot_step,
+    factor,
+    coef,
+    cur_eta,
+    y,
+    weights,
+    P1,
+    P2,
+    intercept_offset,
+):
+    eta, mu, loglikelihood = family.eta_mu_loglikelihood(
+        link, factor, cur_eta, X_dot_step, y, weights
     )
     obj_val = 0.5 * loglikelihood
-    obj_val += linalg.norm(data.P1 * coef[data.intercept_offset :], ord=1)
-    coef_P2 = make_coef_P2(data, coef)
+    obj_val += linalg.norm(P1 * coef[intercept_offset:], ord=1)
+    coef_P2 = make_coef_P2(intercept_offset, P2, coef)
     obj_val += 0.5 * (coef_P2 @ coef)
     return eta, mu, obj_val, coef_P2
 
@@ -590,17 +615,17 @@ def update_quadratic(state, data, coef_P2):
     return gradient_rows, grad, hessian_rows
 
 
-def make_coef_P2(data, coef):
+def make_coef_P2(intercept_offset, P2, coef):
     out = np.empty_like(coef)
 
-    if data.intercept_offset == 1:
+    if intercept_offset == 1:
         out[0] = 0
 
-    C = coef[data.intercept_offset :]
-    if data.P2.ndim == 1:
-        out[data.intercept_offset :] = C * data.P2
+    C = coef[intercept_offset:]
+    if P2.ndim == 1:
+        out[intercept_offset:] = C * P2
     else:
-        out[data.intercept_offset :] = C @ data.P2
+        out[intercept_offset:] = C @ P2
 
     return out
 
@@ -624,7 +649,7 @@ def identify_active_set(state, data):
 @timeit("line_search_runtime")
 def line_search(state, data, d):
     # line search parameters
-    (beta, sigma) = (0.5, 0.01)
+    (beta, sigma) = (0.5, 0.0001)
 
     # line search by sequence beta^k, k=0, 1, ..
     # F(w + lambda d) - F(w) <= lambda * bound
@@ -652,9 +677,7 @@ def line_search(state, data, d):
         eta_wd, mu_wd, obj_val_wd, coef_wd_P2 = update_predictions(
             state, data, coef_wd, X_dot_d, factor=factor
         )
-        if (mu_wd.max() < 1e43) and (
-            obj_val_wd - state.obj_val <= sigma * factor * bound
-        ):
+        if (mu_wd.max() < 1e43) and (obj_val_wd - state.obj_val <= factor * bound):
             break
         factor *= beta
     else:

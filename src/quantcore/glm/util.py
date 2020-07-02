@@ -2,13 +2,15 @@ import glob
 import os
 import shutil
 import time
-import warnings
 from functools import reduce
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import click
 import numpy as np
 from scipy import sparse as sps
+
+from .sklearn_fork import GeneralizedLinearRegressor, TweedieDistribution
+from .sklearn_fork._solvers import eta_mu_objective
 
 benchmark_convergence_tolerance = 1e-4
 cache_location = os.environ.get("GLM_BENCHMARKS_CACHE", None)
@@ -24,77 +26,14 @@ def runtime(f, iterations, *args, **kwargs):
     return np.min(rs), out
 
 
-def _get_minus_tweedie_ll_by_obs(eta: np.ndarray, y: np.ndarray, p: float):
-    if p == 0:
-        expected_y = eta
-    else:
-        expected_y = np.exp(eta)
-
-    def _f(exp: float):
-        if exp == 0:
-            # equal to log expected y; limit as exp goes to 1 of below func
-            return eta
-        return expected_y ** exp / exp
-
-    return _f(2 - p) - y * _f(1 - p)
-
-
-def _get_minus_gamma_ll_by_obs(eta: np.ndarray, y: np.ndarray) -> np.ndarray:
-    """
-    Only up to a constant! From h2o documentation.
-    """
-    return _get_minus_tweedie_ll_by_obs(eta, y, 2)
-
-
-def _get_poisson_ll_by_obs(eta: np.ndarray, y: np.ndarray) -> np.ndarray:
-    """
-    Only up to a constant!
-    """
-    return eta * y - np.exp(eta)
-
-
-def _get_minus_gaussian_ll_by_obs(eta: np.ndarray, y: np.ndarray) -> np.ndarray:
-    """
-    The normal log-likelihood, up to a constant.
-    """
-    return (y - eta) ** 2 / 2
-
-
-def _get_minus_binomial_ll_by_obs(eta: np.ndarray, y: np.ndarray) -> np.ndarray:
-    """
-    The binomial log-likelihood.
-    yhat = exp(eta) / (1 + exp(eta))
-    LL = y * log(yhat) + (1 - y) log(1 - yhat)
-    = y * (eta - log(1 + exp(eta))) - (1 - y) * log(1 + exp(eta))
-    = y * eta - log(1 + exp(eta))
-    """
-
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        expeta = np.exp(eta)
-    # when eta is very large, np.exp(eta) is inf in floating point.
-    # however, in that situation, 1 + exp(eta) ~ exp(eta) and thus
-    # log(1 + exp(eta)) ~ eta
-    return np.where(np.isinf(expeta), y * eta - eta, y * eta - np.log(1 + expeta))
-
-
-def _get_linear_prediction_part(
-    x: Union[np.ndarray, sps.spmatrix],
-    coefs: np.ndarray,
-    intercept: float,
-    offset: Optional[np.ndarray] = None,
-) -> np.ndarray:
-    lp = x.dot(coefs) + intercept
-    if offset is None:
-        return lp
-    return lp + offset
-
-
-def _get_penalty(alpha: float, l1_ratio: float, coefs: np.ndarray) -> float:
-    l1 = np.sum(np.abs(coefs))
-    l2 = np.sum(coefs ** 2)
-    penalty = alpha * (l1_ratio * l1 + (1 - l1_ratio) * l2)
-    return penalty
+def get_sklearn_family(distribution):
+    family = distribution
+    if family == "gaussian":
+        family = "normal"
+    elif "tweedie" in family:
+        tweedie_p = float(family.split("-p=")[1])
+        family = TweedieDistribution(tweedie_p)  # type: ignore
+    return family
 
 
 def get_obj_val(
@@ -106,28 +45,39 @@ def get_obj_val(
     coefs: np.ndarray,
     tweedie_p: float = None,
 ) -> float:
-    weights = dat.get("weights", np.ones_like(dat["y"])).astype(np.float64)
+
+    model = GeneralizedLinearRegressor(
+        alpha=alpha, l1_ratio=l1_ratio, family=get_sklearn_family(distribution),
+    )
+    model.set_up_for_fit(dat["y"])
+
+    full_coefs = np.concatenate(([intercept], coefs))
+    offset = dat.get("offset")
+    X_dot_coef = dat["X"].to_numpy().dot(coefs) + intercept
+    if offset is not None:
+        X_dot_coef += offset
+
+    zeros = np.zeros(dat["X"].shape[0])
+    y = dat["y"].astype(coefs.dtype)
+    weights = dat.get("weights", np.ones_like(y)).astype(coefs.dtype)
     weights /= weights.sum()
+    P1 = l1_ratio * alpha * np.ones_like(coefs)
+    P2 = (1 - l1_ratio) * alpha * np.ones_like(coefs)
 
-    eta = _get_linear_prediction_part(dat["X"], coefs, intercept, dat.get("offset"))
-
-    if distribution == "poisson":
-        minus_log_like_by_ob = -_get_poisson_ll_by_obs(eta, dat["y"])
-    elif distribution == "gaussian":
-        minus_log_like_by_ob = _get_minus_gaussian_ll_by_obs(eta, dat["y"])
-    elif distribution == "gamma":
-        minus_log_like_by_ob = _get_minus_gamma_ll_by_obs(eta, dat["y"])
-    elif "tweedie" in distribution:
-        assert tweedie_p is not None
-        minus_log_like_by_ob = _get_minus_tweedie_ll_by_obs(eta, dat["y"], tweedie_p)
-    elif distribution == "binomial":
-        minus_log_like_by_ob = _get_minus_binomial_ll_by_obs(eta, dat["y"])
-    else:
-        raise NotImplementedError
-
-    penalty = _get_penalty(alpha, l1_ratio, coefs)
-
-    return minus_log_like_by_ob.dot(weights) + penalty
+    _, _, obj_val, _ = eta_mu_objective(
+        model._family_instance,
+        model._link_instance,
+        X_dot_coef,
+        1.0,
+        full_coefs,
+        zeros,
+        y,
+        weights,
+        P1,
+        P2,
+        1,
+    )
+    return obj_val
 
 
 def exposure_and_offset_to_weights(
