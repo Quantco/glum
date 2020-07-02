@@ -52,7 +52,7 @@ def sklearn_fork_bench(
     model_args = dict(
         family=family,
         l1_ratio=l1_ratio,
-        max_iter=1000,
+        max_iter=10,
         random_state=random_seed,
         copy_X=False,
         selection="cyclic",
