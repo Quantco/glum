@@ -16,7 +16,6 @@ def glmnet_python_bench(
     l1_ratio: float,
     iterations: int,
     cv: bool,
-    print_diagnostics: bool = True,  # ineffective here
     reg_multiplier: Optional[float] = None,
     **kwargs,
 ) -> Dict[str, Any]:
@@ -31,7 +30,7 @@ def glmnet_python_bench(
         X = X.to_numpy()
     elif not isinstance(X, np.ndarray):
         warnings.warn(
-            "glmnet_python requires data as scipy.sparse matrix or numpy array. Skipping."
+            "glmnet_python requires data as scipy.sparse matrix, pandas dataframe, or numpy array. Skipping."
         )
         return result
 
