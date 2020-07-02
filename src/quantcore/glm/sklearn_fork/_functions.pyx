@@ -77,8 +77,8 @@ def poisson_log_eta_mu_loglikelihood(
         eta_out[i] = cur_eta[i] + factor * X_dot_d[i]
         mu_out[i] = exp(eta_out[i])
         # True log likelihood: y * eta - mu
-        loglikelihood += weights[i] * -2 * (y[i] * eta_out[i] - mu_out[i])
-    return loglikelihood
+        loglikelihood += weights[i] * (y[i] * eta_out[i] - mu_out[i])
+    return -2 * loglikelihood
 
 def poisson_log_rowwise_gradient_hessian(
     const_floating1d y,
@@ -111,8 +111,8 @@ def gamma_log_eta_mu_loglikelihood(
         eta_out[i] = cur_eta[i] + factor * X_dot_d[i]
         mu_out[i] = exp(eta_out[i])
         # True log likelihood: -(y / mu + eta)
-        loglikelihood += weights[i] * 2 * (y[i] / mu_out[i] + eta_out[i])
-    return loglikelihood
+        loglikelihood += weights[i] * (y[i] / mu_out[i] + eta_out[i])
+    return 2 * loglikelihood
 
 def gamma_log_rowwise_gradient_hessian(
     const_floating1d y,
@@ -142,13 +142,15 @@ def tweedie_log_eta_mu_loglikelihood(
     cdef int i
     cdef floating unit_loglikelihood
     cdef floating loglikelihood = 0.0
+    cdef floating mu1mp
     for i in prange(n, nogil=True):
         eta_out[i] = cur_eta[i] + factor * X_dot_d[i]
         mu_out[i] = exp(eta_out[i])
-        # No nice expression for likelihood, so derived from unit deviance
-        loglikelihood += weights[i] * 2 * (fmax(y[i], 0) ** (2 - p) / ((1 - p) * (2 - p)) \
-        - y[i] * mu_out[i] ** (1 - p) / (1 - p) + mu_out[i] ** (2 - p) / (2 - p))
-    return loglikelihood
+        mu1mp = mu_out[i] ** (1 - p)
+        loglikelihood += weights[i] * mu1mp * (
+            mu_out[i] / (2 - p) - y[i] / (1 - p)
+        )
+    return 2 * loglikelihood
 
 def tweedie_log_rowwise_gradient_hessian(
     const_floating1d y,
@@ -161,9 +163,14 @@ def tweedie_log_rowwise_gradient_hessian(
 ):
     cdef int n = eta.shape[0]
     cdef int i
+    cdef floating mu1mp, ymm
     for i in prange(n, nogil=True):
-        gradient_rows_out[i] = weights[i] * mu[i] ** (1 - p) * (y[i] - mu[i])
-        hessian_rows_out[i] = weights[i] * mu[i] ** (2 - p)
+        mu1mp = mu[i] ** (1 - p)
+        ymm = y[i] - mu[i]
+        gradient_rows_out[i] = weights[i] * mu1mp * ymm
+        # This hessian will be positive definite for 1 < p < 2. Don't use it
+        # outside that range.
+        hessian_rows_out[i] = weights[i] * mu1mp * (mu[i] - (1 - p) * ymm)
 
 def binomial_logit_eta_mu_loglikelihood(
     const_floating1d cur_eta,
