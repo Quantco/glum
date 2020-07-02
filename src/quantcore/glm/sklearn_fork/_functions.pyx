@@ -178,17 +178,27 @@ def binomial_logit_eta_mu_loglikelihood(
     cdef int i
     cdef floating unit_loglikelihood
     cdef floating loglikelihood = 0.0
+    cdef floating expposeta, expnegeta
     for i in prange(n, nogil=True):
         eta_out[i] = cur_eta[i] + factor * X_dot_d[i]
-        mu_out[i] = 1 / (1 + exp(-eta_out[i]))
-        # Clipping is used to match the mu calculation in _link.py
-        if mu_out[i] > 1 - 1e-10:
-            mu_out[i] = 1 - 1e-10
-        elif mu_out[i] < 1e-20:
-            mu_out[i] = 1e-20
-        # True log likelihood: log(mu) - eta * (1 - y)
-        loglikelihood += weights[i] * (-2 * (y[i] * log(mu_out[i]) + (1 - y[i]) * log(1 - mu_out[i])))
-    return loglikelihood
+        # When eta is positive, we want to use formulas that depend on
+        # exp(-eta), but when eta is negative we want to use formulas that
+        # depend on exp(eta), rederived based on the suggestions here:
+        # http://fa.bianp.net/blog/2013/numerical-optimizers-for-logistic-regression/
+        # That article assumes y in {-1, +1} whereas we use y in {0, 1}. Thus
+        # the difference in formulas.
+        # The same approach is used in sklearn.linear_model.LogisticRegression
+        # and in LIBLINEAR
+        if eta_out[i] > 0:
+            expnegeta = exp(-eta_out[i])
+            unit_loglikelihood = weights[i] * (y[i] * eta_out[i] - eta_out[i] - log(1 + expnegeta))
+            mu_out[i] = 1 / (1 + expnegeta)
+        else:
+            expposeta = exp(eta_out[i])
+            unit_loglikelihood = weights[i] * (y[i] * eta_out[i] - log(1 + expposeta))
+            mu_out[i] = expposeta / (expposeta + 1)
+        loglikelihood += unit_loglikelihood
+    return -2 * loglikelihood
 
 def binomial_logit_rowwise_gradient_hessian(
     const_floating1d y,
@@ -200,18 +210,6 @@ def binomial_logit_rowwise_gradient_hessian(
 ):
     cdef int n = eta.shape[0]
     cdef int i
-    # Clipping is used to match the eta calculation in _distribution.py
-    cdef floating mu_unclipped
-    cdef floating eta_clipped
-    cdef floating max_float_for_exp = np.log(np.finfo(eta.base.dtype).max / 10)
     for i in prange(n, nogil=True):
-        mu_unclipped = 1 / (1 + exp(-eta[i]))
-        if eta[i] > max_float_for_exp:
-            eta_clipped = max_float_for_exp
-        elif eta[i] < -max_float_for_exp:
-            eta_clipped = -max_float_for_exp
-        else:
-            eta_clipped = eta[i]
-        gradient_rows_out[i] = weights[i] * mu_unclipped * (1 - mu_unclipped) * \
-        (exp(eta_clipped) + 2 + exp(-eta_clipped)) * (y[i] - mu[i])
-        hessian_rows_out[i] = weights[i] * mu_unclipped * (1 - mu_unclipped)
+        gradient_rows_out[i] = weights[i] * (y[i] - mu[i])
+        hessian_rows_out[i] = weights[i] * mu[i] * (1 - mu[i])
