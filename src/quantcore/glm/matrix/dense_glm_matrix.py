@@ -50,7 +50,12 @@ class DenseGLMDataMatrix(np.ndarray, MatrixBase):
 
     def get_col_stds(self, weights: np.ndarray, col_means: np.ndarray) -> np.ndarray:
         # TODO: avoid copying X - the X ** 2 makes a copy
-        return np.sqrt((self ** 2).T.dot(weights) - col_means ** 2)
+        sqrt_arg = (self ** 2).T.dot(weights) - col_means ** 2
+        # Minor floating point errors above can result in a very slightly
+        # negative sqrt_arg (e.g. -5e-16). We just set those values equal to
+        # zero.
+        sqrt_arg[sqrt_arg < 0] = 0
+        return np.sqrt(sqrt_arg)
 
     def dot_helper(self, vec, rows, cols, transpose):
         # Because the dense_rmatvec takes a row array and col array, it has
