@@ -52,7 +52,7 @@ def sklearn_fork_bench(
     model_args = dict(
         family=family,
         l1_ratio=l1_ratio,
-        max_iter=10,
+        max_iter=100,
         random_state=random_seed,
         copy_X=False,
         selection="cyclic",
@@ -61,6 +61,7 @@ def sklearn_fork_bench(
         force_all_finite=False,
         hessian_approx=hessian_approx,
     )
+
     if not cv:
         model_args["alpha"] = (
             alpha if reg_multiplier is None else alpha * reg_multiplier
