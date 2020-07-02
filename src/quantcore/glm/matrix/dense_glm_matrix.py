@@ -1,4 +1,4 @@
-from typing import List, Union
+from typing import List, Optional, Union
 
 import numpy as np
 
@@ -47,6 +47,21 @@ class DenseGLMDataMatrix(np.ndarray, MatrixBase):
         if cols is None:
             cols = np.arange(self.shape[1], dtype=np.int32)
         return dense_sandwich(self, d, rows, cols)
+
+    def cross_sandwich(
+        self,
+        other: MatrixBase,
+        d: np.ndarray,
+        rows: Optional[np.ndarray] = None,
+        L_cols: Optional[np.ndarray] = None,
+        R_cols: Optional[np.ndarray] = None,
+    ):
+        from .mkl_sparse_matrix import MKLSparseMatrix
+        from .categorical_matrix import CategoricalMatrix
+
+        if isinstance(other, MKLSparseMatrix) or isinstance(other, CategoricalMatrix):
+            return other.cross_sandwich(self, d, rows, R_cols, L_cols).T
+        raise TypeError
 
     def get_col_stds(self, weights: np.ndarray, col_means: np.ndarray) -> np.ndarray:
         # TODO: avoid copying X - the X ** 2 makes a copy
