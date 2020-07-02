@@ -198,20 +198,20 @@ def test_gradients(family, link):
 
 
 @pytest.mark.parametrize(
-    "family, link",
+    "family, link, true_hessian",
     [
-        (NormalDistribution(), IdentityLink()),
-        (PoissonDistribution(), LogLink()),
-        (GammaDistribution(), LogLink()),
-        (InverseGaussianDistribution(), LogLink()),
-        (TweedieDistribution(power=1.5), LogLink()),
-        (TweedieDistribution(power=4.5), LogLink()),
+        (NormalDistribution(), IdentityLink(), False),
+        (PoissonDistribution(), LogLink(), False),
+        (GammaDistribution(), LogLink(), True),
+        (InverseGaussianDistribution(), LogLink(), False),
+        (TweedieDistribution(power=1.5), LogLink(), False),
+        (TweedieDistribution(power=4.5), LogLink(), False),
     ],
     ids=lambda args: args.__class__.__name__,
 )
-def test_hessian_matrix(family, link):
+def test_hessian_matrix(family, link, true_hessian):
     """Test the Hessian matrix numerically.
-    Trick: Use numerical differentiation with y = mu"""
+    Trick: For the FIM, use numerical differentiation with y = mu"""
     coef = np.array([-2, 1, 0, 1, 2.5])
     phi = 0.5
     rng = np.random.RandomState(42)
@@ -241,12 +241,19 @@ def test_hessian_matrix(family, link):
         def f(coef):
             this_eta = X.dot(coef)
             this_mu = link.inverse(this_eta)
+            yv = mu
+            if true_hessian:
+                # If we're using the true hessian, use the true y
+                yv = weights
+            else:
+                # If we're using the FIM, use y = mu
+                yv = mu
             gradient_rows, _ = family.rowwise_gradient_hessian(
                 link=link,
                 coef=coef,
                 phi=phi,
                 X=X,
-                y=mu,
+                y=yv,
                 weights=weights,
                 eta=this_eta,
                 mu=this_mu,
