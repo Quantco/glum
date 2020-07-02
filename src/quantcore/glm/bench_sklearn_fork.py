@@ -5,12 +5,8 @@ import numpy as np
 import pandas as pd
 from scipy import sparse as sps
 
-from .sklearn_fork import (
-    GeneralizedLinearRegressor,
-    GeneralizedLinearRegressorCV,
-    TweedieDistribution,
-)
-from .util import benchmark_convergence_tolerance, runtime
+from .sklearn_fork import GeneralizedLinearRegressor, GeneralizedLinearRegressorCV
+from .util import benchmark_convergence_tolerance, get_sklearn_family, runtime
 
 random_seed = 110
 
@@ -42,15 +38,8 @@ def sklearn_fork_bench(
     if "offset" in dat.keys():
         fit_args.update({"offset": dat["offset"]})
 
-    family = distribution
-    if family == "gaussian":
-        family = "normal"
-    elif "tweedie" in family:
-        tweedie_p = float(family.split("-p=")[1])
-        family = TweedieDistribution(tweedie_p)  # type: ignore
-
     model_args = dict(
-        family=family,
+        family=get_sklearn_family(distribution),
         l1_ratio=l1_ratio,
         max_iter=1000,
         random_state=random_seed,
