@@ -60,8 +60,6 @@ def load_data(
         if exposure is not None:
             exposure = exposure.astype(np.float32)
 
-    assert not pd.isnull(X).any(None)
-
     def transform_col(i: int, dtype) -> Union[pd.DataFrame, mx.CategoricalMatrix]:
         if dtype.name == "category":
             if storage == "cat":
@@ -70,7 +68,8 @@ def load_data(
         return X.iloc[:, [i]]
 
     mat_parts = [transform_col(i, dtype) for i, dtype in enumerate(X.dtypes)]
-    # TODO: add a threshold for the number of categories needed to make a
+    # TODO: add a threshold for the number of categories needed to make a categorical
+    #  matrix
     if storage == "cat":
         cat_indices_in_expanded_arr: List[np.ndarray] = []
         dense_indices_in_expanded_arr: List[int] = []
