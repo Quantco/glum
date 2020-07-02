@@ -177,21 +177,26 @@ def binomial_logit_eta_mu_loglikelihood(
 ):
     cdef int n = cur_eta.shape[0]
     cdef int i
-    cdef floating unit_loglikelihood
     cdef floating loglikelihood = 0.0
-    cdef floating expeta
+    cdef floating expposeta, expnegeta
     for i in range(n):
         eta_out[i] = cur_eta[i] + factor * X_dot_d[i]
-        expeta = exp(eta_out[i])
-        if expeta == INFINITY:
-            # When eta is large, 
-            # in the log likelihood, log(1+exp(eta)) ~~ eta
-            # and mu = exp(eta) / (exp(eta) + 1) ~~ 1.0
-            loglikelihood += weights[i] * (y[i] * eta_out[i] - eta_out[i])
-            mu_out[i] = 1.0
+        # When eta is positive, we want to use formulas that depend on
+        # exp(-eta), but when eta is negative we want to use formulas that
+        # depend on exp(eta), rederived based on the suggestions here:
+        # http://fa.bianp.net/blog/2013/numerical-optimizers-for-logistic-regression/
+        # That article assumes y in {-1, +1} whereas we use y in {0, 1}. Thus
+        # the difference in formulas.
+        # The same approach is used in sklearn.linear_model.LogisticRegression
+        # and in LIBLINEAR
+        if eta_out[i] > 0:
+            expnegeta = exp(-eta_out[i])
+            loglikelihood += weights[i] * (y[i] * eta_out[i] - eta_out[i] - log(1 + expnegeta))
+            mu_out[i] = 1 / (1 + expnegeta)
         else:
-            loglikelihood += weights[i] * (y[i] * eta_out[i] - log(1 + expeta))
-            mu_out[i] = expeta / (expeta + 1)
+            expposeta = exp(eta_out[i])
+            loglikelihood += weights[i] * (y[i] * eta_out[i] - log(1 + expposeta))
+            mu_out[i] = expposeta / (expposeta + 1)
     return -2 * loglikelihood
 
 def binomial_logit_rowwise_gradient_hessian(
