@@ -168,8 +168,9 @@ def tweedie_log_rowwise_gradient_hessian(
         mu1mp = mu[i] ** (1 - p)
         ymm = y[i] - mu[i]
         gradient_rows_out[i] = weights[i] * mu1mp * ymm
+        # This hessian will be positive definite for 1 < p < 2. Don't use it
+        # outside that range.
         hessian_rows_out[i] = weights[i] * mu1mp * (mu[i] - (1 - p) * ymm)
-        hessian_rows_out[i] = weights[i] * mu[i] ** (1 - p) * (mu[i] - (1 - p) * (y[i] - mu[i]))
 
 def binomial_logit_eta_mu_loglikelihood(
     const_floating1d cur_eta,
