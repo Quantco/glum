@@ -1438,3 +1438,16 @@ def test_fit_has_no_side_effects():
     ).fit(Xin, yin)
     np.testing.assert_almost_equal(lbin, lb)
     np.testing.assert_almost_equal(ubin, ub)
+
+
+def test_column_with_stddev_zero():
+    np.random.seed(1234)
+    y = np.random.choice([1, 2, 3, 4], size=1000)
+    X = np.ones([len(y), 1])
+
+    model = GeneralizedLinearRegressor(
+        family="poisson", fit_intercept=False, scale_predictors=False
+    ).fit(
+        X, y
+    )  # noqa: F841
+    model = GeneralizedLinearRegressor(family="poisson").fit(X, y)  # noqa: F841
