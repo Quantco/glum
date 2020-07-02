@@ -2,6 +2,7 @@ import warnings
 from typing import Any, Dict, Optional, Union
 
 import numpy as np
+import pandas as pd
 from glmnet_python import cvglmnet, glmnet
 from scipy import sparse as sps
 
@@ -26,6 +27,8 @@ def glmnet_python_bench(
         if not isinstance(X, sps.csc.csc_matrix):
             warnings.warn("sparse matrix will be converted to csc format")
             X = X.tocsc()
+    elif isinstance(X, pd.DataFrame):
+        X = X.to_numpy()
     elif not isinstance(X, np.ndarray):
         warnings.warn(
             "glmnet_python requires data as scipy.sparse matrix or numpy array. Skipping."
