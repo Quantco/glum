@@ -143,6 +143,10 @@ while the new function involves only `3N` lookups. It thus has the potential to 
 significantly faster.
 #### sandwich: X.T @ diag(d) @ X
 
+![Narrow data set](images/narrow_data_sandwich.png)
+![Medium-width data set](images/intermediate_data_sandwich.png)
+![Wide data set](images/wide_data_sandwich.png)
+
 Sandwich products can be computed very efficiently.
 ```
 sandwich(X, d)[i, j] = sum_k X[k, i] d[k] X[k, j]
