@@ -62,7 +62,8 @@ variable to the directory you would like to write to.
 We support several types of matrix storage, passed with the argument "--storage". 
 "dense" is the default. "sparse" stores data as a csc sparse matrix. "cat" splits
 the matrix into a dense component and categorical components. "split0.1" splits the
-matrix into sparse and dense parts, where 
+matrix into sparse and dense parts, where any column with more than 10% nonzero elements
+is put into the dense part, and the rest is put into the sparse part.
 
 ## Docker
 
