@@ -1136,16 +1136,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
     def _validate_hyperparameters(self) -> None:
 
-        if self.gradient_tol is None and self.step_size_tol is None:
-            raise ValueError("gradient_tol and step_size_tol cannot both be None.")
-
-        if self.gradient_tol is None and self.solver == "lbfgs":
-            raise ValueError(
-                """lbfgs solver uses only a gradient-based convergence criterion, so
-                gradient_tol must not be None.
-                """
-            )
-
         if not isinstance(self.fit_intercept, bool):
             raise ValueError(
                 "The argument fit_intercept must be bool;"
@@ -1175,7 +1165,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 " got (max_iter={!r})".format(self.max_iter)
             )
 
-        if self.gradient_tol is not None and (
+        if (
             not (
                 isinstance(self.gradient_tol, float)
                 or isinstance(self.gradient_tol, int)
@@ -1183,8 +1173,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             or self.gradient_tol <= 0
         ):
             raise ValueError(
-                "Tolerance for stopping criteria must be "
-                "positive; got (tol={!r})".format(self.gradient_tol)
+                "Tolerance for the gradient stopping criteria must be "
+                f"positive; got (tol={self.gradient_tol})"
             )
 
         if self.step_size_tol is not None and (
@@ -1195,7 +1185,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             or self.step_size_tol <= 0
         ):
             raise ValueError(
-                "Tolerance for stopping criteria must be "
+                "Tolerance for the step-size stopping criteria must be "
                 "positive; got (tol={!r})".format(self.step_size_tol)
             )
 
@@ -1446,10 +1436,14 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         subgradient of the objective and minimum-norm of ``g_i`` is the element
         of the subgradient ``g_i`` with the smallest L2-norm.
 
+        gradient_tol is not permitted to be None. If you wish to only use a
+        step-size tolerance, set gradient_tol equal to very small number.
+
     step_size_tol: float, optional (default=None)
         Alternative stopping criterion. For the IRLS-LS and IRLS-CD solvers,
         the iteration will stop when the L2 norm of the step size is less than
-        step_size_tol.
+        step_size_tol. This stopping criterion is disabled when
+        step_size_tol=None
 
     hessian_approx: float, optional (default=0.0)
         The threshold below which data matrix rows will be ignored for updating

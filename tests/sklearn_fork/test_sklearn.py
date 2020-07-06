@@ -329,16 +329,12 @@ def test_offset_validation(estimator, kwargs):
 def test_tol_validation_errors(estimator):
     X, y = get_small_x_y(estimator)
 
-    glm = estimator(gradient_tol=None, step_size_tol=None)
-    with pytest.raises(ValueError, match="cannot both be None"):
-        glm.fit(X, y)
-
     glm = estimator(gradient_tol=-0.1)
-    with pytest.raises(ValueError, match="Tolerance for stopping"):
+    with pytest.raises(ValueError, match="Tolerance for the gradient stopping"):
         glm.fit(X, y)
 
     glm = estimator(step_size_tol=-0.1)
-    with pytest.raises(ValueError, match="Tolerance for stopping"):
+    with pytest.raises(ValueError, match="Tolerance for the step-size stopping"):
         glm.fit(X, y)
 
 
@@ -350,7 +346,6 @@ def test_tol_validation_errors(estimator):
         {"step_size_tol": 1},
         {"step_size_tol": None},
         {"gradient_tol": 1},
-        {"gradient_tol": None, "step_size_tol": 1},
         {"gradient_tol": 1, "step_size_tol": 1},
     ],
 )
