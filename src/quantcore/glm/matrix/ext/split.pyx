@@ -15,11 +15,6 @@ ctypedef np.uint8_t uint8
 ctypedef np.int8_t int8
 
 
-cdef extern from "cat_split_helpers.cpp":
-    void _sandwich_cat_dense[F](F*, int8*, int*, int, int*,
-                                int, F*, F*, int)
-
-
 def sandwich_cat_dense(
     np.ndarray i_indices_,
     int i_ncol,
