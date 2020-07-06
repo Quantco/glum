@@ -584,10 +584,10 @@ def eta_mu_objective(
     P2,
     intercept_offset,
 ):
-    eta, mu, loglikelihood = family.eta_mu_loglikelihood(
+    eta, mu, deviance = family.eta_mu_deviance(
         link, factor, cur_eta, X_dot_step, y, weights
     )
-    obj_val = 0.5 * loglikelihood
+    obj_val = 0.5 * deviance
     obj_val += linalg.norm(P1 * coef[intercept_offset:], ord=1)
     coef_P2 = make_coef_P2(intercept_offset, P2, coef)
     obj_val += 0.5 * (coef_P2 @ coef)

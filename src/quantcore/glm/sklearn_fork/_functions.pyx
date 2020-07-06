@@ -22,7 +22,7 @@ cdef fused const_floating1d:
 # Whereas, if it's the last argument, by the time it's encountered, floating
 # will have already been set and the 64-bit float will be cast to the correct
 # time.
-def normal_identity_eta_mu_loglikelihood(
+def normal_identity_eta_mu_deviance(
     const_floating1d cur_eta,
     const_floating1d X_dot_d,
     const_floating1d y,
@@ -33,16 +33,16 @@ def normal_identity_eta_mu_loglikelihood(
 ):
     cdef int n = cur_eta.shape[0]
     cdef int i
-    cdef floating unit_loglikelihood
-    cdef floating loglikelihood = 0.0
+    cdef floating unit_deviance
+    cdef floating deviance = 0.0
     for i in prange(n, nogil=True):
         eta_out[i] = cur_eta[i] + factor * X_dot_d[i]
         mu_out[i] = eta_out[i]
-        # Note: loglikelihood is equal to -2 times the true log likelihood to match
+        # Note: deviance is equal to -2 times the true log likelihood to match
         # the default calculation using unit_deviance in _distribution.py
         # True log likelihood: -1/2 * (y - mu)**2
-        loglikelihood += weights[i] * (y[i] - mu_out[i]) ** 2
-    return loglikelihood
+        deviance += weights[i] * (y[i] - mu_out[i]) ** 2
+    return deviance
 
 def normal_identity_rowwise_gradient_hessian(
     const_floating1d y,
@@ -60,7 +60,7 @@ def normal_identity_rowwise_gradient_hessian(
         # the default calculation in _distribution.py
         hessian_rows_out[i] = weights[i]
 
-def poisson_log_eta_mu_loglikelihood(
+def poisson_log_eta_mu_deviance(
     const_floating1d cur_eta,
     const_floating1d X_dot_d,
     const_floating1d y,
@@ -71,14 +71,14 @@ def poisson_log_eta_mu_loglikelihood(
 ):
     cdef int n = cur_eta.shape[0]
     cdef int i
-    cdef floating unit_loglikelihood
-    cdef floating loglikelihood = 0.0
+    cdef floating unit_deviance
+    cdef floating deviance = 0.0
     for i in prange(n, nogil=True):
         eta_out[i] = cur_eta[i] + factor * X_dot_d[i]
         mu_out[i] = exp(eta_out[i])
         # True log likelihood: y * eta - mu
-        loglikelihood += weights[i] * (y[i] * eta_out[i] - mu_out[i])
-    return -2 * loglikelihood
+        deviance += weights[i] * (y[i] * eta_out[i] - mu_out[i])
+    return -2 * deviance
 
 def poisson_log_rowwise_gradient_hessian(
     const_floating1d y,
@@ -94,7 +94,7 @@ def poisson_log_rowwise_gradient_hessian(
         gradient_rows_out[i] = weights[i] * (y[i] - mu[i])
         hessian_rows_out[i] = weights[i] * mu[i]
 
-def gamma_log_eta_mu_loglikelihood(
+def gamma_log_eta_mu_deviance(
     const_floating1d cur_eta,
     const_floating1d X_dot_d,
     const_floating1d y,
@@ -105,14 +105,14 @@ def gamma_log_eta_mu_loglikelihood(
 ):
     cdef int n = cur_eta.shape[0]
     cdef int i
-    cdef floating unit_loglikelihood
-    cdef floating loglikelihood = 0.0
+    cdef floating unit_deviance
+    cdef floating deviance = 0.0
     for i in prange(n, nogil=True):
         eta_out[i] = cur_eta[i] + factor * X_dot_d[i]
         mu_out[i] = exp(eta_out[i])
         # True log likelihood: -(y / mu + eta)
-        loglikelihood += weights[i] * (y[i] / mu_out[i] + eta_out[i])
-    return 2 * loglikelihood
+        deviance += weights[i] * (y[i] / mu_out[i] + eta_out[i])
+    return 2 * deviance
 
 def gamma_log_rowwise_gradient_hessian(
     const_floating1d y,
@@ -128,7 +128,7 @@ def gamma_log_rowwise_gradient_hessian(
         gradient_rows_out[i] = weights[i] * (y[i] / mu[i] - 1)
         hessian_rows_out[i] = weights[i] * (y[i] / mu[i])
 
-def tweedie_log_eta_mu_loglikelihood(
+def tweedie_log_eta_mu_deviance(
     const_floating1d cur_eta,
     const_floating1d X_dot_d,
     const_floating1d y,
@@ -140,17 +140,17 @@ def tweedie_log_eta_mu_loglikelihood(
 ):
     cdef int n = cur_eta.shape[0]
     cdef int i
-    cdef floating unit_loglikelihood
-    cdef floating loglikelihood = 0.0
+    cdef floating unit_deviance
+    cdef floating deviance = 0.0
     cdef floating mu1mp
     for i in prange(n, nogil=True):
         eta_out[i] = cur_eta[i] + factor * X_dot_d[i]
         mu_out[i] = exp(eta_out[i])
         mu1mp = mu_out[i] ** (1 - p)
-        loglikelihood += weights[i] * mu1mp * (
+        deviance += weights[i] * mu1mp * (
             mu_out[i] / (2 - p) - y[i] / (1 - p)
         )
-    return 2 * loglikelihood
+    return 2 * deviance
 
 def tweedie_log_rowwise_gradient_hessian(
     const_floating1d y,
@@ -172,7 +172,7 @@ def tweedie_log_rowwise_gradient_hessian(
         # outside that range.
         hessian_rows_out[i] = weights[i] * mu1mp * (mu[i] - (1 - p) * ymm)
 
-def binomial_logit_eta_mu_loglikelihood(
+def binomial_logit_eta_mu_deviance(
     const_floating1d cur_eta,
     const_floating1d X_dot_d,
     const_floating1d y,
@@ -183,8 +183,8 @@ def binomial_logit_eta_mu_loglikelihood(
 ):
     cdef int n = cur_eta.shape[0]
     cdef int i
-    cdef floating unit_loglikelihood
-    cdef floating loglikelihood = 0.0
+    cdef floating unit_deviance
+    cdef floating deviance = 0.0
     cdef floating expposeta, expnegeta
     for i in prange(n, nogil=True):
         eta_out[i] = cur_eta[i] + factor * X_dot_d[i]
@@ -198,14 +198,14 @@ def binomial_logit_eta_mu_loglikelihood(
         # and in LIBLINEAR
         if eta_out[i] > 0:
             expnegeta = exp(-eta_out[i])
-            unit_loglikelihood = weights[i] * (y[i] * eta_out[i] - eta_out[i] - log(1 + expnegeta))
+            unit_deviance = weights[i] * (y[i] * eta_out[i] - eta_out[i] - log(1 + expnegeta))
             mu_out[i] = 1 / (1 + expnegeta)
         else:
             expposeta = exp(eta_out[i])
-            unit_loglikelihood = weights[i] * (y[i] * eta_out[i] - log(1 + expposeta))
+            unit_deviance = weights[i] * (y[i] * eta_out[i] - log(1 + expposeta))
             mu_out[i] = expposeta / (expposeta + 1)
-        loglikelihood += unit_loglikelihood
-    return -2 * loglikelihood
+        deviance += unit_deviance
+    return -2 * deviance
 
 def binomial_logit_rowwise_gradient_hessian(
     const_floating1d y,
