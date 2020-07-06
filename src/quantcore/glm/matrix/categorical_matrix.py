@@ -11,8 +11,8 @@ from .matrix_base import MatrixBase
 from .mkl_sparse_matrix import MKLSparseMatrix
 
 
-def _none_to_slice(arr: Optional[np.ndarray]) -> Union[slice, np.ndarray]:
-    if arr is None:
+def _none_to_slice(arr: Optional[np.ndarray], n: int) -> Union[slice, np.ndarray]:
+    if arr is None or len(arr) == n:
         return slice(None, None, None)
     return arr
 
@@ -224,8 +224,7 @@ class CategoricalMatrix(MatrixBase):
                 where other is a C-contiguous Numpy array."""
             )
 
-        # TODO: I don't think Cython can handle lower-precision ints. Look into this
-        i_indices = self.indices.astype(np.int32)
+        i_indices = self.indices
 
         if rows is None:
             rows = np.arange(self.shape[0], dtype=np.int32)
@@ -234,7 +233,7 @@ class CategoricalMatrix(MatrixBase):
 
         res = sandwich_cat_dense(i_indices, self.shape[1], d, other, rows, R_cols)
 
-        res = res[_none_to_slice(L_cols), :]
+        res = res[_none_to_slice(L_cols, self.shape[1]), :]
         return res
 
     def _cross_categorical(
@@ -248,9 +247,8 @@ class CategoricalMatrix(MatrixBase):
         if not isinstance(other, CategoricalMatrix):
             raise TypeError
 
-        # I don't think Cython can handle lower-precision ints. Look into this
-        i_indices = self.indices.astype(np.int32)
-        j_indices = other.indices.astype(np.int32)
+        i_indices = self.indices
+        j_indices = other.indices
         if rows is None:
             rows = np.arange(self.shape[0], dtype=np.int32)
 
@@ -258,8 +256,8 @@ class CategoricalMatrix(MatrixBase):
             i_indices, j_indices, self.shape[1], other.shape[1], d, rows
         )
 
-        L_cols = _none_to_slice(L_cols)
-        R_cols = _none_to_slice(R_cols)
+        L_cols = _none_to_slice(L_cols, self.shape[1])
+        R_cols = _none_to_slice(R_cols, other.shape[1])
         res = res[L_cols, :][:, R_cols]
         return res
 
@@ -275,10 +273,10 @@ class CategoricalMatrix(MatrixBase):
         term_1 = self.tocsr()
         term_1.data = term_1.data * d
 
-        rows = _none_to_slice(rows)
-        L_cols = _none_to_slice(L_cols)
+        rows = _none_to_slice(rows, self.shape[0])
+        L_cols = _none_to_slice(L_cols, self.shape[1])
         term_1 = term_1[rows, :][:, L_cols]
 
-        res = term_1.T.dot(other[rows, :][:, _none_to_slice(R_cols)]).A
+        res = term_1.T.dot(other[rows, :][:, _none_to_slice(R_cols, other.shape[1])]).A
 
         return res

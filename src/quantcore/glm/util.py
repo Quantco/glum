@@ -7,7 +7,10 @@ from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import click
 import numpy as np
+import pandas as pd
 from scipy import sparse as sps
+
+import quantcore.glm.matrix as mx
 
 from .sklearn_fork import GeneralizedLinearRegressor, TweedieDistribution
 from .sklearn_fork._solvers import eta_mu_objective
@@ -37,13 +40,12 @@ def get_sklearn_family(distribution):
 
 
 def get_obj_val(
-    dat: Dict[str, Union[np.ndarray, sps.spmatrix]],
+    dat: Dict[str, Union[np.ndarray, sps.spmatrix, mx.MatrixBase, pd.DataFrame]],
     distribution: str,
     alpha: float,
     l1_ratio: float,
     intercept: float,
     coefs: np.ndarray,
-    tweedie_p: float = None,
 ) -> float:
 
     model = GeneralizedLinearRegressor(
@@ -53,7 +55,9 @@ def get_obj_val(
 
     full_coefs = np.concatenate(([intercept], coefs))
     offset = dat.get("offset")
-    X_dot_coef = dat["X"].to_numpy().dot(coefs) + intercept
+    X_dot_coef = dat["X"].dot(coefs) + intercept
+    if isinstance(X_dot_coef, pd.Series):
+        X_dot_coef = X_dot_coef.values
     if offset is not None:
         X_dot_coef += offset
 
