@@ -341,6 +341,13 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
 
 
 class ProgressBar:
+    """
+    Current format is that:
+        * the "Iteration #" is the IRLS iteration #.
+        * The bar itself measures the log base 10 progress towards the gradient_tol. So, if we start at gradient_norm = 10 and are going to gradient_norm = 1e-4, the progress bar will be out of 5. If the current gradient_norm is 0.1, then we will be at 2/5.
+        * On the right, show the time for the most recent iteration and the current gradient norm
+    """
+
     def __init__(self, start_norm, tol, verbose):
         self.start_norm = start_norm
         self.tol = tol
