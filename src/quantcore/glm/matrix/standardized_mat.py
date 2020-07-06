@@ -3,7 +3,7 @@ from typing import List, Union
 import numpy as np
 from scipy import sparse as sps
 
-from quantcore.glm.matrix import MatrixBase
+from quantcore.glm.matrix import MatrixBase, MKLSparseMatrix
 
 
 class StandardizedMat:
@@ -22,6 +22,8 @@ class StandardizedMat:
 
         shift_arr = np.atleast_1d(np.squeeze(shift))
         expected_shape = (mat.shape[1],)
+        if not isinstance(mat, MatrixBase):
+            raise TypeError("mat should be an instance of a MatrixBase subclass.")
         if not shift_arr.shape == expected_shape:
             raise ValueError(
                 f"""Expected shift to be able to conform to shape {expected_shape},
@@ -77,7 +79,7 @@ class StandardizedMat:
         Returns a StandardizedSpMat.
 
         >>> from scipy import sparse as sps
-        >>> x = StandardizedMat(sps.eye(3), shift=[0, 1, -2])
+        >>> x = StandardizedMat(MKLSparseMatrix(sps.eye(3).tocsc()), shift=[0, 1, -2])
         >>> col_1 = x.getcol(1)
         >>> isinstance(col_1, StandardizedMat)
         True
@@ -89,7 +91,10 @@ class StandardizedMat:
         mult = None
         if self.mult is not None:
             mult = [self.mult[i]]
-        return StandardizedMat(self.mat.getcol(i), [self.shift[i]], mult)
+        col = self.mat.getcol(i)
+        if isinstance(col, sps.csc_matrix) and not isinstance(col, MatrixBase):
+            col = MKLSparseMatrix(col)
+        return StandardizedMat(col, [self.shift[i]], mult)
 
     def sandwich(
         self, d: np.ndarray, rows: np.ndarray = None, cols: np.ndarray = None
@@ -225,7 +230,7 @@ class StandardizedMat:
         if isinstance(row, int):
             out = mat_part.A
             if mult_part is not None:
-                out *= mult_part
+                out = out * mult_part
             return out + shift_part
 
         return StandardizedMat(mat_part, np.atleast_1d(shift_part), mult_part)

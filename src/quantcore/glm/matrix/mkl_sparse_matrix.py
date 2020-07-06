@@ -1,4 +1,4 @@
-from typing import List, Union
+from typing import List, Optional, Union
 
 import numpy as np
 from scipy import sparse as sps
@@ -51,6 +51,22 @@ class MKLSparseMatrix(sps.csc_matrix, MatrixBase):
 
         rows, cols = setup_restrictions(self.shape, rows, cols)
         return sparse_sandwich(self.tocsc(copy=False), self.x_csr, d, rows, cols)
+
+    def cross_sandwich(
+        self,
+        other: MatrixBase,
+        d: np.ndarray,
+        rows: np.ndarray,
+        L_cols: Optional[np.ndarray] = None,
+        R_cols: Optional[np.ndarray] = None,
+    ):
+        if isinstance(other, np.ndarray):
+            return self.sandwich_dense(other, d, rows, L_cols, R_cols)
+        from .categorical_matrix import CategoricalMatrix
+
+        if isinstance(other, CategoricalMatrix):
+            return other.cross_sandwich(self, d, rows, R_cols, L_cols).T
+        raise TypeError
 
     def sandwich_dense(
         self,
