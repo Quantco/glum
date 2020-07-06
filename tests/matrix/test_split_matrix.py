@@ -104,7 +104,8 @@ def random_split_matrix(seed=0, n_rows=10, n_cols_per=3):
     sparse = mx.MKLSparseMatrix(sps.random(n_rows, n_cols_per).tocsc())
     cat = mx.CategoricalMatrix(np.random.choice(range(n_cols_per), n_rows))
     dense_2 = mx.DenseGLMDataMatrix(np.random.random((n_rows, n_cols_per)))
-    mat = mx.SplitMatrix([dense_1, sparse, cat, dense_2])
+    cat_2 = mx.CategoricalMatrix(np.random.choice(range(n_cols_per), n_rows))
+    mat = mx.SplitMatrix([dense_1, sparse, cat, dense_2, cat_2])
     return mat
 
 

@@ -1,10 +1,11 @@
 import os
 from functools import partial
-from typing import Callable, Dict, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import attr
 import numpy as np
 import pandas as pd
+from dask_ml.preprocessing import DummyEncoder
 from git_root import git_root
 from joblib import Memory
 from scipy.sparse import csc_matrix
@@ -59,6 +60,48 @@ def load_data(
         if exposure is not None:
             exposure = exposure.astype(np.float32)
 
+    def transform_col(i: int, dtype) -> Union[pd.DataFrame, mx.CategoricalMatrix]:
+        if dtype.name == "category":
+            if storage == "cat":
+                return mx.CategoricalMatrix(X.iloc[:, i])
+            return DummyEncoder().fit_transform(X.iloc[:, [i]])
+        return X.iloc[:, [i]]
+
+    mat_parts = [transform_col(i, dtype) for i, dtype in enumerate(X.dtypes)]
+    # TODO: add a threshold for the number of categories needed to make a categorical
+    #  matrix
+    if storage == "cat":
+        cat_indices_in_expanded_arr: List[np.ndarray] = []
+        dense_indices_in_expanded_arr: List[int] = []
+        i = 0
+        for elt in mat_parts:
+            assert elt.ndim == 2
+            if isinstance(elt, mx.CategoricalMatrix):
+                ncol = elt.shape[1]
+                cat_indices_in_expanded_arr.append(np.arange(i, i + ncol))
+                i += ncol
+            else:
+                dense_indices_in_expanded_arr.append(i)
+                i += 1
+
+        non_cat_part = mx.DenseGLMDataMatrix(
+            np.hstack(
+                [
+                    elt.values
+                    for elt in mat_parts
+                    if not isinstance(elt, mx.CategoricalMatrix)
+                ]
+            )
+        )
+        X = mx.SplitMatrix(
+            matrices=[non_cat_part]
+            + [elt for elt in mat_parts if isinstance(elt, mx.CategoricalMatrix)],
+            indices=[np.array(dense_indices_in_expanded_arr)]
+            + cat_indices_in_expanded_arr,
+        )
+    else:
+        X = pd.concat(mat_parts, axis=1)
+
     if storage == "sparse":
         X = csc_matrix(X)
     elif storage.startswith("split"):
@@ -76,6 +119,7 @@ def load_data(
             get_tweedie_p(distribution), y, exposure
         )
         return dict(X=X, y=y * exposure, weights=sample_weight)
+
     if data_setup == "offset":
         log_exposure = np.log(exposure)
         assert np.all(np.isfinite(log_exposure))

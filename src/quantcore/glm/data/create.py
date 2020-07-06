@@ -3,7 +3,7 @@ from typing import Any, Callable, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 from dask_ml.compose import make_column_transformer
-from dask_ml.preprocessing import Categorizer, DummyEncoder, OrdinalEncoder
+from dask_ml.preprocessing import Categorizer, OrdinalEncoder
 from git_root import git_root
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer
@@ -93,13 +93,6 @@ def get_categorizer(col_name: str, name="cat") -> Tuple[str, Categorizer]:
     return name, Categorizer(columns=[col_name])
 
 
-def get_one_hot_transformations(col_name: str) -> List[Tuple[str, Any]]:
-    """
-    DummyEncoder requires a categorical input.
-    """
-    return [get_categorizer(col_name), ("OHE", DummyEncoder())]
-
-
 def func_returns_df(
     fn: Callable[[pd.DataFrame], np.ndarray]
 ) -> Callable[[pd.DataFrame], pd.DataFrame]:
@@ -128,8 +121,8 @@ def gen_col_trans() -> Tuple[Any, List[str]]:
                         "cut_9",
                         FunctionTransformer(lambda x: np.minimum(x, 9), validate=False),
                     ),
+                    get_categorizer("VehPower"),
                 ]
-                + get_one_hot_transformations("VehPower"),
             ),
             ["VehPower"],
         ),
@@ -148,8 +141,8 @@ def gen_col_trans() -> Tuple[Any, List[str]]:
                             validate=False,
                         ),
                     ),
+                    get_categorizer("VehAge"),
                 ]
-                + get_one_hot_transformations("VehAge"),
             ),
             ["VehAge"],
         ),
@@ -166,8 +159,8 @@ def gen_col_trans() -> Tuple[Any, List[str]]:
                             validate=False,
                         ),
                     ),
+                    get_categorizer("DrivAge"),
                 ]
-                + get_one_hot_transformations("DrivAge"),
             ),
             ["DrivAge"],
         ),
@@ -184,10 +177,10 @@ def gen_col_trans() -> Tuple[Any, List[str]]:
             ),
             ["BonusMalus"],
         ),
-        (Pipeline(get_one_hot_transformations("VehBrand")), ["VehBrand"],),
-        (Pipeline(get_one_hot_transformations("VehGas")), ["VehGas"],),
-        (FunctionTransformer(np.log, validate=False), ["Density"],),
-        (Pipeline(get_one_hot_transformations("Region")), ["Region"],),
+        (Pipeline([get_categorizer("VehBrand")]), ["VehBrand"]),
+        (Pipeline([get_categorizer("VehGas")]), ["VehGas"]),
+        (FunctionTransformer(np.log, validate=False), ["Density"]),
+        (Pipeline([get_categorizer("Region")]), ["Region"]),
         (
             Pipeline(
                 [
@@ -393,13 +386,7 @@ def generate_wide_insurance_dataset(
 
     transformer = make_column_transformer(
         (FunctionTransformer(), lambda x: x.select_dtypes(["number"]).columns,),
-        (
-            Pipeline(
-                [get_categorizer(col, "cat_" + col) for col in cat_cols]
-                + [("OHE", DummyEncoder())]
-            ),
-            cat_cols,
-        ),
+        (Pipeline([get_categorizer(col, "cat_" + col) for col in cat_cols]), cat_cols,),
         remainder="drop",
     )
     y, exposure = compute_y_exposure(df, distribution)
@@ -419,7 +406,7 @@ def generate_intermediate_insurance_dataset(
     col_trans_GLM1.transformers.append(
         (
             "BonusMalusClipped",
-            Pipeline(get_one_hot_transformations("BonusMalusClipped")),
+            Pipeline([get_categorizer("BonusMalusClipped")]),
             ["BonusMalusClipped"],
         )
     )

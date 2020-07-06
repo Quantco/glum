@@ -66,7 +66,6 @@ def test_offset_solution_matches_weights_solution(
             P.l1_ratio,
             coefs[0],
             coefs[1:],
-            tweedie_p=tweedie_p,
         )
         if "weights" in dat.keys():
             res *= reg_multiplier
