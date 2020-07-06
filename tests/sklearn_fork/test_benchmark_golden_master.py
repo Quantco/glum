@@ -41,8 +41,7 @@ def expected_all():
     ],  # mark the "wide" problems as "slow" so that we can call pytest -m "not slow"
     ids=all_test_problems.keys(),
 )
-@pytest.mark.parametrize("storage", ["cat", "split0.1", "sparse", "dense"])
-def test_gm_benchmarks(Pn: str, P: Problem, expected_all: dict, storage: str):
+def test_gm_benchmarks(Pn: str, P: Problem, expected_all: dict):
     result, params = exec(Pn)
 
     if is_weights_problem_with_offset_match(Pn):
