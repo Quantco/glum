@@ -13,7 +13,6 @@ from quantcore.glm.util import (
     clear_cache,
     defaults,
     get_obj_val,
-    get_tweedie_p,
 )
 from quantcore.glm.zeros_benchmark import zeros_bench
 
@@ -126,7 +125,6 @@ def execute_problem_library(
             P.l1_ratio,
             result["intercept"],
             result["coef"],
-            tweedie_p=get_tweedie_p(P.distribution),
         )
 
         result["obj_val"] = obj_val
