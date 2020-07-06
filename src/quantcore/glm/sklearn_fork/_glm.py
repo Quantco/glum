@@ -1437,7 +1437,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         of the subgradient ``g_i`` with the smallest L2-norm.
 
         gradient_tol is not permitted to be None. If you wish to only use a
-        step-size tolerance, set gradient_tol equal to zero.
+        step-size tolerance, set gradient_tol equal to very small number.
 
     step_size_tol: float, optional (default=None)
         Alternative stopping criterion. For the IRLS-LS and IRLS-CD solvers,
