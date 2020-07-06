@@ -8,14 +8,9 @@ from git_root import git_root
 
 from quantcore.glm.cli_run import execute_problem_library
 from quantcore.glm.problems import Problem, get_all_problems
-from quantcore.glm.util import BenchmarkParams, get_obj_val, get_tweedie_p
+from quantcore.glm.util import BenchmarkParams, get_obj_val
 
-bench_cfg = dict(
-    num_rows=10000,
-    regularization_strength=0.1,
-    storage="dense",
-    diagnostics_level="none",
-)
+bench_cfg = dict(num_rows=10000, regularization_strength=0.1, diagnostics_level="none")
 
 all_test_problems = get_all_problems()
 
@@ -46,9 +41,7 @@ def expected_all():
     ],  # mark the "wide" problems as "slow" so that we can call pytest -m "not slow"
     ids=all_test_problems.keys(),
 )
-def test_gm_benchmarks(
-    Pn: str, P: Problem, expected_all: dict,
-):
+def test_gm_benchmarks(Pn: str, P: Problem, expected_all: dict):
     result, params = exec(Pn)
 
     if is_weights_problem_with_offset_match(Pn):
@@ -58,8 +51,6 @@ def test_gm_benchmarks(
 
     all_result = np.concatenate(([result["intercept"]], result["coef"]))
     all_expected = np.concatenate(([expected["intercept"]], expected["coef"]))
-
-    tweedie_p = get_tweedie_p(P.distribution)
 
     try:
         np.testing.assert_allclose(all_result, all_expected, rtol=2e-4, atol=2e-4)
@@ -72,7 +63,6 @@ def test_gm_benchmarks(
             P.l1_ratio,
             all_result[0],
             all_result[1:],
-            tweedie_p=tweedie_p,
         )
         expected_result = get_obj_val(
             dat,
@@ -81,7 +71,6 @@ def test_gm_benchmarks(
             P.l1_ratio,
             all_expected[0],
             all_expected[1:],
-            tweedie_p=tweedie_p,
         )
         raise AssertionError(
             f"""Failed with error {e} on problem {Pn}.

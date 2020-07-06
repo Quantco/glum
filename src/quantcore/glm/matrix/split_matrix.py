@@ -34,59 +34,11 @@ def csc_to_split(mat: sps.csc_matrix, threshold=0.1):
     return SplitMatrix([dense, sparse], [dense_idx, sparse_idx])
 
 
-def _sandwich_cat_other(
-    mat_i: CategoricalMatrix,
-    mat_j: MatrixBase,
-    d: np.ndarray,
-    rows: np.ndarray,
-    L_cols: np.ndarray,
-    R_cols: np.ndarray,
-) -> np.ndarray:
-    if rows is None:
-        rows = slice(None, None, None)
-    if L_cols is None:
-        L_cols = slice(None, None, None)
-    if R_cols is None:
-        R_cols = slice(None, None, None)
-
-    term_1 = mat_i.tocsr()
-    term_1.data = d
-    term_1 = term_1[rows, :][:, L_cols]
-    res = term_1.T.dot(mat_j[rows, :][:, R_cols])
-    if sps.issparse(res):
-        res = res.A
-    assert isinstance(res, np.ndarray)
-    return res
-
-
-def mat_sandwich(
-    mat_i: MatrixBase,
-    mat_j: MatrixBase,
-    d: np.ndarray,
-    rows: np.ndarray,
-    colsA: np.ndarray,
-    colsB: np.ndarray,
-) -> np.ndarray:
-    if mat_i is mat_j:
-        return mat_i.sandwich(d, rows, colsA)
-    if isinstance(mat_i, MKLSparseMatrix):
-        if isinstance(mat_j, DenseGLMDataMatrix):
-            return mat_i.sandwich_dense(mat_j, d, rows, colsA, colsB)
-        if isinstance(mat_j, CategoricalMatrix):
-            return _sandwich_cat_other(mat_j, mat_i, d, rows, colsB, colsA).T
-    elif isinstance(mat_i, DenseGLMDataMatrix):
-        if isinstance(mat_j, MKLSparseMatrix):
-            return mat_j.sandwich_dense(mat_i, d, rows, colsB, colsA).T
-        if isinstance(mat_j, CategoricalMatrix):
-            return _sandwich_cat_other(mat_j, mat_i, d, rows, colsB, colsA).T
-    elif isinstance(mat_i, CategoricalMatrix):
-        return _sandwich_cat_other(mat_i, mat_j, d, rows, colsA, colsB)
-    raise NotImplementedError(f"Not implemented with {type(mat_i)} or {type(mat_j)}")
-
-
 class SplitMatrix(MatrixBase):
     def __init__(
-        self, matrices: List[MatrixBase], indices: Optional[List[np.ndarray]] = None
+        self,
+        matrices: List[Union[DenseGLMDataMatrix, MKLSparseMatrix, CategoricalMatrix]],
+        indices: Optional[List[np.ndarray]] = None,
     ):
 
         if indices is None:
@@ -159,7 +111,9 @@ class SplitMatrix(MatrixBase):
         self.shape = (n_row, sum([len(elt) for elt in indices]))
         assert self.shape[1] > 0
 
-    def _split_col_subsets(self, cols):
+    def _split_col_subsets(
+        self, cols
+    ) -> Tuple[List[np.ndarray], List[Optional[np.ndarray]], int]:
         if cols is None:
             subset_cols_indices = self.indices
             subset_cols = [None for i in range(len(self.indices))]
@@ -196,29 +150,48 @@ class SplitMatrix(MatrixBase):
         raise RuntimeError(f"Column {i} was not found.")
 
     def sandwich(
-        self, d: np.ndarray, rows: np.ndarray = None, cols: np.ndarray = None
+        self,
+        d: Union[np.ndarray, List],
+        rows: np.ndarray = None,
+        cols: np.ndarray = None,
     ) -> np.ndarray:
         if np.shape(d) != (self.shape[0],):
             raise ValueError
+        d = np.asarray(d)
 
         subset_cols_indices, subset_cols, n_cols = self._split_col_subsets(cols)
 
         out = np.zeros((n_cols, n_cols))
         for i in range(len(self.indices)):
-            for j in range(i, len(self.indices)):
-                idx_i = subset_cols_indices[i]
-                mat_i = self.matrices[i]
+            idx_i = subset_cols_indices[i]
+            mat_i = self.matrices[i]
+            expected_dim_1 = (
+                mat_i.shape[1] if subset_cols[i] is None else len(subset_cols[i])  # type: ignore
+            )
+            res = mat_i.sandwich(d, rows, subset_cols[i])
+            expected_shape = (expected_dim_1, expected_dim_1)
+            if isinstance(res, sps.dia_matrix):
+                out[(idx_i, idx_i)] += np.squeeze(res.data)
+            else:
+                out[np.ix_(idx_i, idx_i)] = res
+            assert res.shape == expected_shape
+
+            for j in range(i + 1, len(self.indices)):
                 idx_j = subset_cols_indices[j]
                 mat_j = self.matrices[j]
-                res = mat_sandwich(
-                    mat_i, mat_j, d, rows, subset_cols[i], subset_cols[j]
+                res = mat_i.cross_sandwich(
+                    mat_j, d, rows, subset_cols[i], subset_cols[j]
                 )
-                if isinstance(res, sps.dia_matrix):
-                    out[(idx_i, idx_i)] += np.squeeze(res.data)
-                else:
-                    out[np.ix_(idx_i, idx_j)] = res
-                    if i != j:
-                        out[np.ix_(idx_j, idx_i)] = res.T
+                expected_shape = (
+                    expected_dim_1,
+                    mat_j.shape[1] if subset_cols[j] is None else len(subset_cols[j]),  # type: ignore
+                )
+
+                out[np.ix_(idx_i, idx_j)] = res
+                out[np.ix_(idx_j, idx_i)] = res.T
+
+                assert res.shape == expected_shape
+
         return out
 
     def get_col_means(self, weights: np.ndarray) -> np.ndarray:
