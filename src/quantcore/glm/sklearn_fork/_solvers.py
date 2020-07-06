@@ -521,10 +521,7 @@ def check_convergence(state, data):
         data.has_upper_bounds,
         data._upper_bounds,
     )
-    gradient_converged = (
-        state.data.gradient_tol is not None
-        and norm_min_subgrad < state.data.gradient_tol
-    )
+    gradient_converged = norm_min_subgrad < state.data.gradient_tol
 
     # Simple L2 step length convergence criteria
     step_size = linalg.norm(state.step)
