@@ -11,10 +11,17 @@ from cython cimport floating
 cdef struct ArrayableMemoryView:
     long* data
     long length
+ctypedef np.uint8_t uint8
+ctypedef np.int8_t int8
+
+
+cdef extern from "cat_split_helpers.cpp":
+    void _sandwich_cat_dense[F](F*, int8*, int*, int, int*,
+                                int, F*, F*, int)
 
 
 def sandwich_cat_dense(
-    int[:] i_indices,
+    np.ndarray i_indices_,
     int i_ncol,
     floating[:] d,
     floating[:, :] mat_j,
@@ -27,6 +34,7 @@ def sandwich_cat_dense(
 
     cdef floating[:, :] res
     res = np.zeros((i_ncol, len(j_cols)))
+    cdef const int8[:] i_indices = i_indices_.view(dtype=np.int8)
 
     if len(d) == 0 or len(rows) == 0 or len(j_cols) == 0 or i_ncol == 0:
         return np.asarray(res)
@@ -34,10 +42,9 @@ def sandwich_cat_dense(
     # Ben says pointers are probably a < 5%-10% improvement over memoryviews
     cdef size_t i, j, k, k_idx, j_idx
     cdef floating* d_p = &d[0]
-    cdef int* i_indices_p = &i_indices[0]
+    cdef const int8* i_indices_p = &i_indices[0]
     cdef int* rows_p = &rows[0]
     cdef int* j_cols_p = &j_cols[0]
-    cdef floating tmp
 
     for k_idx in range(len(rows)):
         k = rows_p[k_idx]
@@ -50,19 +57,19 @@ def sandwich_cat_dense(
 
 
 def _sandwich_cat_cat(
-    int[:] i_indices,
-    int[:] j_indices,
+    np.ndarray i_indices_,
+    np.ndarray j_indices_,
     int i_ncol,
     int j_ncol,
     floating[:] d,
-    int[:] rows
+    int[:] rows,
 ):
     """
     (X1.T @ diag(d) @ X2)[i, j] = sum_k X1[k, i] d[k] X2[k, j]
     """
-
-    # TODO: only use i_cols, j_cols. A csc setup might be better for that
     # TODO: support for single-precision d
+    cdef const int8[:] i_indices = i_indices_.view(dtype=np.int8)
+    cdef const int8[:] j_indices = j_indices_.view(dtype=np.int8)
 
     cdef floating[:, :] res
     res = np.zeros((i_ncol, j_ncol))
@@ -73,6 +80,49 @@ def _sandwich_cat_cat(
         i = i_indices[k]
         j = j_indices[k]
         res[i, j] += d[k]
+
+    return np.asarray(res)
+
+
+# This seems slower, so not using it for now
+def _sandwich_cat_cat_limited_rows_cols(
+    int[:] i_indices,
+    int[:] j_indices,
+    int i_ncol,
+    int j_ncol,
+    floating[:] d,
+    int[:] rows,
+    int[:] i_cols,
+    int[:] j_cols
+):
+    """
+    (X1.T @ diag(d) @ X2)[i, j] = sum_k X1[k, i] d[k] X2[k, j]
+    """
+
+    # TODO: support for single-precision d
+    # TODO: this is writing an output of the wrong shape; filtering on rows
+    # and cols still needs to happen after
+    # TODO: Look into sparse matrix multiplication algorithms. Should one or both be csc?
+
+    cdef floating[:, :] res
+    res = np.zeros((i_ncol, j_ncol))
+    cdef size_t k_idx, k, i, j
+
+    cdef uint8[:] i_col_included = np.zeros(i_ncol, dtype=np.uint8)
+    for Ci in range(i_ncol):
+        i_col_included[i_cols[Ci]] = True
+
+    cdef uint8[:] j_col_included = np.zeros(j_ncol, dtype=np.uint8)
+    for Ci in range(j_ncol):
+        j_col_included[j_cols[Ci]] = True
+
+    for k_idx in range(len(rows)):
+        k = rows[k_idx]
+        i = i_indices[k]
+        if i_col_included[i]:
+            j = j_indices[k]
+            if j_col_included[j]:
+                res[i, j] += d[k]
 
     return np.asarray(res)
 
