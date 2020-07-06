@@ -49,6 +49,7 @@ def sklearn_fork_bench(
         step_size_tol=0.01 * benchmark_convergence_tolerance,
         force_all_finite=False,
         hessian_approx=hessian_approx,
+        verbose=True,
     )
 
     if not cv:

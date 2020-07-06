@@ -855,6 +855,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 offset=offset,
                 lower_bounds=lower_bounds,
                 upper_bounds=upper_bounds,
+                verbose=self.verbose,
             )
             if self._solver == "irls-ls":
                 coef, self.n_iter_, self._n_cycles, self.diagnostics_ = _irls_solver(
