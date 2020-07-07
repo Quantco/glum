@@ -859,6 +859,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 offset=offset,
                 lower_bounds=lower_bounds,
                 upper_bounds=upper_bounds,
+                verbose=self.verbose > 0,
             )
             if self._solver == "irls-ls":
                 coef, self.n_iter_, self._n_cycles, self.diagnostics_ = _irls_solver(
@@ -1516,6 +1517,9 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         Don't use this parameter unless you know what you do.
 
     verbose : int, optional (default=0)
+        For the IRLS solver, any positive number will result in a pretty
+        progress bar showing convergence. This features requires having the
+        tqdm package installed.
         For the lbfgs solver set verbose to any positive number for verbosity.
 
     lower_bounds : np.ndarray, shape=(n_features), optional (default=None)
