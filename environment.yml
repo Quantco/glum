@@ -34,3 +34,4 @@ dependencies:
   - sparse_dot_mkl>=0.4.0
   - xsimd
   - dask-ml
+  - tqdm
