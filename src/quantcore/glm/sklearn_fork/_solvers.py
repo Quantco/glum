@@ -589,8 +589,10 @@ def check_convergence(state, data):
     # lower value is much faster.
     # By comparison, the original GLMNET paper uses inner_tol = tol.
     # So, inner_tol_ratio < 1 is sort of a compromise between the two papers.
-    # The value should probably be between 0.01 and 0.5. 0.1 works well for many problems
-    inner_tol_ratio = 0.1
+    # Lower values tend to increase the time spent in the inner solver while
+    # reducing the time spent computing quadratic approximations. We find that
+    # 0.001 is generally a good number.
+    inner_tol_ratio = 0.001
 
     if state.data.fixed_inner_tol is None:
         # Another potential rule limits the inner tol to be no smaller than tol
