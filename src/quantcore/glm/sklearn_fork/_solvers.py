@@ -289,43 +289,46 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
 
     state.record_iteration()
 
-    while state.n_iter < data.max_iter and not state.converged:
+    with ProgressBar(state.norm_min_subgrad, data.gradient_tol, data.verbose) as pb:
+        while state.n_iter < data.max_iter and not state.converged:
+            pb.update(state.n_iter, state.iteration_runtime, state.norm_min_subgrad)
 
-        state.old_active_set = state.active_set
-        state.active_set = identify_active_set(state, data)
+            state.old_active_set = state.active_set
+            state.active_set = identify_active_set(state, data)
 
-        # 0) Build the hessian
-        hessian, state.n_active_rows = update_hessian(state, data, state.active_set)
+            # 0) Build the hessian
+            hessian, state.n_active_rows = update_hessian(state, data, state.active_set)
 
-        # 1) Solve the L1 and L2 penalized least squares problem
-        d, n_cycles_this_iter = inner_solver(state, data, hessian)
-        state.n_cycles += n_cycles_this_iter
+            # 1) Solve the L1 and L2 penalized least squares problem
+            d, n_cycles_this_iter = inner_solver(state, data, hessian)
+            state.n_cycles += n_cycles_this_iter
 
-        # 2) Line search
-        state.old_hessian_rows[:] = state.hessian_rows
-        (
-            state.coef,
-            state.step,
-            state.eta,
-            state.mu,
-            state.obj_val,
-            coef_P2,
-        ) = line_search(state, data, d)
-        state.n_updated = np.sum(np.abs(d) > 0)
+            # 2) Line search
+            state.old_hessian_rows[:] = state.hessian_rows
+            (
+                state.coef,
+                state.step,
+                state.eta,
+                state.mu,
+                state.obj_val,
+                coef_P2,
+            ) = line_search(state, data, d)
+            state.n_updated = np.sum(np.abs(d) > 0)
 
-        # 3) Update the quadratic approximation
-        state.gradient_rows, state.score, state.hessian_rows = update_quadratic(
-            state, data, coef_P2
-        )
+            # 3) Update the quadratic approximation
+            state.gradient_rows, state.score, state.hessian_rows = update_quadratic(
+                state, data, coef_P2
+            )
 
-        # 4) Check if we've converged
-        (
-            state.converged,
-            state.norm_min_subgrad,
-            state.max_min_subgrad,
-            state.inner_tol,
-        ) = check_convergence(state, data)
-        state.record_iteration()
+            # 4) Check if we've converged
+            (
+                state.converged,
+                state.norm_min_subgrad,
+                state.max_min_subgrad,
+                state.inner_tol,
+            ) = check_convergence(state, data)
+
+            state.record_iteration()
 
     if not state.converged:
         warnings.warn(
@@ -335,6 +338,53 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
             ConvergenceWarning,
         )
     return state.coef, state.n_iter, state.n_cycles, state.diagnostics
+
+
+class ProgressBar:
+    """
+    Current format is that:
+        * the "Iteration #" is the IRLS iteration #.
+        * The bar itself measures the log base 10 progress towards the gradient_tol. So, if we start at gradient_norm = 10 and are going to gradient_norm = 1e-4, the progress bar will be out of 5. If the current gradient_norm is 0.1, then we will be at 2/5.
+        * On the right, show the time for the most recent iteration and the current gradient norm
+    """
+
+    def __init__(self, start_norm, tol, verbose):
+        self.start_norm = start_norm
+        self.tol = tol
+        self.verbose = verbose
+
+    def __enter__(self):
+        if not self.verbose:
+            return self
+        bar_start_loggrad = np.log10(self.start_norm)
+        bar_end_loggrad = np.log10(self.tol)
+        self.n_bar_steps = np.ceil(bar_start_loggrad - bar_end_loggrad)
+        # Wait to import so that if verbose=False, we don't need tqdm installed
+        from tqdm import tqdm
+
+        self.t = tqdm(
+            total=self.n_bar_steps,
+            bar_format="Iteration {postfix[0]}: {l_bar}{bar}| {n_fmt}/{total_fmt} [{postfix[1]}s/it, gradient norm={postfix[2]}]",
+            postfix=[0, "", self.start_norm],
+        )
+        return self
+
+    def __exit__(self, *exc):
+        if self.verbose:
+            self.t.close()
+
+    def update(self, n_iter, iteration_runtime, cur_grad_norm):
+        if not self.verbose:
+            return
+        self.t.postfix[0] = n_iter
+        self.t.postfix[1] = f"{iteration_runtime:.2f}"
+        self.t.postfix[2] = cur_grad_norm
+        # clip to 0 in case we take a step in the wrong direction at the start
+        # without this, tqdm will print an annoying warning.
+        step = max(self.n_bar_steps - (np.log10(cur_grad_norm) - np.log10(self.tol)), 0)
+        # round to two digits for beauty
+        self.t.n = np.round(step, 2)
+        self.t.update(0)
 
 
 class IRLSData:
@@ -359,6 +409,7 @@ class IRLSData:
         offset: Optional[np.ndarray] = None,
         lower_bounds: Optional[np.ndarray] = None,
         upper_bounds: Optional[np.ndarray] = None,
+        verbose: bool = False,
     ):
         self.X = X
         self.y = y
@@ -389,6 +440,7 @@ class IRLSData:
         )
 
         self.intercept_offset = 1 if self.fit_intercept else 0
+        self.verbose = verbose
 
         self.check_data()
 
@@ -419,6 +471,7 @@ class IRLSState:
 
         # some precalculations
         self.iteration_start = time.time()
+        self.iteration_runtime = 0
 
         # number of outer iterations
         self.n_iter = -1
@@ -471,7 +524,7 @@ class IRLSState:
     def record_iteration(self):
         self.n_iter += 1
 
-        iteration_runtime = time.time() - self.iteration_start
+        self.iteration_runtime = time.time() - self.iteration_start
         self.iteration_start = time.time()
 
         coef_l1 = np.sum(np.abs(self.coef))
@@ -491,8 +544,7 @@ class IRLSState:
                 "n_active_rows": self.n_active_rows,
                 "n_cycles": self.n_cycles,
                 "n_line_search": self.n_line_search,
-                # runtime
-                "iteration_runtime": iteration_runtime,
+                "iteration_runtime": self.iteration_runtime,
                 "build_hessian_runtime": self.build_hessian_runtime,
                 "inner_solver_runtime": self.inner_solver_runtime,
                 "line_search_runtime": self.line_search_runtime,
