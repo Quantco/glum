@@ -19,6 +19,7 @@ ctypedef np.int8_t int8
 cdef extern from "cat_split_helpers.cpp":
     void _sandwich_cat_denseC[F](F*, const int8*, int*, int, int*, int, F*, int, F*, int, int) nogil
     void _sandwich_cat_denseF[F](F*, const int8*, int*, int, int*, int, F*, int, F*, int, int) nogil
+    void _sandwich_cat_cat[F](F*, const int8*, const int8*, int*, int, F*, int)
 
 
 def sandwich_cat_dense(
@@ -59,7 +60,7 @@ def sandwich_cat_dense(
     return np.asarray(res)
 
 
-def _sandwich_cat_cat(
+def sandwich_cat_cat(
     np.ndarray i_indices_,
     np.ndarray j_indices_,
     int i_ncol,
@@ -71,18 +72,14 @@ def _sandwich_cat_cat(
     (X1.T @ diag(d) @ X2)[i, j] = sum_k X1[k, i] d[k] X2[k, j]
     """
     # TODO: support for single-precision d
+    # TODO: this could potentilayy have other dtypes like int16
     cdef const int8[:] i_indices = i_indices_.view(dtype=np.int8)
     cdef const int8[:] j_indices = j_indices_.view(dtype=np.int8)
 
     cdef floating[:, :] res
     res = np.zeros((i_ncol, j_ncol))
-    cdef size_t k_idx, k, i, j
-
-    for k_idx in range(len(rows)):
-        k = rows[k_idx]
-        i = i_indices[k]
-        j = j_indices[k]
-        res[i, j] += d[k]
+    _sandwich_cat_cat(&d[0], &i_indices[0], &j_indices[0], &rows[0], len(rows),
+                        &res[0, 0], res.shape[1])
 
     return np.asarray(res)
 
