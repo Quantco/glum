@@ -16,6 +16,15 @@ from quantcore.glm.sklearn_fork._glm import TweedieDistribution
 distributions_to_test = ["normal", "poisson", "gamma", "tweedie_p=1.5", "binomial"]
 custom_family_link = [("normal", "log")]
 
+# Not the canonical link for tweedie and gamma, but what the actuaries use.
+link_map = {
+    "normal": "identity",
+    "poisson": "log",
+    "gamma": "log",
+    "tweedie_p=1.5": "log",
+    "binomial": "logit",
+}
+
 
 def _make_P2():
     rand = np.random.default_rng(1)
@@ -26,13 +35,6 @@ def _make_P2():
 
 @pytest.fixture(scope="module")
 def data_all():
-    link_map = {
-        "normal": "identity",
-        "poisson": "log",
-        "gamma": "log",
-        "tweedie_p=1.5": "log",
-        "binomial": "logit",
-    }
     return {
         dist: simulate_glm_data(
             family=dist,
@@ -54,13 +56,6 @@ def data_all():
 )
 def data_all_storage(request):
     data = dict()
-    link_map = {
-        "normal": "identity",
-        "poisson": "log",
-        "gamma": "log",
-        "tweedie_p=1.5": "log",
-        "binomial": "logit",
-    }
     for dist in distributions_to_test:
         data_config = {
             "family": dist,
@@ -395,14 +390,6 @@ if __name__ == "__main__":
     except FileNotFoundError:
         gm_dict = dict()
 
-    link_map = {
-        "normal": "identity",
-        "poisson": "log",
-        "gamma": "log",
-        "tweedie_p=1.5": "log",
-        "binomial": "logit",
-    }
-
     for dist in distributions_to_test:
         data = simulate_glm_data(family=dist, link=link_map[dist])
         for mdl_param in gm_model_parameters.items():
@@ -438,14 +425,14 @@ if __name__ == "__main__":
             overwrite=args.overwrite,
         )
 
-    for family, link in custom_family_link:
-        data = simulate_glm_data(family=family, link=link_map[family])
+    for dist, link in custom_family_link:
+        data = simulate_glm_data(family=dist, link=link_map[dist])
         for use_weights in [True, False]:
             for use_offset in [True, False]:
                 gm_dict = run_and_store_golden_master(
-                    distribution=family,
+                    distribution=dist,
                     model_parameters={"link": link},
-                    run_name=f"custom-{family}-{link}",
+                    run_name=f"custom-{dist}-{link}",
                     use_weights=use_weights,
                     use_offset=use_offset,
                     cv=False,
