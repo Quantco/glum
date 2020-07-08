@@ -6,10 +6,13 @@ from typing import Any, Dict, List
 import click
 import pytest
 from click.testing import CliRunner
-
-from quantcore.glm.cli_analyze import identify_parameter_fnames
-from quantcore.glm.cli_run import cli_run
-from quantcore.glm.util import BenchmarkParams, benchmark_params_cli, defaults
+from quantcore.glm_benchmarks.cli_analyze import identify_parameter_fnames
+from quantcore.glm_benchmarks.cli_run import cli_run
+from quantcore.glm_benchmarks.util import (
+    BenchmarkParams,
+    benchmark_params_cli,
+    defaults,
+)
 
 
 @pytest.mark.parametrize(
@@ -45,7 +48,7 @@ def test_correct_problems_run():
         "narrow-insurance-weights-l2-gamma",
         "wide-insurance-no-weights-net-poisson",
     ]
-    library_names = ["zeros", "sklearn-fork"]
+    library_names = ["zeros", "quantcore-glm"]
     num_rows = 20
     regularization_strength = 1000.0
 
@@ -98,9 +101,9 @@ def test_correct_problems_run():
 
     expected_problems_run_2 = [
         f"narrow-insurance-weights-l2-gamma_zeros_20_dense_{n_threads}_False_1000.0_False_0.0.pkl",
-        f"narrow-insurance-weights-l2-gamma_sklearn-fork_20_dense_{n_threads}_False_1000.0_False_0.0.pkl",
+        f"narrow-insurance-weights-l2-gamma_quantcore-glm_20_dense_{n_threads}_False_1000.0_False_0.0.pkl",
         f"wide-insurance-no-weights-net-poisson_zeros_20_dense_{n_threads}_False_1000.0_False_0.0.pkl",
-        f"wide-insurance-no-weights-net-poisson_sklearn-fork_20_dense_{n_threads}_False_1000.0_False_0.0.pkl",
+        f"wide-insurance-no-weights-net-poisson_quantcore-glm_20_dense_{n_threads}_False_1000.0_False_0.0.pkl",
     ]
 
     assert sorted(problems_run) == sorted(expected_problems_run)

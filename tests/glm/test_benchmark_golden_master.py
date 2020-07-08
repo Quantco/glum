@@ -116,7 +116,7 @@ def exec(Pn):
     execute_args = ["diagnostics_level"]
     params = BenchmarkParams(
         problem_name=Pn,
-        library_name="sklearn-fork",
+        library_name="quantcore-glm",
         **{k: v for k, v in bench_cfg.items() if k not in execute_args},
     )
     if bench_cfg["diagnostics_level"] != "none":

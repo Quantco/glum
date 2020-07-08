@@ -2,10 +2,10 @@ import time
 
 import numpy as np
 import pandas as pd
+from quantcore.matrix import CategoricalMatrix, MKLSparseMatrix
 from scipy import sparse as sps
 
 from quantcore.glm import GeneralizedLinearRegressor
-from quantcore.glm.matrix import CategoricalMatrix, MKLSparseMatrix
 
 
 def main():

@@ -70,8 +70,8 @@ setup(
     install_requires=[],
     entry_points="""
         [console_scripts]
-        glm_benchmarks_run = quantcore.glm.cli_run:cli_run
-        glm_benchmarks_analyze = quantcore.glm.cli_analyze:cli_analyze
+        glm_benchmarks_run = quantcore.glm_benchmarks.cli_run:cli_run
+        glm_benchmarks_analyze = quantcore.glm_benchmarks.cli_analyze:cli_analyze
     """,
     ext_modules=cythonize(ext_modules, annotate=False),
     zip_safe=False,

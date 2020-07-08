@@ -5,9 +5,8 @@ from typing import Tuple, Union
 
 import numexpr
 import numpy as np
+from quantcore.matrix import MatrixBase, StandardizedMat
 from scipy import special
-
-from quantcore.glm.matrix import MatrixBase, StandardizedMat
 
 from ._functions import (
     binomial_logit_eta_mu_deviance,
