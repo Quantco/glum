@@ -1,3 +1,5 @@
+# cython: boundscheck=False, wraparound=False, cdivision=True
+
 import numpy as np
 cimport numpy as np
 
@@ -8,105 +10,44 @@ ctypedef np.uint8_t uint8
 ctypedef np.int8_t int8
 
 
-@cython.boundscheck(False)
-def transpose_dot(const int8[:] indices, floating[:] other, int n_cols, dtype):
+def transpose_dot(const int[:] indices, floating[:] other, int n_cols, dtype,
+                  rows):
     cdef floating[:] res = np.zeros(n_cols, dtype=dtype)
-    cdef size_t i
+    cdef int i, n_keep_rows
     cdef int n_rows = len(indices)
+    cdef int[:] rows_view
 
-    for i in range(n_rows):
-        res[indices[i]] += other[i]
+    if rows is None or len(rows) == n_rows:
+        for i in range(n_rows):
+            res[indices[i]] += other[i]
+    else:
+        rows_view = rows
+        n_keep_rows = len(rows_view)
+        for k in range(n_keep_rows):
+            i = rows_view[k]
+            res[indices[i]] += other[i]
+
     return np.asarray(res)
 
 
-@cython.boundscheck(False)
-def dot(const int8[:] indices, floating[:] other, int n_rows, dtype):
+def dot(const int[:] indices, floating[:] other, int n_rows, dtype):
     cdef floating[:] res = np.empty(n_rows, dtype=dtype)
-    cdef size_t i
+    cdef int i
 
     for i in prange(n_rows, nogil=True):
         res[i] = other[indices[i]]
     return np.asarray(res)
 
 
-@cython.boundscheck(False)  # Deactivate bounds checking
-@cython.wraparound(False)   # Deactivate negative indexing.
-def sandwich_categorical(int[:] indices, int[:] indptr, floating[:] d, rows, cols, dtype):
-    """
-    Returns a 1d array. The sandwich output is a diagonal matrix with this array on
-    the diagonal.
+def sandwich_categorical(const int[:] indices, floating[:] d,
+                        int[:] rows, dtype, int n_cols):
+    cdef floating[:] res = np.zeros(n_cols, dtype=dtype)
+    cdef size_t i, k, k_idx
+    cdef int n_rows = len(rows)
 
-    If X is N x K, indices has length N, and indptr has length K + 1. d should have
-    length N.
-    """
-    # Numpy: tmp = d[indices]
-    cdef Py_ssize_t n_rows = len(indices)
-    cdef Py_ssize_t n_cols = len(indptr) - 1
-    cdef Py_ssize_t k, i, j, ki, ii
-    cdef floating[:] tmp = np.empty(n_rows, dtype=dtype)
-    cdef floating[:] res
-    cdef floating val
-    cdef int[:] rowsview
-    cdef uint8[:] row_included
-    cdef int[:] colsview
-    cdef int n_active_rows, n_active_cols
+    for k_idx in range(n_rows):
+        k = rows[k_idx]
+        i = indices[k]
+        res[i] += d[k]
+    return np.asarray(res)
 
-    # tmp = d[indices]
-    if rows is None:
-        for k in prange(n_rows, nogil=True):
-           tmp[k] = d[indices[k]]
-    else:
-        rowsview = rows
-        n_active_rows = rows.shape[0]
-        row_included = np.zeros(n_rows, dtype=np.uint8)
-        for ki in prange(n_active_rows, nogil=True):
-            k = rowsview[ki]
-            row_included[k] = True
-            tmp[k] = d[indices[k]]
-
-    #TODO: Use this as an experiment for figuring out how to reduce the duplicate code here.
-    # Alternatively, we can just have cols and rows be full lists and not make
-    # this optimization.
-    if cols is None and rows is None:
-        res_out = np.empty(n_cols, dtype=dtype)
-        res = res_out
-        for i in prange(n_cols, nogil=True):
-            val = 0.0
-            for j in range(indptr[i], indptr[i + 1]):
-                val = val + tmp[j]
-            res[i] = val
-    elif cols is None:
-        res_out = np.empty(n_cols, dtype=dtype)
-        res = res_out
-        for i in prange(n_cols, nogil=True):
-            val = 0.0
-            for j in range(indptr[i], indptr[i + 1]):
-                if not row_included[j]:
-                    continue
-                val = val + tmp[j]
-            res[i] = val
-    elif rows is None:
-        colsview = cols
-        n_active_cols = cols.shape[0]
-        res_out = np.empty(n_active_cols, dtype=dtype)
-        res = res_out
-        for ii in prange(n_active_cols, nogil=True):
-            i = colsview[ii]
-            val = 0.0
-            for j in range(indptr[i], indptr[i + 1]):
-                val = val + tmp[j]
-            res[ii] = val
-    else:
-        colsview = cols
-        n_active_cols = cols.shape[0]
-        res_out = np.empty(n_active_cols, dtype=dtype)
-        res = res_out
-        for ii in prange(n_active_cols, nogil=True):
-            i = colsview[ii]
-            val = 0.0
-            for j in range(indptr[i], indptr[i + 1]):
-                if not row_included[j]:
-                    continue
-                val = val + tmp[j]
-            res[ii] = val
-    return res_out

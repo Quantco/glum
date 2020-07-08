@@ -125,21 +125,20 @@ def test_to_array_standardized_mat(mat: mx.StandardizedMat):
 @pytest.mark.parametrize("cols", [None, np.arange(1, dtype=np.int32)])
 def test_dot(mat: Union[mx.MatrixBase, mx.StandardizedMat], other_type, rows, cols):
     n_row = mat.shape[1]
-    other_shapes = [(n_row,), (n_row, 1), (n_row, 2)]
-    for shape in other_shapes:
-        other_as_list = np.random.random(shape).tolist()
-        other = other_type(other_as_list)
-        res = mat.dot(other, rows, cols)
+    shape = (n_row,)
+    other_as_list = np.random.random(shape).tolist()
+    other = other_type(other_as_list)
+    res = mat.dot(other, rows, cols)
 
-        mat_subset, vec_subset = process_mat_vec_subsets(mat, other, rows, cols, cols)
-        expected = mat_subset.dot(vec_subset)
+    mat_subset, vec_subset = process_mat_vec_subsets(mat, other, rows, cols, cols)
+    expected = mat_subset.dot(vec_subset)
 
-        np.testing.assert_allclose(res, expected)
-        assert isinstance(res, np.ndarray)
+    np.testing.assert_allclose(res, expected)
+    assert isinstance(res, np.ndarray)
 
-        if rows is None and cols is None:
-            res2 = mat @ other
-            np.testing.assert_allclose(res2, expected)
+    if rows is None and cols is None:
+        res2 = mat @ other
+        np.testing.assert_allclose(res2, expected)
 
 
 def process_mat_vec_subsets(mat, vec, mat_rows, mat_cols, vec_idxs):
@@ -158,16 +157,12 @@ def process_mat_vec_subsets(mat, vec, mat_rows, mat_cols, vec_idxs):
 @pytest.mark.parametrize(
     "other_type", [lambda x: x, np.array, mx.DenseGLMDataMatrix],
 )
-@pytest.mark.parametrize(
-    "other_as_list",
-    # shapes (3,); (3,1), (3, 2);
-    [[3.0, -0.1, 0], [[3.0], [-0.1], [0]], [[0, 1.0], [-0.1, 0], [0, 3.0]]],
-)
 @pytest.mark.parametrize("rows", [None, np.arange(2, dtype=np.int32)])
 @pytest.mark.parametrize("cols", [None, np.arange(1, dtype=np.int32)])
 def test_transpose_dot(
-    mat: Union[mx.MatrixBase, mx.StandardizedMat], other_type, other_as_list, rows, cols
+    mat: Union[mx.MatrixBase, mx.StandardizedMat], other_type, rows, cols
 ):
+    other_as_list = [3.0, -0.1, 0]
     other = other_type(other_as_list)
     assert np.shape(other)[0] == mat.shape[0]
     res = mat.transpose_dot(other, rows, cols)
@@ -232,7 +227,12 @@ def test_self_sandwich(
     expected = mat_subset.T @ np.diag(vec_subset) @ mat_subset
     if sps.issparse(res):
         res = res.A
-    np.testing.assert_allclose(res, expected)
+    try:
+        np.testing.assert_allclose(res, expected)
+    except AssertionError:
+        import ipdb
+
+        ipdb.set_trace()
 
 
 @pytest.mark.parametrize("rows", [None, np.arange(2, dtype=np.int32)])
@@ -265,15 +265,9 @@ def test_transpose(mat):
 
 
 @pytest.mark.parametrize("mat", get_matrices())
-@pytest.mark.parametrize(
-    "vec_type", [lambda x: x, np.array, mx.DenseGLMDataMatrix],
-)
-@pytest.mark.parametrize(
-    "vec_as_list",
-    # shapes (3,); (1,3); (2, 3)
-    [[3.0, -0.1, 0], [[3.0, -0.1, 0]], [[0, -0.1, 1.0], [-0.1, 0, 3]]],
-)
-def test_rmatmul(mat: Union[mx.MatrixBase, mx.StandardizedMat], vec_type, vec_as_list):
+@pytest.mark.parametrize("vec_type", [lambda x: x, np.array, mx.DenseGLMDataMatrix])
+def test_rmatmul(mat: Union[mx.MatrixBase, mx.StandardizedMat], vec_type):
+    vec_as_list = [3.0, -0.1, 0]
     vec = vec_type(vec_as_list)
     res = mat.__rmatmul__(vec)
     res2 = vec @ mat
@@ -286,7 +280,7 @@ def test_rmatmul(mat: Union[mx.MatrixBase, mx.StandardizedMat], vec_type, vec_as
 @pytest.mark.parametrize("mat", get_matrices())
 def test_dot_raises(mat: Union[mx.MatrixBase, mx.StandardizedMat]):
     with pytest.raises(ValueError):
-        mat.dot(np.ones((11, 1)))
+        mat.dot(np.ones(11))
 
 
 @pytest.mark.parametrize("mat", get_matrices())
