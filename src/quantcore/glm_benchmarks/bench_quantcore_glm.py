@@ -5,7 +5,8 @@ import numpy as np
 import pandas as pd
 from scipy import sparse as sps
 
-from .sklearn_fork import GeneralizedLinearRegressor, GeneralizedLinearRegressorCV
+from quantcore.glm import GeneralizedLinearRegressor, GeneralizedLinearRegressorCV
+
 from .util import benchmark_convergence_tolerance, get_sklearn_family, runtime
 
 random_seed = 110
@@ -17,7 +18,7 @@ def build_and_fit(model_args, fit_args, cv: bool):
     return GeneralizedLinearRegressor(**model_args).fit(**fit_args)
 
 
-def sklearn_fork_bench(
+def quantcore_glm_bench(
     dat: Dict[str, Union[np.ndarray, sps.spmatrix]],
     distribution: str,
     alpha: float,

@@ -11,9 +11,8 @@ import pandas as pd
 from scipy import sparse as sps
 
 import quantcore.glm.matrix as mx
-
-from .sklearn_fork import GeneralizedLinearRegressor, TweedieDistribution
-from .sklearn_fork._solvers import eta_mu_objective
+from quantcore.glm import GeneralizedLinearRegressor, TweedieDistribution
+from quantcore.glm._solvers import eta_mu_objective
 
 benchmark_convergence_tolerance = 1e-4
 cache_location = os.environ.get("GLM_BENCHMARKS_CACHE", None)

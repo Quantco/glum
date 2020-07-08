@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import click
 
 from quantcore.glm.bench_orig_sklearn_fork import orig_sklearn_fork_bench
-from quantcore.glm.bench_sklearn_fork import sklearn_fork_bench
+from quantcore.glm.bench_quantcore_glm import quantcore_glm_bench
 from quantcore.glm.problems import Problem, get_all_problems
 from quantcore.glm.util import (
     BenchmarkParams,
@@ -135,7 +135,7 @@ def execute_problem_library(
 
 def get_all_libraries() -> Dict[str, Any]:
     all_libraries = {
-        "sklearn-fork": sklearn_fork_bench,
+        "quantcore-glm": quantcore_glm_bench,
         "orig-sklearn-fork": orig_sklearn_fork_bench,
         "zeros": zeros_bench,
     }

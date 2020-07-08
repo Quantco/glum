@@ -48,7 +48,7 @@ test:
   commands:
     - pip check
   imports:
-    - quantcore.glm.sklearn_fork
+    - quantcore.glm
 
 about:
   home: https://github.com/Quantco/quantcore.glm
