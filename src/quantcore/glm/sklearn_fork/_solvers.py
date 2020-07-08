@@ -597,7 +597,7 @@ def check_convergence(state, data):
     if state.data.fixed_inner_tol is None:
         # Another potential rule limits the inner tol to be no smaller than tol
         # return max(norm_min_subgrad * inner_tol_ratio, tol)
-        inner_tol = norm_min_subgrad * inner_tol_ratio
+        inner_tol = max(norm_min_subgrad * inner_tol_ratio, data.gradient_tol)
     else:
         inner_tol = state.data.fixed_inner_tol[0]
 
