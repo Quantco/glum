@@ -4,8 +4,8 @@
 template <typename F>
 void _sandwich_cat_cat(
     F* d,
-    const int8_t* i_indices,
-    const int8_t* j_indices,
+    const int* i_indices,
+    const int* j_indices,
     int* rows,
     int len_rows,
     F* res,
@@ -25,7 +25,7 @@ void _sandwich_cat_cat(
 template <typename F>
 void _sandwich_cat_dense${order}(
     F* d,
-    const int8_t* indices,
+    const int* indices,
     int* rows,
     int len_rows,
     int* j_cols,

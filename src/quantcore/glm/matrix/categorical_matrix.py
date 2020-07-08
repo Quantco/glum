@@ -34,7 +34,7 @@ class CategoricalMatrix(MatrixBase):
             self.cat = pd.Categorical(cat_vec)
 
         self.shape = (len(self.cat), len(self.cat.categories))
-        self.indices = self.cat.codes
+        self.indices = self.cat.codes.astype(np.int32)
         self.x_csc: Optional[Tuple[Optional[np.ndarray], np.ndarray, np.ndarray]] = None
         self.dtype = dtype
 
@@ -54,6 +54,7 @@ class CategoricalMatrix(MatrixBase):
         rows: np.ndarray = None,
         cols: np.ndarray = None,
     ) -> np.ndarray:
+        # taking 14% of time
         """
         When other is 1d:
         mat.dot(other)[i] = sum_j mat[i, j] other[j]
@@ -88,7 +89,11 @@ class CategoricalMatrix(MatrixBase):
             other_m = other * col_mult
 
         if rows is None or len(rows) == self.shape[0]:
-            return dot(self.indices, other, self.shape[0], other.dtype)
+            if np.issubdtype(other_m.dtype, np.signedinteger):
+                other_m = other_m.astype(float)
+                res = dot(self.indices, other_m, self.shape[0], other_m.dtype)
+                return res.astype(int)
+            return dot(self.indices, other_m, self.shape[0], other.dtype)
 
         return other_m[self.indices[rows]]
 
@@ -98,6 +103,7 @@ class CategoricalMatrix(MatrixBase):
         rows: np.ndarray = None,
         cols: np.ndarray = None,
     ) -> np.ndarray:
+        # taking 16% of time
         """
         Perform: self[rows, cols].T @ vec
 
@@ -109,7 +115,14 @@ class CategoricalMatrix(MatrixBase):
         # TODO: write a function that doesn't reference the data
         # TODO: this should look more like the cat_cat_sandwich
         vec = np.asarray(vec)
-        res = transpose_dot(self.indices, vec, self.shape[1], vec.dtype)
+        if vec.ndim > 1:
+            raise NotImplementedError(
+                "CategoricalMatrix.transpose_dot is only implemented for 1d arrays."
+            )
+
+        res = transpose_dot(self.indices, vec, self.shape[1], vec.dtype, rows)
+        if cols is not None and len(cols) < self.shape[1]:
+            res = res[cols]
         return res
 
     def sandwich(
@@ -118,7 +131,7 @@ class CategoricalMatrix(MatrixBase):
         rows: np.ndarray = None,
         cols: np.ndarray = None,
     ) -> sps.dia_matrix:
-        # Taking up 38% of time
+        # 3%
         """
         sandwich(self, d)[i, j] = (self.T @ diag(d) @ self)[i, j]
             = sum_k (self[k, i] (diag(d) @ self)[k, j])
@@ -130,10 +143,12 @@ class CategoricalMatrix(MatrixBase):
         The rows and cols parameters allow restricting to a subset of the
         matrix without making a copy.
         """
-        # TODO: make downstream calls to this exploit the sparse structure
         d = np.asarray(d)
-        _, indices, indptr = self._check_csc()
-        res_diag = sandwich_categorical(indices, indptr, d, rows, cols, d.dtype)
+        if rows is None:
+            rows = np.arange(self.shape[0], dtype=np.int32)
+        res_diag = sandwich_categorical(self.indices, d, rows, d.dtype, self.shape[1])
+        if cols is not None and len(cols) < self.shape[1]:
+            res_diag = res_diag[cols]
         return sps.diags(res_diag)
 
     def cross_sandwich(
@@ -144,6 +159,7 @@ class CategoricalMatrix(MatrixBase):
         L_cols: Optional[np.ndarray] = None,
         R_cols: Optional[np.ndarray] = None,
     ) -> np.ndarray:
+        # 19%
         if isinstance(other, np.ndarray):
             return self._cross_dense(other, d, rows, L_cols, R_cols)
         if isinstance(other, sps.csc_matrix):
@@ -226,15 +242,13 @@ class CategoricalMatrix(MatrixBase):
                 "Input array needs to be either C-contiguous or F-contiguous."
             )
 
-        i_indices = self.indices
-
         if rows is None:
             rows = np.arange(self.shape[0], dtype=np.int32)
         if R_cols is None:
             R_cols = np.arange(other.shape[1], dtype=np.int32)
 
         res = sandwich_cat_dense(
-            i_indices, self.shape[1], d, other, rows, R_cols, is_c_contiguous
+            self.indices, self.shape[1], d, other, rows, R_cols, is_c_contiguous
         )
 
         res = res[_none_to_slice(L_cols, self.shape[1]), :]

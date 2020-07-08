@@ -149,6 +149,7 @@ class SplitMatrix(MatrixBase):
                 return mat.getcol(loc)
         raise RuntimeError(f"Column {i} was not found.")
 
+    # taking 27%
     def sandwich(
         self,
         d: Union[np.ndarray, List],
@@ -165,16 +166,11 @@ class SplitMatrix(MatrixBase):
         for i in range(len(self.indices)):
             idx_i = subset_cols_indices[i]
             mat_i = self.matrices[i]
-            expected_dim_1 = (
-                mat_i.shape[1] if subset_cols[i] is None else len(subset_cols[i])  # type: ignore
-            )
             res = mat_i.sandwich(d, rows, subset_cols[i])
-            expected_shape = (expected_dim_1, expected_dim_1)
             if isinstance(res, sps.dia_matrix):
                 out[(idx_i, idx_i)] += np.squeeze(res.data)
             else:
                 out[np.ix_(idx_i, idx_i)] = res
-            assert res.shape == expected_shape
 
             for j in range(i + 1, len(self.indices)):
                 idx_j = subset_cols_indices[j]
@@ -182,15 +178,9 @@ class SplitMatrix(MatrixBase):
                 res = mat_i.cross_sandwich(
                     mat_j, d, rows, subset_cols[i], subset_cols[j]
                 )
-                expected_shape = (
-                    expected_dim_1,
-                    mat_j.shape[1] if subset_cols[j] is None else len(subset_cols[j]),  # type: ignore
-                )
 
                 out[np.ix_(idx_i, idx_j)] = res
                 out[np.ix_(idx_j, idx_i)] = res.T
-
-                assert res.shape == expected_shape
 
         return out
 
@@ -207,6 +197,7 @@ class SplitMatrix(MatrixBase):
 
         return col_stds
 
+    # 28%
     def dot(
         self, v: np.ndarray, rows: np.ndarray = None, cols: np.ndarray = None
     ) -> np.ndarray:
@@ -225,7 +216,7 @@ class SplitMatrix(MatrixBase):
         for sub_cols, idx, mat in zip(subset_cols, self.indices, self.matrices):
             one = v[idx, ...]
             tmp = mat.dot(one, rows, sub_cols)
-            # 43% of time in this function
+            # 27% of time in this function is spent on this line
             out += tmp
         return out
 
@@ -235,6 +226,7 @@ class SplitMatrix(MatrixBase):
         rows: np.ndarray = None,
         cols: np.ndarray = None,
     ) -> np.ndarray:
+        # 16.5%
         """
         self.T.dot(vec)[i] = sum_k self[k, i] vec[k]
         = sum_{k in self.dense_indices} self[k, i] vec[k] +
