@@ -5,7 +5,7 @@ import pandas as pd
 from scipy import sparse as sps
 
 from .ext.categorical import sandwich_categorical
-from .ext.split import _sandwich_cat_cat, sandwich_cat_dense
+from .ext.split import sandwich_cat_cat, sandwich_cat_dense
 from .matrix_base import MatrixBase
 from .mkl_sparse_matrix import MKLSparseMatrix
 
@@ -151,6 +151,7 @@ class CategoricalMatrix(MatrixBase):
         if isinstance(other, sps.csc_matrix):
             return self._cross_sparse(other, d, rows, L_cols, R_cols)
         if isinstance(other, CategoricalMatrix):
+            # 65% initially (10.4k), now 47% (48.6k)
             return self._cross_categorical(other, d, rows, L_cols, R_cols)
         raise TypeError
 
@@ -257,7 +258,7 @@ class CategoricalMatrix(MatrixBase):
         if rows is None:
             rows = np.arange(self.shape[0], dtype=np.int32)
 
-        res = _sandwich_cat_cat(
+        res = sandwich_cat_cat(
             i_indices, j_indices, self.shape[1], other.shape[1], d, rows
         )
 
