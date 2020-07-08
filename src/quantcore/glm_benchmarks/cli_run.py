@@ -4,34 +4,34 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import click
 
-from quantcore.glm.bench_orig_sklearn_fork import orig_sklearn_fork_bench
-from quantcore.glm.bench_quantcore_glm import quantcore_glm_bench
-from quantcore.glm.problems import Problem, get_all_problems
-from quantcore.glm.util import (
+from .bench_orig_sklearn_fork import orig_sklearn_fork_bench
+from .bench_quantcore_glm import quantcore_glm_bench
+from .problems import Problem, get_all_problems
+from .util import (
     BenchmarkParams,
     benchmark_params_cli,
     clear_cache,
     defaults,
     get_obj_val,
 )
-from quantcore.glm.zeros_benchmark import zeros_bench
+from .zeros_benchmark import zeros_bench
 
 try:
-    from quantcore.glm.bench_glmnet_python import glmnet_python_bench  # isort:skip
+    from .bench_glmnet_python import glmnet_python_bench  # isort:skip
 
     GLMNET_PYTHON_INSTALLED = True
 except ImportError:
     GLMNET_PYTHON_INSTALLED = False
 
 try:
-    from quantcore.glm.bench_h2o import h2o_bench  # isort:skip
+    from .bench_h2o import h2o_bench  # isort:skip
 
     H20_INSTALLED = True
 except ImportError:
     H20_INSTALLED = False
 
 try:
-    from quantcore.glm.bench_liblinear import liblinear_bench  # isort:skip
+    from .bench_liblinear import liblinear_bench  # isort:skip
 
     LIBLINEAR_INSTALLED = True
 except ImportError:
