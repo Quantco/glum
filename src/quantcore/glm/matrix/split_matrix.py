@@ -223,7 +223,10 @@ class SplitMatrix(MatrixBase):
         out_shape = out_shape_base + ([] if v.ndim == 1 else list(v.shape[1:]))
         out = np.zeros(out_shape, np.result_type(self.dtype, v.dtype))
         for sub_cols, idx, mat in zip(subset_cols, self.indices, self.matrices):
-            out += mat.dot(v[idx, ...], rows, sub_cols)
+            one = v[idx, ...]
+            tmp = mat.dot(one, rows, sub_cols)
+            # 43% of time in this function
+            out += tmp
         return out
 
     def transpose_dot(

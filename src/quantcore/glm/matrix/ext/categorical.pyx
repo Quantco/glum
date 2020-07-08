@@ -5,6 +5,29 @@ from cython cimport floating
 cimport cython
 from cython.parallel import prange
 ctypedef np.uint8_t uint8
+ctypedef np.int8_t int8
+
+
+@cython.boundscheck(False)
+def transpose_dot(const int8[:] indices, floating[:] other, int n_cols, dtype):
+    cdef floating[:] res = np.zeros(n_cols, dtype=dtype)
+    cdef size_t i
+    cdef int n_rows = len(indices)
+
+    for i in range(n_rows):
+        res[indices[i]] += other[i]
+    return np.asarray(res)
+
+
+@cython.boundscheck(False)
+def dot(const int8[:] indices, floating[:] other, int n_rows, dtype):
+    cdef floating[:] res = np.empty(n_rows, dtype=dtype)
+    cdef size_t i
+
+    for i in prange(n_rows, nogil=True):
+        res[i] = other[indices[i]]
+    return np.asarray(res)
+
 
 @cython.boundscheck(False)  # Deactivate bounds checking
 @cython.wraparound(False)   # Deactivate negative indexing.

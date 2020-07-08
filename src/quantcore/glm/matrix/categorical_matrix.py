@@ -4,10 +4,9 @@ import numpy as np
 import pandas as pd
 from scipy import sparse as sps
 
-from .ext.categorical import sandwich_categorical
+from .ext.categorical import dot, sandwich_categorical, transpose_dot
 from .ext.split import sandwich_cat_cat, sandwich_cat_dense
 from .matrix_base import MatrixBase
-from .mkl_sparse_matrix import MKLSparseMatrix
 
 
 def _none_to_slice(arr: Optional[np.ndarray], n: int) -> Union[slice, np.ndarray]:
@@ -71,6 +70,10 @@ class CategoricalMatrix(MatrixBase):
         matrix/test_matrices::test_dot
         """
         other = np.asarray(other)
+        if other.ndim > 1:
+            raise NotImplementedError(
+                """CategoricalMatrix.dot is only implemented for 1d arrays."""
+            )
         if other.shape[0] != self.shape[1]:
             raise ValueError(
                 f"""Needed other to have first dimension {self.shape[1]},
@@ -82,16 +85,12 @@ class CategoricalMatrix(MatrixBase):
         else:
             col_mult = np.zeros(len(self.cat.categories), dtype=self.dtype)
             col_mult[cols] = 1.0
+            other_m = other * col_mult
 
-            if other.ndim == 1:
-                other_m = other * col_mult
-            else:
-                other_m = other * col_mult[:, None]
+        if rows is None or len(rows) == self.shape[0]:
+            return dot(self.indices, other, self.shape[0], other.dtype)
 
-        if rows is not None:
-            return other_m[self.indices[rows], ...]
-        else:
-            return other_m[self.indices, ...]
+        return other_m[self.indices[rows]]
 
     def transpose_dot(
         self,
@@ -108,11 +107,10 @@ class CategoricalMatrix(MatrixBase):
         Test: tests/test_matrices::test_transpose_dot
         """
         # TODO: write a function that doesn't reference the data
+        # TODO: this should look more like the cat_cat_sandwich
         vec = np.asarray(vec)
-        data, indices, indptr = self._check_csc()
-        data = np.ones(self.shape[0], dtype=vec.dtype) if data is None else data
-        as_csc = MKLSparseMatrix((data, indices, indptr), shape=self.shape)
-        return as_csc.transpose_dot(vec, rows, cols)
+        res = transpose_dot(self.indices, vec, self.shape[1], vec.dtype)
+        return res
 
     def sandwich(
         self,
@@ -120,6 +118,7 @@ class CategoricalMatrix(MatrixBase):
         rows: np.ndarray = None,
         cols: np.ndarray = None,
     ) -> sps.dia_matrix:
+        # Taking up 38% of time
         """
         sandwich(self, d)[i, j] = (self.T @ diag(d) @ self)[i, j]
             = sum_k (self[k, i] (diag(d) @ self)[k, j])
@@ -146,12 +145,10 @@ class CategoricalMatrix(MatrixBase):
         R_cols: Optional[np.ndarray] = None,
     ) -> np.ndarray:
         if isinstance(other, np.ndarray):
-            # 65.1% initially, 34.5% now on a 4-core machine
             return self._cross_dense(other, d, rows, L_cols, R_cols)
         if isinstance(other, sps.csc_matrix):
             return self._cross_sparse(other, d, rows, L_cols, R_cols)
         if isinstance(other, CategoricalMatrix):
-            # 65% initially (10.4k), now 47% (48.6k)
             return self._cross_categorical(other, d, rows, L_cols, R_cols)
         raise TypeError
 
@@ -159,8 +156,9 @@ class CategoricalMatrix(MatrixBase):
         if self.x_csc is None or force_reset:
             # Currently taking up a lot of time
             csc = self.tocsr().tocsc()
-            np.testing.assert_allclose(csc.data, np.ones(self.shape[0]))
             self.x_csc = (None, csc.indices, csc.indptr)
+        else:
+            assert True
         return self.x_csc
 
     def tocsc(self):
