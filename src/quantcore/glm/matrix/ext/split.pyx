@@ -2,6 +2,7 @@ import numpy as np
 cimport numpy as np
 
 from libcpp.vector cimport vector
+from libcpp cimport bool
 from libc.stdlib cimport malloc, free
 from cython cimport floating
 
@@ -15,38 +16,45 @@ ctypedef np.uint8_t uint8
 ctypedef np.int8_t int8
 
 
+cdef extern from "cat_split_helpers.cpp":
+    void _sandwich_cat_denseC[F](F*, const int8*, int*, int, int*, int, F*, int, F*, int, int) nogil
+    void _sandwich_cat_denseF[F](F*, const int8*, int*, int, int*, int, F*, int, F*, int, int) nogil
+
+
 def sandwich_cat_dense(
     np.ndarray i_indices_,
     int i_ncol,
     floating[:] d,
     floating[:, :] mat_j,
     int[:] rows,
-    int[:] j_cols
+    int[:] j_cols,
+    bool is_c_contiguous
 ):
     """
-    Expect mat_j to be C-contiguous (row major)
+    Expect mat_j to be C-contiguous (row major).
+    TODO: THIS ONLY WORKS FOR C-CONTIGUOUS.
     """
 
     cdef floating[:, :] res
     res = np.zeros((i_ncol, len(j_cols)))
-    cdef const int8[:] i_indices = i_indices_.view(dtype=np.int8)
 
     if len(d) == 0 or len(rows) == 0 or len(j_cols) == 0 or i_ncol == 0:
         return np.asarray(res)
 
-    # Ben says pointers are probably a < 5%-10% improvement over memoryviews
-    cdef size_t i, j, k, k_idx, j_idx
+    cdef const int8[:] i_indices = i_indices_.view(dtype=np.int8)
     cdef floating* d_p = &d[0]
     cdef const int8* i_indices_p = &i_indices[0]
     cdef int* rows_p = &rows[0]
     cdef int* j_cols_p = &j_cols[0]
 
-    for k_idx in range(len(rows)):
-        k = rows_p[k_idx]
-        i = i_indices_p[k]
-        for j_idx in range(len(j_cols)):
-            j = j_cols_p[j_idx]
-            res[i, j_idx] += d_p[k] * mat_j[k, j]
+    if is_c_contiguous:
+        _sandwich_cat_denseC(d_p, i_indices_p, rows_p, len(rows), j_cols_p,
+                            len(j_cols), &res[0, 0], res.size, &mat_j[0, 0],
+                            mat_j.shape[0], mat_j.shape[1])
+    else:
+        _sandwich_cat_denseF(d_p, i_indices_p, rows_p, len(rows), j_cols_p,
+                            len(j_cols), &res[0, 0], res.size, &mat_j[0, 0],
+                            mat_j.shape[0], mat_j.shape[1])
 
     return np.asarray(res)
 

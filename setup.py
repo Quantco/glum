@@ -19,6 +19,7 @@ print("templating C source")
 templates = [
     "src/quantcore/glm/matrix/ext/dense_helpers-tmpl.cpp",
     "src/quantcore/glm/matrix/ext/sparse_helpers-tmpl.cpp",
+    "src/quantcore/glm/matrix/ext/cat_split_helpers-tmpl.cpp",
 ]
 
 for fn in templates:
