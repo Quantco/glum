@@ -69,7 +69,7 @@ is put into the dense part, and the rest is put into the sparse part.
 
 To build the image, make sure you have a functioning Docker and docker-compose installation. Then, `docker-compose build work`.
 
-To run something, for example: `docker-compose run work python benchmarks/sklearn_fork.py`
+To run something, for example: `docker-compose run work glm_benchmarks_run --help`
 
 ---
 **NOTE FOR MAC USERS**
@@ -114,7 +114,7 @@ If you want to skip the slow tests, add the `-m "not slow"` flag to any pytest c
 
 To overwrite the golden master results:
 ```
-python tests/sklearn_fork/test_golden_master.py
+python tests/glm/test_golden_master.py
 ```
 
 Add the `--overwrite` flag if you want to overwrite already existing golden master results
@@ -122,7 +122,7 @@ Add the `--overwrite` flag if you want to overwrite already existing golden mast
 ### Benchmarks golden master
 To create the golden master results:
 ```
-python tests/sklearn_fork/test_benchmark_golden_master.py
+python tests/glm/test_benchmark_golden_master.py
 ```
 
 Add the `--overwrite` flag if you want to overwrite already existing golden master results.

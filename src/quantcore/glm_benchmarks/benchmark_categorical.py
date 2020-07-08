@@ -4,8 +4,8 @@ import numpy as np
 import pandas as pd
 from scipy import sparse as sps
 
+from quantcore.glm import GeneralizedLinearRegressor
 from quantcore.glm.matrix import CategoricalMatrix, MKLSparseMatrix
-from quantcore.glm.sklearn_fork import GeneralizedLinearRegressor
 
 
 def main():
