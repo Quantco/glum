@@ -1,5 +1,26 @@
 #include <vector>
 
+
+template <typename F>
+void _sandwich_cat_cat(
+    F* d,
+    const int8_t* i_indices,
+    const int8_t* j_indices,
+    int* rows,
+    int len_rows,
+    F* res,
+    int res_n_col
+)
+{
+    for (int k_idx = 0; k_idx < len_rows; k_idx++) {
+        int k = rows[k_idx];
+        int i = i_indices[k];
+        int j = j_indices[k];
+        res[i * res_n_col + j] += d[k];
+    }
+}
+
+
 <%def name="sandwich_cat_dense_tmpl(order)">
 template <typename F>
 void _sandwich_cat_dense${order}(
@@ -28,7 +49,6 @@ void _sandwich_cat_dense${order}(
             // instructions
             // MAYBE TODO: explore whether swapping the loop order for F-ordered mat_j
             // is useful.
-            // TODO: incorporate c/f into Python code
             for (int j_idx = 0; j_idx < len_j_cols; j_idx++) {
                 int j = j_cols[j_idx];
                 % if order == 'C':
