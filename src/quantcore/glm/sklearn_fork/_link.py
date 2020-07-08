@@ -140,3 +140,35 @@ class LogitLink(Link):
     def inverse_derivative2(self, lin_pred):
         ep = special.expit(lin_pred)
         return ep * (1.0 - ep) * (1.0 - 2 * ep)
+
+
+class TweedieLink(Link):
+    """The Tweedie link function g(x)=x^(1-p)/(1-p) if p!=1 and log(x) if p=1."""
+
+    def __init__(self, p):
+        self.p = p
+
+    def link(self, mu):
+        if self.p == 1:
+            return numexpr.evaluate("log(mu)")
+        return numexpr.evaluate("mu**(1-self.p) / (1-self.p)")
+
+    def derivative(self, mu):
+        return numexpr.evaluate("mu**(-self.p)")
+
+    def inverse(self, lin_pred):
+        if self.p == 1:
+            return numexpr.evaluate("exp(lin_pred)")
+        return numexpr.evaluate("((1-self.p)*lin_pred)**(1/(1-self.p))")
+
+    def inverse_derivative(self, lin_pred):
+        if self.p == 1:
+            return numexpr.evaluate("exp(lin_pred)")
+        return numexpr.evaluate("((1-self.p)*lin_pred)**(self.p/(1-self.p))")
+
+    def inverse_derivative2(self, lin_pred):
+        if self.p == 1:
+            return numexpr.evaluate("exp(lin_pred)")
+        return numexpr.evaluate(
+            "self.p*((1-self.p)*lin_pred)**((2*self.p-1)/(1-self.p))"
+        )
