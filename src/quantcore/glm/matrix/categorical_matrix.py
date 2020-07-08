@@ -1,4 +1,3 @@
-import warnings
 from typing import List, Optional, Tuple, Union
 
 import numpy as np
@@ -147,6 +146,7 @@ class CategoricalMatrix(MatrixBase):
         R_cols: Optional[np.ndarray] = None,
     ) -> np.ndarray:
         if isinstance(other, np.ndarray):
+            # 65.1% initially, 34.5% now on a 4-core machine
             return self._cross_dense(other, d, rows, L_cols, R_cols)
         if isinstance(other, sps.csc_matrix):
             return self._cross_sparse(other, d, rows, L_cols, R_cols)
@@ -218,10 +218,13 @@ class CategoricalMatrix(MatrixBase):
         R_cols: Optional[np.ndarray],
     ) -> np.ndarray:
 
-        if not other.flags["C_CONTIGUOUS"]:
-            warnings.warn(
-                """CategoricalMatrix._cross_dense(other, ...) is optimized for the case
-                where other is a C-contiguous Numpy array."""
+        if other.flags["C_CONTIGUOUS"]:
+            is_c_contiguous = True
+        elif other.flags["F_CONTIGUOUS"]:
+            is_c_contiguous = False
+        else:
+            raise ValueError(
+                "Input array needs to be either C-contiguous or F-contiguous."
             )
 
         i_indices = self.indices
@@ -231,7 +234,9 @@ class CategoricalMatrix(MatrixBase):
         if R_cols is None:
             R_cols = np.arange(other.shape[1], dtype=np.int32)
 
-        res = sandwich_cat_dense(i_indices, self.shape[1], d, other, rows, R_cols)
+        res = sandwich_cat_dense(
+            i_indices, self.shape[1], d, other, rows, R_cols, is_c_contiguous
+        )
 
         res = res[_none_to_slice(L_cols, self.shape[1]), :]
         return res
