@@ -4,81 +4,17 @@ import json
 import warnings
 
 import numpy as np
-import pandas as pd
 import pytest
 from git_root import git_root
 from scipy import sparse
 
 import quantcore.glm.matrix as mx
 from quantcore.glm import GeneralizedLinearRegressor, GeneralizedLinearRegressorCV
+from quantcore.glm.data import simulate_glm_data
 from quantcore.glm.sklearn_fork._glm import TweedieDistribution
 
 distributions_to_test = ["normal", "poisson", "gamma", "tweedie_p=1.5", "binomial"]
 custom_family_link = [("normal", "log")]
-
-
-def tweedie_rv(p, mu, sigma2=1):
-    """Generates draws from a tweedie distribution with power p.
-
-    mu is the location parameter and sigma2 is the dispersion coefficient.
-    """
-    n = len(mu)
-    rand = np.random.default_rng(1)
-
-    # transform tweedie parameters into poisson and gamma
-    lambda_ = (mu ** (2 - p)) / ((2 - p) * sigma2)
-    alpha_ = (2 - p) / (p - 1)
-    beta_ = (mu ** (1 - p)) / ((p - 1) * sigma2)
-
-    arr_N = rand.poisson(lambda_)
-    out = np.empty(n, dtype=np.float64)
-    for i, N in enumerate(arr_N):
-        out[i] = np.sum(rand.gamma(alpha_, 1 / beta_[i], size=N))
-
-    return out
-
-
-def create_reg_data(
-    distribution="poisson", n_rows=5000, n_features_dense=10, n_features_ohe=2
-):
-    rand = np.random.default_rng(1)
-    X = rand.standard_normal(size=(n_rows, n_features_dense))
-    coefs = np.array([1.0, 0.5, 0.1, -0.1, -0.5, -1.0, 0, 0, 0, 0])
-
-    for i in range(n_features_ohe):
-        X = np.concatenate(
-            [X, pd.get_dummies(rand.integers(0, 10, size=(n_rows)), drop_first=False)],
-            axis=1,
-        )
-        coefs = np.concatenate([coefs, rand.uniform(size=10)])
-
-    intercept = 0.2
-    if distribution == "poisson":
-        y = rand.poisson(np.exp(intercept + X @ coefs))
-    elif distribution == "normal":
-        y = intercept + X @ coefs + rand.standard_normal(size=n_rows)
-    elif distribution == "gamma":
-        y = rand.gamma(np.exp(intercept + X @ coefs))
-    elif "tweedie" in distribution:
-        p = float(distribution.split("=")[1])
-        y = tweedie_rv(p, np.exp(intercept + X @ coefs))
-    elif distribution == "binomial":
-        prob = 1 / (1 + np.exp(-intercept - X @ coefs))
-        y = rand.binomial(n=1, p=prob)
-    else:
-        raise ValueError(f"{distribution} not supported as distribution")
-
-    weights = rand.uniform(size=n_rows)
-    offset = np.log(rand.uniform(size=n_rows))
-    data = {
-        "intercept": intercept,
-        "X": X,
-        "b": coefs,
-        "y": y,
-        "weights": weights,
-        "offset": offset,
-    }
-    return data
 
 
 def _make_P2():
@@ -90,35 +26,71 @@ def _make_P2():
 
 @pytest.fixture(scope="module")
 def data_all():
-    return {dist: create_reg_data(distribution=dist) for dist in distributions_to_test}
+    link_map = {
+        "normal": "identity",
+        "poisson": "log",
+        "gamma": "log",
+        "tweedie_p=1.5": "log",
+        "binomial": "logit",
+    }
+    return {
+        dist: simulate_glm_data(
+            family=dist,
+            link=link_map[dist],
+            n_rows=5000,
+            dense_features=10,
+            sparse_features=0,
+            categorical_features=2,
+            categorical_levels=10,
+            ohe_categorical=True,
+            drop_first=False,
+        )
+        for dist in distributions_to_test
+    }
 
 
 @pytest.fixture(
-    params=["dense", "scipy-sparse", "mkl-sparse", "split", "categorical"],
-    scope="module",
+    params=["categorical"], scope="module",
 )
 def data_all_storage(request):
     data = dict()
+    link_map = {
+        "normal": "identity",
+        "poisson": "log",
+        "gamma": "log",
+        "tweedie_p=1.5": "log",
+        "binomial": "logit",
+    }
     for dist in distributions_to_test:
-        data_dist = create_reg_data(
-            distribution=dist, n_rows=5000, n_features_dense=10, n_features_ohe=2
-        )
+        data_config = {
+            "family": dist,
+            "link": link_map[dist],
+            "n_rows": 5000,
+            "dense_features": 10,
+            "categorical_features": 2,
+            "categorical_levels": 10,
+        }
 
         if request.param == "dense":
+            data_dist = simulate_glm_data(**data_config, ohe_categorical=True)
             data_dist["X"] = mx.DenseGLMDataMatrix(data_dist["X"])
         elif request.param == "scipy-sparse":
+            data_dist = simulate_glm_data(**data_config, ohe_categorical=True)
             data_dist["X"] = sparse.csc_matrix(data_dist["X"])
         elif request.param == "mkl-sparse":
+            data_dist = simulate_glm_data(**data_config, ohe_categorical=True)
             data_dist["X"] = mx.MKLSparseMatrix(sparse.csc_matrix(data_dist["X"]))
         elif request.param == "split":
+            data_dist = simulate_glm_data(**data_config, ohe_categorical=True)
             data_dist["X"] = mx.csc_to_split(
                 sparse.csc_matrix(data_dist["X"]), threshold=0.1
             )
         elif request.param == "categorical":
-            dense_X = mx.DenseGLMDataMatrix(data_dist["X"][:, :10])
-            cat_1 = mx.CategoricalMatrix(data_dist["X"][:, 10:20] @ np.arange(10))
-            cat_2 = mx.CategoricalMatrix(data_dist["X"][:, 20:30] @ np.arange(10))
-            data_dist["X"] = mx.SplitMatrix([dense_X, cat_1, cat_2])
+            data_dist = simulate_glm_data(**data_config, ohe_categorical=False)
+            dense_X = mx.DenseGLMDataMatrix(data_dist["X"].iloc[:, :10])
+            cat0 = mx.CategoricalMatrix(data_dist["X"]["cat0"])
+            cat1 = mx.CategoricalMatrix(data_dist["X"]["cat1"])
+            data_dist["X"] = mx.SplitMatrix([dense_X, cat0, cat1])
 
         data[dist] = data_dist
 
@@ -254,9 +226,7 @@ def test_gm_custom_link(family_link, use_weights, use_offset, data_all, expected
     """Currently only testing log-linear model."""
     distribution, link = family_link
     data = data_all[distribution]
-    model_parameters = {
-        "link": link,
-    }
+    model_parameters = {"link": link}
     model = fit_model(
         data=data,
         family=distribution,
@@ -425,8 +395,16 @@ if __name__ == "__main__":
     except FileNotFoundError:
         gm_dict = dict()
 
+    link_map = {
+        "normal": "identity",
+        "poisson": "log",
+        "gamma": "log",
+        "tweedie_p=1.5": "log",
+        "binomial": "logit",
+    }
+
     for dist in distributions_to_test:
-        data = create_reg_data(dist)
+        data = simulate_glm_data(family=dist, link=link_map[dist])
         for mdl_param in gm_model_parameters.items():
             for use_weights in [True, False]:
                 for use_offset in [True, False]:
@@ -443,7 +421,7 @@ if __name__ == "__main__":
                     )
 
     for dist in distributions_to_test:
-        data = create_reg_data(dist)
+        data = simulate_glm_data(family=dist, link=link_map[dist])
         gm_dict = run_and_store_golden_master(
             distribution=dist,
             model_parameters={
@@ -461,7 +439,7 @@ if __name__ == "__main__":
         )
 
     for family, link in custom_family_link:
-        data = create_reg_data(family)
+        data = simulate_glm_data(family=family, link=link_map[family])
         for use_weights in [True, False]:
             for use_offset in [True, False]:
                 gm_dict = run_and_store_golden_master(
