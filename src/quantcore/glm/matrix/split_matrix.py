@@ -149,7 +149,6 @@ class SplitMatrix(MatrixBase):
                 return mat.getcol(loc)
         raise RuntimeError(f"Column {i} was not found.")
 
-    # taking 27%
     def sandwich(
         self,
         d: Union[np.ndarray, List],
@@ -197,10 +196,7 @@ class SplitMatrix(MatrixBase):
 
         return col_stds
 
-    # 28%
-    def dot(
-        self, v: np.ndarray, rows: np.ndarray = None, cols: np.ndarray = None
-    ) -> np.ndarray:
+    def dot(self, v: np.ndarray, cols: np.ndarray = None) -> np.ndarray:
         assert not isinstance(v, sps.spmatrix)
         v = np.asarray(v)
         if v.shape[0] != self.shape[1]:
@@ -210,13 +206,12 @@ class SplitMatrix(MatrixBase):
             cols = np.arange(self.shape[1], dtype=np.int32)
         _, subset_cols, n_cols = self._split_col_subsets(cols)
 
-        out_shape_base = [self.shape[0]] if rows is None else [rows.shape[0]]
-        out_shape = out_shape_base + ([] if v.ndim == 1 else list(v.shape[1:]))
+        out_shape = [self.shape[0]] + ([] if v.ndim == 1 else list(v.shape[1:]))
         out = np.zeros(out_shape, np.result_type(self.dtype, v.dtype))
         for sub_cols, idx, mat in zip(subset_cols, self.indices, self.matrices):
             one = v[idx, ...]
-            tmp = mat.dot(one, rows, sub_cols)
-            # 27% of time in this function is spent on this line
+            tmp = mat.dot(one, sub_cols)
+            # 43% of time in this function is spent on this line
             out += tmp
         return out
 
@@ -226,7 +221,6 @@ class SplitMatrix(MatrixBase):
         rows: np.ndarray = None,
         cols: np.ndarray = None,
     ) -> np.ndarray:
-        # 16.5%
         """
         self.T.dot(vec)[i] = sum_k self[k, i] vec[k]
         = sum_{k in self.dense_indices} self[k, i] vec[k] +

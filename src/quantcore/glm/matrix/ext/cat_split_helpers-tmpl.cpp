@@ -2,6 +2,29 @@
 
 
 template <typename F>
+void _transpose_dot_all_rows(
+    int n_rows,
+    int* indices,
+    F* other,
+    F* res,
+    int res_size
+) {
+    #pragma omp parallel
+    {
+        std::vector<F> restemp(res_size, 0.0);
+        #pragma omp for
+        for (int i = 0; i < n_rows; i++) {
+            restemp[indices[i]] += other[i];
+        }
+        for (int i = 0; i < res_size; i++) {
+            # pragma omp atomic
+            res[i] += restemp[i];
+        }
+    }
+}
+
+
+template <typename F>
 void _sandwich_cat_cat(
     F* d,
     const int* i_indices,
@@ -9,14 +32,24 @@ void _sandwich_cat_cat(
     int* rows,
     int len_rows,
     F* res,
-    int res_n_col
+    int res_n_col,
+    int res_size
 )
 {
-    for (int k_idx = 0; k_idx < len_rows; k_idx++) {
-        int k = rows[k_idx];
-        int i = i_indices[k];
-        int j = j_indices[k];
-        res[i * res_n_col + j] += d[k];
+    #pragma omp parallel
+    {
+        std::vector<F> restemp(res_size, 0.0);
+        # pragma omp for
+        for (int k_idx = 0; k_idx < len_rows; k_idx++) {
+            int k = rows[k_idx];
+            int i = i_indices[k];
+            int j = j_indices[k];
+            restemp[i * res_n_col + j] += d[k];
+        }
+        for (int i = 0; i < res_size; i ++) {
+            # pragma omp atomic
+            res[i] += restemp[i];
+        }
     }
 }
 
