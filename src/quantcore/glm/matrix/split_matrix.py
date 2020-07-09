@@ -210,9 +210,12 @@ class SplitMatrix(MatrixBase):
         out = np.zeros(out_shape, np.result_type(self.dtype, v.dtype))
         for sub_cols, idx, mat in zip(subset_cols, self.indices, self.matrices):
             one = v[idx, ...]
-            tmp = mat.dot(one, sub_cols)
-            # 43% of time in this function is spent on this line
-            out += tmp
+            if isinstance(mat, CategoricalMatrix):
+                mat.vec_plus_matvec(one, out, sub_cols)
+            else:
+                tmp = mat.dot(one, sub_cols)
+                # 27% of time in this function is spent on this line
+                out += tmp
         return out
 
     def transpose_dot(
