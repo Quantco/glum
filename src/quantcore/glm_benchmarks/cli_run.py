@@ -3,18 +3,17 @@ import pickle
 from typing import Any, Dict, List, Optional, Tuple
 
 import click
-
-from .bench_orig_sklearn_fork import orig_sklearn_fork_bench
-from .bench_quantcore_glm import quantcore_glm_bench
-from .problems import Problem, get_all_problems
-from .util import (
+from quantcore.glm_benchmarks.bench_orig_sklearn_fork import orig_sklearn_fork_bench
+from quantcore.glm_benchmarks.bench_quantcore_glm import quantcore_glm_bench
+from quantcore.glm_benchmarks.problems import Problem, get_all_problems
+from quantcore.glm_benchmarks.util import (
     BenchmarkParams,
     benchmark_params_cli,
     clear_cache,
     defaults,
     get_obj_val,
 )
-from .zeros_benchmark import zeros_bench
+from quantcore.glm_benchmarks.zeros_benchmark import zeros_bench
 
 try:
     from .bench_glmnet_python import glmnet_python_bench  # isort:skip
