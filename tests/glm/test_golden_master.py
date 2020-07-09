@@ -5,14 +5,11 @@ import warnings
 import numpy as np
 import pandas as pd
 import pytest
+import quantcore.matrix as mx
 from git_root import git_root
 from scipy import sparse
 
-import quantcore.glm.matrix as mx
-from quantcore.glm.sklearn_fork._glm import (
-    GeneralizedLinearRegressor,
-    TweedieDistribution,
-)
+from quantcore.glm._glm import GeneralizedLinearRegressor, TweedieDistribution
 
 distributions_to_test = ["normal", "poisson", "gamma", "tweedie_p=1.5", "binomial"]
 

@@ -6,8 +6,8 @@ import click
 import numpy as np
 import pandas as pd
 
-from quantcore.glm.problems import get_all_problems
-from quantcore.glm.util import (
+from .problems import get_all_problems
+from .util import (
     BenchmarkParams,
     benchmark_params_cli,
     clear_cache,
