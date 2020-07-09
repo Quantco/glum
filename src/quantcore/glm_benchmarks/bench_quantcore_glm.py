@@ -50,7 +50,7 @@ def quantcore_glm_bench(
         step_size_tol=0.01 * benchmark_convergence_tolerance,
         force_all_finite=False,
         hessian_approx=hessian_approx,
-        verbose=True,
+        verbose=False,
     )
 
     if not cv:
