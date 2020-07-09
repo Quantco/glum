@@ -33,19 +33,42 @@ def transpose_dot(int[:] indices, floating[:] other, int n_cols, dtype,
     return np.asarray(res)
 
 
+def get_col_included(int[:] cols, int n_cols):
+    cdef int[:] col_included = np.zeros(n_cols, dtype=np.int32)
+    cdef int n_cols_included = len(cols)
+    for Ci in range(n_cols_included):
+        col_included[cols[Ci]] = 1
+    return col_included
+
+
+def vec_plus_matvec(const int[:] indices, floating[:] other, int n_rows, dtype, int[:] cols,
+        int n_cols, floating[:] out_vec):
+    cdef int i, col, Ci, k
+    cdef int[:] col_included
+
+    if cols is None:
+        for i in range(n_rows):
+            out_vec[i] += other[indices[i]]
+    else:
+        col_included = get_col_included(cols, n_cols)
+        for i in range(n_rows):
+            col = indices[i]
+            if col_included[col] == 1:
+                out_vec[i] += indices[i]
+    return
+
+
 def dot(const int[:] indices, floating[:] other, int n_rows, dtype, int[:] cols,
         int n_cols):
     cdef floating[:] res = np.zeros(n_rows, dtype=dtype)
     cdef int i, col, Ci, k
-    cdef uint8[:] col_included
+    cdef int[:] col_included
 
     if cols is None:
         for i in prange(n_rows, nogil=True):
             res[i] = other[indices[i]]
     else:
-        col_included = np.zeros(n_cols, dtype=np.uint8)
-        for Ci in range(len(cols)):
-            col_included[cols[Ci]] = 1
+        col_included = get_col_included(cols, n_cols)
 
         for i in prange(n_rows, nogil=True):
             col = indices[i]
@@ -58,7 +81,7 @@ def dot(const int[:] indices, floating[:] other, int n_rows, dtype, int[:] cols,
 def sandwich_categorical(const int[:] indices, floating[:] d,
                         int[:] rows, dtype, int n_cols):
     cdef floating[:] res = np.zeros(n_cols, dtype=dtype)
-    cdef size_t i, k, k_idx
+    cdef int i, k, k_idx
     cdef int n_rows = len(rows)
 
     for k_idx in range(n_rows):

@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 from scipy import sparse as sps
 
-from .ext.categorical import dot, sandwich_categorical, transpose_dot
+from .ext.categorical import dot, sandwich_categorical, transpose_dot, vec_plus_matvec
 from .ext.split import sandwich_cat_cat, sandwich_cat_dense
 from .matrix_base import MatrixBase
 
@@ -48,24 +48,9 @@ class CategoricalMatrix(MatrixBase):
         """
         return self.cat.categories[self.cat.codes]
 
-    def dot(
+    def _dot_setup(
         self, other: Union[List, np.ndarray], cols: np.ndarray = None,
-    ) -> np.ndarray:
-        """
-        When other is 1d:
-        mat.dot(other)[i] = sum_j mat[i, j] other[j]
-                          = other[mat.indices[i]]
-
-        When other is 2d:
-        mat.dot(other)[i, k] = sum_j mat[i, j] other[j, k]
-                            = other[mat.indices[i], k]
-
-        The rows and cols parameters allow restricting to a subset of the
-        matrix without making a copy.
-
-        Test:
-        matrix/test_matrices::test_dot
-        """
+    ) -> Tuple[np.ndarray, Optional[np.ndarray]]:
         other = np.asarray(other)
         if other.ndim > 1:
             raise NotImplementedError(
@@ -79,7 +64,23 @@ class CategoricalMatrix(MatrixBase):
 
         if cols is not None and len(cols) == self.shape[1]:
             cols = None
+        return other, cols
 
+    def dot(
+        self, other: Union[List, np.ndarray], cols: np.ndarray = None,
+    ) -> np.ndarray:
+        """
+        When other is 1d:
+        mat.dot(other)[i] = sum_j mat[i, j] other[j]
+                          = other[mat.indices[i]]
+
+        The cols parameter allows restricting to a subset of the
+        matrix without making a copy.
+
+        Test:
+        matrix/test_matrices::test_dot
+        """
+        other, cols = self._dot_setup(other, cols)
         n_rows = self.shape[0]
         is_int = np.issubdtype(other.dtype, np.signedinteger)
 
@@ -92,6 +93,27 @@ class CategoricalMatrix(MatrixBase):
         if is_int:
             return res.astype(int)
         return res
+
+    def vec_plus_matvec(
+        self,
+        other: Union[List, np.ndarray],
+        out_vec: np.ndarray,
+        cols: np.ndarray = None,
+    ) -> None:
+        """
+        e.g. Lapack gemv
+        """
+        other, cols = self._dot_setup(other, cols)
+        # TODO: Not sure if this will work with any int inputs. Let's not support that
+        vec_plus_matvec(
+            self.indices,
+            other,
+            self.shape[0],
+            other.dtype,
+            cols,
+            self.shape[0],
+            out_vec,
+        )
 
     def transpose_dot(
         self,
