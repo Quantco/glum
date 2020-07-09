@@ -3,12 +3,12 @@ from typing import Any, Callable, Dict, Tuple
 
 import numpy as np
 import pandas as pd
+import quantcore.matrix as mx
+from quantcore.matrix.ext.dense import dense_sandwich
+from quantcore.matrix.ext.sparse import sparse_sandwich
 from scipy import sparse as sps
 
-import quantcore.glm.matrix as mx
-from quantcore.glm.matrix.ext.dense import dense_sandwich
-from quantcore.glm.matrix.ext.sparse import sparse_sandwich
-from quantcore.glm.problems import (
+from .problems import (
     generate_narrow_insurance_dataset,
     generate_wide_insurance_dataset,
     load_data,

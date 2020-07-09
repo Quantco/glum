@@ -1,9 +1,8 @@
 import numpy as np
 import pytest
-
-from quantcore.glm.cli_run import get_all_problems
-from quantcore.glm.problems import Problem
-from quantcore.glm.util import (
+from quantcore.glm_benchmarks.cli_run import get_all_problems
+from quantcore.glm_benchmarks.problems import Problem
+from quantcore.glm_benchmarks.util import (
     BenchmarkParams,
     exposure_and_offset_to_weights,
     get_obj_val,
