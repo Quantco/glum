@@ -1,9 +1,8 @@
 from typing import Union
 
 import numpy as np
+from quantcore.matrix import MatrixBase, StandardizedMat
 from scipy import sparse
-
-from quantcore.glm.matrix import MatrixBase, StandardizedMat
 
 
 def _safe_lin_pred(

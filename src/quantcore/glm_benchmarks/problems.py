@@ -5,12 +5,11 @@ from typing import Callable, Dict, List, Optional, Tuple, Union
 import attr
 import numpy as np
 import pandas as pd
+import quantcore.matrix as mx
 from dask_ml.preprocessing import DummyEncoder
 from git_root import git_root
 from joblib import Memory
 from scipy.sparse import csc_matrix
-
-import quantcore.glm.matrix as mx
 
 from .data import (
     generate_intermediate_insurance_dataset,

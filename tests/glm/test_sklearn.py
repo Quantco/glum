@@ -6,6 +6,7 @@ from typing import Tuple, Union
 
 import numpy as np
 import pytest
+import quantcore.matrix as mx
 import scipy as sp
 from numpy.testing import assert_allclose, assert_array_equal
 from scipy import optimize, sparse
@@ -16,10 +17,9 @@ from sklearn.linear_model import ElasticNet, LogisticRegression, Ridge
 from sklearn.metrics import mean_absolute_error
 from sklearn.utils.estimator_checks import check_estimator
 
-import quantcore.glm.matrix as mx
-from quantcore.glm.sklearn_fork import GeneralizedLinearRegressorCV
-from quantcore.glm.sklearn_fork._distribution import guess_intercept
-from quantcore.glm.sklearn_fork._glm import (
+from quantcore.glm import GeneralizedLinearRegressorCV
+from quantcore.glm._distribution import guess_intercept
+from quantcore.glm._glm import (
     BinomialDistribution,
     ExponentialDispersionModel,
     GammaDistribution,
@@ -36,7 +36,7 @@ from quantcore.glm.sklearn_fork._glm import (
     _unstandardize,
     is_pos_semidef,
 )
-from quantcore.glm.sklearn_fork._util import _safe_sandwich_dot
+from quantcore.glm._util import _safe_sandwich_dot
 
 GLM_SOLVERS = ["irls-ls", "lbfgs", "irls-cd"]
 
