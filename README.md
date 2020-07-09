@@ -4,7 +4,6 @@
 
 For details on the benchmarking subcomponent, [see here](src/quantcore/glm_benchmarks/README.md).
 
-
 ## Golden master tests
 
 There are two sets of golden master tests, one with artificial data and one directly using the benchmarks and the problems. For both sets of tests, creating the golden master and the tests definition are located in the same file. Calling the file with pytest will run the tests while calling the file as a python script will generate the golden master result. When creating the golden master results, both scripts accept the `--overwrite` command line flag. If set, the existing golden master results will be overwritten. Otherwise, only the new problems will be run.
