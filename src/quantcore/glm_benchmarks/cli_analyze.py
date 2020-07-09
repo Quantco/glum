@@ -5,9 +5,8 @@ from typing import Any, Dict, List, Optional
 import click
 import numpy as np
 import pandas as pd
-
-from .problems import get_all_problems
-from .util import (
+from quantcore.glm_benchmarks.problems import get_all_problems
+from quantcore.glm_benchmarks.util import (
     BenchmarkParams,
     benchmark_params_cli,
     clear_cache,
