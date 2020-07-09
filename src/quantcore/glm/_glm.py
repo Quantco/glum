@@ -381,10 +381,8 @@ def get_link(link: Union[str, Link], family: ExponentialDispersionModel) -> Link
         return LogLink()
     if link == "logit":
         return LogitLink()
-    if link == "tweedie":
-        if isinstance(family, TweedieDistribution):
-            return TweedieLink(family.power)
-        raise ValueError("Tweedie link requires Tweedie distribution.")
+    if link[:7] == "tweedie":
+        return TweedieLink(float(link[7:]))
     raise ValueError(
         """The link must be an instance of class Link or an element of
         ['auto', 'identity', 'log', 'logit', 'tweedie']; got (link={})""".format(

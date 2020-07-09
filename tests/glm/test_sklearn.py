@@ -33,6 +33,7 @@ from quantcore.glm._glm import (
     NormalDistribution,
     PoissonDistribution,
     TweedieDistribution,
+    TweedieLink,
     _unstandardize,
     is_pos_semidef,
 )
@@ -162,6 +163,8 @@ def test_deviance_zero(family, chk_values):
         (TweedieDistribution(power=1.5), LogLink()),
         (TweedieDistribution(power=2.5), LogLink()),
         (BinomialDistribution(), LogitLink()),
+        (TweedieDistribution(power=1.5), TweedieLink(1.5)),
+        (TweedieDistribution(power=2.5), TweedieLink(2.5)),
     ],
     ids=lambda args: args.__class__.__name__,
 )
@@ -209,6 +212,7 @@ def test_gradients(family, link):
         (InverseGaussianDistribution(), LogLink(), False),
         (TweedieDistribution(power=1.5), LogLink(), True),
         (TweedieDistribution(power=4.5), LogLink(), False),
+        (TweedieDistribution(power=1.5), TweedieLink(1.5), False),
     ],
     ids=lambda args: args.__class__.__name__,
 )
