@@ -106,10 +106,5 @@ class DenseGLMDataMatrix(np.ndarray, MatrixBase):
     ) -> np.ndarray:
         return self.dot_helper(vec, rows, cols, True)
 
-    def dot(
-        self,
-        vec: Union[np.ndarray, List],
-        rows: np.ndarray = None,
-        cols: np.ndarray = None,
-    ) -> np.ndarray:
-        return self.dot_helper(vec, rows, cols, False)
+    def dot(self, vec: Union[np.ndarray, List], cols: np.ndarray = None,) -> np.ndarray:
+        return self.dot_helper(vec, None, cols, False)

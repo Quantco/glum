@@ -49,12 +49,8 @@ class CategoricalMatrix(MatrixBase):
         return self.cat.categories[self.cat.codes]
 
     def dot(
-        self,
-        other: Union[List, np.ndarray],
-        rows: np.ndarray = None,
-        cols: np.ndarray = None,
+        self, other: Union[List, np.ndarray], cols: np.ndarray = None,
     ) -> np.ndarray:
-        # taking 14% of time
         """
         When other is 1d:
         mat.dot(other)[i] = sum_j mat[i, j] other[j]
@@ -81,21 +77,21 @@ class CategoricalMatrix(MatrixBase):
                 but it has shape {other.shape}"""
             )
 
-        if cols is None:
-            other_m = other
+        if cols is not None and len(cols) == self.shape[1]:
+            cols = None
+
+        n_rows = self.shape[0]
+        is_int = np.issubdtype(other.dtype, np.signedinteger)
+
+        if is_int:
+            other_m = other.astype(float)
         else:
-            col_mult = np.zeros(len(self.cat.categories), dtype=self.dtype)
-            col_mult[cols] = 1.0
-            other_m = other * col_mult
+            other_m = other
 
-        if rows is None or len(rows) == self.shape[0]:
-            if np.issubdtype(other_m.dtype, np.signedinteger):
-                other_m = other_m.astype(float)
-                res = dot(self.indices, other_m, self.shape[0], other_m.dtype)
-                return res.astype(int)
-            return dot(self.indices, other_m, self.shape[0], other.dtype)
-
-        return other_m[self.indices[rows]]
+        res = dot(self.indices, other_m, self.shape[0], other_m.dtype, cols, n_rows)
+        if is_int:
+            return res.astype(int)
+        return res
 
     def transpose_dot(
         self,
@@ -159,7 +155,6 @@ class CategoricalMatrix(MatrixBase):
         L_cols: Optional[np.ndarray] = None,
         R_cols: Optional[np.ndarray] = None,
     ) -> np.ndarray:
-        # 19%
         if isinstance(other, np.ndarray):
             return self._cross_dense(other, d, rows, L_cols, R_cols)
         if isinstance(other, sps.csc_matrix):
@@ -167,20 +162,6 @@ class CategoricalMatrix(MatrixBase):
         if isinstance(other, CategoricalMatrix):
             return self._cross_categorical(other, d, rows, L_cols, R_cols)
         raise TypeError
-
-    def _check_csc(self, force_reset=False) -> Tuple[None, np.ndarray, np.ndarray]:
-        if self.x_csc is None or force_reset:
-            # Currently taking up a lot of time
-            csc = self.tocsr().tocsc()
-            self.x_csc = (None, csc.indices, csc.indptr)
-        else:
-            assert True
-        return self.x_csc
-
-    def tocsc(self):
-        _, indices, indptr = self._check_csc()
-        data = np.ones(self.shape[0])
-        return sps.csc_matrix((data, indices, indptr))
 
     # TODO: best way to return this depends on the use case. See what that is
     # See how csr getcol works

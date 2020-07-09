@@ -14,11 +14,11 @@ class MatrixBase(ABC):
     dtype: np.dtype
 
     @abstractmethod
-    def dot(self, other, rows: np.ndarray = None, cols: np.ndarray = None):
+    def dot(self, other, cols: np.ndarray = None):
         """
-        Perform: self[rows, cols] @ other
+        Perform: self[:, cols] @ other
 
-        The rows and cols parameters allow restricting to a subset of the
+        The cols parameter allows restricting to a subset of the
         matrix without making a copy.
         """
         pass

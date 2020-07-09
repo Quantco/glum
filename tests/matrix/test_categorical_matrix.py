@@ -1,6 +1,5 @@
 import numpy as np
 import pytest
-from scipy import sparse as sps
 from sklearn.preprocessing import OneHotEncoder
 
 from quantcore.glm.matrix.categorical_matrix import CategoricalMatrix
@@ -34,24 +33,6 @@ def test_tocsr(cat_vec):
     res = cat_mat.tocsr().A
     expected = OneHotEncoder().fit_transform(cat_vec[:, None]).A
     np.testing.assert_allclose(res, expected)
-
-
-def test_check_csc(cat_vec):
-    cat_mat = CategoricalMatrix(cat_vec)
-    data, indices, indptr = cat_mat._check_csc()
-    data = np.ones(cat_mat.shape[0], dtype=int) if data is None else data
-    res = sps.csc_matrix((data, indices, indptr), shape=cat_mat.shape)
-    expected = cat_mat.tocsr().tocsc()
-    np.testing.assert_allclose(res.indices, expected.indices)
-    np.testing.assert_allclose(res.indptr, expected.indptr)
-
-
-def test_to_csc(cat_vec):
-    cat_mat = CategoricalMatrix(cat_vec)
-    res = cat_mat.tocsc()
-    expected = cat_mat.tocsr().tocsc()
-    np.testing.assert_allclose(res.indices, expected.indices)
-    np.testing.assert_allclose(res.indptr, expected.indptr)
 
 
 def test_transpose_dot(cat_vec):

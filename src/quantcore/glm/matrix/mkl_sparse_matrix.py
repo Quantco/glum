@@ -130,8 +130,8 @@ class MKLSparseMatrix(sps.csc_matrix, MatrixBase):
                 self[np.ix_(rows, cols)], vec[rows] if transpose else vec[cols]
             )
 
-    def dot(self, vec, rows: np.ndarray = None, cols: np.ndarray = None):
-        return self.dot_helper(vec, rows, cols, False)
+    def dot(self, vec, cols: np.ndarray = None):
+        return self.dot_helper(vec, None, cols, False)
 
     __array_priority__ = 12
 

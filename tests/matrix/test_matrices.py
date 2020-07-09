@@ -121,22 +121,21 @@ def test_to_array_standardized_mat(mat: mx.StandardizedMat):
 @pytest.mark.parametrize(
     "other_type", [lambda x: x, np.asarray, mx.DenseGLMDataMatrix],
 )
-@pytest.mark.parametrize("rows", [None, np.arange(2, dtype=np.int32)])
 @pytest.mark.parametrize("cols", [None, np.arange(1, dtype=np.int32)])
-def test_dot(mat: Union[mx.MatrixBase, mx.StandardizedMat], other_type, rows, cols):
+def test_dot(mat: Union[mx.MatrixBase, mx.StandardizedMat], other_type, cols):
     n_row = mat.shape[1]
     shape = (n_row,)
     other_as_list = np.random.random(shape).tolist()
     other = other_type(other_as_list)
-    res = mat.dot(other, rows, cols)
+    res = mat.dot(other, cols)
 
-    mat_subset, vec_subset = process_mat_vec_subsets(mat, other, rows, cols, cols)
+    mat_subset, vec_subset = process_mat_vec_subsets(mat, other, None, cols, cols)
     expected = mat_subset.dot(vec_subset)
 
     np.testing.assert_allclose(res, expected)
     assert isinstance(res, np.ndarray)
 
-    if rows is None and cols is None:
+    if cols is None:
         res2 = mat @ other
         np.testing.assert_allclose(res2, expected)
 
