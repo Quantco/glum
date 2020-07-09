@@ -5,10 +5,9 @@ import click
 import numpy as np
 import pytest
 from git_root import git_root
-
-from quantcore.glm.cli_run import execute_problem_library
-from quantcore.glm.problems import Problem, get_all_problems
-from quantcore.glm.util import BenchmarkParams, get_obj_val
+from quantcore.glm_benchmarks.cli_run import execute_problem_library
+from quantcore.glm_benchmarks.problems import Problem, get_all_problems
+from quantcore.glm_benchmarks.util import BenchmarkParams, get_obj_val
 
 bench_cfg = dict(num_rows=10000, regularization_strength=0.1, diagnostics_level="none")
 
@@ -117,7 +116,7 @@ def exec(Pn):
     execute_args = ["diagnostics_level"]
     params = BenchmarkParams(
         problem_name=Pn,
-        library_name="sklearn-fork",
+        library_name="quantcore-glm",
         **{k: v for k, v in bench_cfg.items() if k not in execute_args},
     )
     if bench_cfg["diagnostics_level"] != "none":
