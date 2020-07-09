@@ -164,12 +164,33 @@ class TweedieLink(Link):
         return (1 - self.p) * mu ** (-self.p)
 
     def inverse(self, lin_pred):
-        return lin_pred ** (1 / (1 - self.p))
+        result = lin_pred ** (1 / (1 - self.p))
+        if sum(np.isnan(result)):
+            warnings.warn(
+                "Your linear predictors were not supported for p="
+                + str(self.p)
+                + ". For negative linear predictors, consider using a log link instead."
+            )
+        return result
 
     def inverse_derivative(self, lin_pred):
-        return (1 / (1 - self.p)) * lin_pred ** (self.p / (1 - self.p))
+        result = (1 / (1 - self.p)) * lin_pred ** (self.p / (1 - self.p))
+        if sum(np.isnan(result)):
+            warnings.warn(
+                "Your linear predictors were not supported for p="
+                + str(self.p)
+                + ". For negative linear predictors, consider using a log link instead."
+            )
+        return result
 
     def inverse_derivative2(self, lin_pred):
-        return (self.p / (1 - self.p) ** 2) * lin_pred ** (
+        result = (self.p / (1 - self.p) ** 2) * lin_pred ** (
             (2 * self.p - 1) / (1 - self.p)
         )
+        if sum(np.isnan(result)):
+            warnings.warn(
+                "Your linear predictors were not supported for p="
+                + str(self.p)
+                + ". For negative linear predictors, consider using a log link instead."
+            )
+        return result
