@@ -82,7 +82,10 @@ def test_link_properties(link):
     """Test link inverse and derivative."""
     rng = np.random.RandomState(42)
     x = rng.rand(100) * 100
-    link = link()  # instantiate object
+    if link.__name__ == "TweedieLink":
+        link = link(1.5)
+    else:
+        link = link()  # instantiate object
     if isinstance(link, LogitLink):
         # careful for large x, note expit(36) = 1
         # limit max eta to 15
