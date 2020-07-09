@@ -146,10 +146,13 @@ class TweedieLink(Link):
     """The Tweedie link function g(x)=x^(1-p) if p!=1 and log(x) if p=1."""
 
     def __new__(cls, p):
+        if p == 0:
+            return IdentityLink()
         if p == 1:
             return LogLink()
-        else:
-            return super(TweedieLink, cls).__new__(cls)
+        if p == 1:
+            return LogLink()
+        return super(TweedieLink, cls).__new__(cls)
 
     def __init__(self, p):
         self.p = p
