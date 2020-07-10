@@ -18,8 +18,8 @@ GLM_SOLVERS = ["irls", "lbfgs", "cd"]
         np.asarray,
         sparse.csc_matrix,
         sparse.csr_matrix,
-        mx.DenseGLMDataMatrix,
-        lambda x: mx.MKLSparseMatrix(sparse.csc_matrix(x)),
+        mx.DenseMatrix,
+        lambda x: mx.SparseMatrix(sparse.csc_matrix(x)),
         lambda x: mx.csc_to_split(sparse.csc_matrix(x)),
     ],
 )
