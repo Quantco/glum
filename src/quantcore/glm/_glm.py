@@ -108,9 +108,9 @@ def check_array_matrix_compliant(mat: ArrayLike, **kwargs):
         ]
         for i, m in enumerate(new_matrices):
             if isinstance(m, np.ndarray):
-                new_matrices[i] = mx.DenseGLMDataMatrix(m)
+                new_matrices[i] = mx.DenseMatrix(m)
             elif isinstance(mat, sparse.spmatrix):
-                new_matrices[i] = mx.MKLSparseMatrix(m)
+                new_matrices[i] = mx.SparseMatrix(m)
 
         return mx.SplitMatrix(new_matrices, mat.indices)
 
@@ -122,7 +122,7 @@ def check_array_matrix_compliant(mat: ArrayLike, **kwargs):
     original_type = type(mat)
     res = check_array(mat, **kwargs)
 
-    if original_type in (mx.DenseGLMDataMatrix, mx.MKLSparseMatrix):
+    if original_type in (mx.DenseMatrix, mx.SparseMatrix):
         res = original_type(res)  # type: ignore
     return res
 
@@ -1304,9 +1304,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         # 2b. convert to wrapper matrix types
         #######################################################################
         if sparse.issparse(X):
-            X = mx.MKLSparseMatrix(X)
+            X = mx.SparseMatrix(X)
         elif isinstance(X, np.ndarray):
-            X = mx.DenseGLMDataMatrix(X)
+            X = mx.DenseMatrix(X)
 
         return X, y, weights, offset, weights_sum
 
