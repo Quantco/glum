@@ -68,13 +68,13 @@ def data_all_storage(request):
 
         if request.param == "dense":
             data_dist = simulate_glm_data(**data_config, ohe_categorical=True)
-            data_dist["X"] = mx.DenseGLMDataMatrix(data_dist["X"])
+            data_dist["X"] = mx.DenseMatrix(data_dist["X"])
         elif request.param == "scipy-sparse":
             data_dist = simulate_glm_data(**data_config, ohe_categorical=True)
             data_dist["X"] = sparse.csc_matrix(data_dist["X"])
         elif request.param == "mkl-sparse":
             data_dist = simulate_glm_data(**data_config, ohe_categorical=True)
-            data_dist["X"] = mx.MKLSparseMatrix(sparse.csc_matrix(data_dist["X"]))
+            data_dist["X"] = mx.SparseMatrix(sparse.csc_matrix(data_dist["X"]))
         elif request.param == "split":
             data_dist = simulate_glm_data(**data_config, ohe_categorical=True)
             data_dist["X"] = mx.csc_to_split(
@@ -82,9 +82,7 @@ def data_all_storage(request):
             )
         elif request.param == "categorical":
             data_dist = simulate_glm_data(**data_config, ohe_categorical=False)
-            dense_X = mx.DenseGLMDataMatrix(
-                np.ascontiguousarray(data_dist["X"].iloc[:, :10])
-            )
+            dense_X = mx.DenseMatrix(np.ascontiguousarray(data_dist["X"].iloc[:, :10]))
             cat0 = mx.CategoricalMatrix(data_dist["X"]["cat0"])
             cat1 = mx.CategoricalMatrix(data_dist["X"]["cat1"])
             data_dist["X"] = mx.SplitMatrix([dense_X, cat0, cat1])
