@@ -5,7 +5,7 @@ from typing import Tuple, Union
 
 import numexpr
 import numpy as np
-from quantcore.matrix import MatrixBase, StandardizedMat
+from quantcore.matrix import MatrixBase, StandardizedMatrix
 from scipy import special
 
 from ._functions import (
@@ -353,7 +353,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         link: Link,
         coef: np.ndarray,
         phi,
-        X: Union[MatrixBase, StandardizedMat],
+        X: Union[MatrixBase, StandardizedMatrix],
         y: np.ndarray,
         weights: np.ndarray,
         eta: np.ndarray,
