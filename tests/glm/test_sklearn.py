@@ -1268,12 +1268,12 @@ def test_standardize(use_sparse, scale_predictors):
         Xdense = X
     for i in range(1, NC):
         if scale_predictors:
-            if isinstance(Xdense, mx.StandardizedMat):
+            if isinstance(Xdense, mx.StandardizedMatrix):
                 one, two = Xdense.A[:, 0], Xdense.A[:, i]
             else:
                 one, two = Xdense[:, 0], Xdense[:, i]
         else:
-            if isinstance(Xdense, mx.StandardizedMat):
+            if isinstance(Xdense, mx.StandardizedMatrix):
                 one, two = (i + 1) * Xdense.A[:, 0], Xdense.A[:, i]
             else:
                 one, two = (i + 1) * Xdense[:, 0], Xdense[:, i]
