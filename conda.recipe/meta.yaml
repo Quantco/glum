@@ -41,7 +41,7 @@ requirements:
     - scikit-learn >=0.23
     - scipy
     - sparse_dot_mkl >=0.4.0
-    - quantcore.matrix
+    - quantcore.matrix >=0.2.0
 
 test:
   requires:
