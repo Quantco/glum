@@ -35,4 +35,4 @@ dependencies:
   - xsimd
   - dask-ml
   - tqdm
-  - quantcore.matrix
+  - quantcore.matrix>=0.0.2
