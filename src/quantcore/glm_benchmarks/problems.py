@@ -83,7 +83,7 @@ def load_data(
                 dense_indices_in_expanded_arr.append(i)
                 i += 1
 
-        non_cat_part = mx.DenseGLMDataMatrix(
+        non_cat_part = mx.DenseMatrix(
             np.hstack(
                 [
                     elt.values
