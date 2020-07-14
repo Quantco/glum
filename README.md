@@ -2,9 +2,71 @@
 
 ![CI](https://github.com/Quantco/glm_benchmarks/workflows/CI/badge.svg)
 
-For details on the benchmarking subcomponent, [see here](src/quantcore/glm_benchmarks/README.md).
+Generalized linear models (GLM) are a core statistical tool that include many common methods like least-squares regression, Poisson regression and logistic regression as special cases. At QuantCo, we have used GLMs in e-commerce pricing, insurance claims prediction and more. We have developed `quantcore.glm`, a fast Python-first GLM library. `quantcore.glm` is starting to be used at DIL and will soon be used by DIL actuaries. It is based on a fork of scikit-learn, so it has a scikit-learn-like API.
+
+`quantcore.glm` is at least as feature-complete as existing GLM libraries like `glmnet` or `h2o`. It supports
+
+* Built-in cross validation for optimal regularization, efficiently exploiting a “regularization path”
+* L1 and elastic net regularization, which produce sparse and easily interpretable solutions
+* L2 regularization, including variable matrix-valued (Tikhonov) penalties, which are useful in modeling correlated effects
+* Normal, Poisson, logistic, gamma, and Tweedie distributions, plus varied and customizable link functions
+* Box constraints, sample weights, offsets.
+
+This repo also includes  tools for benchmarking GLM implementations in the `quantcore.glm_benchmarks` module. For details on the benchmarking, [see here](src/quantcore/glm_benchmarks/README.md).
+
+## A quick usage example
+
+```
+import pandas as pd
+import numpy as np
+
+from quantcore.glm_benchmarks.problems import load_data, generate_narrow_insurance_dataset
+from quantcore.glm_benchmarks.util import get_obj_val
+from quantcore.glm import GeneralizedLinearRegressor
+
+# Load the French Motor Insurance dataset
+dat = load_data(generate_narrow_insurance_dataset)
+X, y, weights = dat['X'], dat['y'], dat['weights']
+
+# Model the number of claims per year as Poisson and regularize using a L1-penalty.
+model = GeneralizedLinearRegressor(
+    family='poisson',
+    l1_ratio=1.0,
+    alpha=0.001
+)
+
+model.fit(X=X, y=y, sample_weight=weights)
+
+# .report_diagnostics shows details about the steps taken by the iterative solver
+model.report_diagnostics(True)
+
+print(pd.DataFrame(dict(name=X.columns, coef=model.coef_)).set_index('name'))
+
+print('Percent of coefficients non-zero', 100 * np.mean(np.abs(model.coef_) > 0))
+print('Zeros RMSE', np.sqrt(np.mean((0 - y) ** 2)))
+print('Model RMSE', np.sqrt(np.mean((model.predict(X) - y) ** 2)))
+print('Zeros log-likelihood', get_obj_val(dat, 'poisson', 0.0, 0.0, 0, np.zeros_like(model.coef_)))
+print('Model log-likelihood', get_obj_val(dat, 'poisson', 0.0, 0.0, model.intercept_, model.coef_))
+
+
+>>> Percent of coefficients non-zero 24.074074074074073
+>>> Zeros RMSE 4.593120173102336
+>>> Model RMSE 4.584480161172895
+>>> Zeros log-likelihood 0.9999999999996729
+>>> Model log-likelihood 0.3167597964655323
+```
+
+## A more extensive introduction
+
+https://scikit-learn.org/stable/modules/linear_model.html#generalized-linear-regression
+
+https://scikit-learn.org/stable/auto_examples/linear_model/plot_tweedie_regression_insurance_claims.html
+
+https://github.com/Quantco/french-motor-glm-tutorial
 
 ## Golden master tests
+
+We use golden master testing to preserve correctness. The results of many different GLM models have been saved. After an update, the continuous integration
 
 There are two sets of golden master tests, one with artificial data and one directly using the benchmarks and the problems. For both sets of tests, creating the golden master and the tests definition are located in the same file. Calling the file with pytest will run the tests while calling the file as a python script will generate the golden master result. When creating the golden master results, both scripts accept the `--overwrite` command line flag. If set, the existing golden master results will be overwritten. Otherwise, only the new problems will be run.
 
