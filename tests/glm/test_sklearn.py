@@ -215,7 +215,7 @@ def test_hessian_matrix(family, link, true_hessian):
     coef = np.array([-2, 1, 0, 1, 2.5])
     phi = 0.5
     rng = np.random.RandomState(42)
-    X = mx.DenseGLMDataMatrix(rng.randn(10, 5))
+    X = mx.DenseMatrix(rng.randn(10, 5))
     lin_pred = np.dot(X, coef)
     mu = link.inverse(lin_pred)
     weights = rng.randn(10) ** 2 + 1
@@ -628,8 +628,8 @@ def test_glm_check_input_argument(estimator, check_input):
         np.asarray,
         sparse.csc_matrix,
         sparse.csr_matrix,
-        mx.DenseGLMDataMatrix,
-        lambda x: mx.MKLSparseMatrix(sparse.csc_matrix(x)),
+        mx.DenseMatrix,
+        lambda x: mx.SparseMatrix(sparse.csc_matrix(x)),
         lambda x: mx.split_matrix.csc_to_split(sparse.csc_matrix(x)),
     ],
 )
@@ -667,8 +667,8 @@ def test_glm_identity_regression(solver, fit_intercept, offset, convert_x_fn):
         np.asarray,
         sparse.csc_matrix,
         sparse.csr_matrix,
-        lambda x: mx.DenseGLMDataMatrix(x.astype(float)),
-        lambda x: mx.MKLSparseMatrix(sparse.csc_matrix(x)),
+        lambda x: mx.DenseMatrix(x.astype(float)),
+        lambda x: mx.SparseMatrix(sparse.csc_matrix(x)),
         lambda x: mx.split_matrix.csc_to_split(sparse.csc_matrix(x).astype(float)),
         lambda x: mx.CategoricalMatrix(x.dot([0, 1])),
     ],
@@ -1246,9 +1246,9 @@ def test_standardize(use_sparse, scale_predictors):
     M = row_mults[:, None] * col_mults[None, :]
 
     if use_sparse:
-        M = mx.MKLSparseMatrix(sparse.csc_matrix(M))
+        M = mx.SparseMatrix(sparse.csc_matrix(M))
     else:
-        M = mx.DenseGLMDataMatrix(M)
+        M = mx.DenseMatrix(M)
 
     X, col_means, col_stds = M.standardize(np.ones(NR) / NR, True, scale_predictors)
     if use_sparse:
@@ -1268,12 +1268,12 @@ def test_standardize(use_sparse, scale_predictors):
         Xdense = X
     for i in range(1, NC):
         if scale_predictors:
-            if isinstance(Xdense, mx.StandardizedMat):
+            if isinstance(Xdense, mx.StandardizedMatrix):
                 one, two = Xdense.A[:, 0], Xdense.A[:, i]
             else:
                 one, two = Xdense[:, 0], Xdense[:, i]
         else:
-            if isinstance(Xdense, mx.StandardizedMat):
+            if isinstance(Xdense, mx.StandardizedMatrix):
                 one, two = (i + 1) * Xdense.A[:, 0], Xdense.A[:, i]
             else:
                 one, two = (i + 1) * Xdense[:, 0], Xdense[:, i]
