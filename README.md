@@ -14,6 +14,35 @@ Generalized linear models (GLM) are a core statistical tool that include many co
 
 This repo also includes  tools for benchmarking GLM implementations in the `quantcore.glm_benchmarks` module. For details on the benchmarking, [see here](src/quantcore/glm_benchmarks/README.md).
 
+## Installation
+
+You can install the package in development mode using:
+
+```bash
+# First, make sure you have conda-forge as your primary conda channel:
+conda config --add channels conda-forge
+# And install pre-commit
+conda install -y pre-commit
+
+git clone git@github.com:Quantco/glm_benchmarks.git
+cd glm_benchmarks
+
+# Set up our pre-commit hooks for black, mypy, isort and flake8.
+pre-commit install
+
+# Set up the quantco_main conda channel. For the password, substitute in the correct password. You should be able to get the password by searching around on slack or asking on the glm_benchmarks slack channel!
+conda config --system --prepend channels quantco_main
+conda config --system --set custom_channels.quantco_main https://dil_ro:password@conda.quantco.cloud
+  
+# Set up a conda environment with name "quantcore.glm"
+conda install mamba=0.2.12
+mamba env create
+
+# Install this package in editable mode. 
+conda activate quantcore.glm
+pip install --no-use-pep517 --disable-pip-version-check -e .
+```
+
 ## A quick usage example
 
 ```
@@ -56,17 +85,18 @@ print('Model log-likelihood', get_obj_val(dat, 'poisson', 0.0, 0.0, model.interc
 >>> Model log-likelihood 0.3167597964655323
 ```
 
-## A more extensive introduction
+## A more extensive introduction to GLM modeling via the sklearn interface
 
-https://scikit-learn.org/stable/modules/linear_model.html#generalized-linear-regression
+(This is an excellent tutorial walking through modeling the French Motor Insurance dataset. It is based on the sklearn fork that `quantcore.glm` was originally based on.)[https://scikit-learn.org/stable/auto_examples/linear_model/plot_tweedie_regression_insurance_claims.html]
 
-https://scikit-learn.org/stable/auto_examples/linear_model/plot_tweedie_regression_insurance_claims.html
-
+(See here for a Jupyter Notebook of a similar tutorial that has been converted from using the sklearn interface to using `quantcore.glm`)[https://github.com/Quantco/french-motor-glm-tutorial/blob/master/glm_freMTPL2_example.ipynb]
 https://github.com/Quantco/french-motor-glm-tutorial
+
+(This is a brief tutorial on Tweedie Regression with L2 regularization from sklearn. `quantcore.glm` has many more features and capabilities but it can also replicate everything done here)[https://scikit-learn.org/stable/modules/linear_model.html#generalized-linear-regression]
 
 ## Golden master tests
 
-We use golden master testing to preserve correctness. The results of many different GLM models have been saved. After an update, the continuous integration
+We use golden master testing to preserve correctness. The results of many different GLM models have been saved. After an update, the continuous integration system
 
 There are two sets of golden master tests, one with artificial data and one directly using the benchmarks and the problems. For both sets of tests, creating the golden master and the tests definition are located in the same file. Calling the file with pytest will run the tests while calling the file as a python script will generate the golden master result. When creating the golden master results, both scripts accept the `--overwrite` command line flag. If set, the existing golden master results will be overwritten. Otherwise, only the new problems will be run.
 
