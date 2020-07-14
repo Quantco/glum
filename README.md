@@ -54,6 +54,7 @@ pip install --no-use-pep517 --disable-pip-version-check -e .
 
 ## A quick usage example
 
+This example uses a public French car insurance dataset. 
 ```
 import pandas as pd
 import numpy as np
