@@ -11,35 +11,6 @@ Python package to benchmark GLM implementations.
 [Link to google doc that discusses some of the optimizations and improvements we have made](https://docs.google.com/document/d/1wd6_bV9OUFjqc9WGtELDJ1Kdv1jrrticivd50POTeqo/edit)
 
 
-## Installation
-
-You can install the package in development mode using:
-
-```bash
-# First, make sure you have conda-forge as your primary conda channel:
-conda config --add channels conda-forge
-# And install pre-commit
-conda install -y pre-commit
-
-git clone git@github.com:Quantco/glm_benchmarks.git
-cd glm_benchmarks
-
-# Set up our pre-commit hooks for black, mypy, isort and flake8.
-pre-commit install
-
-# Set up the quantco_main conda channel. For the password, substitute in the correct password. You should be able to get the password by searching around on slack or asking on the glm_benchmarks slack channel!
-conda config --system --prepend channels quantco_main
-conda config --system --set custom_channels.quantco_main https://dil_ro:password@conda.quantco.cloud
-  
-# Set up a conda environment with name "quantcore.glm"
-conda install mamba=0.2.12
-mamba env create
-
-# Install this package in editable mode. 
-conda activate quantcore.glm
-pip install --no-use-pep517 --disable-pip-version-check -e .
-```
-
 ## Running the benchmarks
 
 After installing the package, you should have two CLI tools: `glm_benchmarks_run` and `glm_benchmarks_analyze`. Use the `--help` flag for full details. Look in `src/quantcore/glm/problems.py` to see the list of problems that will be run through each library.
