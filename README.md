@@ -16,7 +16,16 @@ This repo also includes  tools for benchmarking GLM implementations in the `quan
 
 ## Installation
 
-You can install the package in development mode using:
+Assuming you have access to the QuantCo DIL conda repository, you can install the package through conda:
+```bash
+# Set up the quantco_main conda channel. For the password, substitute in the correct password. You should be able to get the password by searching around on slack or asking on the glm_benchmarks slack channel!
+conda config --system --prepend channels quantco_main
+conda config --system --set custom_channels.quantco_main https://dil_ro:password@conda.quantco.cloud
+
+conda install quantcore.glm
+```
+
+For development, instead install an editable installation: 
 
 ```bash
 # First, make sure you have conda-forge as your primary conda channel:
@@ -24,8 +33,8 @@ conda config --add channels conda-forge
 # And install pre-commit
 conda install -y pre-commit
 
-git clone git@github.com:Quantco/glm_benchmarks.git
-cd glm_benchmarks
+git clone git@github.com:Quantco/quantcore.glm.git
+cd quantcore.glm
 
 # Set up our pre-commit hooks for black, mypy, isort and flake8.
 pre-commit install
