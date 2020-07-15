@@ -1,4 +1,4 @@
-# quantcore.glm
+## quantcore.glm
 
 ![CI](https://github.com/Quantco/glm_benchmarks/workflows/CI/badge.svg)
 
@@ -13,30 +13,6 @@ Generalized linear models (GLM) are a core statistical tool that include many co
 * Box constraints, sample weights, offsets.
 
 This repo also includes  tools for benchmarking GLM implementations in the `quantcore.glm_benchmarks` module. For details on the benchmarking, [see here](src/quantcore/glm_benchmarks/README.md).
-
-Table of Contents
-=================
-
-   * [quantcore.glm](#quantcoreglm)
-      * [Installation](#installation)
-      * [A quick usage example](#a-quick-usage-example)
-      * [A more extensive introduction to GLM modeling via the sklearn interface](#a-more-extensive-introduction-to-glm-modeling-via-the-sklearn-interface)
-      * [Golden master tests](#golden-master-tests)
-         * [Skipping the slow tests](#skipping-the-slow-tests)
-         * [Artificial golden master](#artificial-golden-master)
-         * [Benchmarks golden master](#benchmarks-golden-master)
-      * [Building a conda package](#building-a-conda-package)
-      * [The algorithm](#the-algorithm)
-            * [What kind of problems can we solve?](#what-kind-of-problems-can-we-solve)
-            * [Solvers overview](#solvers-overview)
-            * [IRLS](#irls)
-            * [Active set tracking](#active-set-tracking)
-            * [Hessian approximation.](#hessian-approximation)
-            * [Approximate Hessian updating](#approximate-hessian-updating)
-            * [References](#references)
-      * [Matrix Types](#matrix-types)
-      * [Standardization](#standardization)
-
 
 ## Installation
 
