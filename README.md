@@ -97,18 +97,17 @@ print('Model log-likelihood', get_obj_val(dat, 'poisson', 0.0, 0.0, model.interc
 
 ## A more extensive introduction to GLM modeling via the sklearn interface
 
-(This is an excellent tutorial walking through modeling the French Motor Insurance dataset. It is based on the sklearn fork that `quantcore.glm` was originally based on.)[https://scikit-learn.org/stable/auto_examples/linear_model/plot_tweedie_regression_insurance_claims.html]
+[This is an excellent tutorial walking through modeling the French Motor Insurance dataset. It is based on the sklearn fork that `quantcore.glm` was originally based on.](https://scikit-learn.org/stable/auto_examples/linear_model/plot_tweedie_regression_insurance_claims.html)
 
-(See here for a Jupyter Notebook of a similar tutorial that has been converted from using the sklearn interface to using `quantcore.glm`)[https://github.com/Quantco/french-motor-glm-tutorial/blob/master/glm_freMTPL2_example.ipynb]
-https://github.com/Quantco/french-motor-glm-tutorial
+[See here for a Jupyter Notebook of a similar tutorial that has been converted from using the sklearn interface to using `quantcore.glm`](https://github.com/Quantco/french-motor-glm-tutorial/blob/master/glm_freMTPL2_example.ipynb)
 
-(This is a brief tutorial on Tweedie Regression with L2 regularization from sklearn. `quantcore.glm` has many more features and capabilities but it can also replicate everything done here)[https://scikit-learn.org/stable/modules/linear_model.html#generalized-linear-regression]
+[This is a brief tutorial on Tweedie Regression with L2 regularization from sklearn. `quantcore.glm` has many more features and capabilities but it can also replicate everything done here.](https://scikit-learn.org/stable/modules/linear_model.html#generalized-linear-regression)
 
 ## Golden master tests
 
-We use golden master testing to preserve correctness. The results of many different GLM models have been saved. After an update, the continuous integration system
+We use golden master testing to preserve correctness. The results of many different GLM models have been saved. After an update, the tests will compare the new output to the saved models. Any significant deviation will result in a test failure. This doesn't strictly mean that the update was wrong. In case of a bug fix, it's possible that the new output will be more accurate than the old output. In that situation, the golden master results can be overwritten as explained below. 
 
-There are two sets of golden master tests, one with artificial data and one directly using the benchmarks and the problems. For both sets of tests, creating the golden master and the tests definition are located in the same file. Calling the file with pytest will run the tests while calling the file as a python script will generate the golden master result. When creating the golden master results, both scripts accept the `--overwrite` command line flag. If set, the existing golden master results will be overwritten. Otherwise, only the new problems will be run.
+There are two sets of golden master tests, one with artificial data and one directly using the benchmarking problems from `quantcore.glm_benchmarks`. For both sets of tests, creating the golden master and the tests definition are located in the same file. Calling the file with pytest will run the tests while calling the file as a python script will generate the golden master result. When creating the golden master results, both scripts accept the `--overwrite` command line flag. If set, the existing golden master results will be overwritten. Otherwise, only the new problems will be run.
 
 ### Skipping the slow tests
 
@@ -195,7 +194,7 @@ When penalizing with an L1-norm, it is common for many coefficients to be exactl
 
 Depending on the distribution and link functions, we may not use the true Hessian. There are two potentially useful approximations:
 
-1. The Gauss-Newton approximation: (https://en.wikipedia.org/wiki/Gauss%E2%80%93Newton_algorithm) Some interesting discussion and further links to literature on why the Gauss-Newton matrix can even outperform the true Hessian in some optimization problems: https://math.stackexchange.com/questions/2733257/approximation-of-hessian-jtj-for-general-non-linear-optimization-problems
+1. [The Gauss-Newton approximation.](https://en.wikipedia.org/wiki/Gauss%E2%80%93Newton_algorithm) [Some interesting discussion and further links to literature on why the Gauss-Newton matrix can even outperform the true Hessian in some optimization problems:](https://math.stackexchange.com/questions/2733257/approximation-of-hessian-jtj-for-general-non-linear-optimization-problems)
 2. The Fisher information matrix.  See [this discussion for an explanation of the BHHH algorithm.](https://github.com/Quantco/glm_benchmarks/pull/156#discussion_r434746239)
 
 #### Approximate Hessian updating
