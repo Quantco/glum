@@ -1,4 +1,4 @@
-## quantcore.glm
+# quantcore.glm
 
 ![CI](https://github.com/Quantco/glm_benchmarks/workflows/CI/badge.svg)
 
@@ -14,7 +14,31 @@ Generalized linear models (GLM) are a core statistical tool that include many co
 
 This repo also includes  tools for benchmarking GLM implementations in the `quantcore.glm_benchmarks` module. For details on the benchmarking, [see here](src/quantcore/glm_benchmarks/README.md).
 
-## Installation
+Table of Contents
+=================
+
+      * [quantcore.glm](#quantcoreglm)
+      * [Installation](#installation)
+      * [A quick usage example](#a-quick-usage-example)
+      * [A more extensive introduction to GLM modeling via the sklearn interface](#a-more-extensive-introduction-to-glm-modeling-via-the-sklearn-interface)
+      * [Golden master tests](#golden-master-tests)
+         * [Skipping the slow tests](#skipping-the-slow-tests)
+         * [Artificial golden master](#artificial-golden-master)
+         * [Benchmarks golden master](#benchmarks-golden-master)
+      * [Building a conda package](#building-a-conda-package)
+      * [The algorithm](#the-algorithm)
+            * [What kind of problems can we solve?](#what-kind-of-problems-can-we-solve)
+            * [Solvers overview](#solvers-overview)
+            * [IRLS](#irls)
+            * [Active set tracking](#active-set-tracking)
+            * [Hessian approximation.](#hessian-approximation)
+            * [Approximate Hessian updating](#approximate-hessian-updating)
+            * [References](#references)
+      * [Matrix Types](#matrix-types)
+      * [Standardization](#standardization)
+
+
+# Installation
 
 Assuming you have access to the QuantCo DIL conda repository, you can install the package through conda:
 ```bash
@@ -52,7 +76,7 @@ conda activate quantcore.glm
 pip install --no-use-pep517 --disable-pip-version-check -e .
 ```
 
-## A quick usage example
+# A quick usage example
 
 This example uses a public French car insurance dataset. 
 ```python
@@ -95,7 +119,7 @@ print('Model log-likelihood', get_obj_val(dat, 'poisson', 0.0, 0.0, model.interc
 >>> Model log-likelihood 0.3167597964655323
 ```
 
-## A more extensive introduction to GLM modeling via the sklearn interface
+# A more extensive introduction to GLM modeling via the sklearn interface
 
 [This is an excellent tutorial walking through modeling the French Motor Insurance dataset. It is based on the sklearn fork that `quantcore.glm` was originally based on.](https://scikit-learn.org/stable/auto_examples/linear_model/plot_tweedie_regression_insurance_claims.html)
 
@@ -103,17 +127,19 @@ print('Model log-likelihood', get_obj_val(dat, 'poisson', 0.0, 0.0, model.interc
 
 [This is a brief tutorial on Tweedie Regression with L2 regularization from sklearn. `quantcore.glm` has many more features and capabilities but it can also replicate everything done here.](https://scikit-learn.org/stable/modules/linear_model.html#generalized-linear-regression)
 
+# Testing/Continuous integration
+
 ## Golden master tests
 
 We use golden master testing to preserve correctness. The results of many different GLM models have been saved. After an update, the tests will compare the new output to the saved models. Any significant deviation will result in a test failure. This doesn't strictly mean that the update was wrong. In case of a bug fix, it's possible that the new output will be more accurate than the old output. In that situation, the golden master results can be overwritten as explained below. 
 
 There are two sets of golden master tests, one with artificial data and one directly using the benchmarking problems from `quantcore.glm_benchmarks`. For both sets of tests, creating the golden master and the tests definition are located in the same file. Calling the file with pytest will run the tests while calling the file as a python script will generate the golden master result. When creating the golden master results, both scripts accept the `--overwrite` command line flag. If set, the existing golden master results will be overwritten. Otherwise, only the new problems will be run.
 
-### Skipping the slow tests
+## Skipping the slow tests
 
 If you want to skip the slow tests, add the `-m "not slow"` flag to any pytest command. The "wide" problems (all marked as slow tests) are especially poorly conditioned. This means that even for estimation with 10k observations, it might still be very slow. Furthermore, we also have golden master tests for the "narrow" and "intermediate" problems, so adding the "wide" problems do not add much coverage.
 
-### Artificial golden master
+## Artificial golden master
 
 To overwrite the golden master results:
 ```
@@ -122,7 +148,7 @@ python tests/glm/test_golden_master.py
 
 Add the `--overwrite` flag if you want to overwrite already existing golden master results
 
-### Benchmarks golden master
+## Benchmarks golden master
 
 To create the golden master results:
 ```
@@ -131,7 +157,7 @@ python tests/glm/test_benchmark_golden_master.py
 
 Add the `--overwrite` flag if you want to overwrite already existing golden master results.
 
-## Building a conda package
+# Building a conda package
 
 To use the package in another project, we distribute it as a conda package.
 For building the package locally, you can use the following command:
@@ -154,9 +180,9 @@ To explicitly install a version optimised for your CPU, you need to specify it a
 conda install quantcore.glm=*=*skylake
 ```
 
-## The algorithm
+# The algorithm
 
-#### What kind of problems can we solve? 
+## What kind of problems can we solve? 
 
 This package is intended to fit L1 and L2-norm penalized Generalized Linear Models. Bounce over to [the Jupyter notebook for an introduction to GLMs](docs/glms.ipynb).
 
@@ -168,7 +194,7 @@ sum_i weight_i * -log_likelihood_i + sum_j alpha_j * [l1_ratio * abs(coef_j) + (
 
 In words, we minimize the log likelihood plus a L1 and/or L2 penalty term.
 
-#### Solvers overview
+## Solvers overview
 
 There are three solvers implemented in the sklearn-fork subpackage. 
 
@@ -178,7 +204,7 @@ The second and third solver are both based on Iteratively Reweighted Least Squar
 
 The IRLS-LS and IRLS-CD implementations largely follow the algorithm described in `newglmnet` (see references below).
 
-#### IRLS
+## IRLS
 
 In the `irls-cd` and `irls-ls` solvers, the outer loop is an IRLS iteration that forms a quadratic approximation to the negative loglikelihood. That is, we find `w` and `z` so that the problem can be expressed as `min sum_i w_i (z_i - x_i beta)^2 + penalty`. We exit when either the gradient is small (`gradient_tol`) or the step size is small (`step_size_tol`).
 
@@ -186,7 +212,7 @@ Within the `irls-cd` solver, the inner loop involves solving for `beta` with coo
 
 The "inner loop" of the `irls-ls` solver is simply a direct least squares solve.
 
-#### Active set tracking
+## Active set tracking
 
 When penalizing with an L1-norm, it is common for many coefficients to be exactly zero. And, it is possible to predict during a given iteration which of those coefficients will stay zero. As a result, we track the "active set" consisting of all the coefficients that are either currently non-zero or likely to remain non-zero. We follow the outer loop active set tracking algorithm in the `newglmnet` reference. That paper refers to the same concept as "shrinkage", whereas the `glmnet` reference calls this the "active set". Currently, we have not yet implemented the inner loop active set tracking from the `newglmnet` reference.
 
@@ -197,7 +223,7 @@ Depending on the distribution and link functions, we may not use the true Hessia
 1. [The Gauss-Newton approximation.](https://en.wikipedia.org/wiki/Gauss%E2%80%93Newton_algorithm) [Some interesting discussion and further links to literature on why the Gauss-Newton matrix can even outperform the true Hessian in some optimization problems:](https://math.stackexchange.com/questions/2733257/approximation-of-hessian-jtj-for-general-non-linear-optimization-problems)
 2. The Fisher information matrix.  See [this discussion for an explanation of the BHHH algorithm.](https://github.com/Quantco/glm_benchmarks/pull/156#discussion_r434746239)
 
-#### Approximate Hessian updating
+## Approximate Hessian updating
 
 When we compute the Gauss-Newton approximation to the Hessian, the computation takes the form:
 
@@ -241,7 +267,7 @@ then, we will include row `i` in the update. Essentially, this criteria ignores 
 
 It is critical to only update our `hessian_rows_0` for those rows that were included. That way, hessian_rows_diff is no longer the change since the last iteration, but instead, the change since the last iteration that a row was active. This ensures that we handle situations where a row changes a small amount over several iterations, eventually accumulating into a large change.
 
-#### References
+## References
 
 `glmnet` - [Regularization Paths for Generalized Linear Models via Coordinate Descent](https://web.stanford.edu/~hastie/Papers/glmnet.pdf)
 
@@ -253,7 +279,7 @@ It is critical to only update our `hessian_rows_0` for those rows that were incl
 
 `coordinate_descent` - [Coordinate Descent Algorithms](http://www.optimization-online.org/DB_FILE/2014/12/4679.pdf)
 
-## Matrix Types
+# Matrix Types
 
 Along with the GLM solvers, this package supports dense, sparse, categorical matrix types and mixtures of these types. Using the most efficient matrix representations massively improves performacne. 
 
@@ -267,6 +293,6 @@ We implement a CategoricalMatrix object that efficiently represents these matric
 
 Finally, SplitMatrix allows mixing different matrix types for different columns to minimize overhead.
 
-## Standardization
+# Standardization
 
 Internal to `GeneralizedLinearRegressor`, all matrix types are wrapped in a `StandardizedMat` which offsets columns to have mean zero and standard deviation one without modifying the matrix data itself. This avoids situations where modifying a matrix to have mean zero would result in losing the sparsity structure and avoids ever needing to copy or modify the input data matrix. As a result, memory usage is very low. 
