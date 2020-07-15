@@ -37,8 +37,7 @@ Table of Contents
       * [References](#references)
    * [Matrix Types](#matrix-types)
    * [Standardization](#standardization)
-
-
+   
 
 # Installation
 
@@ -51,7 +50,7 @@ conda config --system --set custom_channels.quantco_main https://dil_ro:password
 conda install quantcore.glm
 ```
 
-For development, instead install an editable installation: 
+For development, you should do an editable installation: 
 
 ```bash
 # First, make sure you have conda-forge as your primary conda channel:
