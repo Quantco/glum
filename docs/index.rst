@@ -1,4 +1,4 @@
-Welcome to quantcore.learn's documentation!
+Welcome to quantcore.glm's documentation!
 ===========================================
 
 .. toctree::
