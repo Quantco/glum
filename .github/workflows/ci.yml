@@ -49,8 +49,40 @@ jobs:
        uses: ./.github/actions/unittests
        with:
          python_version: ${{ matrix.PYTHON_VERSION }}
-     # - name: Publish Docs
-     #   run: cd docs/_build/html && gsutil -m cp -r * gs://***REMOVED***/${GITHUB_REPOSITORY}/${GITHUB_SHA}/
+  docs:
+    name: "Documentation"
+    runs-on: ubuntu-latest
+    env:
+      CI: True
+    strategy:
+      fail-fast: false
+      matrix:
+        PYTHON_VERSION: ['3.8']
+    steps:
+     - name: Docker login
+       run: docker login docker.pkg.github.com -u ${{ github.actor }} -p ${{ secrets.FQ_GH_TOKEN }}
+     - name: Pull image
+       run: docker pull docker.pkg.github.com/***REMOVED***/***REMOVED***:latest
+     - name: Checkout branch
+       uses: actions/checkout@v2.1.0
+       with:
+         ref: ${{ github.head_ref }}
+     - uses: GoogleCloudPlatform/github-actions/setup-gcloud@master
+       with:
+         version: '290.0.1'
+         project_id: ${{ secrets.GCP_UPLOAD_PROJECT_ID }}
+         service_account_email: ${{ secrets.GCP_UPLOAD_SA_EMAIL }}
+         service_account_key: ${{ secrets.GCP_UPLOAD_SA_KEY }}
+         export_default_credentials: true
+     - name: Run CI inside of container
+       uses: ./.github/actions/docs
+       with:
+         python_version: ${{ matrix.PYTHON_VERSION }}
+     - name: Publish Docs
+       run: cd docs/_build/html && gsutil -m cp -r * gs://***REMOVED***/${GITHUB_REPOSITORY}/${GITHUB_SHA}/
+     - name: Publish Docs as latest
+       run: cd docs/_build/html && gsutil -m cp -r * gs://***REMOVED***/${GITHUB_REPOSITORY}/latest/
+       if: github.ref == 'refs/heads/master'
   linux-conda-build:
     name: "Linux - conda-build - Python ${{ matrix.PYTHON_VERSION }}"
     runs-on: ubuntu-latest
