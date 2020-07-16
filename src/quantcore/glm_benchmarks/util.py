@@ -151,6 +151,7 @@ class BenchmarkParams:
         regularization_strength: Optional[float] = None,
         cv: Optional[bool] = None,
         hessian_approx: Optional[float] = None,
+        diagnostics_level: Optional[str] = None,
     ):
 
         self.problem_name = problem_name
@@ -162,6 +163,7 @@ class BenchmarkParams:
         self.regularization_strength = regularization_strength
         self.cv = cv
         self.hessian_approx = hessian_approx
+        self.diagnostics_level = diagnostics_level
 
     param_names = [
         "problem_name",
@@ -173,6 +175,7 @@ class BenchmarkParams:
         "regularization_strength",
         "cv",
         "hessian_approx",
+        "diagnostics_level",
     ]
 
     def update_params(self, **kwargs):
@@ -195,6 +198,7 @@ defaults = dict(
     cv=False,
     single_precision=False,
     hessian_approx=0.0,
+    diagnostics_level="basic",
 )
 
 
@@ -237,6 +241,11 @@ def benchmark_params_cli(func: Callable) -> Callable:
         type=float,
         help="Threshold for dropping rows in the IRLS approximate Hessian update.",
     )
+    @click.option(
+        "--diagnostics_level",
+        type=str,
+        help="Choose 'basic' for brief quantcore.glm diagnostics or 'full' for more extensive diagnostics. Any other string will result in no diagnostic output at all.",
+    )
     def wrapped_func(
         problem_name: Optional[str],
         library_name: Optional[str],
@@ -247,6 +256,7 @@ def benchmark_params_cli(func: Callable) -> Callable:
         single_precision: Optional[bool],
         regularization_strength: Optional[float],
         hessian_approx: Optional[float],
+        diagnostics_level: Optional[str],
         *args,
         **kwargs,
     ):
@@ -260,6 +270,7 @@ def benchmark_params_cli(func: Callable) -> Callable:
             regularization_strength,
             cv,
             hessian_approx,
+            diagnostics_level,
         )
         return func(params, *args, **kwargs)
 
