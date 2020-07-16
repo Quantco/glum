@@ -63,7 +63,11 @@ def cli_run(
             click.echo(f"running problem={Pn} library={Ln}")
             new_params = params.update_params(problem_name=Pn, library_name=Ln)
             result, regularization_strength_ = execute_problem_library(
-                new_params, iterations
+                new_params,
+                iterations,
+                defaults["diagnostics_level"]
+                if params.diagnostics_level is None
+                else params.diagnostics_level,
             )
             save_benchmark_results(
                 output_dir, new_params, result,
