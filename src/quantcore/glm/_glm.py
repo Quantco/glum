@@ -1683,7 +1683,10 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         Parameters
         ----------
         X : {array-like, sparse matrix}, shape (n_samples, n_features)
-            Training data.
+            Training data. Note that a float32 matrix is acceptable and will
+            result in the entire algorithm being run in 32-bit precision.
+            However, for problems that are poorly conditioned, this might result
+            in poor convergence or flawed parameter estimates.
 
         y : array-like, shape (n_samples,)
             Target values.
