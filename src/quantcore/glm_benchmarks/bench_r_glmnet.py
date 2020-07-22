@@ -65,6 +65,9 @@ def r_glmnet_bench(
     elif distribution.startswith("tweedie"):
         p = float(distribution.split("tweedie-p=")[1])
         distribution = ro.r["tweedie"](link_power=0, var_power=p)
+    elif distribution == "binomial":
+        warnings.warn("r-glmnet fails for binomial")
+        return result
 
     r = ro.r
     glmnet_kws = dict(
@@ -75,6 +78,11 @@ def r_glmnet_bench(
         standardize=False,
         thresh=benchmark_convergence_tolerance,
     )
+    if "weights" in dat.keys():
+        glmnet_kws.update({"weights": ro.FloatVector(dat["weights"])})
+    if "offset" in dat.keys():
+        glmnet_kws.update({"offset": ro.FloatVector(dat["offset"])})
+
     glmnet_kws["lambda"] = alpha
     # TODO: make sure that the runtime of converting array types to R is not included in here.
     result["runtime"], m = runtime(r["glmnet"], iterations, **glmnet_kws)
