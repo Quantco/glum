@@ -212,7 +212,6 @@ def test_gradients(family, link):
         (InverseGaussianDistribution(), LogLink(), False),
         (TweedieDistribution(power=1.5), LogLink(), True),
         (TweedieDistribution(power=4.5), LogLink(), False),
-        (TweedieDistribution(power=1.5), TweedieLink(1.5), False),
     ],
     ids=lambda args: args.__class__.__name__,
 )
