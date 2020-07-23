@@ -10,7 +10,7 @@ from quantcore.glm import GeneralizedLinearRegressorCV
 GLM_SOLVERS = ["irls", "lbfgs", "cd"]
 
 
-@pytest.mark.parametrize("l1_ratio", [0.5, 1, [0.3, 0.6]])
+@pytest.mark.parametrize("l1_ratio", [0.5, 1, [0.3, 0.6], np.array([0.3, 0.6])])
 @pytest.mark.parametrize("fit_intercept", [False, True])
 @pytest.mark.parametrize(
     "convert_x_fn",

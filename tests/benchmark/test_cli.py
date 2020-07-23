@@ -89,6 +89,7 @@ def test_correct_problems_run():
                     "single_precision",
                     "cv",
                     "hessian_approx",
+                    "diagnostics_level",
                 ]
             },
         ).get_result_fname()
@@ -100,10 +101,10 @@ def test_correct_problems_run():
     n_threads = os.environ.get("OMP_NUM_THREADS", os.cpu_count())
 
     expected_problems_run_2 = [
-        f"narrow-insurance-weights-l2-gamma_zeros_20_dense_{n_threads}_False_1000.0_False_0.0.pkl",
-        f"narrow-insurance-weights-l2-gamma_quantcore-glm_20_dense_{n_threads}_False_1000.0_False_0.0.pkl",
-        f"wide-insurance-no-weights-net-poisson_zeros_20_dense_{n_threads}_False_1000.0_False_0.0.pkl",
-        f"wide-insurance-no-weights-net-poisson_quantcore-glm_20_dense_{n_threads}_False_1000.0_False_0.0.pkl",
+        f"narrow-insurance-weights-l2-gamma_zeros_20_dense_{n_threads}_False_1000.0_False_0.0_basic.pkl",
+        f"narrow-insurance-weights-l2-gamma_quantcore-glm_20_dense_{n_threads}_False_1000.0_False_0.0_basic.pkl",
+        f"wide-insurance-no-weights-net-poisson_zeros_20_dense_{n_threads}_False_1000.0_False_0.0_basic.pkl",
+        f"wide-insurance-no-weights-net-poisson_quantcore-glm_20_dense_{n_threads}_False_1000.0_False_0.0_basic.pkl",
     ]
 
     assert sorted(problems_run) == sorted(expected_problems_run)

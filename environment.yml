@@ -35,4 +35,9 @@ dependencies:
   - xsimd
   - dask-ml
   - tqdm
-  - quantcore.matrix
+  - quantcore.matrix>=0.0.3
+  - sphinx
+  - sphinx_rtd_theme
+  - sphinxcontrib-apidoc
+  - altair
+  - make

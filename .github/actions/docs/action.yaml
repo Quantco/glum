@@ -1,0 +1,14 @@
+name: Run image
+description: Run private container from GitHub Packages Registry after Docker login
+inputs:
+  python_version:
+    description: 'Python version'
+    required: true
+runs:
+  using: 'docker'
+  image: docker.pkg.github.com/quantco/miniforge3-qc-dev/miniconda3-qc-base:latest
+  args:
+   - /bin/bash
+   - "-l"
+   - "-c"
+   - "./.github/workflows/docs.sh ${{ inputs.python_version }}"
