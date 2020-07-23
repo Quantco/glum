@@ -1,19 +1,58 @@
-# glm_benchmarks
+# quantcore.glm
 
 ![CI](https://github.com/Quantco/glm_benchmarks/workflows/CI/badge.svg)
 
-Python package to benchmark GLM implementations. 
+[Documentation](https://docs.dev.quantco.cloud/qc-github-artifacts/Quantco/quantcore.glm/latest/index.html)
 
-[Link to Google Sheet that compares various existing implementations.](https://docs.google.com/spreadsheets/d/1C-n3YTzPR47Sf8M04eEaX4RbNomM13dk_BZaPHGgWXg/edit)
+Generalized linear models (GLM) are a core statistical tool that include many common methods like least-squares regression, Poisson regression and logistic regression as special cases. At QuantCo, we have used GLMs in e-commerce pricing, insurance claims prediction and more. We have developed `quantcore.glm`, a fast Python-first GLM library. `quantcore.glm` is starting to be used at DIL and will soon be used by DIL actuaries. It is based on a fork of scikit-learn, so it has a scikit-learn-like API.
 
-[Link to Google Doc that compares the top contenders for libraries to improve.](https://docs.google.com/document/d/1hjmagUAS-NkUnD1r9Oyc8yL5NpeLHUyxprAIWWaVNAs/edit)
+`quantcore.glm` is at least as feature-complete as existing GLM libraries like `glmnet` or `h2o`. It supports
 
-[Link to google doc that discusses some of the optimizations and improvements we have made](https://docs.google.com/document/d/1wd6_bV9OUFjqc9WGtELDJ1Kdv1jrrticivd50POTeqo/edit)
+* Built-in cross validation for optimal regularization, efficiently exploiting a “regularization path”
+* L1 and elastic net regularization, which produce sparse and easily interpretable solutions
+* L2 regularization, including variable matrix-valued (Tikhonov) penalties, which are useful in modeling correlated effects
+* Normal, Poisson, logistic, gamma, and Tweedie distributions, plus varied and customizable link functions
+* Box constraints, sample weights, offsets.
 
+This repo also includes  tools for benchmarking GLM implementations in the `quantcore.glm_benchmarks` module. For details on the benchmarking, [see here](src/quantcore/glm_benchmarks/README.md).
 
-## Installation
+Table of Contents
+=================
 
-You can install the package in development mode using:
+   * [quantcore.glm](#quantcoreglm)
+   * [Installation](#installation)
+   * [A quick usage example](#a-quick-usage-example)
+   * [A more extensive introduction to GLM modeling via the sklearn interface](#a-more-extensive-introduction-to-glm-modeling-via-the-sklearn-interface)
+   * [Testing/Continuous integration](#testingcontinuous-integration)
+      * [Golden master tests](#golden-master-tests)
+      * [Skipping the slow tests](#skipping-the-slow-tests)
+      * [Artificial golden master](#artificial-golden-master)
+      * [Benchmarks golden master](#benchmarks-golden-master)
+   * [Building a conda package](#building-a-conda-package)
+   * [The algorithm](#the-algorithm)
+      * [What kind of problems can we solve?](#what-kind-of-problems-can-we-solve)
+      * [Solvers overview](#solvers-overview)
+      * [IRLS](#irls)
+      * [Active set tracking](#active-set-tracking)
+            * [Hessian approximation.](#hessian-approximation)
+      * [Approximate Hessian updating](#approximate-hessian-updating)
+      * [References](#references)
+   * [Matrix Types](#matrix-types)
+   * [Standardization](#standardization)
+   
+
+# Installation
+
+Assuming you have access to the QuantCo DIL conda repository, you can install the package through conda:
+```bash
+# Set up the quantco_main conda channel. For the password, substitute in the correct password. You should be able to get the password by searching around on slack or asking on the glm_benchmarks slack channel!
+conda config --system --prepend channels quantco_main
+conda config --system --set custom_channels.quantco_main https://dil_ro:password@conda.quantco.cloud
+
+conda install quantcore.glm
+```
+
+For development, you should do an editable installation: 
 
 ```bash
 # First, make sure you have conda-forge as your primary conda channel:
@@ -21,8 +60,8 @@ conda config --add channels conda-forge
 # And install pre-commit
 conda install -y pre-commit
 
-git clone git@github.com:Quantco/glm_benchmarks.git
-cd glm_benchmarks
+git clone git@github.com:Quantco/quantcore.glm.git
+cd quantcore.glm
 
 # Set up our pre-commit hooks for black, mypy, isort and flake8.
 pre-commit install
@@ -40,77 +79,70 @@ conda activate quantcore.glm
 pip install --no-use-pep517 --disable-pip-version-check -e .
 ```
 
-## Running the benchmarks
+# A quick usage example
 
-After installing the package, you should have two CLI tools: `glm_benchmarks_run` and `glm_benchmarks_analyze`. Use the `--help` flag for full details. Look in `src/quantcore/glm/problems.py` to see the list of problems that will be run through each library.
+This example uses a public French car insurance dataset. 
+```python
+import pandas as pd
+import numpy as np
 
-To run the full benchmarking suite, just run `glm_benchmarks_run` with no flags. 
+from quantcore.glm_benchmarks.problems import load_data, generate_narrow_insurance_dataset
+from quantcore.glm_benchmarks.util import get_obj_val
+from quantcore.glm import GeneralizedLinearRegressor
 
-For a more advanced example: `glm_benchmarks_run --problem_name narrow-insurance-no-weights-l2-poisson --library_name sklearn-fork --storage dense --num_rows 100 --output_dir mydatadirname` will run just the first 100 rows of the `narrow-insurance-no-weights-l2-poisson` problem through the `sklearn-fork` library and save the output to `mydatadirname`. This demonstrates several capabilities that will speed development when you just want to run a subset of either data or problems or libraries. 
+# Load the French Motor Insurance dataset
+dat = load_data(generate_narrow_insurance_dataset)
+X, y, weights = dat['X'], dat['y'], dat['weights']
 
-The `--problem_name` and `--library_name` flags take comma separated lists. This mean that if you want to run both `sklearn-fork` and `glmnet-python`, you could run `glm_benchmarks_run --library_name sklearn-fork,glmnet-python`.
+# Model the number of claims per year as Poisson and regularize using a L1-penalty.
+model = GeneralizedLinearRegressor(
+    family='poisson',
+    l1_ratio=1.0,
+    alpha=0.001
+)
 
-The `glm_benchmarks_analyze` tool is still more a sketch-up and will evolve as we identify what we care about.
+model.fit(X=X, y=y, sample_weight=weights)
 
-Benchmarks can be sped up by enabling caching of generated data. If you don't do this, 
-you will spend a lot of time repeatedly generating the same data set. If you are using
-Docker, caching is automatically enabled. The simulated data is written to an unmapped
-directory within Docker, so it will cease to exist upon exiting the container. If you
-are not using Docker, to enable caching, set the GLM_BENCHMARKS_CACHE environment
-variable to the directory you would like to write to.
+# .report_diagnostics shows details about the steps taken by the iterative solver
+model.report_diagnostics(True)
 
-We support several types of matrix storage, passed with the argument "--storage". 
-"dense" is the default. "sparse" stores data as a csc sparse matrix. "cat" splits
-the matrix into a dense component and categorical components. "split0.1" splits the
-matrix into sparse and dense parts, where any column with more than 10% nonzero elements
-is put into the dense part, and the rest is put into the sparse part.
+print(pd.DataFrame(dict(name=X.columns, coef=model.coef_)).set_index('name'))
 
-## Docker
+print('Percent of coefficients non-zero', 100 * np.mean(np.abs(model.coef_) > 0))
+print('Zeros RMSE', np.sqrt(np.mean((0 - y) ** 2)))
+print('Model RMSE', np.sqrt(np.mean((model.predict(X) - y) ** 2)))
+print('Zeros log-likelihood', get_obj_val(dat, 'poisson', 0.0, 0.0, 0, np.zeros_like(model.coef_)))
+print('Model log-likelihood', get_obj_val(dat, 'poisson', 0.0, 0.0, model.intercept_, model.coef_))
 
-To build the image, make sure you have a functioning Docker and docker-compose installation. Then, `docker-compose build work`.
 
-To run something, for example: `docker-compose run work glm_benchmarks_run --help`
-
----
-**NOTE FOR MAC USERS**
-
-On MacOS, docker cannot use the "host" `network_mode` and will therefore have no exposed port. To use a jupyter notebook, you can instead start the container with `docker-compose run -p 8888:8888 workmac`. Port 8888 will be exposed and you will be able to access Jupyter.
-
----
-
-## Library examples:
-
-glmnet_python: see https://bitbucket.org/quantco/wayfairelastpricing/tests/test_glmnet_numerical.py
-H2O: https://github.com/h2oai/h2o-tutorials/blob/master/tutorials/glm/glm_h2oworld_demo.py
-
-## Profiling
-
-For line-by-line profiling, use line_profiler `kernprof -lbv src/quantcore/glm/cli_run.py --problem_name narrow-insurance-no-weights-l2-poisson --library_name sklearn-fork`
-
-For stack sampling profiling, use py-spy: `py-spy top -- python src/quantcore/glm/cli_run.py --problem_name narrow-insurance-no-weights-l2-poisson --library_name sklearn-fork`
-
-## Memory profiling
-
-To create a graph of memory usage:
-```
-mprof run --python -o mprofresults.dat --interval 0.01 src/quantcore/glm/cli_run.py --problem_name narrow-insurance-no-weights-l2-poisson --library_name sklearn-fork --num_rows 100000
-mprof plot mprofresults.dat -o prof2.png
+>>> Percent of coefficients non-zero 24.074074074074073
+>>> Zeros RMSE 4.593120173102336
+>>> Model RMSE 4.584480161172895
+>>> Zeros log-likelihood 0.9999999999996729
+>>> Model log-likelihood 0.3167597964655323
 ```
 
-To do line-by-line memory profiling, add a `@profile` decorator to the functions you care about and then run:
-```
-python -m memory_profiler src/quantcore/glm/cli_run.py --problem_name narrow-insurance-no-weights-l2-poisson --library_name sklearn-fork --num_rows 100000
-```
+# A more extensive introduction to GLM modeling via the sklearn interface
+
+[This is an excellent tutorial walking through modeling the French Motor Insurance dataset. It is based on the sklearn fork that `quantcore.glm` was originally based on.](https://scikit-learn.org/stable/auto_examples/linear_model/plot_tweedie_regression_insurance_claims.html)
+
+[See here for a Jupyter Notebook of a similar tutorial that has been converted from using the sklearn interface to using `quantcore.glm`](https://github.com/Quantco/french-motor-glm-tutorial/blob/master/glm_freMTPL2_example.ipynb)
+
+[This is a brief tutorial on Tweedie Regression with L2 regularization from sklearn. `quantcore.glm` has many more features and capabilities but it can also replicate everything done here.](https://scikit-learn.org/stable/modules/linear_model.html#generalized-linear-regression)
+
+# Testing/Continuous integration
 
 ## Golden master tests
 
-There are two sets of golden master tests, one with artificial data and one directly using the benchmarks and the problems. For both sets of tests, creating the golden master and the tests definition are located in the same file. Calling the file with pytest will run the tests while calling the file as a python script will generate the golden master result. When creating the golden master results, both scripts accept the `--overwrite` command line flag. If set, the existing golden master results will be overwritten. Otherwise, only the new problems will be run.
+We use golden master testing to preserve correctness. The results of many different GLM models have been saved. After an update, the tests will compare the new output to the saved models. Any significant deviation will result in a test failure. This doesn't strictly mean that the update was wrong. In case of a bug fix, it's possible that the new output will be more accurate than the old output. In that situation, the golden master results can be overwritten as explained below. 
 
-### Skipping the slow tests
+There are two sets of golden master tests, one with artificial data and one directly using the benchmarking problems from `quantcore.glm_benchmarks`. For both sets of tests, creating the golden master and the tests definition are located in the same file. Calling the file with pytest will run the tests while calling the file as a python script will generate the golden master result. When creating the golden master results, both scripts accept the `--overwrite` command line flag. If set, the existing golden master results will be overwritten. Otherwise, only the new problems will be run.
+
+## Skipping the slow tests
 
 If you want to skip the slow tests, add the `-m "not slow"` flag to any pytest command. The "wide" problems (all marked as slow tests) are especially poorly conditioned. This means that even for estimation with 10k observations, it might still be very slow. Furthermore, we also have golden master tests for the "narrow" and "intermediate" problems, so adding the "wide" problems do not add much coverage.
 
-### Artificial golden master
+## Artificial golden master
 
 To overwrite the golden master results:
 ```
@@ -119,7 +151,8 @@ python tests/glm/test_golden_master.py
 
 Add the `--overwrite` flag if you want to overwrite already existing golden master results
 
-### Benchmarks golden master
+## Benchmarks golden master
+
 To create the golden master results:
 ```
 python tests/glm/test_benchmark_golden_master.py
@@ -127,7 +160,7 @@ python tests/glm/test_benchmark_golden_master.py
 
 Add the `--overwrite` flag if you want to overwrite already existing golden master results.
 
-## Building a conda package
+# Building a conda package
 
 To use the package in another project, we distribute it as a conda package.
 For building the package locally, you can use the following command:
@@ -150,9 +183,9 @@ To explicitly install a version optimised for your CPU, you need to specify it a
 conda install quantcore.glm=*=*skylake
 ```
 
-## The algorithm
+# The algorithm
 
-#### What kind of problems can we solve? 
+## What kind of problems can we solve? 
 
 This package is intended to fit L1 and L2-norm penalized Generalized Linear Models. Bounce over to [the Jupyter notebook for an introduction to GLMs](docs/glms.ipynb).
 
@@ -164,7 +197,7 @@ sum_i weight_i * -log_likelihood_i + sum_j alpha_j * [l1_ratio * abs(coef_j) + (
 
 In words, we minimize the log likelihood plus a L1 and/or L2 penalty term.
 
-#### Solvers overview
+## Solvers overview
 
 There are three solvers implemented in the sklearn-fork subpackage. 
 
@@ -174,7 +207,7 @@ The second and third solver are both based on Iteratively Reweighted Least Squar
 
 The IRLS-LS and IRLS-CD implementations largely follow the algorithm described in `newglmnet` (see references below).
 
-#### IRLS
+## IRLS
 
 In the `irls-cd` and `irls-ls` solvers, the outer loop is an IRLS iteration that forms a quadratic approximation to the negative loglikelihood. That is, we find `w` and `z` so that the problem can be expressed as `min sum_i w_i (z_i - x_i beta)^2 + penalty`. We exit when either the gradient is small (`gradient_tol`) or the step size is small (`step_size_tol`).
 
@@ -182,7 +215,7 @@ Within the `irls-cd` solver, the inner loop involves solving for `beta` with coo
 
 The "inner loop" of the `irls-ls` solver is simply a direct least squares solve.
 
-#### Active set tracking
+## Active set tracking
 
 When penalizing with an L1-norm, it is common for many coefficients to be exactly zero. And, it is possible to predict during a given iteration which of those coefficients will stay zero. As a result, we track the "active set" consisting of all the coefficients that are either currently non-zero or likely to remain non-zero. We follow the outer loop active set tracking algorithm in the `newglmnet` reference. That paper refers to the same concept as "shrinkage", whereas the `glmnet` reference calls this the "active set". Currently, we have not yet implemented the inner loop active set tracking from the `newglmnet` reference.
 
@@ -190,10 +223,10 @@ When penalizing with an L1-norm, it is common for many coefficients to be exactl
 
 Depending on the distribution and link functions, we may not use the true Hessian. There are two potentially useful approximations:
 
-1. The Gauss-Newton approximation: (https://en.wikipedia.org/wiki/Gauss%E2%80%93Newton_algorithm) Some interesting discussion and further links to literature on why the Gauss-Newton matrix can even outperform the true Hessian in some optimization problems: https://math.stackexchange.com/questions/2733257/approximation-of-hessian-jtj-for-general-non-linear-optimization-problems
+1. [The Gauss-Newton approximation.](https://en.wikipedia.org/wiki/Gauss%E2%80%93Newton_algorithm) [Some interesting discussion and further links to literature on why the Gauss-Newton matrix can even outperform the true Hessian in some optimization problems:](https://math.stackexchange.com/questions/2733257/approximation-of-hessian-jtj-for-general-non-linear-optimization-problems)
 2. The Fisher information matrix.  See [this discussion for an explanation of the BHHH algorithm.](https://github.com/Quantco/glm_benchmarks/pull/156#discussion_r434746239)
 
-#### Approximate Hessian updating
+## Approximate Hessian updating
 
 When we compute the Gauss-Newton approximation to the Hessian, the computation takes the form:
 
@@ -237,7 +270,7 @@ then, we will include row `i` in the update. Essentially, this criteria ignores 
 
 It is critical to only update our `hessian_rows_0` for those rows that were included. That way, hessian_rows_diff is no longer the change since the last iteration, but instead, the change since the last iteration that a row was active. This ensures that we handle situations where a row changes a small amount over several iterations, eventually accumulating into a large change.
 
-#### References
+## References
 
 `glmnet` - [Regularization Paths for Generalized Linear Models via Coordinate Descent](https://web.stanford.edu/~hastie/Papers/glmnet.pdf)
 
@@ -249,11 +282,11 @@ It is critical to only update our `hessian_rows_0` for those rows that were incl
 
 `coordinate_descent` - [Coordinate Descent Algorithms](http://www.optimization-online.org/DB_FILE/2014/12/4679.pdf)
 
-## Matrix Types
+# Matrix Types
 
 Along with the GLM solvers, this package supports dense, sparse, categorical matrix types and mixtures of these types. Using the most efficient matrix representations massively improves performacne. 
 
-For more details [see here](src/quantcore/glm/matrix/README.md)
+For more details, see the [README for quantcore.matrix](https://github.com/Quantco/quantcore.matrix)
 
 We support dense matrices via standard numpy arrays. 
 
@@ -263,6 +296,6 @@ We implement a CategoricalMatrix object that efficiently represents these matric
 
 Finally, SplitMatrix allows mixing different matrix types for different columns to minimize overhead.
 
-## Standardization
+# Standardization
 
-Internal to `GeneralizedLinearRegressor`, all matrix types are wrapped in a `ColScaledMat` which offsets columns to have mean zero and standard deviation one without modifying the matrix data itself. This avoids situations where modifying a matrix to have mean zero would result in losing the sparsity structure and avoids ever needing to copy or modify the input data matrix. As a result, memory usage is very low. 
+Internal to `GeneralizedLinearRegressor`, all matrix types are wrapped in a `StandardizedMat` which offsets columns to have mean zero and standard deviation one without modifying the matrix data itself. This avoids situations where modifying a matrix to have mean zero would result in losing the sparsity structure and avoids ever needing to copy or modify the input data matrix. As a result, memory usage is very low. 
