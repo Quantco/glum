@@ -2,7 +2,7 @@ import time
 
 import numpy as np
 import pandas as pd
-from quantcore.matrix import CategoricalMatrix, MKLSparseMatrix
+from quantcore.matrix import CategoricalMatrix, SparseMatrix
 from scipy import sparse as sps
 
 from quantcore.glm import GeneralizedLinearRegressor
@@ -18,7 +18,7 @@ def main():
     cats = np.random.choice(cats, n_rows)
 
     cat_mat = CategoricalMatrix(cats)
-    csr_mat = MKLSparseMatrix(cat_mat.tocsr()).astype(np.float64)
+    csr_mat = SparseMatrix(cat_mat.tocsr()).astype(np.float64)
     coefs = np.random.normal(0, 0.1, cat_mat.shape[1])
 
     times = {}

@@ -84,9 +84,9 @@ def data_all(request):
         data_dist = create_reg_data(distribution=dist)
 
         if request.param == "dense":
-            data_dist["X"] = mx.DenseGLMDataMatrix(data_dist["X"])
+            data_dist["X"] = mx.DenseMatrix(data_dist["X"])
         elif request.param == "sparse":
-            data_dist["X"] = mx.MKLSparseMatrix(sparse.csc_matrix(data_dist["X"]))
+            data_dist["X"] = mx.SparseMatrix(sparse.csc_matrix(data_dist["X"]))
         elif request.param == "split":
             data_dist["X"] = mx.csc_to_split(sparse.csc_matrix(data_dist["X"]))
 
