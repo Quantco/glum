@@ -68,7 +68,7 @@ from ._distribution import (
     TweedieDistribution,
     guess_intercept,
 )
-from ._link import IdentityLink, Link, LogitLink, LogLink
+from ._link import IdentityLink, Link, LogitLink, LogLink, TweedieLink
 from ._solvers import (
     IRLSData,
     _cd_solver,
@@ -381,9 +381,11 @@ def get_link(link: Union[str, Link], family: ExponentialDispersionModel) -> Link
         return LogLink()
     if link == "logit":
         return LogitLink()
+    if link[:7] == "tweedie":
+        return TweedieLink(float(link[7:]))
     raise ValueError(
         """The link must be an instance of class Link or an element of
-        ['auto', 'identity', 'log', 'logit']; got (link={})""".format(
+        ['auto', 'identity', 'log', 'logit', 'tweedie']; got (link={})""".format(
             link
         )
     )
