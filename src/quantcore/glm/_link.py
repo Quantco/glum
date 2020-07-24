@@ -140,3 +140,58 @@ class LogitLink(Link):
     def inverse_derivative2(self, lin_pred):
         ep = special.expit(lin_pred)
         return ep * (1.0 - ep) * (1.0 - 2 * ep)
+
+
+def catch_p(fun):
+    def to_return(*args, **kwargs):
+        with np.errstate(invalid="raise"):
+            try:
+                result = fun(*args, **kwargs)
+            except FloatingPointError:
+                raise ValueError(
+                    "Your linear predictors were not supported for p="
+                    + str(args[0].p)
+                    + ". For negative linear predictors, consider using a log link instead."
+                )
+        return result
+
+    return to_return
+
+
+class TweedieLink(Link):
+    """The Tweedie link function g(x)=x^(1-p) if p!=1 and log(x) if p=1."""
+
+    def __new__(cls, p):
+        if p == 0:
+            return IdentityLink()
+        if p == 1:
+            return LogLink()
+        if p == 1:
+            return LogLink()
+        return super(TweedieLink, cls).__new__(cls)
+
+    def __init__(self, p):
+        self.p = p
+
+    def link(self, mu):
+        return mu ** (1 - self.p)
+
+    def derivative(self, mu):
+        return (1 - self.p) * mu ** (-self.p)
+
+    @catch_p
+    def inverse(self, lin_pred):
+        result = lin_pred ** (1 / (1 - self.p))
+        return result
+
+    @catch_p
+    def inverse_derivative(self, lin_pred):
+        result = (1 / (1 - self.p)) * lin_pred ** (self.p / (1 - self.p))
+        return result
+
+    @catch_p
+    def inverse_derivative2(self, lin_pred):
+        result = (self.p / (1 - self.p) ** 2) * lin_pred ** (
+            (2 * self.p - 1) / (1 - self.p)
+        )
+        return result
