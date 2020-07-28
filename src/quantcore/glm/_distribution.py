@@ -738,8 +738,7 @@ def guess_intercept(
         avg_eta = eta if np.isscalar(eta) else np.average(eta, weights=weights)
         return log_odds - avg_eta
     else:
-        return 1
-        # raise NotImplementedError
+        return link.link(y.dot(weights))
 
 
 def get_one_over_variance(
