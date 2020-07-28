@@ -33,6 +33,12 @@ def setup_r_glmnet():
     is_initialized = True
 
 
+def numpy_to_r_obj(np_arr, R_name):
+    nr = np_arr.shape[0]
+    nc = 1 if len(np_arr.shape) == 1 else np_arr.shape[1]
+    ro.r.assign(R_name, ro.r.matrix(np_arr, nrow=nr, ncol=nc))
+
+
 def r_glmnet_bench(
     dat: Dict[str, Union[sps.spmatrix, np.ndarray]],
     distribution: str,
@@ -70,9 +76,14 @@ def r_glmnet_bench(
         return result
 
     r = ro.r
+    # Do this before fitting so we're not including python to R conversion
+    # times
+    numpy_to_r_obj(X, "X_in_R")
+    numpy_to_r_obj(dat["y"], "y_in_R")
+
     glmnet_kws = dict(
-        x=X,
-        y=dat["y"],
+        x=r["X_in_R"],
+        y=r["y_in_R"],
         family=distribution,
         alpha=l1_ratio,
         standardize=False,
