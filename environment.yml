@@ -41,3 +41,4 @@ dependencies:
   - sphinxcontrib-apidoc
   - altair
   - make
+  - rpy2
