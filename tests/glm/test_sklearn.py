@@ -33,6 +33,7 @@ from quantcore.glm._glm import (
     NormalDistribution,
     PoissonDistribution,
     TweedieDistribution,
+    TweedieLink,
     _unstandardize,
     is_pos_semidef,
 )
@@ -82,7 +83,10 @@ def test_link_properties(link):
     """Test link inverse and derivative."""
     rng = np.random.RandomState(42)
     x = rng.rand(100) * 100
-    link = link()  # instantiate object
+    if link.__name__ == "TweedieLink":
+        link = link(1.5)
+    else:
+        link = link()  # instantiate object
     if isinstance(link, LogitLink):
         # careful for large x, note expit(36) = 1
         # limit max eta to 15
@@ -159,6 +163,8 @@ def test_deviance_zero(family, chk_values):
         (TweedieDistribution(power=1.5), LogLink()),
         (TweedieDistribution(power=2.5), LogLink()),
         (BinomialDistribution(), LogitLink()),
+        (TweedieDistribution(power=1.5), TweedieLink(1.5)),
+        (TweedieDistribution(power=2.5), TweedieLink(2.5)),
     ],
     ids=lambda args: args.__class__.__name__,
 )
