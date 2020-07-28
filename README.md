@@ -130,6 +130,9 @@ print('Model log-likelihood', get_obj_val(dat, 'poisson', 0.0, 0.0, model.interc
 
 [This is a brief tutorial on Tweedie Regression with L2 regularization from sklearn. `quantcore.glm` has many more features and capabilities but it can also replicate everything done here.](https://scikit-learn.org/stable/modules/linear_model.html#generalized-linear-regression)
 
+## A quick note on 32-bit floating point precision
+Note that a float32 data matrix is acceptable and will result in the entire algorithm being run in 32-bit precision.  However, for problems that are poorly conditioned, this might result in poor convergence or flawed parameter estimates. Poor conditioning can be caused by a large number of features with few observations, highly collinear features and by light regularization. In spite of this risk, it's common to see 1.5-2x improvements in runtime with 32-bit data.
+
 # Testing/Continuous integration
 
 ## Golden master tests
