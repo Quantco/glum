@@ -2,6 +2,7 @@ from threading import Thread
 from time import sleep
 
 import psutil
+import pytest
 from quantcore.glm_benchmarks.cli_run import get_all_libraries, get_all_problems
 
 
@@ -28,12 +29,14 @@ class MemoryPoller:
         self.t.join()
 
 
-def test_memory_usage():
+@pytest.mark.parametrize("storage", ["dense", "sparse"])
+def test_memory_usage(storage):
     P = get_all_problems()["narrow-insurance-no-weights-lasso-poisson"]
-    dat = P.data_loader(num_rows=300000, storage="dense")
+    dat = P.data_loader(num_rows=300000, storage=storage)
 
     with MemoryPoller() as mp:
-        result = get_all_libraries()["quantcore-glm"](
+
+        get_all_libraries()["quantcore-glm"](
             dat,
             distribution=P.distribution,
             alpha=0.01,
@@ -42,12 +45,6 @@ def test_memory_usage():
             cv=False,
             diagnostics_level="none",
         )
-        print(result)
         extra_to_initial_ratio = (mp.max_memory - mp.initial_memory) / mp.initial_memory
-        print(
-            mp.initial_memory,
-            mp.max_memory,
-            extra_to_initial_ratio,
-            (mp.max_memory - mp.initial_memory) / 1e6,
-        )
+        print(extra_to_initial_ratio)
         assert extra_to_initial_ratio < 0.5
