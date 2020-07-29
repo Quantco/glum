@@ -122,7 +122,7 @@ def check_array_matrix_compliant(mat: ArrayLike, **kwargs):
     original_type = type(mat)
     res = check_array(mat, **kwargs)
 
-    if original_type in (mx.DenseMatrix, mx.SparseMatrix):
+    if res is not mat and original_type in (mx.DenseMatrix, mx.SparseMatrix):
         res = original_type(res)  # type: ignore
     return res
 
@@ -1305,7 +1305,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         #######################################################################
         # 2b. convert to wrapper matrix types
         #######################################################################
-        if sparse.issparse(X):
+        if sparse.issparse(X) and not isinstance(X, mx.SparseMatrix):
             X = mx.SparseMatrix(X)
         elif isinstance(X, np.ndarray):
             X = mx.DenseMatrix(X)

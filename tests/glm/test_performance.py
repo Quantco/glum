@@ -1,12 +1,13 @@
 import gc
+import multiprocessing as mp
+import time
 from threading import Thread
-from time import sleep
 
-import numpy as np
 import pandas as pd
 import psutil
 import pytest
 from quantcore.glm_benchmarks.cli_run import get_all_problems
+from quantcore.matrix import SparseMatrix
 
 from quantcore.glm import GeneralizedLinearRegressor
 
@@ -20,7 +21,7 @@ class MemoryPoller:
         while not self.stop_polling:
             self.memory_usage.append(get_memory_usage())
             self.max_memory = max(self.max_memory, self.memory_usage[-1])
-            sleep(0.001)
+            time.sleep(0.001)
 
     def __enter__(self):
         self.stop_polling = False
@@ -36,14 +37,23 @@ class MemoryPoller:
         self.t.join()
 
 
-@pytest.mark.parametrize("storage", ["dense", "sparse"])
-def test_memory_usage(storage):
+def runner(storage):
+    print(get_memory_usage())
     gc.collect()
-    pre_data_memory = get_memory_usage()
-    P = get_all_problems()["narrow-insurance-no-weights-lasso-poisson"]
-    dat = P.data_loader(num_rows=100000, storage=storage)
-    X = dat["X"].to_numpy() if isinstance(dat["X"], pd.DataFrame) else dat["X"]
+    P = get_all_problems()["wide-insurance-no-weights-lasso-poisson"]
+    dat = P.data_loader(num_rows=1000, storage=storage)
+    # Measure how much memory we are using before calling the GLM code
+    data_memory = 0
+    if isinstance(dat["X"], pd.DataFrame):
+        X = dat["X"].to_numpy()
+        data_memory += X.nbytes
+    else:
+        X = SparseMatrix(dat["X"])
+        # In particular, make sure to count X.x_csr for sparse matrices.
+        for mat in [X, X.x_csr]:
+            data_memory += mat.data.nbytes + mat.indices.nbytes + mat.indptr.nbytes
     y = dat["y"]
+    data_memory += y.nbytes
     del dat
     gc.collect()
 
@@ -58,15 +68,20 @@ def test_memory_usage(storage):
             )
             model.fit(X=X, y=y)
 
-        data_memory = mp.initial_memory - pre_data_memory
         excess_memory_used = mp.max_memory - mp.initial_memory
         extra_to_initial_ratio = excess_memory_used / data_memory
 
-        graph = np.array(mp.memory_usage) - pre_data_memory
-        import matplotlib.pyplot as plt
-
-        plt.plot(graph)
-        plt.show()
+        # graph = np.array(mp.memory_usage) - mp.initial_memory
+        # import matplotlib.pyplot as plt
+        # plt.plot(graph)
+        # plt.show()
         print(extra_to_initial_ratio)
+        return extra_to_initial_ratio
 
-        assert extra_to_initial_ratio < 0.5
+
+@pytest.mark.parametrize("storage", ["dense", "sparse"])
+def test_memory_usage(storage):
+    allowed_ratio = 0.05 if storage == "dense" else 0.4
+    with mp.Pool(1) as p:
+        extra_to_initial_ratio = p.map(runner, [storage])
+    assert extra_to_initial_ratio < allowed_ratio
