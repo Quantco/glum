@@ -1606,7 +1606,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         start_params: Optional[np.ndarray] = None,
         selection: str = "cyclic",
         random_state=None,
-        copy_X=True,
+        copy_X=False,
         check_input=True,
         verbose=0,
         scale_predictors=False,
