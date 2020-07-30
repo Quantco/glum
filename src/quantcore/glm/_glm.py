@@ -584,7 +584,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         start_params: Optional[np.ndarray] = None,
         selection="cyclic",
         random_state=None,
-        copy_X=True,
+        copy_X: Optional[bool] = None,
         check_input=True,
         verbose=0,
         scale_predictors=False,
@@ -1206,9 +1206,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 "The argument selection must be 'cyclic' or "
                 "'random'; got (selection={})".format(self.selection)
             )
-        if not isinstance(self.copy_X, bool):
+        if self.copy_X is not None and not isinstance(self.copy_X, bool):
             raise ValueError(
-                "The argument copy_X must be bool;" " got {}".format(self.copy_X)
+                "The argument copy_X must be None or bool;"
+                " got {}".format(self.copy_X)
             )
         if not isinstance(self.check_input, bool):
             raise ValueError(
@@ -1240,11 +1241,20 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         sample_weight: Union[np.ndarray, None],
         offset: Union[np.ndarray, None],
         solver: str,
-        copy_X: bool,
         force_all_finite,
     ) -> Tuple[
         mx.MatrixBase, np.ndarray, np.ndarray, Union[np.ndarray, None], float,
     ]:
+        # If self.copy_X is True, copy_X is True
+        # If self.copy_X is None, copy_X is False. Check for non-contiguous data and
+        # fix if necessary.
+        # If self.copy_X is False, check for non-contiguous data and error if it exists.
+        # copying may happen anyway through
+        if self.copy_X is None:
+            copy_X = False
+        else:
+            copy_X = self.copy_X
+
         _dtype = [np.float64, np.float32]
         if solver == "irls-cd":
             _stype = ["csc"]
@@ -1256,6 +1266,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             and hasattr(X, "dtype")
             and X.dtype == np.int64  # type: ignore
         ):
+            if self.copy_X is not None and not self.copy_X:
+                raise ValueError(
+                    "Integer data needs to be converted to float, but you specified "
+                    "copy_X = False. To fix this, set copy_X = None or convert to "
+                    "float yourself."
+                )
             # check_X_y will convert to float32 if we don't do this, which causes
             # precision issues with the new handling of single precision. The new
             # behavior is to give everything the precision of X, but we don't want to
@@ -1510,7 +1526,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         RandomState instance used by `np.random`. Used when ``selection`` ==
         'random'.
 
-    copy_X : boolean, optional, (default=True)
+    copy_X : boolean, optional, (default=None)
         If ``True``, X will be copied; else, it may be overwritten.
 
     check_input : boolean, optional (default=True)
@@ -1606,7 +1622,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         start_params: Optional[np.ndarray] = None,
         selection: str = "cyclic",
         random_state=None,
-        copy_X=False,
+        copy_X: Optional[bool] = None,
         check_input=True,
         verbose=0,
         scale_predictors=False,
@@ -1676,6 +1692,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         y: ArrayLike,
         sample_weight: Optional[ArrayLike] = None,
         offset: Optional[ArrayLike] = None,
+        # TODO: take out weights_sum (or use it properly)
         weights_sum: Optional[float] = None,
     ):
         """Fit a Generalized Linear Model.
@@ -1720,7 +1737,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             sample_weight,
             offset,
             solver=self.solver,
-            copy_X=self.copy_X,
             force_all_finite=self.force_all_finite,
         )
         assert isinstance(X, mx.MatrixBase)

@@ -251,7 +251,6 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             sample_weight,
             offset,
             solver=self.solver,
-            copy_X=self.copy_X,
             force_all_finite=self.force_all_finite,
         )
 
