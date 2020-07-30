@@ -113,7 +113,20 @@ def test_memory_usage(storage, allowed_ratio):
 
 def test_runtime():
     from quantcore.glm_benchmarks.cli_run import get_all_problems
+    from quantcore.glm import GeneralizedLinearRegressor
+    from quantcore.glm_benchmarks.util import runtime
 
+    # narrow, wide, lasso, l2, gaussian, poisson, gamma, tweedie, binomial
     storage = "dense"
-    P = get_all_problems()["wide-insurance-no-weights-lasso-poisson"]
-    P.data_loader(num_rows=100000, storage=storage)
+    P = get_all_problems()["narrow-insurance-no-weights-lasso-poisson"]
+    dat = P.data_loader(num_rows=200000, storage=storage)
+
+    model = GeneralizedLinearRegressor(
+        family="poisson",
+        l1_ratio=1.0,
+        alpha=0.01,
+        copy_X=False,
+        force_all_finite=False,
+    )
+    min_runtime, result = runtime(lambda: model.fit(X=dat["X"], y=dat["y"]), 5)
+    print(min_runtime)
