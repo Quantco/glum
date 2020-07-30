@@ -109,3 +109,11 @@ def test_memory_usage(storage, allowed_ratio):
     with mp.Pool(1) as p:
         extra_to_initial_ratio = p.map(runner, [storage])[0]
     assert extra_to_initial_ratio < allowed_ratio
+
+
+def test_runtime():
+    from quantcore.glm_benchmarks.cli_run import get_all_problems
+
+    storage = "dense"
+    P = get_all_problems()["wide-insurance-no-weights-lasso-poisson"]
+    P.data_loader(num_rows=100000, storage=storage)
