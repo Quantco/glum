@@ -102,7 +102,7 @@ def runner(storage):
 
 @pytest.mark.parametrize(
     "storage, allowed_ratio",
-    [("dense", 0.05), ("sparse", 0.45), ("cat", 1.3), ("split0.1", 0.55)],
+    [("dense", 0.1), ("sparse", 0.45), ("cat", 1.3), ("split0.1", 0.55)],
 )
 @pytest.mark.slow
 def test_memory_usage(storage, allowed_ratio):
