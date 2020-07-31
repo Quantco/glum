@@ -680,8 +680,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         #######################################################################
         # 1. input validation                                                 #
         #######################################################################
-        # 1.1
-        self._validate_hyperparameters()
         # self.family and self.link are user-provided inputs and may be strings or
         #  ExponentialDispersonModel/Link objects
         # self.family_instance_ and self.link_instance_ are cleaned by 'fit' to be
@@ -1728,6 +1726,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         -------
         self : returns an instance of self.
         """
+
+        self._validate_hyperparameters()
 
         # NOTE: This function checks if all the entries in X and y are
         # finite. That can be expensive. But probably worthwhile.
