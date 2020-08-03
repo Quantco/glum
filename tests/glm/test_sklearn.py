@@ -605,12 +605,25 @@ def test_glm_random_state_argument(estimator, random_state):
     "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
 )
 @pytest.mark.parametrize("copy_X", ["not bool", 1, 0, [True]])
-def test_glm_copy_X_argument(estimator, copy_X):
+def test_glm_copy_X_argument_invalid(estimator, copy_X):
     """Test GLM for invalid copy_X arguments."""
     X, y = get_small_x_y(estimator)
     glm = estimator(copy_X=copy_X)
     with pytest.raises(ValueError, match="copy_X must be None or bool"):
         glm.fit(X, y)
+
+
+def test_glm_copy_X_input_needs_conversion():
+    y = np.array([1.0])
+    # If X is of int dtype, it needs to be copied
+    X = np.array([[1]])
+    glm = GeneralizedLinearRegressor(copy_X=False)
+    # should raise an error
+    with pytest.raises(ValueError, match="copy_X"):
+        glm.fit(X, y)
+    # should be OK with copy_X = None or copy_X = True
+    GeneralizedLinearRegressor(copy_X=None).fit(X, y)
+    GeneralizedLinearRegressor(copy_X=True).fit(X, y)
 
 
 @pytest.mark.parametrize(
