@@ -992,8 +992,11 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             ensure_2d=True,
             allow_nd=False,
         )
-        coef = self.coef_ if alpha_level is None else self.coef_path_[alpha_level]
-        xb = X @ coef + self.intercept_
+        xb = (
+            X @ self.coef_ + self.intercept_
+            if alpha_level is None
+            else X @ self.coef_path_[alpha_level] + self.intercept_path_[alpha_level]
+        )
         if offset is None:
             return xb
         return xb + offset
