@@ -2,11 +2,17 @@ import gc
 import multiprocessing as mp
 import time
 from threading import Thread
+from typing import Optional
 
+import numpy as np
 import pandas as pd
 import psutil
 import pytest
+import quantcore.matrix as mx
 import scipy.sparse as sps
+from test_sklearn import GLM_SOLVERS
+
+from quantcore.glm import GeneralizedLinearRegressor
 
 
 def get_memory_usage():
@@ -34,6 +40,23 @@ class MemoryPoller:
         self.t.join()
 
 
+def get_x_bytes(x) -> int:
+    if isinstance(x, np.ndarray):
+        return x.nbytes
+    if sps.issparse(x):
+        return sum(
+            [
+                mat.data.nbytes + mat.indices.nbytes + mat.indptr.nbytes
+                for mat in [x, x.x_csr]
+            ]
+        )
+    if isinstance(x, mx.CategoricalMatrix):
+        return x.indices.nbytes
+    if isinstance(x, mx.SplitMatrix):
+        return sum([get_x_bytes(elt) for elt in x.matrices])
+    raise NotImplementedError(f"Can't get bytes for matrix of type {type(x)}.")
+
+
 def runner(storage):
     # Once issue #286 is solved, these imports can be moved outside the runner
     # function. For now, there will be an indefinite hang if the imports are
@@ -47,27 +70,14 @@ def runner(storage):
     dat = P.data_loader(num_rows=100000, storage=storage)
 
     # Measure how much memory we are using before calling the GLM code
-    data_memory = 0
     if isinstance(dat["X"], pd.DataFrame):
         X = dat["X"].to_numpy()
-        data_memory += X.nbytes
     elif sps.issparse(dat["X"]):
         X = mx.SparseMatrix(dat["X"])
-        # In particular, make sure to count X.x_csr for sparse matrices.
-        for mat in [X, X.x_csr]:
-            data_memory += mat.data.nbytes + mat.indices.nbytes + mat.indptr.nbytes
     elif isinstance(dat["X"], mx.SplitMatrix):
         X = dat["X"]
-        for m in dat["X"].matrices:
-            if isinstance(m, mx.DenseMatrix):
-                data_memory += m.nbytes
-            elif isinstance(m, mx.SparseMatrix):
-                for mat in [m, m.x_csr]:
-                    data_memory += (
-                        mat.data.nbytes + mat.indices.nbytes + mat.indptr.nbytes
-                    )
-            elif isinstance(m, mx.CategoricalMatrix):
-                data_memory += m.indices.nbytes
+
+    data_memory = get_x_bytes(X)
 
     y = dat["y"]
     data_memory += y.nbytes
@@ -100,6 +110,12 @@ def runner(storage):
         return extra_to_initial_ratio
 
 
+@pytest.fixture(scope="module")
+def X():
+    n_rows = 100000
+    return np.random.random((n_rows, 50))
+
+
 @pytest.mark.parametrize(
     "storage, allowed_ratio",
     [("dense", 0.1), ("sparse", 0.45), ("cat", 1.3), ("split0.1", 0.55)],
@@ -109,3 +125,51 @@ def test_memory_usage(storage, allowed_ratio):
     with mp.Pool(1) as p:
         extra_to_initial_ratio = p.map(runner, [storage])[0]
     assert extra_to_initial_ratio < allowed_ratio
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("solver", GLM_SOLVERS)
+@pytest.mark.parametrize("fit_intercept", [False, True])
+@pytest.mark.parametrize("use_offset", [False, True])
+@pytest.mark.parametrize(
+    "convert_x_fn",
+    [
+        mx.DenseMatrix,
+        lambda x: mx.SparseMatrix(sps.csc_matrix(x)),
+        lambda x: mx.split_matrix.csc_to_split(sps.csc_matrix(x)),
+    ],
+)
+@pytest.mark.parametrize("copy_X", [False, None, True])
+def test_X_not_copied(
+    X,
+    solver,
+    fit_intercept: bool,
+    use_offset: bool,
+    convert_x_fn,
+    copy_X: Optional[bool],
+):
+
+    # Not exactly true, as some formats will take up more space
+    X = convert_x_fn(X)
+    x_size = get_x_bytes(X)
+    offset = np.zeros(X.shape[0]) if use_offset else None
+    y = np.random.random(X.shape[0])
+
+    glm = GeneralizedLinearRegressor(
+        family="normal",
+        link="identity",
+        fit_intercept=fit_intercept,
+        solver=solver,
+        gradient_tol=1e-7,
+        copy_X=copy_X,
+    )
+
+    with MemoryPoller() as mp:
+        for i in range(4):
+            glm.fit(X, y, offset=offset)
+        excess = mp.max_memory - mp.initial_memory
+
+    if copy_X:
+        assert excess > x_size
+    else:
+        assert excess < x_size
