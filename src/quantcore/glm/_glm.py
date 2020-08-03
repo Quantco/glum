@@ -966,7 +966,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         else:
             print("solver does not report diagnostics")
 
-    def linear_predictor(self, X: ArrayLike, offset: Optional[ArrayLike] = None):
+    def linear_predictor(
+        self, X: ArrayLike, offset: Optional[ArrayLike] = None, alpha_level: int = None
+    ):
         """Compute the linear_predictor = X*coef_ + intercept_.
 
         Parameters
@@ -988,7 +990,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             ensure_2d=True,
             allow_nd=False,
         )
-        xb = X @ self.coef_ + self.intercept_
+        coef = self.coef_ if alpha_level is None else self.coef_path_[alpha_level]
+        xb = X @ coef + self.intercept_
         if offset is None:
             return xb
         return xb + offset
@@ -998,6 +1001,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         X: ShapedArrayLike,
         sample_weight: Optional[ArrayLike] = None,
         offset: Optional[ArrayLike] = None,
+        alpha_level: int = None,
     ):
         """Predict using GLM with feature matrix X.
 
@@ -1028,7 +1032,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             ensure_2d=True,
             allow_nd=False,
         )
-        eta = self.linear_predictor(X, offset=offset)
+        eta = self.linear_predictor(X, offset=offset, alpha_level=alpha_level)
         mu = get_link(self.link, get_family(self.family)).inverse(eta)
         weights = _check_weights(sample_weight, X.shape[0], X.dtype)
 
