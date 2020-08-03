@@ -1023,6 +1023,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         offset: {None, array-like}, shape (n_samples,), optional \
                 (default=None)
 
+        alpha_level: int, optional \
+                (default=None)
+            Sets which alpha to use for the alpha_search = True case
+
         Returns
         -------
         C : array, shape (n_samples,)
