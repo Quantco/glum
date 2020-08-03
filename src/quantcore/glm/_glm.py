@@ -1612,11 +1612,9 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         scale_predictors=False,
         lower_bounds: Optional[np.ndarray] = None,
         upper_bounds: Optional[np.ndarray] = None,
-        fit_args_reformat="safe",
         force_all_finite: bool = True,
     ):
         self.alpha = alpha
-        self.fit_args_reformat = fit_args_reformat
         super().__init__(
             l1_ratio=l1_ratio,
             P1=P1,
@@ -1714,20 +1712,17 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         self : returns an instance of self.
         """
 
-        if self.fit_args_reformat == "safe":
-            # NOTE: This function checks if all the entries in X and y are
-            # finite. That can be expensive. But probably worthwhile.
-            X, y, weights, offset, weights_sum = self.set_up_and_check_fit_args(
-                X,
-                y,
-                sample_weight,
-                offset,
-                solver=self.solver,
-                copy_X=self.copy_X,
-                force_all_finite=self.force_all_finite,
-            )
-        else:
-            weights = sample_weight
+        # NOTE: This function checks if all the entries in X and y are
+        # finite. That can be expensive. But probably worthwhile.
+        X, y, weights, offset, weights_sum = self.set_up_and_check_fit_args(
+            X,
+            y,
+            sample_weight,
+            offset,
+            solver=self.solver,
+            copy_X=self.copy_X,
+            force_all_finite=self.force_all_finite,
+        )
         assert isinstance(X, mx.MatrixBase)
         assert isinstance(y, np.ndarray)
 
