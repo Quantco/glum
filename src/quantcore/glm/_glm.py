@@ -1255,7 +1255,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         mx.MatrixBase, np.ndarray, np.ndarray, Union[np.ndarray, None], float,
     ]:
         # If self.copy_X is True, copy_X is True
-        # If self.copy_X is None, copy_X is False. Check for non-contiguous data and
+        # If self.copy_X is None, copy_X is False. Check for data of wrong dtype and
         # fix if necessary.
         # If self.copy_X is False, check for non-contiguous data and error if it exists.
         # copying may happen anyway through
@@ -1536,7 +1536,10 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         'random'.
 
     copy_X : boolean, optional, (default=None)
-        If ``True``, X will be copied; else, it may be overwritten.
+        If ``True``, X will be copied.
+        If ``False``, X will not be copied, and there will be an error if you pass
+        an X in the wrong format, such as providing int X and float y.
+        If None, X will not be copied unless it is in the wrong format.
 
     check_input : boolean, optional (default=True)
         Allow to bypass several checks on input: y values in range of family,
