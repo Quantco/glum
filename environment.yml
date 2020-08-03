@@ -35,7 +35,7 @@ dependencies:
   - xsimd
   - dask-ml
   - tqdm
-  - quantcore.matrix>=0.0.5
+  - quantcore.matrix>=0.0.6
   - sphinx
   - sphinx_rtd_theme
   - sphinxcontrib-apidoc
