@@ -150,24 +150,27 @@ def dense_inv_runtime():
     return runtime(lambda: np.linalg.inv(X), 5)[0]
 
 
-@pytest.mark.parametrize(
-    "storage, problem, distribution, num_rows, limit",
-    [
-        ("dense", "narrow-insurance-no-weights-lasso", "poisson", 200000, 1.5),
-        ("sparse", "narrow-insurance-weights-l2", "gaussian", 200000, 2.5),
-        ("cat", "wide-insurance-no-weights-l2", "gamma", 100000, 2.5),
-        ("split0.1", "wide-insurance-offset-lasso", "tweedie-p=1.5", 100000, 3.0),
-        ("split0.1", "intermediate-insurance-no-weights-net", "binomial", 200000, 1.0),
-    ],
-)
-def test_runtime(
+def retry_on_except(n=3):
+    def wrapper(fn):
+        def test_inner(*args, **kwargs):
+            for i in range(n):
+                try:
+                    fn(*args, **kwargs)
+                except AssertionError:
+                    if i >= n - 1:
+                        raise
+                else:
+                    return
+
+        return test_inner
+
+    return wrapper
+
+
+@retry_on_except()
+def runtime_helper(
     spmv_runtime, dense_inv_runtime, storage, problem, distribution, num_rows, limit
 ):
-
-    from quantcore.glm_benchmarks.cli_run import get_all_problems
-    from quantcore.glm import GeneralizedLinearRegressor
-    from quantcore.glm_benchmarks.util import runtime
-
     P = get_all_problems()[problem + "-" + distribution]
     dat = P.data_loader(num_rows=num_rows, storage=storage)
 
@@ -185,3 +188,21 @@ def test_runtime(
     denominator = 0.5 * dense_inv_runtime + 0.5 * spmv_runtime
     print(min_runtime / denominator, limit)
     assert min_runtime / denominator < limit
+
+
+@pytest.mark.parametrize(
+    "storage, problem, distribution, num_rows, limit",
+    [
+        ("dense", "narrow-insurance-no-weights-lasso", "poisson", 200000, 1.5),
+        ("sparse", "narrow-insurance-weights-l2", "gaussian", 200000, 2.5),
+        ("cat", "wide-insurance-no-weights-l2", "gamma", 100000, 2.5),
+        ("split0.1", "wide-insurance-offset-lasso", "tweedie-p=1.5", 100000, 3.0),
+        ("split0.1", "intermediate-insurance-no-weights-net", "binomial", 200000, 1.0),
+    ],
+)
+def test_runtime(
+    spmv_runtime, dense_inv_runtime, storage, problem, distribution, num_rows, limit
+):
+    runtime_helper(
+        spmv_runtime, dense_inv_runtime, storage, problem, distribution, num_rows, limit
+    )
