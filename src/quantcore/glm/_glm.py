@@ -293,13 +293,11 @@ def _standardize(
 
 
 def _unstandardize(
-    X: mx.StandardizedMatrix,
     col_means: np.ndarray,
     col_stds: Optional[np.ndarray],
     intercept: float,
     coef: np.ndarray,
-) -> Tuple[float, np.ndarray]:
-    assert isinstance(X, mx.StandardizedMatrix)
+) -> Tuple[Union[float, np.ndarray], np.ndarray]:
     if col_stds is None:
         intercept -= np.squeeze(np.squeeze(col_means).dot(np.atleast_1d(coef).T))
     else:
@@ -734,11 +732,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         #######################################################################
         # 5a. undo standardization
         #######################################################################
-        assert isinstance(X, mx.StandardizedMatrix)
-        self.intercept_, self.coef_ = _unstandardize(
-            X, col_means, col_stds, self.intercept_, self.coef_,  # type: ignore
-        )
-
         if self.fit_dispersion in ["chisqr", "deviance"]:
             # attention because of rescaling of weights
             X_unstandardized = X.mat if isinstance(X, mx.StandardizedMatrix) else X
@@ -968,7 +961,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         else:
             print("solver does not report diagnostics")
 
-    def linear_predictor(self, X: ArrayLike, offset: Optional[ArrayLike] = None):
+    def linear_predictor(
+        self, X: ArrayLike, offset: Optional[ArrayLike] = None, alpha_level: int = None
+    ):
         """Compute the linear_predictor = X*coef_ + intercept_.
 
         Parameters
@@ -990,7 +985,11 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             ensure_2d=True,
             allow_nd=False,
         )
-        xb = X @ self.coef_ + self.intercept_
+        xb = (
+            X @ self.coef_ + self.intercept_
+            if alpha_level is None
+            else X @ self.coef_path_[alpha_level] + self.intercept_path_[alpha_level]
+        )
         if offset is None:
             return xb
         return xb + offset
@@ -1000,6 +999,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         X: ShapedArrayLike,
         sample_weight: Optional[ArrayLike] = None,
         offset: Optional[ArrayLike] = None,
+        alpha_level: int = None,
     ):
         """Predict using GLM with feature matrix X.
 
@@ -1016,6 +1016,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         offset: {None, array-like}, shape (n_samples,), optional \
                 (default=None)
 
+        alpha_level: int, optional \
+                (default=None)
+            Sets which alpha to use for the alpha_search = True case
+
         Returns
         -------
         C : array, shape (n_samples,)
@@ -1030,7 +1034,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             ensure_2d=True,
             allow_nd=False,
         )
-        eta = self.linear_predictor(X, offset=offset)
+        eta = self.linear_predictor(X, offset=offset, alpha_level=alpha_level)
         mu = get_link(self.link, get_family(self.family)).inverse(eta)
         weights = _check_weights(sample_weight, X.shape[0], X.dtype)
 
@@ -1837,16 +1841,18 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
 
             # intercept_ and coef_ return the last estimated alpha
             if self.fit_intercept:
-                self.intercept_ = coef[-1, 0]
-                self.intercept_path_ = coef[:, 0]
-                self.coef_ = coef[-1, 1:]
-                self.coef_path_ = coef[:, 1:]
+                self.intercept_path_, self.coef_path_ = _unstandardize(
+                    col_means, col_stds, coef[:, 0], coef[:, 1:]
+                )
+                self.intercept_ = self.intercept_path_[-1]  # type: ignore
+                self.coef_ = self.coef_path_[-1]
             else:
                 # set intercept to zero as the other linear models do
+                self.intercept_path_, self.coef_path_ = _unstandardize(
+                    col_means, col_stds, np.zeros(coef.shape[0]), coef
+                )
                 self.intercept_ = 0.0
-                self.intercept_path_ = np.zeros(coef.shape[0])
-                self.coef_ = coef[-1, :]
-                self.coef_path_ = coef
+                self.coef_ = self.coef_path_[-1]
         else:
             coef = self.solve(
                 X=X,
@@ -1861,12 +1867,14 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             )
 
             if self.fit_intercept:
-                self.intercept_ = coef[0]
-                self.coef_ = coef[1:]
+                self.intercept_, self.coef_ = _unstandardize(
+                    col_means, col_stds, coef[0], coef[1:]
+                )
             else:
                 # set intercept to zero as the other linear models do
-                self.intercept_ = 0.0
-                self.coef_ = coef
+                self.intercept_, self.coef_ = _unstandardize(
+                    col_means, col_stds, 0.0, coef
+                )
 
         self.tear_down_from_fit(X, y, col_means, col_stds, weights, weights_sum)
 
