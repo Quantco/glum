@@ -6,7 +6,11 @@ from threading import Thread
 import pandas as pd
 import psutil
 import pytest
+import quantcore.matrix as mx
 import scipy.sparse as sps
+from quantcore.glm_benchmarks.cli_run import get_all_problems
+
+from quantcore.glm import GeneralizedLinearRegressor
 
 
 def get_memory_usage():
@@ -45,13 +49,6 @@ class MemoryPoller:
 
 
 def runner(storage):
-    # Once issue #286 is solved, these imports can be moved outside the runner
-    # function. For now, there will be an indefinite hang if the imports are
-    # moved outside.
-    from quantcore.glm_benchmarks.cli_run import get_all_problems
-    from quantcore.glm import GeneralizedLinearRegressor
-    import quantcore.matrix as mx
-
     gc.collect()
     P = get_all_problems()["wide-insurance-no-weights-lasso-poisson"]
     dat = P.data_loader(num_rows=100000, storage=storage)
