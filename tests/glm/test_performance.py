@@ -7,7 +7,13 @@ import numpy as np
 import pandas as pd
 import psutil
 import pytest
+import quantcore.matrix as mx
 import scipy.sparse as sps
+from quantcore.glm_benchmarks.cli_run import get_all_problems
+from quantcore.glm_benchmarks.util import get_sklearn_family, runtime
+from sparse_dot_mkl import dot_product_mkl
+
+from quantcore.glm import GeneralizedLinearRegressor
 
 
 def get_memory_usage():
@@ -46,13 +52,6 @@ class MemoryPoller:
 
 
 def runner(storage):
-    # Once issue #286 is solved, these imports can be moved outside the runner
-    # function. For now, there will be an indefinite hang if the imports are
-    # moved outside.
-    from quantcore.glm_benchmarks.cli_run import get_all_problems
-    from quantcore.glm import GeneralizedLinearRegressor
-    import quantcore.matrix as mx
-
     gc.collect()
     P = get_all_problems()["wide-insurance-no-weights-lasso-poisson"]
     dat = P.data_loader(num_rows=100000, storage=storage)
@@ -125,38 +124,64 @@ def test_memory_usage(storage, allowed_ratio):
     assert extra_to_initial_ratio < allowed_ratio
 
 
-@pytest.fixture()
-def baseline_perf():
-    N = 100000
+@pytest.fixture(scope="module")
+def spmv_runtime():
+    """
+    Sparse matrix-vector product runtime should be representative of the memory
+    bandwidth of the machine. We use MKL to make sure that this is
+    parallelized. Otherwise, the performance will not scale properly in
+    comparison to the GLM code for machines with many cores.
+    """
+    N = 20000000
+    diag_data = np.random.rand(5, N)
+    mat = sps.spdiags(diag_data, [0, 1, -1, 2, -2], N, N).tocsr()
+    v = np.random.rand(N)
+    return runtime(lambda: dot_product_mkl(mat, v), 5)[0]
 
-    def sparse_matrix_vector():
-        diag_data = np.random.rand(5, N)
-        mat = sps.spdiags(diag_data, [0, 1, -1, 2, -2], N, N)
-        v = np.random.rand(N)
 
-        mat.dot(v)
+@pytest.fixture(scope="module")
+def dense_inv_runtime():
+    """
+    Dense matrix multiplication runtime should be representative of the
+    floating point performance of the machine.
+    """
+    N = 1300
+    X = np.random.rand(N, N)
+    return runtime(lambda: np.linalg.inv(X), 5)[0]
 
 
-def matrix_inversion():
-    np.random
+@pytest.mark.parametrize(
+    "storage, problem, distribution, num_rows, limit",
+    [
+        ("dense", "narrow-insurance-no-weights-lasso", "poisson", 200000, 1.5),
+        ("sparse", "narrow-insurance-weights-l2", "gaussian", 200000, 2.5),
+        ("cat", "wide-insurance-no-weights-l2", "gamma", 100000, 2.5),
+        ("split0.1", "wide-insurance-offset-lasso", "tweedie-p=1.5", 100000, 3.0),
+        ("split0.1", "intermediate-insurance-no-weights-net", "binomial", 200000, 1.0),
+    ],
+)
+def test_runtime(
+    spmv_runtime, dense_inv_runtime, storage, problem, distribution, num_rows, limit
+):
 
-
-def test_runtime():
     from quantcore.glm_benchmarks.cli_run import get_all_problems
     from quantcore.glm import GeneralizedLinearRegressor
     from quantcore.glm_benchmarks.util import runtime
 
-    # narrow, wide, lasso, l2, gaussian, poisson, gamma, tweedie, binomial
-    storage = "dense"
-    P = get_all_problems()["narrow-insurance-no-weights-lasso-poisson"]
-    dat = P.data_loader(num_rows=200000, storage=storage)
+    P = get_all_problems()[problem + "-" + distribution]
+    dat = P.data_loader(num_rows=num_rows, storage=storage)
 
+    family = get_sklearn_family(distribution)
     model = GeneralizedLinearRegressor(
-        family="poisson",
-        l1_ratio=1.0,
-        alpha=0.01,
-        copy_X=False,
-        force_all_finite=False,
+        family=family, l1_ratio=1.0, alpha=0.01, copy_X=False, force_all_finite=False,
     )
     min_runtime, result = runtime(lambda: model.fit(X=dat["X"], y=dat["y"]), 5)
-    print(min_runtime)
+
+    # Let's just guess that we're about half flop-limited and half
+    # memory-limited.  This is a decent guess because the sandwich product is
+    # mostly flop-limited in the dense case and the dense case generally
+    # dominates even when we're using split or categorical. On the other hand,
+    # everything besides the sandwich product is probably memory limited.
+    denominator = 0.5 * dense_inv_runtime + 0.5 * spmv_runtime
+    print(min_runtime / denominator, limit)
+    assert min_runtime / denominator < limit
