@@ -186,7 +186,14 @@ def runtime_helper(
     # dominates even when we're using split or categorical. On the other hand,
     # everything besides the sandwich product is probably memory limited.
     denominator = 0.5 * dense_inv_runtime + 0.5 * spmv_runtime
-    print(min_runtime / denominator, limit)
+    print(
+        spmv_runtime,
+        dense_inv_runtime,
+        min_runtime,
+        denominator,
+        min_runtime / denominator,
+        limit,
+    )
     assert min_runtime / denominator < limit
 
 
