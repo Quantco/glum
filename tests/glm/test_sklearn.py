@@ -679,6 +679,45 @@ def test_glm_identity_regression(solver, fit_intercept, offset, convert_x_fn):
 
 
 @pytest.mark.parametrize("solver", GLM_SOLVERS)
+@pytest.mark.parametrize("fit_intercept", [False, True])
+@pytest.mark.parametrize("offset", [None, np.array([-0.1, 0, 0.1, 0, -0.2]), 0.1])
+@pytest.mark.parametrize(
+    "convert_x_fn",
+    [
+        np.asarray,
+        sparse.csc_matrix,
+        sparse.csr_matrix,
+        mx.DenseMatrix,
+        lambda x: mx.SparseMatrix(sparse.csc_matrix(x)),
+        lambda x: mx.split_matrix.csc_to_split(sparse.csc_matrix(x)),
+    ],
+)
+def test_x_not_modified_inplace(solver, fit_intercept, offset, convert_x_fn):
+    coef = [1.0, 2.0]
+    X = np.array([[1, 1, 1, 1, 1], [0, 1, 2, 3, 4]]).T
+    y = np.dot(X, coef) + (0 if offset is None else offset)
+    glm = GeneralizedLinearRegressor(
+        alpha=0,
+        family="normal",
+        link="identity",
+        fit_intercept=fit_intercept,
+        solver=solver,
+        gradient_tol=1e-7,
+    )
+    if fit_intercept:
+        X = X[:, 1:]
+
+    X = convert_x_fn(X.astype(float))
+
+    X_before = copy.deepcopy(X)
+    glm.fit(X, y, offset=offset)
+    if isinstance(X, np.ndarray):
+        np.testing.assert_almost_equal(X, X_before)
+    else:
+        np.testing.assert_almost_equal(X.A, X_before.A)
+
+
+@pytest.mark.parametrize("solver", GLM_SOLVERS)
 @pytest.mark.parametrize("offset", [None, np.array([-0.1, 0, 0.1, 0, -0.2]), 0.1])
 @pytest.mark.parametrize(
     "convert_x_fn",
