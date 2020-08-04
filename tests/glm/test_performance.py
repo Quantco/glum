@@ -3,6 +3,7 @@ import multiprocessing as mp
 import time
 from threading import Thread
 
+import numpy as np
 import pandas as pd
 import psutil
 import pytest
@@ -122,6 +123,22 @@ def test_memory_usage(storage, allowed_ratio):
     with mp.Pool(1) as p:
         extra_to_initial_ratio = p.map(runner, [storage])[0]
     assert extra_to_initial_ratio < allowed_ratio
+
+
+@pytest.fixture()
+def baseline_perf():
+    N = 100000
+
+    def sparse_matrix_vector():
+        diag_data = np.random.rand(5, N)
+        mat = sps.spdiags(diag_data, [0, 1, -1, 2, -2], N, N)
+        v = np.random.rand(N)
+
+        mat.dot(v)
+
+
+def matrix_inversion():
+    np.random
 
 
 def test_runtime():
