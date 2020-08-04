@@ -31,7 +31,7 @@ dependencies:
   - pytest-xdist
   - scikit-learn
   - setuptools_scm
-  - sparse_dot_mkl>=0.4.0
+  - sparse_dot_mkl>=0.5.3
   - xsimd
   - dask-ml
   - tqdm
