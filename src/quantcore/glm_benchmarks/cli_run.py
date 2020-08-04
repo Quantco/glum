@@ -36,6 +36,13 @@ try:
 except ImportError:
     LIBLINEAR_INSTALLED = False
 
+try:
+    from .bench_r_glmnet import r_glmnet_bench  # isort:skip
+
+    R_GLMNET_INSTALLED = True
+except ImportError:
+    R_GLMNET_INSTALLED = False
+
 
 @click.command()
 @click.option(
@@ -151,6 +158,9 @@ def get_all_libraries() -> Dict[str, Any]:
 
     if LIBLINEAR_INSTALLED:
         all_libraries["liblinear"] = liblinear_bench
+
+    if R_GLMNET_INSTALLED:
+        all_libraries["r-glmnet"] = r_glmnet_bench
     return all_libraries
 
 
