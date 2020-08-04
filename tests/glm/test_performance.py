@@ -116,6 +116,9 @@ def runner(storage):
 )
 @pytest.mark.slow
 def test_memory_usage(storage, allowed_ratio):
+    # We run inside a separate process here in order to isolate memory
+    # management issues so that the detritus from test #1 doesn't affect test
+    # #2.
     with mp.Pool(1) as p:
         extra_to_initial_ratio = p.map(runner, [storage])[0]
     assert extra_to_initial_ratio < allowed_ratio
