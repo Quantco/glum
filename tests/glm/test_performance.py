@@ -14,6 +14,16 @@ def get_memory_usage():
 
 
 class MemoryPoller:
+    """
+    Example usage:
+
+    with MemoryPoller() as mp:
+        do some stuff here
+        print('initial memory usage', mp.initial_memory)
+        print('max memory usage', mp.max_memory)
+        excess_memory_used = mp.max_memory - mp.initial_memory
+    """
+
     def poll_max_memory_usage(self):
         while not self.stop_polling:
             self.memory_usage.append(get_memory_usage())
@@ -102,10 +112,13 @@ def runner(storage):
 
 @pytest.mark.parametrize(
     "storage, allowed_ratio",
-    [("dense", 0.05), ("sparse", 0.45), ("cat", 1.3), ("split0.1", 0.55)],
+    [("dense", 0.1), ("sparse", 0.45), ("cat", 1.3), ("split0.1", 0.55)],
 )
 @pytest.mark.slow
 def test_memory_usage(storage, allowed_ratio):
+    # We run inside a separate process here in order to isolate memory
+    # management issues so that the detritus from test #1 doesn't affect test
+    # #2.
     with mp.Pool(1) as p:
         extra_to_initial_ratio = p.map(runner, [storage])[0]
     assert extra_to_initial_ratio < allowed_ratio
