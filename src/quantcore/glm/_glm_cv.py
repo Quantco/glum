@@ -396,7 +396,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
 
             if self.fit_intercept:
                 intercept_path_, coef_path_ = _unstandardize(
-                    x_train, col_means, col_stds, coef[:, 0], coef[:, 1:]
+                    col_means, col_stds, coef[:, 0], coef[:, 1:]
                 )
                 deviance_path_ = [
                     _get_deviance(_coef)
@@ -407,7 +407,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             else:
                 # set intercept to zero as the other linear models do
                 intercept_path_, coef_path_ = _unstandardize(
-                    x_train, col_means, col_stds, np.zeros(coef.shape[0]), coef
+                    col_means, col_stds, np.zeros(coef.shape[0]), coef
                 )
                 deviance_path_ = [_get_deviance(_coef) for _coef in coef_path_]
 
@@ -499,13 +499,11 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
 
         if self.fit_intercept:
             self.intercept_, self.coef_ = _unstandardize(
-                X, col_means, col_stds, coef[0], coef[1:]
+                col_means, col_stds, coef[0], coef[1:]
             )
         else:
             # set intercept to zero as the other linear models do
-            self.intercept_, self.coef_ = _unstandardize(
-                X, col_means, col_stds, 0.0, coef
-            )
+            self.intercept_, self.coef_ = _unstandardize(col_means, col_stds, 0.0, coef)
 
         self.tear_down_from_fit(X, y, col_means, col_stds, weights, weights_sum)
 
