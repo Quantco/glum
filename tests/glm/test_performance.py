@@ -17,11 +17,11 @@ class MemoryPoller:
     """
     Example usage:
 
-    >>> with MemoryPoller() as mp:
-    >>>     do some stuff here
-    >>>     print('initial memory usage', mp.initial_memory)
-    >>>     print('max memory usage', mp.max_memory)
-    >>>     excess_memory_used = mp.max_memory - mp.initial_memory
+    with MemoryPoller() as mp:
+        do some stuff here
+        print('initial memory usage', mp.initial_memory)
+        print('max memory usage', mp.max_memory)
+        excess_memory_used = mp.max_memory - mp.initial_memory
     """
 
     def poll_max_memory_usage(self):
