@@ -38,6 +38,7 @@ Generalized Linear Models with Exponential Dispersion Family
 
 from __future__ import division
 
+import copy
 import warnings
 from typing import Iterable, List, Optional, Tuple, Union
 
@@ -99,20 +100,19 @@ ShapedArrayLike = Union[
 
 
 def check_array_matrix_compliant(mat: ArrayLike, **kwargs):
+    to_copy = "copy" in kwargs.keys() and kwargs["copy"]
+
     if isinstance(mat, mx.SplitMatrix):
         kwargs.update({"ensure_min_features": 0})
-        # TODO: Find a way to not skip check for CategoricalMatrix for now
-        new_matrices = [
-            m if isinstance(m, mx.CategoricalMatrix) else check_array(m, **kwargs)
-            for m in mat.matrices
-        ]
-        for i, m in enumerate(new_matrices):
-            if isinstance(m, np.ndarray):
-                new_matrices[i] = mx.DenseMatrix(m)
-            elif isinstance(mat, sparse.spmatrix):
-                new_matrices[i] = mx.SparseMatrix(m)
+        new_matrices = [check_array_matrix_compliant(m, **kwargs) for m in mat.matrices]
+        new_indices = [elt.copy() for elt in mat.indices] if to_copy else mat.indices
 
-        return mx.SplitMatrix(new_matrices, mat.indices)
+        return mx.SplitMatrix(new_matrices, new_indices)
+
+    if isinstance(mat, mx.CategoricalMatrix):
+        if to_copy:
+            return copy.copy(mat)
+        return mat
 
     if isinstance(mat, mx.StandardizedMatrix):
         return mx.StandardizedMatrix(
@@ -151,8 +151,7 @@ def check_X_y_matrix_compliant(
         y = y.astype(np.float64)
 
     check_consistent_length(X, y)
-    if not isinstance(X, mx.CategoricalMatrix):
-        X = check_array_matrix_compliant(X, **kwargs)
+    X = check_array_matrix_compliant(X, **kwargs)
 
     return X, y
 
@@ -293,13 +292,11 @@ def _standardize(
 
 
 def _unstandardize(
-    X: mx.StandardizedMatrix,
     col_means: np.ndarray,
     col_stds: Optional[np.ndarray],
     intercept: float,
     coef: np.ndarray,
-) -> Tuple[float, np.ndarray]:
-    assert isinstance(X, mx.StandardizedMatrix)
+) -> Tuple[Union[float, np.ndarray], np.ndarray]:
     if col_stds is None:
         intercept -= np.squeeze(np.squeeze(col_means).dot(np.atleast_1d(coef).T))
     else:
@@ -732,11 +729,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         #######################################################################
         # 5a. undo standardization
         #######################################################################
-        assert isinstance(X, mx.StandardizedMatrix)
-        self.intercept_, self.coef_ = _unstandardize(
-            X, col_means, col_stds, self.intercept_, self.coef_,  # type: ignore
-        )
-
         if self.fit_dispersion in ["chisqr", "deviance"]:
             # attention because of rescaling of weights
             X_unstandardized = X.mat if isinstance(X, mx.StandardizedMatrix) else X
@@ -1868,16 +1860,18 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
 
             # intercept_ and coef_ return the last estimated alpha
             if self.fit_intercept:
-                self.intercept_ = coef[-1, 0]
-                self.intercept_path_ = coef[:, 0]
-                self.coef_ = coef[-1, 1:]
-                self.coef_path_ = coef[:, 1:]
+                self.intercept_path_, self.coef_path_ = _unstandardize(
+                    col_means, col_stds, coef[:, 0], coef[:, 1:]
+                )
+                self.intercept_ = self.intercept_path_[-1]  # type: ignore
+                self.coef_ = self.coef_path_[-1]
             else:
                 # set intercept to zero as the other linear models do
+                self.intercept_path_, self.coef_path_ = _unstandardize(
+                    col_means, col_stds, np.zeros(coef.shape[0]), coef
+                )
                 self.intercept_ = 0.0
-                self.intercept_path_ = np.zeros(coef.shape[0])
-                self.coef_ = coef[-1, :]
-                self.coef_path_ = coef
+                self.coef_ = self.coef_path_[-1]
         else:
             coef = self.solve(
                 X=X,
@@ -1892,12 +1886,14 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             )
 
             if self.fit_intercept:
-                self.intercept_ = coef[0]
-                self.coef_ = coef[1:]
+                self.intercept_, self.coef_ = _unstandardize(
+                    col_means, col_stds, coef[0], coef[1:]
+                )
             else:
                 # set intercept to zero as the other linear models do
-                self.intercept_ = 0.0
-                self.coef_ = coef
+                self.intercept_, self.coef_ = _unstandardize(
+                    col_means, col_stds, 0.0, coef
+                )
 
         self.tear_down_from_fit(X, y, col_means, col_stds, weights, weights_sum)
 

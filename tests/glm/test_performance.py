@@ -10,6 +10,7 @@ import psutil
 import pytest
 import quantcore.matrix as mx
 import scipy.sparse as sps
+from quantcore.glm_benchmarks.cli_run import get_all_problems
 from test_sklearn import GLM_SOLVERS
 
 from quantcore.glm import GeneralizedLinearRegressor
@@ -20,6 +21,16 @@ def get_memory_usage():
 
 
 class MemoryPoller:
+    """
+    Example usage:
+
+    with MemoryPoller() as mp:
+        do some stuff here
+        print('initial memory usage', mp.initial_memory)
+        print('max memory usage', mp.max_memory)
+        excess_memory_used = mp.max_memory - mp.initial_memory
+    """
+
     def poll_max_memory_usage(self):
         while not self.stop_polling:
             self.memory_usage.append(get_memory_usage())
@@ -58,13 +69,6 @@ def get_x_bytes(x) -> int:
 
 
 def runner(storage):
-    # Once issue #286 is solved, these imports can be moved outside the runner
-    # function. For now, there will be an indefinite hang if the imports are
-    # moved outside.
-    from quantcore.glm_benchmarks.cli_run import get_all_problems
-    from quantcore.glm import GeneralizedLinearRegressor
-    import quantcore.matrix as mx
-
     gc.collect()
     P = get_all_problems()["wide-insurance-no-weights-lasso-poisson"]
     dat = P.data_loader(num_rows=100000, storage=storage)
@@ -112,8 +116,9 @@ def runner(storage):
 
 @pytest.fixture(scope="module")
 def X():
-    n_rows = 100000
-    return np.random.random((n_rows, 50))
+    P = get_all_problems()["wide-insurance-no-weights-lasso-poisson"]
+    dat = P.data_loader(num_rows=100000, storage="dense")
+    return dat["X"]
 
 
 @pytest.mark.parametrize(
@@ -127,27 +132,15 @@ def test_memory_usage(storage, allowed_ratio):
     assert extra_to_initial_ratio < allowed_ratio
 
 
-@pytest.mark.slow
-@pytest.mark.parametrize("solver", GLM_SOLVERS)
-@pytest.mark.parametrize("fit_intercept", [False, True])
-@pytest.mark.parametrize("use_offset", [False, True])
-@pytest.mark.parametrize(
-    "convert_x_fn",
-    [
-        mx.DenseMatrix,
-        lambda x: mx.SparseMatrix(sps.csc_matrix(x)),
-        lambda x: mx.split_matrix.csc_to_split(sps.csc_matrix(x)),
-    ],
-)
-@pytest.mark.parametrize("copy_X", [False, None, True])
-def test_X_not_copied(
-    X,
-    solver,
-    fit_intercept: bool,
-    use_offset: bool,
-    convert_x_fn,
-    copy_X: Optional[bool],
+def run_test_X_copied_iff_copy_X(
+    X, solver, fit_intercept: bool, use_offset: bool, x_format, copy_X: Optional[bool],
 ):
+    convert_x_fn_d = {
+        "dense": mx.DenseMatrix,
+        "sparse": lambda x: mx.SparseMatrix(sps.csc_matrix(x)),
+        "split": lambda x: mx.split_matrix.csc_to_split(sps.csc_matrix(x)),
+    }
+    convert_x_fn = convert_x_fn_d[x_format]
 
     # Not exactly true, as some formats will take up more space
     X = convert_x_fn(X)
@@ -165,9 +158,32 @@ def test_X_not_copied(
     )
 
     with MemoryPoller() as mp:
-        for i in range(4):
-            glm.fit(X, y, offset=offset)
-        excess = mp.max_memory - mp.initial_memory
+        glm.fit(X, y, offset=offset)
+
+    excess = mp.max_memory - mp.initial_memory
+
+    return excess, x_size
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("solver", [GLM_SOLVERS[0]])
+@pytest.mark.parametrize("fit_intercept", [False, True])
+@pytest.mark.parametrize("use_offset", [False, True])
+@pytest.mark.parametrize("x_format", ["dense", "sparse", "split"])
+@pytest.mark.parametrize("copy_X", [False, None, True])
+def test_X_copied_iff_copy_X(
+    X,
+    solver,
+    fit_intercept: bool,
+    use_offset: bool,
+    x_format: str,
+    copy_X: Optional[bool],
+):
+    with mp.Pool(1) as p:
+        excess, x_size = p.starmap(
+            run_test_X_copied_iff_copy_X,
+            [(X, solver, fit_intercept, use_offset, x_format, copy_X)],
+        )[0]
 
     if copy_X:
         assert excess > x_size
