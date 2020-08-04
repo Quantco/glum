@@ -394,19 +394,24 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
                 upper_bounds=upper_bounds,
             )
 
-            intercept = coef[:, 0] if self.fit_intercept else 0.0
-            intercept_offset = 1 if self.fit_intercept else 0
-            intercept, coef_path_ = _unstandardize(
-                x_train, col_means, col_stds, intercept, coef[:, intercept_offset:]
-            )
             if self.fit_intercept:
-                coef_path_ = np.concatenate(
-                    [intercept[:, np.newaxis], coef_path_], axis=1
+                intercept_path_, coef_path_ = _unstandardize(
+                    col_means, col_stds, coef[:, 0], coef[:, 1:]
                 )
+                deviance_path_ = [
+                    _get_deviance(_coef)
+                    for _coef in np.concatenate(
+                        [intercept_path_[:, np.newaxis], coef_path_], axis=1
+                    )
+                ]
+            else:
+                # set intercept to zero as the other linear models do
+                intercept_path_, coef_path_ = _unstandardize(
+                    col_means, col_stds, np.zeros(coef.shape[0]), coef
+                )
+                deviance_path_ = [_get_deviance(_coef) for _coef in coef_path_]
 
-            deviance_path_ = [_get_deviance(_coef) for _coef in coef_path_]
-
-            return coef_path_, deviance_path_
+            return intercept_path_, coef_path_, deviance_path_
 
         jobs = (
             delayed(fit_path)(
@@ -427,9 +432,13 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         )
         paths_data = Parallel(n_jobs=self.n_jobs, prefer="processes")(jobs)
 
-        self.coef_path_ = [elmt[0] for elmt in paths_data]
-        self.deviance_path_ = [elmt[1] for elmt in paths_data]
+        self.intercept_path_ = [elmt[0] for elmt in paths_data]
+        self.coef_path_ = [elmt[1] for elmt in paths_data]
+        self.deviance_path_ = [elmt[2] for elmt in paths_data]
 
+        self.intercept_path_ = np.reshape(
+            self.intercept_path_, (cv.get_n_splits(), len(l1_ratio), len(alphas[0]), -1)
+        )
         self.coef_path_ = np.reshape(
             self.coef_path_, (cv.get_n_splits(), len(l1_ratio), len(alphas[0]), -1)
         )
@@ -489,12 +498,12 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         )
 
         if self.fit_intercept:
-            self.intercept_ = coef[0]
-            self.coef_ = coef[1:]
+            self.intercept_, self.coef_ = _unstandardize(
+                col_means, col_stds, coef[0], coef[1:]
+            )
         else:
             # set intercept to zero as the other linear models do
-            self.intercept_ = 0.0
-            self.coef_ = coef
+            self.intercept_, self.coef_ = _unstandardize(col_means, col_stds, 0.0, coef)
 
         self.tear_down_from_fit(X, y, col_means, col_stds, weights, weights_sum)
 

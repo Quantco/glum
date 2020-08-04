@@ -1295,7 +1295,7 @@ def test_standardize(use_sparse, scale_predictors):
         np.ones_like(col_means) if col_stds is None else copy.copy(col_stds)
     )
     intercept, coef = _unstandardize(
-        X, col_means, col_stds, intercept_standardized, coef_standardized,
+        col_means, col_stds, intercept_standardized, coef_standardized,
     )
     np.testing.assert_almost_equal(intercept, -(NC + 1) * NC / 2)
     if scale_predictors:
