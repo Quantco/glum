@@ -5,7 +5,6 @@ import warnings
 from threading import Thread
 from typing import Optional
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import psutil
@@ -70,6 +69,7 @@ def get_x_bytes(x) -> int:
 
 def runner(storage, copy_X: Optional[bool]):
     gc.collect()
+
     P = get_all_problems()["wide-insurance-no-weights-lasso-poisson"]
     dat = P.data_loader(num_rows=100000, storage=storage)
 
@@ -100,6 +100,8 @@ def runner(storage, copy_X: Optional[bool]):
 
         excess_memory_used = mp.max_memory - mp.initial_memory
         extra_to_initial_ratio = excess_memory_used / data_memory
+
+        import matplotlib.pyplot as plt
 
         graph = np.array(mp.memory_usage) - mp.initial_memory
         plt.plot(graph)
