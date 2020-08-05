@@ -228,7 +228,7 @@ def check_bounds(
         bounds = check_array(
             bounds,
             accept_sparse=False,
-            force_all_finite=True,
+            force_all_finite=False,
             ensure_2d=False,
             dtype=dtype,
         )
