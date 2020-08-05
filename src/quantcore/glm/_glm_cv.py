@@ -245,13 +245,14 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         sample_weight: Optional[ArrayLike] = None,
         offset: Optional[ArrayLike] = None,
     ):
+        self._validate_hyperparameters()
+
         X, y, weights, offset, weights_sum = self.set_up_and_check_fit_args(
             X,
             y,
             sample_weight,
             offset,
             solver=self.solver,
-            copy_X=self.copy_X,
             force_all_finite=self.force_all_finite,
         )
 
