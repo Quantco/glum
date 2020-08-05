@@ -111,6 +111,10 @@ def runner(storage, copy_X: Optional[bool]):
 
 
 def make_memory_usage_plots():
+    # These values are around double the empirical extra memory used. They inc
+    # They increase from dense->sparse->split->cat, because the matrix itself takes less
+    # and less memory to store, so all the temporary vectors of length n_rows start to
+    # dominate the memory usage.
     storage_allowed_ratio = {"dense": 0.1, "sparse": 0.45, "cat": 1.3, "split0.1": 0.55}
     for storage, allowed_ratio in storage_allowed_ratio.items():
         for copy_X in [False, True, None]:
