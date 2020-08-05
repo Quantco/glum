@@ -103,9 +103,11 @@ def runner(storage, copy_X: Optional[bool]):
 
         import matplotlib.pyplot as plt
 
-        graph = np.array(mp.memory_usage) - mp.initial_memory
+        graph = (np.array(mp.memory_usage) - mp.initial_memory) / data_memory
         plt.plot(graph)
-        plt.savefig(f"figures/memory_{storage}_copy_{copy_X}.png")
+        plt.ylabel("Memory (fraction of X)")
+        plt.xlabel("Time (1e-4s)")
+        plt.savefig(f"performance/memory_{storage}_copy_{copy_X}.png")
 
         return extra_to_initial_ratio
 
