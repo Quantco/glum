@@ -105,14 +105,20 @@ def runner(storage, copy_X: Optional[bool]):
 
         import matplotlib.pyplot as plt
 
-        graph = np.array(mp.memory_usage) - mp.initial_memory
+        graph = (np.array(mp.memory_usage) - mp.initial_memory) / data_memory
         plt.plot(graph)
-        plt.savefig(f"figures/memory_{storage}_copy_{copy_X}.png")
+        plt.ylabel("Memory (fraction of X)")
+        plt.xlabel("Time (1e-4s)")
+        plt.savefig(f"performance/memory_{storage}_copy_{copy_X}.png")
 
         return extra_to_initial_ratio
 
 
 def make_memory_usage_plots():
+    # These values are around double the empirical extra memory used. They inc
+    # They increase from dense->sparse->split->cat, because the matrix itself takes less
+    # and less memory to store, so all the temporary vectors of length n_rows start to
+    # dominate the memory usage.
     storage_allowed_ratio = {"dense": 0.1, "sparse": 0.45, "cat": 1.3, "split0.1": 0.55}
     for storage, allowed_ratio in storage_allowed_ratio.items():
         for copy_X in [False, True, None]:
@@ -198,5 +204,5 @@ def runtime_checker():
 
 
 if __name__ == "__main__":
-    make_memory_usage_plots()
+    # make_memory_usage_plots()
     runtime_checker()
