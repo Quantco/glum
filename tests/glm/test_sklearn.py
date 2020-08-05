@@ -605,12 +605,25 @@ def test_glm_random_state_argument(estimator, random_state):
     "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
 )
 @pytest.mark.parametrize("copy_X", ["not bool", 1, 0, [True]])
-def test_glm_copy_X_argument(estimator, copy_X):
+def test_glm_copy_X_argument_invalid(estimator, copy_X):
     """Test GLM for invalid copy_X arguments."""
     X, y = get_small_x_y(estimator)
     glm = estimator(copy_X=copy_X)
-    with pytest.raises(ValueError, match="copy_X must be bool"):
+    with pytest.raises(ValueError, match="copy_X must be None or bool"):
         glm.fit(X, y)
+
+
+def test_glm_copy_X_input_needs_conversion():
+    y = np.array([1.0])
+    # If X is of int dtype, it needs to be copied
+    X = np.array([[1]])
+    glm = GeneralizedLinearRegressor(copy_X=False)
+    # should raise an error
+    with pytest.raises(ValueError, match="copy_X"):
+        glm.fit(X, y)
+    # should be OK with copy_X = None or copy_X = True
+    GeneralizedLinearRegressor(copy_X=None).fit(X, y)
+    GeneralizedLinearRegressor(copy_X=True).fit(X, y)
 
 
 @pytest.mark.parametrize(
@@ -663,6 +676,45 @@ def test_glm_identity_regression(solver, fit_intercept, offset, convert_x_fn):
         fit_coef = res.coef_
     assert fit_coef.dtype.itemsize == X.dtype.itemsize
     assert_allclose(fit_coef, coef, rtol=1e-6)
+
+
+@pytest.mark.parametrize("solver", GLM_SOLVERS)
+@pytest.mark.parametrize("fit_intercept", [False, True])
+@pytest.mark.parametrize("offset", [None, np.array([-0.1, 0, 0.1, 0, -0.2]), 0.1])
+@pytest.mark.parametrize(
+    "convert_x_fn",
+    [
+        np.asarray,
+        sparse.csc_matrix,
+        sparse.csr_matrix,
+        mx.DenseMatrix,
+        lambda x: mx.SparseMatrix(sparse.csc_matrix(x)),
+        lambda x: mx.split_matrix.csc_to_split(sparse.csc_matrix(x)),
+    ],
+)
+def test_x_not_modified_inplace(solver, fit_intercept, offset, convert_x_fn):
+    coef = [1.0, 2.0]
+    X = np.array([[1, 1, 1, 1, 1], [0, 1, 2, 3, 4]]).T
+    y = np.dot(X, coef) + (0 if offset is None else offset)
+    glm = GeneralizedLinearRegressor(
+        alpha=0,
+        family="normal",
+        link="identity",
+        fit_intercept=fit_intercept,
+        solver=solver,
+        gradient_tol=1e-7,
+    )
+    if fit_intercept:
+        X = X[:, 1:]
+
+    X = convert_x_fn(X.astype(float))
+
+    X_before = copy.deepcopy(X)
+    glm.fit(X, y, offset=offset)
+    if isinstance(X, np.ndarray):
+        np.testing.assert_almost_equal(X, X_before)
+    else:
+        np.testing.assert_almost_equal(X.A, X_before.A)
 
 
 @pytest.mark.parametrize("solver", GLM_SOLVERS)

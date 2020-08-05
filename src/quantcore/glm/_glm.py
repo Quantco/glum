@@ -38,6 +38,7 @@ Generalized Linear Models with Exponential Dispersion Family
 
 from __future__ import division
 
+import copy
 import warnings
 from typing import Iterable, List, Optional, Tuple, Union
 
@@ -99,20 +100,19 @@ ShapedArrayLike = Union[
 
 
 def check_array_matrix_compliant(mat: ArrayLike, **kwargs):
+    to_copy = "copy" in kwargs.keys() and kwargs["copy"]
+
     if isinstance(mat, mx.SplitMatrix):
         kwargs.update({"ensure_min_features": 0})
-        # TODO: Find a way to not skip check for CategoricalMatrix for now
-        new_matrices = [
-            m if isinstance(m, mx.CategoricalMatrix) else check_array(m, **kwargs)
-            for m in mat.matrices
-        ]
-        for i, m in enumerate(new_matrices):
-            if isinstance(m, np.ndarray):
-                new_matrices[i] = mx.DenseMatrix(m)
-            elif isinstance(mat, sparse.spmatrix):
-                new_matrices[i] = mx.SparseMatrix(m)
+        new_matrices = [check_array_matrix_compliant(m, **kwargs) for m in mat.matrices]
+        new_indices = [elt.copy() for elt in mat.indices] if to_copy else mat.indices
 
-        return mx.SplitMatrix(new_matrices, mat.indices)
+        return mx.SplitMatrix(new_matrices, new_indices)
+
+    if isinstance(mat, mx.CategoricalMatrix):
+        if to_copy:
+            return copy.copy(mat)
+        return mat
 
     if isinstance(mat, mx.StandardizedMatrix):
         return mx.StandardizedMatrix(
@@ -151,8 +151,7 @@ def check_X_y_matrix_compliant(
         y = y.astype(np.float64)
 
     check_consistent_length(X, y)
-    if not isinstance(X, mx.CategoricalMatrix):
-        X = check_array_matrix_compliant(X, **kwargs)
+    X = check_array_matrix_compliant(X, **kwargs)
 
     return X, y
 
@@ -582,7 +581,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         start_params: Optional[np.ndarray] = None,
         selection="cyclic",
         random_state=None,
-        copy_X=True,
+        copy_X: Optional[bool] = None,
         check_input=True,
         verbose=0,
         scale_predictors=False,
@@ -678,8 +677,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         #######################################################################
         # 1. input validation                                                 #
         #######################################################################
-        # 1.1
-        self._validate_hyperparameters()
         # self.family and self.link are user-provided inputs and may be strings or
         #  ExponentialDispersonModel/Link objects
         # self.family_instance_ and self.link_instance_ are cleaned by 'fit' to be
@@ -1210,9 +1207,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 "The argument selection must be 'cyclic' or "
                 "'random'; got (selection={})".format(self.selection)
             )
-        if not isinstance(self.copy_X, bool):
+        if self.copy_X is not None and not isinstance(self.copy_X, bool):
             raise ValueError(
-                "The argument copy_X must be bool;" " got {}".format(self.copy_X)
+                "The argument copy_X must be None or bool;"
+                " got {}".format(self.copy_X)
             )
         if not isinstance(self.check_input, bool):
             raise ValueError(
@@ -1244,11 +1242,19 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         sample_weight: Union[np.ndarray, None],
         offset: Union[np.ndarray, None],
         solver: str,
-        copy_X: bool,
         force_all_finite,
     ) -> Tuple[
         mx.MatrixBase, np.ndarray, np.ndarray, Union[np.ndarray, None], float,
     ]:
+        # If self.copy_X is True, copy_X is True
+        # If self.copy_X is None, copy_X is False. Check for data of wrong dtype and
+        # fix if necessary.
+        # If self.copy_X is False, check for data of wrong dtype and error if it exists.
+        if self.copy_X is None:
+            copy_X = False
+        else:
+            copy_X = self.copy_X
+
         _dtype = [np.float64, np.float32]
         if solver == "irls-cd":
             _stype = ["csc"]
@@ -1260,6 +1266,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             and hasattr(X, "dtype")
             and X.dtype == np.int64  # type: ignore
         ):
+            if self.copy_X is not None and not self.copy_X:
+                raise ValueError(
+                    "Integer data needs to be converted to float, but you specified "
+                    "copy_X = False. To fix this, set copy_X = None or convert to "
+                    "float yourself."
+                )
             # check_X_y will convert to float32 if we don't do this, which causes
             # precision issues with the new handling of single precision. The new
             # behavior is to give everything the precision of X, but we don't want to
@@ -1514,8 +1526,13 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         RandomState instance used by `np.random`. Used when ``selection`` ==
         'random'.
 
-    copy_X : boolean, optional, (default=True)
-        If ``True``, X will be copied; else, it may be overwritten.
+    copy_X : boolean, optional, (default=None)
+        If ``True``, X will be copied. Since X is never modified by
+        GeneralizedLinearRegressor, this is unlikely to be needed; this option
+        exists mainly for compatibility with other sklearn estimators.
+        If ``False``, X will not be copied, and there will be an error if you pass
+        an X in the wrong format, such as providing int X and float y.
+        If ``None``, X will not be copied unless it is in the wrong format.
 
     check_input : boolean, optional (default=True)
         Allow to bypass several checks on input: y values in range of family,
@@ -1610,7 +1627,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         start_params: Optional[np.ndarray] = None,
         selection: str = "cyclic",
         random_state=None,
-        copy_X=True,
+        copy_X: Optional[bool] = None,
         check_input=True,
         verbose=0,
         scale_predictors=False,
@@ -1680,6 +1697,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         y: ArrayLike,
         sample_weight: Optional[ArrayLike] = None,
         offset: Optional[ArrayLike] = None,
+        # TODO: take out weights_sum (or use it properly)
         weights_sum: Optional[float] = None,
     ):
         """Fit a Generalized Linear Model.
@@ -1716,6 +1734,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         self : returns an instance of self.
         """
 
+        self._validate_hyperparameters()
+
         # NOTE: This function checks if all the entries in X and y are
         # finite. That can be expensive. But probably worthwhile.
         X, y, weights, offset, weights_sum = self.set_up_and_check_fit_args(
@@ -1724,7 +1744,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             sample_weight,
             offset,
             solver=self.solver,
-            copy_X=self.copy_X,
             force_all_finite=self.force_all_finite,
         )
         assert isinstance(X, mx.MatrixBase)
