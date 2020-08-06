@@ -59,6 +59,9 @@ def quantcore_glm_bench(
         )
 
     result["runtime"], m = runtime(build_and_fit, iterations, model_args, fit_args, cv)
+    if not cv:
+        # Just check that predict works here... This doesn't take very long.
+        m.predict(**{k: v for k, v in fit_args.items() if k != "y"})
 
     result["intercept"] = m.intercept_
     result["coef"] = m.coef_
