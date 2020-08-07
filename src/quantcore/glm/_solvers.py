@@ -471,7 +471,7 @@ class IRLSState:
 
         # some precalculations
         self.iteration_start = time.time()
-        self.iteration_runtime = 0
+        self.iteration_runtime = 0.0
 
         # number of outer iterations
         self.n_iter = -1

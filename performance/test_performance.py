@@ -3,7 +3,7 @@ import multiprocessing as mp
 import time
 import warnings
 from threading import Thread
-from typing import Optional
+from typing import List, Optional
 
 import numpy as np
 import pandas as pd
@@ -17,7 +17,7 @@ from quantcore.glm_benchmarks.cli_run import get_all_problems
 from quantcore.glm_benchmarks.util import get_sklearn_family, runtime
 
 
-def get_memory_usage():
+def get_memory_usage() -> int:
     return psutil.Process().memory_info().rss
 
 
@@ -35,14 +35,14 @@ class MemoryPoller:
     def poll_max_memory_usage(self):
         while not self.stop_polling:
             self.memory_usage.append(get_memory_usage())
-            self.max_memory = max(self.max_memory, self.memory_usage[-1])
+            self.max_memory: int = max(self.max_memory, self.memory_usage[-1])
             time.sleep(1e-4)
 
     def __enter__(self):
         self.stop_polling = False
         self.max_memory = 0
         self.initial_memory = get_memory_usage()
-        self.memory_usage = [self.initial_memory]
+        self.memory_usage: List[int] = [self.initial_memory]
         self.t = Thread(target=self.poll_max_memory_usage)
         self.t.start()
         return self
@@ -90,7 +90,7 @@ def runner(storage, copy_X: Optional[bool]):
     gc.collect()
 
     with MemoryPoller() as mp:
-        for i in range(4):
+        for _ in range(4):
             model = GeneralizedLinearRegressor(
                 family="poisson",
                 l1_ratio=1.0,

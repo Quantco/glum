@@ -295,7 +295,7 @@ def _standardize(
 def _unstandardize(
     col_means: np.ndarray,
     col_stds: Optional[np.ndarray],
-    intercept: float,
+    intercept: Union[float, np.ndarray],
     coef: np.ndarray,
 ) -> Tuple[Union[float, np.ndarray], np.ndarray]:
     if col_stds is None:

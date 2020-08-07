@@ -123,7 +123,7 @@ def get_obj_val(
 
 
 def exposure_and_offset_to_weights(
-    power: float,
+    power: Union[float, int],
     y: np.ndarray,
     exposure: np.ndarray = None,
     sample_weight: np.ndarray = None,
@@ -368,7 +368,7 @@ def benchmark_params_cli(func: Callable) -> Callable:
 @click.command()
 @benchmark_params_cli
 def _get_params(params: BenchmarkParams):
-    _get_params.out = params
+    _get_params.out = params  # type: ignore
 
 
 def get_params_from_fname(fname: str) -> BenchmarkParams:
@@ -415,7 +415,7 @@ def clear_cache(force=False):
         shutil.rmtree(cache_location)
 
 
-def get_tweedie_p(distribution: str) -> Optional[Union[float, int]]:
+def get_tweedie_p(distribution: str) -> Union[float, int]:
     """
     Extract the "p" parameter of the Tweedie distribution from the string name of the \
     distribution.
@@ -435,4 +435,5 @@ def get_tweedie_p(distribution: str) -> Optional[Union[float, int]]:
         return 2
     if "gaussian" in distribution:
         return 0
-    return None
+    else:
+        raise ValueError("Not a Tweedie distribution.")

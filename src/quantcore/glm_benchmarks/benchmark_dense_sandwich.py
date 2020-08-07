@@ -1,5 +1,5 @@
 import time
-from typing import Any, Callable, List, Tuple
+from typing import Any, Callable, Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
@@ -36,14 +36,14 @@ def _dense_sandwichF(X, d):
     return dense_sandwich(X[1], d)
 
 
-def mn_run(m, n, iter, dtype):
+def _mn_run(m, n, iter, dtype):
     precision = dtype().itemsize * 8
     X = [np.random.rand(n, m).astype(dtype=dtype)]
     d = np.random.rand(n).astype(dtype=dtype)
 
     X.append(np.asfortranarray(X[0]))
 
-    out = {"name": [], "runtime": []}
+    out: Dict[str, Any] = {"name": [], "runtime": []}
     to_run = [
         "numpy_mklC",
         # "numpy_mklF",
@@ -69,6 +69,7 @@ def mn_run(m, n, iter, dtype):
 
 
 def main():
+    """Run some kind of benchmark."""
     iter = 20
     Rs = []
     for m, n in [
@@ -81,7 +82,7 @@ def main():
         (500, 500),
     ]:
         for dt in [np.float64]:
-            Rs.append(mn_run(m, n, iter, dt))
+            Rs.append(_mn_run(m, n, iter, dt))
     df = pd.concat(Rs)
     df.set_index(["m", "n", "name", "precision"], inplace=True)
     df.sort_index(inplace=True)
@@ -89,6 +90,7 @@ def main():
 
 
 def main2():
+    """Run some kind of benchmark."""
     n = 500
     m = 500
     dtype = np.float64

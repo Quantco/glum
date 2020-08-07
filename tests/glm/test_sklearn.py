@@ -119,10 +119,10 @@ def test_tweedie_distribution_power():
     with pytest.raises(ValueError, match="no distribution exists"):
         TweedieDistribution(power=0.5)
 
-    with pytest.raises(TypeError, match="must be a real number"):
+    with pytest.raises(TypeError, match="must be an int or float"):
         TweedieDistribution(power=1j)
 
-    with pytest.raises(TypeError, match="must be a real number"):
+    with pytest.raises(TypeError, match="must be an int or float"):
         dist = TweedieDistribution()
         dist.power = 1j
 

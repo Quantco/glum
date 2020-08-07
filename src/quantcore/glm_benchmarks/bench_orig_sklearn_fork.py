@@ -5,7 +5,10 @@ import numpy as np
 import pandas as pd
 from scipy import sparse as sps
 
-from .orig_sklearn_fork import GeneralizedLinearRegressor, TweedieDistribution
+from .orig_sklearn_fork import (  # type: ignore
+    GeneralizedLinearRegressor,
+    TweedieDistribution,
+)
 from .util import benchmark_convergence_tolerance, runtime
 
 random_seed = 110

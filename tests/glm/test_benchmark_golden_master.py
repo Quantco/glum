@@ -89,9 +89,9 @@ def run_and_store_golden_master(overwrite, problem_name):
         with open(git_root("golden_master/benchmark_gm.json"), "r") as fh:
             gm_dict = json.load(fh)
     except FileNotFoundError:
-        gm_dict = dict()
+        gm_dict = {}
 
-    for Pn, P in get_all_problems().items():
+    for Pn in get_all_problems().keys():
         if is_weights_problem_with_offset_match(Pn):
             continue
         if problem_name is not None:

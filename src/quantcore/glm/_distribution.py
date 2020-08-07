@@ -1,4 +1,3 @@
-import numbers
 from abc import ABCMeta, abstractmethod
 from functools import partial
 from typing import Tuple, Union
@@ -456,13 +455,13 @@ class TweedieDistribution(ExponentialDispersionModel):
         raise ValueError
 
     @property
-    def power(self):
+    def power(self) -> Union[int, float]:
         return self._power
 
     @power.setter
     def power(self, power):
-        if not isinstance(power, numbers.Real):
-            raise TypeError("power must be a real number, input was {}".format(power))
+        if not isinstance(power, (int, float)):
+            raise TypeError("power must be an int or float, input was {}".format(power))
 
         if (power > 0) and (power < 1):
             raise ValueError("For 0<power<1, no distribution exists.")
@@ -594,11 +593,11 @@ class InverseGaussianDistribution(TweedieDistribution):
 class GeneralizedHyperbolicSecant(ExponentialDispersionModel):
     """A class for the Generalized Hyperbolic Secant (GHS) distribution.
 
-    The GHS distribution is for targets y in (-inf, inf).
+    The GHS distribution is for targets y in (-Inf, Inf).
     """
 
     lower_bound = -np.Inf
-    upper_bound = np.inf
+    upper_bound = np.Inf
     include_lower_bound = False
     include_upper_bound = False
 

@@ -12,7 +12,7 @@ from .util import benchmark_convergence_tolerance, get_sklearn_family, runtime
 random_seed = 110
 
 
-def build_and_fit(model_args, fit_args, cv: bool):
+def _build_and_fit(model_args, fit_args, cv: bool):
     if cv:
         return GeneralizedLinearRegressorCV(**model_args).fit(**fit_args)
     return GeneralizedLinearRegressor(**model_args).fit(**fit_args)
@@ -30,7 +30,27 @@ def quantcore_glm_bench(
     hessian_approx: float = 0.0,
     **kwargs,
 ):
-    result = dict()
+    """
+
+    Parameters
+    ----------
+    dat
+    distribution
+    alpha
+    l1_ratio
+    iterations
+    cv
+    diagnostics_level
+    reg_multiplier
+    hessian_approx
+    kwargs
+
+    Returns
+    -------
+    dict
+
+    """
+    result = {}
 
     X = dat["X"]
     fit_args = dict(X=X, y=dat["y"])
@@ -58,7 +78,7 @@ def quantcore_glm_bench(
             alpha if reg_multiplier is None else alpha * reg_multiplier
         )
 
-    result["runtime"], m = runtime(build_and_fit, iterations, model_args, fit_args, cv)
+    result["runtime"], m = runtime(_build_and_fit, iterations, model_args, fit_args, cv)
 
     result["intercept"] = m.intercept_
     result["coef"] = m.coef_
@@ -83,13 +103,13 @@ def quantcore_glm_bench(
     return result
 
 
-def compute_path(niters, model_args, fit_args):
+def _compute_path(niters, model_args, fit_args):
     step_model_args = model_args.copy()
     step_model_args["max_iter"] = 1
     step_model_args["warm_start"] = True
     m = GeneralizedLinearRegressor(**step_model_args)
     path = []
-    for i in range(niters):
+    for _ in range(niters):
         start = time.time()
         m.fit(**fit_args)
         print(time.time() - start)
