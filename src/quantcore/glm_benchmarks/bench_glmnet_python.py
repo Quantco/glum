@@ -19,7 +19,27 @@ def glmnet_python_bench(
     reg_multiplier: Optional[float] = None,
     **kwargs,
 ) -> Dict[str, Any]:
-    result: Dict = dict()
+    """
+    Run benchmarks from glmnet_python.
+
+    Parameters
+    ----------
+    dat
+    distribution
+    alpha
+    l1_ratio
+    iterations
+    cv
+    reg_multiplier
+    kwargs
+
+    Returns
+    -------
+    dict:
+        facts about this model run
+
+    """
+    result: Dict = {}
 
     X = dat["X"]
     if isinstance(X, sps.spmatrix):
@@ -30,7 +50,8 @@ def glmnet_python_bench(
         X = X.to_numpy()
     elif not isinstance(X, np.ndarray):
         warnings.warn(
-            "glmnet_python requires data as scipy.sparse matrix, pandas dataframe, or numpy array. Skipping."
+            "glmnet_python requires data as scipy.sparse matrix, pandas dataframe, or "
+            "numpy array. Skipping."
         )
         return result
 

@@ -5,8 +5,9 @@ from typing import Tuple, Union
 
 import numexpr
 import numpy as np
-from quantcore.matrix import MatrixBase, StandardizedMatrix
 from scipy import special
+
+from quantcore.matrix import MatrixBase, StandardizedMatrix
 
 from ._functions import (
     binomial_logit_eta_mu_deviance,
@@ -70,24 +71,26 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
     """
 
     @property
-    def lower_bound(self):
+    @abstractmethod
+    def lower_bound(self) -> Union[int, float]:
         """Get the lower bound of values for Y~EDM."""
-        return self._lower_bound
+        pass
 
     @property
-    def upper_bound(self):
+    @abstractmethod
+    def upper_bound(self) -> Union[int, float]:
         """Get the upper bound of values for Y~EDM."""
-        return self._upper_bound
+        pass
 
     @property
-    def include_lower_bound(self):
+    def include_lower_bound(self) -> bool:
         """Get True if lower bound for y is included: y >= lower_bound."""
-        return self._include_lower_bound
+        pass
 
     @property
-    def include_upper_bound(self):
+    def include_upper_bound(self) -> bool:
         """Get True if upper bound for y is included: y <= upper_bound."""
-        return self._include_upper_bound
+        pass
 
     def in_y_range(self, x):
         """Returns ``True`` if x is in the valid range of Y~EDM.
@@ -427,9 +430,30 @@ class TweedieDistribution(ExponentialDispersionModel):
             For ``0<power<1``, no distribution exists.
     """
 
+    upper_bound = np.Inf
+    include_upper_bound = False
+
     def __init__(self, power=0):
         # validate power and set _upper_bound, _include_upper_bound attrs
         self.power = power
+
+    @property
+    def lower_bound(self) -> Union[float, int]:
+        if self.power <= 0:
+            return -np.Inf
+        if self.power >= 1:
+            return 0
+        raise ValueError
+
+    @property
+    def include_lower_bound(self) -> bool:
+        if self.power <= 0:
+            return False
+        if (self.power >= 1) and (self.power < 2):
+            return True
+        if self.power >= 2:
+            return False
+        raise ValueError
 
     @property
     def power(self):
@@ -440,45 +464,8 @@ class TweedieDistribution(ExponentialDispersionModel):
         if not isinstance(power, numbers.Real):
             raise TypeError("power must be a real number, input was {}".format(power))
 
-        self._upper_bound = np.Inf
-        self._include_upper_bound = False
-        if power < 0:
-            # Extreme Stable
-            self._lower_bound = -np.Inf
-            self._include_lower_bound = False
-        elif power == 0:
-            # NormalDistribution
-            self._lower_bound = -np.Inf
-            self._include_lower_bound = False
-        elif (power > 0) and (power < 1):
+        if (power > 0) and (power < 1):
             raise ValueError("For 0<power<1, no distribution exists.")
-        elif power == 1:
-            # PoissonDistribution
-            self._lower_bound = 0
-            self._include_lower_bound = True
-        elif (power > 1) and (power < 2):
-            # Compound Poisson
-            self._lower_bound = 0
-            self._include_lower_bound = True
-        elif power == 2:
-            # GammaDistribution
-            self._lower_bound = 0
-            self._include_lower_bound = False
-        elif (power > 2) and (power < 3):
-            # Positive Stable
-            self._lower_bound = 0
-            self._include_lower_bound = False
-        elif power == 3:
-            # InverseGaussianDistribution
-            self._lower_bound = 0
-            self._include_lower_bound = False
-        elif power > 3:
-            # Positive Stable
-            self._lower_bound = 0
-            self._include_lower_bound = False
-        else:  # pragma: no cover
-            # this branch should be unreachable.
-            raise ValueError
 
         # Prevents upcasting when working with 32-bit data
         self._power = power if isinstance(power, int) else np.float32(power)
@@ -610,11 +597,13 @@ class GeneralizedHyperbolicSecant(ExponentialDispersionModel):
     The GHS distribution is for targets y in (-inf, inf).
     """
 
+    lower_bound = -np.Inf
+    upper_bound = np.inf
+    include_lower_bound = False
+    include_upper_bound = False
+
     def __init__(self):
-        self._lower_bound = -np.Inf
-        self._upper_bound = np.Inf
-        self._include_lower_bound = False
-        self._include_upper_bound = False
+        return
 
     def unit_variance(self, mu):
         return 1 + mu ** 2
@@ -634,11 +623,13 @@ class BinomialDistribution(ExponentialDispersionModel):
     The Binomial distribution is for targets y in [0, 1].
     """
 
+    lower_bound = 0
+    upper_bound = 1
+    include_lower_bound = True
+    include_upper_bound = True
+
     def __init__(self):
-        self._lower_bound = 0
-        self._upper_bound = 1
-        self._include_lower_bound = True
-        self._include_upper_bound = True
+        return
 
     def unit_variance(self, mu):
         return mu * (1 - mu)
