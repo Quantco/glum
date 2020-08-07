@@ -65,7 +65,6 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
 
     References
     ----------
-
     https://en.wikipedia.org/wiki/Exponential_dispersion_model.
     """
 
@@ -92,7 +91,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         pass
 
     def in_y_range(self, x):
-        """Returns ``True`` if x is in the valid range of Y~EDM.
+        """Return ``True`` if x is in the valid range of Y~EDM.
 
         Parameters
         ----------
@@ -177,6 +176,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         r"""Compute the derivative of the variance w.r.t. mu.
 
         Returns
+        -------
         :math:`\frac{\partial}{\partial\mu}\mathrm{Var}[Y_i]
         =phi/s_i*v'(\mu_i)`, with unit variance :math:`v(\mu)`
         and weights :math:`s_i`.
@@ -254,7 +254,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         return np.sum(weights * self.unit_deviance(y, mu))
 
     def deviance_derivative(self, y, mu, weights=1):
-        """Compute the derivative of the deviance w.r.t. mu.
+        r"""Compute the derivative of the deviance w.r.t. mu.
 
         It gives :math:`\\frac{\\partial}{\\partial\\mu} D(y, \\mu; weights)`.
 
@@ -301,6 +301,8 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         weights: np.ndarray,
     ):
         """
+        Compute eta, mu, and deviance.
+
         Compute:
         * the linear predictor, eta as cur_eta + factor * X_dot_d
         * the link-function-transformed prediction, mu
@@ -339,12 +341,13 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         mu_out: np.ndarray,
     ):
         """
+        Compute eta, mu, and deviance.
+
         This is a default implementation that should work for all valid
         distributions and link functions. To implement a custom optimized
         version for a specific distribution and link function, please override
         this function in the subclass.
         """
-
         eta_out[:] = cur_eta + factor * X_dot_d
         mu_out[:] = link.inverse(eta_out)
         deviance = self.deviance(y, mu_out, weights=weights)
@@ -386,13 +389,14 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         self, link, y, weights, eta, mu, gradient_rows, hessian_rows
     ):
         """
+        Update gradient_rows and hessian_rows in place.
+
         This is a default implementation that should work for all valid
         distributions and link functions. To implement a custom optimized
         version for a specific distribution and link function, please override
         this function in the subclass.
         """
-
-        # # FOR TWEEDIE: sigma_inv = weights / (mu ** p) during optimization bc phi = 1
+        # FOR TWEEDIE: sigma_inv = weights / (mu ** p) during optimization bc phi = 1
         sigma_inv = get_one_over_variance(self, link, mu, eta, 1.0, weights)
         d1 = link.inverse_derivative(eta)  # = h'(eta)
         # Alternatively:
@@ -438,6 +442,7 @@ class TweedieDistribution(ExponentialDispersionModel):
 
     @property
     def lower_bound(self) -> Union[float, int]:
+        """Return the lowest value of y allowed."""
         if self.power <= 0:
             return -np.Inf
         if self.power >= 1:
@@ -446,6 +451,7 @@ class TweedieDistribution(ExponentialDispersionModel):
 
     @property
     def include_lower_bound(self) -> bool:
+        """Return whether lower_bound is included as an allowable value of y."""
         if self.power <= 0:
             return False
         if (self.power >= 1) and (self.power < 2):
@@ -456,6 +462,7 @@ class TweedieDistribution(ExponentialDispersionModel):
 
     @property
     def power(self) -> Union[int, float]:
+        """Return the Tweedie 'p'."""
         return self._power
 
     @power.setter
@@ -481,8 +488,9 @@ class TweedieDistribution(ExponentialDispersionModel):
         return numexpr.evaluate("mu ** p")
 
     def unit_variance_derivative(self, mu: np.ndarray) -> np.ndarray:
-        """Compute the derivative of the unit variance of a Tweedie
-        distribution v(mu)=power*mu**(power-1).
+        """Compute the derivative of the unit variance of a Tweedie distribution.
+
+        Equation: v(mu)=power*mu**(power-1).
 
         Parameters
         ----------
@@ -493,6 +501,7 @@ class TweedieDistribution(ExponentialDispersionModel):
         return numexpr.evaluate("p * mu ** (p - 1)")
 
     def unit_deviance(self, y, mu):
+        """Get the deviance of each observation."""
         p = self.power
         if p == 0:
             # NormalDistribution
