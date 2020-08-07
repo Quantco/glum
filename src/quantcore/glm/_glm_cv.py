@@ -399,6 +399,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
                 intercept_path_, coef_path_ = _unstandardize(
                     col_means, col_stds, coef[:, 0], coef[:, 1:]
                 )
+                assert isinstance(intercept_path_, np.ndarray)  # make mypy happy
                 deviance_path_ = [
                     _get_deviance(_coef)
                     for _coef in np.concatenate(
