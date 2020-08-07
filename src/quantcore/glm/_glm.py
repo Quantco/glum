@@ -44,7 +44,6 @@ from typing import Iterable, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
-import quantcore.matrix as mx
 import scipy.sparse.linalg as splinalg
 from scipy import linalg, sparse
 from sklearn.base import BaseEstimator, RegressorMixin
@@ -57,6 +56,8 @@ from sklearn.utils.validation import (
     check_X_y,
     column_or_1d,
 )
+
+import quantcore.matrix as mx
 
 from ._distribution import (
     BinomialDistribution,

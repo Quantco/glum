@@ -3,14 +3,14 @@ import os
 import shutil
 import time
 from functools import reduce
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import Callable, Dict, Optional, Tuple, Union
 
 import click
 import numpy as np
 import pandas as pd
-import quantcore.matrix as mx
 from scipy import sparse as sps
 
+import quantcore.matrix as mx
 from quantcore.glm import GeneralizedLinearRegressor, TweedieDistribution
 from quantcore.glm._solvers import eta_mu_objective
 
@@ -19,8 +19,23 @@ cache_location = os.environ.get("GLM_BENCHMARKS_CACHE", None)
 
 
 def runtime(f, iterations, *args, **kwargs):
+    """
+    Measure how long it tales to run function f.
+
+    Parameters
+    ----------
+    f: function
+    iterations
+    args: Passed to f
+    kwargs: Passed to f
+
+    Returns
+    -------
+    Tuple: (Minimimum runtime across iterations, output of f)
+
+    """
     rs = []
-    for i in range(iterations):
+    for _ in range(iterations):
         start = time.time()
         out = f(*args, **kwargs)
         end = time.time()
@@ -29,6 +44,13 @@ def runtime(f, iterations, *args, **kwargs):
 
 
 def get_sklearn_family(distribution):
+    """
+    Translate statistical family to its equivalent in sklearn jargon.
+
+    Parameters
+    ----------
+    distribution
+    """
     family = distribution
     if family == "gaussian":
         family = "normal"
@@ -46,7 +68,24 @@ def get_obj_val(
     intercept: float,
     coefs: np.ndarray,
 ) -> float:
+    """
+    Return objective value.
 
+    Parameters
+    ----------
+    dat
+    distribution
+    alpha
+    l1_ratio
+    intercept
+    coefs
+
+    Returns
+    -------
+    float
+        Objective value
+
+    """
     model = GeneralizedLinearRegressor(
         alpha=alpha, l1_ratio=l1_ratio, family=get_sklearn_family(distribution),
     )
@@ -136,6 +175,8 @@ def exposure_and_offset_to_weights(
 
 class BenchmarkParams:
     """
+    Store metadata about the problem we want to solve and how.
+
     Attributes reflect exactly what the user passed in, only modified by type
     conversions. Any additional processing should be downstream.
     """
@@ -179,12 +220,33 @@ class BenchmarkParams:
     ]
 
     def update_params(self, **kwargs):
+        """
+        Update attributes to those found in kwargs.
+
+        Parameters
+        ----------
+        kwargs: dict
+
+        Returns
+        -------
+        self with updated attributes
+
+        """
         for k, v in kwargs.items():
             assert k in self.param_names
             setattr(self, k, v)
         return self
 
-    def get_result_fname(self):
+    def get_result_fname(self) -> str:
+        """
+        Get file name to which results will be written.
+
+        Returns
+        -------
+        str
+            File name within benchmark result directory.
+
+        """
         return "_".join(str(getattr(self, k)) for k in self.param_names)
 
 
@@ -203,38 +265,62 @@ defaults = dict(
 
 
 def benchmark_params_cli(func: Callable) -> Callable:
+    """
+    Decorate a function so that options given via click CLI get mapped into a \
+    BenchmarkParams instance.
+
+    >>> @click.command()
+    >>> @benchmark_params_cli
+    >>> def cli_run(params: BenchmarkParams):
+    >>>     print(params.problem_name)
+
+    Parameters
+    ----------
+    func
+
+    Returns
+    -------
+    Callable:
+        wrapped function that takes a BenchmarkParams instance as an argument.
+
+    """
+
     @click.option(
         "--problem_name",
         type=str,
-        help="Specify a comma-separated list of benchmark problems you want to run. Leaving this blank will default to running all problems.",
+        help="Specify a comma-separated list of benchmark problems you want to run. "
+        "Leaving this blank will default to running all problems.",
     )
     @click.option(
         "--library_name",
-        help="Specify a comma-separated list of libaries to benchmark. Leaving this blank will default to running all problems.",
+        help="Specify a comma-separated list of libaries to benchmark. Leaving this "
+        "blank will default to running all problems.",
     )
     @click.option(
         "--num_rows",
         type=int,
-        help="Pass an integer number of rows. This is useful for testing and development. The default is to use the full dataset.",
+        help="Pass an integer number of rows. This is useful for testing and "
+        "development. The default is to use the full dataset.",
     )
     @click.option(
         "--storage",
         type=str,
-        help="Specify the storage format. Currently supported: dense, sparse. Leaving this black will default to dense.",
+        help="Specify the storage format. Currently supported: dense, sparse. Leaving "
+        "this black will default to dense.",
     )
     @click.option(
         "--threads",
         type=int,
-        help="Specify the number of threads. If not set, it will use OMP_NUM_THREADS. If that's not set either, it will default to os.cpu_count().",
+        help="Specify the number of threads. If not set, it will use OMP_NUM_THREADS. "
+        "If that's not set either, it will default to os.cpu_count().",
     )
     @click.option("--cv", type=bool, help="Cross-validation")
-    @click.option(
-        "--single_precision", type=bool, help="Whether to use 32-bit data",
-    )
+    @click.option("--single_precision", type=bool, help="Whether to use 32-bit data")
     @click.option(
         "--regularization_strength",
         type=float,
-        help="Regularization strength. Set to None to use the default value of the problem.",
+        help="Regularization strength. Set to None to use the default value of the "
+        "problem.",
     )
     @click.option(
         "--hessian_approx",
@@ -244,7 +330,9 @@ def benchmark_params_cli(func: Callable) -> Callable:
     @click.option(
         "--diagnostics_level",
         type=str,
-        help="Choose 'basic' for brief quantcore.glm diagnostics or 'full' for more extensive diagnostics. Any other string will result in no diagnostic output at all.",
+        help="Choose 'basic' for brief quantcore.glm diagnostics or 'full' for more "
+        "extensive diagnostics. Any other string will result in no diagnostic "
+        "output at all.",
     )
     def wrapped_func(
         problem_name: Optional[str],
@@ -279,11 +367,23 @@ def benchmark_params_cli(func: Callable) -> Callable:
 
 @click.command()
 @benchmark_params_cli
-def get_params(params):
-    get_params.out = params
+def _get_params(params: BenchmarkParams):
+    _get_params.out = params
 
 
 def get_params_from_fname(fname: str) -> BenchmarkParams:
+    """
+    Map file name to a BenchmarkParams instance.
+
+    Parameters
+    ----------
+    fname: file name
+
+    Returns
+    -------
+    BenchmarkParams
+
+    """
     cli_list = reduce(
         lambda x, y: x + y,
         [
@@ -292,8 +392,8 @@ def get_params_from_fname(fname: str) -> BenchmarkParams:
             if elt[1] != "None"
         ],
     )
-    get_params(cli_list, standalone_mode=False)
-    return get_params.out  # type: ignore
+    _get_params(cli_list, standalone_mode=False)
+    return _get_params.out  # type: ignore
 
 
 def _get_size_of_cache_directory():
@@ -304,7 +404,6 @@ def _get_size_of_cache_directory():
 
 def clear_cache(force=False):
     """Clear the cache directory if its size exceeds a threshold."""
-
     if cache_location is None:
         return
 
@@ -316,11 +415,17 @@ def clear_cache(force=False):
         shutil.rmtree(cache_location)
 
 
-def get_comma_sep_names(xs: str) -> List[str]:
-    return [x.strip() for x in xs.split(",")]
+def get_tweedie_p(distribution: str) -> Optional[Union[float, int]]:
+    """
+    Extract the "p" parameter of the Tweedie distribution from the string name of the \
+    distribution.
 
+    Examples
+    --------
+    >>> get_tweedie_p("tweedie_p=1.5")
+    1.5
 
-def get_tweedie_p(distribution):
+    """
     tweedie = "tweedie" in distribution
     if tweedie:
         return float(distribution.split("=")[-1])

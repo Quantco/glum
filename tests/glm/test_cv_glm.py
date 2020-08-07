@@ -1,10 +1,10 @@
 import numpy as np
 import pytest
-import quantcore.matrix as mx
 from scipy import sparse as sparse
 from sklearn.datasets import make_regression
 from sklearn.linear_model import ElasticNetCV, RidgeCV
 
+import quantcore.matrix as mx
 from quantcore.glm import GeneralizedLinearRegressorCV
 
 GLM_SOLVERS = ["irls", "lbfgs", "cd"]
@@ -25,8 +25,10 @@ GLM_SOLVERS = ["irls", "lbfgs", "cd"]
 )
 def test_normal_elastic_net_comparison(l1_ratio, fit_intercept, convert_x_fn):
     """
-    Not testing l1_ratio = 0 because automatic grid generation is not supported
-    in ElasticNetCV for l1_ratio = 0.
+    Compare against sklearn's ElasticNetCV.
+
+    Don't test l1_ratio = 0 because automatic grid generation is not supported in
+    ElasticNetCV for l1_ratio = 0.
     """
     n_samples = 100
     n_alphas = 2
@@ -79,6 +81,8 @@ def test_normal_elastic_net_comparison(l1_ratio, fit_intercept, convert_x_fn):
 @pytest.mark.parametrize("fit_intercept", [False, True])
 def test_normal_ridge_comparison(fit_intercept):
     """
+    Test against sklearn's RidgeCV.
+
     Not testing l1_ratio = 0 because automatic grid generation is not supported
     in ElasticNetCV for l1_ratio = 0.
     """

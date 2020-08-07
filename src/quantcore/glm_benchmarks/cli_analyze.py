@@ -5,14 +5,18 @@ from typing import Any, Dict, List, Optional
 import click
 import numpy as np
 import pandas as pd
+
 from quantcore.glm_benchmarks.problems import get_all_problems
 from quantcore.glm_benchmarks.util import (
     BenchmarkParams,
     benchmark_params_cli,
     clear_cache,
-    get_comma_sep_names,
     get_params_from_fname,
 )
+
+
+def _get_comma_sep_names(xs: str) -> List[str]:
+    return [x.strip() for x in xs.split(",")]
 
 
 @click.command()
@@ -34,6 +38,17 @@ from quantcore.glm_benchmarks.util import (
 def cli_analyze(
     params: BenchmarkParams, output_dir: str, export: Optional[str], cols: str
 ):
+    """
+    Describe runtime, objective function values, and other statistics on the \
+    already-run problems specified by the command line options.
+
+    Parameters
+    ----------
+    params
+    output_dir
+    export
+    cols
+    """
 
     clear_cache()
     display_precision = 4
@@ -46,7 +61,7 @@ def cli_analyze(
         fname: load_benchmark_results(output_dir, fname) for fname in file_names
     }
     formatted_results = [
-        extract_dict_results_to_pd_series(name, res)
+        _extract_dict_results_to_pd_series(name, res)
         for name, res in raw_results.items()
         if len(res) > 0
     ]
@@ -73,7 +88,7 @@ def cli_analyze(
         "display.expand_frame_repr", False, "max_columns", None, "max_rows", None
     ):
         if cols is not None:
-            cols_to_show = get_comma_sep_names(cols)
+            cols_to_show = _get_comma_sep_names(cols)
         else:
             cols_to_show = [
                 "library_name",
@@ -106,7 +121,7 @@ def cli_analyze(
     return res_df
 
 
-def extract_dict_results_to_pd_series(fname: str, results: Dict[str, Any],) -> Dict:
+def _extract_dict_results_to_pd_series(fname: str, results: Dict[str, Any],) -> Dict:
     assert "coef" in results.keys()
     params = get_params_from_fname(fname)
     assert params.problem_name is not None

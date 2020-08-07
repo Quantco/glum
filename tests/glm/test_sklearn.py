@@ -2,11 +2,10 @@
 #
 # License: BSD 3 clause
 import copy
-from typing import Tuple, Union
+from typing import Any, Dict, Tuple, Union
 
 import numpy as np
 import pytest
-import quantcore.matrix as mx
 import scipy as sp
 from numpy.testing import assert_allclose, assert_array_equal
 from scipy import optimize, sparse
@@ -17,6 +16,7 @@ from sklearn.linear_model import ElasticNet, LogisticRegression, Ridge
 from sklearn.metrics import mean_absolute_error
 from sklearn.utils.estimator_checks import check_estimator
 
+import quantcore.matrix as mx
 from quantcore.glm import GeneralizedLinearRegressorCV
 from quantcore.glm._distribution import guess_intercept
 from quantcore.glm._glm import (
@@ -127,9 +127,9 @@ def test_tweedie_distribution_power():
         dist.power = 1j
 
     dist = TweedieDistribution()
-    assert dist._include_lower_bound is False
+    assert dist.include_lower_bound is False
     dist.power = 1
-    assert dist._include_lower_bound is True
+    assert dist.include_lower_bound is True
 
 
 @pytest.mark.parametrize(
@@ -278,7 +278,7 @@ def test_sample_weights_validation(estimator, kwargs):
     """Test the raised errors in the validation of sample_weight."""
     # scalar value but not positive
     X, y = get_small_x_y(estimator)
-    weights = 0
+    weights: Any = 0
     glm = estimator(fit_intercept=False, **kwargs)
     with pytest.raises(ValueError, match="weights must be non-negative"):
         glm.fit(X, y, weights)
@@ -827,7 +827,7 @@ def test_normal_ridge_comparison(n_samples, n_features, solver, use_offset):
         offset = None
 
     if n_samples > n_features:
-        ridge_params = {"solver": "svd"}
+        ridge_params: Dict[str, Any] = {"solver": "svd"}
     else:
         ridge_params = {"solver": "sag", "max_iter": 10000, "tol": 1e-9}
 

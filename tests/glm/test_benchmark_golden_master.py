@@ -5,6 +5,7 @@ import click
 import numpy as np
 import pytest
 from git_root import git_root
+
 from quantcore.glm_benchmarks.cli_run import execute_problem_library
 from quantcore.glm_benchmarks.problems import Problem, get_all_problems
 from quantcore.glm_benchmarks.util import BenchmarkParams, get_obj_val
