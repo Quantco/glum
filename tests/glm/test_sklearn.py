@@ -69,7 +69,7 @@ def regression_data():
 
 @pytest.fixture
 def y():
-    """In range of all distributions"""
+    """Get values for y that are in range of all distributions."""
     return np.array([0.1, 0.5])
 
 
@@ -170,7 +170,7 @@ def test_deviance_zero(family, chk_values):
 )
 def test_gradients(family, link):
     np.random.seed(1001)
-    for i in range(5):
+    for _ in range(5):
         nrows = 100
         ncols = 10
         X = np.random.rand(nrows, ncols)
@@ -217,7 +217,9 @@ def test_gradients(family, link):
 )
 def test_hessian_matrix(family, link, true_hessian):
     """Test the Hessian matrix numerically.
-    Trick: For the FIM, use numerical differentiation with y = mu"""
+
+    Trick: For the FIM, use numerical differentiation with y = mu
+    """
     coef = np.array([-2, 1, 0, 1, 2.5])
     phi = 0.5
     rng = np.random.RandomState(42)
@@ -582,7 +584,7 @@ def test_glm_start_params_argument(estimator, start_params, y, X):
 )
 @pytest.mark.parametrize("selection", ["not a selection", 1, 0, ["cyclic"]])
 def test_glm_selection_argument(estimator, selection):
-    """Test GLM for invalid selection argument"""
+    """Test GLM for invalid selection argument."""
     X, y = get_small_x_y(estimator)
     glm = estimator(selection=selection)
     with pytest.raises(ValueError, match="argument selection must be"):
@@ -863,7 +865,8 @@ def test_normal_ridge_comparison(n_samples, n_features, solver, use_offset):
 def test_poisson_ridge(solver, tol, scale_predictors, use_sparse):
     """Test ridge regression with poisson family and LogLink.
 
-    Compare to R's glmnet"""
+    Compare to R's glmnet
+    """
     # library("glmnet")
     # options(digits=10)
     # df <- data.frame(a=c(-2,-1,1,2), b=c(0,0,1,1), y=c(0,1,1,2))
@@ -1022,7 +1025,8 @@ def test_normal_enet():
 def test_poisson_enet():
     """Test elastic net regression with poisson family and LogLink.
 
-    Compare to R's glmnet"""
+    Compare to R's glmnet
+    """
     # library("glmnet")
     # options(digits=10)
     # df <- data.frame(a=c(-2,-1,1,2), b=c(0,0,1,1), y=c(0,1,1,2))

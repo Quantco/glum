@@ -31,6 +31,7 @@ def quantcore_glm_bench(
     **kwargs,
 ):
     """
+    Run the quantcore.glm.GeneralizedLinearRegressor benchmark.
 
     Parameters
     ----------

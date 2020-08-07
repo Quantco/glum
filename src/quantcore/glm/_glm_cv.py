@@ -23,11 +23,9 @@ from ._util import _safe_lin_pred
 
 
 class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
-    """
-    Generalized linear model like GeneralizedLinearRegressor with iterative fitting
-    along a regularization path. See glossary entry for
-    :term:`cross-validation estimator`.
+    r"""Generalized linear model with iterative fitting along a regularization path.
 
+    See glossary entry for :term:`cross-validation estimator`.
     The best model is selected by cross-validation.
 
     Cross-validated regression via a Generalized Linear Model (GLM) with penalties.
@@ -245,6 +243,17 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         sample_weight: Optional[ArrayLike] = None,
         offset: Optional[ArrayLike] = None,
     ):
+        """
+        Fit the model along a "regularization path" and choose the best model by \
+        cross-validation.
+
+        Parameters
+        ----------
+        X
+        y
+        sample_weight
+        offset
+        """
         self._validate_hyperparameters()
 
         X, y, weights, offset, weights_sum = self.set_up_and_check_fit_args(
