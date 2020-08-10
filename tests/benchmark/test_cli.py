@@ -7,7 +7,7 @@ import click
 import pytest
 from click.testing import CliRunner
 
-from quantcore.glm_benchmarks.cli_analyze import identify_parameter_fnames
+from quantcore.glm_benchmarks.cli_analyze import _identify_parameter_fnames
 from quantcore.glm_benchmarks.cli_run import cli_run
 from quantcore.glm_benchmarks.util import (
     BenchmarkParams,
@@ -140,5 +140,5 @@ def test_correct_problems_analyzed():
         warnings.warn("Output directory not found")
         return
 
-    to_analyze = identify_parameter_fnames(output_dir, BenchmarkParams())
+    to_analyze = _identify_parameter_fnames(output_dir, BenchmarkParams())
     assert sorted(to_analyze) == sorted(os.listdir(output_dir))

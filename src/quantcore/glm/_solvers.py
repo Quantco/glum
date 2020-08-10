@@ -525,7 +525,7 @@ class IRLSState:
         self.obj_val = None
         self.eta = np.zeros(data.X.shape[0], dtype=data.X.dtype)
         self.mu = None
-        self.score: Optional[np.ndarray] = None
+        self.score = np.empty_like(self.coef)
         self.old_hessian_rows = np.zeros(data.X.shape[0], dtype=data.X.dtype)
         self.gradient_rows = None
         self.hessian_rows = None

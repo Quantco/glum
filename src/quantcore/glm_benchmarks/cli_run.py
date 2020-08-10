@@ -55,19 +55,35 @@ except ImportError:
     "--iterations",
     default=1,
     type=int,
-    help="Number of times to re-run the benchmark. This can be useful for avoid performance noise.",
+    help="Number of times to re-run the benchmark. This can be useful for avoid "
+    "performance noise.",
 )
 @benchmark_params_cli
 def cli_run(
     params: BenchmarkParams, output_dir: str, iterations: int,
 ):
+    """
+    Run benchmark problems through the command line.
+
+    See the README for more info.
+
+    Parameters
+    ----------
+    params: BenchmarkParams, parsed by benchmark_params_cli decorator
+    output_dir
+    iterations
+
+    Returns
+    -------
+    None
+    """
     clear_cache()
     problems, libraries = get_limited_problems_libraries(
         params.problem_name, params.library_name
     )
 
-    for Pn, P in problems.items():
-        for Ln, L in libraries.items():
+    for Pn in problems.keys():
+        for Ln in libraries.keys():
             click.echo(f"running problem={Pn} library={Ln}")
             new_params = params.update_params(problem_name=Pn, library_name=Ln)
             result, regularization_strength_ = execute_problem_library(
@@ -77,7 +93,7 @@ def cli_run(
                 if params.diagnostics_level is None
                 else params.diagnostics_level,
             )
-            save_benchmark_results(
+            _save_benchmark_results(
                 output_dir, new_params, result,
             )
             if len(result) > 0:
@@ -91,6 +107,20 @@ def execute_problem_library(
     diagnostics_level: str = "basic",
     **kwargs,
 ):
+    """
+    Run the benchmark problem specified by 'params', 'iterations' times.
+
+    Parameters
+    ----------
+    params
+    iterations
+    diagnostics_level
+    kwargs
+
+    Returns
+    -------
+    Tuple: Result data on this run, and the regularization applied
+    """
     assert params.problem_name is not None
     assert params.library_name is not None
     P = get_all_problems()[params.problem_name]
@@ -145,6 +175,13 @@ def execute_problem_library(
 
 
 def get_all_libraries() -> Dict[str, Any]:
+    """
+    Get the names of all available libraries and the functions to benchmark them.
+
+    Returns
+    -------
+    dict
+    """
     all_libraries = {
         "quantcore-glm": quantcore_glm_bench,
         "orig-sklearn-fork": orig_sklearn_fork_bench,
@@ -168,10 +205,22 @@ def get_all_libraries() -> Dict[str, Any]:
 def get_limited_problems_libraries(
     problem_names: Optional[str], library_names: Optional[str]
 ) -> Tuple[Dict, Dict]:
+    """
+    Get only the problems and libraries specified by problem_names and library_names.
+
+    Parameters
+    ----------
+    problem_names
+    library_names
+
+    Returns
+    -------
+    tuple: dict of problems, dict of libraries
+    """
     all_libraries = get_all_libraries()
 
     if library_names is not None:
-        library_names_split = get_comma_sep_names(library_names)
+        library_names_split = _get_comma_sep_names(library_names)
         libraries = {k: all_libraries[k] for k in library_names_split}
     else:
         libraries = all_libraries
@@ -179,21 +228,32 @@ def get_limited_problems_libraries(
 
 
 def get_limited_problems(problem_names: Optional[str]) -> Dict[str, Problem]:
+    """
+    Get the names of problems and problems specified by problem_names.
+
+    Parameters
+    ----------
+    problem_names
+
+    Returns
+    -------
+    dict mapping problem name to Problem
+    """
     all_problems = get_all_problems()
 
     if problem_names is not None:
-        problem_names_split = get_comma_sep_names(problem_names)
+        problem_names_split = _get_comma_sep_names(problem_names)
         problems = {k: all_problems[k] for k in problem_names_split}
     else:
         problems = all_problems
     return problems
 
 
-def get_comma_sep_names(xs: str) -> List[str]:
+def _get_comma_sep_names(xs: str) -> List[str]:
     return [x.strip() for x in xs.split(",")]
 
 
-def save_benchmark_results(output_dir: str, params: BenchmarkParams, result,) -> None:
+def _save_benchmark_results(output_dir: str, params: BenchmarkParams, result,) -> None:
     results_path = output_dir + "/" + params.get_result_fname()
 
     if not os.path.exists(output_dir):
