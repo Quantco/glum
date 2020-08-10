@@ -269,11 +269,6 @@ def benchmark_params_cli(func: Callable) -> Callable:
     Decorate a function so that options given via click CLI get mapped into a \
     BenchmarkParams instance.
 
-    >>> @click.command()
-    >>> @benchmark_params_cli
-    >>> def cli_run(params: BenchmarkParams):
-    >>>     print(params.problem_name)
-
     Parameters
     ----------
     func
