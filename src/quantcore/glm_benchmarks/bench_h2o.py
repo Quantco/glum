@@ -11,13 +11,13 @@ from scipy import sparse as sps
 from .util import benchmark_convergence_tolerance, runtime
 
 
-def build_and_fit(model_args, train_args):
+def _build_and_fit(model_args, train_args):
     glm = H2OGeneralizedLinearEstimator(**model_args)
     glm.train(**train_args)
     return glm
 
 
-def hstack_sparse_or_dense(to_stack):
+def _hstack_sparse_or_dense(to_stack):
     if sps.isspmatrix(to_stack[0]):
         return sps.hstack(to_stack)
     else:
@@ -34,24 +34,42 @@ def h2o_bench(
     reg_multiplier: Optional[float] = None,
     **kwargs,
 ):
+    """
+    Run a benchmark problem using h2o's glm.
 
-    result: Dict = dict()
+    Parameters
+    ----------
+    dat
+    distribution
+    alpha
+    l1_ratio
+    iterations
+    cv
+    reg_multiplier
+    kwargs
+
+    Returns
+    -------
+    dict of data about this run
+    """
+    result: Dict = {}
 
     if not isinstance(dat["X"], (np.ndarray, sps.spmatrix, pd.DataFrame)):
         warnings.warn(
-            "h2o requires data as scipy.sparse matrix, pandas dataframe, or numpy array. Skipping."
+            "h2o requires data as scipy.sparse matrix, pandas dataframe, or numpy "
+            "array. Skipping."
         )
         return result
 
     h2o.init(nthreads=int(os.environ.get("OMP_NUM_THREADS", os.cpu_count())))  # type: ignore
 
-    train_mat = hstack_sparse_or_dense((dat["X"], dat["y"][:, np.newaxis]))
+    train_mat = _hstack_sparse_or_dense((dat["X"], dat["y"][:, np.newaxis]))
 
     use_weights = "weights" in dat.keys()
     if use_weights:
-        train_mat = hstack_sparse_or_dense((train_mat, dat["weights"][:, np.newaxis]))
+        train_mat = _hstack_sparse_or_dense((train_mat, dat["weights"][:, np.newaxis]))
     if "offset" in dat.keys():
-        train_mat = hstack_sparse_or_dense((train_mat, dat["offset"][:, np.newaxis]))
+        train_mat = _hstack_sparse_or_dense((train_mat, dat["offset"][:, np.newaxis]))
 
     train_h2o = h2o.H2OFrame(train_mat)
 
@@ -101,7 +119,7 @@ def h2o_bench(
             training_frame=train_h2o,
         )
 
-    result["runtime"], m = runtime(build_and_fit, iterations, model_args, train_args)
+    result["runtime"], m = runtime(_build_and_fit, iterations, model_args, train_args)
     # un-standardize
     standardized_intercept = m.coef()["Intercept"]
 

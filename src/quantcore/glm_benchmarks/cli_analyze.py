@@ -44,21 +44,20 @@ def cli_analyze(
 
     Parameters
     ----------
-    params
-    output_dir
-    export
-    cols
+    params: BenchmarkParams
+    output_dir: str
+    export: string or None
+    cols: str
     """
-
     clear_cache()
     display_precision = 4
     np.set_printoptions(precision=display_precision, suppress=True)
     pd.set_option("precision", display_precision)
 
-    file_names = identify_parameter_fnames(output_dir, params)
+    file_names = _identify_parameter_fnames(output_dir, params)
 
     raw_results = {
-        fname: load_benchmark_results(output_dir, fname) for fname in file_names
+        fname: _load_benchmark_results(output_dir, fname) for fname in file_names
     }
     formatted_results = [
         _extract_dict_results_to_pd_series(name, res)
@@ -171,7 +170,7 @@ def _extract_dict_results_to_pd_series(fname: str, results: Dict[str, Any],) -> 
     return formatted
 
 
-def identify_parameter_fnames(
+def _identify_parameter_fnames(
     root_dir: str, constraint_params: BenchmarkParams
 ) -> List[str]:
     def _satisfies_constraint(params: BenchmarkParams, k: str) -> bool:
@@ -199,7 +198,7 @@ def identify_parameter_fnames(
     return results_to_keep
 
 
-def load_benchmark_results(output_dir: str, fname: str):
+def _load_benchmark_results(output_dir: str, fname: str):
     results_path = os.path.join(output_dir, fname)
     with open(results_path, "rb") as f:
         return pickle.load(f)

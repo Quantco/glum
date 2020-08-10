@@ -572,28 +572,28 @@ class TweedieDistribution(ExponentialDispersionModel):
 
 
 class NormalDistribution(TweedieDistribution):
-    """Class for the Normal (aka Gaussian) distribution"""
+    """Class for the Normal (aka Gaussian) distribution."""
 
     def __init__(self):
         super(NormalDistribution, self).__init__(power=0)
 
 
 class PoissonDistribution(TweedieDistribution):
-    """Class for the scaled Poisson distribution"""
+    """Class for the scaled Poisson distribution."""
 
     def __init__(self):
         super(PoissonDistribution, self).__init__(power=1)
 
 
 class GammaDistribution(TweedieDistribution):
-    """Class for the Gamma distribution"""
+    """Class for the Gamma distribution."""
 
     def __init__(self):
         super(GammaDistribution, self).__init__(power=2)
 
 
 class InverseGaussianDistribution(TweedieDistribution):
-    """Class for the scaled InverseGaussianDistribution distribution"""
+    """Class for the scaled InverseGaussianDistribution distribution."""
 
     def __init__(self):
         super(InverseGaussianDistribution, self).__init__(power=3)
@@ -613,13 +613,53 @@ class GeneralizedHyperbolicSecant(ExponentialDispersionModel):
     def __init__(self):
         return
 
-    def unit_variance(self, mu):
+    def unit_variance(self, mu: np.ndarray) -> np.ndarray:
+        """
+        Get the unit-level expected variance.
+
+        See superclass documentation.
+
+        Parameters
+        ----------
+        mu: np.ndarray or float
+
+        Returns
+        -------
+        np.ndarray
+        """
         return 1 + mu ** 2
 
-    def unit_variance_derivative(self, mu):
+    def unit_variance_derivative(self, mu: np.ndarray) -> np.ndarray:
+        """
+        Get the derivative of the unit variance.
+
+        See superclass documentation.
+
+        Parameters
+        ----------
+        mu: np.ndarray or float
+
+        Returns
+        -------
+        np.ndarray
+        """
         return 2 * mu
 
-    def unit_deviance(self, y, mu):
+    def unit_deviance(self, y: np.ndarray, mu: np.ndarray) -> np.ndarray:
+        """
+        Get the unit-level deviance.
+
+        See superclass documentation.
+
+        Parameters
+        ----------
+        y: np.ndarray
+        mu: np.ndarray
+
+        Returns
+        -------
+        np.ndarray
+        """
         return 2 * y * (np.arctan(y) - np.arctan(mu)) + np.log(
             (1 + mu ** 2) / (1 + y ** 2)
         )
@@ -639,13 +679,45 @@ class BinomialDistribution(ExponentialDispersionModel):
     def __init__(self):
         return
 
-    def unit_variance(self, mu):
+    def unit_variance(self, mu: np.ndarray) -> np.ndarray:
+        """
+        Get the unit-level expected variance.
+
+        See superclass documentation.
+
+        Parameters
+        ----------
+        mu: np.ndarray
+        """
         return mu * (1 - mu)
 
     def unit_variance_derivative(self, mu):
+        """
+        Get the derivative of the unit variance.
+
+        See superclass documentation.
+
+        Parameters
+        ----------
+        mu: np.ndarray or float
+        """
         return 1 - 2 * mu
 
-    def unit_deviance(self, y, mu):
+    def unit_deviance(self, y: np.ndarray, mu: np.ndarray) -> np.ndarray:
+        """
+        Get the unit-level deviance.
+
+        See superclass documentation.
+
+        Parameters
+        ----------
+        y: np.ndarray
+        mu: np.ndarray
+
+        Returns
+        -------
+        np.ndarray
+        """
         return 2 * (
             special.xlogy(y, y)
             - special.xlogy(y, mu)
@@ -749,11 +821,13 @@ def get_one_over_variance(
     weights: np.ndarray,
 ):
     """
-    # FOR TWEEDIE: sigma_inv = weights / (mu ** p) during optimization bc phi = 1
+    Get one over the variance.
 
-    # For Binomial with Logit link: Simplifies to
-    # variance = phi / ( weights * (exp(eta) + 2 + exp(-eta)))
-    # More numerically accurate
+    FOR TWEEDIE: sigma_inv = weights / (mu ** p) during optimization bc phi = 1
+
+    For Binomial with Logit link: Simplifies to
+    variance = phi / ( weights * (exp(eta) + 2 + exp(-eta)))
+    More numerically accurate
     """
     if isinstance(distribution, BinomialDistribution) and isinstance(link, LogitLink):
         max_float_for_exp = np.log(np.finfo(eta.dtype).max / 10)

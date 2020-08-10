@@ -1,5 +1,5 @@
 import warnings
-from typing import Dict, Optional, Union
+from typing import Any, Dict, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -14,7 +14,7 @@ from .util import benchmark_convergence_tolerance, runtime
 random_seed = 110
 
 
-def build_and_fit(model_args, fit_args):
+def _build_and_fit(model_args, fit_args):
     return GeneralizedLinearRegressor(**model_args).fit(**fit_args)
 
 
@@ -28,15 +28,34 @@ def orig_sklearn_fork_bench(
     reg_multiplier: Optional[float] = True,
     **kwargs,
 ):
+    """
+    Benchmark the original sklearn-fork.
+
+    Parameters
+    ----------
+    dat
+    distribution
+    alpha
+    l1_ratio
+    iterations
+    cv
+    reg_multiplier
+    kwargs
+
+    Returns
+    -------
+    Dict of
+    """
     if cv:
         raise ValueError("original sklearn fork does not support cross-validation")
-    result = dict()  # type: ignore
+    result: Dict[str, Any] = {}
 
     X = dat["X"]
 
     if X.shape[0] > 100000 and not isinstance(X, (np.ndarray, pd.DataFrame)):
         warnings.warn(
-            "original sklearn fork is too slow on sparse data sets with more than 100,000 rows. Skipping."
+            "original sklearn fork is too slow on sparse data sets with more than "
+            "100,000 rows. Skipping."
         )
         return result
 
@@ -66,7 +85,7 @@ def orig_sklearn_fork_bench(
     )
 
     try:
-        result["runtime"], m = runtime(build_and_fit, iterations, model_args, fit_args)
+        result["runtime"], m = runtime(_build_and_fit, iterations, model_args, fit_args)
     except ValueError as e:
         warnings.warn(f"Problem failed with this error: {e}")
         return result
