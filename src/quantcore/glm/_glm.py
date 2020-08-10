@@ -1023,12 +1023,11 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         C : array, shape (n_samples,)
             Returns predicted values times sample_weight.
         """
-        # TODO: Is copy=True necessary?
         X = check_array_matrix_compliant(
             X,
             accept_sparse=["csr", "csc", "coo"],
             dtype="numeric",
-            copy=True,
+            copy=self._should_copy_X(),
             ensure_2d=True,
             allow_nd=False,
         )
@@ -1236,6 +1235,17 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 if not np.all(self.P1 >= 0):
                     raise ValueError("P1 must not have negative values.")
 
+    def _should_copy_X(self):
+        # If self.copy_X is True, copy_X is True
+        # If self.copy_X is None, copy_X is False. Check for data of wrong dtype and
+        # fix if necessary.
+        # If self.copy_X is False, check for data of wrong dtype and error if it exists.
+        if self.copy_X is None:
+            copy_X = False
+        else:
+            copy_X = self.copy_X
+        return copy_X
+
     def set_up_and_check_fit_args(
         self,
         X: ArrayLike,
@@ -1247,20 +1257,14 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
     ) -> Tuple[
         mx.MatrixBase, np.ndarray, np.ndarray, Union[np.ndarray, None], float,
     ]:
-        # If self.copy_X is True, copy_X is True
-        # If self.copy_X is None, copy_X is False. Check for data of wrong dtype and
-        # fix if necessary.
-        # If self.copy_X is False, check for data of wrong dtype and error if it exists.
-        if self.copy_X is None:
-            copy_X = False
-        else:
-            copy_X = self.copy_X
 
         _dtype = [np.float64, np.float32]
         if solver == "irls-cd":
             _stype = ["csc"]
         else:
             _stype = ["csc", "csr"]
+
+        copy_X = self._should_copy_X()
 
         if (
             not isinstance(X, mx.CategoricalMatrix)
