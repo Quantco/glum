@@ -166,8 +166,6 @@ class TweedieLink(Link):
             return IdentityLink()
         if p == 1:
             return LogLink()
-        if p == 1:
-            return LogLink()
         return super(TweedieLink, cls).__new__(cls)
 
     def __init__(self, p):
