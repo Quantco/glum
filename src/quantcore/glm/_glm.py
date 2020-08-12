@@ -797,8 +797,14 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             coef=coef, X=X, y=y, weights=w, link=self._link_instance, offset=offset,
         )
 
-        # Still need to deal with unregularized coefficients.
-        alpha_max = np.max(np.abs(-0.5 * dev_der[intercept_offset:] / P1_no_alpha))
+        l1_regularized_mask = P1_no_alpha > 0
+        alpha_max = np.max(
+            np.abs(
+                -0.5
+                * dev_der[intercept_offset:][l1_regularized_mask]
+                / P1_no_alpha[l1_regularized_mask]
+            )
+        )
         return _make_grid(alpha_max)
 
     def solve(
