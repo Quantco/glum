@@ -749,11 +749,14 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         offset: np.ndarray = None,
     ) -> np.ndarray:
         """
-        If l1_ratio is positive, the highest alpha is the lowest alpha such that no
-        coefficients (other than the intercept) are nonzero.
+        Get the regularization path.
 
-        If l1_ratio is zero, use the sklearn RidgeCV default path [10, 1, 0.1] or
-        whatever is specified by the input parameters min_alpha_ratio and n_alphas..
+        If some features have l1 regularization, the maximum alpha is the lowest
+        alpha such that no l1-regularized coefficients are nonzero.
+
+        If all features do not have l1 regularization, use the sklearn RidgeCV
+        default path [10, 1, 0.1] or whatever is specified by the input parameters
+        min_alpha_ratio and n_alphas.
 
         min_alpha_ratio governs the length of the path, with 1e-6 as the default.
         Smaller values will lead to a longer path.
