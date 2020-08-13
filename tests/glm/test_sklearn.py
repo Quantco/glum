@@ -2,11 +2,10 @@
 #
 # License: BSD 3 clause
 import copy
-from typing import Tuple, Union
+from typing import Any, Dict, Tuple, Union
 
 import numpy as np
 import pytest
-import quantcore.matrix as mx
 import scipy as sp
 from numpy.testing import assert_allclose, assert_array_equal
 from scipy import optimize, sparse
@@ -17,6 +16,7 @@ from sklearn.linear_model import ElasticNet, LogisticRegression, Ridge
 from sklearn.metrics import mean_absolute_error
 from sklearn.utils.estimator_checks import check_estimator
 
+import quantcore.matrix as mx
 from quantcore.glm import GeneralizedLinearRegressorCV
 from quantcore.glm._distribution import guess_intercept
 from quantcore.glm._glm import (
@@ -69,7 +69,7 @@ def regression_data():
 
 @pytest.fixture
 def y():
-    """In range of all distributions"""
+    """Get values for y that are in range of all distributions."""
     return np.array([0.1, 0.5])
 
 
@@ -119,17 +119,17 @@ def test_tweedie_distribution_power():
     with pytest.raises(ValueError, match="no distribution exists"):
         TweedieDistribution(power=0.5)
 
-    with pytest.raises(TypeError, match="must be a real number"):
+    with pytest.raises(TypeError, match="must be an int or float"):
         TweedieDistribution(power=1j)
 
-    with pytest.raises(TypeError, match="must be a real number"):
+    with pytest.raises(TypeError, match="must be an int or float"):
         dist = TweedieDistribution()
         dist.power = 1j
 
     dist = TweedieDistribution()
-    assert dist._include_lower_bound is False
+    assert dist.include_lower_bound is False
     dist.power = 1
-    assert dist._include_lower_bound is True
+    assert dist.include_lower_bound is True
 
 
 @pytest.mark.parametrize(
@@ -170,7 +170,7 @@ def test_deviance_zero(family, chk_values):
 )
 def test_gradients(family, link):
     np.random.seed(1001)
-    for i in range(5):
+    for _ in range(5):
         nrows = 100
         ncols = 10
         X = np.random.rand(nrows, ncols)
@@ -217,7 +217,9 @@ def test_gradients(family, link):
 )
 def test_hessian_matrix(family, link, true_hessian):
     """Test the Hessian matrix numerically.
-    Trick: For the FIM, use numerical differentiation with y = mu"""
+
+    Trick: For the FIM, use numerical differentiation with y = mu
+    """
     coef = np.array([-2, 1, 0, 1, 2.5])
     phi = 0.5
     rng = np.random.RandomState(42)
@@ -278,7 +280,7 @@ def test_sample_weights_validation(estimator, kwargs):
     """Test the raised errors in the validation of sample_weight."""
     # scalar value but not positive
     X, y = get_small_x_y(estimator)
-    weights = 0
+    weights: Any = 0
     glm = estimator(fit_intercept=False, **kwargs)
     with pytest.raises(ValueError, match="weights must be non-negative"):
         glm.fit(X, y, weights)
@@ -582,7 +584,7 @@ def test_glm_start_params_argument(estimator, start_params, y, X):
 )
 @pytest.mark.parametrize("selection", ["not a selection", 1, 0, ["cyclic"]])
 def test_glm_selection_argument(estimator, selection):
-    """Test GLM for invalid selection argument"""
+    """Test GLM for invalid selection argument."""
     X, y = get_small_x_y(estimator)
     glm = estimator(selection=selection)
     with pytest.raises(ValueError, match="argument selection must be"):
@@ -827,7 +829,7 @@ def test_normal_ridge_comparison(n_samples, n_features, solver, use_offset):
         offset = None
 
     if n_samples > n_features:
-        ridge_params = {"solver": "svd"}
+        ridge_params: Dict[str, Any] = {"solver": "svd"}
     else:
         ridge_params = {"solver": "sag", "max_iter": 10000, "tol": 1e-9}
 
@@ -863,7 +865,8 @@ def test_normal_ridge_comparison(n_samples, n_features, solver, use_offset):
 def test_poisson_ridge(solver, tol, scale_predictors, use_sparse):
     """Test ridge regression with poisson family and LogLink.
 
-    Compare to R's glmnet"""
+    Compare to R's glmnet
+    """
     # library("glmnet")
     # options(digits=10)
     # df <- data.frame(a=c(-2,-1,1,2), b=c(0,0,1,1), y=c(0,1,1,2))
@@ -1022,7 +1025,8 @@ def test_normal_enet():
 def test_poisson_enet():
     """Test elastic net regression with poisson family and LogLink.
 
-    Compare to R's glmnet"""
+    Compare to R's glmnet
+    """
     # library("glmnet")
     # options(digits=10)
     # df <- data.frame(a=c(-2,-1,1,2), b=c(0,0,1,1), y=c(0,1,1,2))

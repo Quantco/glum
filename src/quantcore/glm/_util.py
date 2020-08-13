@@ -1,8 +1,9 @@
 from typing import Union
 
 import numpy as np
-from quantcore.matrix import MatrixBase, StandardizedMatrix
 from scipy import sparse
+
+from quantcore.matrix import MatrixBase, StandardizedMatrix
 
 
 def _safe_lin_pred(
@@ -29,11 +30,13 @@ def _safe_sandwich_dot(
     cols: np.ndarray = None,
     intercept=False,
 ) -> np.ndarray:
-    """Compute sandwich product X.T @ diag(d) @ X.
+    """
+    Compute sandwich product X.T @ diag(d) @ X.
 
     With ``intercept=True``, X is treated as if a column of 1 were appended as
     first column of X.
-    X can be sparse, d must be an ndarray. Always returns a ndarray."""
+    X can be sparse, d must be an ndarray. Always returns a ndarray.
+    """
     result = X.sandwich(d, rows, cols)
     if isinstance(result, sparse.dia_matrix):
         result = result.A
@@ -51,7 +54,7 @@ def _safe_sandwich_dot(
 
 
 def _safe_toarray(X) -> np.ndarray:
-    """Returns a numpy array."""
+    """Return a numpy array."""
     if sparse.issparse(X):
         return X.toarray()
     else:
