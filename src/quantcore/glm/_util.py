@@ -13,7 +13,7 @@ def _safe_lin_pred(
     """Compute the linear predictor taking care if intercept is present."""
     idx_offset = 0 if X.shape[1] == coef.shape[0] else 1
     nonzero_coefs = np.where(coef[idx_offset:] != 0.0)[0].astype(np.int32)
-    res = X.dot(coef[idx_offset:], cols=nonzero_coefs,)
+    res = X.matvec(coef[idx_offset:], cols=nonzero_coefs,)
 
     if idx_offset == 1:
         res += coef[0]
@@ -42,7 +42,7 @@ def _safe_sandwich_dot(
         dim = result.shape[0] + 1
         res_including_intercept = np.empty((dim, dim), dtype=X.dtype)
         res_including_intercept[0, 0] = d.sum()
-        res_including_intercept[1:, 0] = X.transpose_dot(d, rows, cols)
+        res_including_intercept[1:, 0] = X.transpose_matvec(d, rows, cols)
         res_including_intercept[0, 1:] = res_including_intercept[1:, 0]
         res_including_intercept[1:, 1:] = result
     else:
