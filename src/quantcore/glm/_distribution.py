@@ -256,7 +256,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
     def deviance_derivative(self, y, mu, weights=1):
         r"""Compute the derivative of the deviance w.r.t. mu.
 
-        It gives :math:`\\frac{\\partial}{\\partial\\mu} D(y, \\mu; weights)`.
+        It gives :math:`\frac{\partial}{\partial\mu} D(y, \mu; weights)`.
 
         Parameters
         ----------
