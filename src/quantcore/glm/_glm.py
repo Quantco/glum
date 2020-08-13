@@ -743,18 +743,21 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
     def _get_alpha_path(
         self,
-        l1_ratio: float,
+        P1_no_alpha: np.ndarray,
         X,
         y: np.ndarray,
         w: np.ndarray,
         offset: np.ndarray = None,
     ) -> np.ndarray:
         """
-        If l1_ratio is positive, the highest alpha is the lowest alpha such that no
-        coefficients (other than the intercept) are nonzero.
+        Get the regularization path.
 
-        If l1_ratio is zero, use the sklearn RidgeCV default path [10, 1, 0.1] or
-        whatever is specified by the input parameters min_alpha_ratio and n_alphas..
+        If some features have l1 regularization, the maximum alpha is the lowest
+        alpha such that no l1-regularized coefficients are nonzero.
+
+        If all features do not have l1 regularization, use the sklearn RidgeCV
+        default path [10, 1, 0.1] or whatever is specified by the input parameters
+        min_alpha_ratio and n_alphas.
 
         min_alpha_ratio governs the length of the path, with 1e-6 as the default.
         Smaller values will lead to a longer path.
@@ -777,11 +780,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 np.log(max_alpha), np.log(min_alpha), self.n_alphas, base=np.e
             )
 
-        if l1_ratio == 0:
+        if np.all(P1_no_alpha == 0):
             alpha_max = 10
             return _make_grid(alpha_max)
 
         if self.fit_intercept:
+            intercept_offset = 1
             coef = np.zeros(X.shape[1] + 1)
             coef[0] = guess_intercept(
                 y=y,
@@ -790,13 +794,21 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 distribution=self._family_instance,
             )
         else:
+            intercept_offset = 0
             coef = np.zeros(X.shape[1])
 
         _, dev_der = self._family_instance._mu_deviance_derivative(
             coef=coef, X=X, y=y, weights=w, link=self._link_instance, offset=offset,
         )
 
-        alpha_max = np.max(np.abs(-0.5 * dev_der)) / l1_ratio
+        l1_regularized_mask = P1_no_alpha > 0
+        alpha_max = np.max(
+            np.abs(
+                -0.5
+                * dev_der[intercept_offset:][l1_regularized_mask]
+                / P1_no_alpha[l1_regularized_mask]
+            )
+        )
         return _make_grid(alpha_max)
 
     def solve(
@@ -1845,7 +1857,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         if self.alpha_search:
             if self.alphas is None:
                 self._alphas = self._get_alpha_path(
-                    l1_ratio=self.l1_ratio, X=X, y=y, w=weights, offset=offset
+                    P1_no_alpha=P1_no_alpha, X=X, y=y, w=weights, offset=offset
                 )
             else:
                 self._alphas = self.alphas
