@@ -8,7 +8,7 @@ from quantcore.glm._glm import get_family, get_link
 
 
 def tweedie_rv(mu, sigma2=1, p=1.5):
-    """Generates draws from a tweedie distribution with power p.
+    """Generate draws from a tweedie distribution with power p.
 
     mu is the location parameter and sigma2 is the dispersion coefficient.
     """
@@ -28,7 +28,7 @@ def tweedie_rv(mu, sigma2=1, p=1.5):
     return out
 
 
-def get_family_rv(family, rand: np.random._generator.Generator):
+def _get_family_rv(family, rand: np.random._generator.Generator):
 
     family_rv = {
         "poisson": rand.poisson,
@@ -44,7 +44,8 @@ def get_family_rv(family, rand: np.random._generator.Generator):
         return partial(tweedie_rv, p=p)
     else:
         raise ValueError(
-            'family must take the value "poisson", "gamma", "normal", "binomial", or "tweedie_p=XX". '
+            'family must take the value "poisson", "gamma", "normal", "binomial", or '
+            '"tweedie_p=XX". '
             f"Currently {family}."
         )
 
@@ -63,6 +64,28 @@ def simulate_glm_data(
     drop_first: bool = False,
     random_seed: int = 1,
 ):
+    """
+    Simulate the data we will use for benchmarks.
+
+    Parameters
+    ----------
+    family
+    link
+    n_rows
+    dense_features
+    sparse_features
+    sparse_density
+    categorical_features
+    categorical_levels
+    ohe_categorical
+    intercept
+    drop_first
+    random_seed
+
+    Returns
+    -------
+    dict
+    """
     rand = np.random.default_rng(random_seed)
 
     # Creating dense component
@@ -106,7 +129,7 @@ def simulate_glm_data(
     intercept = intercept
 
     link_inst = get_link(link=link, family=get_family("poisson"))
-    family_rv = get_family_rv(family, rand)
+    family_rv = _get_family_rv(family, rand)
 
     y = family_rv(link_inst.inverse(intercept + X.values @ coefs.values))
 
