@@ -207,8 +207,8 @@ def runtime_checker():
         denominator = 0.5 * dense_inv_runtime + 0.5 * spmv_runtime
         if min_runtime / denominator > limit:
             warnings.warn(
-                f"runtime ${min_runtime} is greater than the expected maximum runtime "
-                f"of ${limit * denominator}"
+                f"runtime {min_runtime} is greater than the expected maximum runtime "
+                f"of {limit * denominator}"
             )
 
 
