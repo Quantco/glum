@@ -1,27 +1,29 @@
 import time
+from typing import Any, Callable, Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
+
 from quantcore.matrix.ext.dense import dense_sandwich
 
 
-def numpy_mklC(X, d):
+def _numpy_mklC(X, d):
     sqrtD = np.sqrt(d)[:, np.newaxis]
     x_d = X[0] * sqrtD
     return x_d.T @ x_d
 
 
-def numpy_mklF(X, d):
+def _numpy_mklF(X, d):
     sqrtD = np.sqrt(d)[:, np.newaxis]
     x_d = X[1] * sqrtD
     return x_d.T @ x_d
 
 
-def bench(f, iter):
+def _bench(f: Callable, iter: int) -> Tuple[List[float], Any]:
     ts = []
-    for i in range(iter):
+    for _ in range(iter):
         start = time.time()
-        out = f()
+        out: Any = f()
         ts.append(time.time() - start)
     return ts, out
 
@@ -34,16 +36,14 @@ def _dense_sandwichF(X, d):
     return dense_sandwich(X[1], d)
 
 
-def mn_run(m, n, iter, dtype):
+def _mn_run(m, n, iter, dtype):
     precision = dtype().itemsize * 8
     X = [np.random.rand(n, m).astype(dtype=dtype)]
     d = np.random.rand(n).astype(dtype=dtype)
 
     X.append(np.asfortranarray(X[0]))
 
-    out = dict()
-    out["name"] = []
-    out["runtime"] = []
+    out: Dict[str, Any] = {"name": [], "runtime": []}
     to_run = [
         "numpy_mklC",
         # "numpy_mklF",
@@ -51,7 +51,7 @@ def mn_run(m, n, iter, dtype):
         "_dense_sandwichF",
     ]
     for name in to_run:
-        ts, result = bench(lambda: globals()[name](X, d), iter)
+        ts, result = _bench(lambda: globals()[name](X, d), iter)
         if name == "numpy_mklC":
             true = result
         elif "numpy_mklC" in to_run:
@@ -69,6 +69,7 @@ def mn_run(m, n, iter, dtype):
 
 
 def main():
+    """Run some kind of benchmark."""
     iter = 20
     Rs = []
     for m, n in [
@@ -81,7 +82,7 @@ def main():
         (500, 500),
     ]:
         for dt in [np.float64]:
-            Rs.append(mn_run(m, n, iter, dt))
+            Rs.append(_mn_run(m, n, iter, dt))
     df = pd.concat(Rs)
     df.set_index(["m", "n", "name", "precision"], inplace=True)
     df.sort_index(inplace=True)
@@ -89,6 +90,7 @@ def main():
 
 
 def main2():
+    """Run some kind of benchmark."""
     n = 500
     m = 500
     dtype = np.float64
@@ -113,7 +115,7 @@ def main2():
                     # results.append(np.min(bench(lambda: X.T @ X, 1)[0]))
                     results.append(
                         np.min(
-                            bench(
+                            _bench(
                                 lambda: dense_sandwich(
                                     X, d, thresh1d, parlevel, kratio, innerblock
                                 ),
