@@ -44,7 +44,6 @@ from typing import Iterable, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
-import quantcore.matrix as mx
 import scipy.sparse.linalg as splinalg
 from scipy import linalg, sparse
 from sklearn.base import BaseEstimator, RegressorMixin
@@ -57,6 +56,8 @@ from sklearn.utils.validation import (
     check_X_y,
     column_or_1d,
 )
+
+import quantcore.matrix as mx
 
 from ._distribution import (
     BinomialDistribution,
@@ -294,7 +295,7 @@ def _standardize(
 def _unstandardize(
     col_means: np.ndarray,
     col_stds: Optional[np.ndarray],
-    intercept: float,
+    intercept: Union[float, np.ndarray],
     coef: np.ndarray,
 ) -> Tuple[Union[float, np.ndarray], np.ndarray]:
     if col_stds is None:

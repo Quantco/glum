@@ -1,3 +1,4 @@
+# type: ignore
 """
 Generalized Linear Models with Exponential Dispersion Family
 """

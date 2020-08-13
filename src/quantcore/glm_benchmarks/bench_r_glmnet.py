@@ -13,13 +13,13 @@ from .util import benchmark_convergence_tolerance, runtime
 is_initialized = False
 
 
-def r_install_if_not_available(pkg_name):
+def _r_install_if_not_available(pkg_name):
     utils = importr("utils")
     if pkg_name not in utils.installed_packages():
         utils.install_packages(pkg_name, repos="https://cloud.r-project.org")
 
 
-def setup_r_glmnet():
+def _setup_r_glmnet():
     global is_initialized
     if is_initialized:
         return
@@ -27,13 +27,13 @@ def setup_r_glmnet():
 
     ro.r.library("utils")
     for pkg in ["glmnet", "statmod", "tweedie"]:
-        r_install_if_not_available(pkg)
+        _r_install_if_not_available(pkg)
         ro.r.library(pkg)
 
     is_initialized = True
 
 
-def numpy_to_r_obj(np_arr, R_name):
+def _numpy_to_r_obj(np_arr, R_name):
     nr = np_arr.shape[0]
     nc = 1 if len(np_arr.shape) == 1 else np_arr.shape[1]
     ro.r.assign(R_name, ro.r.matrix(np_arr, nrow=nr, ncol=nc))
@@ -49,9 +49,27 @@ def r_glmnet_bench(
     reg_multiplier: Optional[float] = None,
     **kwargs,
 ) -> Dict[str, Any]:
-    result: Dict = dict()
+    """
+    Run glmnet benchmark in R then port the results back to Python.
 
-    setup_r_glmnet()
+    Parameters
+    ----------
+    dat
+    distribution
+    alpha
+    l1_ratio
+    iterations
+    cv
+    reg_multiplier
+    kwargs
+
+    Returns
+    -------
+    Dict storing info about this model run.
+    """
+    result: Dict = {}
+
+    _setup_r_glmnet()
 
     X = dat["X"]
     if isinstance(X, sps.spmatrix):
@@ -62,7 +80,8 @@ def r_glmnet_bench(
         X = X.to_numpy()
     elif not isinstance(X, np.ndarray):
         warnings.warn(
-            "glmnet_python requires data as scipy.sparse matrix, pandas dataframe, or numpy array. Skipping."
+            "glmnet_python requires data as scipy.sparse matrix, pandas dataframe, or "
+            "numpy array. Skipping."
         )
         return result
 
@@ -78,8 +97,8 @@ def r_glmnet_bench(
     r = ro.r
     # Do this before fitting so we're not including python to R conversion
     # times
-    numpy_to_r_obj(X, "X_in_R")
-    numpy_to_r_obj(dat["y"], "y_in_R")
+    _numpy_to_r_obj(X, "X_in_R")
+    _numpy_to_r_obj(dat["y"], "y_in_R")
 
     glmnet_kws = dict(
         x=r["X_in_R"],
