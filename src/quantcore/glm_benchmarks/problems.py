@@ -5,11 +5,12 @@ from typing import Callable, Dict, List, Optional, Tuple, Union
 import attr
 import numpy as np
 import pandas as pd
-import quantcore.matrix as mx
 from dask_ml.preprocessing import DummyEncoder
 from git_root import git_root
 from joblib import Memory
 from scipy.sparse import csc_matrix
+
+import quantcore.matrix as mx
 
 from .data import (
     generate_intermediate_insurance_dataset,
@@ -24,6 +25,8 @@ joblib_memory = Memory(cache_location, verbose=0)
 
 @attr.s
 class Problem:
+    """Store metadata about which problem we should run."""
+
     data_loader = attr.ib(type=Callable)
     distribution = attr.ib(type=str)
     regularization_strength = attr.ib(type=float)
@@ -44,9 +47,11 @@ def load_data(
     data_setup: str = "weights",
 ) -> Dict[str, np.ndarray]:
     """
-    Due to the way we have set up this problem, by rescaling the target variable, it
-    is appropriate to pass what is modeled as an 'exposure' as a weight. Everywhere else,
-    exposures will be referred to as weights.
+    Load the data.
+
+    A note about weights and exposures: Due to the way we have set up this problem, by
+    rescaling the target variable, it is appropriate to pass what is modeled as an
+    'exposure' as a weight. Everywhere else, exposures will be referred to as weights.
     """
     # TODO: add a weights_and_offset option
     if data_setup not in ["weights", "offset", "no-weights"]:
@@ -129,6 +134,14 @@ def load_data(
 
 
 def get_all_problems() -> Dict[str, Problem]:
+    """
+    Return the name of all possible problems.
+
+    Returns
+    -------
+    Dict mapping problem names to Problem instances.
+
+    """
     regularization_strength = 0.001
     distributions = ["gaussian", "poisson", "gamma", "tweedie-p=1.5", "binomial"]
     load_funcs = {
@@ -139,7 +152,7 @@ def get_all_problems() -> Dict[str, Problem]:
     if os.path.isfile(git_root("data", "X.parquet")):
         load_funcs["real-insurance"] = generate_real_insurance_dataset
 
-    problems = dict()
+    problems = {}
     for penalty_str, l1_ratio in [("l2", 0.0), ("net", 0.5), ("lasso", 1.0)]:
         for distribution in distributions:
             suffix = penalty_str + "-" + distribution

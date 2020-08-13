@@ -3,26 +3,28 @@ import multiprocessing as mp
 import time
 import warnings
 from threading import Thread
-from typing import Optional
+from typing import List, Optional
 
 import numpy as np
 import pandas as pd
 import psutil
-import quantcore.matrix as mx
 import scipy.sparse as sps
-from quantcore.glm_benchmarks.cli_run import get_all_problems
-from quantcore.glm_benchmarks.util import get_sklearn_family, runtime
 from sparse_dot_mkl import dot_product_mkl
 
+import quantcore.matrix as mx
 from quantcore.glm import GeneralizedLinearRegressor
+from quantcore.glm_benchmarks.cli_run import get_all_problems
+from quantcore.glm_benchmarks.util import get_sklearn_family, runtime
 
 
-def get_memory_usage():
+def _get_memory_usage() -> int:
     return psutil.Process().memory_info().rss
 
 
 class MemoryPoller:
     """
+    Sample memory and compute useful statistics.
+
     Example usage:
 
     with MemoryPoller() as mp:
@@ -32,44 +34,44 @@ class MemoryPoller:
         excess_memory_used = mp.max_memory - mp.initial_memory
     """
 
-    def poll_max_memory_usage(self):
+    def _poll_max_memory_usage(self):
         while not self.stop_polling:
-            self.memory_usage.append(get_memory_usage())
-            self.max_memory = max(self.max_memory, self.memory_usage[-1])
+            self.memory_usage.append(_get_memory_usage())
+            self.max_memory: int = max(self.max_memory, self.memory_usage[-1])
             time.sleep(1e-4)
 
     def __enter__(self):
+        """See example usage above."""
         self.stop_polling = False
         self.max_memory = 0
-        self.initial_memory = get_memory_usage()
-        self.memory_usage = [self.initial_memory]
-        self.t = Thread(target=self.poll_max_memory_usage)
+        self.initial_memory = _get_memory_usage()
+        self.memory_usage: List[int] = [self.initial_memory]
+        self.t = Thread(target=self._poll_max_memory_usage)
         self.t.start()
         return self
 
     def __exit__(self, *excargs):
+        """Stop polling memory usage."""
         self.stop_polling = True
         self.t.join()
 
 
-def get_x_bytes(x) -> int:
+def _get_x_bytes(x) -> int:
     if isinstance(x, np.ndarray):
         return x.nbytes
     if sps.issparse(x):
         return sum(
-            [
-                mat.data.nbytes + mat.indices.nbytes + mat.indptr.nbytes
-                for mat in [x, x.x_csr]
-            ]
+            mat.data.nbytes + mat.indices.nbytes + mat.indptr.nbytes
+            for mat in [x, x.x_csr]
         )
     if isinstance(x, mx.CategoricalMatrix):
         return x.indices.nbytes
     if isinstance(x, mx.SplitMatrix):
-        return sum([get_x_bytes(elt) for elt in x.matrices])
+        return sum(_get_x_bytes(elt) for elt in x.matrices)
     raise NotImplementedError(f"Can't get bytes for matrix of type {type(x)}.")
 
 
-def runner(storage, copy_X: Optional[bool]):
+def _runner(storage, copy_X: Optional[bool]):
     gc.collect()
 
     P = get_all_problems()["wide-insurance-no-weights-lasso-poisson"]
@@ -83,14 +85,14 @@ def runner(storage, copy_X: Optional[bool]):
     elif isinstance(dat["X"], mx.SplitMatrix):
         X = dat["X"]
 
-    data_memory = get_x_bytes(X)
+    data_memory = _get_x_bytes(X)
 
     y = dat["y"]
     del dat
     gc.collect()
 
     with MemoryPoller() as mp:
-        for i in range(4):
+        for _ in range(4):
             model = GeneralizedLinearRegressor(
                 family="poisson",
                 l1_ratio=1.0,
@@ -114,7 +116,7 @@ def runner(storage, copy_X: Optional[bool]):
         return extra_to_initial_ratio
 
 
-def make_memory_usage_plots():
+def _make_memory_usage_plots():
     # These values are around double the empirical extra memory used. They inc
     # They increase from dense->sparse->split->cat, because the matrix itself takes less
     # and less memory to store, so all the temporary vectors of length n_rows start to
@@ -123,7 +125,7 @@ def make_memory_usage_plots():
     for storage, allowed_ratio in storage_allowed_ratio.items():
         for copy_X in [False, True, None]:
             with mp.Pool(1) as p:
-                extra_to_initial_ratio = p.starmap(runner, [(storage, copy_X)])[0]
+                extra_to_initial_ratio = p.starmap(_runner, [(storage, copy_X)])[0]
 
             if copy_X is not None and copy_X:
                 if extra_to_initial_ratio < 1:
@@ -143,6 +145,8 @@ def make_memory_usage_plots():
 
 def get_spmv_runtime():
     """
+    Get runtime of sparse matrix-vector product.
+
     Sparse matrix-vector product runtime should be representative of the memory
     bandwidth of the machine. We use MKL to make sure that this is
     parallelized. Otherwise, the performance will not scale properly in
@@ -157,6 +161,8 @@ def get_spmv_runtime():
 
 def get_dense_inv_runtime():
     """
+    Get runtime of dense matrix inverse.
+
     Dense matrix multiplication runtime should be representative of the
     floating point performance of the machine.
     """
@@ -166,6 +172,8 @@ def get_dense_inv_runtime():
 
 
 def runtime_checker():
+    """Run various operations and check that quantcore.glm doesn't run too much slower \
+    than operations expected to be similar."""
     spmv_runtime = get_spmv_runtime()
     dense_inv_runtime = get_dense_inv_runtime()
 
@@ -199,7 +207,8 @@ def runtime_checker():
         denominator = 0.5 * dense_inv_runtime + 0.5 * spmv_runtime
         if min_runtime / denominator > limit:
             warnings.warn(
-                f"runtime ${min_runtime} is greater than the expected maximum runtime of ${limit * denominator}"
+                f"runtime {min_runtime} is greater than the expected maximum runtime "
+                f"of {limit * denominator}"
             )
 
 

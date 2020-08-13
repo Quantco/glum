@@ -1,12 +1,12 @@
-import numbers
 from abc import ABCMeta, abstractmethod
 from functools import partial
 from typing import Tuple, Union
 
 import numexpr
 import numpy as np
-from quantcore.matrix import MatrixBase, StandardizedMatrix
 from scipy import special
+
+from quantcore.matrix import MatrixBase, StandardizedMatrix
 
 from ._functions import (
     binomial_logit_eta_mu_deviance,
@@ -65,32 +65,33 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
 
     References
     ----------
-
     https://en.wikipedia.org/wiki/Exponential_dispersion_model.
     """
 
     @property
-    def lower_bound(self):
+    @abstractmethod
+    def lower_bound(self) -> Union[int, float]:
         """Get the lower bound of values for Y~EDM."""
-        return self._lower_bound
+        pass
 
     @property
-    def upper_bound(self):
+    @abstractmethod
+    def upper_bound(self) -> Union[int, float]:
         """Get the upper bound of values for Y~EDM."""
-        return self._upper_bound
+        pass
 
     @property
-    def include_lower_bound(self):
+    def include_lower_bound(self) -> bool:
         """Get True if lower bound for y is included: y >= lower_bound."""
-        return self._include_lower_bound
+        pass
 
     @property
-    def include_upper_bound(self):
+    def include_upper_bound(self) -> bool:
         """Get True if upper bound for y is included: y <= upper_bound."""
-        return self._include_upper_bound
+        pass
 
     def in_y_range(self, x):
-        """Returns ``True`` if x is in the valid range of Y~EDM.
+        """Return ``True`` if x is in the valid range of Y~EDM.
 
         Parameters
         ----------
@@ -175,6 +176,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         r"""Compute the derivative of the variance w.r.t. mu.
 
         Returns
+        -------
         :math:`\frac{\partial}{\partial\mu}\mathrm{Var}[Y_i]
         =phi/s_i*v'(\mu_i)`, with unit variance :math:`v(\mu)`
         and weights :math:`s_i`.
@@ -252,9 +254,9 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         return np.sum(weights * self.unit_deviance(y, mu))
 
     def deviance_derivative(self, y, mu, weights=1):
-        """Compute the derivative of the deviance w.r.t. mu.
+        r"""Compute the derivative of the deviance w.r.t. mu.
 
-        It gives :math:`\\frac{\\partial}{\\partial\\mu} D(y, \\mu; weights)`.
+        It gives :math:`\frac{\partial}{\partial\mu} D(y, \mu; weights)`.
 
         Parameters
         ----------
@@ -299,6 +301,8 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         weights: np.ndarray,
     ):
         """
+        Compute eta, mu, and deviance.
+
         Compute:
         * the linear predictor, eta as cur_eta + factor * X_dot_d
         * the link-function-transformed prediction, mu
@@ -337,12 +341,13 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         mu_out: np.ndarray,
     ):
         """
+        Compute eta, mu, and deviance.
+
         This is a default implementation that should work for all valid
         distributions and link functions. To implement a custom optimized
         version for a specific distribution and link function, please override
         this function in the subclass.
         """
-
         eta_out[:] = cur_eta + factor * X_dot_d
         mu_out[:] = link.inverse(eta_out)
         deviance = self.deviance(y, mu_out, weights=weights)
@@ -384,13 +389,14 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         self, link, y, weights, eta, mu, gradient_rows, hessian_rows
     ):
         """
+        Update gradient_rows and hessian_rows in place.
+
         This is a default implementation that should work for all valid
         distributions and link functions. To implement a custom optimized
         version for a specific distribution and link function, please override
         this function in the subclass.
         """
-
-        # # FOR TWEEDIE: sigma_inv = weights / (mu ** p) during optimization bc phi = 1
+        # FOR TWEEDIE: sigma_inv = weights / (mu ** p) during optimization bc phi = 1
         sigma_inv = get_one_over_variance(self, link, mu, eta, 1.0, weights)
         d1 = link.inverse_derivative(eta)  # = h'(eta)
         # Alternatively:
@@ -427,58 +433,45 @@ class TweedieDistribution(ExponentialDispersionModel):
             For ``0<power<1``, no distribution exists.
     """
 
+    upper_bound = np.Inf
+    include_upper_bound = False
+
     def __init__(self, power=0):
         # validate power and set _upper_bound, _include_upper_bound attrs
         self.power = power
 
     @property
-    def power(self):
+    def lower_bound(self) -> Union[float, int]:
+        """Return the lowest value of y allowed."""
+        if self.power <= 0:
+            return -np.Inf
+        if self.power >= 1:
+            return 0
+        raise ValueError
+
+    @property
+    def include_lower_bound(self) -> bool:
+        """Return whether lower_bound is included as an allowable value of y."""
+        if self.power <= 0:
+            return False
+        if (self.power >= 1) and (self.power < 2):
+            return True
+        if self.power >= 2:
+            return False
+        raise ValueError
+
+    @property
+    def power(self) -> Union[int, float]:
+        """Return the Tweedie 'p'."""
         return self._power
 
     @power.setter
     def power(self, power):
-        if not isinstance(power, numbers.Real):
-            raise TypeError("power must be a real number, input was {}".format(power))
+        if not isinstance(power, (int, float)):
+            raise TypeError("power must be an int or float, input was {}".format(power))
 
-        self._upper_bound = np.Inf
-        self._include_upper_bound = False
-        if power < 0:
-            # Extreme Stable
-            self._lower_bound = -np.Inf
-            self._include_lower_bound = False
-        elif power == 0:
-            # NormalDistribution
-            self._lower_bound = -np.Inf
-            self._include_lower_bound = False
-        elif (power > 0) and (power < 1):
+        if (power > 0) and (power < 1):
             raise ValueError("For 0<power<1, no distribution exists.")
-        elif power == 1:
-            # PoissonDistribution
-            self._lower_bound = 0
-            self._include_lower_bound = True
-        elif (power > 1) and (power < 2):
-            # Compound Poisson
-            self._lower_bound = 0
-            self._include_lower_bound = True
-        elif power == 2:
-            # GammaDistribution
-            self._lower_bound = 0
-            self._include_lower_bound = False
-        elif (power > 2) and (power < 3):
-            # Positive Stable
-            self._lower_bound = 0
-            self._include_lower_bound = False
-        elif power == 3:
-            # InverseGaussianDistribution
-            self._lower_bound = 0
-            self._include_lower_bound = False
-        elif power > 3:
-            # Positive Stable
-            self._lower_bound = 0
-            self._include_lower_bound = False
-        else:  # pragma: no cover
-            # this branch should be unreachable.
-            raise ValueError
 
         # Prevents upcasting when working with 32-bit data
         self._power = power if isinstance(power, int) else np.float32(power)
@@ -495,8 +488,9 @@ class TweedieDistribution(ExponentialDispersionModel):
         return numexpr.evaluate("mu ** p")
 
     def unit_variance_derivative(self, mu: np.ndarray) -> np.ndarray:
-        """Compute the derivative of the unit variance of a Tweedie
-        distribution v(mu)=power*mu**(power-1).
+        """Compute the derivative of the unit variance of a Tweedie distribution.
+
+        Equation: v(mu)=power*mu**(power-1).
 
         Parameters
         ----------
@@ -507,6 +501,7 @@ class TweedieDistribution(ExponentialDispersionModel):
         return numexpr.evaluate("p * mu ** (p - 1)")
 
     def unit_deviance(self, y, mu):
+        """Get the deviance of each observation."""
         p = self.power
         if p == 0:
             # NormalDistribution
@@ -577,28 +572,28 @@ class TweedieDistribution(ExponentialDispersionModel):
 
 
 class NormalDistribution(TweedieDistribution):
-    """Class for the Normal (aka Gaussian) distribution"""
+    """Class for the Normal (aka Gaussian) distribution."""
 
     def __init__(self):
         super(NormalDistribution, self).__init__(power=0)
 
 
 class PoissonDistribution(TweedieDistribution):
-    """Class for the scaled Poisson distribution"""
+    """Class for the scaled Poisson distribution."""
 
     def __init__(self):
         super(PoissonDistribution, self).__init__(power=1)
 
 
 class GammaDistribution(TweedieDistribution):
-    """Class for the Gamma distribution"""
+    """Class for the Gamma distribution."""
 
     def __init__(self):
         super(GammaDistribution, self).__init__(power=2)
 
 
 class InverseGaussianDistribution(TweedieDistribution):
-    """Class for the scaled InverseGaussianDistribution distribution"""
+    """Class for the scaled InverseGaussianDistribution distribution."""
 
     def __init__(self):
         super(InverseGaussianDistribution, self).__init__(power=3)
@@ -607,22 +602,64 @@ class InverseGaussianDistribution(TweedieDistribution):
 class GeneralizedHyperbolicSecant(ExponentialDispersionModel):
     """A class for the Generalized Hyperbolic Secant (GHS) distribution.
 
-    The GHS distribution is for targets y in (-inf, inf).
+    The GHS distribution is for targets y in (-Inf, Inf).
     """
 
-    def __init__(self):
-        self._lower_bound = -np.Inf
-        self._upper_bound = np.Inf
-        self._include_lower_bound = False
-        self._include_upper_bound = False
+    lower_bound = -np.Inf
+    upper_bound = np.Inf
+    include_lower_bound = False
+    include_upper_bound = False
 
-    def unit_variance(self, mu):
+    def __init__(self):
+        return
+
+    def unit_variance(self, mu: np.ndarray) -> np.ndarray:
+        """
+        Get the unit-level expected variance.
+
+        See superclass documentation.
+
+        Parameters
+        ----------
+        mu: np.ndarray or float
+
+        Returns
+        -------
+        np.ndarray
+        """
         return 1 + mu ** 2
 
-    def unit_variance_derivative(self, mu):
+    def unit_variance_derivative(self, mu: np.ndarray) -> np.ndarray:
+        """
+        Get the derivative of the unit variance.
+
+        See superclass documentation.
+
+        Parameters
+        ----------
+        mu: np.ndarray or float
+
+        Returns
+        -------
+        np.ndarray
+        """
         return 2 * mu
 
-    def unit_deviance(self, y, mu):
+    def unit_deviance(self, y: np.ndarray, mu: np.ndarray) -> np.ndarray:
+        """
+        Get the unit-level deviance.
+
+        See superclass documentation.
+
+        Parameters
+        ----------
+        y: np.ndarray
+        mu: np.ndarray
+
+        Returns
+        -------
+        np.ndarray
+        """
         return 2 * y * (np.arctan(y) - np.arctan(mu)) + np.log(
             (1 + mu ** 2) / (1 + y ** 2)
         )
@@ -634,19 +671,53 @@ class BinomialDistribution(ExponentialDispersionModel):
     The Binomial distribution is for targets y in [0, 1].
     """
 
-    def __init__(self):
-        self._lower_bound = 0
-        self._upper_bound = 1
-        self._include_lower_bound = True
-        self._include_upper_bound = True
+    lower_bound = 0
+    upper_bound = 1
+    include_lower_bound = True
+    include_upper_bound = True
 
-    def unit_variance(self, mu):
+    def __init__(self):
+        return
+
+    def unit_variance(self, mu: np.ndarray) -> np.ndarray:
+        """
+        Get the unit-level expected variance.
+
+        See superclass documentation.
+
+        Parameters
+        ----------
+        mu: np.ndarray
+        """
         return mu * (1 - mu)
 
     def unit_variance_derivative(self, mu):
+        """
+        Get the derivative of the unit variance.
+
+        See superclass documentation.
+
+        Parameters
+        ----------
+        mu: np.ndarray or float
+        """
         return 1 - 2 * mu
 
-    def unit_deviance(self, y, mu):
+    def unit_deviance(self, y: np.ndarray, mu: np.ndarray) -> np.ndarray:
+        """
+        Get the unit-level deviance.
+
+        See superclass documentation.
+
+        Parameters
+        ----------
+        y: np.ndarray
+        mu: np.ndarray
+
+        Returns
+        -------
+        np.ndarray
+        """
         return 2 * (
             special.xlogy(y, y)
             - special.xlogy(y, mu)
@@ -750,11 +821,13 @@ def get_one_over_variance(
     weights: np.ndarray,
 ):
     """
-    # FOR TWEEDIE: sigma_inv = weights / (mu ** p) during optimization bc phi = 1
+    Get one over the variance.
 
-    # For Binomial with Logit link: Simplifies to
-    # variance = phi / ( weights * (exp(eta) + 2 + exp(-eta)))
-    # More numerically accurate
+    FOR TWEEDIE: sigma_inv = weights / (mu ** p) during optimization bc phi = 1
+
+    For Binomial with Logit link: Simplifies to
+    variance = phi / ( weights * (exp(eta) + 2 + exp(-eta)))
+    More numerically accurate
     """
     if isinstance(distribution, BinomialDistribution) and isinstance(link, LogitLink):
         max_float_for_exp = np.log(np.finfo(eta.dtype).max / 10)

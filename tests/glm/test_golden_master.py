@@ -5,13 +5,13 @@ import warnings
 
 import numpy as np
 import pytest
-import quantcore.matrix as mx
 from git_root import git_root
-from quantcore.glm_benchmarks.data import simulate_glm_data
 from scipy import sparse
 
+import quantcore.matrix as mx
 from quantcore.glm import GeneralizedLinearRegressor, GeneralizedLinearRegressorCV
 from quantcore.glm._glm import TweedieDistribution
+from quantcore.glm_benchmarks.data import simulate_glm_data
 
 distributions_to_test = ["normal", "poisson", "gamma", "tweedie_p=1.5", "binomial"]
 custom_family_link = [("normal", "log")]
@@ -55,7 +55,7 @@ def data_all():
     params=["categorical"], scope="module",
 )
 def data_all_storage(request):
-    data = dict()
+    data = {}
     for dist in distributions_to_test:
         data_config = {
             "family": dist,
@@ -355,7 +355,7 @@ def run_and_store_golden_master(
         run_name = f"{run_name}_offset"
 
     if distribution not in gm_dict.keys():
-        gm_dict[distribution] = dict()
+        gm_dict[distribution] = {}
 
     if run_name in gm_dict[distribution].keys():
         if overwrite:
@@ -392,7 +392,7 @@ if __name__ == "__main__":
         with open(git_root("golden_master/simulation_gm.json"), "r") as fh:
             gm_dict = json.load(fh)
     except FileNotFoundError:
-        gm_dict = dict()
+        gm_dict = {}
 
     for dist in distributions_to_test:
         data = simulate_glm_data(family=dist, link=link_map[dist])
