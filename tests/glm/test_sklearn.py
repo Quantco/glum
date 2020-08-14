@@ -1514,10 +1514,7 @@ def test_column_with_stddev_zero():
 @pytest.mark.parametrize("fit_intercept", [True, False])
 @pytest.mark.parametrize("P1", ["identity", np.array([2, 1, 0.5, 0.1, 0.01])])
 def test_alpha_path(scale_predictors, fit_intercept, P1):
-    """
-    Test that the first alpha on the regularization path leads to all coefficients
-    being zero and the second alpha having at least one non-zero coefficient.
-    """
+    """Test regularization path."""
     if scale_predictors and not fit_intercept:
         return
     np.random.seed(1234)
