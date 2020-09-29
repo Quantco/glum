@@ -929,9 +929,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         return self.coef_path_
 
-    def report_diagnostics(
+    def _report_diagnostics(
         self, full_report: bool = False, custom_columns: Optional[Iterable] = None
-    ) -> None:
+    ) -> Union[str, pd.DataFrame]:
         """Print diagnostics to stdout.
 
         Parameters
@@ -942,19 +942,21 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         custom_columns: Iterable (optional, default None)
             Print only the specified columns
         """
-        if hasattr(self, "diagnostics_"):
+        if self.diagnostics_ is not None:
             print("diagnostics:")
             import pandas as pd
 
+            df = pd.DataFrame(data=self.diagnostics_)
+            if self.fit_intercept:
+                df["intercept"] = df["first_coef"]
+            else:
+                df["intercept"] = np.nan
+
             with pd.option_context("max_rows", None, "max_columns", None):
                 if custom_columns is not None:
-                    print(pd.DataFrame(data=self.diagnostics_)[custom_columns])
+                    to_print = df[custom_columns]
                 elif full_report:
-                    print(
-                        pd.DataFrame(data=self.diagnostics_).set_index(
-                            "n_iter", drop=True
-                        )
-                    )
+                    to_print = df.set_index("n_iter", drop=True)
                 else:
                     base_cols = [
                         "n_iter",
@@ -963,13 +965,11 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                         "iteration_runtime",
                         "intercept",
                     ]
-                    print(
-                        pd.DataFrame(data=self.diagnostics_)[base_cols].set_index(
-                            "n_iter", drop=True
-                        )
-                    )
+                    to_print = df[base_cols].set_index("n_iter", drop=True)
         else:
-            print("solver does not report diagnostics")
+            to_print = "solver does not report diagnostics"
+        print(to_print)
+        return to_print
 
     def linear_predictor(
         self, X: ArrayLike, offset: Optional[ArrayLike] = None, alpha_level: int = None

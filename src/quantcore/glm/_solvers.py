@@ -567,7 +567,7 @@ class IRLSState:
                 "L1(coef)": coef_l1,
                 "L2(coef)": coef_l2,
                 "L2(step)": step_l2,
-                "intercept": self.coef[0],
+                "first_coef": self.coef[0],
                 "n_coef_updated": self.n_updated,
                 "n_active_cols": self.active_set.shape[0],
                 "n_active_rows": self.n_active_rows,

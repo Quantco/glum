@@ -682,6 +682,32 @@ def test_glm_identity_regression(solver, fit_intercept, offset, convert_x_fn):
 
 @pytest.mark.parametrize("solver", GLM_SOLVERS)
 @pytest.mark.parametrize("fit_intercept", [False, True])
+@pytest.mark.parametrize("full_report", [False, True])
+def test_diagnostics(solver, fit_intercept: bool, full_report: bool):
+    """Test GLM regression with identity link on a simple dataset."""
+    X, y = get_small_x_y(GeneralizedLinearRegressor)
+
+    glm = GeneralizedLinearRegressor(fit_intercept=fit_intercept, solver=solver)
+    res = glm.fit(X, y)
+
+    diagnostics = res._report_diagnostics()
+    if solver == "lbfgs":
+        assert diagnostics == "solver does not report diagnostics"
+    else:
+        assert diagnostics.index.name == "n_iter"
+        assert (
+            diagnostics.columns
+            == ["convergence", "n_cycles", "iteration_runtime", "intercept"]
+        ).all()
+        null_intercept = diagnostics["intercept"].isnull()
+        if fit_intercept:
+            assert not null_intercept.any()
+        else:
+            assert null_intercept.all()
+
+
+@pytest.mark.parametrize("solver", GLM_SOLVERS)
+@pytest.mark.parametrize("fit_intercept", [False, True])
 @pytest.mark.parametrize("offset", [None, np.array([-0.1, 0, 0.1, 0, -0.2]), 0.1])
 @pytest.mark.parametrize(
     "convert_x_fn",
