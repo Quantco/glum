@@ -1281,6 +1281,17 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             copy_X = self.copy_X
         return copy_X
 
+    def _is_contiguous(self, X):
+        if isinstance(X, np.ndarray):
+            return X.flags["C_CONTIGUOUS"] or X.flags["F_CONTIGUOUS"]
+        elif isinstance(X, pd.DataFrame):
+            return self._is_contiguous(X.values)
+
+        # If the object isn't a numpy array or pandas dataframe, we
+        # assume it is contiguous.
+        else:
+            return True
+
     def set_up_and_check_fit_args(
         self,
         X: ArrayLike,
@@ -1300,6 +1311,14 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             _stype = ["csc", "csr"]
 
         copy_X = self._should_copy_X()
+
+        if not self._is_contiguous(X):
+            if self.copy_X is not None and not self.copy_X:
+                raise ValueError(
+                    "The X matrix is noncontiguous and copy_X = False."
+                    "To fix this, either set copy_X = None or pass a contiguous matrix."
+                )
+            X = X.copy()
 
         if (
             not isinstance(X, mx.CategoricalMatrix)
