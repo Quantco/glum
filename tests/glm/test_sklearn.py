@@ -2,7 +2,7 @@
 #
 # License: BSD 3 clause
 import copy
-from typing import Any, Dict, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pytest
@@ -683,27 +683,82 @@ def test_glm_identity_regression(solver, fit_intercept, offset, convert_x_fn):
 @pytest.mark.parametrize("solver", GLM_SOLVERS)
 @pytest.mark.parametrize("fit_intercept", [False, True])
 @pytest.mark.parametrize("full_report", [False, True])
-def test_diagnostics(solver, fit_intercept: bool, full_report: bool):
+@pytest.mark.parametrize("custom_columns", [None, ["objective_fct"]])
+def test_get_diagnostics(
+    solver, fit_intercept: bool, full_report: bool, custom_columns: Optional[List[str]]
+):
     """Test GLM regression with identity link on a simple dataset."""
     X, y = get_small_x_y(GeneralizedLinearRegressor)
 
     glm = GeneralizedLinearRegressor(fit_intercept=fit_intercept, solver=solver)
     res = glm.fit(X, y)
 
-    diagnostics = res._report_diagnostics()
+    diagnostics = res._get_formatted_diagnostics(full_report, custom_columns)
     if solver == "lbfgs":
         assert diagnostics == "solver does not report diagnostics"
     else:
         assert diagnostics.index.name == "n_iter"
-        assert (
-            diagnostics.columns
-            == ["convergence", "n_cycles", "iteration_runtime", "intercept"]
-        ).all()
-        null_intercept = diagnostics["intercept"].isnull()
-        if fit_intercept:
-            assert not null_intercept.any()
+        if custom_columns is not None:
+            expected_columns = custom_columns
+        elif full_report:
+            expected_columns = [
+                "convergence",
+                "objective_fct",
+                "L1(coef)",
+                "L2(coef)",
+                "L2(step)",
+                "first_coef",
+                "n_coef_updated",
+                "n_active_cols",
+                "n_active_rows",
+                "n_cycles",
+                "n_line_search",
+                "iteration_runtime",
+                "build_hessian_runtime",
+                "inner_solver_runtime",
+                "line_search_runtime",
+                "quadratic_update_runtime",
+                "intercept",
+            ]
         else:
-            assert null_intercept.all()
+            expected_columns = [
+                "convergence",
+                "n_cycles",
+                "iteration_runtime",
+                "intercept",
+            ]
+        assert (diagnostics.columns == expected_columns).all()
+        if "intercept" in expected_columns:
+            null_intercept = diagnostics["intercept"].isnull()
+            if fit_intercept:
+                assert not null_intercept.any()
+            else:
+                assert null_intercept.all()
+
+
+@pytest.mark.parametrize("solver", GLM_SOLVERS)
+@pytest.mark.parametrize("fit_intercept", [False, True])
+@pytest.mark.parametrize("full_report", [False, True])
+@pytest.mark.parametrize("custom_columns", [None, ["objective_fct"]])
+def test_report_diagnostics(
+    solver, fit_intercept: bool, full_report: bool, custom_columns: Optional[List[str]]
+):
+    """Test GLM regression with identity link on a simple dataset."""
+    X, y = get_small_x_y(GeneralizedLinearRegressor)
+
+    glm = GeneralizedLinearRegressor(fit_intercept=fit_intercept, solver=solver)
+    res = glm.fit(X, y)
+
+    # Make sure something prints
+    import io
+    from contextlib import redirect_stdout
+
+    f = io.StringIO()
+    with redirect_stdout(f):
+        res._report_diagnostics(full_report, custom_columns)
+    printed = f.getvalue()
+    # Something should be printed
+    assert len(printed) > 0
 
 
 @pytest.mark.parametrize("solver", GLM_SOLVERS)
