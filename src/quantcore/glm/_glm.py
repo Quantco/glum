@@ -931,7 +931,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
     def _report_diagnostics(
         self, full_report: bool = False, custom_columns: Optional[Iterable] = None
-    ) -> Union[str, pd.DataFrame]:
+    ) -> None:
         """Print diagnostics to stdout.
 
         Parameters
@@ -942,34 +942,57 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         custom_columns: Iterable (optional, default None)
             Print only the specified columns
         """
-        if self.diagnostics_ is not None:
-            print("diagnostics:")
-            import pandas as pd
+        diagnostics = self._get_formatted_diagnostics(full_report, custom_columns)
+        if isinstance(diagnostics, str):
+            print(diagnostics)
+            return
 
-            df = pd.DataFrame(data=self.diagnostics_)
-            if self.fit_intercept:
-                df["intercept"] = df["first_coef"]
-            else:
-                df["intercept"] = np.nan
+        import pandas as pd
 
-            with pd.option_context("max_rows", None, "max_columns", None):
-                if custom_columns is not None:
-                    to_print = df[custom_columns]
-                elif full_report:
-                    to_print = df.set_index("n_iter", drop=True)
-                else:
-                    base_cols = [
-                        "n_iter",
-                        "convergence",
-                        "n_cycles",
-                        "iteration_runtime",
-                        "intercept",
-                    ]
-                    to_print = df[base_cols].set_index("n_iter", drop=True)
-        else:
+        print("Diagnostics:")
+        with pd.option_context("max_rows", None, "max_columns", None):
+            print(diagnostics)
+
+    def _get_formatted_diagnostics(
+        self, full_report: bool = False, custom_columns: Optional[Iterable] = None
+    ) -> Union[str, pd.DataFrame]:
+        """Get formatted diagnostics; can be printed with _report_diagnostics.
+
+        Parameters
+        ----------
+        full_report: boolean (default False)
+            Print all available information. When False and custom_columns
+            is set to None, a restricted set of columns is printed out.
+        custom_columns: Iterable (optional, default None)
+            Print only the specified columns
+        """
+        if not hasattr(self, "diagnostics_"):
+            to_print = "Model has not been fit, so no diagnostics exist."
+            return to_print
+        if self.diagnostics_ is None:
             to_print = "solver does not report diagnostics"
-        print(to_print)
-        return to_print
+            return to_print
+
+        import pandas as pd
+
+        df = pd.DataFrame(data=self.diagnostics_).set_index("n_iter", drop=True)
+        if self.fit_intercept:
+            df["intercept"] = df["first_coef"]
+        else:
+            df["intercept"] = np.nan
+
+        if custom_columns is not None:
+            keep_cols = custom_columns
+        elif full_report:
+            keep_cols = df.columns
+        else:
+            keep_cols = [
+                "convergence",
+                "n_cycles",
+                "iteration_runtime",
+                "intercept",
+            ]
+        return df[keep_cols]
 
     def linear_predictor(
         self, X: ArrayLike, offset: Optional[ArrayLike] = None, alpha_level: int = None
