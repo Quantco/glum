@@ -98,12 +98,12 @@ def quantcore_glm_bench(
         with pd.option_context(
             "display.expand_frame_repr", False, "max_columns", None, "max_rows", None
         ):
-            m.report_diagnostics()
+            m._report_diagnostics()
     elif diagnostics_level == "full":
         with pd.option_context(
             "display.expand_frame_repr", False, "max_columns", None, "max_rows", None
         ):
-            m.report_diagnostics(full_report=True)
+            m._report_diagnostics(full_report=True)
     return result
 
 
