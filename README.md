@@ -104,7 +104,7 @@ model = GeneralizedLinearRegressor(
 model.fit(X=X, y=y, sample_weight=weights)
 
 # .report_diagnostics shows details about the steps taken by the iterative solver
-model.report_diagnostics(True)
+model._report_diagnostics(full_report=True)
 
 print(pd.DataFrame(dict(name=X.columns, coef=model.coef_)).set_index('name'))
 
