@@ -5,6 +5,7 @@ import copy
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
+import pandas as pd
 import pytest
 import scipy as sp
 from numpy.testing import assert_allclose, assert_array_equal
@@ -1617,3 +1618,20 @@ def test_alpha_path(scale_predictors, fit_intercept, P1):
     np.testing.assert_almost_equal(model.coef_path_[0], 0)
     # next alpha gives at least one non-zero coefficient
     assert np.any(model.coef_path_[1] > 0)
+
+
+def test_passing_noncontiguous_as_X():
+    X = np.random.rand(100, 4)
+    y = np.random.rand(100)
+
+    baseline = GeneralizedLinearRegressor(family="normal", fit_intercept=False).fit(
+        X[:, :2].copy(), y
+    )
+    np_view = GeneralizedLinearRegressor(family="normal", fit_intercept=False).fit(
+        X[:, :2], y
+    )
+    pd_view = GeneralizedLinearRegressor(family="normal", fit_intercept=False).fit(
+        pd.DataFrame(X).iloc[:, :2], y
+    )
+    np.testing.assert_almost_equal(baseline.coef_, np_view.coef_)
+    np.testing.assert_almost_equal(baseline.coef_, pd_view.coef_)
