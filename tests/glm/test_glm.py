@@ -942,9 +942,9 @@ def test_normal_ridge_comparison(n_samples, n_features, solver, use_offset):
 @pytest.mark.parametrize(
     "solver, tol", [("irls-ls", 1e-7), ("lbfgs", 1e-7), ("irls-cd", 1e-7)]
 )
-@pytest.mark.parametrize("scale_predictors", [True, False])
+@pytest.mark.parametrize("scale_penalties", [True, False])
 @pytest.mark.parametrize("use_sparse", [True, False])
-def test_poisson_ridge(solver, tol, scale_predictors, use_sparse):
+def test_poisson_ridge(solver, tol, scale_penalties, use_sparse):
     """Test ridge regression with poisson family and LogLink.
 
     Compare to R's glmnet
@@ -971,7 +971,7 @@ def test_poisson_ridge(solver, tol, scale_predictors, use_sparse):
     # Alternately, for running from Python:
     # from glmnet_python import glmnet
     # model = glmnet(x=X_dense, y=y, alpha=0, family="poisson",
-    #               standardize=scale_predictors, thresh=1e-10, lambdau=np.array([1.0]))
+    #               standardize=scale_penalties, thresh=1e-10, lambdau=np.array([1.0]))
     # true_intercept = model["a0"][0]
     # true_beta = model["beta"][:, 0]
     # print(true_intercept, true_beta)
@@ -993,14 +993,14 @@ def test_poisson_ridge(solver, tol, scale_predictors, use_sparse):
         max_iter=300,
         random_state=np.random.RandomState(42),
         copy_X=True,
-        scale_predictors=scale_predictors,
+        scale_penalties=scale_penalties,
     )
     glm = GeneralizedLinearRegressor(**model_args)
     glm2 = copy.deepcopy(glm)
 
     def check(G):
         G.fit(X, y)
-        if scale_predictors:
+        if scale_penalties:
             assert_allclose(G.intercept_, -0.21002571120839675, rtol=1e-5)
             assert_allclose(G.coef_, [0.16472093, 0.27051971], rtol=1e-5)
         else:
@@ -1021,8 +1021,8 @@ def test_poisson_ridge(solver, tol, scale_predictors, use_sparse):
     assert glm2.n_iter_ <= 1
 
 
-@pytest.mark.parametrize("scale_predictors", [True, False])
-def test_poisson_ridge_bounded(scale_predictors):
+@pytest.mark.parametrize("scale_penalties", [True, False])
+def test_poisson_ridge_bounded(scale_penalties):
     X = np.array([[-1, 1, 1, 2], [0, 0, 1, 1]], dtype=np.float).T
     y = np.array([0, 1, 1, 2], dtype=np.float)
     lb = np.array([-0.1, -0.1])
@@ -1031,7 +1031,7 @@ def test_poisson_ridge_bounded(scale_predictors):
     # For comparison, this is the source of truth for the assert_allclose below.
     # from glmnet_python import glmnet
     # model = glmnet(x=X.copy(), y=y.copy(), alpha=0, family="poisson",
-    #               standardize=scale_predictors, thresh=1e-10, lambdau=np.array([1.0]),
+    #               standardize=scale_penalties, thresh=1e-10, lambdau=np.array([1.0]),
     #               cl = np.array([lb, ub])
     #               )
     # true_intercept = model["a0"][0]
@@ -1049,7 +1049,7 @@ def test_poisson_ridge_bounded(scale_predictors):
         max_iter=300,
         random_state=np.random.RandomState(42),
         copy_X=True,
-        scale_predictors=scale_predictors,
+        scale_penalties=scale_penalties,
         lower_bounds=lb,
         upper_bounds=ub,
     )
@@ -1378,8 +1378,8 @@ def test_convergence_warning(solver, regression_data):
 
 
 @pytest.mark.parametrize("use_sparse", [False, True])
-@pytest.mark.parametrize("scale_predictors", [False, True])
-def test_standardize(use_sparse, scale_predictors):
+@pytest.mark.parametrize("scale_penalties", [False, True])
+def test_standardize(use_sparse, scale_penalties):
     def _arrays_share_data(arr1: np.ndarray, arr2: np.ndarray) -> bool:
         return arr1.__array_interface__["data"] == arr2.__array_interface__["data"]
 
@@ -1394,7 +1394,7 @@ def test_standardize(use_sparse, scale_predictors):
     else:
         M = mx.DenseMatrix(M)
 
-    X, col_means, col_stds = M.standardize(np.ones(NR) / NR, True, scale_predictors)
+    X, col_means, col_stds = M.standardize(np.ones(NR) / NR, True, scale_penalties)
     if use_sparse:
         assert _arrays_share_data(X.mat.data, M.data)
         assert _arrays_share_data(X.mat.indices, M.indices)
@@ -1411,7 +1411,7 @@ def test_standardize(use_sparse, scale_predictors):
     else:
         Xdense = X
     for i in range(1, NC):
-        if scale_predictors:
+        if scale_penalties:
             if isinstance(Xdense, mx.StandardizedMatrix):
                 one, two = Xdense.A[:, 0], Xdense.A[:, i]
             else:
@@ -1423,7 +1423,7 @@ def test_standardize(use_sparse, scale_predictors):
                 one, two = (i + 1) * Xdense[:, 0], Xdense[:, i]
         np.testing.assert_almost_equal(one, two)
 
-    if scale_predictors:
+    if scale_penalties:
         # The sample variance of row_mults is 0.34. This is scaled up by the col_mults
         true_std = np.sqrt(0.34)
         np.testing.assert_almost_equal(col_stds, true_std * col_mults)
@@ -1436,7 +1436,7 @@ def test_standardize(use_sparse, scale_predictors):
         col_means, col_stds, intercept_standardized, coef_standardized,
     )
     np.testing.assert_almost_equal(intercept, -(NC + 1) * NC / 2)
-    if scale_predictors:
+    if scale_penalties:
         np.testing.assert_almost_equal(coef, 1.0)
 
 
@@ -1573,7 +1573,7 @@ def test_fit_has_no_side_effects():
     lbin = lb.copy()
     ubin = ub.copy()
     GeneralizedLinearRegressor(
-        family="poisson", scale_predictors=True, lower_bounds=lbin, upper_bounds=ubin
+        family="poisson", scale_penalties=True, lower_bounds=lbin, upper_bounds=ubin
     ).fit(Xin, yin)
     np.testing.assert_almost_equal(lbin, lb)
     np.testing.assert_almost_equal(ubin, ub)
@@ -1585,19 +1585,19 @@ def test_column_with_stddev_zero():
     X = np.ones([len(y), 1])
 
     model = GeneralizedLinearRegressor(
-        family="poisson", fit_intercept=False, scale_predictors=False
+        family="poisson", fit_intercept=False, scale_penalties=False
     ).fit(
         X, y
     )  # noqa: F841
     model = GeneralizedLinearRegressor(family="poisson").fit(X, y)  # noqa: F841
 
 
-@pytest.mark.parametrize("scale_predictors", [True, False])
+@pytest.mark.parametrize("scale_penalties", [True, False])
 @pytest.mark.parametrize("fit_intercept", [True, False])
 @pytest.mark.parametrize("P1", ["identity", np.array([2, 1, 0.5, 0.1, 0.01])])
-def test_alpha_path(scale_predictors, fit_intercept, P1):
+def test_alpha_path(scale_penalties, fit_intercept, P1):
     """Test regularization path."""
-    if scale_predictors and not fit_intercept:
+    if scale_penalties and not fit_intercept:
         return
     np.random.seed(1234)
     y = np.random.choice([1, 2, 3, 4], size=100)
@@ -1608,7 +1608,7 @@ def test_alpha_path(scale_predictors, fit_intercept, P1):
         alpha_search=True,
         l1_ratio=1,
         n_alphas=10,
-        scale_predictors=scale_predictors,
+        scale_penalties=scale_penalties,
         fit_intercept=fit_intercept,
         P1=P1,
     )
