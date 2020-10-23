@@ -244,7 +244,7 @@ def _standardize(
     X: mx.MatrixBase,
     weights: np.ndarray,
     center_predictors: bool,
-    scale_predictors: bool,
+    scale_penalties: bool,
     lower_bounds: np.ndarray,
     upper_bounds: np.ndarray,
     P1: Union[np.ndarray, sparse.spmatrix],
@@ -259,7 +259,7 @@ def _standardize(
     If center_predictors is True, the data matrix will be adjusted to have
     columns with mean 0.
 
-    If scale_predictors is True, the penalties will not be scaled. The result
+    If scale_penalties is True, the penalties will not be scaled. The result
     will be that the input penalty matrices are applied to the standardized
     coefficients. This can be useful to scale
     """
@@ -275,11 +275,11 @@ def _standardize(
             upper_bounds = upper_bounds * col_stds
 
     # NOTE: We always scale predictors. The only thing controlled by
-    # scale_predictors is whether or not we also scale the penalties.
-    # If scale_predictors=True, we do not scale penalties. This can be
+    # scale_penalties is whether or not we also scale the penalties.
+    # If scale_penalties=True, we do not scale penalties. This can be
     # useful if the user wants to uniformly penalize in the scale
     # coefficient space rather than in the original coefficient space.
-    if not scale_predictors and col_stds is not None:
+    if not scale_penalties and col_stds is not None:
         penalty_mult = mx.one_over_var_inf_to_val(col_stds, 1.0)
         P1 *= penalty_mult
         if sparse.issparse(P2):
@@ -585,7 +585,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         copy_X: Optional[bool] = None,
         check_input=True,
         verbose=0,
-        scale_predictors=False,
+        scale_penalties=False,
         lower_bounds: Optional[np.ndarray] = None,
         upper_bounds: Optional[np.ndarray] = None,
         force_all_finite: bool = True,
@@ -614,7 +614,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self.copy_X = copy_X
         self.check_input = check_input
         self.verbose = verbose
-        self.scale_predictors = scale_predictors
+        self.scale_penalties = scale_penalties
         self.lower_bounds = lower_bounds
         self.upper_bounds = upper_bounds
         self.force_all_finite = force_all_finite
@@ -1259,9 +1259,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 "The argument check_input must be bool; got "
                 "(check_input={})".format(self.check_input)
             )
-        if self.scale_predictors and not self.fit_intercept:
+        if self.scale_penalties and not self.fit_intercept:
             raise ValueError(
-                "scale_predictors=True is not supported when fit_intercept=False"
+                "scale_penalties=True is not supported when fit_intercept=False"
             )
         if ((self.lower_bounds is not None) or (self.upper_bounds is not None)) and (
             self.solver not in ["irls-cd", "auto"]
@@ -1696,7 +1696,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         copy_X: Optional[bool] = None,
         check_input=True,
         verbose=0,
-        scale_predictors=False,
+        scale_penalties=False,
         lower_bounds: Optional[np.ndarray] = None,
         upper_bounds: Optional[np.ndarray] = None,
         force_all_finite: bool = True,
@@ -1727,7 +1727,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             copy_X=copy_X,
             check_input=check_input,
             verbose=verbose,
-            scale_predictors=scale_predictors,
+            scale_penalties=scale_penalties,
             lower_bounds=lower_bounds,
             upper_bounds=upper_bounds,
             force_all_finite=force_all_finite,
@@ -1882,7 +1882,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             X,
             weights,
             self._center_predictors,
-            self.scale_predictors,
+            self.scale_penalties,
             lower_bounds,
             upper_bounds,
             P1_no_alpha,
