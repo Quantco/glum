@@ -1413,17 +1413,17 @@ def test_standardize(use_sparse, scale_penalties):
     for i in range(1, NC):
         if scale_penalties:
             if isinstance(Xdense, mx.StandardizedMatrix):
-                one, two = (i + 1) * Xdense.A[:, 0], Xdense.A[:, i]
-            else:
-                one, two = (i + 1) * Xdense[:, 0], Xdense[:, i]
-        else:
-            if isinstance(Xdense, mx.StandardizedMatrix):
                 one, two = Xdense.A[:, 0], Xdense.A[:, i]
             else:
                 one, two = Xdense[:, 0], Xdense[:, i]
+        else:
+            if isinstance(Xdense, mx.StandardizedMatrix):
+                one, two = (i + 1) * Xdense.A[:, 0], Xdense.A[:, i]
+            else:
+                one, two = (i + 1) * Xdense[:, 0], Xdense[:, i]
         np.testing.assert_almost_equal(one, two)
 
-    if not scale_penalties:
+    if scale_penalties:
         # The sample variance of row_mults is 0.34. This is scaled up by the col_mults
         true_std = np.sqrt(0.34)
         np.testing.assert_almost_equal(col_stds, true_std * col_mults)
@@ -1436,7 +1436,7 @@ def test_standardize(use_sparse, scale_penalties):
         col_means, col_stds, intercept_standardized, coef_standardized,
     )
     np.testing.assert_almost_equal(intercept, -(NC + 1) * NC / 2)
-    if not scale_penalties:
+    if scale_penalties:
         np.testing.assert_almost_equal(coef, 1.0)
 
 
