@@ -1007,7 +1007,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         return df[keep_cols]
 
     def linear_predictor(
-        self, X: ArrayLike, offset: Optional[ArrayLike] = None, alpha_level: int = None
+        self, X: ArrayLike, offset: Optional[ArrayLike] = None, alpha_index: int = None
     ):
         """Compute the linear_predictor = X*coef_ + intercept_.
 
@@ -1015,6 +1015,13 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         ----------
         X : {array-like, sparse matrix}, shape (n_samples, n_features)
             Samples.
+
+        offset: {None, array-like}, shape (n_samples,), optional \
+                (default=None)
+
+        alpha_index: int, optional \
+                (default=None)
+            Sets the index of the alpha to use for the alpha_search = True case
 
         Returns
         -------
@@ -1032,8 +1039,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         )
         xb = (
             X @ self.coef_ + self.intercept_
-            if alpha_level is None
-            else X @ self.coef_path_[alpha_level] + self.intercept_path_[alpha_level]
+            if alpha_index is None
+            else X @ self.coef_path_[alpha_index] + self.intercept_path_[alpha_index]
         )
         if offset is None:
             return xb
@@ -1044,7 +1051,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         X: ShapedArrayLike,
         sample_weight: Optional[ArrayLike] = None,
         offset: Optional[ArrayLike] = None,
-        alpha_level: int = None,
+        alpha_index: int = None,
     ):
         """Predict using GLM with feature matrix X.
 
@@ -1061,9 +1068,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         offset: {None, array-like}, shape (n_samples,), optional \
                 (default=None)
 
-        alpha_level: int, optional \
+        alpha_index: int, optional \
                 (default=None)
-            Sets which alpha to use for the alpha_search = True case
+            Sets the index of the alpha to use for the alpha_search = True case
 
         Returns
         -------
@@ -1078,7 +1085,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             ensure_2d=True,
             allow_nd=False,
         )
-        eta = self.linear_predictor(X, offset=offset, alpha_level=alpha_level)
+        eta = self.linear_predictor(X, offset=offset, alpha_index=alpha_index)
         mu = get_link(self.link, get_family(self.family)).inverse(eta)
         weights = _check_weights(sample_weight, X.shape[0], X.dtype)
 
