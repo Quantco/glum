@@ -1001,11 +1001,11 @@ def test_poisson_ridge(solver, tol, scale_penalties, use_sparse):
     def check(G):
         G.fit(X, y)
         if scale_penalties:
-            assert_allclose(G.intercept_, -0.21002571120839675, rtol=1e-5)
-            assert_allclose(G.coef_, [0.16472093, 0.27051971], rtol=1e-5)
-        else:
             assert_allclose(G.intercept_, -0.12889386979, rtol=1e-5)
             assert_allclose(G.coef_, [0.29019207995, 0.03741173122], rtol=1e-5)
+        else:
+            assert_allclose(G.intercept_, -0.21002571120839675, rtol=1e-5)
+            assert_allclose(G.coef_, [0.16472093, 0.27051971], rtol=1e-5)
 
     check(glm)
 
@@ -1031,7 +1031,7 @@ def test_poisson_ridge_bounded(scale_penalties):
     # For comparison, this is the source of truth for the assert_allclose below.
     # from glmnet_python import glmnet
     # model = glmnet(x=X.copy(), y=y.copy(), alpha=0, family="poisson",
-    #               standardize=scale_penalties, thresh=1e-10, lambdau=np.array([1.0]),
+    #               standardize=scale_penalties, thresh=1e-10, lambda=np.array([1.0]),
     #               cl = np.array([lb, ub])
     #               )
     # true_intercept = model["a0"][0]
@@ -1413,17 +1413,17 @@ def test_standardize(use_sparse, scale_penalties):
     for i in range(1, NC):
         if scale_penalties:
             if isinstance(Xdense, mx.StandardizedMatrix):
-                one, two = Xdense.A[:, 0], Xdense.A[:, i]
-            else:
-                one, two = Xdense[:, 0], Xdense[:, i]
-        else:
-            if isinstance(Xdense, mx.StandardizedMatrix):
                 one, two = (i + 1) * Xdense.A[:, 0], Xdense.A[:, i]
             else:
                 one, two = (i + 1) * Xdense[:, 0], Xdense[:, i]
+        else:
+            if isinstance(Xdense, mx.StandardizedMatrix):
+                one, two = Xdense.A[:, 0], Xdense.A[:, i]
+            else:
+                one, two = Xdense[:, 0], Xdense[:, i]
         np.testing.assert_almost_equal(one, two)
 
-    if scale_penalties:
+    if not scale_penalties:
         # The sample variance of row_mults is 0.34. This is scaled up by the col_mults
         true_std = np.sqrt(0.34)
         np.testing.assert_almost_equal(col_stds, true_std * col_mults)
@@ -1436,7 +1436,7 @@ def test_standardize(use_sparse, scale_penalties):
         col_means, col_stds, intercept_standardized, coef_standardized,
     )
     np.testing.assert_almost_equal(intercept, -(NC + 1) * NC / 2)
-    if scale_penalties:
+    if not scale_penalties:
         np.testing.assert_almost_equal(coef, 1.0)
 
 
@@ -1573,7 +1573,7 @@ def test_fit_has_no_side_effects():
     lbin = lb.copy()
     ubin = ub.copy()
     GeneralizedLinearRegressor(
-        family="poisson", scale_penalties=True, lower_bounds=lbin, upper_bounds=ubin
+        family="poisson", scale_penalties=False, lower_bounds=lbin, upper_bounds=ubin
     ).fit(Xin, yin)
     np.testing.assert_almost_equal(lbin, lb)
     np.testing.assert_almost_equal(ubin, ub)
@@ -1585,7 +1585,7 @@ def test_column_with_stddev_zero():
     X = np.ones([len(y), 1])
 
     model = GeneralizedLinearRegressor(
-        family="poisson", fit_intercept=False, scale_penalties=False
+        family="poisson", fit_intercept=False, scale_penalties=True
     ).fit(
         X, y
     )  # noqa: F841
@@ -1597,7 +1597,7 @@ def test_column_with_stddev_zero():
 @pytest.mark.parametrize("P1", ["identity", np.array([2, 1, 0.5, 0.1, 0.01])])
 def test_alpha_path(scale_penalties, fit_intercept, P1):
     """Test regularization path."""
-    if scale_penalties and not fit_intercept:
+    if not scale_penalties and not fit_intercept:
         return
     np.random.seed(1234)
     y = np.random.choice([1, 2, 3, 4], size=100)
