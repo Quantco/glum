@@ -181,7 +181,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         copy_X: bool = True,
         check_input: bool = True,
         verbose=0,
-        scale_penalties: bool = False,
+        scale_penalties: bool = True,
         lower_bounds: Optional[np.ndarray] = None,
         upper_bounds: Optional[np.ndarray] = None,
         force_all_finite: bool = True,
