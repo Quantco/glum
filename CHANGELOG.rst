@@ -7,6 +7,10 @@
 Changelog
 =========
 
+0.0.15 - 2020-10-27
+-------------------
+**Other:**
+- Clarified behavior of 'scale_predictors'
 
 0.0.14 - 2020-08-06
 -------------------
