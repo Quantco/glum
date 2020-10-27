@@ -1378,8 +1378,8 @@ def test_convergence_warning(solver, regression_data):
 
 
 @pytest.mark.parametrize("use_sparse", [False, True])
-@pytest.mark.parametrize("scale_penalties", [False, True])
-def test_standardize(use_sparse, scale_penalties):
+@pytest.mark.parametrize("scale_predictors", [False, True])
+def test_standardize(use_sparse, scale_predictors):
     def _arrays_share_data(arr1: np.ndarray, arr2: np.ndarray) -> bool:
         return arr1.__array_interface__["data"] == arr2.__array_interface__["data"]
 
@@ -1394,7 +1394,7 @@ def test_standardize(use_sparse, scale_penalties):
     else:
         M = mx.DenseMatrix(M)
 
-    X, col_means, col_stds = M.standardize(np.ones(NR) / NR, True, scale_penalties)
+    X, col_means, col_stds = M.standardize(np.ones(NR) / NR, True, scale_predictors)
     if use_sparse:
         assert _arrays_share_data(X.mat.data, M.data)
         assert _arrays_share_data(X.mat.indices, M.indices)
@@ -1411,7 +1411,7 @@ def test_standardize(use_sparse, scale_penalties):
     else:
         Xdense = X
     for i in range(1, NC):
-        if scale_penalties:
+        if scale_predictors:
             if isinstance(Xdense, mx.StandardizedMatrix):
                 one, two = Xdense.A[:, 0], Xdense.A[:, i]
             else:
@@ -1423,7 +1423,7 @@ def test_standardize(use_sparse, scale_penalties):
                 one, two = (i + 1) * Xdense[:, 0], Xdense[:, i]
         np.testing.assert_almost_equal(one, two)
 
-    if scale_penalties:
+    if scale_predictors:
         # The sample variance of row_mults is 0.34. This is scaled up by the col_mults
         true_std = np.sqrt(0.34)
         np.testing.assert_almost_equal(col_stds, true_std * col_mults)
@@ -1436,7 +1436,7 @@ def test_standardize(use_sparse, scale_penalties):
         col_means, col_stds, intercept_standardized, coef_standardized,
     )
     np.testing.assert_almost_equal(intercept, -(NC + 1) * NC / 2)
-    if scale_penalties:
+    if scale_predictors:
         np.testing.assert_almost_equal(coef, 1.0)
 
 
