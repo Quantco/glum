@@ -7,6 +7,16 @@
 Changelog
 =========
 
+1.0.0 - 2020-10-27
+-------------------
+**New features:**
+
+- Renamed "alpha_level" attribute of GeneralizedLinearRegressor and GeneralizedLinearRegressorCV to "alpha_index."
+
+
+**Other:**
+
+- Clarified behavior of 'scale_predictors'
 
 0.0.14 - 2020-08-06
 -------------------
