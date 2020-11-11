@@ -8,6 +8,12 @@ Changelog
 =========
 
 
+0.0.15 - 2020-11-11
+-------------------
+
+**Other**
+- Pin quantcore.matrix < 1.0.0 as we are expecting a breaking change with version 1.0.0.
+
 0.0.14 - 2020-08-06
 -------------------
 
