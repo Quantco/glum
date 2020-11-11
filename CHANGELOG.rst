@@ -7,21 +7,22 @@
 Changelog
 =========
 
-1.0.0 - 2020-10-27
--------------------
+1.0.0 - 2020-11-11
+------------------
+
 **New features:**
 
-- Renamed "alpha_level" attribute of GeneralizedLinearRegressor and GeneralizedLinearRegressorCV to "alpha_index."
-
+- Renamed `alpha_level` attribute of :func:`quantcore.glm.GeneralizedLinearRegressor` and :func:`quantcore.glm.GeneralizedLinearRegressorCV` to `alpha_index`.
 
 **Other:**
 
-- Clarified behavior of 'scale_predictors'
+- Clarified behavior of `scale_predictors`.
 
 0.0.15 - 2020-11-11
 -------------------
 
-**Other**
+**Other:**
+
 - Pin quantcore.matrix < 1.0.0 as we are expecting a breaking change with version 1.0.0.
 
 0.0.14 - 2020-08-06
