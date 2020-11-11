@@ -32,6 +32,8 @@ repos:
        - --check-untyped-defs
        - --ignore-missing-imports
        - --namespace-packages
+      additional_dependencies: 
+       - python=3.8
  - repo: https://github.com/Quantco/pre-commit-mirrors-pyupgrade
    rev: 1.26.0
    hooks:
