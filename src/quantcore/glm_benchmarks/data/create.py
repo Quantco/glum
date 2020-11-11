@@ -10,11 +10,13 @@ from sklearn.preprocessing import FunctionTransformer
 
 from ..util import exposure_and_offset_to_weights
 
-# taken from https://github.com/lorentzenchr/Tutorial_freMTPL2/blob/master/glm_freMTPL2_example.ipynb
+# taken from https://github.com/lorentzenchr/Tutorial_freMTPL2/blob/master/glm_freMTPL2_example.ipynb  # noqa: B950
 # Modified to generate data sets of different sizes
 
 
 def create_raw_data() -> None:
+    """Do some basic processing on the data that we will later transform into our \
+    benchmark data sets."""
     # load the datasets
     # first row (=column names) uses "", all other rows use ''
     # use '' as quotechar as it is easier to change column names
@@ -49,8 +51,8 @@ def create_raw_data() -> None:
         indicator=True,
     )
     print(
-        "There are {} rows in freMTPL2sev that do not have a matching IDpol in freMTPL2freq.\n"
-        "They have a ClaimAmountCut of {}.".format(
+        "There are {} rows in freMTPL2sev that do not have a matching IDpol in "
+        "freMTPL2freq. They have a ClaimAmountCut of {}.".format(
             df2[df2._merge == "left_only"].shape[0],
             df2.ClaimAmountCut[df2._merge == "left_only"].sum(),
         )
@@ -71,8 +73,9 @@ def create_raw_data() -> None:
         )
     )
 
-    # Note: Zero claims must be ignored in severity models, because the support is (0, inf) not [0, inf).
-    # Therefore, we define the number of claims with positive claim amount for later use.
+    # Note: Zero claims must be ignored in severity models, because the support is
+    # (0, inf) not [0, inf). Therefore, we define the number of claims with positive
+    # claim amount for later use.
     df["ClaimNb_pos"] = df["ClaimNb"]
     df.loc[(df.ClaimAmount <= 0) & (df.ClaimNb >= 1), "ClaimNb_pos"] = 0
 
@@ -87,6 +90,8 @@ def create_raw_data() -> None:
 
 def get_categorizer(col_name: str, name="cat") -> Tuple[str, Categorizer]:
     """
+    Get a dask_ml Categorizer.
+
     Categorizer only operates on object columns unless you explictily pass the column
     name.
     """
@@ -97,6 +102,9 @@ def func_returns_df(
     fn: Callable[[pd.DataFrame], np.ndarray]
 ) -> Callable[[pd.DataFrame], pd.DataFrame]:
     """
+    Take a function that takes a dataframe and returns a Numpy array, and return a \
+    function that takes a dataframe and returns a dataframe.
+
     fn: Function that takes a dataframe and returns a numpy array
     Returns: Function that takes a dataframe and returns a dataframe with the values
         determined by the original function, and the index and columns of the original
@@ -146,7 +154,8 @@ def gen_col_trans() -> Tuple[Any, List[str]]:
             ),
             ["VehAge"],
         ),
-        # DrivAge intervals [18,21), [21,26), [26,31), [31,41), [41,51), [51,71),[71,∞), drop=[41,51)
+        # DrivAge intervals [18,21), [21,26), [26,31), [31,41), [41,51), [51,71),[71,∞),
+        # drop=[41,51)
         (
             Pipeline(
                 [
@@ -295,14 +304,14 @@ def compute_y_exposure(df, distribution):
         y = df["HasClaim"].values
     else:
         raise ValueError(
-            "distribution must be one of ['poisson', 'gamma', 'tweedie', 'gaussian', 'binomial'] "
-            f"not {distribution}."
+            "distribution must be one of ['poisson', 'gamma', 'tweedie', 'gaussian', "
+            f"'binomial'] not {distribution}."
         )
 
     return y, exposure
 
 
-def read_insurance_data(
+def _read_insurance_data(
     num_rows: Optional[int], noise: Optional[float], distribution: str
 ) -> pd.DataFrame:
     df = pd.read_parquet(git_root("data/insurance.parquet"))
@@ -326,8 +335,7 @@ def generate_narrow_insurance_dataset(
     num_rows=None, noise=None, distribution="poisson"
 ) -> Tuple[pd.DataFrame, np.ndarray, np.ndarray]:
     """Generate the tutorial data set from the sklearn fork and save it to disk."""
-
-    df = read_insurance_data(num_rows, noise, distribution)
+    df = _read_insurance_data(num_rows, noise, distribution)
 
     col_trans_GLM1, _ = gen_col_trans()
     y, exposure = compute_y_exposure(df, distribution)
@@ -339,7 +347,6 @@ def generate_real_insurance_dataset(
     num_rows=None, noise=None, distribution="poisson"
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Load real insurance data set."""
-
     df = pd.read_parquet(git_root("data", "outcomes.parquet"))
     X = pd.read_parquet(git_root("data", "X.parquet"))
 
@@ -372,7 +379,7 @@ def generate_wide_insurance_dataset(
     num_rows=None, noise=None, distribution="poisson"
 ) -> Tuple[pd.DataFrame, np.ndarray, np.ndarray]:
     """Generate a version of the tutorial data set with many features."""
-    df = read_insurance_data(num_rows, noise, distribution)
+    df = _read_insurance_data(num_rows, noise, distribution)
     cat_cols = [
         "Area",
         "VehPower",
@@ -398,8 +405,7 @@ def generate_intermediate_insurance_dataset(
     num_rows=None, noise=None, distribution="poisson"
 ) -> Tuple[pd.DataFrame, np.ndarray, np.ndarray]:
     """Generate the tutorial data set from the sklearn fork and save it to disk."""
-
-    df = read_insurance_data(num_rows, noise, distribution)
+    df = _read_insurance_data(num_rows, noise, distribution)
     df["BonusMalusClipped"] = df["BonusMalus"].clip(50, 100)
 
     col_trans_GLM1, _ = gen_col_trans()

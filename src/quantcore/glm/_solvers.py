@@ -23,8 +23,10 @@ from ._util import _safe_lin_pred, _safe_sandwich_dot
 
 
 def timeit(runtime_attr: str):
-    """Decorator to compute the runtime of a function and update the IRLSState
+    """
+    Decorate a function to compute its runtime and update the IRLSState \
     instance attribute called `runtime_attr` with the runtime of the function.
+
     The first argument of fct should be an IRLSState instance.
     """
 
@@ -76,7 +78,7 @@ def _cd_solver(state, data, active_hessian):
 @timeit("build_hessian_runtime")
 def update_hessian(state, data, active_set):
     """
-    The approximate Hessian updating algorithm here...
+    Update the approximate Hessian.
 
     The goal is to compute: H = X^T @ diag(hessian_rows) @ X
     We will refer to H as the Hessian, even though technically we are
@@ -118,7 +120,6 @@ def update_hessian(state, data, active_set):
     active. This ensures that we don't miss the situation where a row changes a
     small amount over several iterations which accumulates into a large change.
     """
-
     # The simplest, but expensive option is that if the active set increases in
     # size, we can just recompute the full hessian for the new active set
     # instead of an approximate update. This is what is currently implemented
@@ -134,7 +135,7 @@ def update_hessian(state, data, active_set):
     # A slight modification of this: we could still use a baseline H from the
     # first iteration with the entire column set.
     first_iteration = not state.hessian_initialized
-    reset_iteration = not is_subset(state.old_active_set, active_set)
+    reset_iteration = not _is_subset(state.old_active_set, active_set)
     if first_iteration or reset_iteration:
 
         # In the first iteration or in a reset iteration, we need to:
@@ -184,13 +185,27 @@ def update_hessian(state, data, active_set):
     )
 
 
-def is_subset(x, y):
+def _is_subset(x, y):
     # NOTE: This functions assumes entries in x and y are unique
     intersection = np.intersect1d(x, y)
     return intersection.size == y.size
 
 
-def build_hessian_delta(X, hessian_rows, intercept, P2, active_rows, active_cols):
+def build_hessian_delta(
+    X, hessian_rows, intercept, P2, active_rows, active_cols
+) -> np.ndarray:
+    """
+    Get the Hessian "sandwich" matrix for active rows and columns.
+
+    Parameters
+    ----------
+    X
+    hessian_rows
+    intercept
+    P2
+    active_rows
+    active_cols
+    """
     idx = 1 if intercept else 0
     active_cols_non_intercept = active_cols[idx:] - idx
     delta = _safe_sandwich_dot(
@@ -223,7 +238,8 @@ def build_hessian_delta(X, hessian_rows, intercept, P2, active_rows, active_cols
 
 
 def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[List]]:
-    """Solve GLM with L1 and L2 penalty by IRLS
+    """
+    Solve GLM with L1 and L2 penalty by IRLS.
 
     The objective being minimized in the coefficients w=coef is::
 
@@ -265,16 +281,14 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
 
     References
     ----------
-
     Guo-Xun Yuan, Chia-Hua Ho, Chih-Jen Lin
     An Improved GLMNET for L1-regularized Logistic Regression,
     Journal of Machine Learning Research 13 (2012) 1999-2030
     https://www.csie.ntu.edu.tw/~cjlin/papers/l1_glmnet/long-glmnet.pdf
     """
-
     state = IRLSState(coef, data)
 
-    state.eta, state.mu, state.obj_val, coef_P2 = update_predictions(
+    state.eta, state.mu, state.obj_val, coef_P2 = _update_predictions(
         state, data, state.coef
     )
     state.gradient_rows, state.score, state.hessian_rows = update_quadratic(
@@ -287,11 +301,11 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
         state.inner_tol,
     ) = check_convergence(state, data)
 
-    state.record_iteration()
+    state._record_iteration()
 
     with ProgressBar(state.norm_min_subgrad, data.gradient_tol, data.verbose) as pb:
         while state.n_iter < data.max_iter and not state.converged:
-            pb.update(state.n_iter, state.iteration_runtime, state.norm_min_subgrad)
+            pb._update(state.n_iter, state.iteration_runtime, state.norm_min_subgrad)
 
             state.old_active_set = state.active_set
             state.active_set = identify_active_set(state, data)
@@ -328,7 +342,7 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
                 state.inner_tol,
             ) = check_convergence(state, data)
 
-            state.record_iteration()
+            state._record_iteration()
 
     if not state.converged:
         warnings.warn(
@@ -342,10 +356,16 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
 
 class ProgressBar:
     """
+    Display the current progress of the solver using tqdm.
+
     Current format is that:
         * the "Iteration #" is the IRLS iteration #.
-        * The bar itself measures the log base 10 progress towards the gradient_tol. So, if we start at gradient_norm = 10 and are going to gradient_norm = 1e-4, the progress bar will be out of 5. If the current gradient_norm is 0.1, then we will be at 2/5.
-        * On the right, show the time for the most recent iteration and the current gradient norm
+        * The bar itself measures the log base 10 progress towards the gradient_tol. \
+            So, if we start at gradient_norm = 10 and are going to gradient_norm = \
+            1e-4, the progress bar will be out of 5. If the current gradient_norm is \
+            0.1, then we will be at 2/5.
+        * On the right, show the time for the most recent iteration and the current \
+            gradient norm
     """
 
     def __init__(self, start_norm, tol, verbose):
@@ -354,6 +374,7 @@ class ProgressBar:
         self.verbose = verbose
 
     def __enter__(self):
+        """Run the tqdm progress bar."""
         if not self.verbose:
             return self
         bar_start_loggrad = np.log10(self.start_norm)
@@ -364,16 +385,18 @@ class ProgressBar:
 
         self.t = tqdm(
             total=self.n_bar_steps,
-            bar_format="Iteration {postfix[0]}: {l_bar}{bar}| {n_fmt}/{total_fmt} [{postfix[1]}s/it, gradient norm={postfix[2]}]",
+            bar_format="Iteration {postfix[0]}: {l_bar}{bar}| {n_fmt}/{total_fmt} [{pos"
+            "tfix[1]}s/it, gradient norm={postfix[2]}]",
             postfix=[0, "", self.start_norm],
         )
         return self
 
     def __exit__(self, *exc):
+        """Stop tracking progress."""
         if self.verbose:
             self.t.close()
 
-    def update(self, n_iter, iteration_runtime, cur_grad_norm):
+    def _update(self, n_iter, iteration_runtime, cur_grad_norm):
         if not self.verbose:
             return
         self.t.postfix[0] = n_iter
@@ -384,10 +407,12 @@ class ProgressBar:
         step = max(self.n_bar_steps - (np.log10(cur_grad_norm) - np.log10(self.tol)), 0)
         # round to two digits for beauty
         self.t.n = np.round(step, 2)
-        self.t.update(0)
+        self.t._update(0)
 
 
 class IRLSData:
+    """Store parameters for the IRLS optimizer."""
+
     def __init__(
         self,
         X,
@@ -432,19 +457,19 @@ class IRLSData:
         self.selection = selection
         self.random_state = random_state
         self.offset = offset
-        self.has_lower_bounds, self._lower_bounds = setup_bounds(
+        self.has_lower_bounds, self._lower_bounds = _setup_bounds(
             lower_bounds, self.X.dtype
         )
-        self.has_upper_bounds, self._upper_bounds = setup_bounds(
+        self.has_upper_bounds, self._upper_bounds = _setup_bounds(
             upper_bounds, self.X.dtype
         )
 
         self.intercept_offset = 1 if self.fit_intercept else 0
         self.verbose = verbose
 
-        self.check_data()
+        self._check_data()
 
-    def check_data(self):
+    def _check_data(self):
         if self.P2.ndim == 2:
             self.P2 = check_array(self.P2, "csc", dtype=[np.float64, np.float32])
 
@@ -458,7 +483,9 @@ class IRLSData:
         self.random_state = check_random_state(self.random_state)
 
 
-def setup_bounds(bounds, dtype):
+def _setup_bounds(
+    bounds: Optional[np.ndarray], dtype
+) -> Tuple[bool, Optional[np.ndarray]]:
     _out_bounds = bounds
     if _out_bounds is None:
         _out_bounds = np.array([], dtype=dtype)
@@ -466,12 +493,14 @@ def setup_bounds(bounds, dtype):
 
 
 class IRLSState:
+    """Track many parameters, such as score and Hessian, used in the IRLS solver."""
+
     def __init__(self, coef, data):
         self.data = data
 
         # some precalculations
         self.iteration_start = time.time()
-        self.iteration_runtime = 0
+        self.iteration_runtime = 0.0
 
         # number of outer iterations
         self.n_iter = -1
@@ -496,7 +525,7 @@ class IRLSState:
         self.obj_val = None
         self.eta = np.zeros(data.X.shape[0], dtype=data.X.dtype)
         self.mu = None
-        self.score = None
+        self.score = np.empty_like(self.coef)
         self.old_hessian_rows = np.zeros(data.X.shape[0], dtype=data.X.dtype)
         self.gradient_rows = None
         self.hessian_rows = None
@@ -521,7 +550,7 @@ class IRLSState:
         self.line_search_runtime = None
         self.quadratic_update_runtime = None
 
-    def record_iteration(self):
+    def _record_iteration(self):
         self.n_iter += 1
 
         self.iteration_runtime = time.time() - self.iteration_start
@@ -538,7 +567,7 @@ class IRLSState:
                 "L1(coef)": coef_l1,
                 "L2(coef)": coef_l2,
                 "L2(step)": step_l2,
-                "intercept": self.coef[0],
+                "first_coef": self.coef[0],
                 "n_coef_updated": self.n_updated,
                 "n_active_cols": self.active_set.shape[0],
                 "n_active_rows": self.n_active_rows,
@@ -553,7 +582,10 @@ class IRLSState:
         )
 
 
-def check_convergence(state, data):
+def check_convergence(
+    state: IRLSState, data: IRLSData
+) -> Tuple[bool, float, float, float]:
+    """Calculate parameters needed to determine whether we have converged."""
     # stopping criterion for outer loop is a mix of a subgradient tolerance
     # and a step size tolerance
     # sum_i(|minimum-norm of subgrad of F(w)_i|)
@@ -604,7 +636,7 @@ def check_convergence(state, data):
     return converged, norm_min_subgrad, max_min_subgrad, inner_tol
 
 
-def update_predictions(state, data, coef, X_dot_step=None, factor=1.0):
+def _update_predictions(state, data, coef, X_dot_step=None, factor=1.0):
     if X_dot_step is None:
         X_dot_step = _safe_lin_pred(data.X, coef, data.offset)
     return eta_mu_objective(
@@ -635,18 +667,22 @@ def eta_mu_objective(
     P2,
     intercept_offset,
 ):
+    """Calculate eta, mu, and the objective value."""
     eta, mu, deviance = family.eta_mu_deviance(
         link, factor, cur_eta, X_dot_step, y, weights
     )
     obj_val = 0.5 * deviance
     obj_val += linalg.norm(P1 * coef[intercept_offset:], ord=1)
-    coef_P2 = make_coef_P2(intercept_offset, P2, coef)
+    coef_P2 = _make_coef_P2(intercept_offset, P2, coef)
     obj_val += 0.5 * (coef_P2 @ coef)
     return eta, mu, obj_val, coef_P2
 
 
 @timeit("quadratic_update_runtime")
-def update_quadratic(state, data, coef_P2):
+def update_quadratic(
+    state: IRLSState, data: IRLSData, coef_P2
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Update the quadratic approximation."""
     gradient_rows, hessian_rows = data.family.rowwise_gradient_hessian(
         data.link,
         coef=state.coef,
@@ -666,7 +702,7 @@ def update_quadratic(state, data, coef_P2):
     return gradient_rows, grad, hessian_rows
 
 
-def make_coef_P2(intercept_offset, P2, coef):
+def _make_coef_P2(intercept_offset, P2, coef):
     out = np.empty_like(coef)
 
     if intercept_offset == 1:
@@ -681,11 +717,24 @@ def make_coef_P2(intercept_offset, P2, coef):
     return out
 
 
-def identify_active_set(state, data):
-    # This criteria is from section 5.3 of:
-    # An Improved GLMNET for L1-regularized LogisticRegression.
-    # Yuan, Ho, Lin. 2012
-    # https://www.csie.ntu.edu.tw/~cjlin/papers/l1_glmnet/long-glmnet.pdf
+def identify_active_set(state: IRLSState, data: IRLSData):
+    """
+    Find the coefficients in the active set for this iteration.
+
+    This criteria is from section 5.3 of:
+    An Improved GLMNET for L1-regularized LogisticRegression.
+    Yuan, Ho, Lin. 2012
+    https://www.csie.ntu.edu.tw/~cjlin/papers/l1_glmnet/long-glmnet.pdf
+
+    Parameters
+    ----------
+    state
+    data
+
+    Returns
+    -------
+    np.ndarray
+    """
     T = data.P1 - state.max_min_subgrad
     abs_score = np.abs(state.score[data.intercept_offset :])
     active = np.logical_or(state.coef[data.intercept_offset :] != 0, abs_score >= T)
@@ -698,7 +747,20 @@ def identify_active_set(state, data):
 
 
 @timeit("line_search_runtime")
-def line_search(state, data, d):
+def line_search(state: IRLSState, data: IRLSData, d: np.ndarray):
+    """
+    Run a backtracking line search.
+
+    Parameters
+    ----------
+    state
+    data
+    d
+
+    Returns
+    -------
+    tuple
+    """
     # line search parameters
     (beta, sigma) = (0.5, 0.0001)
 
@@ -722,10 +784,10 @@ def line_search(state, data, d):
     # Try progressively shorter line search steps.
     # variables suffixed with wd are for the new coefficient values
     factor = 1.0
-    for k in range(20):
+    for _k in range(20):
         step = factor * d
         coef_wd = state.coef + step
-        eta_wd, mu_wd, obj_val_wd, coef_wd_P2 = update_predictions(
+        eta_wd, mu_wd, obj_val_wd, coef_wd_P2 = _update_predictions(
             state, data, coef_wd, X_dot_d, factor=factor
         )
         if (mu_wd.max() < 1e43) and (obj_val_wd - state.obj_val <= factor * bound):
@@ -738,7 +800,7 @@ def line_search(state, data, d):
             ConvergenceWarning,
         )
 
-    setattr(state, "n_line_search", k)
+    state.n_line_search = _k
 
     # obj_val in the next iteration will be equal to obj_val_wd this iteration.
     # We can avoid a matrix-vector product inside _eta_mu_score_hessian by
@@ -763,7 +825,7 @@ def _lbfgs_solver(
     tol: float = 1e-4,
     offset: np.ndarray = None,
 ):
-    def get_obj_and_derivative(coef):
+    def _get_obj_and_derivative(coef):
         mu, devp = family._mu_deviance_derivative(coef, X, y, weights, link, offset)
         dev = family.deviance(y, mu, weights)
         intercept = coef.size == X.shape[1] + 1
@@ -778,7 +840,7 @@ def _lbfgs_solver(
         return obj, objp
 
     coef, loss, info = fmin_l_bfgs_b(
-        get_obj_and_derivative,
+        _get_obj_and_derivative,
         coef,
         fprime=None,
         iprint=(verbose > 0) - 1,

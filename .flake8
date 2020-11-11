@@ -1,6 +1,15 @@
 # Taken directly from https://github.com/ambv/black/blob/master/.flake8
 [flake8]
-ignore = E203, E266, E501, E731, W503, C901, D104, D100
+ignore = 
+    C408, # ignore temporarily https://github.com/adamchainz/flake8-comprehensions/pull/282
+    E203, 
+    E266, # too many leading # for block comments
+    E501, # line too long, conflict with black 
+    E731, 
+    W503, # linebreak before binary operator, conflict with black
+    C901, 
+    D104, 
+    D100,
 max-line-length = 88
 max-complexity = 18
 select = B,C,E,F,W,T4,B9,D
