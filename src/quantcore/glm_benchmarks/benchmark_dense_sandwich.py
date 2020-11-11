@@ -3,7 +3,6 @@ from typing import Any, Callable, Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
-
 from quantcore.matrix.ext.dense import dense_sandwich
 
 

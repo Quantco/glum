@@ -15,7 +15,11 @@ all_test_problems_offset = {
     for k, v in get_all_problems().items()
     if "offset" in k and "gaussian" not in k and "binomial" not in k
 }
-bench_cfg = dict(num_rows=10000, regularization_strength=0.1, storage="dense",)
+bench_cfg = dict(
+    num_rows=10000,
+    regularization_strength=0.1,
+    storage="dense",
+)
 
 
 @pytest.mark.parametrize(
@@ -27,7 +31,8 @@ bench_cfg = dict(num_rows=10000, regularization_strength=0.1, storage="dense",)
     ids=all_test_problems_offset.keys(),
 )
 def test_offset_solution_matches_weights_solution(
-    Pn: str, P: Problem,
+    Pn: str,
+    P: Problem,
 ):
     params = BenchmarkParams(
         problem_name=Pn,
@@ -38,7 +43,9 @@ def test_offset_solution_matches_weights_solution(
 
     tweedie_p = get_tweedie_p(P.distribution)
 
-    dat = P.data_loader(num_rows=params.num_rows,)
+    dat = P.data_loader(
+        num_rows=params.num_rows,
+    )
     weights_dat = {"X": dat["X"]}
     weights_dat["y"], weights_dat["weights"] = exposure_and_offset_to_weights(
         tweedie_p, dat["y"], offset=dat["offset"]
