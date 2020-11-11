@@ -120,7 +120,10 @@ def cli_analyze(
     return res_df
 
 
-def _extract_dict_results_to_pd_series(fname: str, results: Dict[str, Any],) -> Dict:
+def _extract_dict_results_to_pd_series(
+    fname: str,
+    results: Dict[str, Any],
+) -> Dict:
     assert "coef" in results.keys()
     params = get_params_from_fname(fname)
     assert params.problem_name is not None
