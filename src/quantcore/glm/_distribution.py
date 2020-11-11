@@ -4,9 +4,8 @@ from typing import Tuple, Union
 
 import numexpr
 import numpy as np
-from scipy import special
-
 from quantcore.matrix import MatrixBase, StandardizedMatrix
+from scipy import special
 
 from ._functions import (
     binomial_logit_eta_mu_deviance,

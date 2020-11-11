@@ -60,7 +60,9 @@ except ImportError:
 )
 @benchmark_params_cli
 def cli_run(
-    params: BenchmarkParams, output_dir: str, iterations: int,
+    params: BenchmarkParams,
+    output_dir: str,
+    iterations: int,
 ):
     """
     Run benchmark problems through the command line.
@@ -94,7 +96,9 @@ def cli_run(
                 else params.diagnostics_level,
             )
             _save_benchmark_results(
-                output_dir, new_params, result,
+                output_dir,
+                new_params,
+                result,
             )
             if len(result) > 0:
                 click.echo(f"ran problem {Pn} with library {Ln}")
@@ -253,7 +257,11 @@ def _get_comma_sep_names(xs: str) -> List[str]:
     return [x.strip() for x in xs.split(",")]
 
 
-def _save_benchmark_results(output_dir: str, params: BenchmarkParams, result,) -> None:
+def _save_benchmark_results(
+    output_dir: str,
+    params: BenchmarkParams,
+    result,
+) -> None:
     results_path = output_dir + "/" + params.get_result_fname()
 
     if not os.path.exists(output_dir):

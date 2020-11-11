@@ -1,10 +1,10 @@
 import numpy as np
 import pytest
+import quantcore.matrix as mx
 from scipy import sparse as sparse
 from sklearn.datasets import make_regression
 from sklearn.linear_model import ElasticNetCV, RidgeCV
 
-import quantcore.matrix as mx
 from quantcore.glm import GeneralizedLinearRegressorCV
 
 GLM_SOLVERS = ["irls", "lbfgs", "cd"]
@@ -51,7 +51,10 @@ def test_normal_elastic_net_comparison(l1_ratio, fit_intercept, convert_x_fn):
     x_arr = X if isinstance(X, np.ndarray) else X.A
     t_arr = T if isinstance(T, np.ndarray) else T.A
     elastic_net = ElasticNetCV(
-        l1_ratio=l1_ratio, n_alphas=n_alphas, fit_intercept=fit_intercept, tol=tol,
+        l1_ratio=l1_ratio,
+        n_alphas=n_alphas,
+        fit_intercept=fit_intercept,
+        tol=tol,
     ).fit(x_arr, y)
     el_pred = elastic_net.predict(t_arr)
 
