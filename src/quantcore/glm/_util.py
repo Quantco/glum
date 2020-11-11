@@ -1,9 +1,8 @@
 from typing import Union
 
 import numpy as np
-from scipy import sparse
-
 from quantcore.matrix import MatrixBase, StandardizedMatrix
+from scipy import sparse
 
 
 def _safe_lin_pred(
@@ -14,7 +13,10 @@ def _safe_lin_pred(
     """Compute the linear predictor taking care if intercept is present."""
     idx_offset = 0 if X.shape[1] == coef.shape[0] else 1
     nonzero_coefs = np.where(coef[idx_offset:] != 0.0)[0].astype(np.int32)
-    res = X.dot(coef[idx_offset:], cols=nonzero_coefs,)
+    res = X.dot(
+        coef[idx_offset:],
+        cols=nonzero_coefs,
+    )
 
     if idx_offset == 1:
         res += coef[0]

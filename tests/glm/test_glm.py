@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import numpy as np
 import pandas as pd
 import pytest
+import quantcore.matrix as mx
 import scipy as sp
 from numpy.testing import assert_allclose, assert_array_equal
 from scipy import optimize, sparse
@@ -17,7 +18,6 @@ from sklearn.linear_model import ElasticNet, LogisticRegression, Ridge
 from sklearn.metrics import mean_absolute_error
 from sklearn.utils.estimator_checks import check_estimator
 
-import quantcore.matrix as mx
 from quantcore.glm import GeneralizedLinearRegressorCV
 from quantcore.glm._distribution import guess_intercept
 from quantcore.glm._glm import (
@@ -183,7 +183,14 @@ def test_gradients(family, link):
             link, 1.0, np.zeros(nrows), X.dot(coef), y, weights
         )
         gradient_rows, _ = family.rowwise_gradient_hessian(
-            link=link, coef=coef, phi=1.0, X=X, y=y, weights=weights, eta=eta, mu=mu,
+            link=link,
+            coef=coef,
+            phi=1.0,
+            X=X,
+            y=y,
+            weights=weights,
+            eta=eta,
+            mu=mu,
         )
         score_analytic = gradient_rows @ X
 
@@ -400,12 +407,12 @@ def test_glm_family_argument_as_exponential_dispersion_model(estimator, kwargs, 
 
 
 @pytest.mark.parametrize(
-    "l, link",
+    "link_func, link",
     [("identity", IdentityLink()), ("log", LogLink()), ("logit", LogitLink())],
 )
-def test_glm_link_argument(l, link, y, X):
+def test_glm_link_argument(link_func, link, y, X):
     """Test GLM link argument set as string."""
-    glm = GeneralizedLinearRegressor(family="normal", link=l).fit(X, y)
+    glm = GeneralizedLinearRegressor(family="normal", link=link_func).fit(X, y)
     assert isinstance(glm._link_instance, link.__class__)
 
 
@@ -1433,7 +1440,10 @@ def test_standardize(use_sparse, scale_predictors):
         np.ones_like(col_means) if col_stds is None else copy.copy(col_stds)
     )
     intercept, coef = _unstandardize(
-        col_means, col_stds, intercept_standardized, coef_standardized,
+        col_means,
+        col_stds,
+        intercept_standardized,
+        coef_standardized,
     )
     np.testing.assert_almost_equal(intercept, -(NC + 1) * NC / 2)
     if scale_predictors:
@@ -1446,7 +1456,8 @@ def test_check_estimator(estimator, kwargs):
 
 
 @pytest.mark.parametrize(
-    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV],
+    "estimator",
+    [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV],
 )
 def test_clonable(estimator):
     clone(estimator())
@@ -1493,7 +1504,12 @@ def test_get_best_intercept(
 
 @pytest.mark.parametrize("tol", [1e-2, 1e-4, 1e-6])
 def test_step_size_tolerance(tol):
-    X, y = make_regression(n_samples=100, n_features=5, noise=0.5, random_state=42,)
+    X, y = make_regression(
+        n_samples=100,
+        n_features=5,
+        noise=0.5,
+        random_state=42,
+    )
     y[y < 0] = 0
 
     def build_glm(step_size_tol):
@@ -1518,7 +1534,11 @@ def test_step_size_tolerance(tol):
 def test_alpha_search(regression_data):
     X, y = regression_data
     mdl_no_path = GeneralizedLinearRegressor(
-        alpha=0.001, l1_ratio=1, family="normal", link="identity", gradient_tol=1e-10,
+        alpha=0.001,
+        l1_ratio=1,
+        family="normal",
+        link="identity",
+        gradient_tol=1e-10,
     )
     mdl_no_path.fit(X=X, y=y)
 
