@@ -6,7 +6,8 @@ from typing import Any, Dict, List
 import click
 import pytest
 from click.testing import CliRunner
-from quantcore.glm_benchmarks.cli_analyze import identify_parameter_fnames
+
+from quantcore.glm_benchmarks.cli_analyze import _identify_parameter_fnames
 from quantcore.glm_benchmarks.cli_run import cli_run
 from quantcore.glm_benchmarks.util import (
     BenchmarkParams,
@@ -23,9 +24,19 @@ from quantcore.glm_benchmarks.util import (
     ],
 )
 def test_make_params(cli_options: List[str], expected_params: Dict[str, Any]):
+    """
+    Test that the basic command line interface runs and that the benchmark_params_cli \
+    decorator works.
+
+    Parameters
+    ----------
+    cli_options: List of strings
+    expected_params
+    """
+
     @click.command()
     @benchmark_params_cli
-    def params_test(params: BenchmarkParams):
+    def _params_test(params: BenchmarkParams):
         for k in params.param_names:
             as_expected = getattr(params, k) == expected_params.get(k)
             if not as_expected:
@@ -36,12 +47,13 @@ def test_make_params(cli_options: List[str], expected_params: Dict[str, Any]):
                 )
 
     runner = CliRunner()
-    result = runner.invoke(params_test, cli_options)
+    result = runner.invoke(_params_test, cli_options)
     if not result.exit_code == 0:
         raise ValueError(result.output)
 
 
 def test_correct_problems_run():
+    """Test that the correct problems are run given certain command-line inputs."""
     output_dir = "test_output_tmp"
 
     problem_names = [
@@ -101,10 +113,14 @@ def test_correct_problems_run():
     n_threads = os.environ.get("OMP_NUM_THREADS", os.cpu_count())
 
     expected_problems_run_2 = [
-        f"narrow-insurance-weights-l2-gamma_zeros_20_dense_{n_threads}_False_1000.0_False_0.0_basic.pkl",
-        f"narrow-insurance-weights-l2-gamma_quantcore-glm_20_dense_{n_threads}_False_1000.0_False_0.0_basic.pkl",
-        f"wide-insurance-no-weights-net-poisson_zeros_20_dense_{n_threads}_False_1000.0_False_0.0_basic.pkl",
-        f"wide-insurance-no-weights-net-poisson_quantcore-glm_20_dense_{n_threads}_False_1000.0_False_0.0_basic.pkl",
+        f"narrow-insurance-weights-l2-gamma_zeros_20_dense_{n_threads}_False_1000.0_Fals"
+        "e_0.0_basic.pkl",
+        f"narrow-insurance-weights-l2-gamma_quantcore-glm_20_dense_{n_threads}_False_10"
+        "00.0_False_0.0_basic.pkl",
+        f"wide-insurance-no-weights-net-poisson_zeros_20_dense_{n_threads}_False_1000.0"
+        "_False_0.0_basic.pkl",
+        f"wide-insurance-no-weights-net-poisson_quantcore-glm_20_dense_{n_threads}_False"
+        "_1000.0_False_0.0_basic.pkl",
     ]
 
     assert sorted(problems_run) == sorted(expected_problems_run)
@@ -113,6 +129,8 @@ def test_correct_problems_run():
 
 def test_correct_problems_analyzed():
     """
+    Test that cli_analyze runs on the correct problems.
+
     Everything should be analyzed when cli_analyze is not given any parameters.
     This test checks that everything in benchmark_output/ is run, so if that directory
     is empty, the test will not be meaningful.
@@ -122,5 +140,5 @@ def test_correct_problems_analyzed():
         warnings.warn("Output directory not found")
         return
 
-    to_analyze = identify_parameter_fnames(output_dir, BenchmarkParams())
+    to_analyze = _identify_parameter_fnames(output_dir, BenchmarkParams())
     assert sorted(to_analyze) == sorted(os.listdir(output_dir))

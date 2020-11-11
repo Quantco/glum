@@ -44,7 +44,6 @@ from typing import Iterable, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
-import quantcore.matrix as mx
 import scipy.sparse.linalg as splinalg
 from scipy import linalg, sparse
 from sklearn.base import BaseEstimator, RegressorMixin
@@ -57,6 +56,8 @@ from sklearn.utils.validation import (
     check_X_y,
     column_or_1d,
 )
+
+import quantcore.matrix as mx
 
 from ._distribution import (
     BinomialDistribution,
@@ -294,7 +295,7 @@ def _standardize(
 def _unstandardize(
     col_means: np.ndarray,
     col_stds: Optional[np.ndarray],
-    intercept: float,
+    intercept: Union[float, np.ndarray],
     coef: np.ndarray,
 ) -> Tuple[Union[float, np.ndarray], np.ndarray]:
     if col_stds is None:
@@ -742,18 +743,21 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
     def _get_alpha_path(
         self,
-        l1_ratio: float,
+        P1_no_alpha: np.ndarray,
         X,
         y: np.ndarray,
         w: np.ndarray,
         offset: np.ndarray = None,
     ) -> np.ndarray:
         """
-        If l1_ratio is positive, the highest alpha is the lowest alpha such that no
-        coefficients (other than the intercept) are nonzero.
+        Get the regularization path.
 
-        If l1_ratio is zero, use the sklearn RidgeCV default path [10, 1, 0.1] or
-        whatever is specified by the input parameters min_alpha_ratio and n_alphas..
+        If some features have l1 regularization, the maximum alpha is the lowest
+        alpha such that no l1-regularized coefficients are nonzero.
+
+        If all features do not have l1 regularization, use the sklearn RidgeCV
+        default path [10, 1, 0.1] or whatever is specified by the input parameters
+        min_alpha_ratio and n_alphas.
 
         min_alpha_ratio governs the length of the path, with 1e-6 as the default.
         Smaller values will lead to a longer path.
@@ -776,11 +780,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 np.log(max_alpha), np.log(min_alpha), self.n_alphas, base=np.e
             )
 
-        if l1_ratio == 0:
+        if np.all(P1_no_alpha == 0):
             alpha_max = 10
             return _make_grid(alpha_max)
 
         if self.fit_intercept:
+            intercept_offset = 1
             coef = np.zeros(X.shape[1] + 1)
             coef[0] = guess_intercept(
                 y=y,
@@ -789,13 +794,21 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 distribution=self._family_instance,
             )
         else:
+            intercept_offset = 0
             coef = np.zeros(X.shape[1])
 
         _, dev_der = self._family_instance._mu_deviance_derivative(
             coef=coef, X=X, y=y, weights=w, link=self._link_instance, offset=offset,
         )
 
-        alpha_max = np.max(np.abs(-0.5 * dev_der)) / l1_ratio
+        l1_regularized_mask = P1_no_alpha > 0
+        alpha_max = np.max(
+            np.abs(
+                -0.5
+                * dev_der[intercept_offset:][l1_regularized_mask]
+                / P1_no_alpha[l1_regularized_mask]
+            )
+        )
         return _make_grid(alpha_max)
 
     def solve(
@@ -916,7 +929,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         return self.coef_path_
 
-    def report_diagnostics(
+    def _report_diagnostics(
         self, full_report: bool = False, custom_columns: Optional[Iterable] = None
     ) -> None:
         """Print diagnostics to stdout.
@@ -929,34 +942,57 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         custom_columns: Iterable (optional, default None)
             Print only the specified columns
         """
-        if hasattr(self, "diagnostics_"):
-            print("diagnostics:")
-            import pandas as pd
+        diagnostics = self._get_formatted_diagnostics(full_report, custom_columns)
+        if isinstance(diagnostics, str):
+            print(diagnostics)
+            return
 
-            with pd.option_context("max_rows", None, "max_columns", None):
-                if custom_columns is not None:
-                    print(pd.DataFrame(data=self.diagnostics_)[custom_columns])
-                elif full_report:
-                    print(
-                        pd.DataFrame(data=self.diagnostics_).set_index(
-                            "n_iter", drop=True
-                        )
-                    )
-                else:
-                    base_cols = [
-                        "n_iter",
-                        "convergence",
-                        "n_cycles",
-                        "iteration_runtime",
-                        "intercept",
-                    ]
-                    print(
-                        pd.DataFrame(data=self.diagnostics_)[base_cols].set_index(
-                            "n_iter", drop=True
-                        )
-                    )
+        import pandas as pd
+
+        print("Diagnostics:")
+        with pd.option_context("max_rows", None, "max_columns", None):
+            print(diagnostics)
+
+    def _get_formatted_diagnostics(
+        self, full_report: bool = False, custom_columns: Optional[Iterable] = None
+    ) -> Union[str, pd.DataFrame]:
+        """Get formatted diagnostics; can be printed with _report_diagnostics.
+
+        Parameters
+        ----------
+        full_report: boolean (default False)
+            Print all available information. When False and custom_columns
+            is set to None, a restricted set of columns is printed out.
+        custom_columns: Iterable (optional, default None)
+            Print only the specified columns
+        """
+        if not hasattr(self, "diagnostics_"):
+            to_print = "Model has not been fit, so no diagnostics exist."
+            return to_print
+        if self.diagnostics_ is None:
+            to_print = "solver does not report diagnostics"
+            return to_print
+
+        import pandas as pd
+
+        df = pd.DataFrame(data=self.diagnostics_).set_index("n_iter", drop=True)
+        if self.fit_intercept:
+            df["intercept"] = df["first_coef"]
         else:
-            print("solver does not report diagnostics")
+            df["intercept"] = np.nan
+
+        if custom_columns is not None:
+            keep_cols = custom_columns
+        elif full_report:
+            keep_cols = df.columns
+        else:
+            keep_cols = [
+                "convergence",
+                "n_cycles",
+                "iteration_runtime",
+                "intercept",
+            ]
+        return df[keep_cols]
 
     def linear_predictor(
         self, X: ArrayLike, offset: Optional[ArrayLike] = None, alpha_level: int = None
@@ -1245,6 +1281,17 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             copy_X = self.copy_X
         return copy_X
 
+    def _is_contiguous(self, X):
+        if isinstance(X, np.ndarray):
+            return X.flags["C_CONTIGUOUS"] or X.flags["F_CONTIGUOUS"]
+        elif isinstance(X, pd.DataFrame):
+            return self._is_contiguous(X.values)
+
+        # If the object isn't a numpy array or pandas dataframe, we
+        # assume it is contiguous.
+        else:
+            return True
+
     def set_up_and_check_fit_args(
         self,
         X: ArrayLike,
@@ -1264,6 +1311,14 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             _stype = ["csc", "csr"]
 
         copy_X = self._should_copy_X()
+
+        if not self._is_contiguous(X):
+            if self.copy_X is not None and not self.copy_X:
+                raise ValueError(
+                    "The X matrix is noncontiguous and copy_X = False."
+                    "To fix this, either set copy_X = None or pass a contiguous matrix."
+                )
+            X = X.copy()
 
         if (
             not isinstance(X, mx.CategoricalMatrix)
@@ -1844,7 +1899,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         if self.alpha_search:
             if self.alphas is None:
                 self._alphas = self._get_alpha_path(
-                    l1_ratio=self.l1_ratio, X=X, y=y, w=weights, offset=offset
+                    P1_no_alpha=P1_no_alpha, X=X, y=y, w=weights, offset=offset
                 )
             else:
                 self._alphas = self.alphas

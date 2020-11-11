@@ -1,5 +1,6 @@
 import warnings
 from abc import ABCMeta, abstractmethod
+from typing import Union
 
 import numexpr
 import numpy as np
@@ -35,7 +36,7 @@ class Link(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def inverse(self, lin_pred):
+    def inverse(self, lin_pred: np.ndarray) -> np.ndarray:
         """Compute the inverse link function h(lin_pred).
 
         Gives the inverse relationship between linear predictor and the mean
@@ -49,7 +50,7 @@ class Link(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def inverse_derivative(self, lin_pred):
+    def inverse_derivative(self, lin_pred: np.ndarray) -> np.ndarray:
         """Compute the derivative of the inverse link function h'(lin_pred).
 
         Parameters
@@ -60,7 +61,7 @@ class Link(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def inverse_derivative2(self, lin_pred):
+    def inverse_derivative2(self, lin_pred: np.ndarray) -> np.ndarray:
         """Compute 2nd derivative of the inverse link function h''(lin_pred).
 
         Parameters
@@ -74,54 +75,191 @@ class Link(metaclass=ABCMeta):
 class IdentityLink(Link):
     """The identity link function g(x)=x."""
 
-    def link(self, mu):
+    def link(self, mu: np.ndarray) -> np.ndarray:
+        """
+        Return mu (identity link).
+
+        See superclass documentation.
+
+        Parameters
+        ----------
+        mu: np.ndarray
+
+        Returns
+        -------
+        np.ndarray
+        """
         return mu
 
-    def derivative(self, mu):
+    def derivative(self, mu: np.ndarray) -> np.ndarray:
+        """
+        Get the derivative of the identity link, which is a vector of ones.
+
+        See superclass documentation.
+
+        Parameters
+        ----------
+        mu: np.ndarray
+
+        Returns
+        -------
+        np.ndarray
+        """
         return np.ones_like(mu)
 
-    def inverse(self, lin_pred):
+    def inverse(self, lin_pred: np.ndarray) -> np.ndarray:
+        """Compute the inverse link function h(lin_pred).
+
+        Gives the inverse relationship between linear predictor and the mean
+        mu=E[Y], i.e. h(linear predictor) = mu.
+
+        Parameters
+        ----------
+        lin_pred : array, shape (n_samples,)
+            Usually the (fitted) linear predictor.
+        """
         return lin_pred
 
     def inverse_derivative(self, lin_pred):
+        """Compute the derivative of the inverse link function h'(lin_pred).
+
+        Parameters
+        ----------
+        lin_pred : array, shape (n_samples,)
+            Usually the (fitted) linear predictor.
+        """
         return np.ones_like(lin_pred)
 
     def inverse_derivative2(self, lin_pred):
+        """Compute 2nd derivative of the inverse link function h''(lin_pred).
+
+        Parameters
+        ----------
+        lin_pred : array, shape (n_samples,)
+            Usually the (fitted) linear predictor.
+        """
         return np.zeros_like(lin_pred)
 
 
 class LogLink(Link):
     """The log link function g(x)=log(x)."""
 
-    def link(self, mu):
+    def link(self, mu: np.ndarray) -> np.ndarray:
+        """
+        Get the log of mu.
+
+        See superclass documentation.
+
+        Parameters
+        ----------
+        mu: np.ndarray
+
+        Returns
+        -------
+        np.ndarray
+        """
         return numexpr.evaluate("log(mu)")
 
-    def derivative(self, mu):
+    def derivative(self, mu: np.ndarray) -> np.ndarray:
+        """
+        Get the derivative of the log link, which is one over mu.
+
+        Parameters
+        ----------
+        mu: np.ndarray
+
+        Returns
+        -------
+        np.ndarray
+        """
         return numexpr.evaluate("1.0 / mu")
 
-    def inverse(self, lin_pred):
+    def inverse(self, lin_pred: np.ndarray) -> np.ndarray:
+        """
+        Get the inverse of the log link, which is the exponential function.
+
+        See superclass documentation for more.
+
+        Parameters
+        ----------
+        lin_pred: np.ndarray
+
+        Returns
+        -------
+        np.ndarray
+        """
         return numexpr.evaluate("exp(lin_pred)")
 
     def inverse_derivative(self, lin_pred):
+        """Compute the derivative of the inverse link function h'(lin_pred).
+
+        Parameters
+        ----------
+        lin_pred : array, shape (n_samples,)
+            Usually the (fitted) linear predictor.
+        """
         return numexpr.evaluate("exp(lin_pred)")
 
     def inverse_derivative2(self, lin_pred):
+        """Compute 2nd derivative of the inverse link function h''(lin_pred).
+
+        Parameters
+        ----------
+        lin_pred : array, shape (n_samples,)
+            Usually the (fitted) linear predictor.
+        """
         return numexpr.evaluate("exp(lin_pred)")
 
 
 class LogitLink(Link):
     """The logit link function g(x)=logit(x)."""
 
-    def link(self, mu):
+    def link(self, mu: np.ndarray) -> np.ndarray:
+        """
+        Get the logit function of mu. See superclass documentation.
+
+        Parameters
+        ----------
+        mu: np.ndarray
+
+        Returns
+        -------
+        np.ndarray
+        """
         return special.logit(mu)
 
     def derivative(self, mu):
+        """
+        Get the derivative of the logit link.
+
+        See superclass documentation.
+
+        Parameters
+        ----------
+        mu: np.ndarray
+
+        Returns
+        -------
+        np.ndarray
+        """
         return 1.0 / (mu * (1 - mu))
 
-    def inverse(self, lin_pred):
-        """Note: since passing a very large value might result in an output
+    def inverse(self, lin_pred: np.ndarray) -> np.ndarray:
+        """
+        Get the inverse of the logit link.
+
+        See superclass documentation for more.
+        Note: since passing a very large value might result in an output
         of 1, this function bounds the output to be between
         [50*eps, 1 - 50*eps] where eps is floating point epsilon.
+
+        Parameters
+        ----------
+        lin_pred: np.ndarray
+
+        Returns
+        -------
+        np.ndarray
         """
         inv_logit = special.expit(lin_pred)
         eps50 = 50 * np.finfo(inv_logit.dtype).eps
@@ -133,17 +271,44 @@ class LogitLink(Link):
             return np.clip(inv_logit, eps50, 1 - eps50)
         return inv_logit
 
-    def inverse_derivative(self, lin_pred):
+    def inverse_derivative(self, lin_pred: np.ndarray) -> np.ndarray:
+        """Compute the derivative of the inverse link function h'(lin_pred).
+
+        Parameters
+        ----------
+        lin_pred : array, shape (n_samples,)
+            Usually the (fitted) linear predictor.
+        """
         ep = special.expit(lin_pred)
         return ep * (1.0 - ep)
 
-    def inverse_derivative2(self, lin_pred):
+    def inverse_derivative2(self, lin_pred: np.ndarray) -> np.ndarray:
+        """Compute 2nd derivative of the inverse link function h''(lin_pred).
+
+        Parameters
+        ----------
+        lin_pred : array, shape (n_samples,)
+            Usually the (fitted) linear predictor.
+        """
         ep = special.expit(lin_pred)
         return ep * (1.0 - ep) * (1.0 - 2 * ep)
 
 
 def catch_p(fun):
-    def to_return(*args, **kwargs):
+    """
+    Decorate fun, ensuring that the given linear predictor is compatible with the \
+    relevant Tweedie p.
+
+    Parameters
+    ----------
+    fun: TweedieLink method
+
+    Returns
+    -------
+    Callable
+    """
+
+    def _to_return(*args, **kwargs):
         with np.errstate(invalid="raise"):
             try:
                 result = fun(*args, **kwargs)
@@ -151,21 +316,27 @@ def catch_p(fun):
                 raise ValueError(
                     "Your linear predictors were not supported for p="
                     + str(args[0].p)
-                    + ". For negative linear predictors, consider using a log link instead."
+                    + ". For negative linear predictors, consider using a log link "
+                    "instead."
                 )
         return result
 
-    return to_return
+    return _to_return
 
 
 class TweedieLink(Link):
     """The Tweedie link function g(x)=x^(1-p) if p!=1 and log(x) if p=1."""
 
-    def __new__(cls, p):
+    def __new__(cls, p: Union[float, int]):
+        """
+        Create a new TweedieLink object.
+
+        Parameters
+        ----------
+        p: scalar
+        """
         if p == 0:
             return IdentityLink()
-        if p == 1:
-            return LogLink()
         if p == 1:
             return LogLink()
         return super(TweedieLink, cls).__new__(cls)
@@ -173,24 +344,77 @@ class TweedieLink(Link):
     def __init__(self, p):
         self.p = p
 
-    def link(self, mu):
+    def link(self, mu: np.ndarray) -> np.ndarray:
+        """
+        Get the Tweedie canonical link.
+
+        See superclass documentation.
+
+        Parameters
+        ----------
+        mu: np.ndarray
+
+        Returns
+        -------
+        np.ndarray
+        """
         return mu ** (1 - self.p)
 
-    def derivative(self, mu):
+    def derivative(self, mu: np.ndarray) -> np.ndarray:
+        """
+        Get the derivative of the Tweedie link.
+
+        See superclass documentation.
+
+        Parameters
+        ----------
+        mu: np.ndarray
+
+        Returns
+        -------
+        np.ndarray
+        """
         return (1 - self.p) * mu ** (-self.p)
 
     @catch_p
-    def inverse(self, lin_pred):
+    def inverse(self, lin_pred: np.ndarray) -> np.ndarray:
+        """
+        Get the inverse of the Tweedie link.
+
+        See superclass documentation.
+
+        Parameters
+        ----------
+        mu: np.ndarray
+
+        Returns
+        -------
+        np.ndarray
+        """
         result = lin_pred ** (1 / (1 - self.p))
         return result
 
     @catch_p
-    def inverse_derivative(self, lin_pred):
+    def inverse_derivative(self, lin_pred: np.ndarray) -> np.ndarray:
+        """Compute the derivative of the inverse Tweedie link function h'(lin_pred).
+
+        Parameters
+        ----------
+        lin_pred : array, shape (n_samples,)
+            Usually the (fitted) linear predictor.
+        """
         result = (1 / (1 - self.p)) * lin_pred ** (self.p / (1 - self.p))
         return result
 
     @catch_p
-    def inverse_derivative2(self, lin_pred):
+    def inverse_derivative2(self, lin_pred: np.ndarray) -> np.ndarray:
+        """Compute 2nd derivative of the inverse Tweedie link function h''(lin_pred).
+
+        Parameters
+        ----------
+        lin_pred : array, shape (n_samples,)
+            Usually the (fitted) linear predictor.
+        """
         result = (self.p / (1 - self.p) ** 2) * lin_pred ** (
             (2 * self.p - 1) / (1 - self.p)
         )
