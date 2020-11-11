@@ -5,10 +5,10 @@ import warnings
 
 import numpy as np
 import pytest
+import quantcore.matrix as mx
 from git_root import git_root
 from scipy import sparse
 
-import quantcore.matrix as mx
 from quantcore.glm import GeneralizedLinearRegressor, GeneralizedLinearRegressorCV
 from quantcore.glm._glm import TweedieDistribution
 from quantcore.glm_benchmarks.data import simulate_glm_data
@@ -52,7 +52,8 @@ def data_all():
 
 
 @pytest.fixture(
-    params=["categorical"], scope="module",
+    params=["categorical"],
+    scope="module",
 )
 def data_all_storage(request):
     data = {}
@@ -157,7 +158,9 @@ def fit_model(data, family, model_parameters, use_weights, use_offset, cv):
 
 
 @pytest.mark.parametrize(
-    "distribution", distributions_to_test, ids=distributions_to_test,
+    "distribution",
+    distributions_to_test,
+    ids=distributions_to_test,
 )
 @pytest.mark.parametrize(
     ["run_name", "model_parameters"],
@@ -195,7 +198,9 @@ def test_gm_features(
 
 
 @pytest.mark.parametrize(
-    "distribution", distributions_to_test, ids=distributions_to_test,
+    "distribution",
+    distributions_to_test,
+    ids=distributions_to_test,
 )
 def test_gm_storage(distribution, data_all_storage, expected_all):
     data = data_all_storage[distribution]
@@ -242,7 +247,9 @@ def test_gm_custom_link(family_link, use_weights, use_offset, data_all, expected
 
 
 @pytest.mark.parametrize(
-    "distribution", distributions_to_test, ids=distributions_to_test,
+    "distribution",
+    distributions_to_test,
+    ids=distributions_to_test,
 )
 @pytest.mark.parametrize("use_weights", [True, False], ids=["weights", "no_weights"])
 @pytest.mark.parametrize("use_offset", [True, False], ids=["offset", "no_offset"])
@@ -273,7 +280,9 @@ def test_gm_approx_hessian(
 
 
 @pytest.mark.parametrize(
-    "distribution", distributions_to_test, ids=distributions_to_test,
+    "distribution",
+    distributions_to_test,
+    ids=distributions_to_test,
 )
 def test_gm_cv(distribution, data_all, expected_all):
     data = data_all[distribution]
@@ -298,7 +307,8 @@ def test_gm_cv(distribution, data_all, expected_all):
 
 
 @pytest.mark.parametrize(
-    "dist_power", [("poisson", 1), ("gamma", 2), ("tweedie_p=1.5", 1.5)],
+    "dist_power",
+    [("poisson", 1), ("gamma", 2), ("tweedie_p=1.5", 1.5)],
 )
 def test_weights_offset_equivalence(dist_power, data_all):
     distribution, power = dist_power

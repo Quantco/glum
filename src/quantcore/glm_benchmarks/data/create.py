@@ -195,7 +195,10 @@ def gen_col_trans() -> Tuple[Any, List[str]]:
                 [
                     get_categorizer("Area"),
                     ("OE", OrdinalEncoder()),
-                    ("plus_1", FunctionTransformer(lambda x: x + 1, validate=False),),
+                    (
+                        "plus_1",
+                        FunctionTransformer(lambda x: x + 1, validate=False),
+                    ),
                 ]
             ),
             ["Area"],
@@ -392,8 +395,14 @@ def generate_wide_insurance_dataset(
     ]
 
     transformer = make_column_transformer(
-        (FunctionTransformer(), lambda x: x.select_dtypes(["number"]).columns,),
-        (Pipeline([get_categorizer(col, "cat_" + col) for col in cat_cols]), cat_cols,),
+        (
+            FunctionTransformer(),
+            lambda x: x.select_dtypes(["number"]).columns,
+        ),
+        (
+            Pipeline([get_categorizer(col, "cat_" + col) for col in cat_cols]),
+            cat_cols,
+        ),
         remainder="drop",
     )
     y, exposure = compute_y_exposure(df, distribution)

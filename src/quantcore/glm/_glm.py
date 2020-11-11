@@ -44,6 +44,7 @@ from typing import Any, Iterable, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
+import quantcore.matrix as mx
 import scipy.sparse.linalg as splinalg
 from scipy import linalg, sparse
 from sklearn.base import BaseEstimator, RegressorMixin
@@ -56,8 +57,6 @@ from sklearn.utils.validation import (
     check_X_y,
     column_or_1d,
 )
-
-import quantcore.matrix as mx
 
 from ._distribution import (
     BinomialDistribution,
@@ -520,7 +519,9 @@ def initialize_start_params(
                 "Start values for parameters must have the"
                 "right length and dimension; required (length"
                 "={}, ndim=1); got (length={}, ndim={}).".format(
-                    n_cols + fit_intercept, start_params.shape[0], start_params.ndim,
+                    n_cols + fit_intercept,
+                    start_params.shape[0],
+                    start_params.ndim,
                 )
             )
     return start_params
@@ -810,7 +811,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             coef = np.zeros(X.shape[1])
 
         _, dev_der = self._family_instance._mu_deviance_derivative(
-            coef=coef, X=X, y=y, weights=w, link=self._link_instance, offset=offset,
+            coef=coef,
+            X=X,
+            y=y,
+            weights=w,
+            link=self._link_instance,
+            offset=offset,
         )
 
         l1_regularized_mask = P1_no_alpha > 0
@@ -1319,9 +1325,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         offset: Union[np.ndarray, None],
         solver: str,
         force_all_finite,
-    ) -> Tuple[
-        mx.MatrixBase, np.ndarray, np.ndarray, Union[np.ndarray, None], float,
-    ]:
+    ) -> Tuple[mx.MatrixBase, np.ndarray, np.ndarray, Union[np.ndarray, None], float]:
 
         _dtype = [np.float64, np.float32]
         if solver == "irls-cd":
