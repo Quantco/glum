@@ -55,7 +55,9 @@ def test_gm_benchmarks(Pn: str, P: Problem, expected_all: dict):
     try:
         np.testing.assert_allclose(all_result, all_expected, rtol=2e-4, atol=2e-4)
     except AssertionError as e:
-        dat = P.data_loader(num_rows=params.num_rows,)
+        dat = P.data_loader(
+            num_rows=params.num_rows,
+        )
         obj_result = get_obj_val(
             dat,
             P.distribution,
@@ -107,7 +109,10 @@ def run_and_store_golden_master(overwrite, problem_name):
                 warnings.warn("Result exists and cannot overwrite. Skipping")
                 continue
 
-        gm_dict[Pn] = dict(coef=res["coef"].tolist(), intercept=res["intercept"],)
+        gm_dict[Pn] = dict(
+            coef=res["coef"].tolist(),
+            intercept=res["intercept"],
+        )
 
     with open(git_root("golden_master/benchmark_gm.json"), "w") as fh:
         json.dump(gm_dict, fh, indent=2)
