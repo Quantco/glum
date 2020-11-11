@@ -40,7 +40,7 @@ from __future__ import division
 
 import copy
 import warnings
-from typing import Iterable, List, Optional, Tuple, Union
+from typing import Any, Iterable, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -244,26 +244,43 @@ def _standardize(
     X: mx.MatrixBase,
     weights: np.ndarray,
     center_predictors: bool,
-    scale_predictors: bool,
+    estimate_as_if_scaled_model: bool,
     lower_bounds: np.ndarray,
     upper_bounds: np.ndarray,
     P1: Union[np.ndarray, sparse.spmatrix],
     P2: Union[np.ndarray, sparse.spmatrix],
-):
+) -> Tuple[
+    mx.StandardizedMatrix,
+    np.ndarray,
+    Optional[np.ndarray],
+    Optional[np.ndarray],
+    Optional[np.ndarray],
+    Any,
+    Any,
+]:
     """
-    This function standardizes the data matrix X and then adjusts the bounds
-    and penalties to match the standardized data matrix.
+    Standardize the data matrix X and adjust the bounds and penalties to match the\
+    standardized data matrix, so that standardizing does not affect estimates.
 
-    Columns are always scaled to have standard deviation 1.
+    This is only done for computational reasons and does not affect final estimates or\
+    alter the input data. Columns are always scaled to have standard deviation 1.
 
-    If center_predictors is True, the data matrix will be adjusted to have
-    columns with mean 0.
-
-    If scale_predictors is True, the penalties will not be scaled. The result
-    will be that the input penalty matrices are applied to the standardized
-    coefficients. This can be useful to scale
+    Parameters
+    ----------
+    X: MatrixBase
+    weights
+    center_predictors: If True, adjust the data matrix so that columns have mean zero.
+    estimate_as_if_scaled_model: If True, estimates returned equal those from a model \
+        where predictors have been standardized to standard deviation 1, with penalty \
+        unchanged. Note that internally, for purely computational reasons, we always \
+        scale predictors; whether estimates match a scaled model depends on whether we \
+        modify the penalty. If 'estimate_as_if_scaled_model' is False, penalties are \
+        rescaled to match the original scale, canceling out the effect of rescaling X.
+    lower_bounds
+    upper_bounds
+    P1
+    P2
     """
-
     X, col_means, col_stds = X.standardize(weights, center_predictors, True)
 
     if col_stds is not None:
@@ -274,12 +291,7 @@ def _standardize(
         if upper_bounds is not None:
             upper_bounds = upper_bounds * col_stds
 
-    # NOTE: We always scale predictors. The only thing controlled by
-    # scale_predictors is whether or not we also scale the penalties.
-    # If scale_predictors=True, we do not scale penalties. This can be
-    # useful if the user wants to uniformly penalize in the scale
-    # coefficient space rather than in the original coefficient space.
-    if not scale_predictors and col_stds is not None:
+    if not estimate_as_if_scaled_model and col_stds is not None:
         penalty_mult = mx.one_over_var_inf_to_val(col_stds, 1.0)
         P1 *= penalty_mult
         if sparse.issparse(P2):
@@ -585,7 +597,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         copy_X: Optional[bool] = None,
         check_input=True,
         verbose=0,
-        scale_predictors=False,
+        scale_predictors: bool = False,
         lower_bounds: Optional[np.ndarray] = None,
         upper_bounds: Optional[np.ndarray] = None,
         force_all_finite: bool = True,
@@ -995,7 +1007,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         return df[keep_cols]
 
     def linear_predictor(
-        self, X: ArrayLike, offset: Optional[ArrayLike] = None, alpha_level: int = None
+        self, X: ArrayLike, offset: Optional[ArrayLike] = None, alpha_index: int = None
     ):
         """Compute the linear_predictor = X*coef_ + intercept_.
 
@@ -1003,6 +1015,13 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         ----------
         X : {array-like, sparse matrix}, shape (n_samples, n_features)
             Samples.
+
+        offset: {None, array-like}, shape (n_samples,), optional \
+                (default=None)
+
+        alpha_index: int, optional \
+                (default=None)
+            Sets the index of the alpha to use for the alpha_search = True case
 
         Returns
         -------
@@ -1020,8 +1039,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         )
         xb = (
             X @ self.coef_ + self.intercept_
-            if alpha_level is None
-            else X @ self.coef_path_[alpha_level] + self.intercept_path_[alpha_level]
+            if alpha_index is None
+            else X @ self.coef_path_[alpha_index] + self.intercept_path_[alpha_index]
         )
         if offset is None:
             return xb
@@ -1032,7 +1051,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         X: ShapedArrayLike,
         sample_weight: Optional[ArrayLike] = None,
         offset: Optional[ArrayLike] = None,
-        alpha_level: int = None,
+        alpha_index: int = None,
     ):
         """Predict using GLM with feature matrix X.
 
@@ -1049,9 +1068,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         offset: {None, array-like}, shape (n_samples,), optional \
                 (default=None)
 
-        alpha_level: int, optional \
+        alpha_index: int, optional \
                 (default=None)
-            Sets which alpha to use for the alpha_search = True case
+            Sets the index of the alpha to use for the alpha_search = True case
 
         Returns
         -------
@@ -1066,7 +1085,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             ensure_2d=True,
             allow_nd=False,
         )
-        eta = self.linear_predictor(X, offset=offset, alpha_level=alpha_level)
+        eta = self.linear_predictor(X, offset=offset, alpha_index=alpha_index)
         mu = get_link(self.link, get_family(self.family)).inverse(eta)
         weights = _check_weights(sample_weight, X.shape[0], X.dtype)
 
@@ -1604,6 +1623,15 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         tqdm package installed.
         For the lbfgs solver set verbose to any positive number for verbosity.
 
+    scale_predictors: bool, optional (default = False)
+        If True, estimate a scaled model where all predictors have a standard deviation
+        of 1. This can result in better estimates if predictors are on very different
+        scales (for example, centimeters and kilometers).
+
+        Advanced developer note: Internally, predictors are always rescaled for
+        computational reasons, but this only affects results if 'scale_predictors' is
+        True.
+
     lower_bounds : np.ndarray, shape=(n_features), optional (default=None)
         Set a lower bound for the coefficients. Setting bounds forces the use
         of the coordinate descent solver (irls-cd).
@@ -1687,9 +1715,9 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         selection: str = "cyclic",
         random_state=None,
         copy_X: Optional[bool] = None,
-        check_input=True,
+        check_input: bool = True,
         verbose=0,
-        scale_predictors=False,
+        scale_predictors: bool = False,
         lower_bounds: Optional[np.ndarray] = None,
         upper_bounds: Optional[np.ndarray] = None,
         force_all_finite: bool = True,
