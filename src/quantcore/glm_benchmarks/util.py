@@ -95,7 +95,11 @@ def get_obj_val(
 
     full_coefs = np.concatenate(([intercept], coefs))
     offset = dat.get("offset")
-    X_dot_coef = dat["X"].dot(coefs) + intercept
+    if isinstance(dat["X"], mx.MatrixBase):
+        X_dot_coef = dat["X"].matvec(coefs)
+    else:
+        X_dot_coef = dat["X"].dot(coefs)
+    X_dot_coef += intercept
     if isinstance(X_dot_coef, pd.Series):
         X_dot_coef = X_dot_coef.values
     if offset is not None:
