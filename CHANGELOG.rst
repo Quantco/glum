@@ -7,6 +7,12 @@
 Changelog
 =========
 
+1.0.1 - 2020-11-12
+------------------
+
+This is a maintenance release to be compatible with `quantcore.matrix>=1.0.0`.
+
+
 1.0.0 - 2020-11-11
 ------------------
 
