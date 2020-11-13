@@ -1024,7 +1024,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         Parameters
         ----------
         X : {array-like, sparse matrix}, shape (n_samples, n_features)
-            Samples.
+            Samples. This may be a Pandas data frame with categorical dtypes.
+            The user must ensure that the categories are exactly the same as
+            during fit (including the order).
 
         offset: {None, array-like}, shape (n_samples,), optional \
                 (default=None)
@@ -1070,7 +1072,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         Parameters
         ----------
         X : {array-like, sparse matrix}, shape (n_samples, n_features)
-            Samples.
+            Samples. This may be a Pandas data frame with categorical dtypes.
+            The user must ensure that the categories are exactly the same as
+            during fit (including the order).
 
         sample_weight : {None, array-like}, shape (n_samples,), optional \
                 (default=None)
