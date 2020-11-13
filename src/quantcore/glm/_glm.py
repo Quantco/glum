@@ -1830,7 +1830,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             in poor convergence or flawed parameter estimates. If a Pandas data
             frame is provided, it may contain categorical columns. In that case,
             a separate coefficient will be estimated for each category. No category
-            is omitted, which means that either no intercept will be estimated or
+            is omitted, which means that either no intercept can be estimated or
             some form of regulariztion is required.
 
 
