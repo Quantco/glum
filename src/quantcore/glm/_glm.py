@@ -1025,8 +1025,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         ----------
         X : {array-like, sparse matrix}, shape (n_samples, n_features)
             Samples. This may be a Pandas data frame with categorical dtypes.
-            The user must ensure that the categories are exactly the same as
-            during fit (including the order).
+            In that case the user must ensure that the categories are exactly
+            the same (including the order) as during fit.
 
         offset: {None, array-like}, shape (n_samples,), optional \
                 (default=None)
@@ -1073,8 +1073,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         ----------
         X : {array-like, sparse matrix}, shape (n_samples, n_features)
             Samples. This may be a Pandas data frame with categorical dtypes.
-            The user must ensure that the categories are exactly the same as
-            during fit (including the order).
+            In that case the user must ensure that the categories are exactly
+            the same (including the order) as during fit.
 
         sample_weight : {None, array-like}, shape (n_samples,), optional \
                 (default=None)
@@ -1830,8 +1830,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             in poor convergence or flawed parameter estimates. If a Pandas data
             frame is provided, it may contain categorical columns. In that case,
             a separate coefficient will be estimated for each category. No category
-            is omitted, which means that either no intercept can be estimated or
-            some form of regulariztion is required.
+            is omitted. This means that some regularization is required to fit models
+            with an intercept or models with several categorical columns.
 
 
         y : array-like, shape (n_samples,)
