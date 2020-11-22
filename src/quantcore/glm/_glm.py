@@ -1346,9 +1346,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         if isinstance(X, pd.DataFrame):
 
             if any(X.dtypes == "category"):
-                if X.select_dtypes("category").isna().any(axis=None):
-                    raise ValueError("Categorical columns can't have missing values!")
-
                 self.feature_names_ = list(
                     chain.from_iterable(
                         [f"{column}__{category}" for category in dtype.categories]
