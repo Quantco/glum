@@ -1346,11 +1346,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         if isinstance(X, pd.DataFrame):
 
             if any(X.dtypes == "category"):
-                # raise if there are missings
                 if X.select_dtypes("category").isna().any(axis=None):
                     raise ValueError("Categorical columns can't have missing values!")
 
-                # extract feature names
                 self.feature_names_ = list(
                     chain.from_iterable(
                         [f"{column}__{category}" for category in dtype.categories]
@@ -1832,7 +1830,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             a separate coefficient will be estimated for each category. No category
             is omitted. This means that some regularization is required to fit models
             with an intercept or models with several categorical columns.
-
 
         y : array-like, shape (n_samples,)
             Target values.
