@@ -1658,6 +1658,31 @@ def test_passing_noncontiguous_as_X():
 
 
 @pytest.mark.parametrize(
+    "X, feature_names",
+    [
+        (pd.DataFrame({"x1": np.arange(5), "x2": 2}), np.array(["x1", "x2"])),
+        (pd.DataFrame({"x1": np.arange(5), "x2": 2}).to_numpy(), None),
+        (
+            pd.DataFrame({"x1": pd.Categorical(np.arange(5)), "x2": 2}),
+            np.array(["x1__0", "x1__1", "x1__2", "x1__3", "x1__4", "x2"]),
+        ),
+        (
+            pd.DataFrame(
+                {
+                    "x1": pd.Categorical(np.arange(5)),
+                    "x2": pd.Categorical([2, 2, 2, 2, 2]),
+                }
+            ),
+            np.array(["x1__0", "x1__1", "x1__2", "x1__3", "x1__4", "x2__2"]),
+        ),
+    ],
+)
+def test_feature_names(X, feature_names):
+    model = GeneralizedLinearRegressor(family="poisson").fit(X, np.arange(5))
+    np.testing.assert_array_equal(getattr(model, "feature_names_", None), feature_names)
+
+
+@pytest.mark.parametrize(
     "k, n",
     [
         (5, 5),
