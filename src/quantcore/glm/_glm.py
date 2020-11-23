@@ -40,6 +40,7 @@ from __future__ import division
 
 import copy
 import warnings
+from itertools import chain
 from typing import Any, Iterable, List, Optional, Tuple, Union
 
 import numpy as np
@@ -101,6 +102,9 @@ ShapedArrayLike = Union[
 
 def check_array_matrix_compliant(mat: ArrayLike, **kwargs):
     to_copy = "copy" in kwargs.keys() and kwargs["copy"]
+
+    if isinstance(mat, pd.DataFrame) and any(mat.dtypes == "category"):
+        mat = mx.from_pandas(mat)
 
     if isinstance(mat, mx.SplitMatrix):
         kwargs.update({"ensure_min_features": 0})
@@ -1020,7 +1024,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         Parameters
         ----------
         X : {array-like, sparse matrix}, shape (n_samples, n_features)
-            Samples.
+            Samples. This may be a Pandas data frame with categorical dtypes.
+            In that case the user must ensure that the categories are exactly
+            the same (including the order) as during fit.
 
         offset: {None, array-like}, shape (n_samples,), optional \
                 (default=None)
@@ -1066,7 +1072,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         Parameters
         ----------
         X : {array-like, sparse matrix}, shape (n_samples, n_features)
-            Samples.
+            Samples. This may be a Pandas data frame with categorical dtypes.
+            In that case the user must ensure that the categories are exactly
+            the same (including the order) as during fit.
 
         sample_weight : {None, array-like}, shape (n_samples,), optional \
                 (default=None)
@@ -1334,6 +1342,21 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             _stype = ["csc", "csr"]
 
         copy_X = self._should_copy_X()
+
+        if isinstance(X, pd.DataFrame):
+
+            if any(X.dtypes == "category"):
+                self.feature_names_ = list(
+                    chain.from_iterable(
+                        [f"{column}__{category}" for category in dtype.categories]
+                        if pd.api.types.is_categorical_dtype(dtype)
+                        else [column]
+                        for column, dtype in zip(X.columns, X.dtypes)
+                    )
+                )
+                X = mx.from_pandas(X)
+            else:
+                self.feature_names_ = X.columns
 
         if not self._is_contiguous(X):
             if self.copy_X is not None and not self.copy_X:
@@ -1799,7 +1822,11 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             Training data. Note that a float32 matrix is acceptable and will
             result in the entire algorithm being run in 32-bit precision.
             However, for problems that are poorly conditioned, this might result
-            in poor convergence or flawed parameter estimates.
+            in poor convergence or flawed parameter estimates. If a Pandas data
+            frame is provided, it may contain categorical columns. In that case,
+            a separate coefficient will be estimated for each category. No category
+            is omitted. This means that some regularization is required to fit models
+            with an intercept or models with several categorical columns.
 
         y : array-like, shape (n_samples,)
             Target values.
