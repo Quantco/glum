@@ -1655,3 +1655,66 @@ def test_passing_noncontiguous_as_X():
     )
     np.testing.assert_almost_equal(baseline.coef_, np_view.coef_)
     np.testing.assert_almost_equal(baseline.coef_, pd_view.coef_)
+
+
+@pytest.mark.parametrize(
+    "X, feature_names",
+    [
+        (pd.DataFrame({"x1": np.arange(5), "x2": 2}), np.array(["x1", "x2"])),
+        (pd.DataFrame({"x1": np.arange(5), "x2": 2}).to_numpy(), None),
+        (
+            pd.DataFrame({"x1": pd.Categorical(np.arange(5)), "x2": 2}),
+            np.array(["x1__0", "x1__1", "x1__2", "x1__3", "x1__4", "x2"]),
+        ),
+        (
+            pd.DataFrame(
+                {
+                    "x1": pd.Categorical(np.arange(5)),
+                    "x2": pd.Categorical([2, 2, 2, 2, 2]),
+                }
+            ),
+            np.array(["x1__0", "x1__1", "x1__2", "x1__3", "x1__4", "x2__2"]),
+        ),
+    ],
+)
+def test_feature_names(X, feature_names):
+    model = GeneralizedLinearRegressor(family="poisson").fit(X, np.arange(5))
+    np.testing.assert_array_equal(getattr(model, "feature_names_", None), feature_names)
+
+
+@pytest.mark.parametrize(
+    "k, n",
+    [
+        (5, 5),
+        (10, 5),
+        (100, 5),
+        (500, 50),
+        (500, 100),
+        (500, 500),
+    ],
+)
+def test_categorical_types(k, n):
+    np.random.seed(12345)
+    categories = np.arange(k)
+    group = np.random.choice(categories, size=n)
+    y = group / k + np.random.uniform(size=n)
+
+    # use categorical types
+    X_cat = pd.DataFrame({"group": pd.Categorical(group, categories=categories)})
+    model_cat = GeneralizedLinearRegressor(family="poisson").fit(X_cat, y)
+    pred_cat = model_cat.predict(X_cat)
+
+    # use one-hot encoding
+    X_oh = pd.get_dummies(X_cat)
+    model_oh = GeneralizedLinearRegressor(family="poisson").fit(X_oh, y)
+    pred_oh = model_oh.predict(X_oh)
+
+    # check predictions
+    np.testing.assert_allclose(pred_cat, pred_oh)
+    np.testing.assert_allclose(model_cat.intercept_, model_oh.intercept_)
+    np.testing.assert_allclose(model_cat.coef_, model_oh.coef_)
+
+    # compare across models/data types
+    pred_cat_oh = model_cat.predict(X_oh)
+    pred_oh_cat = model_oh.predict(X_cat)
+    np.testing.assert_allclose(pred_cat_oh, pred_oh_cat)
