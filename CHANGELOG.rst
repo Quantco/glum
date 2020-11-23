@@ -7,11 +7,17 @@
 Changelog
 =========
 
+1.1.0 - 2020-11-23
+------------------
+
+**New features:**
+
+- Direct support for pandas categorical types in ``fit`` and ``predict``. These will be converted into a ``CategoricalMatrix``.
+
 1.0.1 - 2020-11-12
 ------------------
 
 This is a maintenance release to be compatible with `quantcore.matrix>=1.0.0`.
-
 
 1.0.0 - 2020-11-11
 ------------------
