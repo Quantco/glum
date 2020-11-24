@@ -24,16 +24,23 @@ jobs:
         uses: actions/checkout@v2.1.0
         with:
           ref: ${{ github.head_ref }}
-      - uses: xhochy/setup-miniconda@custom_channels
+      - name: Create .condarc
+        shell: bash -l {0}
+        run: |
+          sed -ie "s/CONDA_CHANNEL_UPLOAD_USER/${CONDA_CHANNEL_UPLOAD_USER}/g" .github/workflows/.condarc
+          sed -ie "s/CONDA_CHANNEL_UPLOAD_PASSWORD/${CONDA_CHANNEL_UPLOAD_PASSWORD}/g" .github/workflows/.condarc
+        env:
+          CONDA_CHANNEL_UPLOAD_USER: ${{ secrets.CONDA_CHANNEL_UPLOAD_USER }}
+          CONDA_CHANNEL_UPLOAD_PASSWORD: ${{ secrets.CONDA_CHANNEL_UPLOAD_PASSWORD }}
+      - uses: conda-incubator/setup-miniconda@v2
         with:
-          installer-url: https://github.com/conda-forge/miniforge/releases/download/4.8.3-4/Miniforge3-4.8.3-4-MacOSX-x86_64.sh
+          installer-url: https://github.com/conda-forge/miniforge/releases/download/4.9.0-4/Miniforge3-4.9.0-4-MacOSX-x86_64.sh
           mamba-version: "*"
-          activate-environment: ""
           allow-softlinks: true
           show-channel-urls: true
           use-only-tar-bz2: true
           channels: quantco_main,conda-forge
-          custom_channels.quantco_main: https://${{ secrets.CONDA_CHANNEL_UPLOAD_USER }}:${{ secrets.CONDA_CHANNEL_UPLOAD_PASSWORD }}@conda.quantco.cloud
+          condarc-file: .github/workflows/.condarc
       - name: Run Unit Tests
         shell: bash -l {0}
         run: ./.github/workflows/macos.sh
