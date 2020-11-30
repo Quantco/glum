@@ -1,0 +1,22 @@
+# Global owners
+@tbenthompson @ElizabethSantorellaQC @MarcAntoineSchmidtQC
+
+# Core
+/src/quantcore/glm/ @MarcAntoineSchmidtQC
+
+# Cython / C++
+*.pyx @tbenthompson
+*.cpp @tbenthompson
+
+# GLM benchmarks
+/src/quantcore/glm_benchmarks/ @ElizabethSantorellaQC
+
+# Docs
+/docs/ @ElizabethSantorellaQC
+
+# CI
+/.github/  @tbenthompson
+/conda.recipe/ @tbenthompson
+
+# Scripts
+/scripts/ @jtilly
