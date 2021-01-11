@@ -7,6 +7,11 @@
 Changelog
 =========
 
+1.1.1 - 2021-01-11
+------------------
+
+Maintenance release to get a fresh build for OSX.
+
 1.1.0 - 2020-11-23
 ------------------
 
