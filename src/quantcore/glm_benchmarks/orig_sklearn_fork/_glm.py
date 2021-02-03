@@ -50,7 +50,6 @@ from scipy.optimize import fmin_l_bfgs_b
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.exceptions import ConvergenceWarning
 from sklearn.utils import check_array, check_X_y
-from sklearn.utils.optimize import newton_cg
 from sklearn.utils.validation import check_is_fitted, check_random_state
 
 
@@ -2261,77 +2260,14 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         # 4.3 Newton-CG #######################################################
         # We use again the fisher matrix instead of the hessian. More
         # precisely, expected hessian of deviance.
-        elif solver == "newton-cg":
-
-            def func(coef, X, y, weights, P2, family, link):
-                intercept = coef.size == X.shape[1] + 1
-                idx = 1 if intercept else 0  # offset if coef[0] is intercept
-                if P2.ndim == 1:
-                    L2 = coef[idx:] @ (P2 * coef[idx:])
-                else:
-                    L2 = coef[idx:] @ (P2 @ coef[idx:])
-                mu = link.inverse(_safe_lin_pred(X, coef))
-                return 0.5 * family.deviance(y, mu, weights) + 0.5 * L2
-
-            def grad(coef, X, y, weights, P2, family, link):
-                mu, devp = family._mu_deviance_derivative(coef, X, y, weights, link)
-                intercept = coef.size == X.shape[1] + 1
-                idx = 1 if intercept else 0  # offset if coef[0] is intercept
-                if P2.ndim == 1:
-                    L2 = P2 * coef[idx:]
-                else:
-                    L2 = P2 @ coef[idx:]
-                objp = 0.5 * devp
-                objp[idx:] += L2
-                return objp
-
-            def grad_hess(coef, X, y, weights, P2, family, link):
-                intercept = coef.size == X.shape[1] + 1
-                idx = 1 if intercept else 0  # offset if coef[0] is intercept
-                if P2.ndim == 1:
-                    L2 = P2 * coef[idx:]
-                else:
-                    L2 = P2 @ coef[idx:]
-                eta = _safe_lin_pred(X, coef)
-                mu = link.inverse(eta)
-                d1 = link.inverse_derivative(eta)
-                temp = d1 * family.deviance_derivative(y, mu, weights)
-                if intercept:
-                    grad = np.concatenate(([0.5 * temp.sum()], 0.5 * temp @ X + L2))
-                else:
-                    grad = 0.5 * temp @ X + L2  # same as 0.5* X.T @ temp + L2
-
-                # expected hessian = fisher = X.T @ diag_matrix @ X
-                # calculate only diag_matrix
-                diag = d1 ** 2 / family.variance(mu, phi=1, weights=weights)
-                if intercept:
-                    h0i = np.concatenate(([diag.sum()], diag @ X))
-
-                def Hs(coef):
-                    # return (0.5 * fisher + P2) @ coef
-                    # ret = 0.5 * (X.T @ (diag * (X @ coef)))
-                    ret = 0.5 * ((diag * (X @ coef[idx:])) @ X)
-                    if P2.ndim == 1:
-                        ret += P2 * coef[idx:]
-                    else:
-                        ret += P2 @ coef[idx:]
-                    if intercept:
-                        ret = np.concatenate(
-                            ([0.5 * (h0i @ coef)], ret + 0.5 * coef[0] * h0i[1:])
-                        )
-                    return ret
-
-                return grad, Hs
-
-            args = (X, y, weights, P2, family, link)
-            coef, self.n_iter_ = newton_cg(
-                grad_hess,
-                func,
-                grad,
-                coef,
-                args=args,
-                maxiter=self.max_iter,
-                tol=self.tol,
+        if self.solver == "newton-cg":
+            raise ValueError(
+                """ 
+                newton-cg solver is no longer supported because 
+                sklearn.utils.optimize.newton_cg has been deprecated. If you need this 
+                functionality, please use 
+                https://github.com/scikit-learn/scikit-learn/pull/9405. 
+                """
             )
 
         # 4.4 coordinate descent ##############################################
