@@ -25,7 +25,6 @@ else:
     ]
     extra_link_args = ["-fopenmp"]
 
-
 architecture = os.environ.get("GLM_ARCHITECTURE", "native")
 if architecture != "default":
     extra_compile_args.append("-march=" + architecture)
@@ -66,7 +65,9 @@ setup(
         "Programming Language :: Python :: 3.8",
     ],
     package_dir={"": "src"},
-    packages=find_namespace_packages(where="src"),
+    packages=find_namespace_packages(
+        where="src", include=["quantcore.glm"] if os.environ.get("CONDA_BUILD") else []
+    ),
     install_requires=[],
     entry_points="""
         [console_scripts]
