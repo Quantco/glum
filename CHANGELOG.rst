@@ -7,6 +7,12 @@
 Changelog
 =========
 
+1.2.0 - 2021-02-04
+------------------
+
+We removed ``quantcore.glm_benchmarks`` from the conda package.
+
+
 1.1.1 - 2021-01-11
 ------------------
 
