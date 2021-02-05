@@ -40,7 +40,7 @@ from quantcore.glm._glm import (
 )
 from quantcore.glm._util import _safe_sandwich_dot
 
-GLM_SOLVERS = ["irls-ls", "lbfgs", "irls-cd"]
+GLM_SOLVERS = ["irls-ls", "lbfgs", "irls-cd", "trust-constr"]
 
 estimators = [
     (GeneralizedLinearRegressor, {}),
@@ -528,7 +528,14 @@ def test_glm_fit_intercept_argument(estimator, fit_intercept):
 )
 @pytest.mark.parametrize(
     "solver, l1_ratio",
-    [("not a solver", 0), (1, 0), ([1], 0), ("irls-ls", 0.5), ("lbfgs", 0.5)],
+    [
+        ("not a solver", 0),
+        (1, 0),
+        ([1], 0),
+        ("irls-ls", 0.5),
+        ("lbfgs", 0.5),
+        ("trust-constr", 0.5),
+    ],
 )
 def test_glm_solver_argument(estimator, solver, l1_ratio, y, X):
     """Test GLM for invalid solver argument."""
@@ -702,7 +709,7 @@ def test_get_diagnostics(
     res = glm.fit(X, y)
 
     diagnostics = res._get_formatted_diagnostics(full_report, custom_columns)
-    if solver == "lbfgs":
+    if solver in ("lbfgs", "trust-constr"):
         assert diagnostics == "solver does not report diagnostics"
     else:
         assert diagnostics.index.name == "n_iter"
@@ -859,7 +866,8 @@ def test_glm_identity_regression_categorical_data(solver, offset, convert_x_fn):
     ],
 )
 @pytest.mark.parametrize(
-    "solver, tol", [("irls-ls", 1e-6), ("lbfgs", 1e-7), ("irls-cd", 1e-7)]
+    "solver, tol",
+    [("irls-ls", 1e-6), ("lbfgs", 1e-7), ("irls-cd", 1e-7), ("trust-constr", 1e-7)],
 )
 @pytest.mark.parametrize("fit_intercept", [False, True])
 @pytest.mark.parametrize("offset", [None, np.array([-0.1, 0, 0.1, 0, -0.2]), 0.1])
@@ -947,7 +955,8 @@ def test_normal_ridge_comparison(n_samples, n_features, solver, use_offset):
 
 
 @pytest.mark.parametrize(
-    "solver, tol", [("irls-ls", 1e-7), ("lbfgs", 1e-7), ("irls-cd", 1e-7)]
+    "solver, tol",
+    [("irls-ls", 1e-7), ("lbfgs", 1e-7), ("irls-cd", 1e-7), ("trust-constr", 1e-7)],
 )
 @pytest.mark.parametrize("scale_predictors", [True, False])
 @pytest.mark.parametrize("use_sparse", [True, False])
@@ -1258,6 +1267,7 @@ def test_binomial_enet(alpha):
     [
         {"solver": "irls-ls"},
         {"solver": "lbfgs"},
+        {"solver": "trust-constr"},
         {"solver": "irls-cd", "selection": "cyclic"},
         {"solver": "irls-cd", "selection": "random"},
     ],
@@ -1297,6 +1307,7 @@ def test_solver_equivalence(params, use_offset, regression_data):
     [
         {"solver": "irls-ls", "rtol": 1e-6},
         {"solver": "lbfgs", "rtol": 2e-4},
+        {"solver": "trust-constr", "rtol": 2e-4},
         {"solver": "irls-cd", "selection": "cyclic", "rtol": 2e-5},
         {"solver": "irls-cd", "selection": "random", "rtol": 6e-5},
     ],

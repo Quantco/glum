@@ -7,7 +7,7 @@ from sklearn.linear_model import ElasticNetCV, RidgeCV
 
 from quantcore.glm import GeneralizedLinearRegressorCV
 
-GLM_SOLVERS = ["irls", "lbfgs", "cd"]
+GLM_SOLVERS = ["irls", "lbfgs", "cd", "trust-constr"]
 
 
 @pytest.mark.parametrize("l1_ratio", [0.5, 1, [0.3, 0.6], np.array([0.3, 0.6])])
