@@ -7,7 +7,7 @@ from typing import List, Optional, Tuple, Union
 
 import numpy as np
 from scipy import linalg, sparse
-from scipy.optimize import fmin_l_bfgs_b
+from scipy.optimize import LinearConstraint, fmin_l_bfgs_b, minimize
 from sklearn.exceptions import ConvergenceWarning
 from sklearn.utils import check_array
 from sklearn.utils.validation import check_random_state
@@ -858,3 +858,66 @@ def _lbfgs_solver(
     n_iter_ = info["nit"]
 
     return coef, n_iter_, -1, None
+
+
+def _trust_constr_solver(
+    coef,
+    X,
+    y: np.ndarray,
+    weights: np.ndarray,
+    P2: Union[np.ndarray, sparse.spmatrix],
+    verbose: bool,
+    family: ExponentialDispersionModel,
+    link: Link,
+    max_iter: int = 100,
+    tol: float = 1e-8,
+    offset: np.ndarray = None,
+    A_ineq: Optional[np.ndarray] = None,
+    b_ineq: Optional[np.ndarray] = None,
+):
+    def _get_obj_and_derivative(coef):
+        mu, devp = family._mu_deviance_derivative(coef, X, y, weights, link, offset)
+        dev = family.deviance(y, mu, weights)
+        intercept = coef.size == X.shape[1] + 1
+        idx = 1 if intercept else 0  # offset if coef[0] is intercept
+        if P2.ndim == 1:
+            L2 = P2 * coef[idx:]
+        else:
+            L2 = P2 @ coef[idx:]
+        obj = 0.5 * dev + 0.5 * (coef[idx:] @ L2)
+        objp = 0.5 * devp
+        objp[idx:] += L2
+        return obj, objp
+
+    if (A_ineq is not None) and (b_ineq is not None):
+        # we express constraints in the form A theta <= b
+        constraints = LinearConstraint(
+            A=A_ineq,
+            lb=-np.Inf,
+            ub=b_ineq,
+        )
+    else:
+        constraints = ()
+
+    res = minimize(
+        fun=_get_obj_and_derivative,
+        x0=coef,
+        jac=True,
+        method="trust-constr",
+        hess="2-point",
+        constraints=constraints,
+        options={
+            "xtol": tol,
+            "gtol": tol,
+            "maxiter": max_iter,
+            "verbose": 2 if verbose else 0,
+        },
+    )
+
+    if not res["success"]:
+        warnings.warn(
+            "trust-constr failed with message: {}".format(res["message"]),
+            ConvergenceWarning,
+        )
+
+    return res["x"], res["nit"], -1, None
