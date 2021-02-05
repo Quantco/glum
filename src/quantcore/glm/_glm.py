@@ -77,6 +77,7 @@ from ._solvers import (
     _irls_solver,
     _lbfgs_solver,
     _least_squares_solver,
+    _trust_constr_solver,
 )
 
 _float_itemsize_to_dtype = {8: np.float64, 4: np.float32, 2: np.float16}
@@ -250,11 +251,13 @@ def _standardize(
     estimate_as_if_scaled_model: bool,
     lower_bounds: np.ndarray,
     upper_bounds: np.ndarray,
+    A_ineq: np.ndarray,
     P1: Union[np.ndarray, sparse.spmatrix],
     P2: Union[np.ndarray, sparse.spmatrix],
 ) -> Tuple[
     mx.StandardizedMatrix,
     np.ndarray,
+    Optional[np.ndarray],
     Optional[np.ndarray],
     Optional[np.ndarray],
     Optional[np.ndarray],
@@ -293,6 +296,8 @@ def _standardize(
             lower_bounds = lower_bounds * col_stds
         if upper_bounds is not None:
             upper_bounds = upper_bounds * col_stds
+        if A_ineq is not None:
+            A_ineq = A_ineq / col_stds
 
     if not estimate_as_if_scaled_model and col_stds is not None:
         penalty_mult = mx.one_over_var_inf_to_val(col_stds, 1.0)
@@ -304,7 +309,7 @@ def _standardize(
             P2 *= penalty_mult ** 2
         else:
             P2 = (penalty_mult[:, None] * P2) * penalty_mult[None, :]
-    return X, col_means, col_stds, lower_bounds, upper_bounds, P1, P2
+    return X, col_means, col_stds, lower_bounds, upper_bounds, A_ineq, P1, P2
 
 
 def _unstandardize(
@@ -605,6 +610,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         scale_predictors: bool = False,
         lower_bounds: Optional[np.ndarray] = None,
         upper_bounds: Optional[np.ndarray] = None,
+        A_ineq: Optional[np.ndarray] = None,
+        b_ineq: Optional[np.ndarray] = None,
         force_all_finite: bool = True,
     ):
         self.l1_ratio = l1_ratio
@@ -634,6 +641,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self.scale_predictors = scale_predictors
         self.lower_bounds = lower_bounds
         self.upper_bounds = upper_bounds
+        self.A_ineq = A_ineq
+        self.b_ineq = b_ineq
         self.force_all_finite = force_all_finite
 
     def get_start_coef(
@@ -715,6 +724,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                     self._solver = "irls-ls"
                 else:
                     self._solver = "irls-cd"
+            elif (self.A_ineq is not None) and (self.b_ineq is not None):
+                self._solver = "trust-constr"
             else:
                 self._solver = "irls-cd"
         else:
@@ -844,6 +855,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         offset: Optional[np.ndarray],
         lower_bounds: Optional[np.ndarray],
         upper_bounds: Optional[np.ndarray],
+        A_ineq: Optional[np.ndarray],
+        b_ineq: Optional[np.ndarray],
     ) -> np.ndarray:
         """
         Must be run after running set_up_for_fit and before running tear_down_from_fit.
@@ -913,6 +926,28 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 tol=self.gradient_tol,  # type: ignore
                 offset=offset,
             )
+        # 4.4 trust-constr ####################################################
+        elif self._solver == "trust-constr":
+            (
+                coef,
+                self.n_iter_,
+                self._n_cycles,
+                self.diagnostics_,
+            ) = _trust_constr_solver(
+                coef=coef,
+                X=X,
+                y=y,
+                weights=weights,
+                P2=P2,
+                verbose=self.verbose,
+                family=self._family_instance,
+                link=self._link_instance,
+                max_iter=max_iter,
+                tol=self.gradient_tol,  # type: ignore
+                offset=offset,
+                A_ineq=A_ineq,
+                b_ineq=b_ineq,
+            )
         return coef
 
     def solve_regularization_path(
@@ -927,6 +962,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         offset: Optional[np.ndarray],
         lower_bounds: Optional[np.ndarray],
         upper_bounds: Optional[np.ndarray],
+        A_ineq: Optional[np.ndarray],
+        b_ineq: Optional[np.ndarray],
     ) -> np.ndarray:
 
         self.coef_path_ = np.empty((len(alphas), len(coef)), dtype=X.dtype)
@@ -945,6 +982,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 offset=offset,
                 lower_bounds=lower_bounds,
                 upper_bounds=upper_bounds,
+                A_ineq=A_ineq,
+                b_ineq=b_ineq,
             )
 
             self.coef_path_[k, :] = coef
@@ -1228,10 +1267,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 """
             )
 
-        if self.solver not in ["auto", "irls-ls", "lbfgs", "irls-cd"]:
+        if self.solver not in ["auto", "irls-ls", "lbfgs", "irls-cd", "trust-constr"]:
             raise ValueError(
                 "GeneralizedLinearRegressor supports only solvers"
-                " 'auto', 'irls-ls', 'lbfgs', and 'irls-cd';"
+                " 'auto', 'irls-ls', 'lbfgs', 'irls-cd' and 'trust-constr';"
                 " got {}".format(self.solver)
             )
         if not isinstance(self.max_iter, int) or self.max_iter <= 0:
@@ -1294,6 +1333,13 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         ):
             raise ValueError(
                 "Only the 'cd' solver is supported when bounds are set; "
+                "got {}".format(self.solver)
+            )
+        if ((self.A_ineq is not None) or (self.b_ineq is not None)) and (
+            self.solver not in ["trust-constr", "auto"]
+        ):
+            raise ValueError(
+                "Only the 'trust-constr' solver supports inequality constraints; "
                 "got {}".format(self.solver)
             )
         if self.check_input:
@@ -1531,7 +1577,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         the chi squared statistic or the deviance statistic. If None, the
         dispersion is not estimated.
 
-    solver : {'auto', 'irls-cd', 'irls-ls', 'lbfgs'}, \
+    solver : {'auto', 'irls-cd', 'irls-ls', 'lbfgs', 'trust-constr'}, \
             optional (default='auto')
         Algorithm to use in the optimization problem:
 
@@ -1551,6 +1597,11 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
 
         'lbfgs'
             Calls scipy's L-BFGS-B optimizer. It cannot deal with L1 penalties.
+
+        'trust-constr'
+            Calls scipy.minimize with method 'trust-constr'. It cannot deal
+            with L1 penalties and will only be used when inequality constraints
+            are present.
 
     max_iter : int, optional (default=100)
         The maximal number of iterations for solver algorithms.
@@ -1666,6 +1717,10 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     upper_bounds : np.ndarray, shape=(n_features), optional (default=None)
         See lower_bounds.
 
+    A_ineq : np.ndarray, shape=(n_constraints, n_features), optional (default=None)
+
+    b_ineq : np.ndarray, shape=(n_constraints,), optional (default=None)
+
     Attributes
     ----------
     coef_ : array, shape (n_features,)
@@ -1747,6 +1802,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         scale_predictors: bool = False,
         lower_bounds: Optional[np.ndarray] = None,
         upper_bounds: Optional[np.ndarray] = None,
+        A_ineq: Optional[np.ndarray] = None,
+        b_ineq: Optional[np.ndarray] = None,
         force_all_finite: bool = True,
     ):
         self.alpha = alpha
@@ -1778,6 +1835,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             scale_predictors=scale_predictors,
             lower_bounds=lower_bounds,
             upper_bounds=upper_bounds,
+            A_ineq=A_ineq,
+            b_ineq=b_ineq,
             force_all_finite=force_all_finite,
         )
 
@@ -1893,6 +1952,9 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         lower_bounds = check_bounds(self.lower_bounds, X.shape[1], X.dtype)
         upper_bounds = check_bounds(self.upper_bounds, X.shape[1], X.dtype)
 
+        A_ineq = copy.copy(self.A_ineq)
+        b_ineq = copy.copy(self.b_ineq)
+
         if (lower_bounds is not None) and (upper_bounds is not None):
             if np.any(lower_bounds > upper_bounds):
                 raise ValueError("Upper bounds must be higher than lower bounds.")
@@ -1928,6 +1990,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             col_stds,
             lower_bounds,
             upper_bounds,
+            A_ineq,
             P1_no_alpha,
             P2_no_alpha,
         ) = _standardize(
@@ -1937,6 +2000,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             self.scale_predictors,
             lower_bounds,
             upper_bounds,
+            A_ineq,
             P1_no_alpha,
             P2_no_alpha,
         )
@@ -1974,6 +2038,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
                 offset=offset,
                 lower_bounds=lower_bounds,
                 upper_bounds=upper_bounds,
+                A_ineq=A_ineq,
+                b_ineq=b_ineq,
             )
 
             # intercept_ and coef_ return the last estimated alpha
@@ -2001,6 +2067,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
                 offset=offset,
                 lower_bounds=lower_bounds,
                 upper_bounds=upper_bounds,
+                A_ineq=A_ineq,
+                b_ineq=b_ineq,
             )
 
             if self.fit_intercept:

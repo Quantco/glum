@@ -358,6 +358,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
                 col_stds,
                 lower_bounds,
                 upper_bounds,
+                _,  # A_ineq
                 P1_no_alpha,
                 P2_no_alpha,
             ) = _standardize(
@@ -367,6 +368,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
                 self.scale_predictors,
                 lower_bounds,
                 upper_bounds,
+                None,  # A_ineq
                 P1_no_alpha,
                 P2_no_alpha,
             )
@@ -402,6 +404,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
                 offset=offset_train,
                 lower_bounds=lower_bounds,
                 upper_bounds=upper_bounds,
+                A_ineq=None,
+                b_ineq=None,
             )
 
             if self.fit_intercept:
@@ -474,13 +478,14 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         P2 = setup_p2(self.P2, X, _stype, X.dtype, self.alpha_, self.l1_ratio_)
 
         # Refit with full data and best alpha and lambda
-        X, col_means, col_stds, lower_bounds, upper_bounds, P1, P2 = _standardize(
+        X, col_means, col_stds, lower_bounds, upper_bounds, _, P1, P2 = _standardize(
             X,
             weights,
             self._center_predictors,
             self.scale_predictors,
             lower_bounds,
             upper_bounds,
+            None,  # A_ineq
             P1,
             P2,
         )
@@ -506,6 +511,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             offset=offset,
             lower_bounds=lower_bounds,
             upper_bounds=upper_bounds,
+            A_ineq=None,
+            b_ineq=None,
         )
 
         if self.fit_intercept:
