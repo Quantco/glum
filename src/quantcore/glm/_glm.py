@@ -939,6 +939,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 y=y,
                 weights=weights,
                 P2=P2,
+                fit_intercept=self.fit_intercept,
                 verbose=self.verbose,
                 family=self._family_instance,
                 link=self._link_instance,
