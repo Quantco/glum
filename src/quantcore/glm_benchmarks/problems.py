@@ -11,11 +11,10 @@ from git_root import git_root
 from joblib import Memory
 from scipy.sparse import csc_matrix
 
-from .data import (
+from .data import (  # generate_wide_insurance_dataset,
     generate_intermediate_insurance_dataset,
     generate_narrow_insurance_dataset,
     generate_real_insurance_dataset,
-    generate_wide_insurance_dataset,
 )
 from .util import cache_location, exposure_and_offset_to_weights, get_tweedie_p
 
@@ -146,13 +145,13 @@ def get_all_problems() -> Dict[str, Problem]:
     load_funcs = {
         "intermediate-insurance": generate_intermediate_insurance_dataset,
         "narrow-insurance": generate_narrow_insurance_dataset,
-        "wide-insurance": generate_wide_insurance_dataset,
+        # "wide-insurance": generate_wide_insurance_dataset,
     }
     if os.path.isfile(git_root("data", "X.parquet")):
         load_funcs["real-insurance"] = generate_real_insurance_dataset
 
     problems = {}
-    for penalty_str, l1_ratio in [("l2", 0.0), ("net", 0.5), ("lasso", 1.0)]:
+    for penalty_str, l1_ratio in [("l2", 0.0)]:
         for distribution in distributions:
             suffix = penalty_str + "-" + distribution
             dist = distribution
