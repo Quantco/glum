@@ -1,5 +1,6 @@
 import os
 import pickle
+from functools import partial
 from typing import Any, Dict, List, Optional, Tuple
 
 import click
@@ -58,11 +59,17 @@ except ImportError:
     help="Number of times to re-run the benchmark. This can be useful for avoid "
     "performance noise.",
 )
+@click.option(
+    "--verbose/--no-verbose",
+    default=False,
+    type=bool,
+)
 @benchmark_params_cli
 def cli_run(
     params: BenchmarkParams,
     output_dir: str,
     iterations: int,
+    verbose: bool,
 ):
     """
     Run benchmark problems through the command line.
@@ -102,7 +109,12 @@ def cli_run(
             )
             if len(result) > 0:
                 click.echo(f"ran problem {Pn} with library {Ln}")
-                click.echo(f"ran in {result.get('runtime')}")
+                click.echo(
+                    f"ran in {result.get('runtime'):4f} with "
+                    f"objective {result.get('obj_val'):.6f}"
+                )
+                if verbose:
+                    click.echo(result)
 
 
 def execute_problem_library(
@@ -188,6 +200,10 @@ def get_all_libraries() -> Dict[str, Any]:
     """
     all_libraries = {
         "quantcore-glm": quantcore_glm_bench,
+        "quantcore-glm-tc": partial(quantcore_glm_bench, solver="trust-constr"),
+        "quantcore-glm-tc-constr": partial(
+            quantcore_glm_bench, solver="trust-constr", mock_constr=True
+        ),
         "orig-sklearn-fork": orig_sklearn_fork_bench,
         "zeros": zeros_bench,
     }

@@ -28,6 +28,8 @@ def quantcore_glm_bench(
     diagnostics_level: str = "basic",
     reg_multiplier: Optional[float] = None,
     hessian_approx: float = 0.0,
+    solver: str = "auto",
+    mock_constr: bool = False,
     **kwargs,
 ):
     """
@@ -72,12 +74,19 @@ def quantcore_glm_bench(
         force_all_finite=False,
         hessian_approx=hessian_approx,
         verbose=False,
+        solver=solver,
     )
 
     if not cv:
         model_args["alpha"] = (
             alpha if reg_multiplier is None else alpha * reg_multiplier
         )
+
+    if mock_constr:
+        A_ineq = np.zeros(shape=(1, X.shape[1]))
+        A_ineq[0, 1] = 1
+        b_ineq = 1e12 * np.ones(shape=(1))
+        model_args.update({"A_ineq": A_ineq, "b_ineq": b_ineq})
 
     result["runtime"], m = runtime(_build_and_fit, iterations, model_args, fit_args, cv)
     if not cv:
@@ -87,6 +96,7 @@ def quantcore_glm_bench(
     result["intercept"] = m.intercept_
     result["coef"] = m.coef_
     result["n_iter"] = m.n_iter_
+    result["solver"] = model_args["solver"]
     if cv:
         alphas: np.ndarray = m.alphas_
         result["n_alphas"] = len(alphas)
