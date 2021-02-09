@@ -866,6 +866,7 @@ def _trust_constr_solver(
     y: np.ndarray,
     weights: np.ndarray,
     P2: Union[np.ndarray, sparse.spmatrix],
+    fit_intercept: bool,
     verbose: bool,
     family: ExponentialDispersionModel,
     link: Link,
@@ -890,9 +891,18 @@ def _trust_constr_solver(
         return obj, objp
 
     if (A_ineq is not None) and (b_ineq is not None):
+
+        if fit_intercept:
+            # add one column of 0's from the left
+            # the intercept will not be constrained
+            A_ineq_intercept = np.zeros(shape=(A_ineq.shape[0], 1))
+            A_ineq_ = np.concatenate((A_ineq_intercept, A_ineq), axis=1)
+        else:
+            A_ineq_ = A_ineq
+
         # we express constraints in the form A theta <= b
         constraints = LinearConstraint(
-            A=A_ineq,
+            A=A_ineq_,
             lb=-np.Inf,
             ub=b_ineq,
         )
