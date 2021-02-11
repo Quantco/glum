@@ -743,6 +743,11 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                     )
                 )
 
+        if (self._solver == "trust-constr") and (self.gradient_tol > 1e-8):  # type: ignore
+            # usage of "trust-constr" only recommended with
+            # conservative convergence setting
+            self.gradient_tol = 1e-8
+
     def tear_down_from_fit(
         self,
         X: Union[mx.MatrixBase, mx.StandardizedMatrix],
@@ -940,12 +945,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 weights=weights,
                 P2=P2,
                 fit_intercept=self.fit_intercept,
-                verbose=self.verbose,
+                verbose=self.verbose > 0,
                 family=self._family_instance,
                 link=self._link_instance,
                 max_iter=max_iter,
-                # TODO: streamline tolerance setting
-                xtol=self.gradient_tol,
                 gtol=self.gradient_tol,
                 offset=offset,
                 A_ineq=A_ineq,
@@ -1621,6 +1624,10 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         gradient_tol is not permitted to be None. If you wish to only use a
         step-size tolerance, set gradient_tol equal to very small number.
 
+        Note that the solver ``trust-constr`` requires conservative convergence
+        settings when optimizing with inequality constraints. In these cases,
+        ``gradient_tol`` will be silently updated to ``min(gradient_tol, 1e-8)``.
+
     step_size_tol: float, optional (default=None)
         Alternative stopping criterion. For the IRLS-LS and IRLS-CD solvers,
         the iteration will stop when the L2 norm of the step size is less than
@@ -1702,7 +1709,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         For the IRLS solver, any positive number will result in a pretty
         progress bar showing convergence. This features requires having the
         tqdm package installed.
-        For the lbfgs solver set verbose to any positive number for verbosity.
+        For the lbfgs and trust-constr solver set verbose to any
+        positive number for verbosity.
 
     scale_predictors: bool, optional (default = False)
         If True, estimate a scaled model where all predictors have a standard deviation
