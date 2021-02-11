@@ -812,6 +812,30 @@ def line_search(state: IRLSState, data: IRLSData, d: np.ndarray):
     return state.coef + step, step, eta_wd, mu_wd, obj_val_wd, coef_wd_P2
 
 
+def _get_obj_and_derivative(
+    coef,
+    X,
+    y: np.ndarray,
+    weights: np.ndarray,
+    P2: Union[np.ndarray, sparse.spmatrix],
+    family: ExponentialDispersionModel,
+    link: Link,
+    offset: np.ndarray = None,
+):
+    mu, devp = family._mu_deviance_derivative(coef, X, y, weights, link, offset)
+    dev = family.deviance(y, mu, weights)
+    intercept = coef.size == X.shape[1] + 1
+    idx = 1 if intercept else 0  # offset if coef[0] is intercept
+    if P2.ndim == 1:
+        L2 = P2 * coef[idx:]
+    else:
+        L2 = P2 @ coef[idx:]
+    obj = 0.5 * dev + 0.5 * (coef[idx:] @ L2)
+    objp = 0.5 * devp
+    objp[idx:] += L2
+    return obj, objp
+
+
 def _lbfgs_solver(
     coef,
     X,
@@ -825,22 +849,19 @@ def _lbfgs_solver(
     tol: float = 1e-4,
     offset: np.ndarray = None,
 ):
-    def _get_obj_and_derivative(coef):
-        mu, devp = family._mu_deviance_derivative(coef, X, y, weights, link, offset)
-        dev = family.deviance(y, mu, weights)
-        intercept = coef.size == X.shape[1] + 1
-        idx = 1 if intercept else 0  # offset if coef[0] is intercept
-        if P2.ndim == 1:
-            L2 = P2 * coef[idx:]
-        else:
-            L2 = P2 @ coef[idx:]
-        obj = 0.5 * dev + 0.5 * (coef[idx:] @ L2)
-        objp = 0.5 * devp
-        objp[idx:] += L2
-        return obj, objp
+    func = functools.partial(
+        _get_obj_and_derivative,
+        X=X,
+        y=y,
+        weights=weights,
+        P2=P2,
+        family=family,
+        link=link,
+        offset=offset,
+    )
 
     coef, loss, info = fmin_l_bfgs_b(
-        _get_obj_and_derivative,
+        func,
         coef,
         fprime=None,
         iprint=(verbose > 0) - 1,
@@ -871,24 +892,22 @@ def _trust_constr_solver(
     family: ExponentialDispersionModel,
     link: Link,
     max_iter: int = 100,
-    tol: float = 1e-8,
+    xtol: Optional[float] = 1e-6,
+    gtol: Optional[float] = 1e-12,
     offset: np.ndarray = None,
     A_ineq: Optional[np.ndarray] = None,
     b_ineq: Optional[np.ndarray] = None,
 ):
-    def _get_obj_and_derivative(coef):
-        mu, devp = family._mu_deviance_derivative(coef, X, y, weights, link, offset)
-        dev = family.deviance(y, mu, weights)
-        intercept = coef.size == X.shape[1] + 1
-        idx = 1 if intercept else 0  # offset if coef[0] is intercept
-        if P2.ndim == 1:
-            L2 = P2 * coef[idx:]
-        else:
-            L2 = P2 @ coef[idx:]
-        obj = 0.5 * dev + 0.5 * (coef[idx:] @ L2)
-        objp = 0.5 * devp
-        objp[idx:] += L2
-        return obj, objp
+    fun = functools.partial(
+        _get_obj_and_derivative,
+        X=X,
+        y=y,
+        weights=weights,
+        P2=P2,
+        family=family,
+        link=link,
+        offset=offset,
+    )
 
     if (A_ineq is not None) and (b_ineq is not None):
 
@@ -910,15 +929,15 @@ def _trust_constr_solver(
         constraints = ()
 
     res = minimize(
-        fun=_get_obj_and_derivative,
+        fun=fun,
         x0=coef,
         jac=True,
         method="trust-constr",
         hess="2-point",
         constraints=constraints,
         options={
-            "xtol": tol,
-            "gtol": tol,
+            "xtol": xtol,
+            "gtol": gtol,
             "maxiter": max_iter,
             "verbose": 2 if verbose else 0,
         },
