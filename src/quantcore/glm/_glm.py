@@ -743,10 +743,11 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                     )
                 )
 
-        if (self._solver == "trust-constr") and (self.gradient_tol > 1e-8):  # type: ignore
-            # usage of "trust-constr" only recommended with
-            # conservative convergence setting
-            self.gradient_tol = 1e-8
+        if (self._solver == "trust-constr") and (self.gradient_tol is not None):
+            if self.gradient_tol > 1e-8:
+                # usage of "trust-constr" only recommended with
+                # conservative convergence setting
+                self.gradient_tol = 1e-8
 
     def tear_down_from_fit(
         self,
