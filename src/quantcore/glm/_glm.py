@@ -717,15 +717,15 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self._center_predictors: bool = self.fit_intercept
 
         if self.solver == "auto":
-            if (self.lower_bounds is None) and (self.upper_bounds is None):
+            if (self.A_ineq is not None) and (self.b_ineq is not None):
+                self._solver = "trust-constr"
+            elif (self.lower_bounds is None) and (self.upper_bounds is None):
                 if np.all(np.asarray(self.l1_ratio) == 0):
                     self._solver = "irls-ls"
                 elif getattr(self, "alpha", 1) == 0 and not self.alpha_search:
                     self._solver = "irls-ls"
                 else:
                     self._solver = "irls-cd"
-            elif (self.A_ineq is not None) and (self.b_ineq is not None):
-                self._solver = "trust-constr"
             else:
                 self._solver = "irls-cd"
         else:
@@ -944,7 +944,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 family=self._family_instance,
                 link=self._link_instance,
                 max_iter=max_iter,
-                tol=self.gradient_tol,  # type: ignore
+                # TODO: streamline tolerance setting
+                xtol=self.gradient_tol,
+                gtol=self.gradient_tol,
                 offset=offset,
                 A_ineq=A_ineq,
                 b_ineq=b_ineq,
