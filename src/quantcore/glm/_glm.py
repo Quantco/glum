@@ -1606,9 +1606,12 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             Calls scipy's L-BFGS-B optimizer. It cannot deal with L1 penalties.
 
         'trust-constr'
-            Calls scipy.minimize with method 'trust-constr'. It cannot deal
-            with L1 penalties and will only be used when inequality constraints
-            are present.
+            Calls ``scipy.optimize.minimize(method='trust-constr')``. It cannot deal
+            with L1 penalties. This solver can optimize problems with inequality
+            constraints, passed via ``A_ineq, b_ineq``. It will be selected
+            automatically when inequality constraints are set and ``solver='auto'``.
+            Note that using this method can lead to significantly increased runtimes
+            by a factor of ten or higher.
 
     max_iter : int, optional (default=100)
         The maximal number of iterations for solver algorithms.
