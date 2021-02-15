@@ -592,7 +592,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         fit_dispersion=None,
         solver="auto",
         max_iter=100,
-        gradient_tol: Optional[float] = 1e-4,
+        gradient_tol: Optional[float] = None,
         step_size_tol: Optional[float] = None,
         hessian_approx: float = 0.0,
         warm_start=False,
@@ -730,6 +730,14 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 self._solver = "irls-cd"
         else:
             self._solver = self.solver
+
+        if self.gradient_tol is None:
+            if self._solver == "trust-constr":
+                self._gradient_tol = 1e-8
+            else:
+                self._gradient_tol = 1e-4
+        else:
+            self._gradient_tol = self.gradient_tol
 
         self._random_state = check_random_state(self.random_state)
 
@@ -870,7 +878,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         ):
             # IRLS-CD and IRLS-LS should converge in one iteration for any
             # normal distribution problem with identity link.
-            fixed_inner_tol = (self.gradient_tol, self.step_size_tol)
+            fixed_inner_tol = (self._gradient_tol, self.step_size_tol)
             max_iter = 1
         else:
             max_iter = self.max_iter
@@ -890,7 +898,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 family=self._family_instance,
                 link=self._link_instance,
                 max_iter=max_iter,
-                gradient_tol=self.gradient_tol,
+                gradient_tol=self._gradient_tol,
                 step_size_tol=self.step_size_tol,
                 fixed_inner_tol=fixed_inner_tol,
                 hessian_approx=self.hessian_approx,
@@ -923,7 +931,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 link=self._link_instance,
                 max_iter=max_iter,
                 # TODO: support step_size_tol?
-                tol=self.gradient_tol,  # type: ignore
+                tol=self._gradient_tol,  # type: ignore
                 offset=offset,
             )
         # 4.4 trust-constr ####################################################
@@ -940,13 +948,11 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 weights=weights,
                 P2=P2,
                 fit_intercept=self.fit_intercept,
-                verbose=self.verbose,
+                verbose=self.verbose > 0,
                 family=self._family_instance,
                 link=self._link_instance,
                 max_iter=max_iter,
-                # TODO: streamline tolerance setting
-                xtol=self.gradient_tol,
-                gtol=self.gradient_tol,
+                gtol=self._gradient_tol,
                 offset=offset,
                 A_ineq=A_ineq,
                 b_ineq=b_ineq,
@@ -1283,17 +1289,18 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 " got (max_iter={!r})".format(self.max_iter)
             )
 
-        if (
-            not (
-                isinstance(self.gradient_tol, float)
-                or isinstance(self.gradient_tol, int)
-            )
-            or self.gradient_tol <= 0
-        ):
-            raise ValueError(
-                "Tolerance for the gradient stopping criteria must be "
-                f"positive; got (tol={self.gradient_tol})"
-            )
+        if self.gradient_tol is not None:
+            if (
+                not (
+                    isinstance(self.gradient_tol, float)
+                    or isinstance(self.gradient_tol, int)
+                )
+                or self.gradient_tol <= 0
+            ):
+                raise ValueError(
+                    "Tolerance for the gradient stopping criteria must be "
+                    f"positive; got (tol={self.gradient_tol})"
+                )
 
         if self.step_size_tol is not None and (
             not (
@@ -1602,24 +1609,32 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             Calls scipy's L-BFGS-B optimizer. It cannot deal with L1 penalties.
 
         'trust-constr'
-            Calls scipy.minimize with method 'trust-constr'. It cannot deal
-            with L1 penalties and will only be used when inequality constraints
-            are present.
+            Calls ``scipy.optimize.minimize(method='trust-constr')``. It cannot deal
+            with L1 penalties. This solver can optimize problems with inequality
+            constraints, passed via ``A_ineq, b_ineq``. It will be selected
+            automatically when inequality constraints are set and ``solver='auto'``.
+            Note that using this method can lead to significantly increased runtimes
+            by a factor of ten or higher.
 
     max_iter : int, optional (default=100)
         The maximal number of iterations for solver algorithms.
 
-    gradient_tol : float, optional (default=1e-4)
-        Stopping criterion. For the irls-ls and lbfgs solvers,
-        the iteration will stop when ``max{|g_i|, i = 1, ..., n} <= tol``
-        where ``g_i`` is the i-th component of the gradient (derivative) of
-        the objective function. For the cd solver, convergence is reached
-        when ``sum_i(|minimum-norm of g_i|)``, where ``g_i`` is the
-        subgradient of the objective and minimum-norm of ``g_i`` is the element
-        of the subgradient ``g_i`` with the smallest L2-norm.
+    gradient_tol : float, optional (default=None)
+        Stopping criterion. If none is provided, solver-specific defaults
+        will be used. The default value for most solvers is 1e-4, except for the
+        trust-constr solver, which requires more conservative convergence settings
+        and has a default value of 1e-8.
 
-        gradient_tol is not permitted to be None. If you wish to only use a
-        step-size tolerance, set gradient_tol equal to very small number.
+        For the irls-ls, lbfgs and trust-constr solvers, the iteration will stop
+        when ``max{|g_i|, i = 1, ..., n} <= tol`` where ``g_i`` is the i-th
+        component of the gradient (derivative) of the objective function (additional
+        criteria apply when constraints are provided). For the cd solver, convergence
+        is reached when ``sum_i(|minimum-norm of g_i|)``, here ``g_i`` is the
+        subgradient of the objective and minimum-norm of ``g_i`` is the element of
+        the subgradient ``g_i`` with the smallest L2-norm.
+
+        If you wish to only use a step-size tolerance, set gradient_tol
+        equal to very small number.
 
     step_size_tol: float, optional (default=None)
         Alternative stopping criterion. For the IRLS-LS and IRLS-CD solvers,
@@ -1702,7 +1717,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         For the IRLS solver, any positive number will result in a pretty
         progress bar showing convergence. This features requires having the
         tqdm package installed.
-        For the lbfgs solver set verbose to any positive number for verbosity.
+        For the lbfgs and trust-constr solver set verbose to any
+        positive number for verbosity.
 
     scale_predictors: bool, optional (default = False)
         If True, estimate a scaled model where all predictors have a standard deviation
@@ -1721,8 +1737,16 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         See lower_bounds.
 
     A_ineq : np.ndarray, shape=(n_constraints, n_features), optional (default=None)
+        Constraint matrix for linear inequality constraints of the form
+        ``A_ineq w <= b_ineq``. Setting inequality constraints forces the use
+        of the local gradient-based solver ``"trust-constr"`` which may increase
+        runtime siginifcantly. Note that the constraints only apply to coefficients
+        related to features in ``X``. If you want to constrain the intercept, add it
+        to the feature matrix ``X`` manually and set ``fit_intercept==False``.
 
     b_ineq : np.ndarray, shape=(n_constraints,), optional (default=None)
+        Constraint vector for linear inequality constraints of the form
+        ``A_ineq w <= b_ineq``. Refer to the documentation of ``A_ineq`` for details.
 
     Attributes
     ----------
@@ -1787,7 +1811,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         fit_dispersion=None,
         solver="auto",
         max_iter=100,
-        gradient_tol: Optional[float] = 1e-4,
+        gradient_tol: Optional[float] = None,
         step_size_tol: Optional[float] = None,
         hessian_approx: float = 0.0,
         warm_start: bool = False,

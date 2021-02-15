@@ -61,7 +61,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
     max_iter : int, optional (default=100)
         The maximal number of iterations per value of alpha for solver algorithms.
 
-    gradient_tol : float, optional (default=1e-4)
+    gradient_tol : float, optional (default=None)
         Stopping criterion for each value of alpha.
 
     step_size_tol: float, optional (default=None)
@@ -167,7 +167,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         fit_dispersion: Optional[bool] = None,
         solver="auto",
         max_iter=100,
-        gradient_tol: Optional[float] = 1e-4,
+        gradient_tol: Optional[float] = None,
         step_size_tol: Optional[float] = None,
         hessian_approx: float = 0.0,
         warm_start: bool = False,

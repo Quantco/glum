@@ -371,6 +371,23 @@ def test_tol_validation_no_error(estimator, kwargs, tol_kws):
     glm.fit(X, y)
 
 
+@pytest.mark.parametrize("estimator, kwargs", estimators)
+@pytest.mark.parametrize("solver", ["auto", "irls-cd", "trust-constr"])
+@pytest.mark.parametrize("gradient_tol", [None, 1])
+def test_gradient_tol_setting(estimator, kwargs, solver, gradient_tol):
+    X, y = get_small_x_y(estimator)
+    glm = estimator(solver=solver, gradient_tol=gradient_tol, **kwargs)
+    glm.fit(X, y)
+
+    if gradient_tol is None:
+        if solver == "trust-constr":
+            gradient_tol = 1e-8
+        else:
+            gradient_tol = 1e-4
+
+    np.testing.assert_allclose(gradient_tol, glm._gradient_tol)
+
+
 # TODO: something for CV regressor
 @pytest.mark.parametrize(
     "f, fam",
@@ -956,7 +973,7 @@ def test_normal_ridge_comparison(n_samples, n_features, solver, use_offset):
 
 @pytest.mark.parametrize(
     "solver, tol",
-    [("irls-ls", 1e-7), ("lbfgs", 1e-7), ("irls-cd", 1e-7), ("trust-constr", 1e-7)],
+    [("irls-ls", 1e-7), ("lbfgs", 1e-7), ("irls-cd", 1e-7), ("trust-constr", 1e-8)],
 )
 @pytest.mark.parametrize("scale_predictors", [True, False])
 @pytest.mark.parametrize("use_sparse", [True, False])
@@ -1004,7 +1021,7 @@ def test_poisson_ridge(solver, tol, scale_predictors, use_sparse):
         fit_intercept=True,
         family="poisson",
         link="log",
-        gradient_tol=1e-7,
+        gradient_tol=tol,
         solver=solver,
         max_iter=300,
         random_state=np.random.RandomState(42),
@@ -1068,6 +1085,43 @@ def test_poisson_ridge_bounded(scale_predictors):
         scale_predictors=scale_predictors,
         lower_bounds=lb,
         upper_bounds=ub,
+    )
+    glm.fit(X, y)
+
+    # These correct values come from glmnet.
+    assert_allclose(glm.intercept_, -0.13568186971946633, rtol=1e-5)
+    assert_allclose(glm.coef_, [0.1, 0.1], rtol=1e-5)
+
+
+@pytest.mark.parametrize("scale_predictors", [True, False])
+def test_poisson_ridge_ineq_constrained(scale_predictors):
+    X = np.array([[-1, 1, 1, 2], [0, 0, 1, 1]], dtype=np.float).T
+    y = np.array([0, 1, 1, 2], dtype=np.float)
+    A_ineq = np.array([[1, 0], [0, 1], [-1, 0], [0, -1]])
+    b_ineq = 0.1 * np.ones(shape=(4))
+
+    # For comparison, this is the source of truth for the assert_allclose below.
+    # from glmnet_python import glmnet
+    # model = glmnet(x=X.copy(), y=y.copy(), alpha=0, family="poisson",
+    #               standardize=scale_predictors, thresh=1e-10, lambdau=np.array([1.0]),
+    #               cl = np.array([lb, ub])
+    #               )
+    # true_intercept = model["a0"][0]
+    # true_beta = model["beta"][:, 0]
+    # print(true_intercept, true_beta)
+
+    glm = GeneralizedLinearRegressor(
+        alpha=1,
+        l1_ratio=0,
+        fit_intercept=True,
+        family="poisson",
+        link="log",
+        gradient_tol=1e-12,  # 1e-8 not sufficient
+        random_state=np.random.RandomState(42),
+        copy_X=True,
+        scale_predictors=scale_predictors,
+        A_ineq=A_ineq,
+        b_ineq=b_ineq,
     )
     glm.fit(X, y)
 
