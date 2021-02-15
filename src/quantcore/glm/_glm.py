@@ -1621,13 +1621,17 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
 
     gradient_tol : float, optional (default=None)
         Stopping criterion. If none is provided, solver-specific defaults
-        will be used. For the irls-ls and lbfgs solvers,
-        the iteration will stop when ``max{|g_i|, i = 1, ..., n} <= tol``
-        where ``g_i`` is the i-th component of the gradient (derivative) of
-        the objective function. For the cd solver, convergence is reached
-        when ``sum_i(|minimum-norm of g_i|)``, where ``g_i`` is the
-        subgradient of the objective and minimum-norm of ``g_i`` is the element
-        of the subgradient ``g_i`` with the smallest L2-norm.
+        will be used. The default value for most solvers is 1e-4, except for the
+        trust-constr solver, which requires more conservative convergence settings
+        and has a default value of 1e-8.
+
+        For the irls-ls, lbfgs and trust-constr solvers, the iteration will stop
+        when ``max{|g_i|, i = 1, ..., n} <= tol`` where ``g_i`` is the i-th
+        component of the gradient (derivative) of the objective function (additional
+        criteria apply when constraints are provided). For the cd solver, convergence
+        is reached when ``sum_i(|minimum-norm of g_i|)``, here ``g_i`` is the
+        subgradient of the objective and minimum-norm of ``g_i`` is the element of
+        the subgradient ``g_i`` with the smallest L2-norm.
 
         If you wish to only use a step-size tolerance, set gradient_tol
         equal to very small number.
