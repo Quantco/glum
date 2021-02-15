@@ -69,7 +69,7 @@ def quantcore_glm_bench(
         random_state=random_seed,
         copy_X=False,
         selection="cyclic",
-        gradient_tol=1 if cv else benchmark_convergence_tolerance,
+        gradient_tol=1 if cv else None,  # None -> use default values
         step_size_tol=0.01 * benchmark_convergence_tolerance,
         force_all_finite=False,
         hessian_approx=hessian_approx,
