@@ -1733,8 +1733,16 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         See lower_bounds.
 
     A_ineq : np.ndarray, shape=(n_constraints, n_features), optional (default=None)
+        Constraint matrix for linear inequality constraints of the form
+        ``A_ineq w <= b_ineq``. Setting inequality constraints forces the use
+        of the local gradient-based solver ``"trust-constr"`` which may increase
+        runtime siginifcantly. Note that the constraints only apply to coefficients
+        related to features in ``X``. If you want to constrain the intercept, add it
+        to the feature matrix ``X`` manually and set ``fit_intercept==False``.
 
     b_ineq : np.ndarray, shape=(n_constraints,), optional (default=None)
+        Constraint vector for linear inequality constraints of the form
+        ``A_ineq w <= b_ineq``. Refer to the documentation of ``A_ineq`` for details.
 
     Attributes
     ----------
