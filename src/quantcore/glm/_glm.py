@@ -592,7 +592,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         fit_dispersion=None,
         solver="auto",
         max_iter=100,
-        gradient_tol: Optional[float] = 1e-4,
+        gradient_tol: Optional[float] = None,
         step_size_tol: Optional[float] = None,
         hessian_approx: float = 0.0,
         warm_start=False,
@@ -731,6 +731,14 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         else:
             self._solver = self.solver
 
+        if self.gradient_tol is None:
+            if self._solver == "trust-constr":
+                self._gradient_tol = 1e-8
+            else:
+                self._gradient_tol = 1e-4
+        else:
+            self._gradient_tol = self.gradient_tol
+
         self._random_state = check_random_state(self.random_state)
 
         # 1.4 additional validations ##########################################
@@ -742,12 +750,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                         self._family_instance.__class__.__name__
                     )
                 )
-
-        if (self._solver == "trust-constr") and (self.gradient_tol is not None):
-            if self.gradient_tol > 1e-8:
-                # usage of "trust-constr" only recommended with
-                # conservative convergence setting
-                self.gradient_tol = 1e-8
 
     def tear_down_from_fit(
         self,
@@ -876,7 +878,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         ):
             # IRLS-CD and IRLS-LS should converge in one iteration for any
             # normal distribution problem with identity link.
-            fixed_inner_tol = (self.gradient_tol, self.step_size_tol)
+            fixed_inner_tol = (self._gradient_tol, self.step_size_tol)
             max_iter = 1
         else:
             max_iter = self.max_iter
@@ -896,7 +898,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 family=self._family_instance,
                 link=self._link_instance,
                 max_iter=max_iter,
-                gradient_tol=self.gradient_tol,
+                gradient_tol=self._gradient_tol,
                 step_size_tol=self.step_size_tol,
                 fixed_inner_tol=fixed_inner_tol,
                 hessian_approx=self.hessian_approx,
@@ -929,7 +931,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 link=self._link_instance,
                 max_iter=max_iter,
                 # TODO: support step_size_tol?
-                tol=self.gradient_tol,  # type: ignore
+                tol=self._gradient_tol,  # type: ignore
                 offset=offset,
             )
         # 4.4 trust-constr ####################################################
@@ -950,7 +952,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 family=self._family_instance,
                 link=self._link_instance,
                 max_iter=max_iter,
-                gtol=self.gradient_tol,
+                gtol=self._gradient_tol,
                 offset=offset,
                 A_ineq=A_ineq,
                 b_ineq=b_ineq,
@@ -1287,17 +1289,18 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 " got (max_iter={!r})".format(self.max_iter)
             )
 
-        if (
-            not (
-                isinstance(self.gradient_tol, float)
-                or isinstance(self.gradient_tol, int)
-            )
-            or self.gradient_tol <= 0
-        ):
-            raise ValueError(
-                "Tolerance for the gradient stopping criteria must be "
-                f"positive; got (tol={self.gradient_tol})"
-            )
+        if self.gradient_tol is not None:
+            if (
+                not (
+                    isinstance(self.gradient_tol, float)
+                    or isinstance(self.gradient_tol, int)
+                )
+                or self.gradient_tol <= 0
+            ):
+                raise ValueError(
+                    "Tolerance for the gradient stopping criteria must be "
+                    f"positive; got (tol={self.gradient_tol})"
+                )
 
         if self.step_size_tol is not None and (
             not (
@@ -1616,8 +1619,9 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     max_iter : int, optional (default=100)
         The maximal number of iterations for solver algorithms.
 
-    gradient_tol : float, optional (default=1e-4)
-        Stopping criterion. For the irls-ls and lbfgs solvers,
+    gradient_tol : float, optional (default=None)
+        Stopping criterion. If none is provided, solver-specific defaults
+        will be used. For the irls-ls and lbfgs solvers,
         the iteration will stop when ``max{|g_i|, i = 1, ..., n} <= tol``
         where ``g_i`` is the i-th component of the gradient (derivative) of
         the objective function. For the cd solver, convergence is reached
@@ -1625,12 +1629,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         subgradient of the objective and minimum-norm of ``g_i`` is the element
         of the subgradient ``g_i`` with the smallest L2-norm.
 
-        gradient_tol is not permitted to be None. If you wish to only use a
-        step-size tolerance, set gradient_tol equal to very small number.
-
-        Note that the solver ``trust-constr`` requires conservative convergence
-        settings when optimizing with inequality constraints. In these cases,
-        ``gradient_tol`` will be silently updated to ``min(gradient_tol, 1e-8)``.
+        If you wish to only use a step-size tolerance, set gradient_tol
+        equal to very small number.
 
     step_size_tol: float, optional (default=None)
         Alternative stopping criterion. For the IRLS-LS and IRLS-CD solvers,
@@ -1807,7 +1807,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         fit_dispersion=None,
         solver="auto",
         max_iter=100,
-        gradient_tol: Optional[float] = 1e-4,
+        gradient_tol: Optional[float] = None,
         step_size_tol: Optional[float] = None,
         hessian_approx: float = 0.0,
         warm_start: bool = False,
