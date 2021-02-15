@@ -371,6 +371,23 @@ def test_tol_validation_no_error(estimator, kwargs, tol_kws):
     glm.fit(X, y)
 
 
+@pytest.mark.parametrize("estimator, kwargs", estimators)
+@pytest.mark.parametrize("solver", ["auto", "irls-cd", "trust-constr"])
+@pytest.mark.parametrize("gradient_tol", [None, 1])
+def test_gradient_tol_setting(estimator, kwargs, solver, gradient_tol):
+    X, y = get_small_x_y(estimator)
+    glm = estimator(solver=solver, gradient_tol=gradient_tol, **kwargs)
+    glm.fit(X, y)
+
+    if gradient_tol is None:
+        if solver == "trust-constr":
+            gradient_tol = 1e-8
+        else:
+            gradient_tol = 1e-4
+
+    np.testing.assert_allclose(gradient_tol, glm._gradient_tol)
+
+
 # TODO: something for CV regressor
 @pytest.mark.parametrize(
     "f, fam",
