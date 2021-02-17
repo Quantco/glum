@@ -244,6 +244,41 @@ def check_bounds(
     return bounds
 
 
+def check_inequality_constraints(
+    A_ineq: Union[None, np.ndarray],
+    b_ineq: Union[None, np.ndarray],
+    n_features: int,
+    dtype,
+) -> Tuple[Union[None, np.ndarray], Union[None, np.ndarray]]:
+    """Check that the inequality constraints are well-defined."""
+    if A_ineq is None or b_ineq is None:
+        return None, None
+    else:
+        A_ineq = check_array(
+            A_ineq,
+            accept_sparse=False,
+            force_all_finite=False,
+            ensure_2d=True,
+            dtype=dtype,
+            copy=True,
+        )
+        b_ineq = check_array(
+            b_ineq,
+            accept_sparse=False,
+            force_all_finite=False,
+            ensure_2d=False,
+            dtype=dtype,
+            copy=True,
+        )
+        if A_ineq.shape[1] != n_features:
+            raise ValueError("A_ineq must have same number of columns as X.")
+        if A_ineq.shape[0] != b_ineq.shape[0]:
+            raise ValueError("A_ineq and b_ineq must have same number of rows.")
+        if b_ineq.ndim > 1:
+            raise ValueError("b_ineq must be 1D array.")
+    return A_ineq, b_ineq
+
+
 def _standardize(
     X: mx.MatrixBase,
     weights: np.ndarray,
@@ -1352,6 +1387,16 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 "Only the 'trust-constr' solver supports inequality constraints; "
                 "got {}".format(self.solver)
             )
+        if ((self.A_ineq is not None) or (self.b_ineq is not None)) and (
+            (self.lower_bounds is not None) or (self.upper_bounds is not None)
+        ):
+            raise NotImplementedError(
+                "Only either bound or inequality constraints are supported."
+            )
+        if ((self.A_ineq is not None) and (self.b_ineq is None)) or (
+            (self.A_ineq is None) and (self.b_ineq is not None)
+        ):
+            raise ValueError("Must provide both A_ineq and b_ineq.")
         if self.check_input:
             # check if P1 has only non-negative values, negative values might
             # indicate group lasso in the future.
@@ -1979,8 +2024,9 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         lower_bounds = check_bounds(self.lower_bounds, X.shape[1], X.dtype)
         upper_bounds = check_bounds(self.upper_bounds, X.shape[1], X.dtype)
 
-        A_ineq = copy.copy(self.A_ineq)
-        b_ineq = copy.copy(self.b_ineq)
+        A_ineq, b_ineq = check_inequality_constraints(
+            self.A_ineq, self.b_ineq, n_features=X.shape[1], dtype=X.dtype
+        )
 
         if (lower_bounds is not None) and (upper_bounds is not None):
             if np.any(lower_bounds > upper_bounds):
