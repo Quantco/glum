@@ -32,7 +32,7 @@ jobs:
         env:
           ***REMOVED***: ${{ secrets.***REMOVED*** }}
           ***REMOVED***: ${{ secrets.***REMOVED*** }}
-      - uses: conda-incubator/setup-miniconda@e23d871
+      - uses: conda-incubator/setup-miniconda@e23d871804685e8c52189e5bd45e9145019f10af
         with:
           miniforge-variant: Mambaforge
           miniforge-version: 4.9.2-6
