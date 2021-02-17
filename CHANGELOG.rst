@@ -12,8 +12,8 @@ Changelog
 
 **New features:**
 
-- We added a new flexible solver based on ``scipy.optimize.minimize(method='trust-constr')``.
-- Based on the new solver, we added support for nonlinear inequality constraints of type ``A.dot(theta) <= b``.
+- We added a new solver based on ``scipy.optimize.minimize(method='trust-constr')``.
+- We added support for linear inequality constraints of type ``A_ineq.dot(coef_) <= b_ineq``.
 
 1.2.0 - 2021-02-04
 ------------------
