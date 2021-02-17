@@ -32,14 +32,11 @@ jobs:
         env:
           ***REMOVED***: ${{ secrets.***REMOVED*** }}
           ***REMOVED***: ${{ secrets.***REMOVED*** }}
-      - uses: conda-incubator/setup-miniconda@v2
+      - uses: conda-incubator/setup-miniconda@e23d871804685e8c52189e5bd45e9145019f10af
         with:
-          installer-url: https://github.com/conda-forge/miniforge/releases/download/4.9.0-4/Miniforge3-4.9.0-4-MacOSX-x86_64.sh
-          mamba-version: "*"
-          allow-softlinks: true
-          show-channel-urls: true
-          use-only-tar-bz2: true
-          channels: ***REMOVED***,conda-forge
+          miniforge-variant: Mambaforge
+          miniforge-version: 4.9.2-6
+          use-mamba: true
           condarc-file: .github/workflows/.condarc
       - name: Run Unit Tests
         shell: bash -l {0}
