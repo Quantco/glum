@@ -1,5 +1,6 @@
 from __future__ import division
 
+import copy
 from typing import Optional, Union
 
 import numpy as np
@@ -100,6 +101,14 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
     upper_bounds : np.ndarray, shape=(n_features), optional (default=None)
         See lower_bounds.
 
+    A_ineq : np.ndarray, shape=(n_constraints, n_features), optional (default=None)
+        Constraint matrix for linear inequality constraints of the form
+        ``A_ineq w <= b_ineq``.
+
+    b_ineq : np.ndarray, shape=(n_constraints,), optional (default=None)
+        Constraint vector for linear inequality constraints of the form
+        ``A_ineq w <= b_ineq``.
+
     cv : int, cross-validation generator or an iterable, optional
         Determines the cross-validation splitting strategy.
         Possible inputs for cv are:
@@ -184,6 +193,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         scale_predictors: bool = False,
         lower_bounds: Optional[np.ndarray] = None,
         upper_bounds: Optional[np.ndarray] = None,
+        A_ineq: Optional[np.ndarray] = None,
+        b_ineq: Optional[np.ndarray] = None,
         force_all_finite: bool = True,
         cv=None,
         n_jobs: Optional[int] = None,
@@ -217,6 +228,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             scale_predictors=scale_predictors,
             lower_bounds=lower_bounds,
             upper_bounds=upper_bounds,
+            A_ineq=A_ineq,
+            b_ineq=b_ineq,
             force_all_finite=force_all_finite,
         )
 
@@ -289,6 +302,9 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         lower_bounds = check_bounds(self.lower_bounds, X.shape[1], X.dtype)
         upper_bounds = check_bounds(self.upper_bounds, X.shape[1], X.dtype)
 
+        A_ineq = copy.copy(self.A_ineq)
+        b_ineq = copy.copy(self.b_ineq)
+
         cv = check_cv(self.cv)
 
         if self._solver == "cd":
@@ -308,6 +324,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             offset,
             lower_bounds,
             upper_bounds,
+            A_ineq,
+            b_ineq,
         ):
 
             x_train, y_train, w_train = (
@@ -358,7 +376,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
                 col_stds,
                 lower_bounds,
                 upper_bounds,
-                _,  # A_ineq
+                A_ineq,
                 P1_no_alpha,
                 P2_no_alpha,
             ) = _standardize(
@@ -368,7 +386,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
                 self.scale_predictors,
                 lower_bounds,
                 upper_bounds,
-                None,  # A_ineq
+                A_ineq,
                 P1_no_alpha,
                 P2_no_alpha,
             )
@@ -404,8 +422,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
                 offset=offset_train,
                 lower_bounds=lower_bounds,
                 upper_bounds=upper_bounds,
-                A_ineq=None,
-                b_ineq=None,
+                A_ineq=A_ineq,
+                b_ineq=b_ineq,
             )
 
             if self.fit_intercept:
@@ -441,6 +459,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
                 offset=offset,
                 lower_bounds=lower_bounds,
                 upper_bounds=upper_bounds,
+                A_ineq=A_ineq,
+                b_ineq=b_ineq,
             )
             for train_idx, test_idx in cv.split(X, y)
             for this_l1_ratio, this_alphas in zip(l1_ratio, alphas)
@@ -478,14 +498,23 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         P2 = setup_p2(self.P2, X, _stype, X.dtype, self.alpha_, self.l1_ratio_)
 
         # Refit with full data and best alpha and lambda
-        X, col_means, col_stds, lower_bounds, upper_bounds, _, P1, P2 = _standardize(
+        (
+            X,
+            col_means,
+            col_stds,
+            lower_bounds,
+            upper_bounds,
+            A_ineq,
+            P1,
+            P2,
+        ) = _standardize(
             X,
             weights,
             self._center_predictors,
             self.scale_predictors,
             lower_bounds,
             upper_bounds,
-            None,  # A_ineq
+            A_ineq,
             P1,
             P2,
         )
@@ -511,8 +540,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             offset=offset,
             lower_bounds=lower_bounds,
             upper_bounds=upper_bounds,
-            A_ineq=None,
-            b_ineq=None,
+            A_ineq=A_ineq,
+            b_ineq=b_ineq,
         )
 
         if self.fit_intercept:
