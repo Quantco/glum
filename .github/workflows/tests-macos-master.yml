@@ -30,7 +30,7 @@ jobs:
         env:
           CONDA_CHANNEL_UPLOAD_USER: ${{ secrets.CONDA_CHANNEL_UPLOAD_USER }}
           CONDA_CHANNEL_UPLOAD_PASSWORD: ${{ secrets.CONDA_CHANNEL_UPLOAD_PASSWORD }}
-      - uses: conda-incubator/setup-miniconda@e23d871
+      - uses: conda-incubator/setup-miniconda@e23d871804685e8c52189e5bd45e9145019f10af
         with:
           miniforge-variant: Mambaforge
           miniforge-version: 4.9.2-6
