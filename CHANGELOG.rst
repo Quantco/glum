@@ -7,6 +7,14 @@
 Changelog
 =========
 
+1.3.0 - 2021-XX-XX
+------------------
+
+**New features:**
+
+- We added a new flexible solver based on ``scipy.optimize.minimize(method='trust-constr')``.
+- Based on the new solver, we added support for nonlinear inequality constraints of type ``A.dot(theta) <= b``.
+
 1.2.0 - 2021-02-04
 ------------------
 
