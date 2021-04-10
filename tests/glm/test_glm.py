@@ -619,7 +619,7 @@ def test_glm_copy_X_argument_invalid(estimator, copy_X):
     """Test GLM for invalid copy_X arguments."""
     X, y = get_small_x_y(estimator)
     glm = estimator(copy_X=copy_X)
-    with pytest.raises(ValueError, match="copy_X must be None or bool"):
+    with pytest.raises(TypeError, match="copy_X must be None or bool"):
         glm.fit(X, y)
 
 
