@@ -329,10 +329,9 @@ def get_family(
         return name_to_dist[family]()
     except KeyError:
         raise ValueError(
-            "The family must be an instance of class"
-            " ExponentialDispersionModel or an element of"
-            " ['normal', 'poisson', 'gamma', 'inverse.gaussian', "
-            "'binomial']; got (family={})".format(family)
+            "The family must be an instance of class ExponentialDispersionModel or an "
+            "element of ['normal', 'poisson', 'gamma', 'inverse.gaussian', 'binomial'];"
+            f" got (family={family})."
         )
 
 
@@ -406,9 +405,9 @@ def setup_p1(
             )
         if (P1.ndim != 1) or (P1.shape[0] != n_features):
             raise ValueError(
-                "P1 must be either 'identity' or a 1d array "
-                "with the length of X.shape[1]; "
-                f"got (P1.shape[0]={P1.shape[0]}), needed (X.shape[1]={n_features})."
+                "P1 must be either 'identity' or a 1d array with the length of "
+                f"X.shape[1]; got (P1.shape[0]={P1.shape[0]}); "
+                f"needed (X.shape[1]={n_features})."
             )
 
     # P1 and P2 are now for sure copies
@@ -450,9 +449,8 @@ def setup_p2(
             P2 = np.asarray(P2)
             if P2.shape[0] != n_features:
                 raise ValueError(
-                    "P2 should be a 1d array of shape (n_features,) with "
-                    "n_features=X.shape[1]. "
-                    f"got (P2.shape={P2.shape}), needed ({n_features},)."
+                    "P2 should be a 1d array of shape (n_features,) with n_features="
+                    f"X.shape[1]. got (P2.shape={P2.shape}); needed ({n_features},)."
                 )
             if sparse.issparse(X):
                 P2 = (
@@ -463,9 +461,9 @@ def setup_p2(
                 P2 = sparse.csc_matrix(P2)
         else:
             raise ValueError(
-                "P2 must be either None or an array of shape "
-                "(n_features, n_features) with n_features=X.shape[1]. Got "
-                f"(P2.shape={P2.shape}), needed ({n_features}, {n_features})."
+                "P2 must be either None or an array of shape (n_features, n_features) "
+                f"with n_features=X.shape[1]; got (P2.shape={P2.shape}); "
+                f"needed ({n_features}, {n_features})."
             )
 
     # P1 and P2 are now for sure copies
