@@ -114,7 +114,7 @@ def check_X_y_matrix_compliant(
     -------
     X_converted : array-like
         The converted and validated X.
-    y_converted : np.array
+    y_converted : numpy.ndarray
         The converted and validated y.
     """
     if y is None:
@@ -252,7 +252,7 @@ def _standardize(
     Parameters
     ----------
     X : MatrixBase
-    weights : np.array
+    weights : numpy.ndarray
     center_predictors : bool
         If ``True``, adjust the data matrix so that columns have mean zero.
     estimate_as_if_scaled_model : bool
