@@ -69,13 +69,13 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
 
     @property
     @abstractmethod
-    def lower_bound(self) -> Union[int, float]:
+    def lower_bound(self) -> float:
         """Get the lower bound of values for Y~EDM."""
         pass
 
     @property
     @abstractmethod
-    def upper_bound(self) -> Union[int, float]:
+    def upper_bound(self) -> float:
         """Get the upper bound of values for Y~EDM."""
         pass
 
@@ -460,7 +460,7 @@ class TweedieDistribution(ExponentialDispersionModel):
         raise ValueError
 
     @property
-    def power(self) -> Union[int, float]:
+    def power(self) -> float:
         """Return the Tweedie 'p'."""
         return self._power
 
@@ -831,6 +831,6 @@ def get_one_over_variance(
     if isinstance(distribution, BinomialDistribution) and isinstance(link, LogitLink):
         max_float_for_exp = np.log(np.finfo(eta.dtype).max / 10)
         if np.any(np.abs(eta) > max_float_for_exp):
-            eta = np.clip(eta, -max_float_for_exp, max_float_for_exp)
+            eta = np.clip(eta, -max_float_for_exp, max_float_for_exp)  # type: ignore
         return weights * (np.exp(eta) + 2 + np.exp(-eta)) / phi
     return 1.0 / distribution.variance(mu, phi=phi, weights=weights)
