@@ -24,10 +24,11 @@ from ._util import _safe_lin_pred, _safe_sandwich_dot
 
 def timeit(runtime_attr: str):
     """
-    Decorate a function to compute its runtime and update the IRLSState \
-    instance attribute called `runtime_attr` with the runtime of the function.
+    Decorate a function to compute its runtime and update the ``IRLSState`` \
+    instance attribute called ```runtime_attr``` with the runtime of the \
+    function.
 
-    The first argument of fct should be an IRLSState instance.
+    The first argument of fct should be an ``IRLSState`` instance.
     """
 
     def fct_wrap(fct):
@@ -80,43 +81,42 @@ def update_hessian(state, data, active_set):
     """
     Update the approximate Hessian.
 
-    The goal is to compute: H = X^T @ diag(hessian_rows) @ X
-    We will refer to H as the Hessian, even though technically we are
-    computing a Gauss-Newton approximation to the Hessian.
+    The goal is to compute ``H = X^T @ diag(hessian_rows) @ X``. We will refer
+    to ``H`` as the Hessian, even though technically we are computing a
+    Gauss-Newton approximation to the Hessian.
 
-    Instead of computing H directly, we will compute updates to H: dH
-    So, given H0 from a previous iterations:
-    H0 = X^T @ diag(hessian_rows_0) @ X
-    we want to compute H1 from this iteration:
-    H1 = X^T @ diag(hessian_rows_1) @ X
+    Instead of computing ``H`` directly, we will compute updates to ``H``:
+    ``dH``. So, given ``H0`` from a previous iteration,
+    ``H0 = X^T @ diag(hessian_rows_0) @ X``, we want to compute ``H1`` from this
+    iteration: ``H1 = X^T @ diag(hessian_rows_1) @ X``.
 
-    However, we will instead compute:
-    H1 = H0 + dH
-    where
-    dH = X^T @ diag(hessian_rows_1 - hessian_rows_0) @ X
+    However, we will instead compute ``H1 = H0 + dH``, where
+    ``dH = X^T @ diag(hessian_rows_1 - hessian_rows_0) @ X``.
 
-    We will also refer to:
-    hessian_rows_diff = hessian_rows_1 - hessian_rows_0
+    We will also refer to
+    ``hessian_rows_diff = hessian_rows_1 - hessian_rows_0``.
 
-    The advantage of reframing the computation of H as an update is that the
-    values in hessian_rows_diff will vary depending on how large the influence
-    of that last coefficient update was on that row. As a result, in lots of
-    problems, many of the entries in hessian_rows_diff will be very very small.
+    The advantage of reframing the computation of ``H`` as an update is that the
+    values in ``hessian_rows_diff`` will vary depending on how large the
+    influence of that last coefficient update was on that row. As a result, in
+    lots of problems, many of the entries in ``hessian_rows_diff`` will be very
+    very small.
 
-    So, the goal with `identify_active_rows` is to filter to a subset of
-    hessian_rows_diff that we will use to compute the sandwich product for dH.
-    If threshold/data.hessian_approx == 0.0, then we will always use every row.
-    However, for data.hessian_approx != 0, we include rows for which:
-    include = (np.abs(hessian_rows_diff[i]) >= T * np.max(np.abs(hessian_rows_diff)))
+    So, the goal with ``identify_active_rows`` is to filter to a subset of
+    ``hessian_rows_diff`` that we will use to compute the sandwich product for
+    ``dH``. If ``threshold/data.hessian_approx == 0.0``, then we will always use
+    every row. However, for ``data.hessian_approx != 0``, we include rows for
+    which
+    ``include = (np.abs(hessian_rows_diff[i]) >= T * np.max(np.abs(hessian_rows_diff)))``.
 
-    Essentially, this criteria ignores data matrix rows that have not seen the
+    Essentially, this criterion ignores data matrix rows that have not seen the
     second derivatives of their predictions change very much in the last
     iteration.
 
-    Critically, we set:
-    hessian_rows_old[include] += hessian_rows_diff[include]
-    That way, hessian_rows_diff is no longer the change since the last
-    iteration, but instead, the change since the last iteration that a row was
+    Critically, we set
+    ``hessian_rows_old[include] += hessian_rows_diff[include]``.
+    That way, ``hessian_rows_diff`` is no longer the change since the last
+    iteration, but, instead, the change since the last iteration that a row was
     active. This ensures that we don't miss the situation where a row changes a
     small amount over several iterations which accumulates into a large change.
     """
@@ -359,13 +359,13 @@ class ProgressBar:
     Display the current progress of the solver using tqdm.
 
     Current format is that:
-        * the "Iteration #" is the IRLS iteration #.
-        * The bar itself measures the log base 10 progress towards the gradient_tol. \
-            So, if we start at gradient_norm = 10 and are going to gradient_norm = \
-            1e-4, the progress bar will be out of 5. If the current gradient_norm is \
-            0.1, then we will be at 2/5.
-        * On the right, show the time for the most recent iteration and the current \
-            gradient norm
+        * The "Iteration #" is the IRLS iteration #.
+        * The bar itself measures the log base 10 progress towards the
+            gradient_tol. So, if we start at gradient_norm = 10 and are going to
+            gradient_norm = 1e-4, the progress bar will be out of 5. If the
+            current gradient_norm is 0.1, then we will be at 2/5.
+        * On the right, show the time for the most recent iteration and the
+            current gradient norm.
     """
 
     def __init__(self, start_norm, tol, verbose):
@@ -476,8 +476,7 @@ class IRLSData:
         if sparse.issparse(self.X):
             if not sparse.isspmatrix_csc(self.P2):
                 raise ValueError(
-                    "If X is sparse, P2 must also be sparse csc"
-                    "format. Got P2 not sparse."
+                    "If X is sparse, P2 must also be sparse CSC format. It is not."
                 )
 
         self.random_state = check_random_state(self.random_state)
