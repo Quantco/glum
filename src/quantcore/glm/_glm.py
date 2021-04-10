@@ -197,7 +197,7 @@ def _check_weights(
 
 
 def _check_offset(
-    offset: Union[np.ndarray, float, None], n_rows: int, dtype
+    offset: Optional[Union[np.ndarray, float]], n_rows: int, dtype
 ) -> Optional[np.ndarray]:
     """
     Unlike weights, if the offset is given as None, it can stay None. So we only need
@@ -205,19 +205,23 @@ def _check_offset(
     """
     if offset is None:
         return None
-    if not np.isscalar(offset):
-        offset = check_array(
-            offset,
-            accept_sparse=False,
-            force_all_finite=True,
-            ensure_2d=False,
-            dtype=dtype,
-        )
-        if offset.ndim > 1:
-            raise ValueError("Offset must be 1D array or scalar.")
-        elif offset.shape[0] != n_rows:
-            raise ValueError("offset must have the same length as y.")
-    return np.full(n_rows, offset)
+    if np.isscalar(offset):
+        return np.full(n_rows, offset)
+
+    offset = check_array(
+        offset,
+        accept_sparse=False,
+        force_all_finite=True,
+        ensure_2d=False,
+        dtype=dtype,
+    )
+
+    if offset.ndim > 1:
+        raise ValueError("Offset must be 1D array or scalar.")
+    elif offset.shape[0] != n_rows:
+        raise ValueError("offset must have the same length as y.")
+
+    return offset
 
 
 def check_bounds(
