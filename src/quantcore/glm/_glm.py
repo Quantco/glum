@@ -1192,10 +1192,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
     def _validate_hyperparameters(self) -> None:
 
         if not isinstance(self.fit_intercept, bool):
-            raise ValueError(
+            raise TypeError(
                 f"The argument fit_intercept must be bool; got {self.fit_intercept}."
             )
-
         if self.solver == "newton-cg":
             raise ValueError(
                 """
@@ -1205,7 +1204,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 https://github.com/scikit-learn/scikit-learn/pull/9405.
                 """
             )
-
         if self.solver not in ["auto", "irls-ls", "lbfgs", "irls-cd"]:
             raise ValueError(
                 "GeneralizedLinearRegressor supports only solvers"
