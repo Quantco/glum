@@ -2,39 +2,7 @@
 Generalized Linear Models with Exponential Dispersion Family
 """
 
-# Author: Christian Lorentzen <lorentzen.ch@googlemail.com>
-# some parts and tricks stolen from other sklearn files.
 # License: BSD 3 clause
-
-# TODO: Add cross validation support, e.g. GCV?
-# TODO: Should GeneralizedLinearRegressor inherit from LinearModel?
-#       So far, it does not.
-# TODO: Include further classes in class.rst? ExponentialDispersionModel?
-#       TweedieDistribution?
-# TODO: Negative values in P1 are not allowed so far. They could be used
-#       for group lasso.
-
-# Design Decisions:
-# - Which name? GeneralizedLinearModel vs GeneralizedLinearRegressor.
-#   Estimators in sklearn are either regressors or classifiers. A GLM can do
-#   both depending on the distr (Normal => regressor, Binomial => classifier).
-#   Solution: GeneralizedLinearRegressor since this is the focus.
-# - Allow for finer control of penalty terms:
-#   L1: ||P1*w||_1 with P1*w as element-wise product, this allows to exclude
-#       factors from the L1 penalty.
-#   L2: w*P2*w with P2 a positive (semi-) definite matrix, e.g. P2 could be
-#   a 1st or 2nd order difference matrix (compare B-spline penalties and
-#   Tikhonov regularization).
-# - The link function (instance of class Link) is necessary for the evaluation
-#   of deviance, score, Hessian matrix as functions of the
-#   coefficients, which is needed by optimizers.
-#   Solution: link as argument in those functions
-# - Which name/symbol for sample_weight in docu?
-#   sklearn.linear_models uses w for coefficients, standard literature on
-#   GLMs use beta for coefficients and w for (sample) weights.
-#   So far, coefficients=w and sample weights=s.
-# - The intercept term is the first index, i.e. coef[0]
-
 
 from __future__ import division
 
