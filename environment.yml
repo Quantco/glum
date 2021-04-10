@@ -4,10 +4,12 @@ channels:
   - conda-forge
   - nodefaults
 dependencies:
+  - altair
   - black
   - c-compiler
   - cxx-compiler
   - cython
+  - dask-ml
   - flake8
   - git_root
   - h2o-py
@@ -18,6 +20,7 @@ dependencies:
   - jupyterlab
   - libblas>=0=*mkl
   - line_profiler
+  - make
   - mako
   - memory_profiler
   - mkl-include
@@ -29,16 +32,13 @@ dependencies:
   - pyarrow
   - pytest
   - pytest-xdist
+  - quantcore.matrix>=1.0.0
+  - rpy2
   - scikit-learn
   - setuptools_scm
   - sparse_dot_mkl>=0.5.3
-  - xsimd
-  - dask-ml
-  - tqdm
-  - quantcore.matrix>=1.0.0
   - sphinx
   - sphinx_rtd_theme
   - sphinxcontrib-apidoc
-  - altair
-  - make
-  - rpy2
+  - tqdm
+  - xsimd
