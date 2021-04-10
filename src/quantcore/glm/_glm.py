@@ -380,7 +380,7 @@ def get_link(link: Union[str, Link], family: ExponentialDispersionModel) -> Link
         return TweedieLink(float(link[7:]))
     raise ValueError(
         "The link must be an instance of class Link or an element of "
-        f"['auto', 'identity', 'log', 'logit', 'tweedie']; got ({link=})."
+        f"['auto', 'identity', 'log', 'logit', 'tweedie']; got (link={link})."
     )
 
 
