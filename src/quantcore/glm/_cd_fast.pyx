@@ -95,7 +95,7 @@ def identify_active_rows(
     active_rows_arr = np.where(hessian_rows_diff_arr != 0)[0].astype(np.int32)
 
     return hessian_rows_diff_arr, active_rows_arr
-    
+
 def enet_coordinate_descent_gram(int[::1] active_set,
                                  floating[::1] w,
                                  floating[::1] P1,
