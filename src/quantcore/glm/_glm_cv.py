@@ -172,7 +172,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         hessian_approx: float = 0.0,
         warm_start: bool = False,
         n_alphas: int = 100,
-        alphas: Optional[ArrayLike] = None,
+        alphas: Optional[np.ndarray] = None,
         min_alpha_ratio: Optional[float] = None,
         min_alpha: Optional[float] = None,
         start_params: Optional[np.ndarray] = None,
@@ -443,18 +443,19 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         )
         paths_data = Parallel(n_jobs=self.n_jobs, prefer="processes")(jobs)
 
-        self.intercept_path_ = [elmt[0] for elmt in paths_data]
-        self.coef_path_ = [elmt[1] for elmt in paths_data]
-        self.deviance_path_ = [elmt[2] for elmt in paths_data]
-
         self.intercept_path_ = np.reshape(
-            self.intercept_path_, (cv.get_n_splits(), len(l1_ratio), len(alphas[0]), -1)
+            [elmt[0] for elmt in paths_data],
+            (cv.get_n_splits(), len(l1_ratio), len(alphas[0]), -1),
         )
+
         self.coef_path_ = np.reshape(
-            self.coef_path_, (cv.get_n_splits(), len(l1_ratio), len(alphas[0]), -1)
+            [elmt[1] for elmt in paths_data],
+            (cv.get_n_splits(), len(l1_ratio), len(alphas[0]), -1),
         )
+
         self.deviance_path_ = np.reshape(
-            self.deviance_path_, (cv.get_n_splits(), len(l1_ratio), len(alphas[0]))
+            [elmt[2] for elmt in paths_data],
+            (cv.get_n_splits(), len(l1_ratio), len(alphas[0])),
         )
 
         avg_deviance = self.deviance_path_.mean(axis=0)  # type: ignore

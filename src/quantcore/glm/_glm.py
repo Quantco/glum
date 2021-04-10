@@ -41,7 +41,7 @@ from __future__ import division
 import copy
 import warnings
 from itertools import chain
-from typing import Any, Iterable, List, Optional, Tuple, Union
+from typing import Any, Iterable, Optional, Tuple, Union, cast
 
 import numpy as np
 import pandas as pd
@@ -81,27 +81,28 @@ from ._solvers import (
 
 _float_itemsize_to_dtype = {8: np.float64, 4: np.float32, 2: np.float16}
 
+VectorLike = Union[np.ndarray, pd.api.extensions.ExtensionArray, pd.Index, pd.Series]
+
 ArrayLike = Union[
-    pd.DataFrame,
-    pd.Series,
-    List,
-    np.ndarray,
-    sparse.spmatrix,
+    list,
     mx.MatrixBase,
     mx.StandardizedMatrix,
+    pd.DataFrame,
+    sparse.spmatrix,
+    VectorLike,
 ]
+
 ShapedArrayLike = Union[
-    pd.DataFrame,
-    pd.Series,
-    np.ndarray,
-    sparse.spmatrix,
     mx.MatrixBase,
     mx.StandardizedMatrix,
+    pd.DataFrame,
+    sparse.spmatrix,
+    VectorLike,
 ]
 
 
 def check_array_matrix_compliant(mat: ArrayLike, **kwargs):
-    to_copy = "copy" in kwargs.keys() and kwargs["copy"]
+    to_copy = kwargs.get("copy", False)
 
     if isinstance(mat, pd.DataFrame) and any(mat.dtypes == "category"):
         mat = mx.from_pandas(mat)
@@ -110,7 +111,6 @@ def check_array_matrix_compliant(mat: ArrayLike, **kwargs):
         kwargs.update({"ensure_min_features": 0})
         new_matrices = [check_array_matrix_compliant(m, **kwargs) for m in mat.matrices]
         new_indices = [elt.copy() for elt in mat.indices] if to_copy else mat.indices
-
         return mx.SplitMatrix(new_matrices, new_indices)
 
     if isinstance(mat, mx.CategoricalMatrix):
@@ -123,16 +123,18 @@ def check_array_matrix_compliant(mat: ArrayLike, **kwargs):
             check_array_matrix_compliant(mat.mat, **kwargs),
             check_array(mat.shift, **kwargs),
         )
+
     original_type = type(mat)
     res = check_array(mat, **kwargs)
 
     if res is not mat and original_type in (mx.DenseMatrix, mx.SparseMatrix):
         res = original_type(res)  # type: ignore
+
     return res
 
 
 def check_X_y_matrix_compliant(
-    X: ArrayLike, y: Union[np.ndarray, sparse.spmatrix], **kwargs
+    X: ArrayLike, y: Union[VectorLike, sparse.spmatrix], **kwargs
 ) -> Tuple[Union[mx.MatrixBase, sparse.spmatrix, np.ndarray], np.ndarray]:
     """
     See documentation for sklearn.utils.check_X_y. This function behaves identically
@@ -161,43 +163,41 @@ def check_X_y_matrix_compliant(
 
 
 def _check_weights(
-    sample_weight: Union[float, np.ndarray, None],
+    sample_weight: Optional[Union[float, VectorLike]],
     n_samples: int,
     dtype,
     force_all_finite: bool = True,
 ) -> np.ndarray:
     """Check that sample weights are non-negative and have the right shape."""
     if sample_weight is None:
-        weights = np.ones(n_samples, dtype=dtype)
-    elif np.isscalar(sample_weight):
+        return np.ones(n_samples, dtype=dtype)
+    if np.isscalar(sample_weight):
         if sample_weight <= 0:
             raise ValueError("Sample weights must be non-negative.")
-        weights = sample_weight * np.ones(n_samples, dtype=dtype)
-    else:
-        _dtype = [np.float64, np.float32]
-        weights = check_array(
-            sample_weight,
-            accept_sparse=False,
-            force_all_finite=force_all_finite,
-            ensure_2d=False,
-            dtype=_dtype,
-        )
-        if weights.ndim > 1:
-            raise ValueError("Sample weight must be 1D array or scalar")
-        elif weights.shape[0] != n_samples:
-            raise ValueError("Sample weights must have the same length as y")
-        if not np.all(weights >= 0):
-            raise ValueError("Sample weights must be non-negative.")
-        elif not np.sum(weights) > 0:
-            raise ValueError(
-                "Sample weights must have at least one positive " "element."
-            )
+        return np.full(n_samples, sample_weight, dtype=dtype)
+
+    weights = check_array(
+        sample_weight,
+        accept_sparse=False,
+        force_all_finite=force_all_finite,
+        ensure_2d=False,
+        dtype=[np.float64, np.float32],
+    )
+
+    if weights.ndim > 1:
+        raise ValueError("Sample weights must be 1D array or scalar.")
+    if weights.shape[0] != n_samples:
+        raise ValueError("Sample weights must have the same length as y.")
+    if np.any(weights < 0):
+        raise ValueError("Sample weights must be non-negative.")
+    if np.sum(weights) == 0:
+        raise ValueError("Sample weights must have at least one positive element.")
 
     return weights
 
 
 def _check_offset(
-    offset: Optional[Union[np.ndarray, float]], n_rows: int, dtype
+    offset: Optional[Union[VectorLike, float]], n_rows: int, dtype
 ) -> Optional[np.ndarray]:
     """
     Unlike weights, if the offset is given as None, it can stay None. So we only need
@@ -216,34 +216,40 @@ def _check_offset(
         dtype=dtype,
     )
 
+    offset = cast(np.ndarray, offset)
+
     if offset.ndim > 1:
-        raise ValueError("Offset must be 1D array or scalar.")
-    elif offset.shape[0] != n_rows:
-        raise ValueError("offset must have the same length as y.")
+        raise ValueError("Offsets must be 1D array or scalar.")
+    if offset.shape[0] != n_rows:
+        raise ValueError("Offsets must have the same length as y.")
 
     return offset
 
 
 def check_bounds(
-    bounds: Union[Iterable, float, np.ndarray, None], n_features: int, dtype
-) -> Union[None, np.ndarray]:
+    bounds: Optional[Union[float, VectorLike]], n_features: int, dtype
+) -> Optional[np.ndarray]:
     """Check that the bounds have the right shape."""
     if bounds is None:
         return None
     if np.isscalar(bounds):
-        bounds = np.full(n_features, bounds, dtype=dtype)
-    else:  # assume it's an array
-        bounds = check_array(
-            bounds,
-            accept_sparse=False,
-            force_all_finite=False,
-            ensure_2d=False,
-            dtype=dtype,
-        )
-        if bounds.ndim > 1:
-            raise ValueError("Bounds must be 1D array or scalar.")
-        if bounds.shape[0] != n_features:
-            raise ValueError("Bounds must be the same length as X.shape[1].")
+        return np.full(n_features, bounds, dtype=dtype)
+
+    bounds = check_array(
+        bounds,
+        accept_sparse=False,
+        force_all_finite=False,
+        ensure_2d=False,
+        dtype=dtype,
+    )
+
+    bounds = cast(np.ndarray, bounds)
+
+    if bounds.ndim > 1:
+        raise ValueError("Bounds must be 1D array or scalar.")
+    if bounds.shape[0] != n_features:
+        raise ValueError("Bounds must be the same length as X.shape[1].")
+
     return bounds
 
 
@@ -252,8 +258,8 @@ def _standardize(
     weights: np.ndarray,
     center_predictors: bool,
     estimate_as_if_scaled_model: bool,
-    lower_bounds: np.ndarray,
-    upper_bounds: np.ndarray,
+    lower_bounds: Optional[np.ndarray],
+    upper_bounds: Optional[np.ndarray],
     P1: Union[np.ndarray, sparse.spmatrix],
     P2: Union[np.ndarray, sparse.spmatrix],
 ) -> Tuple[
@@ -308,6 +314,7 @@ def _standardize(
             P2 *= penalty_mult ** 2
         else:
             P2 = (penalty_mult[:, None] * P2) * penalty_mult[None, :]
+
     return X, col_means, col_stds, lower_bounds, upper_bounds, P1, P2
 
 
@@ -386,11 +393,9 @@ def get_link(link: Union[str, Link], family: ExponentialDispersionModel) -> Link
         if isinstance(family, BinomialDistribution):
             return LogitLink()
         raise ValueError(
-            """No default link known for the specified distribution family. Please
-            set link manually, i.e. not to 'auto';
-            got (link='auto', family={})""".format(
-                family.__class__.__name__
-            )
+            "No default link known for the specified distribution family. "
+            "Please set link manually, i.e. not to 'auto'. "
+            f"Got (link='auto', family={family.__class__.__name__})."
         )
     if link == "identity":
         return IdentityLink()
@@ -401,10 +406,8 @@ def get_link(link: Union[str, Link], family: ExponentialDispersionModel) -> Link
     if link[:7] == "tweedie":
         return TweedieLink(float(link[7:]))
     raise ValueError(
-        """The link must be an instance of class Link or an element of
-        ['auto', 'identity', 'log', 'logit', 'tweedie']; got (link={})""".format(
-            link
-        )
+        "The link must be an instance of class Link or an element of "
+        f"['auto', 'identity', 'log', 'logit', 'tweedie']; got (link={link})."
     )
 
 
@@ -415,9 +418,14 @@ def setup_p1(
     alpha: float,
     l1_ratio: float,
 ) -> np.ndarray:
+    if not isinstance(X, (mx.MatrixBase, mx.StandardizedMatrix)):
+        raise TypeError
+
     n_features = X.shape[1]
-    assert isinstance(X, (mx.MatrixBase, mx.StandardizedMatrix))
-    if isinstance(P1, str) and P1 == "identity":
+
+    if isinstance(P1, str):
+        if P1 != "identity":
+            raise ValueError(f"P1 must be either 'identity' or an array; got {P1}.")
         P1 = np.ones(n_features, dtype=_dtype)
     else:
         P1 = np.atleast_1d(P1)
@@ -425,36 +433,38 @@ def setup_p1(
             P1 = P1.astype(_dtype, casting="safe", copy=False)
         except TypeError:
             raise TypeError(
-                "The given P1 cannot be converted to a numeric"
-                "array; got (P1.dtype={}).".format(P1.dtype)
+                "The given P1 cannot be converted to a numeric array; "
+                f"got (P1.dtype={P1.dtype})."
             )
         if (P1.ndim != 1) or (P1.shape[0] != n_features):
             raise ValueError(
                 "P1 must be either 'identity' or a 1d array "
                 "with the length of X.shape[1]; "
-                "got (P1.shape[0]={}), "
-                "needed (X.shape[1]={}).".format(P1.shape[0], n_features)
+                f"got (P1.shape[0]={P1.shape[0]}), needed (X.shape[1]={n_features})."
             )
 
     # P1 and P2 are now for sure copies
     P1 = alpha * l1_ratio * P1
-    return P1.astype(_dtype)
+    return cast(np.ndarray, P1).astype(_dtype)
 
 
 def setup_p2(
-    P2: Union[str, np.ndarray],
+    P2: Union[str, np.ndarray, sparse.spmatrix],
     X: Union[mx.MatrixBase, mx.StandardizedMatrix],
     _stype,
     _dtype,
     alpha: float,
     l1_ratio: float,
 ) -> Union[np.ndarray, sparse.spmatrix]:
-    assert isinstance(X, (mx.MatrixBase, mx.StandardizedMatrix))
+    if not isinstance(X, (mx.MatrixBase, mx.StandardizedMatrix)):
+        raise TypeError
+
     n_features = X.shape[1]
 
-    # If X is sparse, make P2 sparse, too.
-    if isinstance(P2, str) and P2 == "identity":
-        if sparse.issparse(X):
+    if isinstance(P2, str):
+        if P2 != "identity":
+            raise ValueError(f"P2 must be either 'identity' or an array. Got {P2}.")
+        if sparse.issparse(X):  # if X is sparse, make P2 sparse, too
             P2 = (
                 sparse.dia_matrix(
                     (np.ones(n_features, dtype=_dtype), 0),
@@ -467,30 +477,27 @@ def setup_p2(
         P2 = check_array(
             P2, copy=True, accept_sparse=_stype, dtype=_dtype, ensure_2d=False
         )
+        P2 = cast(np.ndarray, P2)
         if P2.ndim == 1:
             P2 = np.asarray(P2)
             if P2.shape[0] != n_features:
                 raise ValueError(
-                    "P2 should be a 1d array of shape "
-                    "(n_features,) with "
-                    "n_features=X.shape[1]; "
-                    "got (P2.shape=({},)), needed ({},)".format(P2.shape[0], X.shape[1])
+                    "P2 should be a 1d array of shape (n_features,) with "
+                    "n_features=X.shape[1]. "
+                    f"got (P2.shape={P2.shape}), needed ({n_features},)."
                 )
             if sparse.issparse(X):
                 P2 = (
                     sparse.dia_matrix((P2, 0), shape=(n_features, n_features))
                 ).tocsc()
-        elif P2.ndim == 2 and P2.shape[0] == P2.shape[1] and P2.shape[0] == X.shape[1]:
+        elif P2.ndim == 2 and P2.shape[0] == P2.shape[1] and P2.shape[0] == n_features:
             if sparse.issparse(X):
                 P2 = sparse.csc_matrix(P2)
         else:
             raise ValueError(
                 "P2 must be either None or an array of shape "
-                "(n_features, n_features) with "
-                "n_features=X.shape[1]; "
-                "got (P2.shape=({0}, {1})), needed ({2}, {2})".format(
-                    P2.shape[0], P2.shape[1], X.shape[1]
-                )
+                "(n_features, n_features) with n_features=X.shape[1]. Got "
+                f"(P2.shape={P2.shape}), needed ({n_features}, {n_features})."
             )
 
     # P1 and P2 are now for sure copies
@@ -511,31 +518,31 @@ def setup_p2(
 def initialize_start_params(
     start_params: Optional[np.ndarray], n_cols: int, fit_intercept: bool, _dtype
 ) -> Optional[np.ndarray]:
-    if start_params is not None:
-        start_params = check_array(
-            start_params,
-            accept_sparse=False,
-            force_all_finite=True,
-            ensure_2d=False,
-            dtype=_dtype,
-            copy=True,
+    if start_params is None:
+        return None
+
+    start_params = check_array(
+        start_params,
+        accept_sparse=False,
+        force_all_finite=True,
+        ensure_2d=False,
+        dtype=_dtype,
+        copy=True,
+    )
+
+    start_params = cast(np.ndarray, start_params)
+
+    if start_params.shape != (n_cols + fit_intercept,):
+        raise ValueError(
+            "Start values for parameters must have the right length and dimension; "
+            f"got (length={start_params.shape[0]}, ndim={start_params.ndim}); "
+            f"needed (length={n_cols + fit_intercept}, ndim=1)."
         )
-        if (start_params.shape[0] != n_cols + fit_intercept) or (
-            start_params.ndim != 1
-        ):
-            raise ValueError(
-                "Start values for parameters must have the"
-                "right length and dimension; required (length"
-                "={}, ndim=1); got (length={}, ndim={}).".format(
-                    n_cols + fit_intercept,
-                    start_params.shape[0],
-                    start_params.ndim,
-                )
-            )
+
     return start_params
 
 
-def is_pos_semidef(p: Union[sparse.spmatrix, np.ndarray]) -> bool:
+def is_pos_semidef(p: Union[sparse.spmatrix, np.ndarray]) -> Union[bool, np.bool_]:
     """
     Checks for positive semidefiniteness of p if p is a matrix, or diag(p) if p is a
     vector.
@@ -551,9 +558,11 @@ def is_pos_semidef(p: Union[sparse.spmatrix, np.ndarray]) -> bool:
     # 2d case
     # About -6e-7 for 32-bit, -1e-15 for 64-bit
     epsneg = -10 * np.finfo(np.result_type(float, p.dtype)).epsneg
+
     if sparse.issparse(p):
         # Computing eigenvalues for sparse matrices is inefficient. If the matrix is
         # not huge, convert to dense. Otherwise, calculate 10% of its eigenvalues.
+        p = cast(sparse.spmatrix, p)
         if p.shape[0] < 2000:
             eigenvalues = linalg.eigvalsh(p.toarray())
         else:
@@ -567,11 +576,10 @@ def is_pos_semidef(p: Union[sparse.spmatrix, np.ndarray]) -> bool:
                 which=which,
                 return_eigenvectors=False,
             )
-    else:
-        # dense
+    else:  # dense
         eigenvalues = linalg.eigvalsh(p)
-    pos_semidef = np.all(eigenvalues >= epsneg)
-    return pos_semidef
+
+    return np.all(eigenvalues >= epsneg)
 
 
 # TODO: abc
@@ -582,9 +590,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
     def __init__(
         self,
-        l1_ratio: Union[int, float] = 0,
+        l1_ratio: float = 0,
         P1="identity",
-        P2: Union[int, float, str, np.ndarray, sparse.spmatrix] = "identity",
+        P2: Union[str, np.ndarray, sparse.spmatrix] = "identity",
         fit_intercept=True,
         family: Union[str, ExponentialDispersionModel] = "normal",
         link: Union[str, Link] = "auto",
@@ -656,7 +664,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             if self.fit_intercept:
                 coef = np.concatenate((np.array([intercept]), coef))
             if self._center_predictors:
-                _standardize_warm_start(coef, col_means, col_stds)
+                _standardize_warm_start(coef, col_means, col_stds)  # type: ignore
+
         elif start_params is None:
             if self.fit_intercept:
                 coef = np.zeros(
@@ -673,7 +682,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         else:  # assign given array as start values
             coef = start_params
             if self._center_predictors:
-                _standardize_warm_start(coef, col_means, col_stds)
+                _standardize_warm_start(coef, col_means, col_stds)  # type: ignore
 
         # If starting values are outside the specified bounds (if set),
         # bring the starting value exactly at the bound.
@@ -730,10 +739,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         if self.check_input:
             if not np.all(self._family_instance.in_y_range(y)):
                 raise ValueError(
-                    "Some value(s) of y are out of the valid "
-                    "range for family {}".format(
-                        self._family_instance.__class__.__name__
-                    )
+                    "Some value(s) of y are out of the valid range for family"
+                    f"{self._family_instance.__class__.__name__}."
                 )
 
     def tear_down_from_fit(
@@ -1333,11 +1340,11 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self,
         X: ArrayLike,
         y: ArrayLike,
-        sample_weight: Union[np.ndarray, None],
-        offset: Union[np.ndarray, None],
+        sample_weight: Optional[VectorLike],
+        offset: Optional[VectorLike],
         solver: str,
         force_all_finite,
-    ) -> Tuple[mx.MatrixBase, np.ndarray, np.ndarray, Union[np.ndarray, None], float]:
+    ) -> Tuple[mx.MatrixBase, np.ndarray, np.ndarray, Optional[np.ndarray], float]:
 
         _dtype = [np.float64, np.float32]
         if solver == "irls-cd":
@@ -1425,7 +1432,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         # deviance = sum(sample_weight * unit_deviance),
         # we rescale weights such that sum(weights) = 1 and this becomes
         # 1/2*deviance + L1 + L2 with deviance=sum(weights * unit_deviance)
-        weights_sum: float = np.sum(weights)
+        weights_sum: float = np.sum(weights)  # type: ignore
         weights = weights / weights_sum
         #######################################################################
         # 2b. convert to wrapper matrix types
