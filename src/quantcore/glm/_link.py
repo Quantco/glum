@@ -109,7 +109,7 @@ class IdentityLink(Link):
         """Compute the inverse link function ``h(lin_pred)``.
 
         Gives the inverse relationship between linear predictor and the mean
-        ``mu≡E(Y)``, i.e. ``h(linear predictor) = mu``.
+        ``mu ≡ E(Y)``, i.e. ``h(linear predictor) = mu``.
 
         Parameters
         ----------
