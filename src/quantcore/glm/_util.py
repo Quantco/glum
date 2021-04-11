@@ -33,7 +33,7 @@ def _safe_sandwich_dot(
     Compute sandwich product ``X.T @ diag(d) @ X``.
 
     With ``intercept=True``, ``X`` is treated as if a column of 1 were appended
-    as first column of ``X``. ``X`` can be sparse, ``d`` must be an ndarray.
+    as first column of ``X``. ``X`` can be sparse; ``d`` must be an ndarray.
     Always returns an ndarray.
     """
     result = X.sandwich(d, rows, cols)
