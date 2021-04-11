@@ -89,13 +89,17 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         """Return whether ``upper_bound`` is allowed as a value of ``y``."""
         pass
 
-    def in_y_range(self, x):
+    def in_y_range(self, x) -> np.bool_:
         """Return ``True`` if ``x`` is in the valid range of the EDM.
 
         Parameters
         ----------
         x : array-like, shape (n_samples,)
             Target values.
+
+        Returns
+        -------
+        np.bool_
         """
         if self.include_lower_bound:
             if self.include_upper_bound:
@@ -148,7 +152,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         Parameters
         ----------
         mu : array-like, shape (n_samples,)
-            Target values.
+            Predicted mean.
         """
         pass
 
@@ -164,11 +168,15 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         mu : array-like, shape (n_samples,)
             Predicted mean.
 
-        phi : float optional (default=1)
+        phi : float, optional (default=1)
             Dispersion parameter.
 
         weights : array-like, shape (n_samples,), optional (default=1)
             Weights or exposure to which variance is inverse proportional.
+
+        Returns
+        -------
+        array-like, shape (n_samples,)
         """
         return phi / weights * self.unit_variance(mu)
 
@@ -189,6 +197,10 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
 
         weights : array-like, shape (n_samples,), optional (default=1)
             Weights or exposure to which variance is inverse proportional.
+
+        Returns
+        -------
+        array-like, shape (n_samples,)
         """
         return phi / weights * self.unit_variance_derivative(mu)
 
@@ -223,6 +235,10 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
 
         mu : array-like, shape (n_samples,)
             Predicted mean.
+
+        Returns
+        -------
+        array-like, shape (n_samples,)
         """
         return -2 * (y - mu) / self.unit_variance(mu)
 
@@ -244,6 +260,10 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
 
         weights : array-like, shape (n_samples,), optional (default=1)
             Weights or exposure to which variance is inversely proportional.
+
+        Returns
+        -------
+        float
         """
         return np.sum(weights * self.unit_deviance(y, mu))
 
@@ -262,6 +282,10 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
 
         weights : array-like, shape (n_samples,) (default=1)
             Weights or exposure to which variance is inverse proportional.
+
+        Returns
+        -------
+        array-like, shape (n_samples,)
         """
         return weights * self.unit_deviance_derivative(y, mu)
 
@@ -274,8 +298,8 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         link: Link,
         offset: np.ndarray = None,
     ) -> Tuple[np.ndarray, np.ndarray]:
-        """Compute ``mu`` and the derivative of the deviance with respect to the \
-            vector of coefficients."""
+        """Compute ``mu`` and the derivative of the deviance \
+            with respect to coefficients."""
         lin_pred = _safe_lin_pred(X, coef, offset)
         mu = link.inverse(lin_pred)
         d1 = link.inverse_derivative(lin_pred)
@@ -301,15 +325,16 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         Compute:
         * the linear predictor, ``eta``, as ``cur_eta + factor * X_dot_d``;
         * the link-function-transformed prediction, ``mu``;
-        * the "log loss", equal to the log likelihood multiplied by ``-2``.
+        * the deviance.
 
         Returns
         -------
-        Tuple[numpy.ndarray, numpy.ndarray, float]
-            The elements are:
-            * eta: numpy.ndarray, shape (X.shape[0],)
-            * mu: numpy.ndarray, shape (X.shape[0],)
-            * deviance: float
+        numpy.ndarray, shape (X.shape[0],)
+            The linear predictor, ``eta``.
+        numpy.ndarray, shape (X.shape[0],)
+            The link-function-transformed prediction, ``mu``.
+        float
+            The deviance.
         """
         eta_out = np.empty_like(cur_eta)
         mu_out = np.empty_like(cur_eta)
@@ -336,17 +361,20 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         mu_out: np.ndarray,
     ):
         """
-        Compute ``eta``, ``mu`` and the deviance.
+        Update ``eta`` and ``mu`` and compute the deviance.
 
         This is a default implementation that should work for all valid
         distributions and link functions. To implement a custom optimized
         version for a specific distribution and link function, please override
         this function in the subclass.
+
+        Returns
+        -------
+        float
         """
         eta_out[:] = cur_eta + factor * X_dot_d
         mu_out[:] = link.inverse(eta_out)
-        deviance = self.deviance(y, mu_out, weights=weights)
-        return deviance
+        return self.deviance(y, mu_out, weights=weights)
 
     def rowwise_gradient_hessian(
         self,
@@ -365,10 +393,10 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
 
         Returns
         -------
-        Tuple[numpy.ndarray, numpy.ndarray]
-            The elements are:
-            * gradient_rows: numpy.ndarray, shape (X.shape[0],)
-            * hessian_rows: numpy.ndarray, shape (X.shape[0],)
+        numpy.ndarray, shape (X.shape[0],)
+            The gradient of the log likelihood, row-wise.
+        numpy.ndarray, shape (X.shape[0],)
+            The negative Hessian of the log likelihood, row-wise.
         """
         gradient_rows = np.empty_like(mu)
         hessian_rows = np.empty_like(mu)
@@ -478,6 +506,10 @@ class TweedieDistribution(ExponentialDispersionModel):
         ----------
         mu : array-like, shape (n_samples,)
             Predicted mean.
+
+        Returns
+        -------
+        numpy.ndarray, shape (n_samples,)
         """
         p = self.power  # noqa: F841
         return numexpr.evaluate("mu ** p")
@@ -491,6 +523,10 @@ class TweedieDistribution(ExponentialDispersionModel):
         ----------
         mu : array-like, shape (n_samples,)
             Predicted mean.
+
+        Returns
+        -------
+        numpy.ndarray, shape (n_samples,)
         """
         p = self.power  # noqa: F841
         return numexpr.evaluate("p × mu^(p - 1)")
@@ -615,7 +651,7 @@ class GeneralizedHyperbolicSecant(ExponentialDispersionModel):
 
         Parameters
         ----------
-        mu: array-like or float
+        mu : array-like or float
 
         Returns
         -------
@@ -630,7 +666,7 @@ class GeneralizedHyperbolicSecant(ExponentialDispersionModel):
 
         Parameters
         ----------
-        mu: array-like or float
+        mu : array-like or float
 
         Returns
         -------
@@ -645,8 +681,8 @@ class GeneralizedHyperbolicSecant(ExponentialDispersionModel):
 
         Parameters
         ----------
-        y: array-like
-        mu: array-like
+        y : array-like
+        mu : array-like
 
         Returns
         -------
@@ -678,7 +714,11 @@ class BinomialDistribution(ExponentialDispersionModel):
 
         Parameters
         ----------
-        mu: array-like
+        mu : array-like
+
+        Returns
+        -------
+        array-like
         """
         return mu * (1 - mu)
 
@@ -689,7 +729,11 @@ class BinomialDistribution(ExponentialDispersionModel):
 
         Parameters
         ----------
-        mu: array-like or float
+        mu : array-like or float
+
+        Returns
+        -------
+        array-like
         """
         return 1 - 2 * mu
 
@@ -700,8 +744,8 @@ class BinomialDistribution(ExponentialDispersionModel):
 
         Parameters
         ----------
-        y: array-like
-        mu: array-like
+        y : array-like
+        mu : array-like
 
         Returns
         -------
