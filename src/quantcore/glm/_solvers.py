@@ -24,11 +24,11 @@ from ._util import _safe_lin_pred, _safe_sandwich_dot
 
 def timeit(runtime_attr: str):
     """
-    Decorate a function to compute its runtime and update the ``IRLSState`` \
-    instance attribute called ```runtime_attr``` with the runtime of the \
-    function.
+    Decorate a function to compute its run time and update the \
+    :class:`IRLSState` instance attribute called ``runtime_attr`` with the run \
+    time of the function.
 
-    The first argument of fct should be an ``IRLSState`` instance.
+    The first argument of ``fct`` should be an :class:`IRLSState` instance.
     """
 
     def fct_wrap(fct):

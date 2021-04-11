@@ -1253,7 +1253,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         ):
             raise ValueError(
                 "Only the 'cd' solver is supported when bounds are set; "
-                f"got {self.solver}"
+                f"got {self.solver}."
             )
         if self.check_input:
             # check if P1 has only non-negative values, negative values might
