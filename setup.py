@@ -12,7 +12,7 @@ with open(path.join(here, "README.md")) as f:
     long_description = f.read()
 
 if sys.platform == "win32":
-    allocator_libs = []
+    allocator_libs = []  # type: ignore
     extra_compile_args = ["/openmp", "/O2"]
     extra_link_args = ["/openmp"]
 else:
