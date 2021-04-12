@@ -1348,7 +1348,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         ):
             raise ValueError(
                 "Only the 'trust-constr' solver supports inequality constraints; "
-                "got {}".format(self.solver)
+                f"got {self.solver}."
             )
         if ((self.A_ineq is not None) or (self.b_ineq is not None)) and (
             (self.lower_bounds is not None) or (self.upper_bounds is not None)
@@ -1608,10 +1608,10 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         The maximal number of iterations for solver algorithms.
 
     gradient_tol : float, optional (default=None)
-        Stopping criterion. If none is provided, solver-specific defaults
-        will be used. The default value for most solvers is 1e-4, except for the
-        trust-constr solver, which requires more conservative convergence settings
-        and has a default value of 1e-8.
+        Stopping criterion. If ``None``, solver-specific defaults will be used.
+        The default value for most solvers is ``1e-4``, except for
+        ``'trust-constr'``, which requires more conservative convergence settings
+        and has a default value of ``1e-8``.
 
         For the IRLS-LS, L-BFGS and trust-constr solvers, the iteration
         will stop when ``max{|g_i|, i = 1, ..., n} <= tol``, where ``g_i`` is
@@ -1703,8 +1703,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     verbose : int, optional (default=0)
         For the IRLS solver, any positive number will result in a pretty
         progress bar showing convergence. This features requires having the
-        tqdm package installed. For the L-BFGS and trust-consrt solver, set ``verbose``
-        to any positive number for verbosity.
+        tqdm package installed. For the L-BFGS and ``'trust-constr'`` solvers,
+        set ``verbose`` to any positive number for verbosity.
 
     scale_predictors: bool, optional (default=False)
         If ``True``, estimate a scaled model where all predictors have a
@@ -1726,14 +1726,16 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     A_ineq : array-like, shape=(n_constraints, n_features), optional (default=None)
         Constraint matrix for linear inequality constraints of the form
         ``A_ineq w <= b_ineq``. Setting inequality constraints forces the use
-        of the local gradient-based solver ``"trust-constr"`` which may increase
-        runtime siginifcantly. Note that the constraints only apply to coefficients
-        related to features in ``X``. If you want to constrain the intercept, add it
-        to the feature matrix ``X`` manually and set ``fit_intercept==False``.
+        of the local gradient-based solver ``'trust-constr'``, which may
+        increase runtime siginifcantly. Note that the constraints only apply
+        to coefficients related to features in ``X``. If you want to constrain
+        the intercept, add it to the feature matrix ``X`` manually and set
+        ``fit_intercept==False``.
 
     b_ineq : array-like, shape=(n_constraints,), optional (default=None)
         Constraint vector for linear inequality constraints of the form
-        ``A_ineq w <= b_ineq``. Refer to the documentation of ``A_ineq`` for details.
+        ``A_ineq w <= b_ineq``. Refer to the documentation of ``A_ineq`` for
+        details.
 
     Attributes
     ----------
