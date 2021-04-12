@@ -30,11 +30,11 @@ def _safe_sandwich_dot(
     intercept=False,
 ) -> np.ndarray:
     """
-    Compute sandwich product X.T @ diag(d) @ X.
+    Compute sandwich product ``X.T @ diag(d) @ X``.
 
-    With ``intercept=True``, X is treated as if a column of 1 were appended as
-    first column of X.
-    X can be sparse, d must be an ndarray. Always returns a ndarray.
+    With ``intercept=True``, ``X`` is treated as if a column of 1 were appended
+    as first column of ``X``. ``X`` can be sparse; ``d`` must be an ndarray.
+    Always returns an ndarray.
     """
     result = X.sandwich(d, rows, cols)
     if isinstance(result, sparse.dia_matrix):
