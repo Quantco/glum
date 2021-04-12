@@ -1840,12 +1840,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     ):
         self.alphas = alphas
         self.alpha = alpha
-        if self.alphas is not None:
-            warnings.warn(
-                "alphas is deprecated. Use alpha instead.", DeprecationWarning
-            )
-            if alpha_search:
-                self.alpha = self.alphas
         if not alpha_search and self.alpha is None:
             self.alpha = 1.0
         super().__init__(
@@ -2064,7 +2058,12 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         # 4. fit                                                              #
         #######################################################################
         if self.alpha_search:
-            if self.alpha is None:
+            if self.alphas is not None:
+                warnings.warn(
+                    "alphas is deprecated. Use alpha instead.", DeprecationWarning
+                )
+                self._alphas = self.alphas
+            elif self.alpha is None:
                 self._alphas = self._get_alpha_path(
                     P1_no_alpha=P1_no_alpha, X=X, y=y, w=weights, offset=offset
                 )
