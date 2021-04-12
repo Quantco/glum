@@ -40,7 +40,7 @@ from quantcore.glm._glm import (
 )
 from quantcore.glm._util import _safe_sandwich_dot
 
-GLM_SOLVERS = ["irls-ls", "lbfgs", "irls-cd"]
+GLM_SOLVERS = ["irls-ls", "lbfgs", "irls-cd", "trust-constr"]
 
 estimators = [
     (GeneralizedLinearRegressor, {}),
@@ -371,6 +371,23 @@ def test_tol_validation_no_error(estimator, kwargs, tol_kws):
     glm.fit(X, y)
 
 
+@pytest.mark.parametrize("estimator, kwargs", estimators)
+@pytest.mark.parametrize("solver", ["auto", "irls-cd", "trust-constr"])
+@pytest.mark.parametrize("gradient_tol", [None, 1])
+def test_gradient_tol_setting(estimator, kwargs, solver, gradient_tol):
+    X, y = get_small_x_y(estimator)
+    glm = estimator(solver=solver, gradient_tol=gradient_tol, **kwargs)
+    glm.fit(X, y)
+
+    if gradient_tol is None:
+        if solver == "trust-constr":
+            gradient_tol = 1e-8
+        else:
+            gradient_tol = 1e-4
+
+    np.testing.assert_allclose(gradient_tol, glm._gradient_tol)
+
+
 # TODO: something for CV regressor
 @pytest.mark.parametrize(
     "f, fam",
@@ -528,7 +545,14 @@ def test_glm_fit_intercept_argument(estimator, fit_intercept):
 )
 @pytest.mark.parametrize(
     "solver, l1_ratio",
-    [("not a solver", 0), (1, 0), ([1], 0), ("irls-ls", 0.5), ("lbfgs", 0.5)],
+    [
+        ("not a solver", 0),
+        (1, 0),
+        ([1], 0),
+        ("irls-ls", 0.5),
+        ("lbfgs", 0.5),
+        ("trust-constr", 0.5),
+    ],
 )
 def test_glm_solver_argument(estimator, solver, l1_ratio, y, X):
     """Test GLM for invalid solver argument."""
@@ -702,7 +726,7 @@ def test_get_diagnostics(
     res = glm.fit(X, y)
 
     diagnostics = res._get_formatted_diagnostics(full_report, custom_columns)
-    if solver == "lbfgs":
+    if solver in ("lbfgs", "trust-constr"):
         assert diagnostics == "solver does not report diagnostics"
     else:
         assert diagnostics.index.name == "n_iter"
@@ -859,7 +883,8 @@ def test_glm_identity_regression_categorical_data(solver, offset, convert_x_fn):
     ],
 )
 @pytest.mark.parametrize(
-    "solver, tol", [("irls-ls", 1e-6), ("lbfgs", 1e-7), ("irls-cd", 1e-7)]
+    "solver, tol",
+    [("irls-ls", 1e-6), ("lbfgs", 1e-7), ("irls-cd", 1e-7), ("trust-constr", 1e-7)],
 )
 @pytest.mark.parametrize("fit_intercept", [False, True])
 @pytest.mark.parametrize("offset", [None, np.array([-0.1, 0, 0.1, 0, -0.2]), 0.1])
@@ -947,7 +972,8 @@ def test_normal_ridge_comparison(n_samples, n_features, solver, use_offset):
 
 
 @pytest.mark.parametrize(
-    "solver, tol", [("irls-ls", 1e-7), ("lbfgs", 1e-7), ("irls-cd", 1e-7)]
+    "solver, tol",
+    [("irls-ls", 1e-7), ("lbfgs", 1e-7), ("irls-cd", 1e-7), ("trust-constr", 1e-8)],
 )
 @pytest.mark.parametrize("scale_predictors", [True, False])
 @pytest.mark.parametrize("use_sparse", [True, False])
@@ -995,7 +1021,7 @@ def test_poisson_ridge(solver, tol, scale_predictors, use_sparse):
         fit_intercept=True,
         family="poisson",
         link="log",
-        gradient_tol=1e-7,
+        gradient_tol=tol,
         solver=solver,
         max_iter=300,
         random_state=np.random.RandomState(42),
@@ -1059,6 +1085,43 @@ def test_poisson_ridge_bounded(scale_predictors):
         scale_predictors=scale_predictors,
         lower_bounds=lb,
         upper_bounds=ub,
+    )
+    glm.fit(X, y)
+
+    # These correct values come from glmnet.
+    assert_allclose(glm.intercept_, -0.13568186971946633, rtol=1e-5)
+    assert_allclose(glm.coef_, [0.1, 0.1], rtol=1e-5)
+
+
+@pytest.mark.parametrize("scale_predictors", [True, False])
+def test_poisson_ridge_ineq_constrained(scale_predictors):
+    X = np.array([[-1, 1, 1, 2], [0, 0, 1, 1]], dtype=np.float).T
+    y = np.array([0, 1, 1, 2], dtype=np.float)
+    A_ineq = np.array([[1, 0], [0, 1], [-1, 0], [0, -1]])
+    b_ineq = 0.1 * np.ones(shape=(4))
+
+    # For comparison, this is the source of truth for the assert_allclose below.
+    # from glmnet_python import glmnet
+    # model = glmnet(x=X.copy(), y=y.copy(), alpha=0, family="poisson",
+    #               standardize=scale_predictors, thresh=1e-10, lambdau=np.array([1.0]),
+    #               cl = np.array([lb, ub])
+    #               )
+    # true_intercept = model["a0"][0]
+    # true_beta = model["beta"][:, 0]
+    # print(true_intercept, true_beta)
+
+    glm = GeneralizedLinearRegressor(
+        alpha=1,
+        l1_ratio=0,
+        fit_intercept=True,
+        family="poisson",
+        link="log",
+        gradient_tol=1e-12,  # 1e-8 not sufficient
+        random_state=np.random.RandomState(42),
+        copy_X=True,
+        scale_predictors=scale_predictors,
+        A_ineq=A_ineq,
+        b_ineq=b_ineq,
     )
     glm.fit(X, y)
 
@@ -1258,6 +1321,7 @@ def test_binomial_enet(alpha):
     [
         {"solver": "irls-ls"},
         {"solver": "lbfgs"},
+        {"solver": "trust-constr"},
         {"solver": "irls-cd", "selection": "cyclic"},
         {"solver": "irls-cd", "selection": "random"},
     ],
@@ -1297,6 +1361,7 @@ def test_solver_equivalence(params, use_offset, regression_data):
     [
         {"solver": "irls-ls", "rtol": 1e-6},
         {"solver": "lbfgs", "rtol": 2e-4},
+        {"solver": "trust-constr", "rtol": 2e-4},
         {"solver": "irls-cd", "selection": "cyclic", "rtol": 2e-5},
         {"solver": "irls-cd", "selection": "random", "rtol": 6e-5},
     ],
