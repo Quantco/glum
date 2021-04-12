@@ -1660,6 +1660,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             4. If none of the above parameters are set, use a ``min_alpha_ratio``
                 of 1e-6.
 
+    alphas : DEPRECATED. Use ``alpha`` instead.
+
     n_alphas : int, optional (default=100)
         Number of alphas along the regularization path
 
@@ -1819,6 +1821,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         hessian_approx: float = 0.0,
         warm_start: bool = False,
         alpha_search: bool = False,
+        alphas: Optional[np.ndarray] = None,
         n_alphas: int = 100,
         min_alpha_ratio: Optional[float] = None,
         min_alpha: Optional[float] = None,
@@ -1835,7 +1838,14 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         b_ineq: Optional[np.ndarray] = None,
         force_all_finite: bool = True,
     ):
+        self.alphas = alphas
         self.alpha = alpha
+        if self.alphas is not None:
+            warnings.warn(
+                "alphas is deprecated. Use alpha instead.", DeprecationWarning
+            )
+            if alpha_search:
+                self.alpha = self.alphas
         if not alpha_search and self.alpha is None:
             self.alpha = 1.0
         super().__init__(
