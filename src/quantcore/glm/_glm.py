@@ -2,46 +2,14 @@
 Generalized Linear Models with Exponential Dispersion Family
 """
 
-# Author: Christian Lorentzen <lorentzen.ch@googlemail.com>
-# some parts and tricks stolen from other sklearn files.
 # License: BSD 3 clause
-
-# TODO: Add cross validation support, e.g. GCV?
-# TODO: Should GeneralizedLinearRegressor inherit from LinearModel?
-#       So far, it does not.
-# TODO: Include further classes in class.rst? ExponentialDispersionModel?
-#       TweedieDistribution?
-# TODO: Negative values in P1 are not allowed so far. They could be used
-#       for group lasso.
-
-# Design Decisions:
-# - Which name? GeneralizedLinearModel vs GeneralizedLinearRegressor.
-#   Estimators in sklearn are either regressors or classifiers. A GLM can do
-#   both depending on the distr (Normal => regressor, Binomial => classifier).
-#   Solution: GeneralizedLinearRegressor since this is the focus.
-# - Allow for finer control of penalty terms:
-#   L1: ||P1*w||_1 with P1*w as element-wise product, this allows to exclude
-#       factors from the L1 penalty.
-#   L2: w*P2*w with P2 a positive (semi-) definite matrix, e.g. P2 could be
-#   a 1st or 2nd order difference matrix (compare B-spline penalties and
-#   Tikhonov regularization).
-# - The link function (instance of class Link) is necessary for the evaluation
-#   of deviance, score, Hessian matrix as functions of the
-#   coefficients, which is needed by optimizers.
-#   Solution: link as argument in those functions
-# - Which name/symbol for sample_weight in docu?
-#   sklearn.linear_models uses w for coefficients, standard literature on
-#   GLMs use beta for coefficients and w for (sample) weights.
-#   So far, coefficients=w and sample weights=s.
-# - The intercept term is the first index, i.e. coef[0]
-
 
 from __future__ import division
 
 import copy
 import warnings
 from itertools import chain
-from typing import Any, Iterable, List, Optional, Tuple, Union
+from typing import Any, Iterable, Optional, Tuple, Union, cast
 
 import numpy as np
 import pandas as pd
@@ -82,27 +50,28 @@ from ._solvers import (
 
 _float_itemsize_to_dtype = {8: np.float64, 4: np.float32, 2: np.float16}
 
+VectorLike = Union[np.ndarray, pd.api.extensions.ExtensionArray, pd.Index, pd.Series]
+
 ArrayLike = Union[
-    pd.DataFrame,
-    pd.Series,
-    List,
-    np.ndarray,
-    sparse.spmatrix,
+    list,
     mx.MatrixBase,
     mx.StandardizedMatrix,
+    pd.DataFrame,
+    sparse.spmatrix,
+    VectorLike,
 ]
+
 ShapedArrayLike = Union[
-    pd.DataFrame,
-    pd.Series,
-    np.ndarray,
-    sparse.spmatrix,
     mx.MatrixBase,
     mx.StandardizedMatrix,
+    pd.DataFrame,
+    sparse.spmatrix,
+    VectorLike,
 ]
 
 
 def check_array_matrix_compliant(mat: ArrayLike, **kwargs):
-    to_copy = "copy" in kwargs.keys() and kwargs["copy"]
+    to_copy = kwargs.get("copy", False)
 
     if isinstance(mat, pd.DataFrame) and any(mat.dtypes == "category"):
         mat = mx.from_pandas(mat)
@@ -111,7 +80,6 @@ def check_array_matrix_compliant(mat: ArrayLike, **kwargs):
         kwargs.update({"ensure_min_features": 0})
         new_matrices = [check_array_matrix_compliant(m, **kwargs) for m in mat.matrices]
         new_indices = [elt.copy() for elt in mat.indices] if to_copy else mat.indices
-
         return mx.SplitMatrix(new_matrices, new_indices)
 
     if isinstance(mat, mx.CategoricalMatrix):
@@ -124,27 +92,30 @@ def check_array_matrix_compliant(mat: ArrayLike, **kwargs):
             check_array_matrix_compliant(mat.mat, **kwargs),
             check_array(mat.shift, **kwargs),
         )
+
     original_type = type(mat)
     res = check_array(mat, **kwargs)
 
     if res is not mat and original_type in (mx.DenseMatrix, mx.SparseMatrix):
         res = original_type(res)  # type: ignore
+
     return res
 
 
 def check_X_y_matrix_compliant(
-    X: ArrayLike, y: Union[np.ndarray, sparse.spmatrix], **kwargs
+    X: ArrayLike, y: Union[VectorLike, sparse.spmatrix], **kwargs
 ) -> Tuple[Union[mx.MatrixBase, sparse.spmatrix, np.ndarray], np.ndarray]:
     """
-    See documentation for sklearn.utils.check_X_y. This function behaves identically
-    for inputs that are not from the Matrix package, and has some parameters,
-    such as "force_all_finite", fixed to match the needs of GLMs..
+    See the documentation for :func:`sklearn.utils.check_X_y`. This function
+    behaves identically for inputs that are not from the Matrix package and
+    fixes some parameters, such as ``'force_all_finite'``, to match the needs of
+    GLMs.
 
     Returns
     -------
-    X_converted : object
+    X_converted : array-like
         The converted and validated X.
-    y_converted : object
+    y_converted : numpy.ndarray
         The converted and validated y.
     """
     if y is None:
@@ -162,86 +133,129 @@ def check_X_y_matrix_compliant(
 
 
 def _check_weights(
-    sample_weight: Union[float, np.ndarray, None],
+    sample_weight: Optional[Union[float, VectorLike]],
     n_samples: int,
     dtype,
     force_all_finite: bool = True,
 ) -> np.ndarray:
     """Check that sample weights are non-negative and have the right shape."""
     if sample_weight is None:
-        weights = np.ones(n_samples, dtype=dtype)
-    elif np.isscalar(sample_weight):
+        return np.ones(n_samples, dtype=dtype)
+    if np.isscalar(sample_weight):
         if sample_weight <= 0:
             raise ValueError("Sample weights must be non-negative.")
-        weights = sample_weight * np.ones(n_samples, dtype=dtype)
-    else:
-        _dtype = [np.float64, np.float32]
-        weights = check_array(
-            sample_weight,
-            accept_sparse=False,
-            force_all_finite=force_all_finite,
-            ensure_2d=False,
-            dtype=_dtype,
-        )
-        if weights.ndim > 1:
-            raise ValueError("Sample weight must be 1D array or scalar")
-        elif weights.shape[0] != n_samples:
-            raise ValueError("Sample weights must have the same length as y")
-        if not np.all(weights >= 0):
-            raise ValueError("Sample weights must be non-negative.")
-        elif not np.sum(weights) > 0:
-            raise ValueError(
-                "Sample weights must have at least one positive " "element."
-            )
+        return np.full(n_samples, sample_weight, dtype=dtype)
+
+    weights = check_array(
+        sample_weight,
+        accept_sparse=False,
+        force_all_finite=force_all_finite,
+        ensure_2d=False,
+        dtype=[np.float64, np.float32],
+    )
+
+    if weights.ndim > 1:
+        raise ValueError("Sample weights must be 1D array or scalar.")
+    if weights.shape[0] != n_samples:
+        raise ValueError("Sample weights must have the same length as y.")
+    if np.any(weights < 0):
+        raise ValueError("Sample weights must be non-negative.")
+    if np.sum(weights) == 0:
+        raise ValueError("Sample weights must have at least one positive element.")
 
     return weights
 
 
 def _check_offset(
-    offset: Union[np.ndarray, float, None], n_rows: int, dtype
+    offset: Optional[Union[VectorLike, float]], n_rows: int, dtype
 ) -> Optional[np.ndarray]:
     """
-    Unlike weights, if the offset is given as None, it can stay None. So we only need
-    to validate it when it is not none.
+    Unlike weights, if the offset is ``None``, it can stay ``None``, so we only
+    need to validate it when it is not.
     """
     if offset is None:
         return None
-    if not np.isscalar(offset):
-        offset = check_array(
-            offset,
-            accept_sparse=False,
-            force_all_finite=True,
-            ensure_2d=False,
-            dtype=dtype,
-        )
-        if offset.ndim > 1:
-            raise ValueError("Offset must be 1D array or scalar.")
-        elif offset.shape[0] != n_rows:
-            raise ValueError("offset must have the same length as y.")
-    return np.full(n_rows, offset)
+    if np.isscalar(offset):
+        return np.full(n_rows, offset)
+
+    offset = check_array(
+        offset,
+        accept_sparse=False,
+        force_all_finite=True,
+        ensure_2d=False,
+        dtype=dtype,
+    )
+
+    offset = cast(np.ndarray, offset)
+
+    if offset.ndim > 1:
+        raise ValueError("Offsets must be 1D array or scalar.")
+    if offset.shape[0] != n_rows:
+        raise ValueError("Offsets must have the same length as y.")
+
+    return offset
 
 
 def check_bounds(
-    bounds: Union[Iterable, float, np.ndarray, None], n_features: int, dtype
-) -> Union[None, np.ndarray]:
+    bounds: Optional[Union[float, VectorLike]], n_features: int, dtype
+) -> Optional[np.ndarray]:
     """Check that the bounds have the right shape."""
     if bounds is None:
         return None
     if np.isscalar(bounds):
-        bounds = np.full(n_features, bounds, dtype=dtype)
-    else:  # assume it's an array
-        bounds = check_array(
-            bounds,
+        return np.full(n_features, bounds, dtype=dtype)
+
+    bounds = check_array(
+        bounds,
+        accept_sparse=False,
+        force_all_finite=False,
+        ensure_2d=False,
+        dtype=dtype,
+    )
+
+    bounds = cast(np.ndarray, bounds)
+
+    if bounds.ndim > 1:
+        raise ValueError("Bounds must be 1D array or scalar.")
+    if bounds.shape[0] != n_features:
+        raise ValueError("Bounds must be the same length as X.shape[1].")
+
+    return bounds
+
+
+def check_inequality_constraints(
+    A_ineq: Union[None, np.ndarray],
+    b_ineq: Union[None, np.ndarray],
+    n_features: int,
+    dtype,
+) -> Tuple[Union[None, np.ndarray], Union[None, np.ndarray]]:
+    """Check that the inequality constraints are well-defined."""
+    if A_ineq is None or b_ineq is None:
+        return None, None
+    else:
+        A_ineq = check_array(
+            A_ineq,
+            accept_sparse=False,
+            force_all_finite=False,
+            ensure_2d=True,
+            dtype=dtype,
+            copy=True,
+        )
+        b_ineq = check_array(
+            b_ineq,
             accept_sparse=False,
             force_all_finite=False,
             ensure_2d=False,
             dtype=dtype,
+            copy=True,
         )
-        if bounds.ndim > 1:
-            raise ValueError("Bounds must be 1D array or scalar.")
-        if bounds.shape[0] != n_features:
-            raise ValueError("Bounds must be the same length as X.shape[1].")
-    return bounds
+        if A_ineq.shape[1] != n_features:
+            raise ValueError("A_ineq must have same number of columns as X.")
+        if A_ineq.shape[0] != b_ineq.shape[0]:
+            raise ValueError("A_ineq and b_ineq must have same number of rows.")
+        if b_ineq.ndim > 1:
+            raise ValueError("b_ineq must be 1D array.")
+    return A_ineq, b_ineq
 
 
 def _standardize(
@@ -249,9 +263,9 @@ def _standardize(
     weights: np.ndarray,
     center_predictors: bool,
     estimate_as_if_scaled_model: bool,
-    lower_bounds: np.ndarray,
-    upper_bounds: np.ndarray,
-    A_ineq: np.ndarray,
+    lower_bounds: Optional[np.ndarray],
+    upper_bounds: Optional[np.ndarray],
+    A_ineq: Optional[np.ndarray],
     P1: Union[np.ndarray, sparse.spmatrix],
     P2: Union[np.ndarray, sparse.spmatrix],
 ) -> Tuple[
@@ -265,25 +279,31 @@ def _standardize(
     Any,
 ]:
     """
-    Standardize the data matrix X and adjust the bounds and penalties to match the\
-    standardized data matrix, so that standardizing does not affect estimates.
+    Standardize the data matrix ``X`` and adjust the bounds and penalties to
+    match the standardized data matrix, so that standardizing does not affect
+    estimates.
 
-    This is only done for computational reasons and does not affect final estimates or\
-    alter the input data. Columns are always scaled to have standard deviation 1.
+    This is only done for computational reasons and does not affect final
+    estimates or alter the input data. Columns are always scaled to have unit
+    standard deviation.
 
     Parameters
     ----------
-    X: MatrixBase
-    weights
-    center_predictors: If True, adjust the data matrix so that columns have mean zero.
-    estimate_as_if_scaled_model: If True, estimates returned equal those from a model \
-        where predictors have been standardized to standard deviation 1, with penalty \
-        unchanged. Note that internally, for purely computational reasons, we always \
-        scale predictors; whether estimates match a scaled model depends on whether we \
-        modify the penalty. If 'estimate_as_if_scaled_model' is False, penalties are \
-        rescaled to match the original scale, canceling out the effect of rescaling X.
+    X : MatrixBase
+    weights : numpy.ndarray
+    center_predictors : bool
+        If ``True``, adjust the data matrix so that columns have mean zero.
+    estimate_as_if_scaled_model : bool
+        If ``True``, estimates returned equal those from a model where
+        predictors have been standardized to have unit standard deviation, with
+        penalty unchanged. Note that, internally, for purely computational
+        reasons, we always scale predictors; whether estimates match a scaled
+        model depends on whether we modify the penalty. If ``False``, penalties
+        are rescaled to match the original scale, canceling out the effect of
+        rescaling X.
     lower_bounds
     upper_bounds
+    A_ineq
     P1
     P2
     """
@@ -309,6 +329,7 @@ def _standardize(
             P2 *= penalty_mult ** 2
         else:
             P2 = (penalty_mult[:, None] * P2) * penalty_mult[None, :]
+
     return X, col_means, col_stds, lower_bounds, upper_bounds, A_ineq, P1, P2
 
 
@@ -355,20 +376,19 @@ def get_family(
         return name_to_dist[family]()
     except KeyError:
         raise ValueError(
-            "The family must be an instance of class"
-            " ExponentialDispersionModel or an element of"
-            " ['normal', 'poisson', 'gamma', 'inverse.gaussian', "
-            "'binomial']; got (family={})".format(family)
+            "The family must be an instance of class ExponentialDispersionModel or an "
+            "element of ['normal', 'poisson', 'gamma', 'inverse.gaussian', 'binomial'];"
+            f" got (family={family})."
         )
 
 
 def get_link(link: Union[str, Link], family: ExponentialDispersionModel) -> Link:
     """
     For the Tweedie distribution, this code follows actuarial best practices regarding
-    link functions. Note that these links are sometimes non-canonical:
-        - Identity for normal (p=0)
-        - No convention for p < 0, so let's leave it as identity
-        - Log otherwise
+    link functions. Note that these links are sometimes not canonical:
+        - identity for normal (``p=0``);
+        - no convention for ``p < 0``, so let's leave it as identity;
+        - log otherwise.
     """
     if isinstance(link, Link):
         return link
@@ -378,8 +398,8 @@ def get_link(link: Union[str, Link], family: ExponentialDispersionModel) -> Link
                 return IdentityLink()
             if family.power < 1:
                 raise ValueError(
-                    "For 0 < p < 1, no Tweedie distribution"
-                    " exists. Please choose a different distribution."
+                    "For 0 < p < 1, no Tweedie distribution exists. "
+                    "Please choose a different distribution."
                 )
             return LogLink()
         if isinstance(family, GeneralizedHyperbolicSecant):
@@ -387,11 +407,9 @@ def get_link(link: Union[str, Link], family: ExponentialDispersionModel) -> Link
         if isinstance(family, BinomialDistribution):
             return LogitLink()
         raise ValueError(
-            """No default link known for the specified distribution family. Please
-            set link manually, i.e. not to 'auto';
-            got (link='auto', family={})""".format(
-                family.__class__.__name__
-            )
+            "No default link known for the specified distribution family. "
+            "Please set link manually, i.e. not to 'auto'. "
+            f"Got (link='auto', family={family.__class__.__name__})."
         )
     if link == "identity":
         return IdentityLink()
@@ -402,10 +420,8 @@ def get_link(link: Union[str, Link], family: ExponentialDispersionModel) -> Link
     if link[:7] == "tweedie":
         return TweedieLink(float(link[7:]))
     raise ValueError(
-        """The link must be an instance of class Link or an element of
-        ['auto', 'identity', 'log', 'logit', 'tweedie']; got (link={})""".format(
-            link
-        )
+        "The link must be an instance of class Link or an element of "
+        f"['auto', 'identity', 'log', 'logit', 'tweedie']; got (link={link})."
     )
 
 
@@ -416,9 +432,14 @@ def setup_p1(
     alpha: float,
     l1_ratio: float,
 ) -> np.ndarray:
+    if not isinstance(X, (mx.MatrixBase, mx.StandardizedMatrix)):
+        raise TypeError
+
     n_features = X.shape[1]
-    assert isinstance(X, (mx.MatrixBase, mx.StandardizedMatrix))
-    if isinstance(P1, str) and P1 == "identity":
+
+    if isinstance(P1, str):
+        if P1 != "identity":
+            raise ValueError(f"P1 must be either 'identity' or an array; got {P1}.")
         P1 = np.ones(n_features, dtype=_dtype)
     else:
         P1 = np.atleast_1d(P1)
@@ -426,36 +447,38 @@ def setup_p1(
             P1 = P1.astype(_dtype, casting="safe", copy=False)
         except TypeError:
             raise TypeError(
-                "The given P1 cannot be converted to a numeric"
-                "array; got (P1.dtype={}).".format(P1.dtype)
+                "The given P1 cannot be converted to a numeric array; "
+                f"got (P1.dtype={P1.dtype})."
             )
         if (P1.ndim != 1) or (P1.shape[0] != n_features):
             raise ValueError(
-                "P1 must be either 'identity' or a 1d array "
-                "with the length of X.shape[1]; "
-                "got (P1.shape[0]={}), "
-                "needed (X.shape[1]={}).".format(P1.shape[0], n_features)
+                "P1 must be either 'identity' or a 1d array with the length of "
+                f"X.shape[1]; got (P1.shape[0]={P1.shape[0]}); "
+                f"needed (X.shape[1]={n_features})."
             )
 
     # P1 and P2 are now for sure copies
     P1 = alpha * l1_ratio * P1
-    return P1.astype(_dtype)
+    return cast(np.ndarray, P1).astype(_dtype)
 
 
 def setup_p2(
-    P2: Union[str, np.ndarray],
+    P2: Union[str, np.ndarray, sparse.spmatrix],
     X: Union[mx.MatrixBase, mx.StandardizedMatrix],
     _stype,
     _dtype,
     alpha: float,
     l1_ratio: float,
 ) -> Union[np.ndarray, sparse.spmatrix]:
-    assert isinstance(X, (mx.MatrixBase, mx.StandardizedMatrix))
+    if not isinstance(X, (mx.MatrixBase, mx.StandardizedMatrix)):
+        raise TypeError
+
     n_features = X.shape[1]
 
-    # If X is sparse, make P2 sparse, too.
-    if isinstance(P2, str) and P2 == "identity":
-        if sparse.issparse(X):
+    if isinstance(P2, str):
+        if P2 != "identity":
+            raise ValueError(f"P2 must be either 'identity' or an array. Got {P2}.")
+        if sparse.issparse(X):  # if X is sparse, make P2 sparse, too
             P2 = (
                 sparse.dia_matrix(
                     (np.ones(n_features, dtype=_dtype), 0),
@@ -468,30 +491,26 @@ def setup_p2(
         P2 = check_array(
             P2, copy=True, accept_sparse=_stype, dtype=_dtype, ensure_2d=False
         )
+        P2 = cast(np.ndarray, P2)
         if P2.ndim == 1:
             P2 = np.asarray(P2)
             if P2.shape[0] != n_features:
                 raise ValueError(
-                    "P2 should be a 1d array of shape "
-                    "(n_features,) with "
-                    "n_features=X.shape[1]; "
-                    "got (P2.shape=({},)), needed ({},)".format(P2.shape[0], X.shape[1])
+                    "P2 should be a 1d array of shape (n_features,) with n_features="
+                    f"X.shape[1]. got (P2.shape={P2.shape}); needed ({n_features},)."
                 )
             if sparse.issparse(X):
                 P2 = (
                     sparse.dia_matrix((P2, 0), shape=(n_features, n_features))
                 ).tocsc()
-        elif P2.ndim == 2 and P2.shape[0] == P2.shape[1] and P2.shape[0] == X.shape[1]:
+        elif P2.ndim == 2 and P2.shape[0] == P2.shape[1] and P2.shape[0] == n_features:
             if sparse.issparse(X):
                 P2 = sparse.csc_matrix(P2)
         else:
             raise ValueError(
-                "P2 must be either None or an array of shape "
-                "(n_features, n_features) with "
-                "n_features=X.shape[1]; "
-                "got (P2.shape=({0}, {1})), needed ({2}, {2})".format(
-                    P2.shape[0], P2.shape[1], X.shape[1]
-                )
+                "P2 must be either None or an array of shape (n_features, n_features) "
+                f"with n_features=X.shape[1]; got (P2.shape={P2.shape}); "
+                f"needed ({n_features}, {n_features})."
             )
 
     # P1 and P2 are now for sure copies
@@ -512,37 +531,37 @@ def setup_p2(
 def initialize_start_params(
     start_params: Optional[np.ndarray], n_cols: int, fit_intercept: bool, _dtype
 ) -> Optional[np.ndarray]:
-    if start_params is not None:
-        start_params = check_array(
-            start_params,
-            accept_sparse=False,
-            force_all_finite=True,
-            ensure_2d=False,
-            dtype=_dtype,
-            copy=True,
+    if start_params is None:
+        return None
+
+    start_params = check_array(
+        start_params,
+        accept_sparse=False,
+        force_all_finite=True,
+        ensure_2d=False,
+        dtype=_dtype,
+        copy=True,
+    )
+
+    start_params = cast(np.ndarray, start_params)
+
+    if start_params.shape != (n_cols + fit_intercept,):
+        raise ValueError(
+            "Start values for parameters must have the right length and dimension; "
+            f"got (length={start_params.shape[0]}, ndim={start_params.ndim}); "
+            f"needed (length={n_cols + fit_intercept}, ndim=1)."
         )
-        if (start_params.shape[0] != n_cols + fit_intercept) or (
-            start_params.ndim != 1
-        ):
-            raise ValueError(
-                "Start values for parameters must have the"
-                "right length and dimension; required (length"
-                "={}, ndim=1); got (length={}, ndim={}).".format(
-                    n_cols + fit_intercept,
-                    start_params.shape[0],
-                    start_params.ndim,
-                )
-            )
+
     return start_params
 
 
-def is_pos_semidef(p: Union[sparse.spmatrix, np.ndarray]) -> bool:
+def is_pos_semidef(p: Union[sparse.spmatrix, np.ndarray]) -> Union[bool, np.bool_]:
     """
-    Checks for positive semidefiniteness of p if p is a matrix, or diag(p) if p is a
-    vector.
+    Checks for positive semidefiniteness of ``p`` if ``p`` is a matrix, or
+    ``diag(p)`` if a vector.
 
-    np.linalg.cholesky(P2) 'only' asserts positive definite due to numerical precision,
-    we allow eigenvalues to be a tiny bit negative
+    ``np.linalg.cholesky(P2)`` 'only' asserts positive definiteness; due to
+    numerical precision, we allow eigenvalues to be a tiny bit negative.
     """
     # 1d case
     if p.ndim == 1 or p.shape[0] == 1:
@@ -552,9 +571,11 @@ def is_pos_semidef(p: Union[sparse.spmatrix, np.ndarray]) -> bool:
     # 2d case
     # About -6e-7 for 32-bit, -1e-15 for 64-bit
     epsneg = -10 * np.finfo(np.result_type(float, p.dtype)).epsneg
+
     if sparse.issparse(p):
         # Computing eigenvalues for sparse matrices is inefficient. If the matrix is
         # not huge, convert to dense. Otherwise, calculate 10% of its eigenvalues.
+        p = cast(sparse.spmatrix, p)
         if p.shape[0] < 2000:
             eigenvalues = linalg.eigvalsh(p.toarray())
         else:
@@ -568,24 +589,24 @@ def is_pos_semidef(p: Union[sparse.spmatrix, np.ndarray]) -> bool:
                 which=which,
                 return_eigenvectors=False,
             )
-    else:
-        # dense
+    else:  # dense
         eigenvalues = linalg.eigvalsh(p)
-    pos_semidef = np.all(eigenvalues >= epsneg)
-    return pos_semidef
+
+    return np.all(eigenvalues >= epsneg)
 
 
 # TODO: abc
 class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
     """
-    Base class for GeneralizedLinearRegressor and GeneralizedLinearRegressorCV.
+    Base class for :class:`GeneralizedLinearRegressor` and
+    :class:`GeneralizedLinearRegressorCV`.
     """
 
     def __init__(
         self,
-        l1_ratio: Union[int, float] = 0,
+        l1_ratio: float = 0,
         P1="identity",
-        P2: Union[int, float, str, np.ndarray, sparse.spmatrix] = "identity",
+        P2: Union[str, np.ndarray, sparse.spmatrix] = "identity",
         fit_intercept=True,
         family: Union[str, ExponentialDispersionModel] = "normal",
         link: Union[str, Link] = "auto",
@@ -661,7 +682,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             if self.fit_intercept:
                 coef = np.concatenate((np.array([intercept]), coef))
             if self._center_predictors:
-                _standardize_warm_start(coef, col_means, col_stds)
+                _standardize_warm_start(coef, col_means, col_stds)  # type: ignore
+
         elif start_params is None:
             if self.fit_intercept:
                 coef = np.zeros(
@@ -678,7 +700,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         else:  # assign given array as start values
             coef = start_params
             if self._center_predictors:
-                _standardize_warm_start(coef, col_means, col_stds)
+                _standardize_warm_start(coef, col_means, col_stds)  # type: ignore
 
         # If starting values are outside the specified bounds (if set),
         # bring the starting value exactly at the bound.
@@ -745,10 +767,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         if self.check_input:
             if not np.all(self._family_instance.in_y_range(y)):
                 raise ValueError(
-                    "Some value(s) of y are out of the valid "
-                    "range for family {}".format(
-                        self._family_instance.__class__.__name__
-                    )
+                    "Some value(s) of y are out of the valid range for family"
+                    f"{self._family_instance.__class__.__name__}."
                 )
 
     def tear_down_from_fit(
@@ -788,15 +808,16 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         """
         Get the regularization path.
 
-        If some features have l1 regularization, the maximum alpha is the lowest
+        If some features have L1 regularization, the maximum alpha is the lowest
         alpha such that no l1-regularized coefficients are nonzero.
 
-        If all features do not have l1 regularization, use the sklearn RidgeCV
-        default path [10, 1, 0.1] or whatever is specified by the input parameters
-        min_alpha_ratio and n_alphas.
+        If all features do not have L1 regularization, use the
+        :class:`sklearn.linear_model.RidgeCV` default path ``[10, 1, 0.1]`` or
+        whatever is specified by the input parameters ``min_alpha_ratio`` and
+        ``n_alphas``.
 
-        min_alpha_ratio governs the length of the path, with 1e-6 as the default.
-        Smaller values will lead to a longer path.
+        ``min_alpha_ratio`` governs the length of the path, with ``1e-6`` as the
+        default. Smaller values will lead to a longer path.
         """
 
         def _make_grid(max_alpha: float) -> np.ndarray:
@@ -867,8 +888,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         b_ineq: Optional[np.ndarray],
     ) -> np.ndarray:
         """
-        Must be run after running set_up_for_fit and before running tear_down_from_fit.
-        Sets self.coef_ and self.intercept_.
+        Must be run after running :func:`set_up_for_fit` and before running
+        :func:`tear_down_from_fit`. Sets ``self.coef_`` and ``self.intercept_``.
         """
         fixed_inner_tol = None
         if (
@@ -1002,15 +1023,17 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
     def _report_diagnostics(
         self, full_report: bool = False, custom_columns: Optional[Iterable] = None
     ) -> None:
-        """Print diagnostics to stdout.
+        """Print diagnostics to ``stdout``.
 
         Parameters
         ----------
-        full_report: boolean (default False)
-            Print all available information. When False and custom_columns
-            is set to None, a restricted set of columns is printed out.
-        custom_columns: Iterable (optional, default None)
-            Print only the specified columns
+        full_report: bool (default=False)
+            Print all available information. When ``False`` and
+            ``custom_columns`` is ``None``, a restricted set of columns is
+            printed out.
+
+        custom_columns: Iterable (optional, default=None)
+            Print only the specified columns.
         """
         diagnostics = self._get_formatted_diagnostics(full_report, custom_columns)
         if isinstance(diagnostics, str):
@@ -1030,11 +1053,13 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         Parameters
         ----------
-        full_report: boolean (default False)
-            Print all available information. When False and custom_columns
-            is set to None, a restricted set of columns is printed out.
-        custom_columns: Iterable (optional, default None)
-            Print only the specified columns
+        full_report: bool (default=False)
+            Print all available information. When ``False`` and
+            ``custom_columns`` is ``None``, a restricted set of columns is
+            printed out.
+
+        custom_columns: Iterable (optional, default=None)
+            Print only the specified columns.
         """
         if not hasattr(self, "diagnostics_"):
             to_print = "Model has not been fit, so no diagnostics exist."
@@ -1067,7 +1092,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
     def linear_predictor(
         self, X: ArrayLike, offset: Optional[ArrayLike] = None, alpha_index: int = None
     ):
-        """Compute the linear_predictor = X*coef_ + intercept_.
+        """Compute the linear predictor, ``X * coef_ + intercept_``.
 
         Parameters
         ----------
@@ -1076,17 +1101,16 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             In that case the user must ensure that the categories are exactly
             the same (including the order) as during fit.
 
-        offset: {None, array-like}, shape (n_samples,), optional \
-                (default=None)
+        offset: {None, array-like}, shape (n_samples,) optional (default=None)
 
-        alpha_index: int, optional \
-                (default=None)
-            Sets the index of the alpha to use for the alpha_search = True case
+        alpha_index: int, optional (default=None)
+            Sets the index of the alpha to use in case ``alpha_search`` is
+            ``True``.
 
         Returns
         -------
         C : array, shape (n_samples,)
-            Returns predicted values of linear predictor.
+            The linear predictor.
         """
         check_is_fitted(self, "coef_")
         X = check_array_matrix_compliant(
@@ -1113,9 +1137,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         offset: Optional[ArrayLike] = None,
         alpha_index: int = None,
     ):
-        """Predict using GLM with feature matrix X.
-
-        If sample_weight is given, returns prediction*sample_weight.
+        """Predict using GLM with feature matrix ``X``.
 
         Parameters
         ----------
@@ -1124,20 +1146,18 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             In that case the user must ensure that the categories are exactly
             the same (including the order) as during fit.
 
-        sample_weight : {None, array-like}, shape (n_samples,), optional \
-                (default=None)
+        sample_weight : {None, array-like}, shape (n_samples,), optional (default=None)
 
-        offset: {None, array-like}, shape (n_samples,), optional \
-                (default=None)
+        offset: {None, array-like}, shape (n_samples,), optional (default=None)
 
-        alpha_index: int, optional \
-                (default=None)
-            Sets the index of the alpha to use for the alpha_search = True case
+        alpha_index: int, optional (default=None)
+            Sets the index of the alpha to use in case ``alpha_search`` is
+            ``True``.
 
         Returns
         -------
         C : array, shape (n_samples,)
-            Returns predicted values times sample_weight.
+            Predicted values times ``sample_weight``.
         """
         X = check_array_matrix_compliant(
             X,
@@ -1156,18 +1176,17 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
     def estimate_phi(
         self, X: ArrayLike, y: ArrayLike, sample_weight: Optional[ArrayLike] = None
     ):
-        """Estimate/fit the dispersion parameter phi.
+        """Estimate/fit the dispersion parameter φ.
 
         Parameters
         ----------
         X : {array-like, sparse matrix}, shape (n_samples, n_features)
-            Training data.
+            The data matrix.
 
         y : array-like, shape (n_samples,)
             Target values.
 
-        sample_weight : {None, array-like}, shape (n_samples,), optional \
-                (default=None)
+        sample_weight : {None, array-like}, shape (n_samples,), optional (default=None)
             Sample weights.
 
         Returns
@@ -1192,10 +1211,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             n_features += 1
         if n_samples <= n_features:
             raise ValueError(
-                "Estimation of dispersion parameter phi requires"
-                " more samples than features, got"
-                " samples=X.shape[0]={} and"
-                " n_features=X.shape[1]+fit_intercept={}.".format(n_samples, n_features)
+                "Estimation of dispersion parameter phi requires more samples than "
+                f"features; got (X.shape[0]={n_samples}) samples and "
+                f"(X.shape[1]+fit_intercept={n_features}) n_features."
             )
         mu = self._link_instance.inverse(eta)
         if self.fit_dispersion == "chisqr":
@@ -1216,19 +1234,17 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         y: ShapedArrayLike,
         sample_weight: Optional[ArrayLike] = None,
     ):
-        """Compute D^2, the percentage of deviance explained.
+        """Compute :math:`D^2`, the percentage of deviance explained.
 
-        D^2 is a generalization of the coefficient of determination R^2.
-        R^2 uses squared error and D^2 deviance. Note that those two are equal
-        for family='normal'.
+        :math:`D^2` is a generalization of the coefficient of determination
+        :math:`R^2`. The :math:`R^2` uses the squared error and the :math:`D^2`,
+        the deviance. Note that those two are equal for ``family='normal'``.
 
-        D^2 is defined as
-        :math:`D^2 = 1-\\frac{D(y_{true},y_{pred})}{D_{null}}`,
-        :math:`D_{null}` is the null deviance, i.e. the deviance of a model
-        with intercept alone, which corresponds to :math:`y_{pred} = \\bar{y}`.
-        The mean :math:`\\bar{y}` is averaged by sample_weight.
-        Best possible score is 1.0 and it can be negative (because the model
-        can be arbitrarily worse).
+        :math:`D^2` is defined as
+        :math:`D^2 = 1 - \\frac{D(y_{\\mathrm{true}}, y_{\\mathrm{pred}})}{D_{\\mathrm{null}}}`,
+        :math:`D_{\\mathrm{null}}` is the null deviance, i.e. the deviance of a
+        model with intercept alone. The best possible score is one and it can be
+        negative.
 
         Parameters
         ----------
@@ -1238,8 +1254,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         y : array-like, shape (n_samples,)
             True values of target.
 
-        sample_weight : {None, array-like}, shape (n_samples,), optional \
-                (default=None)
+        sample_weight : {None, array-like}, shape (n_samples,), optional (default=None)
             Sample weights.
 
         Returns
@@ -1261,11 +1276,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
     def _validate_hyperparameters(self) -> None:
 
         if not isinstance(self.fit_intercept, bool):
-            raise ValueError(
-                "The argument fit_intercept must be bool;"
-                " got {}".format(self.fit_intercept)
+            raise TypeError(
+                f"The argument fit_intercept must be bool; got {self.fit_intercept}."
             )
-
         if self.solver == "newton-cg":
             raise ValueError(
                 """
@@ -1275,75 +1288,60 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 https://github.com/scikit-learn/scikit-learn/pull/9405.
                 """
             )
-
         if self.solver not in ["auto", "irls-ls", "lbfgs", "irls-cd", "trust-constr"]:
             raise ValueError(
                 "GeneralizedLinearRegressor supports only solvers"
-                " 'auto', 'irls-ls', 'lbfgs', 'irls-cd' and 'trust-constr';"
-                " got {}".format(self.solver)
+                " 'auto', 'irls-ls', 'lbfgs', 'irls-cd' and 'trust-constr'; "
+                f"got (solver={self.solver})."
             )
         if not isinstance(self.max_iter, int) or self.max_iter <= 0:
             raise ValueError(
-                "Maximum number of iteration must be a positive "
-                "integer;"
-                " got (max_iter={!r})".format(self.max_iter)
+                "Maximum number of iteration must be a positive integer; "
+                f"got (max_iter={self.max_iter})."
             )
-
         if self.gradient_tol is not None:
             if (
-                not (
-                    isinstance(self.gradient_tol, float)
-                    or isinstance(self.gradient_tol, int)
-                )
+                not isinstance(self.gradient_tol, (float, int))
                 or self.gradient_tol <= 0
             ):
                 raise ValueError(
-                    "Tolerance for the gradient stopping criteria must be "
-                    f"positive; got (tol={self.gradient_tol})"
+                    "Tolerance for the gradient stopping criteria must be positive; "
+                    f"got (gradient_tol={self.gradient_tol})."
                 )
-
         if self.step_size_tol is not None and (
-            not (
-                isinstance(self.step_size_tol, float)
-                or isinstance(self.step_size_tol, int)
-            )
-            or self.step_size_tol <= 0
+            not isinstance(self.step_size_tol, (float, int)) or self.step_size_tol <= 0
         ):
             raise ValueError(
-                "Tolerance for the step-size stopping criteria must be "
-                "positive; got (tol={!r})".format(self.step_size_tol)
+                "Tolerance for the step-size stopping criteria must be positive; "
+                f"got (step_size_tol={self.step_size_tol})."
             )
-
         if not isinstance(self.warm_start, bool):
-            raise ValueError(
-                "The argument warm_start must be bool;"
-                " got {}".format(self.warm_start)
+            raise TypeError(
+                f"The argument warm_start must be bool; got {self.warm_start}."
             )
         if self.selection not in ["cyclic", "random"]:
             raise ValueError(
-                "The argument selection must be 'cyclic' or "
-                "'random'; got (selection={})".format(self.selection)
+                "The argument selection must be 'cyclic' or 'random'; "
+                f"got {self.selection}."
             )
         if self.copy_X is not None and not isinstance(self.copy_X, bool):
-            raise ValueError(
-                "The argument copy_X must be None or bool;"
-                " got {}".format(self.copy_X)
+            raise TypeError(
+                f"The argument copy_X must be None or bool; got {self.copy_X}."
             )
         if not isinstance(self.check_input, bool):
-            raise ValueError(
-                "The argument check_input must be bool; got "
-                "(check_input={})".format(self.check_input)
+            raise TypeError(
+                f"The argument check_input must be bool; got {self.check_input}."
             )
         if self.scale_predictors and not self.fit_intercept:
             raise ValueError(
-                "scale_predictors=True is not supported when fit_intercept=False"
+                "scale_predictors=True is not supported when fit_intercept=False."
             )
         if ((self.lower_bounds is not None) or (self.upper_bounds is not None)) and (
             self.solver not in ["irls-cd", "auto"]
         ):
             raise ValueError(
                 "Only the 'cd' solver is supported when bounds are set; "
-                "got {}".format(self.solver)
+                f"got {self.solver}."
             )
         if ((self.A_ineq is not None) or (self.b_ineq is not None)) and (
             self.solver not in ["trust-constr", "auto"]
@@ -1352,6 +1350,16 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 "Only the 'trust-constr' solver supports inequality constraints; "
                 "got {}".format(self.solver)
             )
+        if ((self.A_ineq is not None) or (self.b_ineq is not None)) and (
+            (self.lower_bounds is not None) or (self.upper_bounds is not None)
+        ):
+            raise NotImplementedError(
+                "Only either bound or inequality constraints are supported."
+            )
+        if ((self.A_ineq is not None) and (self.b_ineq is None)) or (
+            (self.A_ineq is None) and (self.b_ineq is not None)
+        ):
+            raise ValueError("Must provide both A_ineq and b_ineq.")
         if self.check_input:
             # check if P1 has only non-negative values, negative values might
             # indicate group lasso in the future.
@@ -1364,32 +1372,26 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         # If self.copy_X is None, copy_X is False. Check for data of wrong dtype and
         # fix if necessary.
         # If self.copy_X is False, check for data of wrong dtype and error if it exists.
-        if self.copy_X is None:
-            copy_X = False
-        else:
-            copy_X = self.copy_X
-        return copy_X
+        return self.copy_X or False
 
     def _is_contiguous(self, X):
         if isinstance(X, np.ndarray):
             return X.flags["C_CONTIGUOUS"] or X.flags["F_CONTIGUOUS"]
         elif isinstance(X, pd.DataFrame):
             return self._is_contiguous(X.values)
-
-        # If the object isn't a numpy array or pandas dataframe, we
-        # assume it is contiguous.
         else:
+            # If not a numpy array or pandas data frame, we assume it is contiguous.
             return True
 
     def set_up_and_check_fit_args(
         self,
         X: ArrayLike,
         y: ArrayLike,
-        sample_weight: Union[np.ndarray, None],
-        offset: Union[np.ndarray, None],
+        sample_weight: Optional[VectorLike],
+        offset: Optional[VectorLike],
         solver: str,
         force_all_finite,
-    ) -> Tuple[mx.MatrixBase, np.ndarray, np.ndarray, Union[np.ndarray, None], float]:
+    ) -> Tuple[mx.MatrixBase, np.ndarray, np.ndarray, Optional[np.ndarray], float]:
 
         _dtype = [np.float64, np.float32]
         if solver == "irls-cd":
@@ -1477,7 +1479,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         # deviance = sum(sample_weight * unit_deviance),
         # we rescale weights such that sum(weights) = 1 and this becomes
         # 1/2*deviance + L1 + L2 with deviance=sum(weights * unit_deviance)
-        weights_sum: float = np.sum(weights)
+        weights_sum: float = np.sum(weights)  # type: ignore
         weights = weights / weights_sum
         #######################################################################
         # 2b. convert to wrapper matrix types
@@ -1494,33 +1496,32 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     """Regression via a Generalized Linear Model (GLM) with penalties.
 
     GLMs based on a reproductive Exponential Dispersion Model (EDM) aim at
-    fitting and predicting the mean of the target y as mu=h(X*w). Therefore,
-    the fit minimizes the following objective function with combined L1 and L2
-    priors as regularizer::
+    fitting and predicting the mean of the target ``y`` as ``mu=h(X*w)``.
+    Therefore, the fit minimizes the following objective function with combined
+    L1 and L2 priors as regularizer::
 
             1/(2*sum(s)) * deviance(y, h(X*w); s)
             + alpha * l1_ratio * ||P1*w||_1
             + 1/2 * alpha * (1 - l1_ratio) * w*P2*w
 
-    with inverse link function h and s=sample_weight. Note that for
-    ``sample_weight=None``, one has s_i=1 and sum(s)=n_samples).
-    For ``P1=P2='identity'``, the penalty is the elastic net::
+    with inverse link function ``h`` and ``s=sample_weight``. Note that, for
+    ``sample_weight=None``, one has ``s_i=1`` and ``sum(s)=n_samples``. For
+    ``P1=P2='identity'``, the penalty is the elastic net::
 
-            alpha * l1_ratio * ||w||_1
-            + 1/2 * alpha * (1 - l1_ratio) * ||w||_2^2
+            alpha * l1_ratio * ||w||_1 + 1/2 * alpha * (1 - l1_ratio) * ||w||_2^2.
 
-    If you are interested in controlling the L1 and L2 penalties
-    separately, keep in mind that this is equivalent to::
+    If you are interested in controlling the L1 and L2 penalties separately,
+    keep in mind that this is equivalent to::
 
-            a * L1 + b * L2
+            a * L1 + b * L2,
 
     where::
 
-            alpha = a + b and l1_ratio = a / (a + b)
+            alpha = a + b and l1_ratio = a / (a + b).
 
     The parameter ``l1_ratio`` corresponds to alpha in the R package glmnet,
     while ``alpha`` corresponds to the lambda parameter in glmnet.
-    Specifically, l1_ratio = 1 is the lasso penalty.
+    Specifically, ``l1_ratio = 1`` is the lasso penalty.
 
     Read more in the :ref:`User Guide <Generalized_linear_regression>`.
 
@@ -1530,88 +1531,75 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         Constant that multiplies the penalty terms and thus determines the
         regularization strength.
         See the notes for the exact mathematical meaning of this
-        parameter.``alpha = 0`` is equivalent to unpenalized GLMs. In this
-        case, the design matrix X must have full column rank
+        parameter. ``alpha = 0`` is equivalent to unpenalized GLMs. In this
+        case, the design matrix ``X`` must have full column rank
         (no collinearities).
 
     l1_ratio : float, optional (default=0)
         The elastic net mixing parameter, with ``0 <= l1_ratio <= 1``. For
-        ``l1_ratio = 0`` the penalty is an L2 penalty. ``For l1_ratio = 1`` it
+        ``l1_ratio = 0``, the penalty is an L2 penalty. ``For l1_ratio = 1``, it
         is an L1 penalty.  For ``0 < l1_ratio < 1``, the penalty is a
         combination of L1 and L2.
 
-    P1 : {'identity', array-like}, shape (n_features,), optional \
-            (default='identity')
+    P1 : {'identity', array-like}, shape (n_features,), optional (default='identity')
         With this array, you can exclude coefficients from the L1 penalty.
         Set the corresponding value to 1 (include) or 0 (exclude). The
         default value ``'identity'`` is the same as a 1d array of ones.
-        Note that n_features = X.shape[1].
+        Note that ``n_features = X.shape[1]``.
 
-    P2 : {'identity', array-like, sparse matrix}, shape \
+    P2 : {'identity', array-like, sparse matrix}, shape (n_features,) \
+            or (n_features, n_features), optional (default='identity')
+        With this option, you can set the P2 matrix in the L2 penalty
+        ``w*P2*w``. This gives a fine control over this penalty (Tikhonov
+        regularization). A 2d array is directly used as the square matrix P2. A
+        1d array is interpreted as diagonal (square) matrix. The default
+        ``'identity'`` sets the identity matrix, which gives the usual squared
+        L2-norm. If you just want to exclude certain coefficients, pass a 1d
+        array filled with 1 and 0 for the coefficients to be excluded. Note that
+        P2 must be positive semi-definite.
 
-            (n_features,) or (n_features, n_features), optional \
-            (default='identity')
-        With this option, you can set the P2 matrix in the L2 penalty `w*P2*w`.
-        This gives a fine control over this penalty (Tikhonov regularization).
-        A 2d array is directly used as the square matrix P2. A 1d array is
-        interpreted as diagonal (square) matrix. The default 'identity' sets
-        the identity matrix, which gives the usual squared L2-norm. If you just
-        want to exclude certain coefficients, pass a 1d array filled with 1,
-        and 0 for the coefficients to be excluded.
-        Note that P2 must be positive semi-definite.
-
-    fit_intercept : boolean, optional (default=True)
+    fit_intercept : bool, optional (default=True)
         Specifies if a constant (a.k.a. bias or intercept) should be
-        added to the linear predictor (X*coef+intercept).
+        added to the linear predictor (``X * coef + intercept``).
 
     family : {'normal', 'poisson', 'gamma', 'inverse.gaussian', 'binomial'} \
-            or an instance of class ExponentialDispersionModel, \
-            optional(default='normal')
+            or ExponentialDispersionModel, optional (default='normal')
         The distributional assumption of the GLM, i.e. which distribution from
         the EDM, specifies the loss function to be minimized.
 
-    link : {'auto', 'identity', 'log', 'logit'} or an instance of class Link, \
-            optional (default='auto')
+    link : {'auto', 'identity', 'log', 'logit'} or Link, optional (default='auto')
         The link function of the GLM, i.e. mapping from linear predictor
-        (X*coef) to expectation (mu). Option 'auto' sets the link depending on
-        the chosen family as follows:
+        (``X * coef``) to expectation (``mu``). Option ``'auto'`` sets the link
+        depending on the chosen family as follows:
 
-        - 'identity' for family 'normal'
-
-        - 'log' for families 'poisson', 'gamma', 'inverse.gaussian'
-
-        - 'logit' for family 'binomial'
+        - ``'identity'`` for family ``'normal'``
+        - ``'log'`` for families ``'poisson'``, ``'gamma'`` and
+            ``'inverse.gaussian'``
+        - ``'logit'`` for family ``'binomial'``
 
     fit_dispersion : {None, 'chisqr', 'deviance'}, optional (default=None)
-        Method for estimation of the dispersion parameter phi. Whether to use
-        the chi squared statistic or the deviance statistic. If None, the
-        dispersion is not estimated.
+        Method for estimation of the dispersion parameter φ. Whether to use the
+        χ² statistic or the deviance statistic. If None, the dispersion is not
+        estimated.
 
     solver : {'auto', 'irls-cd', 'irls-ls', 'lbfgs', 'trust-constr'}, \
             optional (default='auto')
         Algorithm to use in the optimization problem:
 
-        'auto'
-            Sets 'irls-ls' if l1_ratio equals 0, else 'irls-cd'.
-
-        'irls-cd'
-            Iteratively reweighted least squares with a coordinate descent
-            inner solver. This can deal with L1 as well as L2 penalties. Note
-            that in order to avoid unnecessary memory duplication of X in the
-            ``fit`` method, X should be directly passed as a Fortran-contiguous
-            numpy array or sparse csc matrix.
-
-        'irls-ls'
-            Iteratively reweighted least squares with a least squares inner
-            solver. This algorithm cannot deal with L1 penalties.
-
-        'lbfgs'
-            Calls scipy's L-BFGS-B optimizer. It cannot deal with L1 penalties.
-
-        'trust-constr'
-            Calls ``scipy.optimize.minimize(method='trust-constr')``. It cannot deal
-            with L1 penalties. This solver can optimize problems with inequality
-            constraints, passed via ``A_ineq, b_ineq``. It will be selected
+        - ``'auto'``: ``'irls-ls'`` if ``l1_ratio`` is zero and ``'irls-cd'``
+            otherwise.
+        - ``'irls-cd'``: Iteratively reweighted least squares with a coordinate
+            descent inner solver. This can deal with L1 as well as L2 penalties.
+            Note that in order to avoid unnecessary memory duplication of X in
+            the ``fit`` method, ``X`` should be directly passed as a
+            Fortran-contiguous Numpy array or sparse CSC matrix.
+        - ``'irls-ls'``: Iteratively reweighted least squares with a least
+            squares inner solver. This algorithm cannot deal with L1 penalties.
+        - ``'lbfgs'``: Scipy's L-BFGS-B optimizer. It cannot deal with L1
+            penalties.
+        - ``'trust-constr'``: Calls ``scipy.optimize.minimize(method='trust-constr')``.
+            It cannot deal with L1 penalties. This solver can optimize problems with
+            inequality constraints, passed via ``A_ineq, b_ineq``. It will be selected
             automatically when inequality constraints are set and ``solver='auto'``.
             Note that using this method can lead to significantly increased runtimes
             by a factor of ten or higher.
@@ -1625,118 +1613,117 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         trust-constr solver, which requires more conservative convergence settings
         and has a default value of 1e-8.
 
-        For the irls-ls, lbfgs and trust-constr solvers, the iteration will stop
-        when ``max{|g_i|, i = 1, ..., n} <= tol`` where ``g_i`` is the i-th
-        component of the gradient (derivative) of the objective function (additional
-        criteria apply when constraints are provided). For the cd solver, convergence
-        is reached when ``sum_i(|minimum-norm of g_i|)``, here ``g_i`` is the
-        subgradient of the objective and minimum-norm of ``g_i`` is the element of
-        the subgradient ``g_i`` with the smallest L2-norm.
+        For the IRLS-LS, L-BFGS and trust-constr solvers, the iteration
+        will stop when ``max{|g_i|, i = 1, ..., n} <= tol``, where ``g_i`` is
+        the ``i``-th component of the gradient (derivative) of the objective
+        function. For the CD solver, convergence is reached when
+        ``sum_i(|minimum norm of g_i|)``, where ``g_i`` is the subgradient of
+        the objective and the minimum norm of ``g_i`` is the element of the
+        subgradient with the smallest L2 norm.
 
-        If you wish to only use a step-size tolerance, set gradient_tol
-        equal to very small number.
+        If you wish to only use a step-size tolerance, set ``gradient_tol``
+        to a very small number.
 
     step_size_tol: float, optional (default=None)
-        Alternative stopping criterion. For the IRLS-LS and IRLS-CD solvers,
-        the iteration will stop when the L2 norm of the step size is less than
-        step_size_tol. This stopping criterion is disabled when
-        step_size_tol=None
+        Alternative stopping criterion. For the IRLS-LS and IRLS-CD solvers, the
+        iteration will stop when the L2 norm of the step size is less than
+        ``step_size_tol``. This stopping criterion is disabled when
+        ``step_size_tol`` is ``None``.
 
     hessian_approx: float, optional (default=0.0)
         The threshold below which data matrix rows will be ignored for updating
-        the hessian.  See the algorithm documentation for the IRLS algorithm
+        the Hessian. See the algorithm documentation for the IRLS algorithm
         for further details.
 
-    warm_start : boolean, optional (default=False)
-        If set to ``True``, reuse the solution of the previous call to ``fit``
-        as initialization for ``coef_`` and ``intercept_`` (supersedes option
-        ``start_params``). If set to ``True`` or if the attribute ``coef_``
-        does not exit (first call to ``fit``), option ``start_params`` sets the
-        start values for ``coef_`` and ``intercept_``.
+    warm_start : bool, optional (default=False)
+        Whether to reuse the solution of the previous call to ``fit``
+        as initialization for ``coef_`` and ``intercept_`` (supersedes
+        ``start_params``). If ``False`` or if the attribute ``coef_`` does not
+        exist (first call to ``fit``), ``start_params`` sets the start values
+        for ``coef_`` and ``intercept_``.
 
     n_alphas : int, optional (default=100)
         Number of alphas along the regularization path
 
-    alphas : numpy array, optional (default=None)
-        List of alphas where to compute the models.
-        If ``None`` alphas are set automatically. Setting 'None' is preferred.
+    alphas : array-like, optional (default=None)
+        List of alphas for which to compute the models. If ``None``, the alphas
+        are set automatically. Setting ``None`` is preferred.
 
     min_alpha_ratio : float, optional (default=None)
         Length of the path. ``min_alpha_ratio=1e-6`` means that
-        ``min_alpha / max_alpha = 1e-6``. If None, 1e-6 is used.
+        ``min_alpha / max_alpha = 1e-6``. If ``None``, ``1e-6`` is used.
 
     min_alpha : float, optional (default=None)
         Minimum alpha to estimate the model with. The grid will then be created
-        over [max_alpha, min_alpha].
+        over ``[max_alpha, min_alpha]``.
 
-
-    start_params : array of shape (n_features*, ), optional (default=None)
-        Relevant only if ``warm_start=False`` or if fit is called
-        the first time (``self.coef_`` does not yet exist).
-        All coefficients are set to zero. If ``fit_intercept=True``, the
-        start value for the intercept is obtained by the weighted average of y.
-
-        array
-        The array of size n_features* is directly used as start values
-        for ``coef_``. If ``fit_intercept=True``, the first element
-        is assumed to be the start value for the ``intercept_``.
-        Note that n_features* = X.shape[1] + fit_intercept, i.e. it includes
-        the intercept in counting.
+    start_params : array-like, shape (n_features*,), optional (default=None)
+        Relevant only if ``warm_start`` is ``False`` or if ``fit`` is called
+        for the first time (so that ``self.coef_`` does not exist yet). If
+        ``None``, all coefficients are set to zero and the start value for the
+        intercept is the weighted average of ``y`` (If ``fit_intercept`` is
+        ``True``). If an array, used directly as start values; if
+        ``fit_intercept`` is ``True``, its first element is assumed to be the
+        start value for the ``intercept_``. Note that
+        ``n_features* = X.shape[1] + fit_intercept``, i.e. it includes the
+        intercept.
 
     selection : str, optional (default='cyclic')
-        For the solver 'cd' (coordinate descent), the coordinates (features)
-        can be updated in either cyclic or random order.
-        If set to 'random', a random coefficient is updated every iteration
-        rather than looping over features sequentially in the same order. This
-        (setting to 'random') often leads to significantly faster convergence
-        especially when tol is higher than 1e-4.
+        For the CD solver 'cd', the coordinates (features) can be updated in
+        either cyclic or random order. If set to ``'random'``, a random
+        coefficient is updated every iteration rather than looping over features
+        sequentially in the same order, which often leads to significantly
+        faster convergence, especially when ``gradient_tol`` is higher than
+        ``1e-4``.
 
-    random_state : {int, RandomState instance, None}, optional (default=None)
+    random_state : int or RandomState, optional (default=None)
         The seed of the pseudo random number generator that selects a random
-        feature to be updated for solver 'cd' (coordinate descent).
-        If int, random_state is the seed used by the random
-        number generator; if RandomState instance, random_state is the random
-        number generator; if None, the random number generator is the
-        RandomState instance used by `np.random`. Used when ``selection`` ==
-        'random'.
+        feature to be updated for the CD solver. If an integer, ``random_state``
+        is the seed used by the random number generator; if a
+        :class:`RandomState` instance, ``random_state`` is the random number
+        generator; if ``None``, the random number generator is the
+        :class:`RandomState` instance used by ``np.random``. Used when
+        ``selection`` is ``'random'``.
 
-    copy_X : boolean, optional, (default=None)
-        If ``True``, X will be copied. Since X is never modified by
-        GeneralizedLinearRegressor, this is unlikely to be needed; this option
-        exists mainly for compatibility with other sklearn estimators.
-        If ``False``, X will not be copied, and there will be an error if you pass
-        an X in the wrong format, such as providing int X and float y.
-        If ``None``, X will not be copied unless it is in the wrong format.
+    copy_X : bool, optional (default=None)
+        Whether to copy ``X``. Since ``X`` is never modified by
+        :class:`GeneralizedLinearRegressor`, this is unlikely to be needed; this
+        option exists mainly for compatibility with other scikit-learn
+        estimators. If ``False``, ``X`` will not be copied and there will be an
+        error if you pass an ``X`` in the wrong format, such as providing
+        integer ``X`` and float ``y``. If ``None``, ``X`` will not be copied
+        unless it is in the wrong format.
 
-    check_input : boolean, optional (default=True)
-        Allow to bypass several checks on input: y values in range of family,
-        sample_weight non-negative, P2 positive semi-definite.
-        Don't use this parameter unless you know what you do.
+    check_input : bool, optional (default=True)
+        Whether to bypass several checks on input: ``y`` values in range of
+        ``family``, ``sample_weight`` non-negative, ``P2`` positive
+        semi-definite. Don't use this parameter unless you know what you are
+        doing.
 
     verbose : int, optional (default=0)
         For the IRLS solver, any positive number will result in a pretty
         progress bar showing convergence. This features requires having the
-        tqdm package installed.
-        For the lbfgs and trust-constr solver set verbose to any
-        positive number for verbosity.
+        tqdm package installed. For the L-BFGS and trust-consrt solver, set ``verbose``
+        to any positive number for verbosity.
 
-    scale_predictors: bool, optional (default = False)
-        If True, estimate a scaled model where all predictors have a standard deviation
-        of 1. This can result in better estimates if predictors are on very different
-        scales (for example, centimeters and kilometers).
+    scale_predictors: bool, optional (default=False)
+        If ``True``, estimate a scaled model where all predictors have a
+        standard deviation of 1. This can result in better estimates if
+        predictors are on very different scales (for example, centimeters and
+        kilometers).
 
         Advanced developer note: Internally, predictors are always rescaled for
-        computational reasons, but this only affects results if 'scale_predictors' is
-        True.
+        computational reasons, but this only affects results if
+        ``scale_predictors`` is ``True``.
 
-    lower_bounds : np.ndarray, shape=(n_features), optional (default=None)
+    lower_bounds : array-like, shape (n_features), optional (default=None)
         Set a lower bound for the coefficients. Setting bounds forces the use
-        of the coordinate descent solver (irls-cd).
+        of the coordinate descent solver (``'irls-cd'``).
 
-    upper_bounds : np.ndarray, shape=(n_features), optional (default=None)
-        See lower_bounds.
+    upper_bounds : array-like, shape=(n_features), optional (default=None)
+        See ``lower_bounds``.
 
-    A_ineq : np.ndarray, shape=(n_constraints, n_features), optional (default=None)
+    A_ineq : array-like, shape=(n_constraints, n_features), optional (default=None)
         Constraint matrix for linear inequality constraints of the form
         ``A_ineq w <= b_ineq``. Setting inequality constraints forces the use
         of the local gradient-based solver ``"trust-constr"`` which may increase
@@ -1744,13 +1731,13 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         related to features in ``X``. If you want to constrain the intercept, add it
         to the feature matrix ``X`` manually and set ``fit_intercept==False``.
 
-    b_ineq : np.ndarray, shape=(n_constraints,), optional (default=None)
+    b_ineq : array-like, shape=(n_constraints,), optional (default=None)
         Constraint vector for linear inequality constraints of the form
         ``A_ineq w <= b_ineq``. Refer to the documentation of ``A_ineq`` for details.
 
     Attributes
     ----------
-    coef_ : array, shape (n_features,)
+    coef_ : numpy.array, shape (n_features,)
         Estimated coefficients for the linear predictor (X*coef_+intercept_) in
         the GLM.
 
@@ -1758,37 +1745,37 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         Intercept (a.k.a. bias) added to linear predictor.
 
     dispersion_ : float
-        The dispersion parameter :math:`\\phi` if ``fit_dispersion`` was set.
+        The dispersion parameter φ if ``fit_dispersion`` was set.
 
     n_iter_ : int
         Actual number of iterations used in solver.
 
     Notes
     -----
-    The fit itself does not need Y to be from an EDM, but only assumes
-    the first two moments to be :math:`E[Y_i]=\\mu_i=h((Xw)_i)` and
-    :math:`Var[Y_i]=\\frac{\\phi}{s_i} v(\\mu_i)`. The unit variance function
-    :math:`v(\\mu_i)` is a property of and given by the specific EDM, see
-    :ref:`User Guide <Generalized_linear_regression>`.
+    The fit itself does not need outcomes to be from an EDM, but only assumes
+    the first two moments to be
+    :math:`\\mu_i \\equiv = \\mathrm{E}(y_i) = h(x_i' w)` and
+    :math:`\\mathrm{var}(y_i)] = (\\phi / s_i) v(\\mu_i)`. The unit
+    variance function :math:`v(\\mu_i)` is a property of and given by the
+    specific EDM; see :ref:`User Guide <Generalized_linear_regression>`.
 
-    The parameters :math:`w` (`coef_` and `intercept_`) are estimated by
+    The parameters :math:`w` (``coef_`` and ``intercept_``) are estimated by
     minimizing the deviance plus penalty term, which is equivalent to
     (penalized) maximum likelihood estimation.
 
-    For alpha > 0, the feature matrix X should be standardized in order to
-    penalize features equally strong. Call
+    For ``alpha > 0``, the feature matrix ``X`` should be standardized in order
+    to penalize features equally strong. Call
     :class:`sklearn.preprocessing.StandardScaler` before calling ``fit``.
 
-    If the target y is a ratio, appropriate sample weights s should be
-    provided.
-    As an example, consider Poisson distributed counts z (integers) and
-    weights s=exposure (time, money, persons years, ...). Then you fit
-    y = z/s, i.e. ``GeneralizedLinearModel(family='poisson').fit(X, y,
-    sample_weight=s)``. The weights are necessary for the right (finite
-    sample) mean.
-    Consider :math:`\\bar{y} = \\frac{\\sum_i s_i y_i}{\\sum_i s_i}`,
-    in this case one might say that y has a 'scaled' Poisson distributions.
-    The same holds for other distributions.
+    If the target ``y`` is a ratio, appropriate sample weights ``s`` should be
+    provided. As an example, consider Poisson distributed counts ``z``
+    (integers) and weights ``s = exposure`` (time, money, persons years, ...).
+    Then you fit ``y ≡ z/s``, i.e.
+    ``GeneralizedLinearModel(family='poisson').fit(X, y, sample_weight=s)``. The
+    weights are necessary for the right (finite sample) mean. Consider
+    :math:`\\bar{y} = \\sum_i s_i y_i / \\sum_i s_i`: in this case, one might
+    say that :math:`y` follows a 'scaled' Poisson distribution. The same holds
+    for other distributions.
 
     References
     ----------
@@ -1905,37 +1892,38 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         Parameters
         ----------
         X : {array-like, sparse matrix}, shape (n_samples, n_features)
-            Training data. Note that a float32 matrix is acceptable and will
+            Training data. Note that a ``float32`` matrix is acceptable and will
             result in the entire algorithm being run in 32-bit precision.
             However, for problems that are poorly conditioned, this might result
             in poor convergence or flawed parameter estimates. If a Pandas data
             frame is provided, it may contain categorical columns. In that case,
-            a separate coefficient will be estimated for each category. No category
-            is omitted. This means that some regularization is required to fit models
-            with an intercept or models with several categorical columns.
+            a separate coefficient will be estimated for each category. No
+            category is omitted. This means that some regularization is required
+            to fit models with an intercept or models with several categorical
+            columns.
 
         y : array-like, shape (n_samples,)
             Target values.
 
-        sample_weight : {None, array-like}, shape (n_samples,),\
-                optional (default=None)
-            Individual weights w_i for each sample. Note that for an
+        sample_weight : {None, array-like}, shape (n_samples,), optional (default=None)
+            Individual weights w_i for each sample. Note that, for an
             Exponential Dispersion Model (EDM), one has
-            Var[Y_i]=phi/w_i * v(mu).
-            If Y_i ~ EDM(mu, phi/w_i), then
-            sum(w*Y)/sum(w) ~ EDM(mu, phi/sum(w)), i.e. the mean of y is a
-            weighted average with weights=sample_weight.
+            :math:`\\mathrm{var}(y_i) = \\phi \\times v(mu) / w_i`.
+            If :math:`y_i ~ EDM(\\mu, \\phi / w_i)`, then
+            :math:`\\sum w_i y_i / \\sum w_i ~ EDM(\\mu, \\phi / \\sum w_i)`,
+            i.e. the mean of :math:`y` is a weighted average with weights equal
+            to ``sample_weight``.
 
         offset: {None, array-like}, shape (n_samples,), optional (default=None)
-            Added to linear predictor "eta". An offset of 3 will increase expected
-            y by 3 if the link is linear, and will multiply expected y by 3 if the
-            link is log.
+            Added to linear predictor. An offset of 3 will increase expected
+            ``y`` by 3 if the link is linear and will multiply expected ``y`` by
+            3 if the link is logarithmic.
 
-        weights_sum: {None, float}, optional (default=None)
+        weights_sum: float, optional (default=None)
 
         Returns
         -------
-        self : returns an instance of self.
+        self
         """
 
         self._validate_hyperparameters()
@@ -1979,8 +1967,9 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         lower_bounds = check_bounds(self.lower_bounds, X.shape[1], X.dtype)
         upper_bounds = check_bounds(self.upper_bounds, X.shape[1], X.dtype)
 
-        A_ineq = copy.copy(self.A_ineq)
-        b_ineq = copy.copy(self.b_ineq)
+        A_ineq, b_ineq = check_inequality_constraints(
+            self.A_ineq, self.b_ineq, n_features=X.shape[1], dtype=X.dtype
+        )
 
         if (lower_bounds is not None) and (upper_bounds is not None):
             if np.any(lower_bounds > upper_bounds):
