@@ -1,5 +1,6 @@
 from __future__ import division
 
+import copy
 from typing import Optional, Union
 
 import numpy as np
@@ -97,7 +98,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
     max_iter : int, optional (default=100)
         The maximal number of iterations for solver algorithms.
 
-    gradient_tol : float, optional (default=1e-4)
+    gradient_tol : float, optional (default=None)
         Stopping criterion. For the IRLS-LS and L-BFGS solvers, the iteration
         will stop when ``max{|g_i|, i = 1, ..., n} <= tol``, where ``g_i`` is
         the ``i``-th component of the gradient (derivative) of the objective
@@ -105,9 +106,6 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         ``sum_i(|minimum norm of g_i|)``, where ``g_i`` is the subgradient of
         the objective and the minimum norm of ``g_i`` is the element of the
         subgradient with the smallest L2 norm.
-
-        ``gradient_tol`` is not permitted to be None. If you wish to only use a
-        step-size tolerance, set ``gradient_tol`` to a very small number.
 
     step_size_tol: float, optional (default=None)
         Alternative stopping criterion. For the IRLS-LS and IRLS-CD solvers, the
@@ -208,6 +206,14 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
     upper_bounds : array-like, shape=(n_features), optional (default=None)
         See ``lower_bounds``.
 
+    A_ineq : array-like, shape=(n_constraints, n_features), optional (default=None)
+        Constraint matrix for linear inequality constraints of the form
+        ``A_ineq w <= b_ineq``.
+
+    b_ineq : array-like, shape=(n_constraints,), optional (default=None)
+        Constraint vector for linear inequality constraints of the form
+        ``A_ineq w <= b_ineq``.
+
     cv : int, cross-validation generator or Iterable, optional (default=None)
         Determines the cross-validation splitting strategy. One of:
 
@@ -270,7 +276,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         fit_dispersion: Optional[bool] = None,
         solver="auto",
         max_iter=100,
-        gradient_tol: Optional[float] = 1e-4,
+        gradient_tol: Optional[float] = None,
         step_size_tol: Optional[float] = None,
         hessian_approx: float = 0.0,
         warm_start: bool = False,
@@ -287,6 +293,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         scale_predictors: bool = False,
         lower_bounds: Optional[np.ndarray] = None,
         upper_bounds: Optional[np.ndarray] = None,
+        A_ineq: Optional[np.ndarray] = None,
+        b_ineq: Optional[np.ndarray] = None,
         force_all_finite: bool = True,
         cv=None,
         n_jobs: Optional[int] = None,
@@ -320,6 +328,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             scale_predictors=scale_predictors,
             lower_bounds=lower_bounds,
             upper_bounds=upper_bounds,
+            A_ineq=A_ineq,
+            b_ineq=b_ineq,
             force_all_finite=force_all_finite,
         )
 
@@ -392,6 +402,9 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         lower_bounds = check_bounds(self.lower_bounds, X.shape[1], X.dtype)
         upper_bounds = check_bounds(self.upper_bounds, X.shape[1], X.dtype)
 
+        A_ineq = copy.copy(self.A_ineq)
+        b_ineq = copy.copy(self.b_ineq)
+
         cv = check_cv(self.cv)
 
         if self._solver == "cd":
@@ -411,6 +424,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             offset,
             lower_bounds,
             upper_bounds,
+            A_ineq,
+            b_ineq,
         ):
 
             x_train, y_train, w_train = (
@@ -461,6 +476,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
                 col_stds,
                 lower_bounds,
                 upper_bounds,
+                A_ineq,
                 P1_no_alpha,
                 P2_no_alpha,
             ) = _standardize(
@@ -470,6 +486,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
                 self.scale_predictors,
                 lower_bounds,
                 upper_bounds,
+                A_ineq,
                 P1_no_alpha,
                 P2_no_alpha,
             )
@@ -505,6 +522,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
                 offset=offset_train,
                 lower_bounds=lower_bounds,
                 upper_bounds=upper_bounds,
+                A_ineq=A_ineq,
+                b_ineq=b_ineq,
             )
 
             if self.fit_intercept:
@@ -540,6 +559,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
                 offset=offset,
                 lower_bounds=lower_bounds,
                 upper_bounds=upper_bounds,
+                A_ineq=A_ineq,
+                b_ineq=b_ineq,
             )
             for train_idx, test_idx in cv.split(X, y)
             for this_l1_ratio, this_alphas in zip(l1_ratio, alphas)
@@ -578,13 +599,23 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         P2 = setup_p2(self.P2, X, _stype, X.dtype, self.alpha_, self.l1_ratio_)
 
         # Refit with full data and best alpha and lambda
-        X, col_means, col_stds, lower_bounds, upper_bounds, P1, P2 = _standardize(
+        (
+            X,
+            col_means,
+            col_stds,
+            lower_bounds,
+            upper_bounds,
+            A_ineq,
+            P1,
+            P2,
+        ) = _standardize(
             X,
             weights,
             self._center_predictors,
             self.scale_predictors,
             lower_bounds,
             upper_bounds,
+            A_ineq,
             P1,
             P2,
         )
@@ -610,6 +641,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             offset=offset,
             lower_bounds=lower_bounds,
             upper_bounds=upper_bounds,
+            A_ineq=A_ineq,
+            b_ineq=b_ineq,
         )
 
         if self.fit_intercept:
