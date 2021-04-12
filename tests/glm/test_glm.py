@@ -536,7 +536,7 @@ def test_glm_fit_intercept_argument(estimator, fit_intercept):
     """Test GLM for invalid fit_intercept argument."""
     X, y = get_small_x_y(estimator)
     glm = estimator(fit_intercept=fit_intercept)
-    with pytest.raises(ValueError, match="fit_intercept must be bool"):
+    with pytest.raises(TypeError, match="fit_intercept must be bool"):
         glm.fit(X, y)
 
 
@@ -594,7 +594,7 @@ def test_glm_warm_start_argument(estimator, warm_start):
     """Test GLM for invalid warm_start argument."""
     X, y = get_small_x_y(estimator)
     glm = estimator(warm_start=warm_start)
-    with pytest.raises(ValueError, match="warm_start must be bool"):
+    with pytest.raises(TypeError, match="warm_start must be bool"):
         glm.fit(X, y)
 
 
@@ -643,7 +643,7 @@ def test_glm_copy_X_argument_invalid(estimator, copy_X):
     """Test GLM for invalid copy_X arguments."""
     X, y = get_small_x_y(estimator)
     glm = estimator(copy_X=copy_X)
-    with pytest.raises(ValueError, match="copy_X must be None or bool"):
+    with pytest.raises(TypeError, match="copy_X must be None or bool"):
         glm.fit(X, y)
 
 
@@ -668,7 +668,7 @@ def test_glm_check_input_argument(estimator, check_input):
     """Test GLM for invalid check_input argument."""
     X, y = get_small_x_y(estimator)
     glm = estimator(check_input=check_input)
-    with pytest.raises(ValueError, match="check_input must be bool"):
+    with pytest.raises(TypeError, match="check_input must be bool"):
         glm.fit(X, y)
 
 
