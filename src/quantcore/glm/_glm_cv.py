@@ -24,82 +24,187 @@ from ._util import _safe_lin_pred
 
 
 class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
-    r"""Generalized linear model with iterative fitting along a regularization path.
+    """Generalized linear model with iterative fitting along a regularization path.
 
-    See glossary entry for :term:`cross-validation estimator`.
-    The best model is selected by cross-validation.
+    See glossary entry for :term:`cross-validation estimator`. The best model is
+    selected by cross-validation.
 
-    Cross-validated regression via a Generalized Linear Model (GLM) with penalties.
-    For more on GLMs and on these parameters,
-    see the documentation for GeneralizedLinearRegressor. CV conventions follow
-    sklearn LassoCV.
+    Cross-validated regression via a Generalized Linear Model (GLM) with
+    penalties. For more on GLMs and on these parameters, see the documentation
+    for :class:`GeneralizedLinearRegressor`. CV conventions follow
+    :class:`sklearn.linear_model.LassoCV`.
 
     Parameters
     ----------
-    l1_ratio : float or array of floats, optional (default=0). If you pass l1_ratio
-        as an array, the `fit` method will choose the best value of l1_ratio and store
-        it as self.l1_ratio.
+    l1_ratio : float or array of floats, optional (default=0)
+        If you pass ``l1_ratio`` as an array, the ``fit`` method will choose the
+        best value of ``l1_ratio`` and store it as ``self.l1_ratio``.
 
     P1 : {'identity', array-like}, shape (n_features,), optional (default='identity')
+        With this array, you can exclude coefficients from the L1 penalty.
+        Set the corresponding value to 1 (include) or 0 (exclude). The
+        default value ``'identity'`` is the same as a 1d array of ones.
+        Note that ``n_features = X.shape[1]``.
 
-    P2 : {'identity', array-like, sparse matrix}, shape (n_features,)
-        or (n_features, n_features), optional (default='identity')
+    P2 : {'identity', array-like, sparse matrix}, shape (n_features,) \
+            or (n_features, n_features), optional (default='identity')
+        With this option, you can set the P2 matrix in the L2 penalty
+        ``w*P2*w``. This gives a fine control over this penalty (Tikhonov
+        regularization). A 2d array is directly used as the square matrix P2. A
+        1d array is interpreted as diagonal (square) matrix. The default
+        ``'identity'`` sets the identity matrix, which gives the usual squared
+        L2-norm. If you just want to exclude certain coefficients, pass a 1d
+        array filled with 1 and 0 for the coefficients to be excluded. Note that
+        P2 must be positive semi-definite.
 
-    fit_intercept : boolean, optional (default=True)
+    fit_intercept : bool, optional (default=True)
+        Specifies if a constant (a.k.a. bias or intercept) should be
+        added to the linear predictor (``X * coef + intercept``).
 
     family : {'normal', 'poisson', 'gamma', 'inverse.gaussian', 'binomial'} \
-            or an instance of class ExponentialDispersionModel, \
-            optional(default='normal')
+            or ExponentialDispersionModel, optional (default='normal')
+        The distributional assumption of the GLM, i.e. which distribution from
+        the EDM, specifies the loss function to be minimized.
 
-    link : {'auto', 'identity', 'log', 'logit'} or an instance of class Link, \
-            optional (default='auto')
+    link : {'auto', 'identity', 'log', 'logit'} or Link, optional (default='auto')
+        The link function of the GLM, i.e. mapping from linear predictor
+        (``X * coef``) to expectation (``mu``). Option ``'auto'`` sets the link
+        depending on the chosen family as follows:
+
+        - ``'identity'`` for family ``'normal'``
+        - ``'log'`` for families ``'poisson'``, ``'gamma'``, ``'inverse.gaussian'``
+        - ``'logit'`` for family ``'binomial'``
 
     fit_dispersion : {None, 'chisqr', 'deviance'}, optional (default=None)
+        Method for estimation of the dispersion parameter φ. Whether to use the
+        χ² statistic or the deviance statistic. If None, the dispersion is not
+        estimated.
 
-    solver : {'auto', 'cd', 'irls', 'lbfgs'}, \
-            optional (default='auto')
+    solver : {'auto', 'irls-cd', 'irls-ls', 'lbfgs'}, optional (default='auto')
+        Algorithm to use in the optimization problem:
+
+        - ``'auto'``: ``'irls-ls'`` if ``l1_ratio`` is zero and ``'irls-cd'``
+            otherwise.
+        - ``'irls-cd'``: Iteratively reweighted least squares with a coordinate
+            descent inner solver. This can deal with L1 as well as L2 penalties.
+            Note that in order to avoid unnecessary memory duplication of X in
+            the ``fit`` method, ``X`` should be directly passed as a
+            Fortran-contiguous Numpy array or sparse CSC matrix.
+        - ``'irls-ls'``: Iteratively reweighted least squares with a least
+            squares inner solver. This algorithm cannot deal with L1 penalties.
+        - ``'lbfgs'``: Scipy's L-BFGS-B optimizer. It cannot deal with L1
+            penalties.
 
     max_iter : int, optional (default=100)
-        The maximal number of iterations per value of alpha for solver algorithms.
+        The maximal number of iterations for solver algorithms.
 
     gradient_tol : float, optional (default=None)
-        Stopping criterion for each value of alpha.
+        Stopping criterion. For the IRLS-LS and L-BFGS solvers, the iteration
+        will stop when ``max{|g_i|, i = 1, ..., n} <= tol``, where ``g_i`` is
+        the ``i``-th component of the gradient (derivative) of the objective
+        function. For the CD solver, convergence is reached when
+        ``sum_i(|minimum norm of g_i|)``, where ``g_i`` is the subgradient of
+        the objective and the minimum norm of ``g_i`` is the element of the
+        subgradient with the smallest L2 norm.
 
     step_size_tol: float, optional (default=None)
+        Alternative stopping criterion. For the IRLS-LS and IRLS-CD solvers, the
+        iteration will stop when the L2 norm of the step size is less than
+        ``step_size_tol``. This stopping criterion is disabled when
+        ``step_size_tol`` is ``None``.
 
     hessian_approx: float, optional (default=0.0)
+        The threshold below which data matrix rows will be ignored for updating
+        the Hessian. See the algorithm documentation for the IRLS algorithm
+        for further details.
 
-    warm_start : boolean, optional (default=False)
+    warm_start : bool, optional (default=False)
+        Whether to reuse the solution of the previous call to ``fit``
+        as initialization for ``coef_`` and ``intercept_`` (supersedes
+        ``start_params``). If ``False`` or if the attribute ``coef_`` does not
+        exist (first call to ``fit``), ``start_params`` sets the start values
+        for ``coef_`` and ``intercept_``.
 
     n_alphas : int, optional (default=100)
         Number of alphas along the regularization path
 
-    alphas : numpy array, optional (default=None)
-        List of alphas where to compute the models.
-        If ``None`` alphas are set automatically. Setting 'None' is preferred.
+    alphas : array-like, optional (default=None)
+        List of alphas for which to compute the models. If ``None``, the alphas
+        are set automatically. Setting ``None`` is preferred.
 
     min_alpha_ratio : float, optional (default=None)
         Length of the path. ``min_alpha_ratio=1e-6`` means that
-        ``min_alpha / max_alpha = 1e-6``. None will default to 1e-6.
+        ``min_alpha / max_alpha = 1e-6``. If ``None``, ``1e-6`` is used.
 
     min_alpha : float, optional (default=None)
         Minimum alpha to estimate the model with. The grid will then be created
-        over [max_alpha, min_alpha].
+        over ``[max_alpha, min_alpha]``.
 
-    start_params : array of shape (n_features*,), optional (default=None)
+    start_params : array-like, shape (n_features*,), optional (default=None)
+        Relevant only if ``warm_start`` is ``False`` or if ``fit`` is called
+        for the first time (so that ``self.coef_`` does not exist yet). If
+        ``None``, all coefficients are set to zero and the start value for the
+        intercept is the weighted average of ``y`` (If ``fit_intercept`` is
+        ``True``). If an array, used directly as start values; if
+        ``fit_intercept`` is ``True``, its first element is assumed to be the
+        start value for the ``intercept_``. Note that
+        ``n_features* = X.shape[1] + fit_intercept``, i.e. it includes the
+        intercept.
 
     selection : str, optional (default='cyclic')
-    random_state : {int, RandomState instance, None}, optional (default=None)
-    copy_X : boolean, optional, (default=True)
-    check_input : boolean, optional (default=True)
+        For the CD solver 'cd', the coordinates (features) can be updated in
+        either cyclic or random order. If set to ``'random'``, a random
+        coefficient is updated every iteration rather than looping over features
+        sequentially in the same order, which often leads to significantly
+        faster convergence, especially when ``gradient_tol`` is higher than
+        ``1e-4``.
+
+    random_state : int or RandomState, optional (default=None)
+        The seed of the pseudo random number generator that selects a random
+        feature to be updated for the CD solver. If an integer, ``random_state``
+        is the seed used by the random number generator; if a
+        :class:`RandomState` instance, ``random_state`` is the random number
+        generator; if ``None``, the random number generator is the
+        :class:`RandomState` instance used by ``np.random``. Used when
+        ``selection`` is ``'random'``.
+
+    copy_X : bool, optional (default=None)
+        Whether to copy ``X``. Since ``X`` is never modified by
+        :class:`GeneralizedLinearRegressor`, this is unlikely to be needed; this
+        option exists mainly for compatibility with other scikit-learn
+        estimators. If ``False``, ``X`` will not be copied and there will be an
+        error if you pass an ``X`` in the wrong format, such as providing
+        integer ``X`` and float ``y``. If ``None``, ``X`` will not be copied
+        unless it is in the wrong format.
+
+    check_input : bool, optional (default=True)
+        Whether to bypass several checks on input: ``y`` values in range of
+        ``family``, ``sample_weight`` non-negative, ``P2`` positive
+        semi-definite. Don't use this parameter unless you know what you are
+        doing.
+
     verbose : int, optional (default=0)
+        For the IRLS solver, any positive number will result in a pretty
+        progress bar showing convergence. This features requires having the
+        tqdm package installed. For the L-BFGS solver, set ``verbose`` to any
+        positive number for verbosity.
 
-    lower_bounds : np.ndarray, shape=(n_features), optional (default=None)
+    scale_predictors: bool, optional (default=False)
+        If ``True``, estimate a scaled model where all predictors have a
+        standard deviation of 1. This can result in better estimates if
+        predictors are on very different scales (for example, centimeters and
+        kilometers).
+
+        Advanced developer note: Internally, predictors are always rescaled for
+        computational reasons, but this only affects results if
+        ``scale_predictors`` is ``True``.
+
+    lower_bounds : array-like, shape (n_features), optional (default=None)
         Set a lower bound for the coefficients. Setting bounds forces the use
-        of the coordinate descent solver (irls-cd).
+        of the coordinate descent solver (``'irls-cd'``).
 
-    upper_bounds : np.ndarray, shape=(n_features), optional (default=None)
-        See lower_bounds.
+    upper_bounds : array-like, shape=(n_features), optional (default=None)
+        See ``lower_bounds``.
 
     A_ineq : np.ndarray, shape=(n_constraints, n_features), optional (default=None)
         Constraint matrix for linear inequality constraints of the form
@@ -109,60 +214,55 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         Constraint vector for linear inequality constraints of the form
         ``A_ineq w <= b_ineq``.
 
-    cv : int, cross-validation generator or an iterable, optional
-        Determines the cross-validation splitting strategy.
-        Possible inputs for cv are:
+    cv : int, cross-validation generator or Iterable, optional (default=None)
+        Determines the cross-validation splitting strategy. One of:
 
-        - None, to use the default 5-fold cross-validation,
-        - integer, to specify the number of folds.
+        - ``None``, to use the default 5-fold cross-validation,
+        - ``int``, to specify the number of folds.
         - :term:`CV splitter`,
-        - An iterable yielding (train, test) splits as arrays of indices.
+        - ``Iterable`` yielding (train, test) splits as arrays of indices.
 
-        For integer/None inputs, :class:`KFold` is used.
-        Refer :ref:`User Guide <cross_validation>` for the various
-        cross-validation strategies that can be used here.
+        For integer/``None`` inputs, :class:`KFold` is used. Refer to
+        :ref:`User Guide <cross_validation>` for the various cross-validation
+        strategies available.
 
-        .. versionchanged:: 0.22
-            ``cv`` default value if None changed from 3-fold to 5-fold.
-
-     n_jobs : int or None, optional (default=None)
-        Number of CPUs to use during the cross validation.
-        ``None`` means 1 unless in a :obj:`joblib.parallel_backend` context.
-        ``-1`` means using all processors. See :term:`Glossary <n_jobs>`
-        for more details.
+     n_jobs : int, optional (default=None)
+        Number of CPUs to use during cross validation. ``None`` means ``1``
+        unless in a :obj:`joblib.parallel_backend` context. ``-1`` means using
+        all processors. See :term:`Glossary <n_jobs>` for more details.
 
     Attributes
     ----------
     alpha_: float
-        The amount of penalization chosen by cross validation
+        The amount of regularization chosen by cross validation.
 
     alphas_: array, shape (n_l1_ratios, n_alphas)
-        Alphas used by the model
+        Alphas used by the model.
 
     l1_ratio_: float
-        The compromise between l1 and l2 penalization chosen by
-        cross validation
+        The compromise between L1 and L2 regularization chosen by cross
+        validation.
 
     coef_ : array, shape (n_features,)
-        Estimated coefficients for the linear predictor (X*coef_+intercept_) in
-        the GLM at the optimal (l1_ratio_, alpha_)
+        Estimated coefficients for the linear predictor in the GLM at the
+        optimal (``l1_ratio_``, ``alpha_``).
 
     intercept_ : float
         Intercept (a.k.a. bias) added to linear predictor.
 
     dispersion_ : float
-        The dispersion parameter :math:`\\phi` if ``fit_dispersion`` was set.
+        The dispersion parameter φ if ``fit_dispersion`` was set.
 
     n_iter_ : int
-        number of iterations run by the coordinate descent solver to reach
-        the specified tolerance for the optimal alpha.
+        The number of iterations run by the CD solver to reach the specified
+        tolerance for the optimal alpha.
 
     coef_path_ : array, shape (n_folds, n_l1_ratios, n_alphas, n_features)
-        Estimated coefficients for the linear predictor (X*coef_+intercept_) in
-        the GLM at every point along the regularization path.
+        Estimated coefficients for the linear predictor in the GLM at every
+        point along the regularization path.
 
     deviance_path_: array, shape(n_folds, n_alphas)
-        Deviance for the test set on each fold, varying alpha
+        Deviance for the test set on each fold, varying alpha.
     """
 
     def __init__(
@@ -181,7 +281,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         hessian_approx: float = 0.0,
         warm_start: bool = False,
         n_alphas: int = 100,
-        alphas: Optional[ArrayLike] = None,
+        alphas: Optional[np.ndarray] = None,
         min_alpha_ratio: Optional[float] = None,
         min_alpha: Optional[float] = None,
         start_params: Optional[np.ndarray] = None,
@@ -467,18 +567,19 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         )
         paths_data = Parallel(n_jobs=self.n_jobs, prefer="processes")(jobs)
 
-        self.intercept_path_ = [elmt[0] for elmt in paths_data]
-        self.coef_path_ = [elmt[1] for elmt in paths_data]
-        self.deviance_path_ = [elmt[2] for elmt in paths_data]
-
         self.intercept_path_ = np.reshape(
-            self.intercept_path_, (cv.get_n_splits(), len(l1_ratio), len(alphas[0]), -1)
+            [elmt[0] for elmt in paths_data],
+            (cv.get_n_splits(), len(l1_ratio), len(alphas[0]), -1),
         )
+
         self.coef_path_ = np.reshape(
-            self.coef_path_, (cv.get_n_splits(), len(l1_ratio), len(alphas[0]), -1)
+            [elmt[1] for elmt in paths_data],
+            (cv.get_n_splits(), len(l1_ratio), len(alphas[0]), -1),
         )
+
         self.deviance_path_ = np.reshape(
-            self.deviance_path_, (cv.get_n_splits(), len(l1_ratio), len(alphas[0]))
+            [elmt[2] for elmt in paths_data],
+            (cv.get_n_splits(), len(l1_ratio), len(alphas[0])),
         )
 
         avg_deviance = self.deviance_path_.mean(axis=0)  # type: ignore
