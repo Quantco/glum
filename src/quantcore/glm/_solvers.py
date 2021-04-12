@@ -944,7 +944,7 @@ def _trust_constr_solver(
 
     if not res["success"]:
         warnings.warn(
-            "trust-constr failed with message: {}".format(res["message"]),
+            f"trust-constr failed with message: {res['message']}",
             ConvergenceWarning,
         )
 
