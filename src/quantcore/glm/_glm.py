@@ -1840,8 +1840,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     ):
         self.alphas = alphas
         self.alpha = alpha
-        if not alpha_search and self.alpha is None:
-            self.alpha = 1.0
         super().__init__(
             l1_ratio=l1_ratio,
             P1=P1,
@@ -1887,11 +1885,13 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             ):
                 raise ValueError("`alpha` must contain only non-negative numbers")
         if not self.alpha_search:
-            if not np.isscalar(self.alpha):
+            if not np.isscalar(self.alpha) and self.alpha is not None:
                 raise ValueError(
                     "`alpha` should be a scalar or None when `alpha_search`" " is False"
                 )
-            if not isinstance(self.alpha, (int, float)) or self.alpha < 0:
+            if self.alpha is not None and (
+                not isinstance(self.alpha, (int, float)) or self.alpha < 0
+            ):
                 raise ValueError(
                     "Penalty term must be a non-negative number;"
                     " got (alpha={})".format(self.alpha)
@@ -2104,20 +2104,24 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
                 self.intercept_ = 0.0
                 self.coef_ = self.coef_path_[-1]
         else:
-            if self.alpha > 0 and self.l1_ratio > 0 and self._solver != "irls-cd":
+            if self.alpha is None:
+                _alpha = 1.0
+            else:
+                _alpha = self.alpha
+            if _alpha > 0 and self.l1_ratio > 0 and self._solver != "irls-cd":
                 raise ValueError(
                     "The chosen solver (solver={}) can't deal "
                     "with L1 penalties, which are included with "
                     "(alpha={}) and (l1_ratio={}).".format(
-                        self._solver, self.alpha, self.l1_ratio
+                        self._solver, _alpha, self.l1_ratio
                     )
                 )
             coef = self.solve(
                 X=X,
                 y=y,
                 weights=weights,
-                P2=P2_no_alpha * self.alpha,
-                P1=P1_no_alpha * self.alpha,
+                P2=P2_no_alpha * _alpha,
+                P1=P1_no_alpha * _alpha,
                 coef=coef,
                 offset=offset,
                 lower_bounds=lower_bounds,
