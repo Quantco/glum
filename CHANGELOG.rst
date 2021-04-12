@@ -7,6 +7,14 @@
 Changelog
 =========
 
+1.3.0 - 2021-XX-XX
+------------------
+
+**New features:**
+
+- We added a new solver based on ``scipy.optimize.minimize(method='trust-constr')``.
+- We added support for linear inequality constraints of type ``A_ineq.dot(coef_) <= b_ineq``.
+
 1.2.0 - 2021-02-04
 ------------------
 
