@@ -1597,11 +1597,9 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             squares inner solver. This algorithm cannot deal with L1 penalties.
         - ``'lbfgs'``: Scipy's L-BFGS-B optimizer. It cannot deal with L1
             penalties.
-
-        'trust-constr'
-            Calls ``scipy.optimize.minimize(method='trust-constr')``. It cannot deal
-            with L1 penalties. This solver can optimize problems with inequality
-            constraints, passed via ``A_ineq, b_ineq``. It will be selected
+        - ``'trust-constr'``: Calls ``scipy.optimize.minimize(method='trust-constr')``.
+            It cannot deal with L1 penalties. This solver can optimize problems with
+            inequality constraints, passed via ``A_ineq, b_ineq``. It will be selected
             automatically when inequality constraints are set and ``solver='auto'``.
             Note that using this method can lead to significantly increased runtimes
             by a factor of ten or higher.
@@ -1624,7 +1622,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         subgradient with the smallest L2 norm.
 
         If you wish to only use a step-size tolerance, set ``gradient_tol``
-        equal to very small number.
+        to a very small number.
 
     step_size_tol: float, optional (default=None)
         Alternative stopping criterion. For the IRLS-LS and IRLS-CD solvers, the
@@ -1725,7 +1723,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     upper_bounds : array-like, shape=(n_features), optional (default=None)
         See ``lower_bounds``.
 
-    A_ineq : np.ndarray, shape=(n_constraints, n_features), optional (default=None)
+    A_ineq : array-like, shape=(n_constraints, n_features), optional (default=None)
         Constraint matrix for linear inequality constraints of the form
         ``A_ineq w <= b_ineq``. Setting inequality constraints forces the use
         of the local gradient-based solver ``"trust-constr"`` which may increase
@@ -1733,7 +1731,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         related to features in ``X``. If you want to constrain the intercept, add it
         to the feature matrix ``X`` manually and set ``fit_intercept==False``.
 
-    b_ineq : np.ndarray, shape=(n_constraints,), optional (default=None)
+    b_ineq : array-like, shape=(n_constraints,), optional (default=None)
         Constraint vector for linear inequality constraints of the form
         ``A_ineq w <= b_ineq``. Refer to the documentation of ``A_ineq`` for details.
 

@@ -206,11 +206,11 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
     upper_bounds : array-like, shape=(n_features), optional (default=None)
         See ``lower_bounds``.
 
-    A_ineq : np.ndarray, shape=(n_constraints, n_features), optional (default=None)
+    A_ineq : array-like, shape=(n_constraints, n_features), optional (default=None)
         Constraint matrix for linear inequality constraints of the form
         ``A_ineq w <= b_ineq``.
 
-    b_ineq : np.ndarray, shape=(n_constraints,), optional (default=None)
+    b_ineq : array-like, shape=(n_constraints,), optional (default=None)
         Constraint vector for linear inequality constraints of the form
         ``A_ineq w <= b_ineq``.
 
