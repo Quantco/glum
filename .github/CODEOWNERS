@@ -1,5 +1,5 @@
 # Global owners
-* @tbenthompson @ElizabethSantorellaQC @MarcAntoineSchmidtQC
+* @tbenthompson @MarcAntoineSchmidtQC
 
 # Core
 /src/quantcore/glm/ @MarcAntoineSchmidtQC
@@ -9,10 +9,10 @@
 *.cpp @tbenthompson
 
 # GLM benchmarks
-/src/quantcore/glm_benchmarks/ @ElizabethSantorellaQC
+/src/quantcore/glm_benchmarks/ @tbenthompson
 
 # Docs
-/docs/ @ElizabethSantorellaQC
+/docs/ @MarcAntoineSchmidtQC
 
 # CI
 /.github/  @tbenthompson
