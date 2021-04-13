@@ -7,6 +7,13 @@
 Changelog
 =========
 
+1.3.1 - 2021-XX-XX
+------------------
+
+**Bug fix:**
+
+- We removed entry points to functions in ``quantcore.glm_benchmarks`` from the conda package.
+
 1.3.0 - 2021-04-12
 ------------------
 
