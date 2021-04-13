@@ -7,13 +7,12 @@
 Changelog
 =========
 
-1.3.3 - 2021-04-13
+1.4.0 - 2021-04-13
 ------------------
 
-Fusing alpha and alphas arguments for :func:`quantcore.glm.GeneralizedLinearRegressor`. `alphas` is now deprecated but can still be used for backward compatibility. The `alphas` argument will be removed with the next major version.
+**Deprecations:**
 
-1.3.2 - 2021-04-13
-------------------
+- Fusing the ``alpha`` and ``alphas`` arguments for :func:`quantcore.glm.GeneralizedLinearRegressor`. ``alpha`` now also accepts array like inputs. ``alphas`` is now deprecated but can still be used for backward compatibility. The ``alphas`` argument will be removed with the next major version.
 
 **Bug fix:**
 
