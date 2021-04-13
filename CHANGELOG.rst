@@ -7,10 +7,25 @@
 Changelog
 =========
 
+1.3.3 - 2021-04-13
+------------------
+
+Fusing alpha and alphas arguments for :func:`quantcore.glm.GeneralizedLinearRegressor`. `alphas` is now deprecated but can still be used for backward compatibility.
+
+1.3.2 - 2021-04-13
+------------------
+
+**Bug fix:**
+
+- We removed entry points to functions in ``quantcore.glm_benchmarks`` from the conda package.
+
 1.3.1 - 2021-04-12
 ------------------
 
-Fusing alpha and alphas arguments for :func:`quantcore.glm.GeneralizedLinearRegressor`. Alphas is now deprecated but can still be used for backward compatibility.
+**Bug fix**:
+
+- :func:`quantcore.glm._distribution.unit_variance_derivative` is
+  evaluating a proper numexpr expression again (regression in 1.3.0).
 
 1.3.0 - 2021-04-12
 ------------------
@@ -24,7 +39,6 @@ Fusing alpha and alphas arguments for :func:`quantcore.glm.GeneralizedLinearRegr
 ------------------
 
 We removed ``quantcore.glm_benchmarks`` from the conda package.
-
 
 1.1.1 - 2021-01-11
 ------------------

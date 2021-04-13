@@ -69,7 +69,9 @@ setup(
         where="src", include=["quantcore.glm"] if os.environ.get("CONDA_BUILD") else []
     ),
     install_requires=[],
-    entry_points="""
+    entry_points=None
+    if os.environ.get("CONDA_BUILD")
+    else """
         [console_scripts]
         glm_benchmarks_run = quantcore.glm_benchmarks.cli_run:cli_run
         glm_benchmarks_analyze = quantcore.glm_benchmarks.cli_analyze:cli_analyze
