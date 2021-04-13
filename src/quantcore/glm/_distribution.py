@@ -517,7 +517,7 @@ class TweedieDistribution(ExponentialDispersionModel):
     def unit_variance_derivative(self, mu: np.ndarray) -> np.ndarray:
         r"""Compute the derivative of the unit variance of a Tweedie distribution.
 
-        Equation: :math:`v(\mu) = p \times \mu^(p-1)`.
+        Equation: :math:`v(\mu) = p \times \mu^{(p-1)}`.
 
         Parameters
         ----------
