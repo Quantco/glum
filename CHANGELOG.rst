@@ -7,7 +7,16 @@
 Changelog
 =========
 
-1.3.0 - 2021-XX-XX
+1.3.1 - 2021-04-12
+------------------
+
+**Bug fixes**:
+
+- :func:`quantcore.glm._distribution.unit_variance_derivative` is
+  evaluating a proper numexpr expression again (regression in 1.3.0).
+
+
+1.3.0 - 2021-04-12
 ------------------
 
 **New features:**

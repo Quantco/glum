@@ -515,9 +515,9 @@ class TweedieDistribution(ExponentialDispersionModel):
         return numexpr.evaluate("mu ** p")
 
     def unit_variance_derivative(self, mu: np.ndarray) -> np.ndarray:
-        """Compute the derivative of the unit variance of a Tweedie distribution.
+        r"""Compute the derivative of the unit variance of a Tweedie distribution.
 
-        Equation: ``v(mu) = power * mu^(power-1)``.
+        Equation: :math:`v(\mu) = p \times \mu^(p-1)`.
 
         Parameters
         ----------
@@ -529,7 +529,7 @@ class TweedieDistribution(ExponentialDispersionModel):
         numpy.ndarray, shape (n_samples,)
         """
         p = self.power  # noqa: F841
-        return numexpr.evaluate("p × mu^(p - 1)")
+        return numexpr.evaluate("p * mu ** (p - 1)")
 
     def unit_deviance(self, y, mu):
         """Get the deviance of each observation."""
