@@ -299,6 +299,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         cv=None,
         n_jobs: Optional[int] = None,
     ):
+        self.alphas = alphas
         self.cv = cv
         self.n_jobs = n_jobs
         super().__init__(
@@ -316,7 +317,6 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             hessian_approx=hessian_approx,
             warm_start=warm_start,
             n_alphas=n_alphas,
-            alphas=alphas,
             min_alpha_ratio=min_alpha_ratio,
             min_alpha=min_alpha,
             start_params=start_params,

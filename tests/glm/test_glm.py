@@ -1783,3 +1783,30 @@ def test_categorical_types(k, n):
     pred_cat_oh = model_cat.predict(X_oh)
     pred_oh_cat = model_oh.predict(X_cat)
     np.testing.assert_allclose(pred_cat_oh, pred_oh_cat)
+
+
+@pytest.mark.parametrize(
+    "kwargs", [{"alpha_search": True, "alpha": [1, 0.5, 0.1, 0.01]}, {"alpha": 0.1}]
+)
+def test_alpha_parametrization(kwargs, regression_data):
+    X, y = regression_data
+    model = GeneralizedLinearRegressor(**kwargs)
+    model.fit(X=X, y=y)
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"alpha_search": True, "alpha": 0.1},
+        {"alpha_search": False, "alpha": [1, 0.5, 0.1, 0.01]},
+        {"alpha_search": True, "alpha": "abc"},
+        {"alpha": "abc"},
+        {"alpha": -0.1},
+        {"alpha_search": True, "alpha": [1, 0.5, -0.1]},
+    ],
+)
+def test_alpha_parametrization_fail(kwargs, regression_data):
+    X, y = regression_data
+    with pytest.raises((ValueError, TypeError)):
+        model = GeneralizedLinearRegressor(**kwargs)
+        model.fit(X=X, y=y)

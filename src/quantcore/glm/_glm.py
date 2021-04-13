@@ -8,8 +8,9 @@ from __future__ import division
 
 import copy
 import warnings
+from collections.abc import Iterable
 from itertools import chain
-from typing import Any, Iterable, Optional, Tuple, Union, cast
+from typing import Any, Optional, Tuple, Union, cast
 
 import numpy as np
 import pandas as pd
@@ -619,7 +620,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         warm_start=False,
         alpha_search: bool = False,
         n_alphas: int = 100,
-        alphas: Optional[np.ndarray] = None,
         min_alpha_ratio: Optional[float] = None,
         min_alpha: Optional[float] = None,
         start_params: Optional[np.ndarray] = None,
@@ -650,7 +650,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self.warm_start = warm_start
         self.alpha_search = alpha_search
         self.n_alphas = n_alphas
-        self.alphas = alphas
         self.min_alpha_ratio = min_alpha_ratio
         self.min_alpha = min_alpha
         self.start_params = start_params
@@ -832,6 +831,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                         "Current value of min_alpha would generate all zeros. "
                         "Consider reducing this value."
                     )
+                if self.min_alpha_ratio is not None:
+                    warnings.warn("`min_alpha` is set. Ignoring `min_alpha_ratio`.")
                 min_alpha = self.min_alpha
             return np.logspace(
                 np.log(max_alpha), np.log(min_alpha), self.n_alphas, base=np.e
@@ -1527,9 +1528,13 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
 
     Parameters
     ----------
-    alpha : float, optional (default=1)
+    alpha : {float, array-like}, optional (default=None)
         Constant that multiplies the penalty terms and thus determines the
         regularization strength.
+        If ``alpha_search`` is False (the default), then ``alpha`` must be
+        a scalar or None (equivalent to alpha = 1.0). If ``alpha_search``
+        is True, then ``alpha`` must be an iterable or None. See ``alpha_search``
+        to find how the regularization path is set if ``alpha`` is None.
         See the notes for the exact mathematical meaning of this
         parameter. ``alpha = 0`` is equivalent to unpenalized GLMs. In this
         case, the design matrix ``X`` must have full column rank
@@ -1642,12 +1647,23 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         exist (first call to ``fit``), ``start_params`` sets the start values
         for ``coef_`` and ``intercept_``.
 
+    alpha_search : bool, optional (default=False)
+        Whether to search along the regularization path for the best alpha.
+        When set to True, ``alpha`` should either be None or an iterable.
+        To determine the regularization path, the following sequence is used:
+            1. If ``alpha`` is an iterable, use it directly. All other parameters
+                governing the regularization path are ignored.
+            2. If ``min_alpha`` is set, create a path from ``min_alpha`` to the
+                lowest alpha such that all coefficients are zero.
+            3. If ``min_alpha_ratio`` is set, create a path where the ratio of
+                ``min_alpha / max_alpha = min_alpha_ratio``.
+            4. If none of the above parameters are set, use a ``min_alpha_ratio``
+                of 1e-6.
+
+    alphas : DEPRECATED. Use ``alpha`` instead.
+
     n_alphas : int, optional (default=100)
         Number of alphas along the regularization path
-
-    alphas : array-like, optional (default=None)
-        List of alphas for which to compute the models. If ``None``, the alphas
-        are set automatically. Setting ``None`` is preferred.
 
     min_alpha_ratio : float, optional (default=None)
         Length of the path. ``min_alpha_ratio=1e-6`` means that
@@ -1790,7 +1806,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
 
     def __init__(
         self,
-        alpha=1.0,
+        alpha=None,
         l1_ratio=0,
         P1="identity",
         P2="identity",
@@ -1805,8 +1821,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         hessian_approx: float = 0.0,
         warm_start: bool = False,
         alpha_search: bool = False,
-        n_alphas: int = 100,
         alphas: Optional[np.ndarray] = None,
+        n_alphas: int = 100,
         min_alpha_ratio: Optional[float] = None,
         min_alpha: Optional[float] = None,
         start_params: Optional[np.ndarray] = None,
@@ -1822,6 +1838,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         b_ineq: Optional[np.ndarray] = None,
         force_all_finite: bool = True,
     ):
+        self.alphas = alphas
         self.alpha = alpha
         super().__init__(
             l1_ratio=l1_ratio,
@@ -1839,7 +1856,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             warm_start=warm_start,
             alpha_search=alpha_search,
             n_alphas=n_alphas,
-            alphas=alphas,
             min_alpha=min_alpha,
             min_alpha_ratio=min_alpha_ratio,
             start_params=start_params,
@@ -1857,15 +1873,29 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         )
 
     def _validate_hyperparameters(self) -> None:
-
-        if (
-            not (isinstance(self.alpha, float) or isinstance(self.alpha, int))
-            or self.alpha < 0
-        ):
-            raise ValueError(
-                "Penalty term must be a non-negative number;"
-                " got (alpha={})".format(self.alpha)
-            )
+        if self.alpha_search:
+            if not isinstance(self.alpha, Iterable) and self.alpha is not None:
+                raise ValueError(
+                    "`alpha` should be an Iterable or None when `alpha_search`"
+                    " is True"
+                )
+            if self.alpha is not None and (
+                (np.asarray(self.alpha) < 0).any()
+                or not np.issubdtype(np.asarray(self.alpha).dtype, np.number)
+            ):
+                raise ValueError("`alpha` must contain only non-negative numbers")
+        if not self.alpha_search:
+            if not np.isscalar(self.alpha) and self.alpha is not None:
+                raise ValueError(
+                    "`alpha` should be a scalar or None when `alpha_search`" " is False"
+                )
+            if self.alpha is not None and (
+                not isinstance(self.alpha, (int, float)) or self.alpha < 0
+            ):
+                raise ValueError(
+                    "Penalty term must be a non-negative number;"
+                    " got (alpha={})".format(self.alpha)
+                )
 
         if (
             not np.isscalar(self.l1_ratio)
@@ -1944,16 +1974,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         assert isinstance(y, np.ndarray)
 
         self.set_up_for_fit(y)
-
-        # TODO: deal with alpha for regularization path
-        if self.alpha > 0 and self.l1_ratio > 0 and self._solver != "irls-cd":
-            raise ValueError(
-                "The chosen solver (solver={}) can't deal "
-                "with L1 penalties, which are included with "
-                "(alpha={}) and (l1_ratio={}).".format(
-                    self._solver, self.alpha, self.l1_ratio
-                )
-            )
 
         _dtype = [np.float64, np.float32]
         if self._solver == "irls-cd":
@@ -2038,12 +2058,21 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         # 4. fit                                                              #
         #######################################################################
         if self.alpha_search:
-            if self.alphas is None:
+            if self.alphas is not None:
+                warnings.warn(
+                    "alphas is deprecated. Use alpha instead.", DeprecationWarning
+                )
+                self._alphas = self.alphas
+            elif self.alpha is None:
                 self._alphas = self._get_alpha_path(
                     P1_no_alpha=P1_no_alpha, X=X, y=y, w=weights, offset=offset
                 )
             else:
-                self._alphas = self.alphas
+                self._alphas = self.alpha
+                if self.min_alpha is not None or self.min_alpha_ratio is not None:
+                    warnings.warn(
+                        "`alpha` is set. Ignoring `min_alpha` and `min_alpha_ratio`."
+                    )
 
             coef = self.solve_regularization_path(
                 X=X,
@@ -2075,12 +2104,24 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
                 self.intercept_ = 0.0
                 self.coef_ = self.coef_path_[-1]
         else:
+            if self.alpha is None:
+                _alpha = 1.0
+            else:
+                _alpha = self.alpha
+            if _alpha > 0 and self.l1_ratio > 0 and self._solver != "irls-cd":
+                raise ValueError(
+                    "The chosen solver (solver={}) can't deal "
+                    "with L1 penalties, which are included with "
+                    "(alpha={}) and (l1_ratio={}).".format(
+                        self._solver, _alpha, self.l1_ratio
+                    )
+                )
             coef = self.solve(
                 X=X,
                 y=y,
                 weights=weights,
-                P2=P2_no_alpha * self.alpha,
-                P1=P1_no_alpha * self.alpha,
+                P2=P2_no_alpha * _alpha,
+                P1=P1_no_alpha * _alpha,
                 coef=coef,
                 offset=offset,
                 lower_bounds=lower_bounds,
