@@ -7,6 +7,13 @@
 Changelog
 =========
 
+Unreleased
+----------
+
+**Other changes:**
+
+- Added Python 3.9 support.
+
 1.3.0 - 2021-04-12
 ------------------
 
