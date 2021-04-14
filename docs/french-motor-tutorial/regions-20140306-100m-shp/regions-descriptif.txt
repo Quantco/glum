@@ -1,0 +1,47 @@
+##Descriptif du contenu des fichiers "regions"
+
+= Origine =
+
+Les données proviennent de la base de données cartographiques OpenStreetMap.
+Celles-ci ont été constituées à partir du cadastre mis à disposition par la DGFiP sur cadastre.gouv.fr.
+En complément sur Mayotte où le cadastre n'est pas disponible sur cadastre.gouv.fr, ce sont les limites du GEOFLA de l'IGN qui ont été utilisées ainsi que le tracé des côtes à partir des images aériennes de Bing.
+
+Plus d'infos: http://openstreetmap.fr/36680-communes
+
+
+= Format =
+
+Ces fichiers sont proposés au format shapefile, en projection WGS84 avec plusieurs niveaux de détails:
+- simplification à 5m
+- simplification à 50m
+- simplification à 100m
+
+La topologie est conservée lors du processus de simplification (cf: http://openstreetmap.fr/blogs/cquest/limites-administratives-simplifiees)
+
+
+= Contenu = 
+
+Ces fichiers contiennent l'ensemble des régions françaises, y compris les DOM et Mayotte.
+
+Pour chaque région, les attributs suivants sont ajoutés:
+- code_insee: code INSEE à 2 chiffres de la région (ex: 42)
+- nom: nom de la région (ex: Alsace)
+- nom_cl: nom du chef-lieu de région (ex: Strasbourg)
+- insee_cl: code INSEE de la commune chef-lieu de région (ex: 67482)
+- nuts2: code européen NUTS2 correspondant à la région (ex: FR42)
+- iso3166_2: code international ISO3166-2 correspondant à la région (ex: FR-A)
+- wikipedia: entrée wikipédia (code langue suivi du nom de l'article)
+- nb_dep: nombre de départements dans la région
+- nb_comm: nombre de communes dans l'arrondissement
+- surf_km2: superficie de l'arrondissement en km2 sur le sphéroid WGS84
+
+
+###Historique
+
+- 20-12-2013 : première génération du fichier, basé sur le découpage communal OSM au 19-12-2013
+- 06-03-2014 : seconde génération du fichier, basé sur le découpage communal OSM au 06-03-2014
+
+Versions prédécentes disponibles sur: http://osm13.openstreetmap.fr/~cquest/openfla/export/
+
+
+Pour toute question concernant ces exports, vous pouvez contacter exports@openstreetmap.fr
