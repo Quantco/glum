@@ -27,7 +27,8 @@ requirements:
     - jemalloc     # [not win]
     - llvm-openmp  # [osx]
     - mako
-    - numpy 1.16
+    - numpy 1.16 # [py<39]
+    - numpy 1.19 # [py>=39]
     - pip
     - scikit-learn >=0.23
     - setuptools_scm
@@ -36,7 +37,8 @@ requirements:
     - python
     - joblib
     - numexpr
-    - {{ pin_compatible('numpy', lower_bound='1.16') }}
+    - numpy 1.16 # [py<39]
+    - numpy 1.19 # [py>=39]
     - pandas
     - scikit-learn >=0.23
     - scipy
