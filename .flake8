@@ -17,4 +17,5 @@ enable-extensions = flake8-docstrings
 per-file-ignores =
     tests/**:D101,D102,D103
     src/quantcore/glm/_glm.py:D
+    src/quantcore/glm/lightmatrix/**:D
 docstring-convention = numpy

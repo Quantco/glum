@@ -8,11 +8,15 @@ from typing import Callable, Dict, Optional, Tuple, Union
 import click
 import numpy as np
 import pandas as pd
-import quantcore.matrix as mx
 from scipy import sparse as sps
 
 from quantcore.glm import GeneralizedLinearRegressor, TweedieDistribution
 from quantcore.glm._solvers import eta_mu_objective
+
+try:
+    from quantcore.matrix import MatrixBase
+except ImportError:
+    from quantcore.glm.lightmatrix import MatrixBase
 
 benchmark_convergence_tolerance = 1e-4
 cache_location = os.environ.get("GLM_BENCHMARKS_CACHE", None)
@@ -61,7 +65,7 @@ def get_sklearn_family(distribution):
 
 
 def get_obj_val(
-    dat: Dict[str, Union[np.ndarray, sps.spmatrix, mx.MatrixBase, pd.DataFrame]],
+    dat: Dict[str, Union[np.ndarray, sps.spmatrix, MatrixBase, pd.DataFrame]],
     distribution: str,
     alpha: float,
     l1_ratio: float,
@@ -95,7 +99,7 @@ def get_obj_val(
 
     full_coefs = np.concatenate(([intercept], coefs))
     offset = dat.get("offset")
-    if isinstance(dat["X"], mx.MatrixBase):
+    if isinstance(dat["X"], MatrixBase):
         X_dot_coef = dat["X"].matvec(coefs)
     else:
         X_dot_coef = dat["X"].dot(coefs)

@@ -1,8 +1,12 @@
 from typing import Union
 
 import numpy as np
-from quantcore.matrix import MatrixBase, StandardizedMatrix
 from scipy import sparse
+
+try:
+    from quantcore.matrix import MatrixBase, StandardizedMatrix
+except ImportError:
+    from .lightmatrix import MatrixBase, StandardizedMatrix
 
 
 def _safe_lin_pred(
