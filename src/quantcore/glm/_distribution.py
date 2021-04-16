@@ -4,7 +4,6 @@ from typing import Tuple, Union
 
 import numexpr
 import numpy as np
-from quantcore.matrix import MatrixBase, StandardizedMatrix
 from scipy import special
 
 from ._functions import (
@@ -21,6 +20,11 @@ from ._functions import (
 )
 from ._link import IdentityLink, Link, LogitLink, LogLink
 from ._util import _safe_lin_pred
+
+try:
+    from quantcore.matrix import MatrixBase, StandardizedMatrix
+except ImportError:
+    from .lightmatrix import MatrixBase, StandardizedMatrix
 
 
 class ExponentialDispersionModel(metaclass=ABCMeta):

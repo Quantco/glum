@@ -5,7 +5,6 @@ from typing import Callable, Dict, List, Optional, Tuple, Union
 import attr
 import numpy as np
 import pandas as pd
-import quantcore.matrix as mx
 from dask_ml.preprocessing import DummyEncoder
 from git_root import git_root
 from joblib import Memory
@@ -18,6 +17,15 @@ from .data import (
     generate_wide_insurance_dataset,
 )
 from .util import cache_location, exposure_and_offset_to_weights, get_tweedie_p
+
+try:
+    import quantcore.matrix as mx
+
+    FAST_MATRIX = True
+except ImportError:
+    from quantcore.glm import lightmatrix as mx
+
+    FAST_MATRIX = False
 
 joblib_memory = Memory(cache_location, verbose=0)
 
