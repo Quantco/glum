@@ -5,13 +5,17 @@ import warnings
 
 import numpy as np
 import pytest
-import quantcore.matrix as mx
 from git_root import git_root
 from scipy import sparse
 
 from quantcore.glm import GeneralizedLinearRegressor, GeneralizedLinearRegressorCV
 from quantcore.glm._glm import TweedieDistribution
 from quantcore.glm_benchmarks.data import simulate_glm_data
+
+try:
+    import quantcore.matrix as mx
+except ImportError:
+    from quantcore.glm import lightmatrix as mx
 
 distributions_to_test = ["normal", "poisson", "gamma", "tweedie_p=1.5", "binomial"]
 custom_family_link = [("normal", "log")]
@@ -52,7 +56,7 @@ def data_all():
 
 
 @pytest.fixture(
-    params=["categorical"],
+    params=[pytest.param("categorical", marks=pytest.mark.matrix)],
     scope="module",
 )
 def data_all_storage(request):

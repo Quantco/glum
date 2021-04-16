@@ -1,11 +1,19 @@
 import numpy as np
 import pytest
-import quantcore.matrix as mx
 from scipy import sparse as sparse
 from sklearn.datasets import make_regression
 from sklearn.linear_model import ElasticNetCV, RidgeCV
 
 from quantcore.glm import GeneralizedLinearRegressorCV
+
+try:
+    import quantcore.matrix as mx
+
+    FAST_MATRIX = True
+except ImportError:
+    from quantcore.glm import lightmatrix as mx
+
+    FAST_MATRIX = False
 
 GLM_SOLVERS = ["irls", "lbfgs", "cd", "trust-constr"]
 
@@ -19,8 +27,12 @@ GLM_SOLVERS = ["irls", "lbfgs", "cd", "trust-constr"]
         sparse.csc_matrix,
         sparse.csr_matrix,
         mx.DenseMatrix,
-        lambda x: mx.SparseMatrix(sparse.csc_matrix(x)),
-        lambda x: mx.csc_to_split(sparse.csc_matrix(x)),
+        pytest.param(
+            lambda x: mx.SparseMatrix(sparse.csc_matrix(x)), marks=pytest.mark.matrix
+        ),
+        pytest.param(
+            lambda x: mx.csc_to_split(sparse.csc_matrix(x)), marks=pytest.mark.matrix
+        ),
     ],
 )
 def test_normal_elastic_net_comparison(l1_ratio, fit_intercept, convert_x_fn):

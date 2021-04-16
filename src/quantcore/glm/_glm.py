@@ -14,7 +14,6 @@ from typing import Any, Optional, Tuple, Union, cast
 
 import numpy as np
 import pandas as pd
-import quantcore.matrix as mx
 import scipy.sparse.linalg as splinalg
 from scipy import linalg, sparse
 from sklearn.base import BaseEstimator, RegressorMixin
@@ -49,6 +48,15 @@ from ._solvers import (
     _trust_constr_solver,
 )
 
+try:
+    import quantcore.matrix as mx
+
+    FAST_MATRIX = True
+except ImportError:
+    from . import lightmatrix as mx
+
+    FAST_MATRIX = False
+
 _float_itemsize_to_dtype = {8: np.float64, 4: np.float32, 2: np.float16}
 
 VectorLike = Union[np.ndarray, pd.api.extensions.ExtensionArray, pd.Index, pd.Series]
@@ -75,6 +83,10 @@ def check_array_matrix_compliant(mat: ArrayLike, **kwargs):
     to_copy = kwargs.get("copy", False)
 
     if isinstance(mat, pd.DataFrame) and any(mat.dtypes == "category"):
+        if not FAST_MATRIX:
+            raise ValueError(
+                "Automatic handling of categorical variables requires quantcore.matrix."
+            )
         mat = mx.from_pandas(mat)
 
     if isinstance(mat, mx.SplitMatrix):
@@ -1405,6 +1417,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         if isinstance(X, pd.DataFrame):
 
             if any(X.dtypes == "category"):
+                if not FAST_MATRIX:
+                    raise ValueError(
+                        "Automatic handling of categorical variables requires quantcore.matrix."
+                    )
                 self.feature_names_ = list(
                     chain.from_iterable(
                         [f"{column}__{category}" for category in dtype.categories]
@@ -1486,7 +1502,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         # 2b. convert to wrapper matrix types
         #######################################################################
         if sparse.issparse(X) and not isinstance(X, mx.SparseMatrix):
-            X = mx.SparseMatrix(X)
+            if FAST_MATRIX:
+                X = mx.SparseMatrix(X)
+            else:
+                X = mx.DenseMatrix(X.A)
         elif isinstance(X, np.ndarray):
             X = mx.DenseMatrix(X)
 

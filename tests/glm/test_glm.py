@@ -7,7 +7,6 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import numpy as np
 import pandas as pd
 import pytest
-import quantcore.matrix as mx
 import scipy as sp
 from numpy.testing import assert_allclose, assert_array_equal
 from scipy import optimize, sparse
@@ -39,6 +38,11 @@ from quantcore.glm._glm import (
     is_pos_semidef,
 )
 from quantcore.glm._util import _safe_sandwich_dot
+
+try:
+    import quantcore.matrix as mx
+except ImportError:
+    import quantcore.glm.lightmatrix as mx
 
 GLM_SOLVERS = ["irls-ls", "lbfgs", "irls-cd", "trust-constr"]
 
@@ -682,8 +686,13 @@ def test_glm_check_input_argument(estimator, check_input):
         sparse.csc_matrix,
         sparse.csr_matrix,
         mx.DenseMatrix,
-        lambda x: mx.SparseMatrix(sparse.csc_matrix(x)),
-        lambda x: mx.split_matrix.csc_to_split(sparse.csc_matrix(x)),
+        pytest.param(
+            lambda x: mx.SparseMatrix(sparse.csc_matrix(x)), marks=pytest.mark.matrix
+        ),
+        pytest.param(
+            lambda x: mx.split_matrix.csc_to_split(sparse.csc_matrix(x)),
+            marks=pytest.mark.matrix,
+        ),
     ],
 )
 def test_glm_identity_regression(solver, fit_intercept, offset, convert_x_fn):
@@ -803,8 +812,13 @@ def test_report_diagnostics(
         sparse.csc_matrix,
         sparse.csr_matrix,
         mx.DenseMatrix,
-        lambda x: mx.SparseMatrix(sparse.csc_matrix(x)),
-        lambda x: mx.split_matrix.csc_to_split(sparse.csc_matrix(x)),
+        pytest.param(
+            lambda x: mx.SparseMatrix(sparse.csc_matrix(x)), marks=pytest.mark.matrix
+        ),
+        pytest.param(
+            lambda x: mx.split_matrix.csc_to_split(sparse.csc_matrix(x)),
+            marks=pytest.mark.matrix,
+        ),
     ],
 )
 def test_x_not_modified_inplace(solver, fit_intercept, offset, convert_x_fn):
@@ -841,9 +855,16 @@ def test_x_not_modified_inplace(solver, fit_intercept, offset, convert_x_fn):
         sparse.csc_matrix,
         sparse.csr_matrix,
         lambda x: mx.DenseMatrix(x.astype(float)),
-        lambda x: mx.SparseMatrix(sparse.csc_matrix(x)),
-        lambda x: mx.split_matrix.csc_to_split(sparse.csc_matrix(x).astype(float)),
-        lambda x: mx.CategoricalMatrix(x.dot([0, 1])),
+        pytest.param(
+            lambda x: mx.SparseMatrix(sparse.csc_matrix(x)), marks=pytest.mark.matrix
+        ),
+        pytest.param(
+            lambda x: mx.split_matrix.csc_to_split(sparse.csc_matrix(x).astype(float)),
+            marks=pytest.mark.matrix,
+        ),
+        pytest.param(
+            lambda x: mx.CategoricalMatrix(x.dot([0, 1])), marks=pytest.mark.matrix
+        ),
     ],
 )
 def test_glm_identity_regression_categorical_data(solver, offset, convert_x_fn):
@@ -1009,12 +1030,12 @@ def test_poisson_ridge(solver, tol, scale_predictors, use_sparse):
     # true_beta = model["beta"][:, 0]
     # print(true_intercept, true_beta)
 
-    X_dense = np.array([[-2, -1, 1, 2], [0, 0, 1, 1]], dtype=np.float).T
+    X_dense = np.array([[-2, -1, 1, 2], [0, 0, 1, 1]], dtype=np.float64).T
     if use_sparse:
         X = sparse.csc_matrix(X_dense)
     else:
         X = X_dense
-    y = np.array([0, 1, 1, 2], dtype=np.float)
+    y = np.array([0, 1, 1, 2], dtype=np.float64)
     model_args = dict(
         alpha=1,
         l1_ratio=0,
@@ -1056,8 +1077,8 @@ def test_poisson_ridge(solver, tol, scale_predictors, use_sparse):
 
 @pytest.mark.parametrize("scale_predictors", [True, False])
 def test_poisson_ridge_bounded(scale_predictors):
-    X = np.array([[-1, 1, 1, 2], [0, 0, 1, 1]], dtype=np.float).T
-    y = np.array([0, 1, 1, 2], dtype=np.float)
+    X = np.array([[-1, 1, 1, 2], [0, 0, 1, 1]], dtype=np.float64).T
+    y = np.array([0, 1, 1, 2], dtype=np.float64)
     lb = np.array([-0.1, -0.1])
     ub = np.array([0.1, 0.1])
 
@@ -1095,8 +1116,8 @@ def test_poisson_ridge_bounded(scale_predictors):
 
 @pytest.mark.parametrize("scale_predictors", [True, False])
 def test_poisson_ridge_ineq_constrained(scale_predictors):
-    X = np.array([[-1, 1, 1, 2], [0, 0, 1, 1]], dtype=np.float).T
-    y = np.array([0, 1, 1, 2], dtype=np.float)
+    X = np.array([[-1, 1, 1, 2], [0, 0, 1, 1]], dtype=np.float64).T
+    y = np.array([0, 1, 1, 2], dtype=np.float64)
     A_ineq = np.array([[1, 0], [0, 1], [-1, 0], [0, -1]])
     b_ineq = 0.1 * np.ones(shape=(4))
 
@@ -1449,7 +1470,9 @@ def test_convergence_warning(solver, regression_data):
         est.fit(X, y)
 
 
-@pytest.mark.parametrize("use_sparse", [False, True])
+@pytest.mark.parametrize(
+    "use_sparse", [False, pytest.param(True, marks=pytest.mark.matrix)]
+)
 @pytest.mark.parametrize("scale_predictors", [False, True])
 def test_standardize(use_sparse, scale_predictors):
     def _arrays_share_data(arr1: np.ndarray, arr2: np.ndarray) -> bool:
@@ -1546,7 +1569,7 @@ def test_clonable(estimator):
 def test_get_best_intercept(
     link: Link, distribution: ExponentialDispersionModel, tol: float, offset
 ):
-    y = np.array([1, 1, 1, 2], dtype=np.float)
+    y = np.array([1, 1, 1, 2], dtype=np.float64)
     if isinstance(distribution, BinomialDistribution):
         y -= 1
 
@@ -1727,11 +1750,12 @@ def test_passing_noncontiguous_as_X():
     [
         (pd.DataFrame({"x1": np.arange(5), "x2": 2}), np.array(["x1", "x2"])),
         (pd.DataFrame({"x1": np.arange(5), "x2": 2}).to_numpy(), None),
-        (
+        pytest.param(
             pd.DataFrame({"x1": pd.Categorical(np.arange(5)), "x2": 2}),
             np.array(["x1__0", "x1__1", "x1__2", "x1__3", "x1__4", "x2"]),
+            marks=pytest.mark.matrix,
         ),
-        (
+        pytest.param(
             pd.DataFrame(
                 {
                     "x1": pd.Categorical(np.arange(5)),
@@ -1739,6 +1763,7 @@ def test_passing_noncontiguous_as_X():
                 }
             ),
             np.array(["x1__0", "x1__1", "x1__2", "x1__3", "x1__4", "x2__2"]),
+            marks=pytest.mark.matrix,
         ),
     ],
 )
@@ -1747,6 +1772,7 @@ def test_feature_names(X, feature_names):
     np.testing.assert_array_equal(getattr(model, "feature_names_", None), feature_names)
 
 
+@pytest.mark.matrix
 @pytest.mark.parametrize(
     "k, n",
     [
