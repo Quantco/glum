@@ -6,6 +6,7 @@ Welcome to quantcore.glm's documentation!
    :caption: Contents:
 
    API Reference <api/modules>
+   Tutorials <tutorials>
    Changelog <changelog>
 
 
