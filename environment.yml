@@ -24,6 +24,7 @@ dependencies:
   - mako
   - memory_profiler
   - mkl-include
+  - nbsphinx
   - numexpr
   - openjdk
   - pandas
