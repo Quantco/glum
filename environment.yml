@@ -27,10 +27,12 @@ dependencies:
   - nbsphinx
   - numexpr
   - openjdk
+  - openml
   - pandas
   - pip
   - pre-commit
   - pyarrow
+  - pysal
   - pytest
   - pytest-xdist
   - quantcore.matrix>=1.0.0
