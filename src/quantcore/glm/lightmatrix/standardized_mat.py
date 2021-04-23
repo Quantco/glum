@@ -75,19 +75,7 @@ class StandardizedMatrix:
         return mat_part
 
     def getcol(self, i: int):
-        """
-        Returns a StandardizedMatrix.
-
-        >>> from scipy import sparse as sps
-        >>> x = StandardizedMatrix(SparseMatrix(sps.eye(3).tocsc()), shift=[0, 1, -2])
-        >>> col_1 = x.getcol(1)
-        >>> isinstance(col_1, StandardizedMatrix)
-        True
-        >>> col_1.A
-        array([[1.],
-               [2.],
-               [1.]])
-        """
+        """Returns a StandardizedMatrix."""
         mult = None
         if self.mult is not None:
             mult = [self.mult[i]]

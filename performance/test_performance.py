@@ -8,13 +8,17 @@ from typing import List, Optional
 import numpy as np
 import pandas as pd
 import psutil
-import quantcore.matrix as mx
 import scipy.sparse as sps
 from sparse_dot_mkl import dot_product_mkl
 
 from quantcore.glm import GeneralizedLinearRegressor
 from quantcore.glm_benchmarks.cli_run import get_all_problems
 from quantcore.glm_benchmarks.util import get_sklearn_family, runtime
+
+try:
+    import quantcore.matrix as mx
+except ImportError:
+    import quantcore.glm.lightmatrix as mx
 
 
 def _get_memory_usage() -> int:
