@@ -3,7 +3,21 @@ import pandas as pd
 
 
 def load_transform():
-    """Load and transform data from openml."""
+    """Load and transform data from openml. Summary of transformations.
+
+    1. We cut the number of claims to a maximum of 4, as is done in the case study paper
+       (Data error suspected)
+    2. We cut the exposure to a maximum of 1, as is done in the case study paper
+       (Data error suspected).
+    3. We define ClaimAmountCut as the the claim amount cut at 100'000 per single claim
+       (before aggregation per policy). Reason: For large claims, extreme value theory
+       might apply. 100'000 is the 0.9984 quantile, any claims larger account for 25% of
+       the overall claim amount. This is a well known phenomenon for third-party liability.
+    4. We aggregate the total claim amounts per policy id and join them to freMTPL2freq.
+    5. We define ClaimNb_pos as the claim number with claim amount greater zero.
+    6. VehPower, VehAge, and DrivAge are clipped and/or digitized into bins so they
+       can be used as categoricals later on
+    """
     # load the datasets
     # first row (=column names) uses "", all other rows use ''
     # use '' as quotechar as it is easier to change column names
@@ -40,6 +54,7 @@ def load_transform():
     df["ClaimNb_pos"] = df["ClaimNb_pos"].clip(upper=4)
     df["Exposure"] = df["Exposure"].clip(upper=1)
 
+    # Clip and/or digitize predictors into bins
     df["VehPower"] = np.minimum(df["VehPower"], 9)
     df["VehAge"] = np.digitize(
         np.where(df["VehAge"] == 10, 9, df["VehAge"]), bins=[1, 10]
