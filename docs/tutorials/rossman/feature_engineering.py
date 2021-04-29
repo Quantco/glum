@@ -225,3 +225,43 @@ def compute_lagged_ewma(
         .droplevel(0)
     )
     return lagged_ma
+
+
+def apply_all_transformations(df):
+    """Apply all feature transformations."""
+    df["age_quantile"] = compute_age_quantile(df, 5)
+    df["competition_open"] = compute_competition_open(df)
+    df["count"] = df.groupby("store")[["date"]].transform("cumcount")
+    df["log_sales"] = np.log(df["sales"])
+    df["open_lag_1"] = compute_open_lag(df)
+    df["open_lag_2"] = compute_open_lag(df, 2)
+    df["open_lag_3"] = compute_open_lag(df, 3)
+    df["open_lead_1"] = compute_open_lead(df)
+    df["open_lead_2"] = compute_open_lead(df, -2)
+    df["open_lead_3"] = compute_open_lead(df, -3)
+    df["promo_lag_1"] = compute_promo_lag(df)
+    df["promo_lag_2"] = compute_promo_lag(df, 2)
+    df["promo_lag_3"] = compute_promo_lag(df, 3)
+    df["promo_lead_1"] = compute_promo_lead(df)
+    df["promo_lead_2"] = compute_promo_lead(df, -2)
+    df["promo_lead_3"] = compute_promo_lead(df, -3)
+    df["school_holiday_lag_1"] = compute_school_holiday_lag(df)
+    df["school_holiday_lag_2"] = compute_school_holiday_lag(df, 2)
+    df["school_holiday_lag_3"] = compute_school_holiday_lag(df, 3)
+    df["school_holiday_lead_1"] = compute_school_holiday_lead(df)
+    df["school_holiday_lead_2"] = compute_school_holiday_lead(df, -2)
+    df["school_holiday_lead_3"] = compute_school_holiday_lead(df, -3)
+    df["state_holiday_lag_1"] = compute_state_holiday_lag(df)
+    df["state_holiday_lag_2"] = compute_state_holiday_lag(df, 2)
+    df["state_holiday_lag_3"] = compute_state_holiday_lag(df, 3)
+    df["state_holiday_lead_1"] = compute_state_holiday_lead(df)
+    df["state_holiday_lead_2"] = compute_state_holiday_lead(df, -2)
+    df["state_holiday_lead_3"] = compute_state_holiday_lead(df, -3)
+    df["store_day_of_week"] = compute_store_day_of_week(df)
+    df["store_month"] = compute_store_month(df)
+    df["store_school_holiday"] = compute_store_school_holiday(df)
+    df["store_state_holiday"] = compute_store_state_holiday(df)
+    df["store_year"] = compute_store_year(df)
+    df["zscore"] = compute_zscore(df, window=150)
+
+    return df
