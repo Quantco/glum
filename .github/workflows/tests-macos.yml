@@ -32,10 +32,10 @@ jobs:
         env:
           ***REMOVED***: ${{ secrets.***REMOVED*** }}
           ***REMOVED***: ${{ secrets.***REMOVED*** }}
-      - uses: conda-incubator/setup-miniconda@e23d871804685e8c52189e5bd45e9145019f10af
+      - uses: conda-incubator/setup-miniconda@723ab12c1d66bb893c5ac701f8e387f00b24549e
         with:
           miniforge-variant: Mambaforge
-          miniforge-version: 4.9.2-6
+          miniforge-version: 4.10.0-0
           use-mamba: true
           condarc-file: .github/workflows/.condarc
       - name: Run Unit Tests

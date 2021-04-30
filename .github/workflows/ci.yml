@@ -28,7 +28,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        PYTHON_VERSION: ['3.6', '3.7', '3.8']
+        PYTHON_VERSION: ['3.6', '3.7', '3.8', '3.9']
     steps:
      - name: Docker login
        run: docker login docker.pkg.github.com -u ${{ github.actor }} -p ${{ secrets.FQ_GH_TOKEN }}
@@ -84,14 +84,15 @@ jobs:
        run: cd docs/_build/html && gsutil -m cp -r * gs://***REMOVED***/${GITHUB_REPOSITORY}/latest/
        if: github.ref == 'refs/heads/master'
   linux-conda-build:
-    name: "Linux - conda-build - Python ${{ matrix.PYTHON_VERSION }}"
+    name: "Linux - conda-build - Python ${{ matrix.CONDA_BUILD_YML }}"
     runs-on: ubuntu-latest
     env:
       CI: True
     strategy:
       fail-fast: true
       matrix:
-        PYTHON_VERSION: ['3.7']
+        CONDA_BUILD_YML:
+          - linux_64_python3.7_default.____cpython
     steps:
       - name: Docker login
         run: docker login docker.pkg.github.com -u ${{ github.actor }} -p ${{ secrets.FQ_GH_TOKEN }}
@@ -106,4 +107,4 @@ jobs:
       - name: Run CI inside of container
         uses: ./.github/actions/conda-build
         with:
-          python_version: ${{ matrix.PYTHON_VERSION }}
+          conda_build_yml: ${{ matrix.CONDA_BUILD_YML }}
