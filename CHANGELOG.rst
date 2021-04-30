@@ -7,6 +7,12 @@
 Changelog
 =========
 
+1.4.1 - 2021-04-30
+------------------
+**Tutorials and Documenation Improvements**:
+- Adding tutorials to the documentation
+- Additional documentation improvements
+
 1.4.0 - 2021-04-13
 ------------------
 
