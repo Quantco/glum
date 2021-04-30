@@ -1,0 +1,16 @@
+GLM_ARCHITECTURE:
+- 'skylake'
+c_compiler:
+- gcc
+c_compiler_version:
+- '9'
+cxx_compiler:
+- gxx
+cxx_compiler_version:
+- '9'
+numpy:
+- '1.17'
+python:
+- 3.7.* *_cpython
+target_platform:
+- linux-64
