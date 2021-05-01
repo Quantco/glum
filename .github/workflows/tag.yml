@@ -12,6 +12,7 @@ jobs:
       CI: True
       CONDA_CHANNEL_UPLOAD_USER: ${{ secrets.CONDA_CHANNEL_UPLOAD_USER }}
       CONDA_CHANNEL_UPLOAD_PASSWORD: ${{ secrets.CONDA_CHANNEL_UPLOAD_PASSWORD }}
+      CONDA_BUILD_YML: "${{ matrix.CONDA_BUILD_YML }}"
     strategy:
       fail-fast: false
       matrix:
@@ -41,7 +42,6 @@ jobs:
         uses: ./.github/actions/deployment
         with:
           conda_build_yml: ${{ matrix.CONDA_BUILD_YML }}
-          python_version: ${{ matrix.PYTHON_VERSION }}
 
   macos-deployment:
     name: "MacOS - deployment - Python ${{ matrix.PYTHON_VERSION }} - ${{ matrix.GLM_ARCHITECTURE }}"
@@ -123,4 +123,4 @@ jobs:
           mamba install -n base -y conda-build
           conda build -m .ci_support/${{ matrix.CONDA_BUILD_YML}}.yaml conda.recipe
           mamba install -y conda-channel-client
-          upload-conda-package (conda render -m .ci_support/${{ matrix.CONDA_BUILD_YML }}.yaml --output conda.recipe)
+          python -m conda_channel_client (conda render -m .ci_support/${{ matrix.CONDA_BUILD_YML }}.yaml --output conda.recipe)
