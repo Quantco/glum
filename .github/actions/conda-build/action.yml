@@ -2,7 +2,7 @@ name: Run image
 description: Run private container from GitHub Packages Registry after Docker login
 inputs:
   conda_build_yml:
-    description: 'conda-build variant file'
+    description: "conda-build variant file"
     required: true
 runs:
   using: 'docker'
