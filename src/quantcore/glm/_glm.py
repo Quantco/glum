@@ -1153,7 +1153,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         alpha_index: int, optional (default=None)
             Sets the index of the alpha to use in case ``alpha_search`` is
-            ``True``.
+            ``True``. If ``alpha_search`` is ``True``, but ``alpha_index``
+            is ``None``, we use the last alpha value ``self._alphas[-1]``.
 
         Returns
         -------
