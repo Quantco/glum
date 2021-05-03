@@ -1,25 +1,23 @@
-name: conda-build macOS
+name: conda-build Windows
 on:
   push:
     paths:
       - '.github/**'
       - 'conda.recipe/**'
 jobs:
-  macos-conda-build:
-    name: "MacOS - conda-build - Python ${{ matrix.CONDA_BUILD_YML }}"
-    runs-on: macos-latest
+  windows-conda-build:
+    name: "Windows - conda-build - ${{ matrix.CONDA_BUILD_YML }}"
+    runs-on: windows-latest
     env:
       CI: True
       CONDA_CHANNEL_UPLOAD_USER: ${{ secrets.CONDA_CHANNEL_UPLOAD_USER }}
       CONDA_CHANNEL_UPLOAD_PASSWORD: ${{ secrets.CONDA_CHANNEL_UPLOAD_PASSWORD }}
-      CONDA_BUILD_YML: ${{ matrix.CONDA_BUILD_YML }}
+      CONDA_BUILD_YML: "${{ matrix.CONDA_BUILD_YML }}"
     strategy:
       fail-fast: false
       matrix:
         CONDA_BUILD_YML:
-          - osx_64_python3.6_default.____cpython
-          - osx_64_python3.7_skylake.____cpython
-          - osx_arm64_python3.9.____cpython
+          - win_64_python3.6.____cpython
     steps:
       - name: Checkout branch
         uses: actions/checkout@v2.1.0
@@ -28,13 +26,10 @@ jobs:
       - name: Fetch full git history
         run: git fetch --prune --unshallow
       - name: Create .condarc
-        shell: bash -l {0}
+        shell: pwsh
         run: |
-          sed -ie "s/CONDA_CHANNEL_UPLOAD_USER/${CONDA_CHANNEL_UPLOAD_USER}/g" .github/workflows/.condarc
-          sed -ie "s/CONDA_CHANNEL_UPLOAD_PASSWORD/${CONDA_CHANNEL_UPLOAD_PASSWORD}/g" .github/workflows/.condarc
-        env:
-          CONDA_CHANNEL_UPLOAD_USER: ${{ secrets.CONDA_CHANNEL_UPLOAD_USER }}
-          CONDA_CHANNEL_UPLOAD_PASSWORD: ${{ secrets.CONDA_CHANNEL_UPLOAD_PASSWORD }}
+          ((Get-Content -path .github/workflows/.condarc) -replace 'CONDA_CHANNEL_UPLOAD_USER', '${{ secrets.CONDA_CHANNEL_UPLOAD_USER }}') | Set-Content .github/workflows/.condarc
+          ((Get-Content -path .github/workflows/.condarc) -replace 'CONDA_CHANNEL_UPLOAD_PASSWORD', '${{ secrets.CONDA_CHANNEL_UPLOAD_PASSWORD }}') | Set-Content .github/workflows/.condarc
       - uses: conda-incubator/setup-miniconda@723ab12c1d66bb893c5ac701f8e387f00b24549e
         with:
           miniforge-variant: Mambaforge
@@ -42,6 +37,8 @@ jobs:
           use-mamba: true
           condarc-file: .github/workflows/.condarc
       - name: Build conda package
-        shell: bash -l {0}
-        run: ./.github/workflows/macos-conda-build.sh
+        shell: pwsh
+        run: |
+          mamba install -n base -y conda-build
+          conda build -m .ci_support/${{ matrix.CONDA_BUILD_YML}}.yaml conda.recipe
 
