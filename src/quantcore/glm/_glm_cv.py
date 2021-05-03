@@ -72,7 +72,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         depending on the chosen family as follows:
 
         - ``'identity'`` for family ``'normal'``
-        - ``'log'`` for families ``'poisson'``, ``'gamma'``, ``'inverse.gaussian'``
+        - ``'log'`` for families ``'poisson'``, ``'gamma'`` and
+          ``'inverse.gaussian'``
         - ``'logit'`` for family ``'binomial'``
 
     fit_dispersion : {None, 'chisqr', 'deviance'}, optional (default=None)
@@ -84,28 +85,36 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         Algorithm to use in the optimization problem:
 
         - ``'auto'``: ``'irls-ls'`` if ``l1_ratio`` is zero and ``'irls-cd'``
-            otherwise.
+          otherwise.
         - ``'irls-cd'``: Iteratively reweighted least squares with a coordinate
-            descent inner solver. This can deal with L1 as well as L2 penalties.
-            Note that in order to avoid unnecessary memory duplication of X in
-            the ``fit`` method, ``X`` should be directly passed as a
-            Fortran-contiguous Numpy array or sparse CSC matrix.
+          descent inner solver. This can deal with L1 as well as L2 penalties.
+          Note that in order to avoid unnecessary memory duplication of X in the
+          ``fit`` method, ``X`` should be directly passed as a
+          Fortran-contiguous Numpy array or sparse CSC matrix.
         - ``'irls-ls'``: Iteratively reweighted least squares with a least
-            squares inner solver. This algorithm cannot deal with L1 penalties.
+          squares inner solver. This algorithm cannot deal with L1 penalties.
         - ``'lbfgs'``: Scipy's L-BFGS-B optimizer. It cannot deal with L1
-            penalties.
+          penalties.
 
     max_iter : int, optional (default=100)
         The maximal number of iterations for solver algorithms.
 
     gradient_tol : float, optional (default=None)
-        Stopping criterion. For the IRLS-LS and L-BFGS solvers, the iteration
+        Stopping criterion. If ``None``, solver-specific defaults will be used.
+        The default value for most solvers is ``1e-4``, except for
+        ``'trust-constr'``, which requires more conservative convergence
+        settings and has a default value of ``1e-8``.
+
+        For the IRLS-LS, L-BFGS and trust-constr solvers, the iteration
         will stop when ``max{|g_i|, i = 1, ..., n} <= tol``, where ``g_i`` is
         the ``i``-th component of the gradient (derivative) of the objective
         function. For the CD solver, convergence is reached when
         ``sum_i(|minimum norm of g_i|)``, where ``g_i`` is the subgradient of
         the objective and the minimum norm of ``g_i`` is the element of the
         subgradient with the smallest L2 norm.
+
+        If you wish to only use a step-size tolerance, set ``gradient_tol``
+        to a very small number.
 
     step_size_tol: float, optional (default=None)
         Alternative stopping criterion. For the IRLS-LS and IRLS-CD solvers, the
@@ -226,7 +235,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         :ref:`User Guide <cross_validation>` for the various cross-validation
         strategies available.
 
-     n_jobs : int, optional (default=None)
+    n_jobs : int, optional (default=None)
         Number of CPUs to use during cross validation. ``None`` means ``1``
         unless in a :obj:`joblib.parallel_backend` context. ``-1`` means using
         all processors. See :term:`Glossary <n_jobs>` for more details.
@@ -356,16 +365,38 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         sample_weight: Optional[ArrayLike] = None,
         offset: Optional[ArrayLike] = None,
     ):
-        """
-        Fit the model along a "regularization path" and choose the best model by \
-        cross-validation.
+        r"""
+        Choose the best model along a 'regularization path' by cross-validation.
 
         Parameters
         ----------
-        X
-        y
-        sample_weight
-        offset
+        X : {array-like, sparse matrix}, shape (n_samples, n_features)
+            Training data. Note that a ``float32`` matrix is acceptable and will
+            result in the entire algorithm being run in 32-bit precision.
+            However, for problems that are poorly conditioned, this might result
+            in poor convergence or flawed parameter estimates. If a Pandas data
+            frame is provided, it may contain categorical columns. In that case,
+            a separate coefficient will be estimated for each category. No
+            category is omitted. This means that some regularization is required
+            to fit models with an intercept or models with several categorical
+            columns.
+
+        y : array-like, shape (n_samples,)
+            Target values.
+
+        sample_weight : array-like, shape (n_samples,), optional (default=None)
+            Individual weights w_i for each sample. Note that, for an
+            Exponential Dispersion Model (EDM), one has
+            :math:`\mathrm{var}(y_i) = \phi \times v(mu) / w_i`. If
+            :math:`y_i \sim EDM(\mu, \phi / w_i)`, then
+            :math:`\sum w_i y_i / \sum w_i \sim EDM(\mu, \phi / \sum w_i)`,
+            i.e. the mean of :math:`y` is a weighted average with weights equal
+            to ``sample_weight``.
+
+        offset: array-like, shape (n_samples,), optional (default=None)
+            Added to linear predictor. An offset of 3 will increase expected
+            ``y`` by 3 if the link is linear and will multiply expected ``y`` by
+            3 if the link is logarithmic.
         """
         self._validate_hyperparameters()
 
