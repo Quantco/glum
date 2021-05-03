@@ -6,7 +6,7 @@ on:
 
 jobs:
   linux-deployment:
-    name: "Linux - deployment - Python ${{ matrix.PYTHON_VERSION }} - ${{ matrix.GLM_ARCHITECTURE }}"
+    name: "Linux - deployment - Python ${{ matrix.CONDA_BUILD_YML }}"
     runs-on: ubuntu-latest
     env:
       CI: True
@@ -44,7 +44,7 @@ jobs:
           conda_build_yml: ${{ matrix.CONDA_BUILD_YML }}
 
   macos-deployment:
-    name: "MacOS - deployment - Python ${{ matrix.PYTHON_VERSION }} - ${{ matrix.GLM_ARCHITECTURE }}"
+    name: "MacOS - deployment - Python ${{ matrix.CONDA_BUILD_YML }}"
     runs-on: macos-latest
     env:
       CI: True
