@@ -6,17 +6,25 @@ on:
 
 jobs:
   linux-deployment:
-    name: "Linux - deployment - Python ${{ matrix.PYTHON_VERSION }} - ${{ matrix.GLM_ARCHITECTURE }}"
+    name: "Linux - deployment - Python ${{ matrix.CONDA_BUILD_YML }}"
     runs-on: ubuntu-latest
     env:
       CI: True
       CONDA_CHANNEL_UPLOAD_USER: ${{ secrets.CONDA_CHANNEL_UPLOAD_USER }}
       CONDA_CHANNEL_UPLOAD_PASSWORD: ${{ secrets.CONDA_CHANNEL_UPLOAD_PASSWORD }}
+      CONDA_BUILD_YML: "${{ matrix.CONDA_BUILD_YML }}"
     strategy:
       fail-fast: false
       matrix:
-        PYTHON_VERSION: ['3.6', '3.7', '3.8']
-        GLM_ARCHITECTURE: ['default', 'skylake']
+        CONDA_BUILD_YML:
+          - linux_64_python3.6_default.____cpython
+          - linux_64_python3.6_skylake.____cpython
+          - linux_64_python3.7_default.____cpython
+          - linux_64_python3.7_skylake.____cpython
+          - linux_64_python3.8_default.____cpython
+          - linux_64_python3.8_skylake.____cpython
+          - linux_64_python3.9_default.____cpython
+          - linux_64_python3.9_skylake.____cpython
     steps:
       - name: Docker login
         run: docker login docker.pkg.github.com -u ${{ github.actor }} -p ${{ secrets.FQ_GH_TOKEN }}
@@ -33,23 +41,30 @@ jobs:
       - name: Build and upload conda package
         uses: ./.github/actions/deployment
         with:
-          python_version: ${{ matrix.PYTHON_VERSION }}
-          glm_architecture: ${{ matrix.GLM_ARCHITECTURE }}
+          conda_build_yml: ${{ matrix.CONDA_BUILD_YML }}
 
   macos-deployment:
-    name: "MacOS - deployment - Python ${{ matrix.PYTHON_VERSION }} - ${{ matrix.GLM_ARCHITECTURE }}"
+    name: "MacOS - deployment - Python ${{ matrix.CONDA_BUILD_YML }}"
     runs-on: macos-latest
     env:
       CI: True
       CONDA_CHANNEL_UPLOAD_USER: ${{ secrets.CONDA_CHANNEL_UPLOAD_USER }}
       CONDA_CHANNEL_UPLOAD_PASSWORD: ${{ secrets.CONDA_CHANNEL_UPLOAD_PASSWORD }}
-      PYTHON_VERSION: ${{ matrix.PYTHON_VERSION }}
-      GLM_ARCHITECTURE: ${{ matrix.GLM_ARCHITECTURE }}
+      CONDA_BUILD_YML: "${{ matrix.CONDA_BUILD_YML }}"
     strategy:
       fail-fast: false
       matrix:
-        PYTHON_VERSION: ['3.7', '3.8']
-        GLM_ARCHITECTURE: ['default', 'skylake']
+        CONDA_BUILD_YML:
+          - osx_64_python3.6_default.____cpython
+          - osx_64_python3.6_skylake.____cpython
+          - osx_64_python3.7_default.____cpython
+          - osx_64_python3.7_skylake.____cpython
+          - osx_64_python3.8_default.____cpython
+          - osx_64_python3.8_skylake.____cpython
+          - osx_64_python3.9_default.____cpython
+          - osx_64_python3.9_skylake.____cpython
+          - osx_arm64_python3.8.____cpython
+          - osx_arm64_python3.9.____cpython
     steps:
       - name: Checkout branch
         uses: actions/checkout@v2.1.0
@@ -60,16 +75,52 @@ jobs:
         run: |
           sed -ie "s/CONDA_CHANNEL_UPLOAD_USER/${CONDA_CHANNEL_UPLOAD_USER}/g" .github/workflows/.condarc
           sed -ie "s/CONDA_CHANNEL_UPLOAD_PASSWORD/${CONDA_CHANNEL_UPLOAD_PASSWORD}/g" .github/workflows/.condarc
-        env:
-          CONDA_CHANNEL_UPLOAD_USER: ${{ secrets.CONDA_CHANNEL_UPLOAD_USER }}
-          CONDA_CHANNEL_UPLOAD_PASSWORD: ${{ secrets.CONDA_CHANNEL_UPLOAD_PASSWORD }}
-      - uses: conda-incubator/setup-miniconda@e23d871804685e8c52189e5bd45e9145019f10af
+      - uses: conda-incubator/setup-miniconda@723ab12c1d66bb893c5ac701f8e387f00b24549e
         with:
           miniforge-variant: Mambaforge
-          miniforge-version: 4.9.2-6
+          miniforge-version: 4.10.0-0
           use-mamba: true
           condarc-file: .github/workflows/.condarc
       - name: Build and upload conda package
         shell: bash -l {0}
         run: ./.github/workflows/macos-tag.sh
 
+  windows-conda-build:
+    name: "Windows - conda-build - ${{ matrix.CONDA_BUILD_YML }}"
+    runs-on: windows-latest
+    env:
+      CI: True
+      CONDA_CHANNEL_UPLOAD_USER: ${{ secrets.CONDA_CHANNEL_UPLOAD_USER }}
+      CONDA_CHANNEL_UPLOAD_PASSWORD: ${{ secrets.CONDA_CHANNEL_UPLOAD_PASSWORD }}
+      CONDA_BUILD_YML: "${{ matrix.CONDA_BUILD_YML }}"
+    strategy:
+      fail-fast: false
+      matrix:
+        CONDA_BUILD_YML:
+          - win_64_python3.6.____cpython
+          - win_64_python3.7.____cpython
+          - win_64_python3.8.____cpython
+          - win_64_python3.9.____cpython
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v2.1.0
+        with:
+          ref: ${{ github.head_ref }}
+      - name: Create .condarc
+        shell: pwsh
+        run: |
+          ((Get-Content -path .github/workflows/.condarc) -replace 'CONDA_CHANNEL_UPLOAD_USER', '${{ secrets.CONDA_CHANNEL_UPLOAD_USER }}') | Set-Content .github/workflows/.condarc
+          ((Get-Content -path .github/workflows/.condarc) -replace 'CONDA_CHANNEL_UPLOAD_PASSWORD', '${{ secrets.CONDA_CHANNEL_UPLOAD_PASSWORD }}') | Set-Content .github/workflows/.condarc
+      - uses: conda-incubator/setup-miniconda@723ab12c1d66bb893c5ac701f8e387f00b24549e
+        with:
+          miniforge-variant: Mambaforge
+          miniforge-version: 4.10.0-0
+          use-mamba: true
+          condarc-file: .github/workflows/.condarc
+      - name: Build conda package
+        shell: pwsh
+        run: |
+          mamba install -n base -y conda-build
+          conda build -m .ci_support/${{ matrix.CONDA_BUILD_YML}}.yaml conda.recipe
+          mamba install -y conda-channel-client
+          python -m conda_channel_client (conda render -m .ci_support/${{ matrix.CONDA_BUILD_YML }}.yaml --output conda.recipe)

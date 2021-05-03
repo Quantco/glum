@@ -1,0 +1,12 @@
+GLM_ARCHITECTURE:
+- 'default'
+c_compiler:
+- vs2017
+cxx_compiler:
+- vs2017
+numpy:
+- '1.17'
+python:
+- 3.7.* *_cpython
+target_platform:
+- win-64

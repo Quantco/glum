@@ -1,0 +1,20 @@
+GLM_ARCHITECTURE:
+- 'skylake'
+MACOSX_DEPLOYMENT_TARGET:
+- '10.9'
+c_compiler:
+- clang
+c_compiler_version:
+- '11'
+cxx_compiler:
+- clangxx
+cxx_compiler_version:
+- '11'
+macos_machine:
+- x86_64-apple-darwin13.4.0
+numpy:
+- '1.17'
+python:
+- 3.6.* *_cpython
+target_platform:
+- osx-64
