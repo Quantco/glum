@@ -18,6 +18,7 @@ dependencies:
   - jemalloc
   - johnlees-glmnet_python
   - jupyterlab
+  - jupytext
   - libblas>=0=*mkl
   - line_profiler
   - make
