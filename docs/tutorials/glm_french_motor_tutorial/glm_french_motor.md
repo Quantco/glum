@@ -19,7 +19,8 @@ jupyter:
 
 #### Intro
 This tutorial shows why and how to use Poisson, Gamma, and Tweedie GLMs on an insurance claims dataset using `quantcore.glm` It was inspired by, and closely mirrors, two other GLM tutorials that used this dataset:
-1. An sklearn-learn tutorial, [Tweedie regression on insurance claims](https://scikit-learn.org/stable/auto_examples/linear_model/plot_tweedie_regression_insurance_claims.html#pure-premium-modeling-via-a-product-model-vs-single-tweedieregressor), which was created for this (partially merged) [sklearn PR](https://github.com/scikit-learn/scikit-learn/pull/9405)
+
+1. An sklearn-learn tutorial, [Tweedie regression on insurance claims](https://scikit-learn.org/stable/auto_examples/linear_model/plot_tweedie_regression_insurance_claims.html#pure-premium-modeling-via-a-product-model-vs-single-tweedieregressor), which was created for this (partially merged) [sklearn PR](https://github.com/scikit-learn/scikit-learn/pull/9405) that we based quantcore.glm on
 2. An R tutorial, [Case Study: French Motor Third-Party Liability Claims](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3164764) with [R code](https://github.com/JSchelldorfer/ActuarialDataScience/tree/master/1%20-%20French%20Motor%20Third-Party%20Liability%20Claims).
 
 
@@ -27,6 +28,7 @@ This tutorial shows why and how to use Poisson, Gamma, and Tweedie GLMs on an in
 Insurance claims are requests made by a policy holder to an insurance company for compensation in the event of a covered loss. When modeling these claims, the goal is often to estimate, per policy, the total claim amount per exposure unit. (i.e. number of claims $\times$ average amount per claim, per year). This amount is also referred to as the pure premium.
 
 Two approaches for modeling this value are:
+
 1. Modeling the total claim amount per exposure directly
 2. Modeling number of claims and claim amount separately with a frequency and a severity model
 
@@ -64,11 +66,13 @@ from load_transform import load_transform
 [back to table of contents](#toc)
 
 First, we load in our dataset from openML and apply several transformations. In the interest of simplicity, we do not include the data loading and preparation code in this notebook. Below is a list of further resources if you wish to explore further: 
+
 1. If you want to run the same code yourself, please see the helper functions here: <span style="color:red">**TODO**: add link once in master</span>.
 2. For a detailed description of the data, see http://dutangc.free.fr/pub/RRepos/web/CASdatasets-index.html.
-3. For an excellent exploratory data analysis, see the case study paper.
+3. For an excellent exploratory data analysis, see the case study paper linked above.
 
 Some important notes about the dataset post-transformation:
+
 - Total claim amounts are aggregated per policy
 - For ClaimAmountCut, the claim amounts (pre-aggregation) were cut at 100,000 per single claim. We choose to use this amount rather than the raw ClaimAmount. (100,000 is the 0.9984 quantile but claims > 100,000 account for 25% of the overall claim amount)
 - We aggregate the total claim amounts per policy
@@ -98,6 +102,7 @@ Note that both the number of claims $z$ and the exposure $w$ are additive. This 
 The number of claims $z$ is an integer, $z \in [0, 1, 2, 3, \ldots]$. Theoretically, a policy could have an arbitrarily large number of claims&mdash;very unlikely but possible. The simplest distribution for this range is a Poisson distribution $z \sim Poisson$. Instead of $z$, we will model the frequency $y$, which is still (scaled) Poisson distributed with variance inverse proportional to $w$, cf. [wikipedia:Reproductive_EDM](https://en.wikipedia.org/wiki/Exponential_dispersion_model#Reproductive). A very important property of the Poisson distribution is its mean-variance relation: The variance is proportional to the mean.
 
 We summarize our assumptions for a Poisson-GLM model with log-link:
+
 - target: $y \sim Poisson$
 - mean: $\mathrm{E}[y] = \exp(X\beta)$
 - variance: $\mathrm{Var}[y] = \frac{1}{w} \mathrm{E}[y]$
@@ -165,8 +170,10 @@ plt.show()
 This is a strong confirmation for the use of a Poisson when fitting!
 
 *Hints*:
+
 - If Y were normal distributed, one should see a horizontal line, because for a Normal: Var[Y] ~ constant/Exposure.
 - The 45° line is not even necessary, any straight line through the origin would be enough for simple reasons:
+
     1. A quasi-Poisson distribution has $Var[Y] = \phi * E[Y]/w$ for some $\phi$.
     2. $\phi$ does not influence the estimation/fitting of E[Y] (thanks @[ExponentialDispersionFamily](https://en.wikipedia.org/wiki/Exponential_dispersion_model)).
 
@@ -199,13 +206,14 @@ z_train_p, z_test_p = z[train], z[test]
 ```
 
 Now, we define our GLM using the `GeneralizedLinearRegressor` class from `quantcore.glm`.
+
 - `family='poisson'`: creates a Poisson regressor
 - `alpha_search=True`: tells the GLM to search along the regularization path for the best alpha
 - `l1_ratio = 1` tells the GLM to only use l1 penalty (not l2). `l1_ratio` is the elastic net mixing parameter. For ``l1_ratio = 0``, the penalty is an L2 penalty. ``For l1_ratio = 1``, it is an L1 penalty.  For ``0 < l1_ratio < 1``, the penalty is a combination of L1 and L2.
 
 See the `GeneralizedLinearRegressor` class documentation for more details <span style="color:red">**TODO**: include documentation link once up</span>.
 
-*Note*: `quantcore.glm` also supported a cross validation model GeneralizedLinearRegressorCV. However, like most cross validation models, it is inevitably slower, so we don't demonstrate it in this tutorial.
+*Note*: `quantcore.glm` also supported a cross validation model GeneralizedLinearRegressorCV. However, because cross validation requires fitting many models, it is much slower and we don’t demonstrate it in this tutorial.
 
 ```python
 f_glm1 = GeneralizedLinearRegressor(family='poisson', alpha_search=True, l1_ratio=1, fit_intercept=True)
@@ -243,30 +251,13 @@ Summing up the predictions $\hat{\mu}_i$ yields exaclty the observations $y_i$.
 z_train_p.sum(), (f_glm1.predict(X_train_p) * w_train_p).sum()
 ```
 
-```python
-# for Poisson deviance, note that the following are equivalent (with freq = count/weight)
-# dev(observed count, predicted count) ~ dev(observed freq, predicted freq, sample_weight=weight)
-print('training loss f_glm1: {}'.format(
-    PoissonDist.deviance(y_train_p, f_glm1.predict(X_train_p), weights=w_train_p)/len(train)))
-
-print('training loss f_glm1: {}'.format(
-    PoissonDist.deviance(z_train_p, f_glm1.predict(X_train_p) * w_train_p)/len(train)))
-
-print('testing loss f_glm1:  {}'.format(
-    PoissonDist.deviance(z_test_p, f_glm1.predict(X_test_p) * w_test_p)/len(test)))
-
-# Compare to test loss of Mean model
-print('testing loss Mean:    {}'.format(
-    PoissonDist.deviance(z_test_p,
-                     np.average(y_train_p, weights=w_train_p)*w_test_p)/len(test)))
-```
-
 ## 3. Severity GLM -  Gamma Distribution <a class="anchor" id="3-severity"></a>
 [back to Table of Contents](#toc)
 
 Now, we fit a GLM model for the severity with the same features as the freq model.
 The severity $y$ is the average claim size.
 We define:
+
 - $z$: total claim amount, single claims cut at 100,000
 - $w$: number of claims (with positive claim amount!)
 - $y = \frac{z}{w}$: severity
@@ -355,6 +346,7 @@ This is good empirical confirmation to use the Gamma.
 We fit a GLM model for the severity with the same features as the freq model. We use the same categorizer as before. 
 
 *Note*:
+
 - We filter out ClaimAmount == 0 as the Gamma distribution as support on $(0, \infty)$ not $[0, \infty)$
 - We use ClaimNb_pos as sample weights.
 - We use the same split in train and test data such that we can predict the final claim amount on the test set.

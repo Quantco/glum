@@ -71,10 +71,10 @@ We start by loading in the raw data. If you have not yet processed the raw data,
 ### 1.1 Load
 
 ```python
-if not all([os.path.exists(p) for p in ["raw_data/train.csv", "raw_data/test.csv", "raw_data/store.csv"]]):
+if not all([Path(p).exists for p in ["raw_data/train.csv", "raw_data/test.csv", "raw_data/store.csv"]]):
     raise Exception("Please download raw data into 'raw_data' folder")
 
-if not all([os.path.exists(p) for p in ["processed_data/train.parquet", "processed_data/test.parquet"]]):
+if not all([Path(p).exists for p in ["processed_data/train.parquet", "processed_data/test.parquet"]]):
     "Processed data not found. Processing data from raw data..."
     process_data()
     "Done"
@@ -99,6 +99,7 @@ As we mention earlier, we want our model to incorporate the many factors that in
 - Fixed effects for each day of the week for each store
 
 In addition to fixed effects, we also do several other transformations. These include:
+
 - Taking the log of sales. It is expected that the factors influencing store sales like locality, seasonality, etc. will have a multiplicative effect on sales rather than additive, so going foward, we use log of sales as our outcome variable
 - Computing the z score to eliminate outliers (in the next step)
 
