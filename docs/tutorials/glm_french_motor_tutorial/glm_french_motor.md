@@ -91,9 +91,10 @@ with pd.option_context('display.max_rows', 10):
 We start with the first part of our two part GLM - modeling the frequency of claims using a Poisson regression. Below, we give some background on why the Poisson family makes the most sense in this context.
 
 ### 2.1 Why Poisson distributions?
-For starters, Poisson distributions are typically used to model the number of events occuring in a fixed period of time when the events occur independently at a constant rate. In our case, we can think of motor insurance claims as the events, and a unit of exposure (a year) as the fixed period of time. 
+For starters, Poisson distributions are typically used to model the number of events occuring in a fixed period of time when the events occur independently at a constant rate. In our case, we can think of motor insurance claims as the events, and a unit of exposure (i.e. a year) as the fixed period of time. 
 
 To get more technical:
+
 We define:
 
 - $z$: number of claims
@@ -106,9 +107,9 @@ Notice that both the number of claims $z$ and the exposure $w$ are additive. Thi
 \mathrm{mean}(y) = \frac{1}{\sum_i w_i}\sum_i w_i y_i = \frac{\sum_i z_i}{\sum_i w_i}
 \end{equation}
 
-The number of claims $z$ is an integer, $z \in [0, 1, 2, 3, \ldots]$. Theoretically, a policy could have an arbitrarily large number of claims&mdash;very unlikely but possible. The simplest distribution for this range is a Poisson distribution $z \sim Poisson$. Instead of $z$, we will model the frequency $y$, which is still (scaled) Poisson distributed with variance inverse proportional to $w$, cf. [wikipedia:Reproductive_EDM](https://en.wikipedia.org/wiki/Exponential_dispersion_model#Reproductive). A very important property of the Poisson distribution is its mean-variance relation: The variance is proportional to the mean.
+The number of claims $z$ is an integer, $z \in [0, 1, 2, 3, \ldots]$. Theoretically, a policy could have an arbitrarily large number of claims&mdash;very unlikely but possible. The simplest distribution for this range is a Poisson distribution $z \sim Poisson$. However, instead of $z$, we will model the frequency $y$, which is still (scaled) Poisson distributed with variance inverse proportional to $w$, cf. [wikipedia:Reproductive_EDM](https://en.wikipedia.org/wiki/Exponential_dispersion_model#Reproductive). A very important property of the Poisson distribution is its mean-variance relation: The variance is proportional to the mean.
 
-We summarize our assumptions for a Poisson-GLM model with log-link:
+We summarize our assumptions for a Poisson-GLM model with the log-link:
 
 - target: $y \sim Poisson$
 - mean: $\mathrm{E}[y] = \exp(X\beta)$
@@ -119,7 +120,7 @@ We summarize our assumptions for a Poisson-GLM model with log-link:
 \mathrm{Var}[y] \propto \frac{1}{w} \mathrm{E}[y]$
 \end{equation}
 
-To verify our assumptions, we start by plotting the observed frequencies and a fitted Poisson distributions (Poisson regression with intercept only).
+To verify our assumptions, we start by plotting the observed frequencies and a fitted Poisson distribution (Poisson regression with intercept only).
 
 ```python
 df_plot = (
