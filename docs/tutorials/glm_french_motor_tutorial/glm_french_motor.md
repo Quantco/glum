@@ -76,7 +76,7 @@ Some important notes about the dataset post-transformation:
 - Total claim amounts are aggregated per policy
 - For ClaimAmountCut, the claim amounts (pre-aggregation) were cut at 100,000 per single claim. We choose to use this amount rather than the raw ClaimAmount. (100,000 is the 0.9984 quantile but claims > 100,000 account for 25% of the overall claim amount)
 - We aggregate the total claim amounts per policy
-* ClaimNb is the total number of claims per policy, and ClaimNb_pos as the claim number with claim amount greater zero
+* ClaimNb is the total number of claims per policy with claim amount greater zero
 * VehPower, VehAge, and DrivAge are clipped and/or digitized into bins so that they can be used as categoricals later on
 
 ```python
@@ -177,17 +177,15 @@ This is a strong confirmation for the use of a Poisson when fitting!
     1. A quasi-Poisson distribution has $Var[Y] = \phi * E[Y]/w$ for some $\phi$.
     2. $\phi$ does not influence the estimation/fitting of E[Y] (thanks @[ExponentialDispersionFamily](https://en.wikipedia.org/wiki/Exponential_dispersion_model)).
 
-<!-- #region -->
+
 ### 2.2 Train and Test Frequency GLM
 
-
-We now start fitting our model. We use claim number with positive claim amount 'ClaimNb_pos' and we devide the dataset into training set and test set with a 9:1 random split. 
+Now, we start fitting our model. We use claims frequency = claim number/exposure as our outcome variable. We then divide the dataset into training set and test set with a 9:1 random split. 
 
 Also, notice that we do not one hot encode our columns. Rather, we take advantage of `quantcore.glm`'s integration with `quantcore.matrix`, which allows us to pass in categorical columns directly! `quantcore.matrix` will handle the encoding for us and even includes a handful of helpful matrix operation optimizations. We use the `Categorizer` from [dask_ml](https://ml.dask.org/modules/generated/dask_ml.preprocessing.Categorizer.html) to set our categorical columns as categorical dtypes.
-<!-- #endregion -->
 
 ```python
-z = df['ClaimNb_pos'].values
+z = df['ClaimNb'].values
 weight = df['Exposure'].values
 y = z / weight # claims frequency
 
@@ -269,9 +267,9 @@ A Gamma distribution has mean-variance relation $\mathrm{Var}[Y] = \frac{\phi}{w
 
 ```python
 df_plot = (
-    df.loc[:, ['ClaimAmountCut', 'ClaimNb_pos']]
-    .query('ClaimNb_pos > 0')
-    .assign(Severity_Observed = lambda x: x['ClaimAmountCut'] / df['ClaimNb_pos'])
+    df.loc[:, ['ClaimAmountCut', 'ClaimNb']]
+    .query('ClaimNb > 0')
+    .assign(Severity_Observed = lambda x: x['ClaimAmountCut'] / df['ClaimNb'])
 )
 
 df_plot['Severity_Observed'].plot.hist(bins=400, density=True, label='Observed', )
@@ -295,31 +293,31 @@ plt.xlim(left=0, right = 1e4);
 def my_agg(x):
     """See https://stackoverflow.com/q/44635626"""
     x_sev = x['Sev']
-    x_cnb = x['ClaimNb_pos']
+    x_cnb = x['ClaimNb']
     n = x_sev.shape[0]
     names = {
         'Sev_mean': np.average(x_sev, weights=x_cnb),
         'Sev_var': 1/(n-1) * np.sum((x_cnb/np.sum(x_cnb)) * (x_sev-np.average(x_sev, weights=x_cnb))**2),
-        'ClaimNb_pos_sum': x_cnb.sum()
+        'ClaimNb_sum': x_cnb.sum()
     }
-    return pd.Series(names, index=['Sev_mean', 'Sev_var', 'ClaimNb_pos_sum'])
+    return pd.Series(names, index=['Sev_mean', 'Sev_var', 'ClaimNb_sum'])
 
 for col in ['VehPower', 'BonusMalus']:
-    claims = df.groupby(col)['ClaimNb_pos'].sum()
+    claims = df.groupby(col)['ClaimNb'].sum()
     df_plot = (df.loc[df[col].isin(claims[claims >= 4].index), :]
-               .query('ClaimNb_pos > 0')
-               .assign(Sev = lambda x: x['ClaimAmountCut']/x['ClaimNb_pos'])
+               .query('ClaimNb > 0')
+               .assign(Sev = lambda x: x['ClaimAmountCut']/x['ClaimNb'])
                .groupby(col)
                .apply(my_agg)
               )
 
-    plt.plot(df_plot['Sev_mean'], df_plot['Sev_var'] * df_plot['ClaimNb_pos_sum'], '.',
+    plt.plot(df_plot['Sev_mean'], df_plot['Sev_var'] * df_plot['ClaimNb_sum'], '.',
              markersize=12, label='observed')
 
     # fit: mean**p/claims
     p = optimize.curve_fit(lambda x, p: np.power(x, p),
                            df_plot['Sev_mean'].values,
-                           df_plot['Sev_var'] * df_plot['ClaimNb_pos_sum'],
+                           df_plot['Sev_var'] * df_plot['ClaimNb_sum'],
                            p0 = [2])[0][0]
     df_fit = pd.DataFrame({'x': df_plot['Sev_mean'],
                            'y': np.power(df_plot['Sev_mean'], p)})
@@ -328,7 +326,7 @@ for col in ['VehPower', 'BonusMalus']:
     plt.plot(df_fit.x, df_fit.y,
              'k--', label='fit: Mean**{}'.format(p))
     plt.xlabel('Mean of Severity ')
-    plt.ylabel('Variance of Severity * ClaimNb_pos')
+    plt.ylabel('Variance of Severity * ClaimNb')
     plt.legend()
     plt.title('Man-Variance of Claim Severity by {}'.format(col))
     plt.show()
@@ -348,14 +346,14 @@ We fit a GLM model for the severity with the same features as the freq model. We
 *Note*:
 
 - We filter out ClaimAmount == 0 as the Gamma distribution as support on $(0, \infty)$ not $[0, \infty)$
-- We use ClaimNb_pos as sample weights.
+- We use ClaimNb as sample weights.
 - We use the same split in train and test data such that we can predict the final claim amount on the test set.
 
 ```python
 idx = df['ClaimAmountCut'].values > 0
 
 z = df['ClaimAmountCut'].values
-weight = df['ClaimNb_pos'].values
+weight = df['ClaimNb'].values
 # y = claims severity
 y = np.zeros_like(z)  # zeros will never be used
 y[idx] = z[idx] / weight[idx]

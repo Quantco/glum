@@ -14,7 +14,7 @@ def load_transform():
        might apply. 100'000 is the 0.9984 quantile, any claims larger account for 25% of
        the overall claim amount. This is a well known phenomenon for third-party liability.
     4. We aggregate the total claim amounts per policy id and join them to freMTPL2freq.
-    5. We define ``'ClaimNb_pos'`` as the claim number with claim amount greater zero.
+    5. We fix ``'ClaimNb'`` as the claim number with claim amount greater zero.
     6. VehPower, VehAge, and DrivAge are clipped and/or digitized into bins so they
        can be used as categoricals later on.
     """
@@ -44,14 +44,11 @@ def load_transform():
 
     # Note: Zero claims must be ignored in severity models,
     # because the support is (0, inf) not [0, inf).
-    # Thus, we define the number of claims with positive claim amount for later use.
-    df["ClaimNb_pos"] = df["ClaimNb"]
-    df.loc[(df.ClaimAmount <= 0) & (df.ClaimNb >= 1), "ClaimNb_pos"] = 0
+    df.loc[(df.ClaimAmount <= 0) & (df.ClaimNb >= 1), "ClaimNb"] = 0
 
     # correct for unreasonable observations (that might be data error)
     # see case study paper
     df["ClaimNb"] = df["ClaimNb"].clip(upper=4)
-    df["ClaimNb_pos"] = df["ClaimNb_pos"].clip(upper=4)
     df["Exposure"] = df["Exposure"].clip(upper=1)
 
     # Clip and/or digitize predictors into bins
