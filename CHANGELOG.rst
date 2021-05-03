@@ -9,7 +9,7 @@ Changelog
 
 1.4.1 - 2021-05-03
 ------------------
-**Tutorials and Documenation Improvements**:
+**Tutorials and documenation improvements**:
 - Adding tutorials to the documentation
 - Additional documentation improvements
 
