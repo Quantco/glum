@@ -40,11 +40,11 @@ For this tutorial, we will model the selling price of homes in King's County, Wa
 
 ```python
 import geopandas as geopd
+import libpysal
 import matplotlib.pyplot as plt
 import numpy as np
 import openml
 import pandas as pd
-import pysal as ps
 
 from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import train_test_split
@@ -159,7 +159,7 @@ We leave the non-geographic features unregulated (all zeros in the $P2$ matrix).
 
 ```python
 # format is {zip1: {neighbord1: 1, neighbor2: 1, ...}}
-neighbor_matrix = ps.lib.weights.Queen.from_dataframe(gdf_map, ids="ZIP") 
+neighbor_matrix = libpysal.weights.Queen.from_dataframe(gdf_map, ids="ZIP") 
 
 n_features = X_train.shape[1]
 P2 = np.zeros((n_features, n_features))
