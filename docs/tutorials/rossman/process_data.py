@@ -1,5 +1,6 @@
 import logging
 import os
+from pathlib import Path
 
 import pandas as pd
 
@@ -8,7 +9,7 @@ logger = logging.getLogger(__file__)
 
 def process_data():
     """Process and save raw rossman data."""
-    if not os.path.exists("processed_data"):
+    if not Path("processed_data").exists():
         os.mkdir("processed_data")
     for filename_stub in ["train", "test"]:
         print(f"Processing {filename_stub}")

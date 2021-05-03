@@ -66,6 +66,7 @@ import helpers
 The main dataset is downloaded from openml. You can find the main page for the dataset [here](https://www.openml.org/d/42092). It is also available through kaggle [here](https://www.kaggle.com/harlfoxem/housesalesprediction). 
 
 As part of data preparation, we also do some transformations to the data:
+
 - It is expected that factors influencing housing prices are multiplicative rather than additive, so we take the log of price
 - We remove some outliers (homes over 1.5 million and under 100k). 
 - Since we want to focus on geographic features, we remove a handful of the other features
