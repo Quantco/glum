@@ -39,7 +39,7 @@ In this tutorial, we demonstrate both approaches. We start with the second optio
 
 TLDR: The world is not Normal!
 
-If we fit a GLM, the mean-variance relation of its family=distribution is key. Specifying a family is assuming its mean-variance relationship, which tells the GLM, how much a difference in predicted vs observed target values accounts to how much difference in (estimated parameters of) features. For example, the squared error&mdash;Normal distribution&mdash;is quite famous for being very sensitive to outliers, because it attributes much weight to large deviations. Simply put and slightly overstated: With a Normal distribution, a single large claim amount of only one young driver could result in a high prediction for all young drivers.
+If we fit a GLM, the mean-variance relation of its family is key. Specifying a family is assuming its mean-variance relationship, which tells the GLM, how much a difference in predicted vs observed target values accounts to how much difference in (estimated parameters of) features. For example, the squared error&mdash;Normal distribution&mdash;is quite famous for being very sensitive to outliers, because it attributes much weight to large deviations. Simply put and slightly overstated: With a Normal distribution, a single large claim amount of only one young driver could result in a high prediction for all young drivers.
 
 ## Table of Contents <a class="anchor" id="toc"></a>
 * [1. Load and Prepare Datasets from Openml.org](#1-load)
@@ -91,13 +91,20 @@ with pd.option_context('display.max_rows', 10):
 We start with the first part of our two part GLM - modeling the frequency of claims using a Poisson regression. Below, we give some background on why the Poisson family makes the most sense in this context.
 
 ### 2.1 Why Poisson distributions?
+For starters, Poisson distributions are typically used to model the number of events occuring in a fixed period of time when the events occur independently at a constant rate. In our case, we can think of motor insurance claims as the events, and a unit of exposure (a year) as the fixed period of time. 
+
+To get more technical:
 We define:
+
 - $z$: number of claims
 - $w$: exposure (time in years under risk)
 - $y = \frac{z}{w}$: claim frequency per year
 - $X$: feature matrix
 
-Note that both the number of claims $z$ and the exposure $w$ are additive. This way, the frequency behaves as expected, if we calculate averages: $\mathrm{mean}(y) = \frac{1}{\sum_i w_i}\sum_i w_i y_i = \frac{\sum_i z_i}{\sum_i w_i}$.
+Notice that both the number of claims $z$ and the exposure $w$ are additive. This way, the frequency behaves as expected, if we calculate averages: 
+\begin{equation} 
+\mathrm{mean}(y) = \frac{1}{\sum_i w_i}\sum_i w_i y_i = \frac{\sum_i z_i}{\sum_i w_i}
+\end{equation}
 
 The number of claims $z$ is an integer, $z \in [0, 1, 2, 3, \ldots]$. Theoretically, a policy could have an arbitrarily large number of claims&mdash;very unlikely but possible. The simplest distribution for this range is a Poisson distribution $z \sim Poisson$. Instead of $z$, we will model the frequency $y$, which is still (scaled) Poisson distributed with variance inverse proportional to $w$, cf. [wikipedia:Reproductive_EDM](https://en.wikipedia.org/wiki/Exponential_dispersion_model#Reproductive). A very important property of the Poisson distribution is its mean-variance relation: The variance is proportional to the mean.
 
@@ -107,7 +114,10 @@ We summarize our assumptions for a Poisson-GLM model with log-link:
 - mean: $\mathrm{E}[y] = \exp(X\beta)$
 - variance: $\mathrm{Var}[y] = \frac{1}{w} \mathrm{E}[y]$
 
-*Note*: We don't need $y$ to be Poisson distributed, for the purpose of estimating the expecation value. Just the mean-variance relationship should be approximately fulfilled: $\mathrm{Var}[y] \propto \frac{1}{w} \mathrm{E}[y]$.
+*Note*: We don't need $y$ to be Poisson distributed, for the purpose of estimating the expecation value. Just the mean-variance relationship should be approximately fulfilled:
+\begin{equation} 
+\mathrm{Var}[y] \propto \frac{1}{w} \mathrm{E}[y]$
+\end{equation}
 
 To verify our assumptions, we start by plotting the observed frequencies and a fitted Poisson distributions (Poisson regression with intercept only).
 
@@ -130,14 +140,17 @@ plt.title("Frequency");
 
 Not too bad, visually.
 
-Next, we want to check the mean-variance relationship of the Poisson distribution: $\mathrm{Var}[Y] = \frac{\mathrm{E}[Y]}{Exposure}$. To do so, we choose the feature `VehPower`, because we hope that the frequency $Y$ depends very much on it. We then plot empirical estimates of $\mathrm{Var}[Y]$ vs $\mathrm{E}[Y]/Exposure$ for every value of `VehPower`.
+Next, we want to check the mean-variance relationship of the Poisson distribution:
+\begin{equation}
+\mathrm{Var}[Y] = \frac{\mathrm{E}[Y]}{Exposure}
+\end{equation}
+To do so, we choose the feature `VehPower`, because we hope that the frequency $Y$ depends very much on it. We then plot empirical estimates of $\mathrm{Var}[Y]$ vs $\mathrm{E}[Y]/Exposure$ for every value of `VehPower`.
 
 ```python
 # Check mean-variance relationship for Poisson: Var[Y] = E[Y] / Exposure
 # Estimate Var[Y] and E[Y]
 # Plot estimates Var[Y] vs E[Y]/Exposure
 # Note: We group by VehPower in order to have different E[Y].
-
 def my_agg(x):
     """See https://stackoverflow.com/q/44635626"""
     x_freq = x['Freq']
@@ -152,17 +165,16 @@ def my_agg(x):
 
 df_plot = df.assign(Freq = lambda x: x['ClaimNb']/x['Exposure']).groupby('VehPower').apply(my_agg)
 
+plt.subplots(1, 1, figsize=(8, 6))
 plt.plot(df_plot['Freq_mean']/df_plot['Exposure_sum'], df_plot['Freq_var'], '.',
          markersize=12, label='observed')
-
 plt.plot([(df_plot['Freq_mean']/df_plot['Exposure_sum']).min(),
           (df_plot['Freq_mean']/df_plot['Exposure_sum']).max()],
          [df_plot['Freq_var'].min(), df_plot['Freq_var'].max()],
          'k--', label='45° line')
-
 plt.xlabel('Mean of Frequency / Exposure ')
 plt.ylabel('Variance of Frequency')
-plt.title('Man-Variance of Claim Frequency by VehPower');
+plt.title('Mean-Variance of Claim Frequency by VehPower');
 plt.legend()
 plt.show()
 ```
@@ -182,7 +194,7 @@ This is a strong confirmation for the use of a Poisson when fitting!
 
 Now, we start fitting our model. We use claims frequency = claim number/exposure as our outcome variable. We then divide the dataset into training set and test set with a 9:1 random split. 
 
-Also, notice that we do not one hot encode our columns. Rather, we take advantage of `quantcore.glm`'s integration with `quantcore.matrix`, which allows us to pass in categorical columns directly! `quantcore.matrix` will handle the encoding for us and even includes a handful of helpful matrix operation optimizations. We use the `Categorizer` from [dask_ml](https://ml.dask.org/modules/generated/dask_ml.preprocessing.Categorizer.html) to set our categorical columns as categorical dtypes.
+Also, notice that we do not one hot encode our columns. Rather, we take advantage of `quantcore.glm`'s integration with `quantcore.matrix`, which allows us to pass in categorical columns directly! `quantcore.matrix` will handle the encoding for us and even includes a handful of helpful matrix operation optimizations. We use the `Categorizer` from [dask_ml](https://ml.dask.org/modules/generated/dask_ml.preprocessing.Categorizer.html) to set our categorical columns as categorical dtypes and to ensure that the categories align in fitting and predicting. 
 
 ```python
 z = df['ClaimNb'].values
@@ -261,7 +273,7 @@ We define:
 - $y = \frac{z}{w}$: severity
 
 ### 3.1 Why Gamma distributions
-The severity $y$ is a positive, real number, $y \in (0, \infty)$. Theoretically, especially for liability claims, one could have arbitrary large numbers&mdash;very unlikely but possible. A very simple distribution for this range is an Exponential distribution, or its generalization, a Gamma distribution $y \sim Gamma$. In the insurance industry, it is well known that the severity might be skewed and have heavy tails, i.e. a few very large losses, as does our dataset. That's why we only analyse the claim amount cut at 100'000.
+The severity $y$ is a positive, real number, $y \in (0, \infty)$. Theoretically, especially for liability claims, one could have arbitrary large numbers&mdash;very unlikely but possible. A very simple distribution for this range is an Exponential distribution, or its generalization, a Gamma distribution $y \sim Gamma$. In the insurance industry, it is well known that the severity might be skewed and have heavy tails, i.e. a few very large losses, as does our dataset. That's why we only analyse the claim amount cut at 100,000.
 
 A Gamma distribution has mean-variance relation $\mathrm{Var}[Y] = \frac{\phi}{w} \mathrm{E}[Y]^2$. Note that the dispersion $\phi$ does not influence the estimation of $E[\mu]$.
 

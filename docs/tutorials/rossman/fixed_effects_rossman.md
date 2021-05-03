@@ -71,10 +71,10 @@ We start by loading in the raw data. If you have not yet processed the raw data,
 ### 1.1 Load
 
 ```python
-if not all([Path(p).exists for p in ["raw_data/train.csv", "raw_data/test.csv", "raw_data/store.csv"]]):
+if not all([Path(p).exists() for p in ["raw_data/train.csv", "raw_data/test.csv", "raw_data/store.csv"]]):
     raise Exception("Please download raw data into 'raw_data' folder")
 
-if not all([Path(p).exists for p in ["processed_data/train.parquet", "processed_data/test.parquet"]]):
+if not all([Path(p).exists() for p in ["processed_data/train.parquet", "processed_data/test.parquet"]]):
     "Processed data not found. Processing data from raw data..."
     process_data()
     "Done"
@@ -131,7 +131,11 @@ select_val = (
 
 We start with a simple model that uses only year, month, day of the week, and store as predictors. Even with these variables alone, we should still be able to capture a lot of valuable information. Year can capture overall sales trends, month can capture seasonality, week day can capture the variation in sales across the week, and store can capture locality. We will treat these all as categorical variables. 
 
-*Note*: notice how with the `GeneralizedLinearRegressor()` class, we pass in the categorical variables directly without having to encode them ourselves. All we have to do is use the dask ml `Categorizer` to transform the columns into categorical data types. You can reference the [pandas documentation on Categoricals](https://pandas.pydata.org/pandas-docs/stable/user_guide/categorical.html) to learn more about how these data types work.
+*Note*: notice how with the `GeneralizedLinearRegressor()` class, we pass in the categorical variables directly without having to encode them ourselves. This is extremely convenient, especially when we start adding more fixed effects.  However, this does require that we use a Categorizer (we use the dask ml categorizer) for 2 reasons.
+1. To ensure that the categories align in fitting and predicting. (Note also that Dask ML's Categorizer doesn't enforce the order of categories if the input column is already categorical.)
+2. In order to transform the columns into categorical data types. 
+
+You can reference the [pandas documentation on Categoricals](https://pandas.pydata.org/pandas-docs/stable/user_guide/categorical.html) to learn more about how these data types work.
 
 ```python
 baseline_features = ["year", "month", "day_of_week", "store"]

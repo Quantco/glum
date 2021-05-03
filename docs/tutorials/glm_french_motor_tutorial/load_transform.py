@@ -26,7 +26,7 @@ def load_transform():
     )
 
     # rename column names '"name"' => 'name'
-    df.rename(lambda x: x.replace('"', ""), axis="columns", inplace=True)
+    df = df.rename(lambda x: x.replace('"', ""), axis="columns")
     df["IDpol"] = df["IDpol"].astype(np.int64)
     df.set_index("IDpol", inplace=True)
 
