@@ -51,6 +51,10 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from quantcore.glm import GeneralizedLinearRegressor
 
+import sys
+sys.path.append("../")
+from metrics import root_mean_squared_percentage_error
+
 import helpers 
 ```
 
@@ -181,21 +185,11 @@ P2
 
 Now, we will fit several L2 regularized OLS models using different levels of regularization. All will use the penalty matrix defined above, but the alpha parameter, the constant that multiplies the penalty terms and thus determines the regularization strength, will vary. 
 
-For each model, we will measure test performance using RMPSE (root mean squared percentage error), so that we can get a relaitve result. We will also plot a heatmat of the coefficient values over the regions.
+For each model, we will measure test performance using root mean squared percentage error (RMPSE), so that we can get a relaitve result. We will also plot a heatmat of the coefficient values over the regions.
 
 *Note*: alpha=1e-12 is effectively no regularization. The reason we can't set alpha to zero is because we are not dropping any of our zip code categoricals, so actually zero regularization will create a singular matrix error.
 
 ```python
-def RMPSE(y_hat, y_true):
-    return np.sqrt(
-        np.mean(
-            np.square(
-                (y_hat - y_true) / y_true
-            )
-        )
-    )*100
-
-
 fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(20, 20))
 for i, alpha in enumerate([1e-12, 1e-1, 1, 10]):
     ax = axs[i//2, i%2]
@@ -207,7 +201,7 @@ for i, alpha in enumerate([1e-12, 1e-1, 1, 10]):
     
     print(f"alpha={alpha}")
     print(f"Test region coefficient: {coeffs.loc[test_region].values[0]}")
-    print(f"Test RMPSE: {RMPSE(np.exp(y_test_hat), np.exp(y_test))}\n")
+    print(f"Test RMPSE: {root_mean_squared_percentage_error(np.exp(y_test_hat), np.exp(y_test))}\n")
     
     gdf_map_coeffs = gdf_map.merge(
         coeffs.loc[sorted_zips],

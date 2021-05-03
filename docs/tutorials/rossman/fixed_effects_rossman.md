@@ -49,8 +49,11 @@ from quantcore.glm import GeneralizedLinearRegressor
 from sklearn.pipeline import Pipeline
 
 from feature_engineering import apply_all_transformations
-from metrics import root_mean_squared_percentage_error
 from process_data import load_test, load_train, process_data
+
+import sys
+sys.path.append("../")
+from metrics import root_mean_squared_percentage_error
 
 pd.set_option("display.float_format", lambda x: "%.3f" % x)
 pd.set_option('display.max_columns', None)
