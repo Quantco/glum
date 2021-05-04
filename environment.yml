@@ -34,7 +34,6 @@ dependencies:
   - pip
   - pre-commit
   - pyarrow
-  - pysal
   - pyshp
   - pytest
   - pytest-xdist
