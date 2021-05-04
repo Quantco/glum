@@ -35,12 +35,14 @@ dependencies:
   - pre-commit
   - pyarrow
   - pysal
+  - pyshp
   - pytest
   - pytest-xdist
   - quantcore.matrix>=1.0.0
   - rpy2
   - scikit-learn
   - setuptools_scm
+  - shapely
   - sparse_dot_mkl>=0.5.3
   - sphinx
   - sphinx_rtd_theme
