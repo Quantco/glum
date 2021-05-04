@@ -39,6 +39,8 @@ For this tutorial, we will model the selling price of homes in King's County, Wa
 <!-- #endregion -->
 
 ```python
+import itertools
+
 import geopandas as geopd
 import libpysal
 import matplotlib.pyplot as plt
@@ -55,7 +57,9 @@ import sys
 sys.path.append("../")
 from metrics import root_mean_squared_percentage_error
 
-import helpers 
+import data_prep
+import maps
+import plotting
 ```
 
 ## 1. Load and Prepare Datasets from Openml Data <a class="anchor" id="1-load"></a>
@@ -72,7 +76,7 @@ As part of data preparation, we also do some transformations to the data:
 - Since we want to focus on geographic features, we remove a handful of the other features
 
 ```python
-df = helpers.download_and_transform()
+df = data_prep.download_and_transform()
 df.head()
 ```
 
@@ -84,17 +88,12 @@ To help visualize the geographic data, we use geopandas and GIS Open Data to dis
 To show the relatioship between home price and geography, we merge the map data with our sales data and use a heat map to plot mean home sale price for each postal code region.
 
 ```python
-gdf_map = helpers.get_map_data(df)
-_ , ax = plt.subplots(nrows=1, ncols=1, figsize=(30, 30))
-gdf_map["Region"] = gdf_map["ZIP"]
-gdf_map.plot(legend=True, ax=ax)
-gdf_map.apply(lambda x: ax.annotate(text=x["ZIP"], xy=x.geometry.centroid.coords[0], ha="center"), axis=1)
-gdf_map.plot(
-    column="price",
-    legend=True,
-    ax=ax, cmap="OrRd",
-    missing_kwds={"color": "white", "edgecolor": "lightgrey", "hatch": "///",}
-)
+df_shapefile = maps.read_shapefile("Zip_Codes/Zip_Codes.shp")
+df_map = maps.create_kings_county_map(df, df_shapefile)
+
+fix, ax = plt.subplots(figsize=(25, 25))
+plotting.plot_heatmap(df=df_map, label_col="ZIP", data_col="price", ax=ax)
+ax.set_title("Heatmap of Mean Price per Postal Region", fontsize=24)
 plt.show()
 ```
 
@@ -164,7 +163,7 @@ We leave the non-geographic features unregulated (all zeros in the $P2$ matrix).
 
 ```python
 # format is {zip1: {neighbord1: 1, neighbor2: 1, ...}}
-neighbor_matrix = libpysal.weights.Queen.from_dataframe(gdf_map, ids="ZIP") 
+neighbor_matrix = libpysal.weights.Queen.from_dataframe(df_map, ids="ZIP") 
 
 n_features = X_train.shape[1]
 P2 = np.zeros((n_features, n_features))
@@ -193,7 +192,7 @@ For each model, we will measure test performance using root mean squared percent
 ```python
 fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(20, 20))
 for i, alpha in enumerate([1e-12, 1e-1, 1, 10]):
-    ax = axs[i//2, i%2]
+    
     glm = GeneralizedLinearRegressor(family='normal', alpha=alpha, P2=P2, fit_intercept=True)
     glm.fit(X_train, y_train)
     y_test_hat = glm.predict(X_test)
@@ -204,27 +203,22 @@ for i, alpha in enumerate([1e-12, 1e-1, 1, 10]):
     print(f"Test region coefficient: {coeffs.loc[test_region].values[0]}")
     print(f"Test RMPSE: {root_mean_squared_percentage_error(np.exp(y_test_hat), np.exp(y_test))}\n")
     
-    gdf_map_coeffs = gdf_map.merge(
+    df_map_coeffs = df_map.merge(
         coeffs.loc[sorted_zips],
         left_on="ZIP",
         right_index=True,
         how="outer"
-    ).drop_duplicates()
-    gdf_map_coeffs["annotation"] = gdf_map_coeffs["ZIP"].apply(lambda x: "" if x!=test_region else x)
-    gdf_map_coeffs.plot(legend=True, ax=ax)
-    gdf_map_coeffs.apply(
-        lambda x: ax.annotate(x["annotation"],
-                              xy=x.geometry.centroid.coords[0],
-                              ha="center"),
-        axis=1)
-    gdf_map_coeffs.plot(
-        column="coefficient",
-        legend=True,
+    )
+    
+    ax = axs[i//2, i%2]
+    df_map_coeffs["annotation"] = df_map_coeffs["ZIP"].apply(lambda x: "" if x!=test_region else x)
+    plotting.plot_heatmap(
+        df=df_map_coeffs,
+        label_col="annotation",
+        data_col="coefficient",
         ax=ax,
-        cmap="OrRd",
-        vmin=-0.035,
-        vmax=0.035,
-        missing_kwds={"color": "white", "edgecolor": "lightgrey", "hatch": "///",}
+        vmin=-0.015,
+        vmax=0.025
     )
     ax.set_title(f"alpha={alpha}")
           
