@@ -59,7 +59,6 @@ from metrics import root_mean_squared_percentage_error
 
 import data_prep
 import maps
-import plotting
 ```
 
 ## 1. Load and Prepare Datasets from Openml Data <a class="anchor" id="1-load"></a>
@@ -88,11 +87,15 @@ To help visualize the geographic data, we use geopandas and GIS Open Data to dis
 To show the relatioship between home price and geography, we merge the map data with our sales data and use a heat map to plot mean home sale price for each postal code region.
 
 ```python
+maps.read_shapefile("Zip_Codes/Zip_Codes.shp")
+```
+
+```python
 df_shapefile = maps.read_shapefile("Zip_Codes/Zip_Codes.shp")
-df_map = maps.create_kings_county_map(df, df_shapefile)
+df_map = maps.create_kings_county_map_df(df, df_shapefile)
 
 fix, ax = plt.subplots(figsize=(25, 25))
-plotting.plot_heatmap(df=df_map, label_col="ZIP", data_col="price", ax=ax)
+maps.plot_heatmap(df=df_map, label_col="ZIP", data_col="price", ax=ax)
 ax.set_title("Heatmap of Mean Price per Postal Region", fontsize=24)
 plt.show()
 ```
@@ -212,7 +215,7 @@ for i, alpha in enumerate([1e-12, 1e-1, 1, 10]):
     
     ax = axs[i//2, i%2]
     df_map_coeffs["annotation"] = df_map_coeffs["ZIP"].apply(lambda x: "" if x!=test_region else x)
-    plotting.plot_heatmap(
+    maps.plot_heatmap(
         df=df_map_coeffs,
         label_col="annotation",
         data_col="coefficient",
