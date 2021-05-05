@@ -17,14 +17,14 @@ jupyter:
 # GLM Tutorial: French Motor Third-Party Liability Claims
 
 
-#### Intro
+**Intro**
 This tutorial shows why and how to use Poisson, Gamma, and Tweedie GLMs on an insurance claims dataset using `quantcore.glm` It was inspired by, and closely mirrors, two other GLM tutorials that used this dataset:
 
 1. An sklearn-learn tutorial, [Tweedie regression on insurance claims](https://scikit-learn.org/stable/auto_examples/linear_model/plot_tweedie_regression_insurance_claims.html#pure-premium-modeling-via-a-product-model-vs-single-tweedieregressor), which was created for this (partially merged) [sklearn PR](https://github.com/scikit-learn/scikit-learn/pull/9405) that we based quantcore.glm on
 2. An R tutorial, [Case Study: French Motor Third-Party Liability Claims](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3164764) with [R code](https://github.com/JSchelldorfer/ActuarialDataScience/tree/master/1%20-%20French%20Motor%20Third-Party%20Liability%20Claims).
 
 
-#### Background
+**Background**
 Insurance claims are requests made by a policy holder to an insurance company for compensation in the event of a covered loss. When modeling these claims, the goal is often to estimate, per policy, the total claim amount per exposure unit. (i.e. number of claims $\times$ average amount per claim, per year). This amount is also referred to as the pure premium.
 
 Two approaches for modeling this value are:
@@ -35,17 +35,17 @@ Two approaches for modeling this value are:
 In this tutorial, we demonstrate both approaches. We start with the second option as it shows how to use two different families/distributions (Poisson and Gamma) within a GLM on a single dataset. We then show the first approach using a single poison-gamma Tweedie regressor (i.e. a Tweedie with power $p \in (1,2)$)
 
 
-#### Why not OLS?:
+**Why not OLS?**:
 
 TLDR: The world is not Normal!
 
 If we fit a GLM, the mean-variance relation of its family is key. Specifying a family is assuming its mean-variance relationship, which tells the GLM, how much a difference in predicted vs observed target values accounts to how much difference in (estimated parameters of) features. For example, the squared error&mdash;Normal distribution&mdash;is quite famous for being very sensitive to outliers, because it attributes much weight to large deviations. Simply put and slightly overstated: With a Normal distribution, a single large claim amount of only one young driver could result in a high prediction for all young drivers.
 
-## Table of Contents <a class="anchor" id="toc"></a>
-* [1. Load and Prepare Datasets from Openml.org](#1-load)
-* [2. Frequency GLM - Poisson Distribution](#2-frequency)
-* [3. Severity GLM - Gamma Distribution](#3-severity)
-* [4. Combined GLM - Tweedie Distribution](#4-combined)
+## Table of Contents
+* [1. Load and Prepare Datasets from Openml.org](#1.-Load-and-Prepare-Datasets-from-Openml.org)
+* [2. Frequency GLM - Poisson Distribution](#2.-Frequency-GLM---Poisson-Distribution)
+* [3. Severity GLM - Gamma Distribution](#3.-Severity-GLM---Gamma-Distribution)
+* [4. Combined GLM - Tweedie Distribution](#4.-Combined-GLM---Tweedie-Distribution)
 <!-- #endregion -->
 
 ```python
@@ -62,13 +62,13 @@ from quantcore.glm import TweedieDistribution
 from load_transform import load_transform
 ```
 
-## 1. Load and Prepare Datasets from Openml.org <a class="anchor" id="1-load"></a>
-[back to table of contents](#toc)
+## 1. Load and Prepare Datasets from Openml.org<a class="anchor"></a>
+[back to table of contents](#Table-of-Contents)
 
 First, we load in our dataset from openML and apply several transformations. In the interest of simplicity, we do not include the data loading and preparation code in this notebook. Below is a list of further resources if you wish to explore further: 
 
 1. If you want to run the same code yourself, please see the helper functions here: <span style="color:red">**TODO**: add link once in master</span>.
-2. For a detailed description of the data, see http://dutangc.free.fr/pub/RRepos/web/CASdatasets-index.html.
+2. For a detailed description of the data, see [here](http://dutangc.free.fr/pub/RRepos/web/CASdatasets-index.html).
 3. For an excellent exploratory data analysis, see the case study paper linked above.
 
 Some important notes about the dataset post-transformation:
@@ -85,8 +85,8 @@ with pd.option_context('display.max_rows', 10):
     display(df)
 ```
 
-## 2. Frequency GLM - Poisson Distribution <a class="anchor" id="2-frequency"></a>
-[back to Table of Contents](#toc)
+## 2. Frequency GLM - Poisson Distribution<a class="anchor"></a>
+[back to Table of Contents](#Table-of-Contents)
 
 We start with the first part of our two part GLM - modeling the frequency of claims using a Poisson regression. Below, we give some background on why the Poisson family makes the most sense in this context.
 
@@ -262,8 +262,8 @@ Summing up the predictions $\hat{\mu}_i$ yields exaclty the observations $y_i$.
 z_train_p.sum(), (f_glm1.predict(X_train_p) * w_train_p).sum()
 ```
 
-## 3. Severity GLM -  Gamma Distribution <a class="anchor" id="3-severity"></a>
-[back to Table of Contents](#toc)
+## 3. Severity GLM - Gamma Distribution<a class="anchor"></a>
+[back to Table of Contents](#Table-of-Contents)
 
 Now, we fit a GLM model for the severity with the same features as the freq model.
 The severity $y$ is the average claim size.
@@ -433,8 +433,8 @@ print("Total claim amount on test set, observed = {}, predicted = {}".
      )
 ```
 
-## 4. Combined GLM - Tweedie Distribution <a class="anchor" id="4-combined"></a>
-[back to Table of Contents](#toc)
+## 4. Combined GLM - Tweedie Distribution<a class="anchor"></a>
+[back to Table of Contents](#Table-of-Contents)
 
 Finally, to demonstrate an alternate approach to the combined frequency severity model, we show how we can model pure premium directly using a Tweedie regressor. Any Tweedie distribution with power $p\in(1,2)$ is known as [compound Poisson Gamma distribution](https://en.wikipedia.org/wiki/Compound_Poisson_distribution#Compound_Poisson_Gamma_distribution)
 
