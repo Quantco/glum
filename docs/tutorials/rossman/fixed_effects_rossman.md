@@ -27,11 +27,11 @@ For this tutorial, we will be predicting sales for the European drug store chain
 
 *Note*: a few parts of this tutorial utilize local helper functions outside this notebook. If you wish to run the notebook on your own, you can find the rest of the code here: <span style="color:red">**TODO**: add link once in master</span>.
 
-## Table of Contents <a class="anchor" id="toc"></a>
-* [1. Data Loading and Feature Engineering](#1-load)
-* [2. Fit Baseline GLM Model](#2-baseline)
-* [3. GLM with High Dimensional Fixed Effects](#3-highdim)
-* [4. Plot Results](#4-plot)
+## Table of Contents<a class="anchor"></a>
+* [1. Data Loading and Feature Engineering](#1.-Data-Loading-and-Feature-Engineering)
+* [2. Fit Baseline GLM Model](#2.-Fit-Baseline-GLM-Model)
+* [3. GLM with High Dimensional Fixed Effects](#3.-GLM-with-High-Dimensional-Fixed-Effects)
+* [4. Plot Results](#4.-Plot-Results)
 <!-- #endregion -->
 
 ```python
@@ -60,8 +60,8 @@ pd.set_option('display.max_columns', None)
 alt.data_transformers.enable("json")  # to allow for large plots
 ```
 
-## 1. Data Loading and Feature Engineering<a class="anchor" id="1-load"></a>
-[back to table of contents](#toc)
+## 1. Data Loading and Feature Engineering<a class="anchor"></a>
+[back to table of contents](#Table-of-Contents)
 
 We start by loading in the raw data. If you have not yet processed the raw data, it will be done below. (Initial processing consists of some basic cleaning and renaming of columns.
 
@@ -126,8 +126,8 @@ select_val = (
 (select_train.sum(), select_val.sum())
 ```
 
-## 2. Fit Baseline GLM Model<a class="anchor" id="2-baseline"></a>
-[back to table of contents](#toc)
+## 2. Fit Baseline GLM Model<a class="anchor"></a>
+[back to table of contents](#Table-of-Contents)
 
 We start with a simple model that uses only year, month, day of the week, and store as predictors. Even with these variables alone, we should still be able to capture a lot of valuable information. Year can capture overall sales trends, month can capture seasonality, week day can capture the variation in sales across the week, and store can capture locality. We will treat these all as categorical variables. 
 
@@ -189,8 +189,8 @@ print(f'Validation Error: {round(val_err, 2)}%')
 The results aren't bad for a start, but we can do better :) 
 
 
-## 3. GLM with High Dimensional Fixed Effects<a class="anchor" id="3-highdim"></a>
-[back to table of contents](#toc)
+## 3. GLM with High Dimensional Fixed Effects<a class="anchor"></a>
+[back to table of contents](#Table-of-Contents)
 
 Now, we repeat a similar process to above, but this time, we take advantage of the full range of categoricals we created in our data transformation step. Since we will create a very large number of fixed effects, we may run into cases where our validation data has categorical values not seen in our training data. In these cases, the dask ml categorizer will output null values when transforming the validation columns to the categoricals that were created on the training set. To fix this, we add the dask ml [SimpleImputer](https://ml.dask.org/modules/generated/dask_ml.impute.SimpleImputer.html) to our pipeline. 
 
@@ -276,8 +276,8 @@ print(f'Validation Error: {round(val_err, 2)}%')
 From just the RMSPE, we can see a clear improvement from our baseline model.
 
 
-## 4. Plot Results<a class="anchor" id="4-plot"></a>
-[back to table of contents](#toc)
+## 4. Plot Results<a class="anchor"></a>
+[back to table of contents](#Table-of-Contents)
 
 Finally, to get a better look at our results, we make some plots.
 
