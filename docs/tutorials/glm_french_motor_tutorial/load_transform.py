@@ -6,9 +6,9 @@ def load_transform():
     """Load and transform data from openml. Summary of transformations.
 
     1. We cut the number of claims to a maximum of 4, as is done in the case study paper
-       (Data error suspected)
+       (Case study authors suspect a data error, see section 1 of their paper for details).
     2. We cut the exposure to a maximum of 1, as is done in the case study paper
-       (Data error suspected).
+       (Case study authors suspect a data error, see section 1 of their paper for details).
     3. We define ``'ClaimAmountCut'`` as the the claim amount cut at 100'000 per single claim
        (before aggregation per policy). Reason: For large claims, extreme value theory
        might apply. 100'000 is the 0.9984 quantile, any claims larger account for 25% of
