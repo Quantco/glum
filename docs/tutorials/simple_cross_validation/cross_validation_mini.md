@@ -47,7 +47,18 @@ We fit our `GeneralizedLinearRegressorCV` model using typical regularized least 
 
 Some important parameters:
 
-- **alphas**: For each model, `alpha` is the constant multiplying penalty termdetermines regularization strength. For `GeneralizedLinearRegressorCV()`, `alphas` is list of alphas for which to compute the models. If `None`, (preferred) the alphas are set automatically. The best value is chosen and stored as `self.alpha_`
+- **alphas**: For each model, `alpha` is the constant multiplying penalty termdetermines regularization strength. For `GeneralizedLinearRegressorCV()`, the best `alpha` will be found by searching along the regularization path. The regularization path is determined as follows:
+
+    1. If ``alpha`` is an iterable, use it directly. All other parameters
+        governing the regularization path are ignored.
+    2. If ``min_alpha`` is set, create a path from ``min_alpha`` to the
+        lowest alpha such that all coefficients are zero.
+    3. If ``min_alpha_ratio`` is set, create a path where the ratio of
+        ``min_alpha / max_alpha = min_alpha_ratio``.
+    4. If none of the above parameters are set, use a ``min_alpha_ratio``
+        of 1e-6.
+
+                
 - **l1_ratio**: For each model, the `l1_ratio` is the elastic net mixing parameter (`0 <= l1_ratio <= 1`). For `l1_ratio = 0`, the penalty is an L2 penalty. ``For l1_ratio = 1``, it is an L1 penalty.  For ``0 < l1_ratio < 1``, the penalty is a combination of L1 and L2. For `GeneralizedLinearRegressorCV()`, if you pass ``l1_ratio`` as an array, the `fit` method will choose the best value of `l1_ratio` and store it as `self.l1_ratio_`
 
 ```python
@@ -57,7 +68,9 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.1, rando
 
 glmcv = GeneralizedLinearRegressorCV(
     family='normal',
-    alphas=None,
+    alphas=None,  # default
+    min_alpha=None,  # default
+    min_alpha_ratio=None,  # default
     l1_ratio=[0, 0.2, 0.4, 0.6, 0.8, 1.0],
     fit_intercept=True,
     max_iter=150
