@@ -14,7 +14,7 @@ jupyter:
 ---
 
 <!-- #region -->
-# GLM Tutorial: French Motor Third-Party Liability Claims
+# GLM Tutorial: Poisson, Gamma, and Tweedie with French Motor Third-Party Liability Claims
 
 
 **Intro**
