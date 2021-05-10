@@ -43,7 +43,7 @@ dependencies:
   - setuptools_scm
   - shapely
   - sparse_dot_mkl>=0.5.3
-  - sphinx
+  - sphinx=3.5.3
   - sphinx_rtd_theme
   - sphinxcontrib-apidoc
   - tqdm
