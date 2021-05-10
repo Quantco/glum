@@ -5,8 +5,11 @@ Welcome to quantcore.glm's documentation!
    :maxdepth: 1
    :caption: Contents:
 
-   API Reference <api/modules>
+   Installation <https://github.com/Quantco/quantcore.glm#installation>
+   Getting Started <tutorials/getting_started/getting_started.ipynb>
    Tutorials <tutorials/tutorials.rst>
+   GitHub <https://github.com/Quantco/quantcore.glm>
+   API Reference <api/modules>
    Changelog <changelog>
 
 
