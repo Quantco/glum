@@ -79,7 +79,7 @@ print(f"Train RMSE: {sklearn.metrics.mean_squared_error(glm.predict(X_train), y_
 print(f"Test  RMSE: {sklearn.metrics.mean_squared_error(glm.predict(X_test), y_test, squared=False)}")
 ```
 
-## GLM with Cross Validation
+## GLM with cross validation
 
 Now, we fit using cross validation with. `GeneralizedLinearRegressorCV`.
 Some important parameters:

@@ -62,7 +62,7 @@ from quantcore.glm import TweedieDistribution
 from load_transform import load_transform
 ```
 
-## 1. Load and Prepare Datasets from Openml.org<a class="anchor"></a>
+## 1. Load and prepare datasets from Openml<a class="anchor"></a>
 [back to table of contents](#Table-of-Contents)
 
 First, we load in our dataset from openML and apply several transformations. In the interest of simplicity, we do not include the data loading and preparation code in this notebook. Below is a list of further resources if you wish to explore further: 
@@ -85,7 +85,7 @@ with pd.option_context('display.max_rows', 10):
     display(df)
 ```
 
-## 2. Frequency GLM - Poisson Distribution<a class="anchor"></a>
+## 2. Frequency GLM - Poisson distribution<a class="anchor"></a>
 [back to Table of Contents](#Table-of-Contents)
 
 We start with the first part of our two part GLM - modeling the frequency of claims using a Poisson regression. Below, we give some background on why the Poisson family makes the most sense in this context.
@@ -191,7 +191,7 @@ This is a strong confirmation for the use of a Poisson when fitting!
     2. $\phi$ does not influence the estimation/fitting of E[Y] (thanks @[ExponentialDispersionFamily](https://en.wikipedia.org/wiki/Exponential_dispersion_model)).
 
 
-### 2.2 Train and Test Frequency GLM
+### 2.2 Train and test frequency GLM
 
 Now, we start fitting our model. We use claims frequency = claim number/exposure as our outcome variable. We then divide the dataset into training set and test set with a 9:1 random split. 
 
@@ -262,7 +262,7 @@ Summing up the predictions $\hat{\mu}_i$ yields exaclty the observations $y_i$.
 z_train_p.sum(), (f_glm1.predict(X_train_p) * w_train_p).sum()
 ```
 
-## 3. Severity GLM - Gamma Distribution<a class="anchor"></a>
+## 3. Severity GLM - Gamma distribution<a class="anchor"></a>
 [back to Table of Contents](#Table-of-Contents)
 
 Now, we fit a GLM model for the severity with the same features as the freq model.
@@ -353,7 +353,7 @@ This is good empirical confirmation to use the Gamma.
        and the fit should give $p \approx 0$.
 
 
-### 3.2 Severity GLM with Train and Test Data
+### 3.2 Severity GLM with train and test data
 We fit a GLM model for the severity with the same features as the freq model. We use the same categorizer as before. 
 
 *Note*:
@@ -416,7 +416,7 @@ print('testing loss Mean:    {}'.format(
 
 ```
 
-### 3.3 Combined Frequency and Severity Results
+### 3.3 Combined frequency and severity results
 
 We put together the prediction of frequency and severity to get the predictions of the total claim amount per policy.
 
@@ -433,7 +433,7 @@ print("Total claim amount on test set, observed = {}, predicted = {}".
      )
 ```
 
-## 4. Combined GLM - Tweedie Distribution<a class="anchor"></a>
+## 4. Combined GLM - Tweedie distribution<a class="anchor"></a>
 [back to Table of Contents](#Table-of-Contents)
 
 Finally, to demonstrate an alternate approach to the combined frequency severity model, we show how we can model pure premium directly using a Tweedie regressor. Any Tweedie distribution with power $p\in(1,2)$ is known as [compound Poisson Gamma distribution](https://en.wikipedia.org/wiki/Compound_Poisson_distribution#Compound_Poisson_Gamma_distribution)
