@@ -61,11 +61,11 @@ import data_prep
 import maps
 ```
 
-## 1. Load and Prepare Datasets from Openml Data<a class="anchor"></a>
+## 1. Load and prepare datasets from Openml<a class="anchor"></a>
 [back to table of contents](#Table-of-Contents)
 
 
-### 1.1. Download and Transform
+### 1.1. Download and transform
 The main dataset is downloaded from openml. You can find the main page for the dataset [here](https://www.openml.org/d/42092). It is also available through kaggle [here](https://www.kaggle.com/harlfoxem/housesalesprediction). 
 
 As part of data preparation, we also do some transformations to the data:
@@ -79,7 +79,7 @@ df = data_prep.download_and_transform()
 df.head()
 ```
 
-## 2. Visualize Geographic Data with GIS Open Data<a class="anchor"></a>
+## 2. Visualize geographic data with GIS open<a class="anchor"></a>
 [back to table of contents](#Table-of-Contents)
 
 To help visualize the geographic data, we use geopandas and GIS Open Data to display price information on the King's county map. You can get the map data [here]("https://gis-kingcounty.opendata.arcgis.com/datasets/all-zipcodes-and-po-box-as-centroids-for-king-county-zipcode-all-point/data?geometry=-126.017%2C46.845%2C-116.788%2C48.144&page=2"). 
@@ -103,7 +103,7 @@ plt.show()
 We can see a clear relationship between postal code and home price. Seattle (98112, 98102, etc.) and the Bellevue/Mercer/Medina suburbs (98039, 98004, 98040) have the highest prices. As you get further from the city, the prices start to drop.
 
 
-## 3. Feature Selection and Transformation<a class="anchor"></a>
+## 3. Feature selection and transformation<a class="anchor"></a>
 [back to table of contents](#Table-of-Contents)
 
 
@@ -151,7 +151,7 @@ X_train = scaler.transform(X_train)
 X_test = scaler.transform(X_test)
 ```
 
-## 4. Create P Matrix<a class="anchor"></a>
+## 4. Create P matrix<a class="anchor"></a>
 [back to table of contents](#Table-of-Contents)
 
 Now, we will use the geographical information for smoothing. We will create a penalty matrix $P$ such that for neighbouring regions, e.g. for 98022 and 98045, we penalize the squared difference in their coefficient values. For example, if 98022 and 98045 were the only region in question, we would need a $2 \times 2$ matrix $P$ such that:
@@ -183,7 +183,7 @@ for zip1 in sorted_zips:
 P2
 ```
 
-## 5. Fit Models<a class="anchor"></a>
+## 5. Fit models<a class="anchor"></a>
 [back to table of contents](#Table-of-Contents)
 
 Now, we will fit several L2 regularized OLS models using different levels of regularization. All will use the penalty matrix defined above, but the alpha parameter, the constant that multiplies the penalty terms and thus determines the regularization strength, will vary. 

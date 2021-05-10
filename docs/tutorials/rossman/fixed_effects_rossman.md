@@ -60,7 +60,7 @@ pd.set_option('display.max_columns', None)
 alt.data_transformers.enable("json")  # to allow for large plots
 ```
 
-## 1. Data Loading and Feature Engineering<a class="anchor"></a>
+## 1. Data loading and feature engineering<a class="anchor"></a>
 [back to table of contents](#Table-of-Contents)
 
 We start by loading in the raw data. If you have not yet processed the raw data, it will be done below. (Initial processing consists of some basic cleaning and renaming of columns.
@@ -84,7 +84,7 @@ df = df.iloc[:int(.1*len(df))]
 df.head()
 ```
 
-### 1.2 Feature Engineering
+### 1.2 Feature engineering
 
 As we mention earlier, we want our model to incorporate the many factors that influence store sales. Thus, we create a number of fixed effects to capture this information. These include:
 
@@ -108,7 +108,7 @@ df = apply_all_transformations(df)
 df.head()
 ```
 
-### 1.3 Train vs. Validation selection
+### 1.3 Train vs. validation selection
 
 Lastly, we split our data into training and validation sets. Kaggle provides a test set for the Rossman challenge, but it does not directly include outcome data (sales), so we do not use it for our tutorial. Instead, we simulate predicting future sales by taking the last 5 months of our training data as our validation set. 
 
@@ -126,7 +126,7 @@ select_val = (
 (select_train.sum(), select_val.sum())
 ```
 
-## 2. Fit Baseline GLM Model<a class="anchor"></a>
+## 2. Fit baseline GLM model<a class="anchor"></a>
 [back to table of contents](#Table-of-Contents)
 
 We start with a simple model that uses only year, month, day of the week, and store as predictors. Even with these variables alone, we should still be able to capture a lot of valuable information. Year can capture overall sales trends, month can capture seasonality, week day can capture the variation in sales across the week, and store can capture locality. We will treat these all as categorical variables. 
@@ -189,7 +189,7 @@ print(f'Validation Error: {round(val_err, 2)}%')
 The results aren't bad for a start, but we can do better :) 
 
 
-## 3. GLM with High Dimensional Fixed Effects<a class="anchor"></a>
+## 3. GLM with high dimensional fixed effects<a class="anchor"></a>
 [back to table of contents](#Table-of-Contents)
 
 Now, we repeat a similar process to above, but this time, we take advantage of the full range of categoricals we created in our data transformation step. Since we will create a very large number of fixed effects, we may run into cases where our validation data has categorical values not seen in our training data. In these cases, the dask ml categorizer will output null values when transforming the validation columns to the categoricals that were created on the training set. To fix this, we add the dask ml [SimpleImputer](https://ml.dask.org/modules/generated/dask_ml.impute.SimpleImputer.html) to our pipeline. 
@@ -276,7 +276,7 @@ print(f'Validation Error: {round(val_err, 2)}%')
 From just the RMSPE, we can see a clear improvement from our baseline model.
 
 
-## 4. Plot Results<a class="anchor"></a>
+## 4. Plot results<a class="anchor"></a>
 [back to table of contents](#Table-of-Contents)
 
 Finally, to get a better look at our results, we make some plots.
