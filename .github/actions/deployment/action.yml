@@ -1,11 +1,8 @@
 name: Run CD inside of container
 description: Deploy package from the private container from GitHub Packages Registry after Docker login
 inputs:
-  python_version:
-    description: 'Python version'
-    required: true
-  glm_architecture:
-    description: 'GLM architecture'
+  conda_build_yml:
+    description: "conda-build variant file"
     required: true
 runs:
   using: 'docker'
@@ -14,4 +11,4 @@ runs:
    - /bin/bash
    - "-l"
    - "-c"
-   - "./.github/workflows/tag.sh ${{ inputs.python_version }} ${{ inputs.glm_architecture }}"
+   - "./.github/workflows/tag.sh ${{ inputs.conda_build_yml }}"

@@ -12,6 +12,11 @@ Unreleased
 
 - Small improvement in documentation for the ``alpha_index`` argument to :func:`quantcore.glm.GeneralizedLinearRegressor.predict`.
 
+1.4.1 - 2021-05-01
+------------------
+
+We now have Windows builds!
+
 1.4.0 - 2021-04-13
 ------------------
 
