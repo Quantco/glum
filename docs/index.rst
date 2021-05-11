@@ -1,6 +1,15 @@
 Welcome to quantcore.glm's documentation!
 ===========================================
 
+`quantcore.glm` is a fast, Python-first GLM library. In addition to fitting basic GLMs, it supports a wide range of additional features. These include:
+
+* Built-in cross validation for optimal regularization, efficiently exploiting a “regularization path”
+* L1 and elastic net regularization, which produce sparse and easily interpretable solutions
+* L2 regularization, including variable matrix-valued (Tikhonov) penalties, which are useful in modeling correlated effects
+* Normal, Poisson, logistic, gamma, and Tweedie distributions, plus varied and customizable link functions
+* Box constraints, sample weights, offsets.
+
+
 .. toctree::
    :maxdepth: 1
    :caption: Contents:
