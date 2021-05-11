@@ -225,8 +225,8 @@ def check_bounds(
 
 
 def check_inequality_constraints(
-    A_ineq: Union[None, np.ndarray],
-    b_ineq: Union[None, np.ndarray],
+    A_ineq: Optional[np.ndarray],
+    b_ineq: Optional[np.ndarray],
     n_features: int,
     dtype,
 ) -> Tuple[Union[None, np.ndarray], Union[None, np.ndarray]]:
@@ -1531,14 +1531,13 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     ----------
     alpha : {float, array-like}, optional (default=None)
         Constant that multiplies the penalty terms and thus determines the
-        regularization strength.
-        If ``alpha_search`` is False (the default), then ``alpha`` must be
-        a scalar or None (equivalent to alpha = 1.0). If ``alpha_search``
-        is True, then ``alpha`` must be an iterable or None. See ``alpha_search``
-        to find how the regularization path is set if ``alpha`` is None.
-        See the notes for the exact mathematical meaning of this
-        parameter. ``alpha = 0`` is equivalent to unpenalized GLMs. In this
-        case, the design matrix ``X`` must have full column rank
+        regularization strength. If ``alpha_search`` is ``False`` (the default),
+        then ``alpha`` must be a scalar or None (equivalent to ``alpha=1.0``).
+        If ``alpha_search`` is ``True``, then ``alpha`` must be an iterable or
+        ``None``. See ``alpha_search`` to find how the regularization path is
+        set if ``alpha`` is ``None``. See the notes for the exact mathematical
+        meaning of this parameter. ``alpha = 0`` is equivalent to unpenalized
+        GLMs. In this case, the design matrix ``X`` must have full column rank
         (no collinearities).
 
     l1_ratio : float, optional (default=0)
@@ -1580,35 +1579,36 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
 
         - ``'identity'`` for family ``'normal'``
         - ``'log'`` for families ``'poisson'``, ``'gamma'`` and
-            ``'inverse.gaussian'``
+          ``'inverse.gaussian'``
         - ``'logit'`` for family ``'binomial'``
 
     fit_dispersion : {None, 'chisqr', 'deviance'}, optional (default=None)
         Method for estimation of the dispersion parameter φ. Whether to use the
-        χ² statistic or the deviance statistic. If None, the dispersion is not
-        estimated.
+        χ² statistic or the deviance statistic. If ``None``, the dispersion is
+        not estimated.
 
     solver : {'auto', 'irls-cd', 'irls-ls', 'lbfgs', 'trust-constr'}, \
             optional (default='auto')
         Algorithm to use in the optimization problem:
 
         - ``'auto'``: ``'irls-ls'`` if ``l1_ratio`` is zero and ``'irls-cd'``
-            otherwise.
+          otherwise.
         - ``'irls-cd'``: Iteratively reweighted least squares with a coordinate
-            descent inner solver. This can deal with L1 as well as L2 penalties.
-            Note that in order to avoid unnecessary memory duplication of X in
-            the ``fit`` method, ``X`` should be directly passed as a
-            Fortran-contiguous Numpy array or sparse CSC matrix.
+          descent inner solver. This can deal with L1 as well as L2 penalties.
+          Note that in order to avoid unnecessary memory duplication of X in the
+          ``fit`` method, ``X`` should be directly passed as a
+          Fortran-contiguous Numpy array or sparse CSC matrix.
         - ``'irls-ls'``: Iteratively reweighted least squares with a least
-            squares inner solver. This algorithm cannot deal with L1 penalties.
+          squares inner solver. This algorithm cannot deal with L1 penalties.
         - ``'lbfgs'``: Scipy's L-BFGS-B optimizer. It cannot deal with L1
-            penalties.
-        - ``'trust-constr'``: Calls ``scipy.optimize.minimize(method='trust-constr')``.
-            It cannot deal with L1 penalties. This solver can optimize problems with
-            inequality constraints, passed via ``A_ineq, b_ineq``. It will be selected
-            automatically when inequality constraints are set and ``solver='auto'``.
-            Note that using this method can lead to significantly increased runtimes
-            by a factor of ten or higher.
+          penalties.
+        - ``'trust-constr'``: Calls
+          ``scipy.optimize.minimize(method='trust-constr')``. It cannot deal
+          with L1 penalties. This solver can optimize problems with inequality
+          constraints, passed via ``A_ineq`` and ``b_ineq``. It will be selected
+          automatically when inequality constraints are set and
+          ``solver='auto'``. Note that using this method can lead to
+          significantly increased runtimes by a factor of ten or higher.
 
     max_iter : int, optional (default=100)
         The maximal number of iterations for solver algorithms.
@@ -1616,8 +1616,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     gradient_tol : float, optional (default=None)
         Stopping criterion. If ``None``, solver-specific defaults will be used.
         The default value for most solvers is ``1e-4``, except for
-        ``'trust-constr'``, which requires more conservative convergence settings
-        and has a default value of ``1e-8``.
+        ``'trust-constr'``, which requires more conservative convergence
+        settings and has a default value of ``1e-8``.
 
         For the IRLS-LS, L-BFGS and trust-constr solvers, the iteration
         will stop when ``max{|g_i|, i = 1, ..., n} <= tol``, where ``g_i`` is
@@ -1650,16 +1650,18 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
 
     alpha_search : bool, optional (default=False)
         Whether to search along the regularization path for the best alpha.
-        When set to True, ``alpha`` should either be None or an iterable.
-        To determine the regularization path, the following sequence is used:
-            1. If ``alpha`` is an iterable, use it directly. All other parameters
-                governing the regularization path are ignored.
-            2. If ``min_alpha`` is set, create a path from ``min_alpha`` to the
-                lowest alpha such that all coefficients are zero.
-            3. If ``min_alpha_ratio`` is set, create a path where the ratio of
-                ``min_alpha / max_alpha = min_alpha_ratio``.
-            4. If none of the above parameters are set, use a ``min_alpha_ratio``
-                of 1e-6.
+        When set to ``True``, ``alpha`` should either be ``None`` or an
+        iterable. To determine the regularization path, the following sequence
+        is used:
+
+        1. If ``alpha`` is an iterable, use it directly. All other parameters
+           governing the regularization path are ignored.
+        2. If ``min_alpha`` is set, create a path from ``min_alpha`` to the
+           lowest alpha such that all coefficients are zero.
+        3. If ``min_alpha_ratio`` is set, create a path where the ratio of
+           ``min_alpha / max_alpha = min_alpha_ratio``.
+        4. If none of the above parameters are set, use a ``min_alpha_ratio`` of
+           ``1e-6``.
 
     alphas : DEPRECATED. Use ``alpha`` instead.
 
@@ -1733,11 +1735,11 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         computational reasons, but this only affects results if
         ``scale_predictors`` is ``True``.
 
-    lower_bounds : array-like, shape (n_features), optional (default=None)
+    lower_bounds : array-like, shape (n_features,), optional (default=None)
         Set a lower bound for the coefficients. Setting bounds forces the use
         of the coordinate descent solver (``'irls-cd'``).
 
-    upper_bounds : array-like, shape=(n_features), optional (default=None)
+    upper_bounds : array-like, shape=(n_features,), optional (default=None)
         See ``lower_bounds``.
 
     A_ineq : array-like, shape=(n_constraints, n_features), optional (default=None)
@@ -1773,8 +1775,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     -----
     The fit itself does not need outcomes to be from an EDM, but only assumes
     the first two moments to be
-    :math:`\\mu_i \\equiv = \\mathrm{E}(y_i) = h(x_i' w)` and
-    :math:`\\mathrm{var}(y_i)] = (\\phi / s_i) v(\\mu_i)`. The unit
+    :math:`\\mu_i \\equiv \\mathrm{E}(y_i) = h(x_i' w)` and
+    :math:`\\mathrm{var}(y_i) = (\\phi / s_i) v(\\mu_i)`. The unit
     variance function :math:`v(\\mu_i)` is a property of and given by the
     specific EDM; see :ref:`User Guide <Generalized_linear_regression>`.
 
@@ -1938,16 +1940,16 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         y : array-like, shape (n_samples,)
             Target values.
 
-        sample_weight : {None, array-like}, shape (n_samples,), optional (default=None)
+        sample_weight : array-like, shape (n_samples,), optional (default=None)
             Individual weights w_i for each sample. Note that, for an
             Exponential Dispersion Model (EDM), one has
             :math:`\\mathrm{var}(y_i) = \\phi \\times v(mu) / w_i`.
-            If :math:`y_i ~ EDM(\\mu, \\phi / w_i)`, then
-            :math:`\\sum w_i y_i / \\sum w_i ~ EDM(\\mu, \\phi / \\sum w_i)`,
+            If :math:`y_i \\sim EDM(\\mu, \\phi / w_i)`, then
+            :math:`\\sum w_i y_i / \\sum w_i \\sim EDM(\\mu, \\phi / \\sum w_i)`,
             i.e. the mean of :math:`y` is a weighted average with weights equal
             to ``sample_weight``.
 
-        offset: {None, array-like}, shape (n_samples,), optional (default=None)
+        offset: array-like, shape (n_samples,), optional (default=None)
             Added to linear predictor. An offset of 3 will increase expected
             ``y`` by 3 if the link is linear and will multiply expected ``y`` by
             3 if the link is logarithmic.

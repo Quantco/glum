@@ -447,13 +447,14 @@ class TweedieDistribution(ExponentialDispersionModel):
     (1, 2) Compound Poisson
     2      Gamma
     3      Inverse Gaussian
+    ====== ================
 
     Parameters
     ----------
-    power : float (default=0)
+    power : float, optional (default=0)
         The variance power of the `unit_variance`
-        :math:`v(\mu) = \mu^{\mathrm{power}}`. For ``0 < power < 1``, no
-        distribution exists.
+        :math:`v(\mu) = \mu^{\mathrm{power}}`. For
+        :math:`0 < \mathrm{power} < 1`, no distribution exists.
     """
 
     upper_bound = np.Inf

@@ -2,7 +2,11 @@
 
 set -exo pipefail
 
-mamba install -y conda-build conda-channel-client
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+source ${SCRIPT_DIR}/macos-conda-build.sh $*
 
-conda build --python ${PYTHON_VERSION} --variants "{GLM_ARCHITECTURE: ['${GLM_ARCHITECTURE}']}" conda.recipe
-upload-conda-package $(conda render --python ${PYTHON_VERSION} --variants "{GLM_ARCHITECTURE: ['${GLM_ARCHITECTURE}']}" --output conda.recipe)
+mamba install -y conda-channel-client
+
+if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+  upload-conda-package $(conda render -m .ci_support/${CONDA_BUILD_YML}.yaml --output conda.recipe)
+fi
