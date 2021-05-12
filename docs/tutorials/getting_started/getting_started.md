@@ -56,6 +56,9 @@ X_train, X_test, y_train, y_test = sklearn.model_selection.train_test_split(X, y
 
 The following is a simple example where we fit and predict using `quantcore.glm`'s `GeneralizedLinearRegressor`. There are two key parameters shown: 
 
+- **family**: the family parameter specifies the distributional assumption of the GLM, i.e. which distribution from the EDM, specifies the loss function to be minimized. Accepted strings are 'normal', 'poisson', 'gamma', 'inverse.gaussian', and 'binomial'. You can also pass in an instantiated quantcore.glm distribution (e.g. `quantcore.glm.TweedieDistribution(1.5)` )
+
+
 - **alpha**: for each model, `alpha` is the constant multiplying the penalty term. It therefore determines regularization strength. (*Note*: `GeneralizedLinearRegressor` also has an alpha search option. See the `GeneralizedLinearRegressorCV` example below for details on how alpha search works).
 
                 
@@ -63,7 +66,7 @@ The following is a simple example where we fit and predict using `quantcore.glm`
 <!-- #endregion -->
 
 ```python
-glm = GeneralizedLinearRegressor(alpha=0.1, l1_ratio=1)
+glm = GeneralizedLinearRegressor(family='normal', alpha=0.1, l1_ratio=1)
 ```
 
 Just like sklearn, the `GeneralizedLinearRegressor` `fit()` method generally accepts 2 inputs. The first input, `X`, is a design matrix with `(n_samples, n_features)`, and the second input `y`, is an `n_sample` array of target data.
