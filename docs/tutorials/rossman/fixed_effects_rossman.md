@@ -29,7 +29,7 @@ For this tutorial, we will be predicting sales for the European drug store chain
 
 ## Table of Contents<a class="anchor"></a>
 * [1. Data Loading and Feature Engineering](#1.-Data-Loading-and-Feature-Engineering)
-* [2. Fit Baseline GLM Model](#2.-Fit-Baseline-GLM-Model)
+* [2. Fit Baseline GLM](#2.-Fit-baseline-GLM)
 * [3. GLM with High Dimensional Fixed Effects](#3.-GLM-with-High-Dimensional-Fixed-Effects)
 * [4. Plot Results](#4.-Plot-Results)
 <!-- #endregion -->
@@ -126,7 +126,7 @@ select_val = (
 (select_train.sum(), select_val.sum())
 ```
 
-## 2. Fit baseline GLM model<a class="anchor"></a>
+## 2. Fit baseline GLM<a class="anchor"></a>
 [back to table of contents](#Table-of-Contents)
 
 We start with a simple model that uses only year, month, day of the week, and store as predictors. Even with these variables alone, we should still be able to capture a lot of valuable information. Year can capture overall sales trends, month can capture seasonality, week day can capture the variation in sales across the week, and store can capture locality. We will treat these all as categorical variables. 
@@ -332,7 +332,3 @@ plt.show()
 ```
 
 We can see that the high dimensional model is much better at capturing the variation between months and individual stores!
-
-```python
-
-```

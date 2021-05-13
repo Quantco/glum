@@ -120,7 +120,3 @@ print(f"Test  RMSE: {sklearn.metrics.mean_squared_error(glmcv.predict(X_test), y
 ```
 
 Congratulations! You have finished our getting started tutorial. If you wish to learn more, please see our other tutorials for more advanced topics like Poisson, Gamma, and Tweedie regression, high dimensional fixed effects, and spatial smoothing using Tikhonov regularization.
-
-```python
-
-```
