@@ -231,7 +231,3 @@ plt.show()
 We can see that our best results are when alpha=1. For lower alpha levels, we can see that the 98022 region coefficient is still much greater than its neighbors (which we can see is not accurate if we refer back to the original map). For higher alpha levels, we start to see things getting overly smooth -- there is very little distinction between the coefficients of each region, and thus regional data loses its predictive power. 
 
 Even though a test percentage error of 18.5% isn't *fantastic* when predicting home prices, it is still much better than the unregulated version (and not bad considering that we only had 10 highly skewed observations from our test region in our training data).
-
-```python
-
-```
