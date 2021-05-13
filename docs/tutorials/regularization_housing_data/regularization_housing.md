@@ -18,14 +18,14 @@ jupyter:
 
 **Intro**
 
-This tutorial shows how to use custom regularization with quantcore.glm. The `P2` parameter of the `GeneralizedLinearRegressor` class allows you to directly set the L2 penalty of `w*P2*w` (Tikhonov regularization). A 2d array is directly used as the square matrix `P2`, and a 1d array is interpreted as diagonal (square) matrix. 
+This tutorial shows how to use variable $L_2$ regularization with quantcore.glm. The `P2` parameter of the `GeneralizedLinearRegressor` class allows you to directly set the $L_2$ penalty matrix $w^T P_2 w$. If a 2d array is passed for the `P2` parameter, it is used directly, while if you pass a 1d array as `P2` it will be interpreted as the diagonal of $P_2$ and all other entries will be assumed to be zero.
 
-*Note*: L1 regularization with parameter `P1` is also avaiable for the 1D option, which is not shown in this tutorial
+*Note*: Variable $L_1$ regularization is also available by passing an array with length `n_features` to the `P1` parameter. 
 
 
 **Background**
 
-For this tutorial, we will model the selling price of homes in King's County, Washington (Seattle-Tacoma Metro area) between May 2014 and May 2015. However, there is one caveat -- we are going to focus on modeling the selling price of homes in a specific region, but will only using a very small, skewed data sample from that region in our training data. To do this, we will focus on the geographic features of the dataset and show how we can use Tikhonov regularization to minimize overfitting due to noisy/skewed training data. Specifically, we will show that when we have (a) a fixed effect for each postal code region and (b) only a select number of training observations in a certain region, we can improve the predictive power of our model by regularizing the difference between the coefficients of neighboring regions.
+For this tutorial, we will model the selling price of homes in King's County, Washington (Seattle-Tacoma Metro area) between May 2014 and May 2015. However, in order to demonstrate a Tikhonov regularization-based spatial smoothing technique, we will focus on a small, skewed data sample from that region in our training data. Specifically, we will show that when we have (a) a fixed effect for each postal code region and (b) only a select number of training observations in a certain region, we can improve the predictive power of our model by regularizing the difference between the coefficients of neighboring regions. While we are constructing a somewhat artificial example here in order to demonstrate the spatial smoothing technique, we have found similar techniques to be applicable to real world problems. 
 
 *Note*: a few parts of this tutorial utilize local helper functions outside this notebook. If you wish to run the notebook on your own, you can find the rest of the code here: <span style="color:red">**TODO**: add link once in master</span>.
 
@@ -57,6 +57,9 @@ import sys
 sys.path.append("../")
 from metrics import root_mean_squared_percentage_error
 
+import warnings
+warnings.filterwarnings("ignore", message="The weights matrix is not fully connected")
+
 import data_prep
 import maps
 ```
@@ -70,9 +73,11 @@ The main dataset is downloaded from openml. You can find the main page for the d
 
 As part of data preparation, we also do some transformations to the data:
 
-- It is expected that factors influencing housing prices are multiplicative rather than additive, so we take the log of price
+- It is expected that factors influencing housing prices are multiplicative rather than additive, so we will predict log(price).
 - We remove some outliers (homes over 1.5 million and under 100k). 
-- Since we want to focus on geographic features, we remove a handful of the other features
+- Since we want to focus on geographic features, we also remove a handful of the other features.
+
+Below, you can see some example rows from the dataset.
 
 ```python
 df = data_prep.download_and_transform()
@@ -151,10 +156,10 @@ X_train = scaler.transform(X_train)
 X_test = scaler.transform(X_test)
 ```
 
-## 4. Create P matrix<a class="anchor"></a>
+## 4. Creating the penalty matrix<a class="anchor"></a>
 [back to table of contents](#Table-of-Contents)
 
-Now, we will use the geographical information for smoothing. We will create a penalty matrix $P$ such that for neighbouring regions, e.g. for 98022 and 98045, we penalize the squared difference in their coefficient values. For example, if 98022 and 98045 were the only region in question, we would need a $2 \times 2$ matrix $P$ such that:
+To smooth the coefficients for neighboring regions, we will create a penalty matrix $P$ such that we penalize the squared difference in coefficient values for neighbouring regions, e.g. for 98022 and 98045. For example, if 98022 and 98045 were the only region in question, we would need a $2 \times 2$ matrix $P$ such that:
 $$\begin{pmatrix} \beta_{98022}, \beta_{98045}\end{pmatrix} P \begin{pmatrix} \beta_{98022} \\ \beta_{98045}\end{pmatrix}
 = (\beta_{98022} - \beta_{98045})^2$$
 
@@ -162,7 +167,7 @@ In this example, we would get this result with $P = \begin{pmatrix} 1 & -1 \\ -1
 
 Since we have 72 postal code regions, it would be rather annoying to construct this matrix by hand. Luckily, there are libaries that exist for this. We use [pysal](http://pysal.org)'s [pysal.lib.weights.Queen](https://pysal.org/libpysal/generated/libpysal.weights.Queen.html) to retrieve a neighbor's matrix from our map data. The construction of the penalty matrix is rather straightfoward once we have this information.
 
-We leave the non-geographic features unregulated (all zeros in the $P2$ matrix).
+We leave the non-geographic features unregularized (all zeros in the $P$ matrix).
 
 ```python
 # format is {zip1: {neighbord1: 1, neighbor2: 1, ...}}
@@ -188,9 +193,9 @@ P2
 
 Now, we will fit several L2 regularized OLS models using different levels of regularization. All will use the penalty matrix defined above, but the alpha parameter, the constant that multiplies the penalty terms and thus determines the regularization strength, will vary. 
 
-For each model, we will measure test performance using root mean squared percentage error (RMPSE), so that we can get a relaitve result. We will also plot a heatmat of the coefficient values over the regions.
+For each model, we will measure test performance using root mean squared percentage error (RMSPE), so that we can get a relaitve result. We will also plot a heatmat of the coefficient values over the regions.
 
-*Note*: alpha=1e-12 is effectively no regularization. The reason we can't set alpha to zero is because we are not dropping any of our zip code categoricals, so actually zero regularization will create a singular matrix error.
+*Note*: alpha=1e-12 is effectively no regularization. But, we can't set alpha to zero because the unregularized problem has co-linear columns resulting in a singular design matrix. 
 
 ```python
 fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(20, 20))
@@ -204,7 +209,7 @@ for i, alpha in enumerate([1e-12, 1e-1, 1, 10]):
     
     print(f"alpha={alpha}")
     print(f"Test region coefficient: {coeffs.loc[test_region].values[0]}")
-    print(f"Test RMPSE: {root_mean_squared_percentage_error(np.exp(y_test_hat), np.exp(y_test))}\n")
+    print(f"Test RMSPE: {root_mean_squared_percentage_error(np.exp(y_test_hat), np.exp(y_test))}\n")
     
     df_map_coeffs = df_map.merge(
         coeffs.loc[sorted_zips],
@@ -228,6 +233,6 @@ for i, alpha in enumerate([1e-12, 1e-1, 1, 10]):
 plt.show()
 ```
 
-We can see that our best results are when alpha=1. For lower alpha levels, we can see that the 98022 region coefficient is still much greater than its neighbors (which we can see is not accurate if we refer back to the original map). For higher alpha levels, we start to see things getting overly smooth -- there is very little distinction between the coefficients of each region, and thus regional data loses its predictive power. 
+alpha=1 seems to recover the best results. Remember that our test dataset is just a small subset of the data in region 98022 and that the training data is skewed towards high sales prices. For alpha less than 1, we can see that the 98022 region coefficient is still much greater than its neighbors coefficients, which we can see is not accurate if we refer back to map we produced based on the raw data. For higher alpha levels, we start to see poor predictions resulting from regional coefficients that are too smooth between adjacent regions.
 
-Even though a test percentage error of 18.5% isn't *fantastic* when predicting home prices, it is still much better than the unregulated version (and not bad considering that we only had 10 highly skewed observations from our test region in our training data).
+A test RMSPE of 18.5% is a surprisingly good result considering that we only had 10 highly skewed observations from our test region in our training data and is far better than the RMSPE of 67.5% from the unregularized case.

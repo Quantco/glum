@@ -7,7 +7,7 @@
 Changelog
 =========
 
-1.4.1 - 2021-05-03
+Unreleased
 ------------------
 **Tutorials and documenation improvements**:
 - Adding tutorials to the documentation

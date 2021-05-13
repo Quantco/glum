@@ -18,7 +18,9 @@ jupyter:
 
 **Intro**
 
-This tutorial demonstrates how you can create models with high dimensional fixed effects using `quantcore.glm`. Thanks to the utilization of `quantcore.matrix`, we can pass categorical variables with a large range of values and the rest is taken care of for us. `quantcore.glm` and `quantcore.matrix` will handle the creation of the one-hot-encoded design matrix and also take advantage of the sparse nature of the matrix to optimize operations.
+This tutorial demonstrates how to create models with high dimensional fixed effects using `quantcore.glm`. Using `quantcore.matrix`, we can pass categorical variables with a large range of values. `quantcore.glm` and `quantcore.matrix` will handle the creation of the one-hot-encoded design matrix.
+
+In some real-world problems, we have used millions of categories. This would be impossible with a dense matrix. General-purpose sparse matrices like compressed sparse row (CSR) matrices help but still leave a lot on the table. For a categorical matrix, we know that each row has only a single non-zero value and that value is 1. These optimizations are implemented in `quantcore.matrix.CategoricalMatrix`. 
 
 
 **Background**
@@ -173,7 +175,7 @@ df["predicted_log_sales_baseline"] = df["predicted_log_sales_baseline"].fillna(0
 df["predicted_sales_baseline"] = np.exp(df["predicted_log_sales_baseline"])
 ```
 
-We use root mean squared percentage error (RMPSE) as our performance metric. (Useful for thinking about error relative to total sales of each store).  
+We use root mean squared percentage error (RMSPE) as our performance metric. (Useful for thinking about error relative to total sales of each store).  
 
 ```python
 train_err = root_mean_squared_percentage_error(

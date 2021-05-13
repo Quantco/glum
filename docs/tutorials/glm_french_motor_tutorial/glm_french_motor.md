@@ -66,7 +66,7 @@ from load_transform import load_transform
 ## 1. Load and prepare datasets from Openml<a class="anchor"></a>
 [back to table of contents](#Table-of-Contents)
 
-First, we load in our dataset from openML and apply several transformations. In the interest of simplicity, we do not include the data loading and preparation code in this notebook. Below is a list of further resources if you wish to explore further: 
+First, we load in our [dataset from openML]("https://www.openml.org/d/41214") and apply several transformations. In the interest of simplicity, we do not include the data loading and preparation code in this notebook. Below is a list of further resources if you wish to explore further: 
 
 1. If you want to run the same code yourself, please see the helper functions here: <span style="color:red">**TODO**: add link once in master</span>.
 2. For a detailed description of the data, see [here](http://dutangc.free.fr/pub/RRepos/web/CASdatasets-index.html).
@@ -274,9 +274,9 @@ We define:
 - $y = \frac{z}{w}$: severity
 
 ### 3.1 Why Gamma distributions
-The severity $y$ is a positive, real number, $y \in (0, \infty)$. Theoretically, especially for liability claims, one could have arbitrary large numbers&mdash;very unlikely but possible. A very simple distribution for this range is an Exponential distribution, or its generalization, a Gamma distribution $y \sim Gamma$. In the insurance industry, it is well known that the severity might be skewed and have heavy tails, i.e. a few very large losses, as does our dataset. That's why we only analyse the claim amount cut at 100,000.
+The severity $y$ is a positive, real number, $y \in (0, \infty)$. Theoretically, especially for liability claims, one could have arbitrary large numbers&mdash;very unlikely but possible. A very simple distribution for this range is an Exponential distribution, or its generalization, a Gamma distribution $y \sim Gamma$. In the insurance industry, it is well known that the severity might be skewed by a few very large losses. It's common to model these tail losses separately so here we cut out claims larger than 100,000 to focus on modeling small and moderate claims. 
 
-A Gamma distribution has mean-variance relation $\mathrm{Var}[Y] = \frac{\phi}{w} \mathrm{E}[Y]^2$. Note that the dispersion $\phi$ does not influence the estimation of $E[\mu]$.
+A Gamma distribution has mean-variance relation $\mathrm{Var}[Y] = \frac{\phi}{w} \mathrm{E}[Y]^2$. Similar to the Poisson regression above, the dispersion parameter $\phi$ does not influence the estimation of $E[Y]$.
 
 ```python
 df_plot = (
@@ -346,7 +346,7 @@ for col in ['VehPower', 'BonusMalus']:
 ```
 
 <!-- #region -->
-This is good empirical confirmation to use the Gamma.
+Great! A Gamma distribution seems to be an empirically reasonable assumption for this dataset. 
 
 
 *Hint*: If Y were normal distributed, one should see a horizontal line, because $Var[Y] = constant/Exposure$
@@ -358,9 +358,9 @@ We fit a GLM for the severity with the same features as the frequency model. We 
 
 *Note*:
 
-- We filter out ClaimAmount == 0 as the Gamma distribution as support on $(0, \infty)$ not $[0, \infty)$
+- We filter out ClaimAmount == 0. The severity problem is to model claim amounts conditional on a claim having already been submitted. It seems reasonable to treat a claim of zero as equivalent to no claim at all. Additionally, zero is not included in the open interval $(0, \infty)$ support of the Gamma distribution.
 - We use ClaimNb as sample weights.
-- We use the same split in train and test data such that we can predict the final claim amount on the test set.
+- We use the same split in train and test data such that we can predict the final claim amount on the test set as the product of our Poisson claim number and Gamma claim severity GLMs.
 
 ```python
 idx = df['ClaimAmountCut'].values > 0
@@ -399,7 +399,7 @@ pd.DataFrame({'coefficient': np.concatenate(([s_glm1.intercept_], s_glm1.coef_))
 
 Again, we measure peformance with the deviance of the distribution. We also compare against the simple arithmetic mean. 
 
-*Note*: a Gamma distribution is equivlane to a Tweedie distribution with power = 2.
+*Note*: a Gamma distribution is equivalent to a Tweedie distribution with power = 2.
 
 ```python
 GammaDist = TweedieDistribution(2)
@@ -419,16 +419,6 @@ print('testing loss Mean:    {}'.format(
 ### 3.3 Combined frequency and severity results
 
 We put together the prediction of frequency and severity to get the predictions of the total claim amount per policy.
-
-```python
-plt.subplots(figsize=(20, 10))
-x = np.argsort(y_train_g)
-plt.hist(y_train_g, label="True", bins=100)
-plt.hist(s_glm1.predict(X_train_g), label="Pred", bins=100)
-plt.hist(z_train_g, label="Mean", bins=100)
-plt.legend()
-plt.show()
-```
 
 ```python
 #Put together freq * sev together
@@ -459,9 +449,9 @@ y_train_t, y_test_t = y.iloc[train], y.iloc[test]
 w_train_t, w_test_t = weight[train], weight[test]
 ```
 
-If we really wanted to optimize the model, we would ideally select the power parameter with a grid-search that minimizes the negative log-likelihood of the Tweedie model. However, for now, we just arbitrarily select 1.5 as our power.
+For now, we just arbitrarily select 1.5 as the power parameter for our Tweedie model. However for a better fit we could include the power parameter in the optimization/fitting process, possibly via a simple grid search. 
 
-*Note*: notice how we pass the distibution in directly for the family parameter. While `quantcore.glm` supports strings for the family parameter, if you are using a common distribution (e.g. like Poisson and Gamma seen above), you can also pass in a quantcore.glm distribution directly.
+*Note*: notice how we pass a `TweedieDistribution` object in directly for the family parameter. While `quantcore.glm` supports strings for common families, it is also possible to pass in a quantcore.glm distribution directly.
 
 ```python
 TweedieDist = TweedieDistribution(1.5)
