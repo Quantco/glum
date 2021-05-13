@@ -18,7 +18,7 @@ jupyter:
 
 Welcome to `quantcore.glm`! Generalized linear models (GLMs) are a core statistical tool that include many common methods like least-squares regression, Poisson regression, and logistic regression as special cases. At QuantCo, we have developed `quantcore.glm`, a fast Python-first GLM library. 
 
-The purpose of this tutorial is to show the basics of `quantcore.glm`. It assumes a working knowledge of python, regularized linear models, and machine learning. The API is very similar to sklearn. (Afterall, `quantcore.glm` is based on a fork of scikit-learn).
+The purpose of this tutorial is to show the basics of `quantcore.glm`. It assumes a working knowledge of python, regularized linear models, and machine learning. The API is very similar to sklearn. (After all, `quantcore.glm` is based on a fork of scikit-learn).
 
 If you have not done so already, please refer to our [installation instructions](https://github.com/Quantco/quantcore.glm#installation) for installing `quantcore.glm`.
 
