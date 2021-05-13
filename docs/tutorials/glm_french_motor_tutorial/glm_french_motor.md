@@ -39,8 +39,8 @@ In this tutorial, we demonstrate both approaches. We start with the second optio
 
 TLDR: The world is not Normal!
 
-For starters, we know the number of claims is discrete and positive. Therefore, a Poisson distribution makes sense just from the support. On the other hand, a normal distribution fails quite badly by this metric since it has negative support. Additionally, the normal distribution's continuous support, while potentially less of an issue (we can just round up or down or do some kind of integration), is also suboptimal.
-Finally, as a final point, the mean\variance relationship is quite different between the two models. As we will demonstrate later, the Poisson distribution also makes more sense for us in this regard. 
+For starters, we know that the number of claims is discrete and positive. Therefore, a Poisson distribution makes sense just from the support. On the other hand, a normal distribution fails quite badly by this metric since it has negative support. Additionally, the normal distribution's continuous support, while potentially less of an issue (we can just round up or down or do some kind of integration), is also suboptimal.
+Lastly, as a final point, the mean\variance relationship is quite different between the two models. As we will demonstrate later, the Poisson distribution also makes more sense for us in this regard. 
 
 ## Table of Contents
 * [1. Load and Prepare Datasets from Openml.org](#1.-Load-and-Prepare-Datasets-from-Openml.org)
