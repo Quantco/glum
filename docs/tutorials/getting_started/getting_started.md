@@ -34,7 +34,7 @@ from quantcore.glm import GeneralizedLinearRegressor, GeneralizedLinearRegressor
 
 ## Data
 
-We start by loading and prepping the sklearn boston housing dataset. For simplicity, we don't go into any details regarding EDA or data cleaning.
+We start by loading and prepping the sklearn boston housing dataset. For simplicity, we don't go into any details regarding exploration or data cleaning.
 
 ```python
 from sklearn import datasets
@@ -69,13 +69,13 @@ The following is a simple example where we fit and predict using `quantcore.glm`
 glm = GeneralizedLinearRegressor(family='normal', alpha=0.1, l1_ratio=1)
 ```
 
-Just like sklearn, the `GeneralizedLinearRegressor` `fit()` method generally accepts 2 inputs. The first input, `X`, is a design matrix with `(n_samples, n_features)`, and the second input `y`, is an `n_sample` array of target data.
+Just like sklearn, the `GeneralizedLinearRegressor` `fit()` method generally accepts 2 inputs. The first input, `X`, is a design matrix with shape `(n_samples, n_features)`, and the second input, `y`, is an `n_sample` array of target data.
 
 ```python
 glm.fit(X_train, y_train)
 ```
 
-The `predict()` method is also similar to sklearn. It accepts an `n_feature` design matrix as its input
+The `predict()` method is also similar to sklearn. It accepts an `(n_samples, n_feature)` shaped design matrix as its input
 
 ```python
 print(f"Train RMSE: {sklearn.metrics.mean_squared_error(glm.predict(X_train), y_train, squared=False)}")
@@ -84,7 +84,7 @@ print(f"Test  RMSE: {sklearn.metrics.mean_squared_error(glm.predict(X_test), y_t
 
 ## GLM with cross validation
 
-Now, we fit using cross validation with. `GeneralizedLinearRegressorCV`.
+Now, we fit using cross validation with `GeneralizedLinearRegressorCV`.
 Some important parameters:
 
 - **alphas**: for `GeneralizedLinearRegressorCV()`, the best `alpha` will be found by searching along the regularization path. The regularization path is determined as follows:
@@ -119,7 +119,7 @@ print(f"Train RMSE: {sklearn.metrics.mean_squared_error(glmcv.predict(X_train), 
 print(f"Test  RMSE: {sklearn.metrics.mean_squared_error(glmcv.predict(X_test), y_test, squared=False)}")
 ```
 
-Congratulations! You have finished our getting started tutorial. If you wish to learn more, please see our other tutorials for more advanced topics like Poisson, Gamma, and Tweedie regressions, high dimensional fixed effects, and Tikhonov regularization.
+Congratulations! You have finished our getting started tutorial. If you wish to learn more, please see our other tutorials for more advanced topics like Poisson, Gamma, and Tweedie regression, high dimensional fixed effects, and spatial smoothing using Tikhonov regularization.
 
 ```python
 
