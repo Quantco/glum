@@ -148,7 +148,7 @@ baseline_glm = GeneralizedLinearRegressor(
 )
 ```
 
-We fit our model (making sure to process the dataframe with the categorizer first) and inspect the coefficients. Even with the few categoricals we used, we can see that we still get a lot of fixed effects. 
+Fit the model making sure to process the dataframe with the Categorizer first and inspect the coefficients. 
 
 ```python
 baseline_glm.fit(
@@ -192,7 +192,7 @@ The results aren't bad for a start, but we can do better :)
 ## 3. GLM with high dimensional fixed effects<a class="anchor"></a>
 [back to table of contents](#Table-of-Contents)
 
-Now, we repeat a similar process to above, but this time, we take advantage of the full range of categoricals we created in our data transformation step. Since we will create a very large number of fixed effects, we may run into cases where our validation data has categorical values not seen in our training data. In these cases, the dask ml categorizer will output null values when transforming the validation columns to the categoricals that were created on the training set. To fix this, we add the dask ml [SimpleImputer](https://ml.dask.org/modules/generated/dask_ml.impute.SimpleImputer.html) to our pipeline. 
+Now, we repeat a similar process to above, but this time, we take advantage of the full range of categoricals we created in our data transformation step. Since we will create a very large number of fixed effects, we may run into cases where our validation data has categorical values not seen in our training data. In these cases, the dask_ml Categorizer will output null values when transforming the validation columns to the categoricals that were created on the training set. To fix this, we add the dask_ml [SimpleImputer](https://ml.dask.org/modules/generated/dask_ml.impute.SimpleImputer.html) to our pipeline. 
 
 ```python
 highdim_features = [
@@ -243,7 +243,7 @@ highdim_glm = GeneralizedLinearRegressor(
 )
 ```
 
-For reference, we output the total number of predictors after fitting the model. We can see that the number is rather large, so this time, we don't output our feature names and their coefficient values.
+For reference, we output the total number of predictors after fitting the model. We can see that the number getting a bit larger, so we don't print out the coefficients this time.
 
 ```python
 highdim_glm.fit(

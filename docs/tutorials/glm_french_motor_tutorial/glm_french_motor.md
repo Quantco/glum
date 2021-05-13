@@ -25,7 +25,7 @@ This tutorial shows why and how to use Poisson, Gamma, and Tweedie GLMs on an in
 
 
 **Background**
-Insurance claims are requests made by a policy holder to an insurance company for compensation in the event of a covered loss. When modeling these claims, the goal is often to estimate, per policy, the total claim amount per exposure unit. (i.e. number of claims $\times$ average amount per claim, per year). This amount is also referred to as the pure premium.
+Insurance claims are requests made by a policy holder to an insurance company for compensation in the event of a covered loss. When modeling these claims, the goal is often to estimate, per policy, the total claim amount per exposure unit. (i.e. number of claims $\times$ average amount per claim per year). This amount is also referred to as the pure premium.
 
 Two approaches for modeling this value are:
 
@@ -253,9 +253,9 @@ print('test loss f_glm1: {}'.format(
       PoissonDist.deviance(y_test_p, f_glm1.predict(X_test_p), weights=w_test_p)/np.sum(w_test_p)))
 ```
 
-A GLM with canonical link function (Normal - identity, Poisson - log, Gamma - 1/x, Binomial - logit) with an intercept term has the so called **balance property**. Neglecting small deviations by the opimizer used for fitting, the results fulfil on the training sample:
+A GLM with canonical link function (Normal - identity, Poisson - log, Gamma - 1/x, Binomial - logit) with an intercept term has the so called **balance property**. Neglecting small deviations due to an imperfect fit, on the training sample the results satisfy the equality:
 $$\sum_{i \in training} w_i y_i = \sum_{i \in training} w_i \hat{\mu}_i$$
-Summing up the predictions $\hat{\mu}_i$ yields exaclty the observations $y_i$. 
+As expected, this property holds in our real data:
 
 ```python
 # balance property of GLM with canonical link, like log-link for Poisson:
@@ -265,7 +265,7 @@ z_train_p.sum(), (f_glm1.predict(X_train_p) * w_train_p).sum()
 ## 3. Severity GLM - Gamma distribution<a class="anchor"></a>
 [back to Table of Contents](#Table-of-Contents)
 
-Now, we fit a GLM model for the severity with the same features as the freq model.
+Now, we fit a GLM for the severity with the same features as the frequency model.
 The severity $y$ is the average claim size.
 We define:
 
@@ -354,7 +354,7 @@ This is good empirical confirmation to use the Gamma.
 
 
 ### 3.2 Severity GLM with train and test data
-We fit a GLM model for the severity with the same features as the freq model. We use the same categorizer as before. 
+We fit a GLM for the severity with the same features as the frequency model. We use the same categorizer as before. 
 
 *Note*:
 
