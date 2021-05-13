@@ -110,7 +110,7 @@ Notice that both the number of claims $z$ and the exposure $w$ are additive. Thi
 
 The number of claims $z$ is an integer, $z \in [0, 1, 2, 3, \ldots]$. Theoretically, a policy could have an arbitrarily large number of claims&mdash;very unlikely but possible. The simplest distribution for this range is a Poisson distribution $z \sim Poisson$. However, instead of $z$, we will model the frequency $y$, which is still (scaled) Poisson distributed with variance inverse proportional to $w$, cf. [wikipedia:Reproductive_EDM](https://en.wikipedia.org/wiki/Exponential_dispersion_model#Reproductive). A very important property of the Poisson distribution is its mean-variance relation: The variance is proportional to the mean.
 
-We summarize our assumptions for a Poisson-GLM model with the log-link:
+We summarize our assumptions for a Poisson-GLM with the log-link:
 
 - target: $y \sim Poisson$
 - mean: $\mathrm{E}[y] = \exp(X\beta)$
@@ -124,17 +124,16 @@ We summarize our assumptions for a Poisson-GLM model with the log-link:
 To verify our assumptions, we start by plotting the observed frequencies and a fitted Poisson distribution (Poisson regression with intercept only).
 
 ```python
+# plt.subplots(figsize=(10, 7))
 df_plot = (
     df.loc[:, ['ClaimNb', 'Exposure']].groupby('ClaimNb').sum()
     .assign(Frequency_Observed = lambda x: x.Exposure / df['Exposure'].sum())
 )
-
-df_plot['Frequency_Observed'].plot(kind = 'bar', label='observed')
-
 mean = df['ClaimNb'].sum() / df['Exposure'].sum()
+
 x = range(5)
-plt.plot(x, scipy.stats.poisson.pmf(x, mean), 'ro', ms=8, mec='r', label='Poisson fit')
-plt.vlines(x=x, ymin=0, ymax=scipy.stats.poisson.pmf(x, mean), color='r', lw=4)
+plt.scatter(x, df_plot['Frequency_Observed'].values, color="blue", alpha=0.85, s=60, label='observed')
+plt.scatter(x, scipy.stats.poisson.pmf(x, mean), color="orange", alpha=0.55, s=60, label="poisson fit")
 plt.xticks(x)
 plt.legend()
 plt.title("Frequency");
@@ -185,7 +184,7 @@ This is a strong confirmation for the use of a Poisson when fitting!
 
 *Hints*:
 
-- If Y were normal distributed, one should see a horizontal line, because for a Normal: Var[Y] ~ constant/Exposure.
+- If Y were normal distributed, one should see a horizontal line, because for a Normal: $Var[Y] = constant/Exposure$.
 - The 45° line is not even necessary, any straight line through the origin would be enough for simple reasons:
 
     1. A quasi-Poisson distribution has $Var[Y] = \phi * E[Y]/w$ for some $\phi$.
@@ -346,13 +345,13 @@ for col in ['VehPower', 'BonusMalus']:
     plt.show()
 ```
 
+<!-- #region -->
 This is good empirical confirmation to use the Gamma.
 
-*Note*: The data seems to be slightly heavier tailed than a Gamma, because estimated p > 2 (it is 2.27 or 2.20). The second plot with BonusMalus might even suggest 2 different regions, on region from 0 to 1'800 and another from 1'800 upwards.
 
-*Hint*: If Y were normal distributed, one should see a horizontal line, because $Var[Y] \sim constant/Exposure$
+*Hint*: If Y were normal distributed, one should see a horizontal line, because $Var[Y] = constant/Exposure$
        and the fit should give $p \approx 0$.
-
+<!-- #endregion -->
 
 ### 3.2 Severity GLM with train and test data
 We fit a GLM for the severity with the same features as the frequency model. We use the same categorizer as before. 
@@ -398,7 +397,7 @@ pd.DataFrame({'coefficient': np.concatenate(([s_glm1.intercept_], s_glm1.coef_))
              index=['intercept'] + s_glm1.feature_names_).T
 ```
 
-Again, we measure peformance with the deviance of the distribution.
+Again, we measure peformance with the deviance of the distribution. We also compare against the simple arithmetic mean. 
 
 *Note*: a Gamma distribution is equivlane to a Tweedie distribution with power = 2.
 
@@ -420,6 +419,16 @@ print('testing loss Mean:    {}'.format(
 ### 3.3 Combined frequency and severity results
 
 We put together the prediction of frequency and severity to get the predictions of the total claim amount per policy.
+
+```python
+plt.subplots(figsize=(20, 10))
+x = np.argsort(y_train_g)
+plt.hist(y_train_g, label="True", bins=100)
+plt.hist(s_glm1.predict(X_train_g), label="Pred", bins=100)
+plt.hist(z_train_g, label="Mean", bins=100)
+plt.legend()
+plt.show()
+```
 
 ```python
 #Put together freq * sev together
@@ -489,4 +498,4 @@ print("Total claim amount on test set, observed = {}, predicted = {}".
      )
 ```
 
-Ultimately, the combined frequency severity model performed a bit better, but both approaches prove to be effective.
+In terms of the combined proximity to the true total claim amounts, the frequency severity model performed a bit better than Tweedie model. However, both approaches ultimatley prove to be effective.
