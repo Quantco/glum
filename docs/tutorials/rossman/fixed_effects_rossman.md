@@ -100,7 +100,7 @@ As we mention earlier, we want our model to incorporate the many factors that in
 - Fixed effects for each year for each store
 - Fixed effects for each day of the week for each store
 
-In addition to fixed effects, we also do several other transformations. These include:
+We also do several other transformations:
 
 - Taking the log of sales. It is expected that the factors influencing store sales like locality, seasonality, etc. will have a multiplicative effect on sales rather than additive, so going foward, we use log of sales as our outcome variable
 - Computing the z score to eliminate outliers (in the next step)
