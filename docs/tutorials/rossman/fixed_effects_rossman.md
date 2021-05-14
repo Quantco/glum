@@ -88,17 +88,17 @@ df.head()
 
 ### 1.2 Feature engineering
 
-As we mention earlier, we want our model to incorporate the many factors that influence store sales. Thus, we create a number of fixed effects to capture this information. These include:
+As we mention earlier, we want our model to incorporate the many factors that influence store sales. Thus, we create a number of fixed effects to capture this information. These include fixed effects for:
 
-- Fixed effects for a certain number days before a school or state holidays
-- Fixed effects for a certain number days after a school or state holidays
-- Fixed effects for a certain number days before a promo
-- Fixed effects for a certain number days after a promo
-- Fixed effects for a certain number days before the store is open or closed
-- Fixed effects for a certain number days after the store is open or closed
-- Fixed effects for each month for each store
-- Fixed effects for each year for each store
-- Fixed effects for each day of the week for each store
+- A certain number days before a school or state holiday
+- A certain number days after a school or state holiday
+- A certain number days before a promo
+- A certain number days after a promo
+- A certain number days before the store is open or closed
+- A certain number days after the store is open or closed
+- Each month for each store
+- Each year for each store
+- Each day of the week for each store
 
 We also do several other transformations:
 
