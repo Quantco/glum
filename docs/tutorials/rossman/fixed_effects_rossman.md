@@ -67,7 +67,7 @@ alt.data_transformers.enable("json")  # to allow for large plots
 
 We start by loading in the raw data. If you have not yet processed the raw data, it will be done below. (Initial processing consists of some basic cleaning and renaming of columns.
 
-*Note*: if you wish to run this notebook on your own, and have not done so already, please download the data from the [Rossman Kaggle Challenge](https://www.kaggle.com/c/rossmann-store-sales). This tutorial expects that it in a folder names "raw_data" under the same directory as the notebook.
+*Note*: if you wish to run this notebook on your own, and have not done so already, please download the data from the [Rossman Kaggle Challenge](https://www.kaggle.com/c/rossmann-store-sales). This tutorial expects that it in a folder named "raw_data" under the same directory as the notebook.
 
 
 ### 1.1 Load
@@ -88,7 +88,7 @@ df.head()
 
 ### 1.2 Feature engineering
 
-As we mention earlier, we want our model to incorporate the many factors that influence store sales. Thus, we create a number of fixed effects to capture this information. These include fixed effects for:
+As mentioned earlier, we want our model to incorporate many factors that could influence store sales. We create a number of fixed effects to capture this information. These include fixed effects for:
 
 - A certain number days before a school or state holiday
 - A certain number days after a school or state holiday
@@ -133,9 +133,7 @@ select_val = (
 
 We start with a simple model that uses only year, month, day of the week, and store as predictors. Even with these variables alone, we should still be able to capture a lot of valuable information. Year can capture overall sales trends, month can capture seasonality, week day can capture the variation in sales across the week, and store can capture locality. We will treat these all as categorical variables. 
 
-*Note*: notice how with the `GeneralizedLinearRegressor()` class, we pass in the categorical variables directly without having to encode them ourselves. This is extremely convenient, especially when we start adding more fixed effects.  However, this does require that we use a Categorizer (we use the dask ml categorizer) for 2 reasons.
-1. To ensure that the categories align in fitting and predicting. (Note also that Dask ML's Categorizer doesn't enforce the order of categories if the input column is already categorical.)
-2. In order to transform the columns into categorical data types. 
+With the `GeneralizedLinearRegressor()` class, we can pass in `pandas.Categorical` variables directly without having to encode them ourselves. This is convenient, especially when we start adding more fixed effects. But, it is very important that the categories are aligned between calls to `fit` and `predict`. One way of achieving this alignment is with a `dask_ml.preprocessing.Categorizer`. Note, however, that the `Categorizer` class failures to enforce category alignment if the input column is already a categorical data type. 
 
 You can reference the [pandas documentation on Categoricals](https://pandas.pydata.org/pandas-docs/stable/user_guide/categorical.html) to learn more about how these data types work.
 
@@ -164,7 +162,7 @@ pd.DataFrame(
 ).T
 ```
 
-Note that below, we predict sales for when the stores are open vs. closed separately (as one would expect, sales for days when the stores are closed are 0).
+And let's predict for our test set with the caveat that we will predict 0 for days when the stores are closed!
 
 ```python
 df.loc[lambda x: x["open"], "predicted_log_sales_baseline"] = baseline_glm.predict(
