@@ -27,7 +27,10 @@ In some real-world problems, we have used millions of categories. This would be 
 
 For this tutorial, we will be predicting sales for the European drug store chain Rossman. Specifically, we are tasked with predicting daily sales for future dates. Ideally, we want a model that can capture the many factors that influence stores sales -- promotions, competition, school, holidays, seasonality, etc. As a baseline, we will start with a simple model that only uses a few basic predictors. Then, we will fit a model with a large number of fixed effects. For both models, we will use OLS with L2 regularization. 
 
-*Note*: a few parts of this tutorial utilize local helper functions outside this notebook. If you wish to run the notebook on your own, you can find the rest of the code here: <span style="color:red">**TODO**: add link once in master</span>.
+We will use a gamma distribution for our model. This choice is motivated by two main factors. First, our target variable, sales, is a positive real number, which matches the support of the gamma distribution. Second, it is expected that factors influencing sales are multiplicative rather than additive, which is better captured with a gamma regression than say, OLS.
+
+
+*Note*: a few parts of this tutorial utilize local helper functions outside this notebook. If you wish to run the notebook on your own, you can find the rest of the code [here](https://github.com/Quantco/quantcore.glm/tree/open-sourcing/docs/tutorials/rossman).
 
 ## Table of Contents<a class="anchor"></a>
 * [1. Data Loading and Feature Engineering](#1.-Data-Loading-and-Feature-Engineering)
@@ -73,10 +76,10 @@ We start by loading in the raw data. If you have not yet processed the raw data,
 ### 1.1 Load
 
 ```python
-if not all([Path(p).exists() for p in ["raw_data/train.csv", "raw_data/test.csv", "raw_data/store.csv"]]):
+if not all(Path(p).exists() for p in ["raw_data/train.csv", "raw_data/test.csv", "raw_data/store.csv"]):
     raise Exception("Please download raw data into 'raw_data' folder")
 
-if not all([Path(p).exists() for p in ["processed_data/train.parquet", "processed_data/test.parquet"]]):
+if not all(Path(p).exists() for p in ["processed_data/train.parquet", "processed_data/test.parquet"]):
     "Processed data not found. Processing data from raw data..."
     process_data()
     "Done"
@@ -100,10 +103,7 @@ As mentioned earlier, we want our model to incorporate many factors that could i
 - Each year for each store
 - Each day of the week for each store
 
-We also do several other transformations:
-
-- Taking the log of sales. It is expected that the factors influencing store sales like locality, seasonality, etc. will have a multiplicative effect on sales rather than additive, so going foward, we use log of sales as our outcome variable
-- Computing the z score to eliminate outliers (in the next step)
+We also do several other transformations like computing the z score to eliminate outliers (in the next step)
 
 ```python
 df = apply_all_transformations(df)
@@ -133,7 +133,7 @@ select_val = (
 
 We start with a simple model that uses only year, month, day of the week, and store as predictors. Even with these variables alone, we should still be able to capture a lot of valuable information. Year can capture overall sales trends, month can capture seasonality, week day can capture the variation in sales across the week, and store can capture locality. We will treat these all as categorical variables. 
 
-With the `GeneralizedLinearRegressor()` class, we can pass in `pandas.Categorical` variables directly without having to encode them ourselves. This is convenient, especially when we start adding more fixed effects. But, it is very important that the categories are aligned between calls to `fit` and `predict`. One way of achieving this alignment is with a `dask_ml.preprocessing.Categorizer`. Note, however, that the `Categorizer` class failures to enforce category alignment if the input column is already a categorical data type. 
+With the `GeneralizedLinearRegressor()` class, we can pass in `pandas.Categorical` variables directly without having to encode them ourselves. This is convenient, especially when we start adding more fixed effects. But it is very important that the categories are aligned between calls to `fit` and `predict`. One way of achieving this alignment is with a `dask_ml.preprocessing.Categorizer`. Note, however, that the `Categorizer` class fails to enforce category alignment if the input column is already a categorical data type. 
 
 You can reference the [pandas documentation on Categoricals](https://pandas.pydata.org/pandas-docs/stable/user_guide/categorical.html) to learn more about how these data types work.
 
@@ -141,19 +141,19 @@ You can reference the [pandas documentation on Categoricals](https://pandas.pyda
 baseline_features = ["year", "month", "day_of_week", "store"]
 baseline_categorizer = Categorizer(columns=baseline_features)
 baseline_glm = GeneralizedLinearRegressor(
-    family="normal",
+    family="gamma",
     scale_predictors=True,
     l1_ratio=0.0,
     alphas=1e-1,
 )
 ```
 
-Fit the model making sure to process the dataframe with the Categorizer first and inspect the coefficients. 
+Fit the model making sure to process the data frame with the Categorizer first and inspect the coefficients. 
 
 ```python
 baseline_glm.fit(
     baseline_categorizer.fit_transform(df[select_train][baseline_features]),
-    df.loc[select_train, "log_sales"]
+    df.loc[select_train, "sales"]
 )
 
 pd.DataFrame(
@@ -165,12 +165,12 @@ pd.DataFrame(
 And let's predict for our test set with the caveat that we will predict 0 for days when the stores are closed!
 
 ```python
-df.loc[lambda x: x["open"], "predicted_log_sales_baseline"] = baseline_glm.predict(
+df.loc[lambda x: x["open"], "predicted_sales_baseline"] = baseline_glm.predict(
     baseline_categorizer.fit_transform(df.loc[lambda x: x["open"]][baseline_features])
 )
 
-df["predicted_log_sales_baseline"] = df["predicted_log_sales_baseline"].fillna(0)
-df["predicted_sales_baseline"] = np.exp(df["predicted_log_sales_baseline"])
+df["predicted_sales_baseline"] = df["predicted_sales_baseline"].fillna(0)
+df["predicted_sales_baseline"] = df["predicted_sales_baseline"]
 ```
 
 We use root mean squared percentage error (RMSPE) as our performance metric. (Useful for thinking about error relative to total sales of each store).  
@@ -192,7 +192,7 @@ The results aren't bad for a start, but we can do better :)
 ## 3. GLM with high dimensional fixed effects<a class="anchor"></a>
 [back to table of contents](#Table-of-Contents)
 
-Now, we repeat a similar process to above, but this time, we take advantage of the full range of categoricals we created in our data transformation step. Since we will create a very large number of fixed effects, we may run into cases where our validation data has categorical values not seen in our training data. In these cases, the dask_ml Categorizer will output null values when transforming the validation columns to the categoricals that were created on the training set. To fix this, we add the dask_ml [SimpleImputer](https://ml.dask.org/modules/generated/dask_ml.impute.SimpleImputer.html) to our pipeline. 
+Now, we repeat a similar process to above, but, this time, we take advantage of the full range of categoricals we created in our data transformation step. Since we will create a very large number of fixed effects, we may run into cases where our validation data has categorical values not seen in our training data. In these cases, Dask-ML's `Categorizer` will output null values when transforming the validation columns to the categoricals that were created on the training set. To fix this, we add Dask-ML's  [SimpleImputer](https://ml.dask.org/modules/generated/dask_ml.impute.SimpleImputer.html) to our pipeline. 
 
 ```python
 highdim_features = [
@@ -236,7 +236,7 @@ highdim_categorizer = Pipeline([
     ("impute", SimpleImputer(strategy="most_frequent"))
 ])
 highdim_glm = GeneralizedLinearRegressor(
-    family="normal",
+    family="gamma",
     scale_predictors=True,
     l1_ratio=0.0, # only ridge
     alpha=1e-1,
@@ -248,19 +248,19 @@ For reference, we output the total number of predictors after fitting the model.
 ```python
 highdim_glm.fit(
     highdim_categorizer.fit_transform(df[select_train][highdim_features]),
-    df.loc[select_train, "log_sales"]
+    df.loc[select_train, "sales"]
 )
 
 print(f"Number of predictors: {len(highdim_glm.feature_names_)}")
 ```
 
 ```python
-df.loc[lambda x: x["open"], "predicted_log_sales_highdim"] = highdim_glm.predict(
+df.loc[lambda x: x["open"], "predicted_sales_highdim"] = highdim_glm.predict(
     highdim_categorizer.transform(df.loc[lambda x: x["open"]][highdim_features]),
 )
 
-df["predicted_log_sales_highdim"] = df["predicted_log_sales_highdim"].fillna(0)
-df["predicted_sales_highdim"] = np.exp(df["predicted_log_sales_highdim"])
+df["predicted_sales_highdim"] = df["predicted_sales_highdim"].fillna(0)
+df["predicted_sales_highdim"] = df["predicted_sales_highdim"]
 
 
 train_err = root_mean_squared_percentage_error(
@@ -285,7 +285,7 @@ Finally, to get a better look at our results, we make some plots.
 sales_cols = ["sales", "predicted_sales_highdim", "predicted_sales_baseline"]
 ```
 
-First, we plot true sales and the sales predictions from each model aggregated over month
+First, we plot true sales and the sales predictions from each model aggregated over month:
 
 ```python
 _, axs = plt.subplots(2, 1, figsize=(16, 16))

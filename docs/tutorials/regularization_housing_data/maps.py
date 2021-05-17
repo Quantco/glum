@@ -13,17 +13,17 @@ import shapely
 
 
 def read_shapefile(shp_path):
-    """Create dataframe from shapefile.
+    """Create data frame from shapefile.
 
     Parameters
     ----------
     shp_path : string
-        Path to .shp file for map
+        Path to ``.shp`` file for map.
 
     Returns
     -------
     df : pandas.DataFrame
-        Dataframe with zipcodes and corresponding geometric features
+        Data frame with postcodes and corresponding geometric features.
     """
     sf = shp.Reader(shp_path)
     fields = [x[0] for x in sf.fields][1:]
@@ -50,20 +50,20 @@ def _get_polygon_coords(x):
 
 
 def create_kings_county_map_df(df, df_shapefile):
-    """Create dataframe with sales and geometric information.
+    """Create data frame with sales and geometric information.
 
     Parameters
     ----------
     df : pandas.DataFrame
-        DataFrame with housing sales information per postal code
+        Data frame with housing sales information per postcode.
     df_shapefile: pandas.DataFrame
-        DataFrame with map geometry information per postal code
+        Data frame with map geometry information per postcode.
 
     Returns
     -------
     df : pandas.DataFrame
-        Dataframe with sales information and geometric information. Includes
-        coordinates in array form and points for region centroids (for labeling)
+        Data frame with sales and geometric information. Includes coordinates
+        in array form and points for region centroids (for labeling).
     """
     df_shapefile["ZIP"] = df_shapefile["ZIP"].astype(str)
 
@@ -118,17 +118,17 @@ def plot_heatmap(df, label_col, data_col, ax, vmin=None, vmax=None):
     Parameters
     ----------
     df : pandas.DataFrame
-        Dataframe with geometric information and sales information
-        (or any other attributes to determine heat map intensity)
-    label_col: string
-        The column of the DataFrame to use as labels on the heatmap
+        Data frame with geometric and sales information (or any other
+        attributes to determine heat map intensity).
+    label_col: str
+        The column of the data frame to use as labels on the heatmap.
     data_col: string
-        The column of the heatmap that used to determine heatmap intensity
+        The column of the data frame with which to determine heatmap intensity.
     ax: matplotlib.axes._subplots.AxesSubplot
-        matplotlib axes to plot on
+        Matplotlib axes to plot on.
     vmin, vmax: float, optional (default=None))
-        The range covered by the heatmap. With default (None),
-        complete range of data covered
+        The range covered by the heatmap. With default (``None``),
+        complete range of data covered.
     """
     df["color_ton"] = _calc_color(df[data_col], vmin, vmax)
     for point_sets in df.coords:

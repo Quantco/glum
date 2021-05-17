@@ -25,9 +25,12 @@ This tutorial shows how to use variable $L_2$ regularization with quantcore.glm.
 
 **Background**
 
-For this tutorial, we will model the selling price of homes in King's County, Washington (Seattle-Tacoma Metro area) between May 2014 and May 2015. However, in order to demonstrate a Tikhonov regularization-based spatial smoothing technique, we will focus on a small, skewed data sample from that region in our training data. Specifically, we will show that when we have (a) a fixed effect for each postal code region and (b) only a select number of training observations in a certain region, we can improve the predictive power of our model by regularizing the difference between the coefficients of neighboring regions. While we are constructing a somewhat artificial example here in order to demonstrate the spatial smoothing technique, we have found similar techniques to be applicable to real world problems. 
+For this tutorial, we will model the selling price of homes in King's County, Washington (Seattle-Tacoma Metro area) between May 2014 and May 2015. However, in order to demonstrate a Tikhonov regularization-based spatial smoothing technique, we will focus on a small, skewed data sample from that region in our training data. Specifically, we will show that when we have (a) a fixed effect for each postal code region and (b) only a select number of training observations in a certain region, we can improve the predictive power of our model by regularizing the difference between the coefficients of neighboring regions. While we are constructing a somewhat artificial example here in order to demonstrate the spatial smoothing technique, we have found similar techniques to be applicable to real-world problems. 
 
-*Note*: a few parts of this tutorial utilize local helper functions outside this notebook. If you wish to run the notebook on your own, you can find the rest of the code here: <span style="color:red">**TODO**: add link once in master</span>.
+We will use a gamma distribution for our model. This choice is motivated by two main factors. First, our target variable, home price, is a positive real number, which matches the support of the gamma distribution. Second, it is expected that factors influencing housing prices are multiplicative rather than additive, which is better captured with a gamma regression than say, OLS.
+
+
+*Note*: a few parts of this tutorial utilize local helper functions outside this notebook. If you wish to run the notebook on your own, you can find the rest of the code [here](https://github.com/Quantco/quantcore.glm/tree/open-sourcing/docs/tutorials/regularization_housing_data).
 
 
 ## Table of Contents<a class="anchor"></a>
@@ -69,11 +72,10 @@ import maps
 
 
 ### 1.1. Download and transform
-The main dataset is downloaded from openml. You can find the main page for the dataset [here](https://www.openml.org/d/42092). It is also available through kaggle [here](https://www.kaggle.com/harlfoxem/housesalesprediction). 
+The main dataset is downloaded from OpenML. You can find the main page for the dataset [here](https://www.openml.org/d/42092). It is also available through Kaggle [here](https://www.kaggle.com/harlfoxem/housesalesprediction). 
 
 As part of data preparation, we also do some transformations to the data:
 
-- It is expected that factors influencing housing prices are multiplicative rather than additive, so we will predict log(price).
 - We remove some outliers (homes over 1.5 million and under 100k). 
 - Since we want to focus on geographic features, we also remove a handful of the other features.
 
@@ -195,13 +197,13 @@ Now, we will fit several L2 regularized OLS models using different levels of reg
 
 For each model, we will measure test performance using root mean squared percentage error (RMSPE), so that we can get a relaitve result. We will also plot a heatmat of the coefficient values over the regions.
 
-*Note*: alpha=1e-12 is effectively no regularization. But, we can't set alpha to zero because the unregularized problem has co-linear columns resulting in a singular design matrix. 
+*Note*: alpha=1e-12 is effectively no regularization. But we can't set alpha to zero because the unregularized problem has co-linear columns, resulting in a singular design matrix. 
 
 ```python
 fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(20, 20))
 for i, alpha in enumerate([1e-12, 1e-1, 1, 10]):
     
-    glm = GeneralizedLinearRegressor(family='normal', alpha=alpha, P2=P2, fit_intercept=True)
+    glm = GeneralizedLinearRegressor(family='gamma', alpha=alpha, P2=P2, fit_intercept=True)
     glm.fit(X_train, y_train)
     y_test_hat = glm.predict(X_test)
     
@@ -209,7 +211,7 @@ for i, alpha in enumerate([1e-12, 1e-1, 1, 10]):
     
     print(f"alpha={alpha}")
     print(f"Test region coefficient: {coeffs.loc[test_region].values[0]}")
-    print(f"Test RMSPE: {root_mean_squared_percentage_error(np.exp(y_test_hat), np.exp(y_test))}\n")
+    print(f"Test RMSPE: {root_mean_squared_percentage_error(y_test_hat, y_test)}\n")
     
     df_map_coeffs = df_map.merge(
         coeffs.loc[sorted_zips],
@@ -235,4 +237,4 @@ plt.show()
 
 alpha=1 seems to recover the best results. Remember that our test dataset is just a small subset of the data in region 98022 and that the training data is skewed towards high sales prices. For alpha less than 1, we can see that the 98022 region coefficient is still much greater than its neighbors coefficients, which we can see is not accurate if we refer back to map we produced based on the raw data. For higher alpha levels, we start to see poor predictions resulting from regional coefficients that are too smooth between adjacent regions.
 
-A test RMSPE of 18.5% is a surprisingly good result considering that we only had 10 highly skewed observations from our test region in our training data and is far better than the RMSPE of 67.5% from the unregularized case.
+A test RMSPE of 19.5% is a surprisingly good result considering that we only had 10 highly skewed observations from our test region in our training data and is far better than the RMSPE of 67.5% from the unregularized case.

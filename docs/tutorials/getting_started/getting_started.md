@@ -16,7 +16,7 @@ jupyter:
 <!-- #region -->
 # Getting Started
 
-Welcome to `quantcore.glm`! Generalized linear models (GLMs) are a core statistical tool that include many common methods like least-squares regression, Poisson regression, and logistic regression as special cases. At QuantCo, we have developed `quantcore.glm`, a fast Python-first GLM library. 
+Welcome to `quantcore.glm`! Generalized linear models (GLMs) are core statistical tools that include many common methods like least-squares regression, Poisson regression, and logistic regression as special cases. At QuantCo, we have developed `quantcore.glm`, a fast Python-first GLM library. 
 
 The purpose of this tutorial is to show the basics of `quantcore.glm`. It assumes a working knowledge of python, regularized linear models, and machine learning. The API is very similar to sklearn. (After all, `quantcore.glm` is based on a fork of scikit-learn).
 
@@ -34,10 +34,11 @@ from quantcore.glm import GeneralizedLinearRegressor, GeneralizedLinearRegressor
 
 ## Data
 
-We start by loading and prepping the sklearn boston housing dataset. For simplicity, we don't go into any details regarding exploration or data cleaning.
+We start by loading the sklearn boston housing dataset and splitting it into training and test sets. For simplicity, we don't go into any details regarding exploration or data cleaning.
 
 ```python
 from sklearn import datasets
+
 boston = sklearn.datasets.load_boston()
 df_bos = pd.DataFrame(boston.data, columns = boston.feature_names)
 df_bos['PRICE'] = boston.target
@@ -54,22 +55,22 @@ X_train, X_test, y_train, y_test = sklearn.model_selection.train_test_split(X, y
 <!-- #region -->
 ## GLM basics: fitting and predicting using the normal family
 
-The following is a simple example where we fit and predict using `quantcore.glm`'s `GeneralizedLinearRegressor`. There are two key parameters shown: 
+The following is a simple example where we fit and predict using `quantcore.glm`'s `GeneralizedLinearRegressor`. We set three key parameters:
 
-- **family**: the family parameter specifies the distributional assumption of the GLM, i.e. which distribution from the EDM, specifies the loss function to be minimized. Accepted strings are 'normal', 'poisson', 'gamma', 'inverse.gaussian', and 'binomial'. You can also pass in an instantiated quantcore.glm distribution (e.g. `quantcore.glm.TweedieDistribution(1.5)` )
+- **family**: the family parameter specifies the distributional assumption of the GLM and, as a consequence, the loss function to be minimized. Accepted strings are 'normal', 'poisson', 'gamma', 'inverse.gaussian', and 'binomial'. You can also pass in an instantiated `quantcore.glm` distribution (e.g. `quantcore.glm.TweedieDistribution(1.5)` )
 
 
-- **alpha**: for each model, `alpha` is the constant multiplying the penalty term. It therefore determines regularization strength. (*Note*: `GeneralizedLinearRegressor` also has an alpha search option. See the `GeneralizedLinearRegressorCV` example below for details on how alpha search works).
+- **alpha**: the constant multiplying the penalty term that determines regularization strength. (*Note*: `GeneralizedLinearRegressor` also has an alpha-search option. See the `GeneralizedLinearRegressorCV` example below for details on how alpha-search works).
 
                 
-- **l1_ratio**: for each model, the `l1_ratio` is the elastic net mixing parameter (`0 <= l1_ratio <= 1`). For `l1_ratio = 0`, the penalty is the L2 penalty (ridge). ``For l1_ratio = 1``, it is an L1 penalty (lasso).  For ``0 < l1_ratio < 1``, the penalty is a combination of L1 and L2.
+- **l1_ratio**: the elastic net mixing parameter (`0 <= l1_ratio <= 1`). For `l1_ratio = 0`, the penalty is the L2 penalty (ridge). ``For l1_ratio = 1``, it is an L1 penalty (lasso).  For ``0 < l1_ratio < 1``, the penalty is a combination of L1 and L2.
 <!-- #endregion -->
 
 ```python
 glm = GeneralizedLinearRegressor(family='normal', alpha=0.1, l1_ratio=1)
 ```
 
-Just like sklearn, the `GeneralizedLinearRegressor` `fit()` method generally accepts 2 inputs. The first input, `X`, is a design matrix with shape `(n_samples, n_features)`, and the second input, `y`, is an `n_sample` array of target data.
+Just like sklearn, the `GeneralizedLinearRegressor` `fit()` method generally accepts two inputs. The first, `X`, is a design matrix with shape `(n_samples, n_features)`, and the second, `y`, is an `n_sample` array of target data.
 
 ```python
 glm.fit(X_train, y_train)
@@ -99,7 +100,7 @@ Some important parameters:
         of 1e-6.
 
                 
-- **l1_ratio**: for `GeneralizedLinearRegressorCV()`, if you pass ``l1_ratio`` as an array, the `fit` method will choose the best value of `l1_ratio` and store it as `self.l1_ratio_`
+- **l1_ratio**: for `GeneralizedLinearRegressorCV()`, if you pass ``l1_ratio`` as an array, the `fit` method will choose the best value of `l1_ratio` and store it as `self.l1_ratio_`.
 
 ```python
 glmcv = GeneralizedLinearRegressorCV(
