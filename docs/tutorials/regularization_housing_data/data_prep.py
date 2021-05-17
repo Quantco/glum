@@ -1,4 +1,3 @@
-import numpy as np
 import openml
 
 
@@ -11,7 +10,6 @@ def download_and_transform():
     df["price"] = y
 
     df = df[(df["price"] < 1.5e6) & (df["price"] > 1e5)]
-    df["price"] = np.log(df["price"])
 
     drop_cols = [
         "date",

@@ -232,7 +232,6 @@ def apply_all_transformations(df):
     df["age_quantile"] = compute_age_quantile(df, 5)
     df["competition_open"] = compute_competition_open(df)
     df["count"] = df.groupby("store")[["date"]].transform("cumcount")
-    df["log_sales"] = np.log(df["sales"])
     df["open_lag_1"] = compute_open_lag(df)
     df["open_lag_2"] = compute_open_lag(df, 2)
     df["open_lag_3"] = compute_open_lag(df, 3)

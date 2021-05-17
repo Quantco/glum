@@ -18,13 +18,15 @@ jupyter:
 
 
 **Intro**
-This tutorial shows why and how to use Poisson, Gamma, and Tweedie GLMs on an insurance claims dataset using `quantcore.glm` It was inspired by, and closely mirrors, two other GLM tutorials that used this dataset:
+
+This tutorial shows why and how to use Poisson, Gamma, and Tweedie GLMs on an insurance claims dataset using `quantcore.glm`. It was inspired by, and closely mirrors, two other GLM tutorials that used this dataset:
 
 1. An sklearn-learn tutorial, [Tweedie regression on insurance claims](https://scikit-learn.org/stable/auto_examples/linear_model/plot_tweedie_regression_insurance_claims.html#pure-premium-modeling-via-a-product-model-vs-single-tweedieregressor), which was created for this (partially merged) [sklearn PR](https://github.com/scikit-learn/scikit-learn/pull/9405) that we based quantcore.glm on
 2. An R tutorial, [Case Study: French Motor Third-Party Liability Claims](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3164764) with [R code](https://github.com/JSchelldorfer/ActuarialDataScience/tree/master/1%20-%20French%20Motor%20Third-Party%20Liability%20Claims).
 
 
 **Background**
+
 Insurance claims are requests made by a policy holder to an insurance company for compensation in the event of a covered loss. When modeling these claims, the goal is often to estimate, per policy, the total claim amount per exposure unit. (i.e. number of claims $\times$ average amount per claim per year). This amount is also referred to as the pure premium.
 
 Two approaches for modeling this value are:
@@ -35,17 +37,11 @@ Two approaches for modeling this value are:
 In this tutorial, we demonstrate both approaches. We start with the second option as it shows how to use two different families/distributions (Poisson and Gamma) within a GLM on a single dataset. We then show the first approach using a single poison-gamma Tweedie regressor (i.e. a Tweedie with power $p \in (1,2)$)
 
 
-**Why not OLS?**:
-
-TLDR: The world is not Normal!
-
-For starters, we know that the number of claims is discrete and positive. Therefore, a Poisson distribution makes sense just from the support. On the other hand, a normal distribution fails quite badly by this metric since it has negative support. Additionally, the normal distribution's continuous support, while potentially less of an issue (we can just round up or down or do some kind of integration), is also suboptimal.
-Lastly, as a final point, the mean\variance relationship is quite different between the two models. As we will demonstrate later, the Poisson distribution also makes more sense for us in this regard. 
 
 ## Table of Contents
 * [1. Load and Prepare Datasets from Openml.org](#1.-Load-and-Prepare-Datasets-from-Openml.org)
 * [2. Frequency GLM - Poisson Distribution](#2.-Frequency-GLM---Poisson-Distribution)
-* [3. Severity GLM - Gamma Distribution](#3.-Severity-GLM---Gamma-Distribution)
+* [3. Severity GLM - Gamma Distribution](#3.-Severity-GLM---Gamma-distribution)
 * [4. Combined GLM - Tweedie Distribution](#4.-Combined-GLM---Tweedie-Distribution)
 <!-- #endregion -->
 
@@ -56,6 +52,7 @@ import pandas as pd
 import scipy.optimize as optimize
 import scipy.stats
 from dask_ml.preprocessing import Categorizer
+from sklearn.metrics import mean_absolute_error
 from sklearn.model_selection import ShuffleSplit
 from quantcore.glm import GeneralizedLinearRegressor
 from quantcore.glm import TweedieDistribution
@@ -68,7 +65,7 @@ from load_transform import load_transform
 
 First, we load in our [dataset from openML]("https://www.openml.org/d/41214") and apply several transformations. In the interest of simplicity, we do not include the data loading and preparation code in this notebook. Below is a list of further resources if you wish to explore further: 
 
-1. If you want to run the same code yourself, please see the helper functions here: <span style="color:red">**TODO**: add link once in master</span>.
+1. If you want to run the same code yourself, please see the helper functions [here](https://github.com/Quantco/quantcore.glm/tree/open-sourcing/docs/tutorials/glm_french_motor_tutorial).
 2. For a detailed description of the data, see [here](http://dutangc.free.fr/pub/RRepos/web/CASdatasets-index.html).
 3. For an excellent exploratory data analysis, see the case study paper linked above.
 
@@ -86,13 +83,14 @@ with pd.option_context('display.max_rows', 10):
     display(df)
 ```
 
+<!-- #region -->
 ## 2. Frequency GLM - Poisson distribution<a class="anchor"></a>
 [back to Table of Contents](#Table-of-Contents)
 
 We start with the first part of our two part GLM - modeling the frequency of claims using a Poisson regression. Below, we give some background on why the Poisson family makes the most sense in this context.
 
 ### 2.1 Why Poisson distributions?
-For starters, Poisson distributions are typically used to model the number of events occuring in a fixed period of time when the events occur independently at a constant rate. In our case, we can think of motor insurance claims as the events, and a unit of exposure (i.e. a year) as the fixed period of time. 
+Poisson distributions are typically used to model the number of events occuring in a fixed period of time when the events occur independently at a constant rate. In our case, we can think of motor insurance claims as the events, and a unit of exposure (i.e. a year) as the fixed period of time. 
 
 To get more technical:
 
@@ -103,25 +101,11 @@ We define:
 - $y = \frac{z}{w}$: claim frequency per year
 - $X$: feature matrix
 
-Notice that both the number of claims $z$ and the exposure $w$ are additive. This way, the frequency behaves as expected, if we calculate averages: 
-\begin{equation} 
-\mathrm{mean}(y) = \frac{1}{\sum_i w_i}\sum_i w_i y_i = \frac{\sum_i z_i}{\sum_i w_i}
-\end{equation}
 
-The number of claims $z$ is an integer, $z \in [0, 1, 2, 3, \ldots]$. Theoretically, a policy could have an arbitrarily large number of claims&mdash;very unlikely but possible. The simplest distribution for this range is a Poisson distribution $z \sim Poisson$. However, instead of $z$, we will model the frequency $y$, which is still (scaled) Poisson distributed with variance inverse proportional to $w$, cf. [wikipedia:Reproductive_EDM](https://en.wikipedia.org/wiki/Exponential_dispersion_model#Reproductive). A very important property of the Poisson distribution is its mean-variance relation: The variance is proportional to the mean.
-
-We summarize our assumptions for a Poisson-GLM with the log-link:
-
-- target: $y \sim Poisson$
-- mean: $\mathrm{E}[y] = \exp(X\beta)$
-- variance: $\mathrm{Var}[y] = \frac{1}{w} \mathrm{E}[y]$
-
-*Note*: We don't need $y$ to be Poisson distributed, for the purpose of estimating the expecation value. Just the mean-variance relationship should be approximately fulfilled:
-\begin{equation} 
-\mathrm{Var}[y] \propto \frac{1}{w} \mathrm{E}[y]$
-\end{equation}
+The number of claims $z$ is an integer, $z \in [0, 1, 2, 3, \ldots]$. Theoretically, a policy could have an arbitrarily large number of claims&mdash;very unlikely but possible. The simplest distribution for this range is a Poisson distribution $z \sim Poisson$. However, instead of $z$, we will model the frequency $y$. Nonetheless, this  is still (scaled) Poisson distributed with variance inverse proportional to $w$, cf. [wikipedia:Reproductive_EDM](https://en.wikipedia.org/wiki/Exponential_dispersion_model#Reproductive).
 
 To verify our assumptions, we start by plotting the observed frequencies and a fitted Poisson distribution (Poisson regression with intercept only).
+<!-- #endregion -->
 
 ```python
 # plt.subplots(figsize=(10, 7))
@@ -139,56 +123,8 @@ plt.legend()
 plt.title("Frequency");
 ```
 
-Not too bad, visually.
-
-Next, we want to check the mean-variance relationship of the Poisson distribution:
-\begin{equation}
-\mathrm{Var}[Y] = \frac{\mathrm{E}[Y]}{Exposure}
-\end{equation}
-To do so, we choose the feature `VehPower`, because we hope that the frequency $Y$ depends very much on it. We then plot empirical estimates of $\mathrm{Var}[Y]$ vs $\mathrm{E}[Y]/Exposure$ for every value of `VehPower`.
-
-```python
-# Check mean-variance relationship for Poisson: Var[Y] = E[Y] / Exposure
-# Estimate Var[Y] and E[Y]
-# Plot estimates Var[Y] vs E[Y]/Exposure
-# Note: We group by VehPower in order to have different E[Y].
-def my_agg(x):
-    """See https://stackoverflow.com/q/44635626"""
-    x_freq = x['Freq']
-    x_expos = x['Exposure']
-    n = x_freq.shape[0]
-    names = {
-        'Freq_mean': np.average(x_freq, weights=x_expos),
-        'Freq_var': 1/(n-1) * np.sum((x_expos/np.sum(x_expos)) * (x_freq-np.average(x_freq, weights=x_expos))**2),
-        'Exposure_sum': x_expos.sum()
-    }
-    return pd.Series(names, index=['Freq_mean', 'Freq_var', 'Exposure_sum'])
-
-df_plot = df.assign(Freq = lambda x: x['ClaimNb']/x['Exposure']).groupby('VehPower').apply(my_agg)
-
-plt.subplots(1, 1, figsize=(8, 6))
-plt.plot(df_plot['Freq_mean']/df_plot['Exposure_sum'], df_plot['Freq_var'], '.',
-         markersize=12, label='observed')
-plt.plot([(df_plot['Freq_mean']/df_plot['Exposure_sum']).min(),
-          (df_plot['Freq_mean']/df_plot['Exposure_sum']).max()],
-         [df_plot['Freq_var'].min(), df_plot['Freq_var'].max()],
-         'k--', label='45° line')
-plt.xlabel('Mean of Frequency / Exposure ')
-plt.ylabel('Variance of Frequency')
-plt.title('Mean-Variance of Claim Frequency by VehPower');
-plt.legend()
-plt.show()
-```
-
+<!-- #region -->
 This is a strong confirmation for the use of a Poisson when fitting!
-
-*Hints*:
-
-- If Y were normal distributed, one should see a horizontal line, because for a Normal: $Var[Y] = constant/Exposure$.
-- The 45° line is not even necessary, any straight line through the origin would be enough for simple reasons:
-
-    1. A quasi-Poisson distribution has $Var[Y] = \phi * E[Y]/w$ for some $\phi$.
-    2. $\phi$ does not influence the estimation/fitting of E[Y] (thanks @[ExponentialDispersionFamily](https://en.wikipedia.org/wiki/Exponential_dispersion_model)).
 
 
 ### 2.2 Train and test frequency GLM
@@ -196,6 +132,7 @@ This is a strong confirmation for the use of a Poisson when fitting!
 Now, we start fitting our model. We use claims frequency = claim number/exposure as our outcome variable. We then divide the dataset into training set and test set with a 9:1 random split. 
 
 Also, notice that we do not one hot encode our columns. Rather, we take advantage of `quantcore.glm`'s integration with `quantcore.matrix`, which allows us to pass in categorical columns directly! `quantcore.matrix` will handle the encoding for us and even includes a handful of helpful matrix operation optimizations. We use the `Categorizer` from [dask_ml](https://ml.dask.org/modules/generated/dask_ml.preprocessing.Categorizer.html) to set our categorical columns as categorical dtypes and to ensure that the categories align in fitting and predicting. 
+<!-- #endregion -->
 
 ```python
 z = df['ClaimNb'].values
@@ -222,7 +159,7 @@ Now, we define our GLM using the `GeneralizedLinearRegressor` class from `quantc
 - `alpha_search=True`: tells the GLM to search along the regularization path for the best alpha
 - `l1_ratio = 1` tells the GLM to only use l1 penalty (not l2). `l1_ratio` is the elastic net mixing parameter. For ``l1_ratio = 0``, the penalty is an L2 penalty. ``For l1_ratio = 1``, it is an L1 penalty.  For ``0 < l1_ratio < 1``, the penalty is a combination of L1 and L2.
 
-See the `GeneralizedLinearRegressor` class documentation for more details <span style="color:red">**TODO**: include documentation link once up</span>.
+See the `GeneralizedLinearRegressor` class [API documentation](https://docs.dev.quantco.cloud/qc-github-artifacts/Quantco/quantcore.glm/latest/api/modules.html) for more details.
 
 *Note*: `quantcore.glm` also supported a cross validation model GeneralizedLinearRegressorCV. However, because cross validation requires fitting many models, it is much slower and we don’t demonstrate it in this tutorial.
 
@@ -275,8 +212,6 @@ We define:
 
 ### 3.1 Why Gamma distributions
 The severity $y$ is a positive, real number, $y \in (0, \infty)$. Theoretically, especially for liability claims, one could have arbitrary large numbers&mdash;very unlikely but possible. A very simple distribution for this range is an Exponential distribution, or its generalization, a Gamma distribution $y \sim Gamma$. In the insurance industry, it is well known that the severity might be skewed by a few very large losses. It's common to model these tail losses separately so here we cut out claims larger than 100,000 to focus on modeling small and moderate claims. 
-
-A Gamma distribution has mean-variance relation $\mathrm{Var}[Y] = \frac{\phi}{w} \mathrm{E}[Y]^2$. Similar to the Poisson regression above, the dispersion parameter $\phi$ does not influence the estimation of $E[Y]$.
 
 ```python
 df_plot = (
@@ -397,24 +332,42 @@ pd.DataFrame({'coefficient': np.concatenate(([s_glm1.intercept_], s_glm1.coef_))
              index=['intercept'] + s_glm1.feature_names_).T
 ```
 
-Again, we measure peformance with the deviance of the distribution. We also compare against the simple arithmetic mean. 
+Again, we measure peformance with the deviance of the distribution. We also compare against the simple arithmetic mean and include the mean absolute error to help understand the actual scale of our results. 
 
 *Note*: a Gamma distribution is equivalent to a Tweedie distribution with power = 2.
 
 ```python
 GammaDist = TweedieDistribution(2)
-print('training loss s_glm1: {}'.format(
-    GammaDist.deviance(y_train_g, s_glm1.predict(X_train_g), weights=w_train_g)/np.sum(w_train_g)))
+print('training loss (deviance) s_glm1:     {}'.format(
+    GammaDist.deviance(
+        y_train_g, s_glm1.predict(X_train_g), weights=w_train_g
+    )/np.sum(w_train_g)
+))
+print('training mean absolute error s_glm1: {}'.format(
+    mean_absolute_error(y_train_g, s_glm1.predict(X_train_g))
+))
 
-print('testing loss s_glm1:  {}'.format(
-    GammaDist.deviance(y_test_g, s_glm1.predict(X_test_g), weights=w_test_g)/np.sum(w_test_g)))
+print('\ntesting loss s_glm1 (deviance):      {}'.format(
+    GammaDist.deviance(
+        y_test_g, s_glm1.predict(X_test_g), weights=w_test_g
+    )/np.sum(w_test_g)
+))
+print('testing mean absolute error s_glm1:  {}'.format(
+    mean_absolute_error(y_test_g, s_glm1.predict(X_test_g))
+))
 
-print('testing loss Mean:    {}'.format(
-    GammaDist.deviance(y_test_g,
-                   np.average(z_train_g, weights=w_train_g)*np.ones_like(z_test_g),
-                   weights=w_test_g)/np.sum(w_test_g)))
-
+print('\ntesting loss Mean (deviance):        {}'.format(
+    GammaDist.deviance(
+        y_test_g, np.average(z_train_g, weights=w_train_g)*np.ones_like(z_test_g), weights=w_test_g
+    )/np.sum(w_test_g)
+))
+print('testing mean absolute error Mean:    {}'.format(
+    mean_absolute_error(y_test_g, np.average(z_train_g, weights=w_train_g)*np.ones_like(z_test_g))
+))
 ```
+
+Even though the deviance improvement seems small, the improvement in mean absolute error is not! (In the insurance world, this will make a significant difference when aggregated over all claims). 
+
 
 ### 3.3 Combined frequency and severity results
 
