@@ -9,7 +9,11 @@ Changelog
 
 Unreleased
 ------------------
+**Tutorials and documenation improvements**:
+- Adding tutorials to the documentation
+- Additional documentation improvements
 
+**Other:**
 - Small improvement in documentation for the ``alpha_index`` argument to :func:`quantcore.glm.GeneralizedLinearRegressor.predict`.
 
 1.4.1 - 2021-05-01
