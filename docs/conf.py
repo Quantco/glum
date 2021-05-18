@@ -16,6 +16,10 @@
 
 # -- Project information -----------------------------------------------------
 
+import sys
+
+sys.path.append("../src/quantcore/")
+
 project = "quantcore.glm"
 copyright = "2020, QuantCo Inc."
 author = "QuantCo Inc."
@@ -26,15 +30,17 @@ extensions = [
     "altair.sphinxext.altairplot",
     "IPython.sphinxext.ipython_console_highlighting",
     "IPython.sphinxext.ipython_directive",
+    "nbsphinx",
+    "sphinx.ext.mathjax",
 ]
 
 apidoc_module_dir = "../src/quantcore"
+apidoc_excluded_paths = ["glm_benchmarks"]
 apidoc_output_dir = "api"
 apidoc_separate_modules = True
-apidoc_extra_args = ["--implicit-namespaces"]
 
 templates_path = ["_templates"]
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
+exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "**.ipynb_checkpoints"]
 html_theme = "sphinx_rtd_theme"
 html_static_path = ["_static"]
 
