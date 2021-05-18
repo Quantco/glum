@@ -57,7 +57,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        PYTHON_VERSION: ['3.8']
+        PYTHON_VERSION: ['3.9']
     steps:
      - name: Docker login
        run: docker login docker.pkg.github.com -u ${{ github.actor }} -p ${{ secrets.FQ_GH_TOKEN }}
