@@ -16,26 +16,34 @@ dependencies:
   - ipdb
   - ipython
   - jemalloc
+  - jinja2==2.11.3
   - johnlees-glmnet_python
   - jupyterlab
+  - jupytext
   - libblas>=0=*mkl
+  - libpysal
   - line_profiler
   - make
   - mako
   - memory_profiler
   - mkl-include
+  - nbclassic=0.2.7
+  - nbsphinx=0.8.3
   - numexpr
   - openjdk
+  - openml
   - pandas
   - pip
   - pre-commit
   - pyarrow
+  - pyshp
   - pytest
   - pytest-xdist
   - quantcore.matrix>=1.0.0
   - rpy2
   - scikit-learn
   - setuptools_scm
+  - shapely
   - sparse_dot_mkl>=0.5.3
   - sphinx=3.5.3
   - sphinx_rtd_theme
