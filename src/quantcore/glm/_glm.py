@@ -1176,7 +1176,11 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         return mu * weights
 
     def estimate_phi(
-        self, X: ArrayLike, y: ArrayLike, sample_weight: Optional[ArrayLike] = None
+        self,
+        X: ArrayLike,
+        y: ArrayLike,
+        sample_weight: Optional[ArrayLike] = None,
+        estimation_method: Optional[str] = None,
     ):
         """Estimate/fit the dispersion parameter φ.
 
@@ -1191,12 +1195,24 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         sample_weight : {None, array-like}, shape (n_samples,), optional (default=None)
             Sample weights.
 
+        estimation_method : {"chisqr", "deviance", None}, optional (default=None)
+            Estimation method for the dispersion parameter. Overwrites the
+            ``fit_dispersion`` attribute.
+
         Returns
         -------
         phi : float
             Dispersion parameter.
         """
         check_is_fitted(self, "coef_")
+        if estimation_method is None and self.fit_dispersion is None:
+            raise ValueError(
+                "Method to estimate dispersion must be specified either at the creation "
+                "of the GeneralizedLinearModel or by specifying the estimation_method "
+                "argument of the estimate_phi method."
+            )
+        if estimation_method is None:
+            estimation_method = self.fit_dispersion
         _dtype = [np.float64, np.float32]
         if isinstance(X, mx.MatrixBase):
             X, y = check_X_y_matrix_compliant(
@@ -1218,12 +1234,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 f"(X.shape[1]+fit_intercept={n_features}) n_features."
             )
         mu = self._link_instance.inverse(eta)
-        if self.fit_dispersion == "chisqr":
+        if estimation_method == "chisqr":
             chisq = np.sum(
                 weights * (y - mu) ** 2 / self._family_instance.unit_variance(mu)
             )
             return float(chisq) / (n_samples - n_features)
-        elif self.fit_dispersion == "deviance":
+        elif estimation_method == "deviance":
             dev = self._family_instance.deviance(y, mu, weights)
             return float(dev) / (n_samples - n_features)
 

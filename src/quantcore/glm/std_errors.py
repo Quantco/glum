@@ -63,6 +63,9 @@ def std_errors(*args, **kwargs):
         The dispersion parameter. Estimated if absent.
     robust : boolean, optional, default=True
         Whether to compute robust standard errors instead of normal ones.
+    clusters : array-like, optional, default=None
+        Array with clusters membership. Clustered standard errors are
+        computed if clusters is not None.
     expected_information : boolean, optional, default=False
         Whether to use the expected or observed information matrix.
         Only relevant when computing robust std-errors.
@@ -73,7 +76,7 @@ def std_errors(*args, **kwargs):
 def _group_sum(groups: np.ndarray, data: np.ndarray):
     out = np.empty((len(np.unique(groups)), data.shape[1]))
     for i in range(data.shape[1]):
-        out[:, i] = np.bincount(x=groups, weights=data[:, i])
+        out[:, i] = np.bincount(groups, weights=data[:, i])
     return out
 
 
@@ -109,6 +112,9 @@ def covariance_matrix(
         The dispersion parameter. Estimated if absent.
     robust : boolean, optional, default=True
         Whether to compute robust standard errors instead of normal ones.
+    clusters : array-like, optional, default=None
+        Array with clusters membership. Clustered standard errors are
+        computed if clusters is not None.
     expected_information : boolean, optional, default=False
         Whether to use the expected or observed information matrix.
         Only relevant when computing robust std-errors.
@@ -124,8 +130,8 @@ def covariance_matrix(
     mu = estimator.predict(X, offset=offset) if mu is None else np.asanyarray(mu)
 
     if dispersion is None:
-        dispersion = estimator._family_instance.dispersion(
-            y, mu, sample_weight, n_parameters=estimator.n_parameters
+        dispersion = estimator.estimate_phi(
+            X=X, y=y, sample_weight=sample_weight, estimation_method="chisqr"
         )
 
     try:
@@ -137,12 +143,21 @@ def covariance_matrix(
                     estimator, X, y, mu, sample_weight, dispersion
                 )
             gradient = score_matrix(estimator, X, y, mu, sample_weight, dispersion)
-            vcov = linalg.solve(oim, linalg.solve(oim, gradient.T @ gradient).T)
-            vcov *= sum_weights / (sum_weights - estimator.n_parameters)
+            if clusters is not None:
+                grouped_gradient = _group_sum(clusters, gradient)
+                inner_part = grouped_gradient.T @ grouped_gradient
+            else:
+                inner_part = gradient.T @ gradient
+            vcov = linalg.solve(oim, linalg.solve(oim, inner_part).T)
+            vcov *= sum_weights / (
+                sum_weights - estimator.n_features_in_ - int(estimator.fit_intercept)
+            )
         else:
             fisher = fisher_information(estimator, X, y, mu, sample_weight, dispersion)
             vcov = linalg.inv(fisher)
-            vcov /= sum_weights - estimator.n_parameters
+            vcov /= (
+                sum_weights - estimator.n_features_in_ - int(estimator.fit_intercept)
+            )
 
         return vcov
 
@@ -191,8 +206,8 @@ def fisher_information(estimator, X, y, mu=None, sample_weight=None, dispersion=
     mu = estimator.predict(X) if mu is None else np.asanyarray(mu)
 
     if dispersion is None:
-        dispersion = estimator._family_instance.dispersion(
-            y, mu, sample_weight, n_parameters=estimator.n_parameters
+        dispersion = estimator.estimate_phi(
+            X=X, y=y, sample_weight=sample_weight, estimation_method="chisqr"
         )
 
     sum_weights = len(X) if sample_weight is None else sample_weight.sum()
@@ -231,8 +246,8 @@ def observed_information(estimator, X, y, mu=None, sample_weight=None, dispersio
     y = np.asanyarray(y)
 
     if dispersion is None:
-        dispersion = estimator._family_instance.dispersion(
-            y, mu, sample_weight, n_parameters=estimator.n_parameters
+        dispersion = estimator.estimate_phi(
+            X=X, y=y, sample_weight=sample_weight, estimation_method="chisqr"
         )
 
     sum_weights = len(X) if sample_weight is None else sample_weight.sum()
@@ -276,8 +291,8 @@ def score_matrix(estimator, X, y, mu=None, sample_weight=None, dispersion=None):
     X = np.asanyarray(X.todense()) if sparse.issparse(X) else np.asanyarray(X)
 
     if dispersion is None:
-        dispersion = estimator._family_instance.dispersion(
-            y, mu, sample_weight, n_parameters=estimator.n_parameters
+        dispersion = estimator.estimate_phi(
+            X=X, y=y, sample_weight=sample_weight, estimation_method="chisqr"
         )
 
     sum_weights = len(X) if sample_weight is None else sample_weight.sum()
