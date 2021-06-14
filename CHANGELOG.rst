@@ -13,6 +13,9 @@ Unreleased
 - Adding tutorials to the documentation
 - Additional documentation improvements
 
+**Bugfix**:
+- Verbose progress bar now working again.
+
 **Other:**
 - Small improvement in documentation for the ``alpha_index`` argument to :func:`quantcore.glm.GeneralizedLinearRegressor.predict`.
 
