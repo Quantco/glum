@@ -8,16 +8,25 @@ Changelog
 =========
 
 Unreleased
+----------
+
+
+1.4.2 - 2021-06-15
 ------------------
-**Tutorials and documenation improvements**:
+
+**Tutorials and documenation improvements:**
+
 - Adding tutorials to the documentation
 - Additional documentation improvements
 
-**Bugfix**:
+**Bug fix:**
+
 - Verbose progress bar now working again.
 
 **Other:**
+
 - Small improvement in documentation for the ``alpha_index`` argument to :func:`quantcore.glm.GeneralizedLinearRegressor.predict`.
+- Pinned pre-commit hooks versions.
 
 1.4.1 - 2021-05-01
 ------------------
