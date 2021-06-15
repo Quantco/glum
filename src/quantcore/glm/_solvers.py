@@ -407,7 +407,7 @@ class ProgressBar:
         step = max(self.n_bar_steps - (np.log10(cur_grad_norm) - np.log10(self.tol)), 0)
         # round to two digits for beauty
         self.t.n = np.round(step, 2)
-        self.t._update(0)
+        self.t.update(0)
 
 
 class IRLSData:

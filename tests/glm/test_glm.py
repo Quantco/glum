@@ -1810,3 +1810,11 @@ def test_alpha_parametrization_fail(kwargs, regression_data):
     with pytest.raises((ValueError, TypeError)):
         model = GeneralizedLinearRegressor(**kwargs)
         model.fit(X=X, y=y)
+
+
+def test_verbose(regression_data, capsys):
+    X, y = regression_data
+    mdl = GeneralizedLinearRegressor(verbose=1)
+    mdl.fit(X=X, y=y)
+    captured = capsys.readouterr()
+    assert "Iteration" in captured.err
