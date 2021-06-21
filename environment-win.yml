@@ -15,7 +15,6 @@ dependencies:
   - h2o-py
   - ipdb
   - ipython
-  - jemalloc
   - jinja2==2.11.3
   - johnlees-glmnet_python
   - jupyterlab
@@ -39,7 +38,7 @@ dependencies:
   - pyshp
   - pytest
   - pytest-xdist
-  - quantcore.matrix>=1.0.0
+  - quantcore.matrix>=2.0.1
   - rpy2
   - scikit-learn
   - setuptools_scm
