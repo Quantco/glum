@@ -865,8 +865,6 @@ def test_glm_identity_regression_categorical_data(solver, offset, convert_x_fn):
     np.testing.assert_almost_equal(X.A if hasattr(X, "A") else X, x_mat)
     res = glm.fit(X, y, offset=offset)
 
-    fit_coef = res.coef_
-    assert fit_coef.dtype.itemsize == X.dtype.itemsize
     assert_allclose(res.coef_, coef, rtol=1e-6)
 
 
