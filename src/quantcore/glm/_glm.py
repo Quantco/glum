@@ -1429,7 +1429,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         if (
             not isinstance(X, mx.CategoricalMatrix)
             and hasattr(X, "dtype")
-            and X.dtype == np.int64  # type: ignore
+            and np.issubdtype(X.dtype, np.integer)  # type: ignore
         ):
             if self.copy_X is not None and not self.copy_X:
                 raise ValueError(
