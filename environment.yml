@@ -48,6 +48,5 @@ dependencies:
   - sphinx=3.5.3
   - sphinx_rtd_theme
   - sphinxcontrib-apidoc
-  - thrift-cpp=0.14.1  # pin temporarily
   - tqdm
   - xsimd
