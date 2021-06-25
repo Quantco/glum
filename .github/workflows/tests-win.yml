@@ -1,0 +1,47 @@
+name: CI
+on:
+  push:
+    paths:
+      - '.github/**'
+      - '**/*.pyx'
+      - '**/*.cpp'
+jobs:
+  windows-ci:
+    name: "Win - tests - Python ${{ matrix.PYTHON_VERSION }}"
+    runs-on: windows-latest
+    env:
+      CI: True
+      ***REMOVED***: ${{ secrets.***REMOVED*** }}
+      ***REMOVED***: ${{ secrets.***REMOVED*** }}
+    strategy:
+      fail-fast: true
+      matrix:
+        PYTHON_VERSION: ['3.7']
+    steps:
+      - name: Set git to use LF
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.eol lf
+      - name: Checkout branch
+        uses: actions/checkout@v2.1.0
+        with:
+          ref: ${{ github.head_ref }}
+      - name: Create .condarc
+        shell: pwsh
+        run: |
+          ((Get-Content -path .github/workflows/.condarc) -replace '***REMOVED***', '${{ secrets.***REMOVED*** }}') | Set-Content .github/workflows/.condarc
+          ((Get-Content -path .github/workflows/.condarc) -replace '***REMOVED***', '${{ secrets.***REMOVED*** }}') | Set-Content .github/workflows/.condarc
+      - uses: conda-incubator/setup-miniconda@723ab12c1d66bb893c5ac701f8e387f00b24549e
+        with:
+          python-version: ${{ matrix.PYTHON_VERSION }}
+          miniforge-variant: Mambaforge
+          miniforge-version: 4.10.0-0
+          use-mamba: true
+          condarc-file: .github/workflows/.condarc
+          environment-file: environment-win.yml
+          activate-environment: quantcore.glm
+      - name: Run Unit Tests
+        shell: pwsh
+        run: |
+          python -m pip install -e . --no-deps -vv --no-use-pep517 --disable-pip-version-check
+          pytest tests --doctest-modules src/
