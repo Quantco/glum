@@ -7,9 +7,12 @@
 Changelog
 =========
 
-Unreleased
-----------
+1.4.3 - 2021-06-25
+------------------
 
+**Bug fix:**
+
+- ``copy_X = False`` will now raise a value error when ``X`` has dtype ``int32`` or ``int64``. Previously, it would only raise for dtype ``int64``.
 
 1.4.2 - 2021-06-15
 ------------------
