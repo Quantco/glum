@@ -7,6 +7,14 @@
 Changelog
 =========
 
+X.X.X - 2021-XX-XX
+------------------
+
+**Other:**
+
+* Methods of :class:`~quantcore.glm._link.Link` now consistently return NumPy arrays, whereas they used to preserve pandas series in special cases.
+
+
 1.4.3 - 2021-06-25
 ------------------
 
@@ -17,7 +25,7 @@ Changelog
 1.4.2 - 2021-06-15
 ------------------
 
-**Tutorials and documenation improvements:**
+**Tutorials and documentation improvements:**
 
 - Adding tutorials to the documentation
 - Additional documentation improvements
@@ -50,7 +58,7 @@ We now have Windows builds!
 1.3.1 - 2021-04-12
 ------------------
 
-**Bug fix**:
+**Bug fix:**
 
 - :func:`quantcore.glm._distribution.unit_variance_derivative` is
   evaluating a proper numexpr expression again (regression in 1.3.0).
@@ -76,7 +84,7 @@ Maintenance release to get a fresh build for OSX.
 1.1.0 - 2020-11-23
 ------------------
 
-**New features:**
+**New feature:**
 
 - Direct support for pandas categorical types in ``fit`` and ``predict``. These will be converted into a ``CategoricalMatrix``.
 
@@ -88,12 +96,9 @@ This is a maintenance release to be compatible with `quantcore.matrix>=1.0.0`.
 1.0.0 - 2020-11-11
 ------------------
 
-**New features:**
-
-- Renamed `alpha_level` attribute of :func:`quantcore.glm.GeneralizedLinearRegressor` and :func:`quantcore.glm.GeneralizedLinearRegressorCV` to `alpha_index`.
-
 **Other:**
 
+- Renamed `alpha_level` attribute of :func:`quantcore.glm.GeneralizedLinearRegressor` and :func:`quantcore.glm.GeneralizedLinearRegressorCV` to `alpha_index`.
 - Clarified behavior of `scale_predictors`.
 
 0.0.15 - 2020-11-11
