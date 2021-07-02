@@ -1620,7 +1620,7 @@ def test_alpha_search(regression_data):
     assert_allclose(mdl_path.intercept_, mdl_no_path.intercept_)
 
 
-@pytest.mark.parametrize("alpha, alpha_index", [(0.5, 0), (0.75, 1), (None, 2)])
+@pytest.mark.parametrize("alpha, alpha_index", [(0.5, 0), (0.75, 1), (None, 1)])
 def test_predict_scalar(regression_data, alpha, alpha_index):
 
     X, y = regression_data
@@ -1668,27 +1668,27 @@ def test_predict_error(regression_data):
 
     estimator = GeneralizedLinearRegressor(alpha=0.5, alpha_search=False).fit(X, y)
 
-    with pytest.raises(IndexError):
+    with pytest.raises(ValueError):
         estimator.predict(X, alpha=0.5)
-    with pytest.raises(IndexError):
+    with pytest.raises(ValueError):
         estimator.predict(X, alpha=[0.5])
-    with pytest.raises(IndexError):
+    with pytest.raises(AttributeError):
         estimator.predict(X, alpha_index=0)
-    with pytest.raises(IndexError):
+    with pytest.raises(AttributeError):
         estimator.predict(X, alpha_index=[0])
 
     estimator.set_params(alpha=[0.5, 0.75], alpha_search=True).fit(X, y)
 
     with pytest.raises(IndexError):
-        estimator.fit(X, y, alpha=0.25)
+        estimator.predict(X, y, alpha=0.25)
     with pytest.raises(IndexError):
-        estimator.fit(X, y, alpha=[0.25, 0.5])
+        estimator.predict(X, y, alpha=[0.25, 0.5])
     with pytest.raises(IndexError):
-        estimator.fit(X, y, alpha_index=2)
+        estimator.predict(X, y, alpha_index=2)
     with pytest.raises(IndexError):
-        estimator.fit(X, y, alpha_index=[2, 0])
+        estimator.predict(X, y, alpha_index=[2, 0])
     with pytest.raises(ValueError):
-        estimator.fit(X, y, alpha_index=0, alpha=0.5)
+        estimator.predict(X, y, alpha_index=0, alpha=0.5)
 
 
 def test_very_large_initial_gradient():
