@@ -1137,7 +1137,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         """
         check_is_fitted(self, "coef_")
 
-        if (alpha is not None) and (alpha_index is None):
+        if (alpha is not None) and (alpha_index is not None):
             raise ValueError("Please specify only one of {alpha_index, alpha}.")
         elif isinstance(alpha, (float, int)):
             alpha_index = self._find_alpha_index(alpha)

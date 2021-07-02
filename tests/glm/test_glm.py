@@ -1627,7 +1627,7 @@ def test_predict_scalar(regression_data, alpha, alpha_index):
     offset = np.zeros_like(y)
 
     estimator = GeneralizedLinearRegressor(alpha=[0.5, 0.75], alpha_search=True)
-    estimator.fit(X, y, alpha=alpha)
+    estimator.fit(X, y)
 
     target = estimator.predict(X, alpha_index=alpha_index)
 
@@ -1687,6 +1687,8 @@ def test_predict_error(regression_data):
         estimator.fit(X, y, alpha_index=2)
     with pytest.raises(IndexError):
         estimator.fit(X, y, alpha_index=[2, 0])
+    with pytest.raises(ValueError):
+        estimator.fit(X, y, alpha_index=0, alpha=0.5)
 
 
 def test_very_large_initial_gradient():
