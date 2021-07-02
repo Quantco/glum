@@ -1139,10 +1139,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         if (alpha is not None) and (alpha_index is not None):
             raise ValueError("Please specify only one of {alpha_index, alpha}.")
-        elif isinstance(alpha, (float, int)):
+        elif np.isscalar(alpha):  # `None` doesn't qualify
             alpha_index = self._find_alpha_index(alpha)
         elif alpha is not None:
-            alpha_index = [self._find_alpha_index(a) for a in alpha]
+            alpha_index = [self._find_alpha_index(a) for a in alpha]  # type: ignore
 
         X = check_array_matrix_compliant(
             X,
@@ -1155,20 +1155,22 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         if alpha_index is None:
             xb = X @ self.coef_ + self.intercept_
-        elif isinstance(alpha_index, (int, float)):
+        elif np.isscalar(alpha_index):  # `None` doesn't qualify
             xb = X @ self.coef_path_[alpha_index] + self.intercept_path_[alpha_index]
+            if offset is not None:
+                xb += offset
         else:  # hopefully a list or some such
             xb = np.stack(
                 [
                     X @ self.coef_path_[idx] + self.intercept_path_[idx]
-                    for idx in alpha_index
+                    for idx in alpha_index  # type: ignore
                 ],
                 axis=1,
             )
+            if offset is not None:
+                xb += np.asanyarray(offset)[:, np.newaxis]
 
-        if offset is None:
-            return xb
-        return xb + offset
+        return xb
 
     def predict(
         self,
