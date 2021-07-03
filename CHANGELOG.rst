@@ -12,7 +12,7 @@ X.X.X - 2021-XX-XX
 
 **New features:**
 
-* The :meth:`linear_predictor` and :meth:`predict` of :class:`~quantcore.glm.GeneralizedLinearRegressor` and :class:`~quantcore.glm.GeneralizedLinearRegressorCV`
+* The :meth:`linear_predictor` and :meth:`predict` methods of :class:`~quantcore.glm.GeneralizedLinearRegressor` and :class:`~quantcore.glm.GeneralizedLinearRegressorCV`
   gain an ``alpha`` parameter (in complement to ``alpha_index``). Moreover, they are now able to predict for multiple penalties.
 
 **Other:**
