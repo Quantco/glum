@@ -10,7 +10,7 @@ import copy
 import warnings
 from collections.abc import Iterable
 from itertools import chain
-from typing import Any, Optional, Tuple, Union, cast
+from typing import Any, Optional, Sequence, Tuple, Union, cast
 
 import numpy as np
 import pandas as pd
@@ -1028,12 +1028,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         Parameters
         ----------
-        full_report: bool (default=False)
+        full_report : bool, optional (default=False)
             Print all available information. When ``False`` and
             ``custom_columns`` is ``None``, a restricted set of columns is
             printed out.
 
-        custom_columns: Iterable (optional, default=None)
+        custom_columns : iterable, optional (default=None)
             Print only the specified columns.
         """
         diagnostics = self._get_formatted_diagnostics(full_report, custom_columns)
@@ -1054,12 +1054,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         Parameters
         ----------
-        full_report: bool (default=False)
+        full_report : bool, optional (default=False)
             Print all available information. When ``False`` and
             ``custom_columns`` is ``None``, a restricted set of columns is
             printed out.
 
-        custom_columns: Iterable (optional, default=None)
+        custom_columns : iterable, optional (default=None)
             Print only the specified columns.
         """
         if not hasattr(self, "diagnostics_"):
@@ -1090,10 +1090,31 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             ]
         return df[keep_cols]
 
+    def _find_alpha_index(self, alpha):
+        if alpha is None:
+            return None
+        if not self.alpha_search:
+            raise ValueError
+        # `np.isclose` because comparing floats is difficult
+        isclose = np.isclose(self._alphas, alpha)
+        if np.sum(isclose) == 1:
+            return np.argmax(isclose)  # cf. stackoverflow.com/a/61117770
+        raise IndexError(
+            f"Could not determine a unique index for alpha {alpha}. Available values: "
+            f"{self._alphas}. Consider specifying the index directly via 'alpha_index'."
+        )
+
     def linear_predictor(
-        self, X: ArrayLike, offset: Optional[ArrayLike] = None, alpha_index: int = None
+        self,
+        X: ArrayLike,
+        offset: Optional[ArrayLike] = None,
+        alpha_index: Optional[Union[int, Sequence[int]]] = None,
+        alpha: Optional[Union[float, Sequence[float]]] = None,
     ):
         """Compute the linear predictor, ``X * coef_ + intercept_``.
+
+        If ``alpha_search`` is ``True``, but ``alpha_index`` and ``alpha`` are
+        both ``None``, we use the last alpha value ``self._alphas[-1]``.
 
         Parameters
         ----------
@@ -1102,18 +1123,30 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             In that case the user must ensure that the categories are exactly
             the same (including the order) as during fit.
 
-        offset: {None, array-like}, shape (n_samples,) optional (default=None)
+        offset : array-like, shape (n_samples,), optional (default=None)
 
-        alpha_index: int, optional (default=None)
-            Sets the index of the alpha to use in case ``alpha_search`` is
-            ``True``.
+        alpha_index : int or list[int], optional (default=None)
+            Sets the index of the alpha(s) to use in case ``alpha_search`` is
+            ``True``. Incompatible with ``alpha`` (see below).
+
+        alpha : float or list[float], optional (default=None)
+            Sets the alpha(s) to use in case ``alpha_search`` is ``True``.
+            Incompatible with ``alpha_index`` (see above).
 
         Returns
         -------
-        C : array, shape (n_samples,)
+        array, shape (n_samples, n_alphas)
             The linear predictor.
         """
         check_is_fitted(self, "coef_")
+
+        if (alpha is not None) and (alpha_index is not None):
+            raise ValueError("Please specify only one of {alpha_index, alpha}.")
+        elif np.isscalar(alpha):  # `None` doesn't qualify
+            alpha_index = self._find_alpha_index(alpha)
+        elif alpha is not None:
+            alpha_index = [self._find_alpha_index(a) for a in alpha]  # type: ignore
+
         X = check_array_matrix_compliant(
             X,
             accept_sparse=["csr", "csc", "coo"],
@@ -1122,23 +1155,38 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             ensure_2d=True,
             allow_nd=False,
         )
-        xb = (
-            X @ self.coef_ + self.intercept_
-            if alpha_index is None
-            else X @ self.coef_path_[alpha_index] + self.intercept_path_[alpha_index]
-        )
-        if offset is None:
-            return xb
-        return xb + offset
+
+        if alpha_index is None:
+            xb = X @ self.coef_ + self.intercept_
+        elif np.isscalar(alpha_index):  # `None` doesn't qualify
+            xb = X @ self.coef_path_[alpha_index] + self.intercept_path_[alpha_index]
+            if offset is not None:
+                xb += offset
+        else:  # hopefully a list or some such
+            xb = np.stack(
+                [
+                    X @ self.coef_path_[idx] + self.intercept_path_[idx]
+                    for idx in alpha_index  # type: ignore
+                ],
+                axis=1,
+            )
+            if offset is not None:
+                xb += np.asanyarray(offset)[:, np.newaxis]
+
+        return xb
 
     def predict(
         self,
         X: ShapedArrayLike,
         sample_weight: Optional[ArrayLike] = None,
         offset: Optional[ArrayLike] = None,
-        alpha_index: int = None,
+        alpha_index: Optional[Union[int, Sequence[int]]] = None,
+        alpha: Optional[Union[float, Sequence[float]]] = None,
     ):
         """Predict using GLM with feature matrix ``X``.
+
+        If ``alpha_search`` is ``True``, but ``alpha_index`` and ``alpha`` are
+        both ``None``, we use the last alpha value ``self._alphas[-1]``.
 
         Parameters
         ----------
@@ -1147,18 +1195,21 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             In that case the user must ensure that the categories are exactly
             the same (including the order) as during fit.
 
-        sample_weight : {None, array-like}, shape (n_samples,), optional (default=None)
+        sample_weight : array-like, shape (n_samples,), optional (default=None)
 
-        offset: {None, array-like}, shape (n_samples,), optional (default=None)
+        offset : array-like, shape (n_samples,), optional (default=None)
 
-        alpha_index: int, optional (default=None)
-            Sets the index of the alpha to use in case ``alpha_search`` is
-            ``True``. If ``alpha_search`` is ``True``, but ``alpha_index``
-            is ``None``, we use the last alpha value ``self._alphas[-1]``.
+        alpha_index : int or list[int], optional (default=None)
+            Sets the index of the alpha(s) to use in case ``alpha_search`` is
+            ``True``. Incompatible with ``alpha`` (see below).
+
+        alpha : float or list[float], optional (default=None)
+            Sets the alpha(s) to use in case ``alpha_search`` is ``True``.
+            Incompatible with ``alpha_index`` (see above).
 
         Returns
         -------
-        C : array, shape (n_samples,)
+        array, shape (n_samples, n_alphas)
             Predicted values times ``sample_weight``.
         """
         X = check_array_matrix_compliant(
@@ -1169,10 +1220,15 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             ensure_2d=True,
             allow_nd=False,
         )
-        eta = self.linear_predictor(X, offset=offset, alpha_index=alpha_index)
+        eta = self.linear_predictor(
+            X, offset=offset, alpha_index=alpha_index, alpha=alpha
+        )
         mu = get_link(self.link, get_family(self.family)).inverse(eta)
-        weights = _check_weights(sample_weight, X.shape[0], X.dtype)
 
+        if sample_weight is None:
+            return mu
+
+        weights = _check_weights(sample_weight, X.shape[0], X.dtype)
         return mu * weights
 
     def estimate_phi(
@@ -1188,12 +1244,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         y : array-like, shape (n_samples,)
             Target values.
 
-        sample_weight : {None, array-like}, shape (n_samples,), optional (default=None)
+        sample_weight : array-like, shape (n_samples,), optional (default=None)
             Sample weights.
 
         Returns
         -------
-        phi : float
+        float
             Dispersion parameter.
         """
         check_is_fitted(self, "coef_")
@@ -1256,7 +1312,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         y : array-like, shape (n_samples,)
             True values of target.
 
-        sample_weight : {None, array-like}, shape (n_samples,), optional (default=None)
+        sample_weight :array-like, shape (n_samples,), optional (default=None)
             Sample weights.
 
         Returns
