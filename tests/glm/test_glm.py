@@ -1544,7 +1544,7 @@ def test_clonable(estimator):
 def test_get_best_intercept(
     link: Link, distribution: ExponentialDispersionModel, tol: float, offset
 ):
-    y = np.array([1, 1, 1, 2], dtype=np.float)
+    y = np.array([1, 1, 1, 2], dtype=np.float_)
     if isinstance(distribution, BinomialDistribution):
         y -= 1
 
@@ -1618,6 +1618,77 @@ def test_alpha_search(regression_data):
 
     assert_allclose(mdl_path.coef_, mdl_no_path.coef_)
     assert_allclose(mdl_path.intercept_, mdl_no_path.intercept_)
+
+
+@pytest.mark.parametrize("alpha, alpha_index", [(0.5, 0), (0.75, 1), (None, 1)])
+def test_predict_scalar(regression_data, alpha, alpha_index):
+
+    X, y = regression_data
+    offset = np.zeros_like(y)
+
+    estimator = GeneralizedLinearRegressor(alpha=[0.5, 0.75], alpha_search=True)
+    estimator.fit(X, y)
+
+    target = estimator.predict(X, alpha_index=alpha_index)
+
+    candidate = estimator.predict(X, alpha=alpha, offset=offset)
+    np.testing.assert_allclose(candidate, target)
+
+
+@pytest.mark.parametrize(
+    "alpha, alpha_index",
+    [([0.5, 0.75], [0, 1]), ([0.75, 0.5], [1, 0]), ([0.5, 0.5], [0, 0])],
+)
+def test_predict_list(regression_data, alpha, alpha_index):
+
+    X, y = regression_data
+    offset = np.zeros_like(y)
+
+    estimator = GeneralizedLinearRegressor(alpha=[0.5, 0.75], alpha_search=True)
+    estimator.fit(X, y)
+
+    target = np.stack(
+        [
+            estimator.predict(X, alpha_index=alpha_index[0]),
+            estimator.predict(X, alpha_index=alpha_index[1]),
+        ],
+        axis=1,
+    )
+
+    candidate = estimator.predict(X, alpha=alpha, offset=offset)
+    np.testing.assert_allclose(candidate, target)
+
+    candidate = estimator.predict(X, alpha_index=alpha_index, offset=offset)
+    np.testing.assert_allclose(candidate, target)
+
+
+def test_predict_error(regression_data):
+
+    X, y = regression_data
+
+    estimator = GeneralizedLinearRegressor(alpha=0.5, alpha_search=False).fit(X, y)
+
+    with pytest.raises(ValueError):
+        estimator.predict(X, alpha=0.5)
+    with pytest.raises(ValueError):
+        estimator.predict(X, alpha=[0.5])
+    with pytest.raises(AttributeError):
+        estimator.predict(X, alpha_index=0)
+    with pytest.raises(AttributeError):
+        estimator.predict(X, alpha_index=[0])
+
+    estimator.set_params(alpha=[0.5, 0.75], alpha_search=True).fit(X, y)
+
+    with pytest.raises(IndexError):
+        estimator.predict(X, y, alpha=0.25)
+    with pytest.raises(IndexError):
+        estimator.predict(X, y, alpha=[0.25, 0.5])
+    with pytest.raises(IndexError):
+        estimator.predict(X, y, alpha_index=2)
+    with pytest.raises(IndexError):
+        estimator.predict(X, y, alpha_index=[2, 0])
+    with pytest.raises(ValueError):
+        estimator.predict(X, y, alpha_index=0, alpha=0.5)
 
 
 def test_very_large_initial_gradient():

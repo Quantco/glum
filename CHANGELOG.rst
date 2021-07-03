@@ -10,6 +10,11 @@ Changelog
 X.X.X - 2021-XX-XX
 ------------------
 
+**New features:**
+
+* The :meth:`linear_predictor` and :meth:`predict` methods of :class:`~quantcore.glm.GeneralizedLinearRegressor` and :class:`~quantcore.glm.GeneralizedLinearRegressorCV`
+  gain an ``alpha`` parameter (in complement to ``alpha_index``). Moreover, they are now able to predict for multiple penalties.
+
 **Other:**
 
 * Methods of :class:`~quantcore.glm._link.Link` now consistently return NumPy arrays, whereas they used to preserve pandas series in special cases.
@@ -27,8 +32,8 @@ X.X.X - 2021-XX-XX
 
 **Tutorials and documentation improvements:**
 
-- Adding tutorials to the documentation
-- Additional documentation improvements
+- Adding tutorials to the documentation.
+- Additional documentation improvements.
 
 **Bug fix:**
 
@@ -36,7 +41,7 @@ X.X.X - 2021-XX-XX
 
 **Other:**
 
-- Small improvement in documentation for the ``alpha_index`` argument to :func:`quantcore.glm.GeneralizedLinearRegressor.predict`.
+- Small improvement in documentation for the ``alpha_index`` argument to :meth:`~quantcore.glm.GeneralizedLinearRegressor.predict`.
 - Pinned pre-commit hooks versions.
 
 1.4.1 - 2021-05-01
@@ -49,7 +54,7 @@ We now have Windows builds!
 
 **Deprecations:**
 
-- Fusing the ``alpha`` and ``alphas`` arguments for :func:`quantcore.glm.GeneralizedLinearRegressor`. ``alpha`` now also accepts array like inputs. ``alphas`` is now deprecated but can still be used for backward compatibility. The ``alphas`` argument will be removed with the next major version.
+- Fusing the ``alpha`` and ``alphas`` arguments for :class:`~quantcore.glm.GeneralizedLinearRegressor`. ``alpha`` now also accepts array like inputs. ``alphas`` is now deprecated but can still be used for backward compatibility. The ``alphas`` argument will be removed with the next major version.
 
 **Bug fix:**
 
@@ -86,27 +91,27 @@ Maintenance release to get a fresh build for OSX.
 
 **New feature:**
 
-- Direct support for pandas categorical types in ``fit`` and ``predict``. These will be converted into a ``CategoricalMatrix``.
+- Direct support for pandas categorical types in ``fit`` and ``predict``. These will be converted into a :class:`CategoricalMatrix`.
 
 1.0.1 - 2020-11-12
 ------------------
 
-This is a maintenance release to be compatible with `quantcore.matrix>=1.0.0`.
+This is a maintenance release to be compatible with ``quantcore.matrix>=1.0.0``.
 
 1.0.0 - 2020-11-11
 ------------------
 
 **Other:**
 
-- Renamed `alpha_level` attribute of :func:`quantcore.glm.GeneralizedLinearRegressor` and :func:`quantcore.glm.GeneralizedLinearRegressorCV` to `alpha_index`.
-- Clarified behavior of `scale_predictors`.
+- Renamed ``alpha_level`` attribute of :class:`~quantcore.glm.GeneralizedLinearRegressor` and :class:`~quantcore.glm.GeneralizedLinearRegressorCV` to ``alpha_index``.
+- Clarified behavior of ``scale_predictors``.
 
 0.0.15 - 2020-11-11
 -------------------
 
 **Other:**
 
-- Pin quantcore.matrix < 1.0.0 as we are expecting a breaking change with version 1.0.0.
+- Pin ``quantcore.matrix<1.0.0`` as we are expecting a breaking change with version 1.0.0.
 
 0.0.14 - 2020-08-06
 -------------------
