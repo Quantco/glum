@@ -1099,7 +1099,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         isclose = np.isclose(self._alphas, alpha)
         if np.sum(isclose) == 1:
             return np.argmax(isclose)  # cf. stackoverflow.com/a/61117770
-        raise IndexError
+        raise IndexError(
+            f"Could not determine a unique index for alpha {alpha}. Available values: "
+            f"{self._alphas}. Consider specifying the index directly via 'alpha_index'."
+        )
 
     def linear_predictor(
         self,
