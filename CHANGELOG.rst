@@ -7,6 +7,14 @@
 Changelog
 =========
 
+1.5.0 - 2021-07-22
+------------------
+
+**Bug fix:**
+
+* Have the :meth:`linear_predictor` and :meth:`predict` methods of :class:`~quantcore.glm.GeneralizedLinearRegressor` and :class:`~quantcore.glm.GeneralizedLinearRegressorCV`
+  honor the offset when ``alpha`` is ``None``.
+
 1.5.0 - 2021-07-15
 ------------------
 
@@ -20,7 +28,6 @@ Changelog
 * Methods of :class:`~quantcore.glm._link.Link` now consistently return NumPy arrays, whereas they used to preserve pandas series in special cases.
 * Don't list ``sparse_dot_mkl`` as a runtime requirement from the conda recipe.
 * The minimal ``numpy`` pin should be dependent on the ``numpy`` version in ``host`` and not fixed to ``1.16``.
-
 
 1.4.3 - 2021-06-25
 ------------------
