@@ -1624,7 +1624,7 @@ def test_alpha_search(regression_data):
 def test_predict_scalar(regression_data, alpha, alpha_index):
 
     X, y = regression_data
-    offset = np.zeros_like(y)
+    offset = np.ones_like(y)
 
     estimator = GeneralizedLinearRegressor(alpha=[0.5, 0.75], alpha_search=True)
     estimator.fit(X, y)
@@ -1632,7 +1632,7 @@ def test_predict_scalar(regression_data, alpha, alpha_index):
     target = estimator.predict(X, alpha_index=alpha_index)
 
     candidate = estimator.predict(X, alpha=alpha, offset=offset)
-    np.testing.assert_allclose(candidate, target)
+    np.testing.assert_allclose(candidate, target + 1)
 
 
 @pytest.mark.parametrize(
@@ -1642,7 +1642,7 @@ def test_predict_scalar(regression_data, alpha, alpha_index):
 def test_predict_list(regression_data, alpha, alpha_index):
 
     X, y = regression_data
-    offset = np.zeros_like(y)
+    offset = np.ones_like(y)
 
     estimator = GeneralizedLinearRegressor(alpha=[0.5, 0.75], alpha_search=True)
     estimator.fit(X, y)
@@ -1656,10 +1656,10 @@ def test_predict_list(regression_data, alpha, alpha_index):
     )
 
     candidate = estimator.predict(X, alpha=alpha, offset=offset)
-    np.testing.assert_allclose(candidate, target)
+    np.testing.assert_allclose(candidate, target + 1)
 
     candidate = estimator.predict(X, alpha_index=alpha_index, offset=offset)
-    np.testing.assert_allclose(candidate, target)
+    np.testing.assert_allclose(candidate, target + 1)
 
 
 def test_predict_error(regression_data):
