@@ -38,7 +38,7 @@ jobs:
        uses: actions/checkout@v2.1.0
        with:
          ref: ${{ github.head_ref }}
-     - uses: GoogleCloudPlatform/github-actions/setup-gcloud@master
+     - uses: google-github-actions/setup-gcloud@master
        with:
          version: '290.0.1'
          project_id: ${{ secrets.GCP_UPLOAD_PROJECT_ID }}
@@ -67,7 +67,7 @@ jobs:
        uses: actions/checkout@v2.1.0
        with:
          ref: ${{ github.head_ref }}
-     - uses: GoogleCloudPlatform/github-actions/setup-gcloud@master
+     - uses: google-github-actions/setup-gcloud@master
        with:
          version: '290.0.1'
          project_id: ${{ secrets.GCP_UPLOAD_PROJECT_ID }}
