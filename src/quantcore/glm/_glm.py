@@ -1472,7 +1472,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         copy_X = self._should_copy_X()
 
         if isinstance(X, pd.DataFrame):
-
             if any(X.dtypes == "category"):
                 self.feature_names_ = list(
                     chain.from_iterable(
@@ -1482,39 +1481,40 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                         for column, dtype in zip(X.columns, X.dtypes)
                     )
                 )
-                # If P1 or P2 has the same shape as X before expanding the categoricals,
-                # we assume that the penalty at the location of the categorical
-                # is the same for all levels.
-                if not isinstance(self.P1, str):  # self.P1 != 'identity':
-                    if np.asarray(self.P1).shape[0] == X.shape[1]:
-                        P1 = np.array(
-                            list(
-                                chain.from_iterable(
-                                    [P1_elmt for _ in dtype.categories]
-                                    if pd.api.types.is_categorical_dtype(dtype)
-                                    else [P1_elmt]
-                                    for P1_elmt, dtype in zip(P1, X.dtypes)
+
+                def _expand_categorical_penalties(penalty, X):
+                    """
+                    If P1 or P2 has the same shape as X before expanding the
+                    categoricals, we assume that the penalty at the location of
+                    the categorical is the same for all levels.
+                    """
+                    if isinstance(penalty, str):
+                        return penalty
+                    else:
+                        if np.asarray(penalty).shape[0] == X.shape[1]:
+                            if np.asarray(penalty).ndim == 2:
+                                raise ValueError(
+                                    "When the penalty is two dimensional, it has "
+                                    "to have the same length as the number of "
+                                    "columns of X, after the categoricals "
+                                    "have been expanded."
+                                )
+                            return np.array(
+                                list(
+                                    chain.from_iterable(
+                                        [elmt for _ in dtype.categories]
+                                        if pd.api.types.is_categorical_dtype(dtype)
+                                        else [elmt]
+                                        for elmt, dtype in zip(penalty, X.dtypes)
+                                    )
                                 )
                             )
-                        )
-                if not isinstance(self.P2, str):  # self.P2 != 'identity':
-                    if np.asarray(self.P2).shape[0] == X.shape[1]:
-                        if np.asarray(self.P2).ndim == 2:
-                            raise ValueError(
-                                "When P2 is two dimensional, it has to have the same "
-                                "length as the number of columns of X, after the categoricals "
-                                "have been expanded."
-                            )
-                        P2 = np.array(
-                            list(
-                                chain.from_iterable(
-                                    [P2_elmt for _ in dtype.categories]
-                                    if pd.api.types.is_categorical_dtype(dtype)
-                                    else [P2_elmt]
-                                    for P2_elmt, dtype in zip(P2, X.dtypes)
-                                )
-                            )
-                        )
+                        else:
+                            return penalty
+
+                P1 = _expand_categorical_penalties(self.P1, X)
+                P2 = _expand_categorical_penalties(self.P2, X)
+
                 X = mx.from_pandas(X)
             else:
                 self.feature_names_ = X.columns
@@ -1668,7 +1668,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         P2 must be positive semi-definite. If ``X`` is a pandas DataFrame
         with a categorical dtype and P2 has the same size as the number of columns,
         the penalty of the categorical column will be applied to all the levels of
-        the categorical. Note that in this case P2 must be a 1d array.
+        the categorical. Note that if P2 is two-dimensional, its size needs to be
+        of the same length as the expanded ``X`` matrix.
 
     fit_intercept : bool, optional (default=True)
         Specifies if a constant (a.k.a. bias or intercept) should be
