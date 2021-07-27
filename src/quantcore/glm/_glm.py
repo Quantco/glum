@@ -1159,6 +1159,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         if alpha_index is None:
             xb = X @ self.coef_ + self.intercept_
+            if offset is not None:
+                xb += offset
         elif np.isscalar(alpha_index):  # `None` doesn't qualify
             xb = X @ self.coef_path_[alpha_index] + self.intercept_path_[alpha_index]
             if offset is not None:
