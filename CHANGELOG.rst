@@ -7,6 +7,15 @@
 Changelog
 =========
 
+Unreleased
+----------
+
+**New features:**
+
+- P1 and P2 now accepts 1d array with the same number of elements as the unexpanded design matrix. In this case,
+  the penalty associated with a categorical feature will be expanded to as many elements as there are levels,
+  all with the same value.
+
 1.5.1 - 2021-07-22
 ------------------
 
