@@ -61,7 +61,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         P2 must be positive semi-definite. If ``X`` is a pandas DataFrame
         with a categorical dtype and P2 has the same size as the number of columns,
         the penalty of the categorical column will be applied to all the levels of
-        the categorical. Note that in this case P2 must be a 1d array.
+        the categorical. Note that if P2 is two-dimensional, its size needs to be
+        of the same length as the expanded ``X`` matrix.
 
     fit_intercept : bool, optional (default=True)
         Specifies if a constant (a.k.a. bias or intercept) should be
