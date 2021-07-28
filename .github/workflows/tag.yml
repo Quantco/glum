@@ -75,7 +75,7 @@ jobs:
         run: |
           sed -ie "s/***REMOVED***/${***REMOVED***}/g" .github/workflows/.condarc
           sed -ie "s/***REMOVED***/${***REMOVED***}/g" .github/workflows/.condarc
-      - uses: conda-incubator/setup-miniconda@723ab12c1d66bb893c5ac701f8e387f00b24549e
+      - uses: conda-incubator/setup-miniconda@35d1405e78aa3f784fe3ce9a2eb378d5eeb62169
         with:
           miniforge-variant: Mambaforge
           miniforge-version: 4.10.0-0
@@ -111,7 +111,7 @@ jobs:
         run: |
           ((Get-Content -path .github/workflows/.condarc) -replace '***REMOVED***', '${{ secrets.***REMOVED*** }}') | Set-Content .github/workflows/.condarc
           ((Get-Content -path .github/workflows/.condarc) -replace '***REMOVED***', '${{ secrets.***REMOVED*** }}') | Set-Content .github/workflows/.condarc
-      - uses: conda-incubator/setup-miniconda@723ab12c1d66bb893c5ac701f8e387f00b24549e
+      - uses: conda-incubator/setup-miniconda@35d1405e78aa3f784fe3ce9a2eb378d5eeb62169
         with:
           miniforge-variant: Mambaforge
           miniforge-version: 4.10.0-0
