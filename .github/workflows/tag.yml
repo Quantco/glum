@@ -27,9 +27,9 @@ jobs:
           - linux_64_python3.9_skylake.____cpython
     steps:
       - name: Docker login
-        run: docker login docker.pkg.github.com -u ${{ github.actor }} -p ${{ secrets.FQ_GH_TOKEN }}
+        run: docker login ghcr.io -u "${{ github.actor }}" -p "${{ secrets.GITHUB_TOKEN }}"
       - name: Pull image
-        run: docker pull docker.pkg.github.com/***REMOVED***/***REMOVED***:latest
+        run: docker pull ***REMOVED***:latest
       - name: Checkout branch
         uses: actions/checkout@v2.1.0
         with:
