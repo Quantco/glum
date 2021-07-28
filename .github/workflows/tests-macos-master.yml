@@ -19,7 +19,7 @@ jobs:
         PYTHON_VERSION: ['3.7']
     steps:
       - name: Checkout branch
-        uses: actions/checkout@v2.1.0
+        uses: actions/checkout@v2.3.4
         with:
           ref: ${{ github.head_ref }}
       - name: Create .condarc

@@ -31,7 +31,7 @@ jobs:
       - name: Pull image
         run: docker pull ghcr.io/quantco/qc-mambaforge-base:latest
       - name: Checkout branch
-        uses: actions/checkout@v2.1.0
+        uses: actions/checkout@v2.3.4
         with:
           ref: ${{ github.head_ref }}
       - name: Fetch tags
@@ -67,7 +67,7 @@ jobs:
           - osx_arm64_python3.9.____cpython
     steps:
       - name: Checkout branch
-        uses: actions/checkout@v2.1.0
+        uses: actions/checkout@v2.3.4
         with:
           ref: ${{ github.head_ref }}
       - name: Create .condarc
@@ -103,7 +103,7 @@ jobs:
           - win_64_python3.9.____cpython
     steps:
       - name: Checkout branch
-        uses: actions/checkout@v2.1.0
+        uses: actions/checkout@v2.3.4
         with:
           ref: ${{ github.head_ref }}
       - name: Create .condarc

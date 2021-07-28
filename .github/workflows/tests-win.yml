@@ -23,7 +23,7 @@ jobs:
           git config --global core.autocrlf false
           git config --global core.eol lf
       - name: Checkout branch
-        uses: actions/checkout@v2.1.0
+        uses: actions/checkout@v2.3.4
         with:
           ref: ${{ github.head_ref }}
       - name: Create .condarc
