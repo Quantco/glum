@@ -18,9 +18,9 @@ jobs:
           - linux_64_python3.9_default.____cpython
     steps:
       - name: Docker login
-        run: docker login docker.pkg.github.com -u ${{ github.actor }} -p ${{ secrets.FQ_GH_TOKEN }}
+        run: docker login ghcr.io -u "${{ github.actor }}" -p "${{ secrets.GITHUB_TOKEN }}"
       - name: Pull image
-        run: docker pull docker.pkg.github.com/quantco/miniforge3-qc-dev/miniconda3-qc-base:latest
+        run: docker pull ghcr.io/quantco/qc-mambaforge-base:latest
       - name: Checkout branch
         uses: actions/checkout@v2.1.0
         with:
