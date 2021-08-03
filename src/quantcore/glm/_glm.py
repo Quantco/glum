@@ -1,5 +1,14 @@
 """
 Generalized Linear Models with Exponential Dispersion Family
+
+Modified from code submitted as a PR to sklearn:
+https://github.com/scikit-learn/scikit-learn/pull/9405
+
+Original attribution from:
+https://github.com/scikit-learn/scikit-learn/pull/9405/files#diff-38e412190dc50455611b75cfcf2d002713dcf6d537a78b9a22cc6b1c164390d1 # noqa: B950
+
+Author: Christian Lorentzen <lorentzen.ch@googlemail.com>
+some parts and tricks stolen from other sklearn files.
 """
 
 # License: BSD 3 clause
