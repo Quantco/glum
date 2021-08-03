@@ -6,7 +6,7 @@ channels:
 dependencies:
   # required for users (note: this is not where you specify new dependencies
   # for the conda packages. please put those `conda.recipe/meta.yaml`!!
-  - quantcore.matrix>=1.0.0
+  - quantcore.matrix>=2.0.1
   - libblas>=0=*mkl
   - tqdm
   - scikit-learn >= 0.23
@@ -47,3 +47,4 @@ dependencies:
   - openml # used for downloading datasets in the tutorials.
   - jupyterlab
   - jupytext
+  - make
