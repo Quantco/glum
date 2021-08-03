@@ -36,7 +36,7 @@ jobs:
           miniforge-version: 4.10.0-0
           use-mamba: true
           condarc-file: .github/workflows/.condarc
-          environment-file: environment-win.yml
+          environment-file: environment.yml
           activate-environment: quantcore.glm
       - name: Run Unit Tests
         shell: pwsh
