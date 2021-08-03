@@ -1,0 +1,10 @@
+name: quantcore.glm
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - h2o-py
+  - openjdk
+  - johnlees-glmnet_python
+  - rpy2
+
