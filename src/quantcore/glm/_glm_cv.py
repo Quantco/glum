@@ -522,7 +522,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
                 P2_no_alpha,
             )
 
-            coef = self.get_start_coef(
+            coef = self._get_start_coef(
                 start_params,
                 x_train,
                 y_train,
@@ -542,7 +542,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
                             error = "P2 must be positive semi-definite."
                         raise ValueError(error)
 
-            coef = self.solve_regularization_path(
+            coef = self._solve_regularization_path(
                 X=x_train,
                 y=y_train,
                 weights=w_train,
@@ -658,11 +658,11 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             _dtype=X.dtype,
         )
 
-        coef = self.get_start_coef(
+        coef = self._get_start_coef(
             start_params, X, y, weights, offset, col_means, col_stds
         )
 
-        coef = self.solve(
+        coef = self._solve(
             X=X,
             y=y,
             weights=weights,
@@ -684,6 +684,6 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             # set intercept to zero as the other linear models do
             self.intercept_, self.coef_ = _unstandardize(col_means, col_stds, 0.0, coef)
 
-        self.tear_down_from_fit(X, y, col_means, col_stds, weights, weights_sum)
+        self._tear_down_from_fit(X, y, col_means, col_stds, weights, weights_sum)
 
         return self

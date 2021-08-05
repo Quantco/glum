@@ -1,5 +1,6 @@
 name: quantcore.glm
 channels:
+  - quantco_main
   - conda-forge
   - nodefaults
 dependencies:
@@ -7,4 +8,3 @@ dependencies:
   - openjdk
   - johnlees-glmnet_python
   - rpy2
-
