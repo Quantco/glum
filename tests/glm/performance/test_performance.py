@@ -172,8 +172,11 @@ def get_dense_inv_runtime():
 
 
 def runtime_checker():
-    """Run various operations and check that quantcore.glm doesn't run too much slower \
-    than operations expected to be similar."""
+    """
+    Run various operations and check that quantcore.glm doesn't run too much
+    slower than operations expected to be similar. This isn't a perfect test
+    but it'll raise a red flag if the code has unexpectedly gotten much slower.
+    """
     spmv_runtime = get_spmv_runtime()
     dense_inv_runtime = get_dense_inv_runtime()
 
