@@ -21,7 +21,7 @@ import sys
 sys.path.append("../src/quantcore/")
 
 project = "quantcore.glm"
-copyright = "2020, QuantCo Inc."
+copyright = "(C) 2020-2021 QuantCo Inc."
 author = "QuantCo Inc."
 
 extensions = [
@@ -36,13 +36,26 @@ extensions = [
 
 apidoc_module_dir = "../src/quantcore"
 apidoc_excluded_paths = ["glm_benchmarks"]
-apidoc_output_dir = "api"
-apidoc_separate_modules = True
+apidoc_output_dir = "./api"
+apidoc_separate_modules = False
 
 templates_path = ["_templates"]
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "**.ipynb_checkpoints"]
+exclude_patterns = [
+    "modules.rst",
+    "_build",
+    "Thumbs.db",
+    ".DS_Store",
+    "**.ipynb_checkpoints",
+]
 html_theme = "sphinx_rtd_theme"
 html_static_path = ["_static"]
+html_theme_options = {
+    # this puts the entire table of contents structure in the sidebar.
+    # unfortunately, it's not possible yet to have it expanded by default.
+    # see: https://github.com/readthedocs/sphinx_rtd_theme/issues/455
+    "collapse_navigation": False,
+    "navigation_depth": 2,
+}
 
 # For the altairplot extension
 altairplot_links = {"editor": True, "source": True, "export": True}

@@ -8,18 +8,26 @@ Welcome to quantcore.glm's documentation!
 * L2 regularization, including variable matrix-valued (Tikhonov) penalties, which are useful in modeling correlated effects
 * Elastic net regularization
 * Normal, Poisson, logistic, gamma, and Tweedie distributions, plus varied and customizable link functions
-* Box constraints, sample weights, offsets.
+* Box constraints, linear inequality constraints, sample weights, offsets
 
 
 .. toctree::
    :maxdepth: 1
-   :caption: Contents:
 
-   Installation <https://github.com/Quantco/quantcore.glm#installation>
-   Getting Started <tutorials/getting_started/getting_started.ipynb>
+   Installation <install.rst>
+   Getting Started <getting_started/getting_started.ipynb>
+
+.. toctree::
+   :maxdepth: 2
+
    Tutorials <tutorials/tutorials.rst>
+
+.. toctree::
+   :maxdepth: 1
+
+   Development <development.rst>
+   API Reference <glm>
    GitHub <https://github.com/Quantco/quantcore.glm>
-   API Reference <api/modules>
    Changelog <changelog>
 
 
