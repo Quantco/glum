@@ -74,12 +74,15 @@ conda config --system --set custom_channels.quantco_main https://dil_ro:password
 conda install mamba=0.2.12
 mamba env create
 
+# If you want to install the dependencies necessary for benchmarking against other GLM packages:
+mamba env update -n quantcore.glm --file environment-benchmark.yml
+
 # Install this package in editable mode. 
 conda activate quantcore.glm
 pip install --no-use-pep517 --disable-pip-version-check -e .
 ```
 
-# A quick usage example
+# An example: predicting car insurance claim frequency using Poisson regression.
 
 This example uses a public French car insurance dataset. 
 ```python
