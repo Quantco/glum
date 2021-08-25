@@ -555,12 +555,19 @@ class TweedieDistribution(ExponentialDispersionModel):
         p = self.power
         weights = np.ones_like(y) if weights is None else weights
 
+        if not str(y.dtype).startswith("float"):
+            y = np.asanyarray(y, dtype="float")
+        if not str(weights.dtype).startswith("float"):
+            weights = np.asanyarray(weights, dtype="float")
+
         if p == 0:
-            return normal_log_likelihood(y, weights, mu, phi)
+            return normal_log_likelihood(y, weights, mu, float(phi))
         if p == 1:
-            return poisson_log_likelihood(y, weights, mu)
+            # NOTE: the dispersion parameter is only necessary to convey
+            # type information to Cython on account of a bug
+            return poisson_log_likelihood(y, weights, mu, float(phi))
         elif p == 2:
-            return gamma_log_likelihood(y, weights, mu, phi)
+            return gamma_log_likelihood(y, weights, mu, float(phi))
         else:
             raise NotImplementedError
 
@@ -581,14 +588,22 @@ class TweedieDistribution(ExponentialDispersionModel):
         p = self.power
         weights = np.ones_like(y) if weights is None else weights
 
+        # NOTE: the dispersion parameter is only necessary to convey
+        # type information to Cython on account of a bug
+
+        if not str(y.dtype).startswith("float"):
+            y = np.asanyarray(y, dtype="float")
+        if not str(weights.dtype).startswith("float"):
+            weights = np.asanyarray(weights, dtype="float")
+
         if p == 0:
-            return normal_deviance(y, weights, mu)
+            return normal_deviance(y, weights, mu, dispersion=1.0)
         if p == 1:
-            return poisson_deviance(y, weights, mu)
+            return poisson_deviance(y, weights, mu, dispersion=1.0)
         elif p == 2:
-            return gamma_deviance(y, weights, mu)
+            return gamma_deviance(y, weights, mu, dispersion=1.0)
         else:
-            return tweedie_deviance(y, weights, mu, p)
+            return tweedie_deviance(y, weights, mu, p=float(p))
 
     def unit_deviance(self, y, mu):
         """Get the deviance of each observation."""
