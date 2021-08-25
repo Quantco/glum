@@ -12,12 +12,15 @@ from ._functions import (
     binomial_logit_rowwise_gradient_hessian,
     gamma_deviance,
     gamma_log_eta_mu_deviance,
+    gamma_log_likelihood,
     gamma_log_rowwise_gradient_hessian,
+    normal_deviance,
     normal_identity_eta_mu_deviance,
     normal_identity_rowwise_gradient_hessian,
     normal_log_likelihood,
     poisson_deviance,
     poisson_log_eta_mu_deviance,
+    poisson_log_likelihood,
     poisson_log_rowwise_gradient_hessian,
     tweedie_deviance,
     tweedie_log_eta_mu_deviance,
@@ -532,12 +535,54 @@ class TweedieDistribution(ExponentialDispersionModel):
         p = self.power  # noqa: F841
         return numexpr.evaluate("p * mu ** (p - 1)")
 
-    def deviance(self, y, mu, weights=None) -> float:
-        """Compute the deviance."""
+    def log_likelihood(self, y, mu, weights=None, phi=1) -> float:
+        """Compute the log likelihood.
+
+        Parameters
+        ----------
+        y : array-like, shape (n_samples,)
+            Target values.
+
+        mu : array-like, shape (n_samples,)
+            Predicted mean.
+
+        weights : array-like, shape (n_samples,), optional (default=1)
+            Sample weights.
+
+        phi : float, optional (default=1)
+            Dispersion parameter.
+        """
         p = self.power
         weights = np.ones_like(y) if weights is None else weights
+
         if p == 0:
-            return -2 * normal_log_likelihood(y, weights, mu)
+            return normal_log_likelihood(y, weights, mu, phi)
+        if p == 1:
+            return poisson_log_likelihood(y, weights, mu)
+        elif p == 2:
+            return gamma_log_likelihood(y, weights, mu, phi)
+        else:
+            raise NotImplementedError
+
+    def deviance(self, y, mu, weights=None) -> float:
+        """Compute the deviance.
+
+        Parameters
+        ----------
+        y : array-like, shape (n_samples,)
+            Target values.
+
+        mu : array-like, shape (n_samples,)
+            Predicted mean.
+
+        weights : array-like, shape (n_samples,), optional (default=1)
+            Sample weights.
+        """
+        p = self.power
+        weights = np.ones_like(y) if weights is None else weights
+
+        if p == 0:
+            return normal_deviance(y, weights, mu)
         if p == 1:
             return poisson_deviance(y, weights, mu)
         elif p == 2:
@@ -551,17 +596,15 @@ class TweedieDistribution(ExponentialDispersionModel):
         if p == 0:  # Normal distribution
             return (y - mu) ** 2
         if p == 1:  # Poisson distribution
-            # 2 * (y*log(y/mu) - y + mu), with y*log(y/mu)=0 if y=0
             return 2 * (special.xlogy(y, y / mu) - y + mu)
         elif p == 2:  # Gamma distribution
             return 2 * (np.log(mu / y) + y / mu - 1)
         else:
-            # return 2 * (np.maximum(y,0)**(2-p)/((1-p)*(2-p))
-            #    - y*mu**(1-p)/(1-p) + mu**(2-p)/(2-p))
+            mu1mp = mu ** (1 - p)
             return 2 * (
-                np.power(np.maximum(y, 0), 2 - p) / ((1 - p) * (2 - p))
-                - y * np.power(mu, 1 - p) / (1 - p)
-                + np.power(mu, 2 - p) / (2 - p)
+                (np.maximum(y, 0) ** (2 - p)) / ((1 - p) * (2 - p))
+                - y * mu1mp / (1 - p)
+                + mu * mu1mp / (2 - p)
             )
 
     def _rowwise_gradient_hessian(
@@ -791,6 +834,26 @@ class BinomialDistribution(ExponentialDispersionModel):
         return super()._eta_mu_deviance(
             link, factor, cur_eta, X_dot_d, y, weights, eta_out, mu_out
         )
+
+    def log_likelihood(self, y, mu, weights=None, phi=1) -> float:
+        """Compute the log likelihood.
+
+        Parameters
+        ----------
+        y : array-like, shape (n_samples,)
+            Target values.
+
+        mu : array-like, shape (n_samples,)
+            Predicted mean.
+
+        weights : array-like, shape (n_samples,), optional (default=1)
+            Sample weights.
+
+        phi : float, optional (default=1)
+            Ignored.
+        """
+        ll = special.xlogy(y, mu) + special.xlogy(1 - y, 1 - mu)
+        return np.sum(ll) if weights is None else np.dot(ll, weights)
 
 
 def guess_intercept(
