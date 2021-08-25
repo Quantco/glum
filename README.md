@@ -293,7 +293,7 @@ For more details, see the [README for quantcore.matrix](https://github.com/Quant
 
 We support dense matrices via standard numpy arrays. 
 
-We support sparse CSR and CSC matrices via standard `scipy.sparse` objects. These `scipy.sparse` matrices have been modified in the `SparseMatrix` class to use MKL via the `sparse_dot_mkl` package. As a result, sparse matrix-vector and matrix-matrix multiplies are optimized and parallelized. A user does not need to modify their code to take advantage of this optimization. If a `scipy.sparse.csc_matrix` object is passed in, it will be automatically converted to a `SparseMatrix` object. This operation is almost free because no data needs to be copied.
+We support sparse CSR and CSC matrices via standard `scipy.sparse` objects. As a result, sparse matrix-vector and matrix-matrix multiplies are optimized and parallelized. A user does not need to modify their code to take advantage of this optimization. If a `scipy.sparse.csc_matrix` object is passed in, it will be automatically converted to a `SparseMatrix` object. This operation is almost free because no data needs to be copied.
 
 We implement a CategoricalMatrix object that efficiently represents these matrices without nearly as much overhead as a normal CSC or CSR sparse matrix.
 

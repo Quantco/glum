@@ -10,7 +10,6 @@ import pandas as pd
 import psutil
 import quantcore.matrix as mx
 import scipy.sparse as sps
-from sparse_dot_mkl import dot_product_mkl
 
 from quantcore.glm import GeneralizedLinearRegressor
 from quantcore.glm_benchmarks.cli_run import get_all_problems
@@ -156,7 +155,7 @@ def get_spmv_runtime():
     diag_data = np.random.rand(5, N)
     mat = sps.spdiags(diag_data, [0, 1, -1, 2, -2], N, N).tocsr()
     v = np.random.rand(N)
-    return runtime(lambda: dot_product_mkl(mat, v), 5)[0]
+    return runtime(lambda: mat.dot(v), 5)[0]
 
 
 def get_dense_inv_runtime():
