@@ -3,7 +3,7 @@
 from cython cimport floating
 from cython.parallel import prange
 
-from libc.math cimport exp, log, fmax
+from libc.math cimport M_PI, exp, fmax, lgamma, log
 
 import numpy as np
 
@@ -60,6 +60,32 @@ def normal_identity_rowwise_gradient_hessian(
         # the default calculation in _distribution.py
         hessian_rows_out[i] = weights[i]
 
+def normal_log_likelihood(
+    const_floating1d y,
+    const_floating1d weights,
+    const_floating1d mu,
+    floating dispersion,
+):
+    cdef int n = y.shape[0]
+    cdef int i
+    cdef floating ll = 0.0
+    for i in prange(n, nogil=True):
+        ll -= weights[i] * (y[i] - mu[i]) ** 2
+    return ll / (2 * dispersion) - log(2 * M_PI * dispersion) / 2
+
+def normal_deviance(
+    const_floating1d y,
+    const_floating1d weights,
+    const_floating1d mu,
+    floating dispersion,
+):
+    cdef int n = y.shape[0]
+    cdef int i
+    cdef floating D = 0.0
+    for i in prange(n, nogil=True):
+        D += weights[i] * (y[i] - mu[i]) ** 2
+    return D
+
 def poisson_log_eta_mu_deviance(
     const_floating1d cur_eta,
     const_floating1d X_dot_d,
@@ -76,7 +102,7 @@ def poisson_log_eta_mu_deviance(
     for i in prange(n, nogil=True):
         eta_out[i] = cur_eta[i] + factor * X_dot_d[i]
         mu_out[i] = exp(eta_out[i])
-        # True log likelihood: y * eta - mu
+        # True log likelihood: y * eta - mu - loggamma(1 + y)
         deviance += weights[i] * (y[i] * eta_out[i] - mu_out[i])
     return -2 * deviance
 
@@ -93,6 +119,40 @@ def poisson_log_rowwise_gradient_hessian(
     for i in prange(n, nogil=True):
         gradient_rows_out[i] = weights[i] * (y[i] - mu[i])
         hessian_rows_out[i] = weights[i] * mu[i]
+
+def poisson_log_likelihood(
+    const_floating1d y,
+    const_floating1d weights,
+    const_floating1d mu,
+    floating dispersion,
+):
+    cdef int n = y.shape[0]
+    cdef int i
+    cdef floating ll = 0.0
+    for i in prange(n, nogil=True):
+        ll += weights[i] * (
+            (y[i] * log(mu[i]) - mu[i] - lgamma(1 + y[i]))
+            if y[i] > 0 else
+            -mu[i]
+        )
+    return ll
+
+def poisson_deviance(
+    const_floating1d y,
+    const_floating1d weights,
+    const_floating1d mu,
+    floating dispersion,
+):
+    cdef int n = y.shape[0]
+    cdef int i
+    cdef floating D = 0.0
+    for i in prange(n, nogil=True):
+        D += weights[i] * (
+            (y[i] * (log(y[i]) - log(mu[i])) - y[i] + mu[i])
+            if y[i] > 0 else
+            mu[i]
+        )
+    return 2 * D
 
 def gamma_log_eta_mu_deviance(
     const_floating1d cur_eta,
@@ -128,6 +188,36 @@ def gamma_log_rowwise_gradient_hessian(
         gradient_rows_out[i] = weights[i] * (y[i] / mu[i] - 1)
         hessian_rows_out[i] = weights[i] * (y[i] / mu[i])
 
+def gamma_log_likelihood(
+    const_floating1d y,
+    const_floating1d weights,
+    const_floating1d mu,
+    floating dispersion,
+):
+    cdef int n = y.shape[0]
+    cdef int i
+    cdef floating ll = 0.0
+    cdef floating inv_dispersion = 1 / dispersion
+    cdef floating normalization = log(dispersion) * inv_dispersion + lgamma(inv_dispersion)
+    cdef floating ln_y
+    for i in prange(n, nogil=True):
+        ln_y = log(y[i])
+        ll += weights[i] * (inv_dispersion * (ln_y - log(mu[i]) - y[i] / mu[i]) - ln_y)
+    return ll - normalization
+
+def gamma_deviance(
+    const_floating1d y,
+    const_floating1d weights,
+    const_floating1d mu,
+    floating dispersion,
+):
+    cdef int n = y.shape[0]
+    cdef int i
+    cdef floating D = 0.0
+    for i in prange(n, nogil=True):
+        D += weights[i] * (log(mu[i]) - log(y[i]) + y[i] / mu[i] - 1)
+    return 2 * D
+
 def tweedie_log_eta_mu_deviance(
     const_floating1d cur_eta,
     const_floating1d X_dot_d,
@@ -147,9 +237,7 @@ def tweedie_log_eta_mu_deviance(
         eta_out[i] = cur_eta[i] + factor * X_dot_d[i]
         mu_out[i] = exp(eta_out[i])
         mu1mp = mu_out[i] ** (1 - p)
-        deviance += weights[i] * mu1mp * (
-            mu_out[i] / (2 - p) - y[i] / (1 - p)
-        )
+        deviance += weights[i] * mu1mp * (mu_out[i] / (2 - p) - y[i] / (1 - p))
     return 2 * deviance
 
 def tweedie_log_rowwise_gradient_hessian(
@@ -171,6 +259,27 @@ def tweedie_log_rowwise_gradient_hessian(
         # This hessian will be positive definite for 1 < p < 2. Don't use it
         # outside that range.
         hessian_rows_out[i] = weights[i] * mu1mp * (mu[i] - (1 - p) * ymm)
+
+def tweedie_deviance(
+    const_floating1d y,
+    const_floating1d weights,
+    const_floating1d mu,
+    floating p,
+):
+    cdef int n = y.shape[0]
+    cdef int i
+    cdef floating mu1mp
+    cdef floating yo1mp
+    cdef floating D = 0.0
+    for i in prange(n, nogil=True):
+        mu1mp = mu[i] ** (1 - p)
+        yo1mp = y[i] / (1 - p)
+        D += weights[i] * (
+            (yo1mp * (y[i] ** (1 - p)) + mu1mp * mu[i]) / (2 - p) - yo1mp * mu1mp
+            if y[i] > 0 else
+            (mu1mp * mu[i]) / (2 - p)
+        )
+    return 2 * D
 
 def binomial_logit_eta_mu_deviance(
     const_floating1d cur_eta,
