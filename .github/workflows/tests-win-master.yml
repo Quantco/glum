@@ -38,6 +38,10 @@ jobs:
           condarc-file: .github/workflows/.condarc
           environment-file: environment.yml
           activate-environment: quantcore.glm
+      - name: Install benchmark dependencies
+        shell: pwsh
+        run: |
+          mamba env update -n quantcore.glm --file environment-benchmark.yml
       - name: Run Unit Tests
         shell: pwsh
         run: |
