@@ -1,18 +1,45 @@
-Development
+Contributing and Development
 =========
 
-Hello! And thanks for exploring quantcore.glm more deeply. 
+Hello! And thanks for exploring quantcore.glm more deeply. Please see the issue tracker and pull requests tabs on Github for information about what is currently happening. Feel free to post an issue if you'd like to get involved in development and don't really know where to start -- we can give some advice. 
+
+We welcome contributions of any kind!
+
+- New features
+- Feature requests
+- Bug reports
+- Documentation
+- Tests
+- Questions
+
+Pull request process
+----------
+
+- Before working on a non-trivial PR, please first discuss the change you wish to make via issue, Slack, email or any other method with the owners of this repository. This is meant to prevent spending time on a feature that will not be merged.
+- Please make sure that a new feature comes with adequate tests. If these require data, please check if any of our existing test data sets fits the bill.
+- Please make sure that all functions come with proper docstrings. If you do extensive work on docstrings, please check if the Sphinx documentation renders them correctly. The CI system builds it on every commit and pushes the rendered HTMLs to `https://docs.dev.quantco.cloud/qc-github-artifacts/Quantco/quantcore.glm/{YOUR_COMMIT}/index.html`
+- Please make sure you have our pre-commit hooks installed.
+- If you fix a bug, please consider first contributing a test that _fails_ because of the bug and then adding the fix as a separate commit, so that the CI system picks it up.
+- Please add an entry to the change log and increment the version number according to the type of change. We use semantic versioning. Update the major if you break the public API. Update the minor if you add new functionality. Update the patch if you fixed a bug. All changes that have not been released are collected under the date `UNRELEASED`.
+
+Releases
+--------
+
+- We make package releases infrequently, but usually any time a new non-trivial feature is contributed or a bug is fixed. To make a release, just open a PR that updates the change log with the current date. Once that PR is approved and merged, you can create a new release on [GitHub](https://github.com/Quantco/quantcore.glm/releases/new). Use the version from the change log as tag and copy the change log entry into the release description. New releases on GitHub are automatically deployed to the QuantCo conda channel.
 
 Install for development
 ----------
 
+The first step is to set up a conda environment and install quantcore.glm in editable mode.
 ::
 
    # First, make sure you have conda-forge as your primary conda channel:
    conda config --add channels conda-forge
+
    # And install pre-commit
    conda install -y pre-commit
 
+   # Clone the repository
    git clone git@github.com:Quantco/quantcore.glm.git
    cd quantcore.glm
 
@@ -34,8 +61,10 @@ Install for development
    conda activate quantcore.glm
    pip install --no-use-pep517 --disable-pip-version-check -e .
 
-Testing/Continuous integration
+
+Testing and continuous integration
 ---------
+The test suite is in `tests/`. 
 
 Golden master tests
 ^^^^^^^^^
@@ -69,7 +98,8 @@ python tests/glm/test_benchmark_golden_master.py
 
 Add the `--overwrite` flag if you want to overwrite already existing golden master results.
 
-# Building a conda package
+Building a conda package
+--------
 
 To use the package in another project, we distribute it as a conda package.
 For building the package locally, you can use the following command:
@@ -79,16 +109,3 @@ conda build conda.recipe
 ```
 
 This will build the recipe using the standard compiler flags set by the conda-forge activation scripts.
-Instead, we can override to build the architecture using a variant. 
-
-```
-conda build conda.recipe --variants "{GLM_ARCHITECTURE: ['skylake']}"
-```
-
-By default, `conda` will always install the variant with the default compiler flags.
-To explicitly install a version optimised for your CPU, you need to specify it as part of the build string:
-
-```
-conda install quantcore.glm=*=*skylake
-```
-
