@@ -10,12 +10,16 @@ from scipy import special
 from ._functions import (
     binomial_logit_eta_mu_deviance,
     binomial_logit_rowwise_gradient_hessian,
+    gamma_deviance,
     gamma_log_eta_mu_deviance,
     gamma_log_rowwise_gradient_hessian,
     normal_identity_eta_mu_deviance,
     normal_identity_rowwise_gradient_hessian,
+    normal_log_likelihood,
+    poisson_deviance,
     poisson_log_eta_mu_deviance,
     poisson_log_rowwise_gradient_hessian,
+    tweedie_deviance,
     tweedie_log_eta_mu_deviance,
     tweedie_log_rowwise_gradient_hessian,
 )
@@ -178,7 +182,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         -------
         array-like, shape (n_samples,)
         """
-        return phi / weights * self.unit_variance(mu)
+        return self.unit_variance(mu) * phi / weights
 
     def variance_derivative(self, mu, phi=1, weights=1):
         r"""Compute the derivative of the variance with respect to ``mu``.
@@ -202,7 +206,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         -------
         array-like, shape (n_samples,)
         """
-        return phi / weights * self.unit_variance_derivative(mu)
+        return self.unit_variance_derivative(mu) * phi / weights
 
     @abstractmethod
     def unit_deviance(self, y, mu):
@@ -528,15 +532,28 @@ class TweedieDistribution(ExponentialDispersionModel):
         p = self.power  # noqa: F841
         return numexpr.evaluate("p * mu ** (p - 1)")
 
+    def deviance(self, y, mu, weights=None) -> float:
+        """Compute the deviance."""
+        p = self.power
+        weights = np.ones_like(y) if weights is None else weights
+        if p == 0:
+            return -2 * normal_log_likelihood(y, weights, mu)
+        if p == 1:
+            return poisson_deviance(y, weights, mu)
+        elif p == 2:
+            return gamma_deviance(y, weights, mu)
+        else:
+            return tweedie_deviance(y, weights, mu, p)
+
     def unit_deviance(self, y, mu):
         """Get the deviance of each observation."""
         p = self.power
-        if p == 0:  # NormalDistribution
+        if p == 0:  # Normal distribution
             return (y - mu) ** 2
-        if p == 1:  # PoissonDistribution
+        if p == 1:  # Poisson distribution
             # 2 * (y*log(y/mu) - y + mu), with y*log(y/mu)=0 if y=0
             return 2 * (special.xlogy(y, y / mu) - y + mu)
-        elif p == 2:  # GammaDistribution
+        elif p == 2:  # Gamma distribution
             return 2 * (np.log(mu / y) + y / mu - 1)
         else:
             # return 2 * (np.maximum(y,0)**(2-p)/((1-p)*(2-p))
