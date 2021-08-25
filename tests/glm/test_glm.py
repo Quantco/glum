@@ -528,6 +528,32 @@ def test_positive_semidefinite():
     assert is_pos_semidef(sparse.eye(2))
 
 
+def test_P1_P2_expansion_with_categoricals():
+    rng = np.random.default_rng(42)
+    X = pd.DataFrame(
+        data={
+            "dense": np.linspace(0, 10, 60),
+            "cat": pd.Categorical(rng.integers(5, size=60)),
+        }
+    )
+    y = rng.normal(size=60)
+
+    mdl1 = GeneralizedLinearRegressor(
+        l1_ratio=0.01,
+        P1=[1, 2, 2, 2, 2, 2],
+        P2=[2, 1, 1, 1, 1, 1],
+    )
+    mdl1.fit(X, y)
+
+    mdl2 = GeneralizedLinearRegressor(
+        l1_ratio=0.01,
+        P1=[1, 2],
+        P2=[2, 1],
+    )
+    mdl2.fit(X, y)
+    np.testing.assert_allclose(mdl1.coef_, mdl2.coef_)
+
+
 @pytest.mark.parametrize(
     "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
 )
@@ -865,8 +891,6 @@ def test_glm_identity_regression_categorical_data(solver, offset, convert_x_fn):
     np.testing.assert_almost_equal(X.A if hasattr(X, "A") else X, x_mat)
     res = glm.fit(X, y, offset=offset)
 
-    fit_coef = res.coef_
-    assert fit_coef.dtype.itemsize == X.dtype.itemsize
     assert_allclose(res.coef_, coef, rtol=1e-6)
 
 
@@ -1546,7 +1570,7 @@ def test_clonable(estimator):
 def test_get_best_intercept(
     link: Link, distribution: ExponentialDispersionModel, tol: float, offset
 ):
-    y = np.array([1, 1, 1, 2], dtype=np.float)
+    y = np.array([1, 1, 1, 2], dtype=np.float_)
     if isinstance(distribution, BinomialDistribution):
         y -= 1
 
@@ -1620,6 +1644,77 @@ def test_alpha_search(regression_data):
 
     assert_allclose(mdl_path.coef_, mdl_no_path.coef_)
     assert_allclose(mdl_path.intercept_, mdl_no_path.intercept_)
+
+
+@pytest.mark.parametrize("alpha, alpha_index", [(0.5, 0), (0.75, 1), (None, 1)])
+def test_predict_scalar(regression_data, alpha, alpha_index):
+
+    X, y = regression_data
+    offset = np.ones_like(y)
+
+    estimator = GeneralizedLinearRegressor(alpha=[0.5, 0.75], alpha_search=True)
+    estimator.fit(X, y)
+
+    target = estimator.predict(X, alpha_index=alpha_index)
+
+    candidate = estimator.predict(X, alpha=alpha, offset=offset)
+    np.testing.assert_allclose(candidate, target + 1)
+
+
+@pytest.mark.parametrize(
+    "alpha, alpha_index",
+    [([0.5, 0.75], [0, 1]), ([0.75, 0.5], [1, 0]), ([0.5, 0.5], [0, 0])],
+)
+def test_predict_list(regression_data, alpha, alpha_index):
+
+    X, y = regression_data
+    offset = np.ones_like(y)
+
+    estimator = GeneralizedLinearRegressor(alpha=[0.5, 0.75], alpha_search=True)
+    estimator.fit(X, y)
+
+    target = np.stack(
+        [
+            estimator.predict(X, alpha_index=alpha_index[0]),
+            estimator.predict(X, alpha_index=alpha_index[1]),
+        ],
+        axis=1,
+    )
+
+    candidate = estimator.predict(X, alpha=alpha, offset=offset)
+    np.testing.assert_allclose(candidate, target + 1)
+
+    candidate = estimator.predict(X, alpha_index=alpha_index, offset=offset)
+    np.testing.assert_allclose(candidate, target + 1)
+
+
+def test_predict_error(regression_data):
+
+    X, y = regression_data
+
+    estimator = GeneralizedLinearRegressor(alpha=0.5, alpha_search=False).fit(X, y)
+
+    with pytest.raises(ValueError):
+        estimator.predict(X, alpha=0.5)
+    with pytest.raises(ValueError):
+        estimator.predict(X, alpha=[0.5])
+    with pytest.raises(AttributeError):
+        estimator.predict(X, alpha_index=0)
+    with pytest.raises(AttributeError):
+        estimator.predict(X, alpha_index=[0])
+
+    estimator.set_params(alpha=[0.5, 0.75], alpha_search=True).fit(X, y)
+
+    with pytest.raises(IndexError):
+        estimator.predict(X, y, alpha=0.25)
+    with pytest.raises(IndexError):
+        estimator.predict(X, y, alpha=[0.25, 0.5])
+    with pytest.raises(IndexError):
+        estimator.predict(X, y, alpha_index=2)
+    with pytest.raises(IndexError):
+        estimator.predict(X, y, alpha_index=[2, 0])
+    with pytest.raises(ValueError):
+        estimator.predict(X, y, alpha_index=0, alpha=0.5)
 
 
 def test_very_large_initial_gradient():
@@ -1810,3 +1905,11 @@ def test_alpha_parametrization_fail(kwargs, regression_data):
     with pytest.raises((ValueError, TypeError)):
         model = GeneralizedLinearRegressor(**kwargs)
         model.fit(X=X, y=y)
+
+
+def test_verbose(regression_data, capsys):
+    X, y = regression_data
+    mdl = GeneralizedLinearRegressor(verbose=1)
+    mdl.fit(X=X, y=y)
+    captured = capsys.readouterr()
+    assert "Iteration" in captured.err
