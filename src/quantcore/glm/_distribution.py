@@ -336,18 +336,14 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         float
             The deviance.
         """
+        # eta_out and mu_out are filled inside self._eta_mu_deviance,
+        # avoiding allocating new arrays for every line search loop
         eta_out = np.empty_like(cur_eta)
         mu_out = np.empty_like(cur_eta)
-        # Note: eta_out and mu_out are filled inside self._eta_mu_deviance.
-        # This will be useful in the future to avoid allocating new eta/mu
-        # arrays for every line search loop.
-        return (
-            eta_out,
-            mu_out,
-            self._eta_mu_deviance(
-                link, factor, cur_eta, X_dot_d, y, weights, eta_out, mu_out
-            ),
+        deviance = self._eta_mu_deviance(
+            link, factor, cur_eta, X_dot_d, y, weights, eta_out, mu_out
         )
+        return eta_out, mu_out, deviance
 
     def _eta_mu_deviance(
         self,
@@ -491,9 +487,9 @@ class TweedieDistribution(ExponentialDispersionModel):
 
     @power.setter
     def power(self, power):
-        if not isinstance(power, (int, float)):
-            raise TypeError("power must be an int or float, input was {}".format(power))
 
+        if not isinstance(power, (int, float)):
+            raise TypeError(f"power must be an int or float, input was {power}")
         if (power > 0) and (power < 1):
             raise ValueError("For 0<power<1, no distribution exists.")
 
@@ -535,15 +531,12 @@ class TweedieDistribution(ExponentialDispersionModel):
     def unit_deviance(self, y, mu):
         """Get the deviance of each observation."""
         p = self.power
-        if p == 0:
-            # NormalDistribution
+        if p == 0:  # NormalDistribution
             return (y - mu) ** 2
-        if p == 1:
-            # PoissonDistribution
+        if p == 1:  # PoissonDistribution
             # 2 * (y*log(y/mu) - y + mu), with y*log(y/mu)=0 if y=0
             return 2 * (special.xlogy(y, y / mu) - y + mu)
-        elif p == 2:
-            # GammaDistribution
+        elif p == 2:  # GammaDistribution
             return 2 * (np.log(mu / y) + y / mu - 1)
         else:
             # return 2 * (np.maximum(y,0)**(2-p)/((1-p)*(2-p))
@@ -607,28 +600,28 @@ class NormalDistribution(TweedieDistribution):
     """Class for the Normal (a.k.a. Gaussian) distribution."""
 
     def __init__(self):
-        super(NormalDistribution, self).__init__(power=0)
+        super().__init__(power=0)
 
 
 class PoissonDistribution(TweedieDistribution):
     """Class for the scaled Poisson distribution."""
 
     def __init__(self):
-        super(PoissonDistribution, self).__init__(power=1)
+        super().__init__(power=1)
 
 
 class GammaDistribution(TweedieDistribution):
     """Class for the Gamma distribution."""
 
     def __init__(self):
-        super(GammaDistribution, self).__init__(power=2)
+        super().__init__(power=2)
 
 
 class InverseGaussianDistribution(TweedieDistribution):
     """Class for the scaled Inverse Gaussian distribution."""
 
     def __init__(self):
-        super(InverseGaussianDistribution, self).__init__(power=3)
+        super().__init__(power=3)
 
 
 class GeneralizedHyperbolicSecant(ExponentialDispersionModel):
@@ -689,8 +682,8 @@ class GeneralizedHyperbolicSecant(ExponentialDispersionModel):
         -------
         array-like
         """
-        return 2 * y * (np.arctan(y) - np.arctan(mu)) + np.log(
-            (1 + mu ** 2) / (1 + y ** 2)
+        return 2 * (
+            y * (np.arctan(y) - np.arctan(mu)) + np.log((1 + mu ** 2) / (1 + y ** 2))
         )
 
 
