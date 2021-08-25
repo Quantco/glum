@@ -2,7 +2,6 @@ from typing import Optional, Tuple
 
 import numpy as np
 import pandas as pd
-from dask_ml.preprocessing import Categorizer
 from git_root import git_root
 from sklearn.datasets import load_boston
 
@@ -31,16 +30,6 @@ def create_housing_raw_data() -> None:
 
     # Save
     df_bos.to_parquet(git_root("data/housing.parquet"))
-
-
-def get_categorizer(col_name: str, name="cat") -> Tuple[str, Categorizer]:
-    """
-    Get a dask_ml Categorizer.
-
-    Categorizer only operates on object columns unless you explictily pass the column
-    name.
-    """
-    return name, Categorizer(columns=[col_name])
 
 
 def add_noise(df: pd.DataFrame, noise: float) -> pd.DataFrame:
