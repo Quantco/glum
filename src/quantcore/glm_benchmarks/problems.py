@@ -54,27 +54,35 @@ def load_data(
     'exposure' as a weight. Everywhere else, exposures will be referred to as weights.
     """
     # TODO: add a weights_and_offset option
+    # Step 1) Load the data.
     if data_setup not in ["weights", "offset", "no-weights"]:
         raise NotImplementedError
-    X, y, exposure = loader_func(num_rows, noise, distribution)
+    X_in, y, exposure = loader_func(num_rows, noise, distribution)
 
+    # Step 2) Convert to needed precision level.
     if single_precision:
-        X = X.astype(np.float32)
+        X_in = X_in.astype(np.float32)
         y = y.astype(np.float32)
         if exposure is not None:
             exposure = exposure.astype(np.float32)
 
+    # Step 3) One hot encode columns if we are not using CategoricalMatrix
     def transform_col(i: int, dtype) -> Union[pd.DataFrame, mx.CategoricalMatrix]:
         if dtype.name == "category":
             if storage == "cat":
-                return mx.CategoricalMatrix(X.iloc[:, i])
-            return DummyEncoder().fit_transform(X.iloc[:, [i]])
-        return X.iloc[:, [i]]
+                return mx.CategoricalMatrix(X_in.iloc[:, i])
+            return DummyEncoder().fit_transform(X_in.iloc[:, [i]])
+        return X_in.iloc[:, [i]]
 
-    mat_parts = [transform_col(i, dtype) for i, dtype in enumerate(X.dtypes)]
+    mat_parts = [transform_col(i, dtype) for i, dtype in enumerate(X_in.dtypes)]
     # TODO: add a threshold for the number of categories needed to make a categorical
     #  matrix
-    if storage == "cat":
+
+    # Step 4) Convert the matrix to the appopriate storage type.
+    if storage == "auto":
+        dtype = np.float32 if single_precision else np.float64
+        X = mx.from_pandas(X_in, dtype, sparse_threshold=0.1, cat_threshold=3)
+    elif storage == "cat":
         cat_indices_in_expanded_arr: List[np.ndarray] = []
         dense_indices_in_expanded_arr: List[int] = []
         i = 0
@@ -103,14 +111,15 @@ def load_data(
             indices=[np.array(dense_indices_in_expanded_arr)]
             + cat_indices_in_expanded_arr,
         )
-    else:
-        X = pd.concat(mat_parts, axis=1)
-
-    if storage == "sparse":
-        X = csc_matrix(X)
+    elif storage == "sparse":
+        X = csc_matrix(pd.concat(mat_parts, axis=1))
     elif storage.startswith("split"):
         threshold = float(storage.split("split")[1])
-        X = mx.csc_to_split(csc_matrix(X), threshold)
+        X = mx.csc_to_split(csc_matrix(pd.concat(mat_parts, axis=1)), threshold)
+    else:  # Fall back to using a dense matrix.
+        X = pd.concat(mat_parts, axis=1)
+
+    # Step 5) Handle weights or offsets if needed.
     if data_setup == "weights":
         # The exposure correction doesn't make sense for these distributions since
         # they don't use a log link (plus binomial isn't in the tweedie family),

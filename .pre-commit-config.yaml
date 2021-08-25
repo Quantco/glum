@@ -11,12 +11,14 @@ repos:
    hooks:
     - id: flake8-conda
       additional_dependencies: [
-          flake8-bugbear,
-          flake8-builtins,
-          flake8-comprehensions,
-          flake8-docstrings,
-          flake8-print,
-          pep8-naming,
+          -c,
+          conda-forge,
+          flake8-bugbear=21.4.3,
+          flake8-builtins=1.5.3,
+          flake8-comprehensions=3.5.0,
+          flake8-docstrings=1.6.0,
+          flake8-print=4.0.0,
+          pep8-naming=0.11.1,
         ]
       exclude: ^src/quantcore/glm_benchmarks/orig_sklearn_fork/
  - repo: https://github.com/Quantco/pre-commit-mirrors-isort

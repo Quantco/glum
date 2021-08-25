@@ -10,7 +10,7 @@ import copy
 import warnings
 from collections.abc import Iterable
 from itertools import chain
-from typing import Any, Optional, Tuple, Union, cast
+from typing import Any, Optional, Sequence, Tuple, Union, cast
 
 import numpy as np
 import pandas as pd
@@ -454,8 +454,8 @@ def setup_p1(
         if (P1.ndim != 1) or (P1.shape[0] != n_features):
             raise ValueError(
                 "P1 must be either 'identity' or a 1d array with the length of "
-                f"X.shape[1]; got (P1.shape[0]={P1.shape[0]}); "
-                f"needed (X.shape[1]={n_features})."
+                "X.shape[1] (either before or after categorical expansion); "
+                f"got (P1.shape[0]={P1.shape[0]})."
             )
 
     # P1 and P2 are now for sure copies
@@ -497,8 +497,9 @@ def setup_p2(
             P2 = np.asarray(P2)
             if P2.shape[0] != n_features:
                 raise ValueError(
-                    "P2 should be a 1d array of shape (n_features,) with n_features="
-                    f"X.shape[1]. got (P2.shape={P2.shape}); needed ({n_features},)."
+                    "P2 should be a 1d array of shape X.shape[1] (either before or "
+                    "after categorical expansion); "
+                    f"got (P2.shape={P2.shape})."
                 )
             if sparse.issparse(X):
                 P2 = (
@@ -1028,12 +1029,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         Parameters
         ----------
-        full_report: bool (default=False)
+        full_report : bool, optional (default=False)
             Print all available information. When ``False`` and
             ``custom_columns`` is ``None``, a restricted set of columns is
             printed out.
 
-        custom_columns: Iterable (optional, default=None)
+        custom_columns : iterable, optional (default=None)
             Print only the specified columns.
         """
         diagnostics = self._get_formatted_diagnostics(full_report, custom_columns)
@@ -1054,12 +1055,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         Parameters
         ----------
-        full_report: bool (default=False)
+        full_report : bool, optional (default=False)
             Print all available information. When ``False`` and
             ``custom_columns`` is ``None``, a restricted set of columns is
             printed out.
 
-        custom_columns: Iterable (optional, default=None)
+        custom_columns : iterable, optional (default=None)
             Print only the specified columns.
         """
         if not hasattr(self, "diagnostics_"):
@@ -1090,10 +1091,31 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             ]
         return df[keep_cols]
 
+    def _find_alpha_index(self, alpha):
+        if alpha is None:
+            return None
+        if not self.alpha_search:
+            raise ValueError
+        # `np.isclose` because comparing floats is difficult
+        isclose = np.isclose(self._alphas, alpha)
+        if np.sum(isclose) == 1:
+            return np.argmax(isclose)  # cf. stackoverflow.com/a/61117770
+        raise IndexError(
+            f"Could not determine a unique index for alpha {alpha}. Available values: "
+            f"{self._alphas}. Consider specifying the index directly via 'alpha_index'."
+        )
+
     def linear_predictor(
-        self, X: ArrayLike, offset: Optional[ArrayLike] = None, alpha_index: int = None
+        self,
+        X: ArrayLike,
+        offset: Optional[ArrayLike] = None,
+        alpha_index: Optional[Union[int, Sequence[int]]] = None,
+        alpha: Optional[Union[float, Sequence[float]]] = None,
     ):
         """Compute the linear predictor, ``X * coef_ + intercept_``.
+
+        If ``alpha_search`` is ``True``, but ``alpha_index`` and ``alpha`` are
+        both ``None``, we use the last alpha value ``self._alphas[-1]``.
 
         Parameters
         ----------
@@ -1102,18 +1124,30 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             In that case the user must ensure that the categories are exactly
             the same (including the order) as during fit.
 
-        offset: {None, array-like}, shape (n_samples,) optional (default=None)
+        offset : array-like, shape (n_samples,), optional (default=None)
 
-        alpha_index: int, optional (default=None)
-            Sets the index of the alpha to use in case ``alpha_search`` is
-            ``True``.
+        alpha_index : int or list[int], optional (default=None)
+            Sets the index of the alpha(s) to use in case ``alpha_search`` is
+            ``True``. Incompatible with ``alpha`` (see below).
+
+        alpha : float or list[float], optional (default=None)
+            Sets the alpha(s) to use in case ``alpha_search`` is ``True``.
+            Incompatible with ``alpha_index`` (see above).
 
         Returns
         -------
-        C : array, shape (n_samples,)
+        array, shape (n_samples, n_alphas)
             The linear predictor.
         """
         check_is_fitted(self, "coef_")
+
+        if (alpha is not None) and (alpha_index is not None):
+            raise ValueError("Please specify only one of {alpha_index, alpha}.")
+        elif np.isscalar(alpha):  # `None` doesn't qualify
+            alpha_index = self._find_alpha_index(alpha)
+        elif alpha is not None:
+            alpha_index = [self._find_alpha_index(a) for a in alpha]  # type: ignore
+
         X = check_array_matrix_compliant(
             X,
             accept_sparse=["csr", "csc", "coo"],
@@ -1122,23 +1156,40 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             ensure_2d=True,
             allow_nd=False,
         )
-        xb = (
-            X @ self.coef_ + self.intercept_
-            if alpha_index is None
-            else X @ self.coef_path_[alpha_index] + self.intercept_path_[alpha_index]
-        )
-        if offset is None:
-            return xb
-        return xb + offset
+
+        if alpha_index is None:
+            xb = X @ self.coef_ + self.intercept_
+            if offset is not None:
+                xb += offset
+        elif np.isscalar(alpha_index):  # `None` doesn't qualify
+            xb = X @ self.coef_path_[alpha_index] + self.intercept_path_[alpha_index]
+            if offset is not None:
+                xb += offset
+        else:  # hopefully a list or some such
+            xb = np.stack(
+                [
+                    X @ self.coef_path_[idx] + self.intercept_path_[idx]
+                    for idx in alpha_index  # type: ignore
+                ],
+                axis=1,
+            )
+            if offset is not None:
+                xb += np.asanyarray(offset)[:, np.newaxis]
+
+        return xb
 
     def predict(
         self,
         X: ShapedArrayLike,
         sample_weight: Optional[ArrayLike] = None,
         offset: Optional[ArrayLike] = None,
-        alpha_index: int = None,
+        alpha_index: Optional[Union[int, Sequence[int]]] = None,
+        alpha: Optional[Union[float, Sequence[float]]] = None,
     ):
         """Predict using GLM with feature matrix ``X``.
+
+        If ``alpha_search`` is ``True``, but ``alpha_index`` and ``alpha`` are
+        both ``None``, we use the last alpha value ``self._alphas[-1]``.
 
         Parameters
         ----------
@@ -1147,18 +1198,21 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             In that case the user must ensure that the categories are exactly
             the same (including the order) as during fit.
 
-        sample_weight : {None, array-like}, shape (n_samples,), optional (default=None)
+        sample_weight : array-like, shape (n_samples,), optional (default=None)
 
-        offset: {None, array-like}, shape (n_samples,), optional (default=None)
+        offset : array-like, shape (n_samples,), optional (default=None)
 
-        alpha_index: int, optional (default=None)
-            Sets the index of the alpha to use in case ``alpha_search`` is
-            ``True``. If ``alpha_search`` is ``True``, but ``alpha_index``
-            is ``None``, we use the last alpha value ``self._alphas[-1]``.
+        alpha_index : int or list[int], optional (default=None)
+            Sets the index of the alpha(s) to use in case ``alpha_search`` is
+            ``True``. Incompatible with ``alpha`` (see below).
+
+        alpha : float or list[float], optional (default=None)
+            Sets the alpha(s) to use in case ``alpha_search`` is ``True``.
+            Incompatible with ``alpha_index`` (see above).
 
         Returns
         -------
-        C : array, shape (n_samples,)
+        array, shape (n_samples, n_alphas)
             Predicted values times ``sample_weight``.
         """
         X = check_array_matrix_compliant(
@@ -1169,10 +1223,15 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             ensure_2d=True,
             allow_nd=False,
         )
-        eta = self.linear_predictor(X, offset=offset, alpha_index=alpha_index)
+        eta = self.linear_predictor(
+            X, offset=offset, alpha_index=alpha_index, alpha=alpha
+        )
         mu = get_link(self.link, get_family(self.family)).inverse(eta)
-        weights = _check_weights(sample_weight, X.shape[0], X.dtype)
 
+        if sample_weight is None:
+            return mu
+
+        weights = _check_weights(sample_weight, X.shape[0], X.dtype)
         return mu * weights
 
     def estimate_phi(
@@ -1188,12 +1247,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         y : array-like, shape (n_samples,)
             Target values.
 
-        sample_weight : {None, array-like}, shape (n_samples,), optional (default=None)
+        sample_weight : array-like, shape (n_samples,), optional (default=None)
             Sample weights.
 
         Returns
         -------
-        phi : float
+        float
             Dispersion parameter.
         """
         check_is_fitted(self, "coef_")
@@ -1256,7 +1315,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         y : array-like, shape (n_samples,)
             True values of target.
 
-        sample_weight : {None, array-like}, shape (n_samples,), optional (default=None)
+        sample_weight :array-like, shape (n_samples,), optional (default=None)
             Sample weights.
 
         Returns
@@ -1366,7 +1425,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             # check if P1 has only non-negative values, negative values might
             # indicate group lasso in the future.
             if not isinstance(self.P1, str):  # if self.P1 != 'identity':
-                if not np.all(self.P1 >= 0):
+                if not np.all(np.asarray(self.P1) >= 0):
                     raise ValueError("P1 must not have negative values.")
 
     def _should_copy_X(self):
@@ -1393,7 +1452,15 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         offset: Optional[VectorLike],
         solver: str,
         force_all_finite,
-    ) -> Tuple[mx.MatrixBase, np.ndarray, np.ndarray, Optional[np.ndarray], float]:
+    ) -> Tuple[
+        mx.MatrixBase,
+        np.ndarray,
+        np.ndarray,
+        Optional[np.ndarray],
+        float,
+        Union[str, np.ndarray],
+        Union[str, np.ndarray],
+    ]:
 
         _dtype = [np.float64, np.float32]
         if solver == "irls-cd":
@@ -1401,10 +1468,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         else:
             _stype = ["csc", "csr"]
 
+        P1 = self.P1
+        P2 = self.P2
+
         copy_X = self._should_copy_X()
 
         if isinstance(X, pd.DataFrame):
-
             if any(X.dtypes == "category"):
                 self.feature_names_ = list(
                     chain.from_iterable(
@@ -1414,6 +1483,40 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                         for column, dtype in zip(X.columns, X.dtypes)
                     )
                 )
+
+                def _expand_categorical_penalties(penalty, X):
+                    """
+                    If P1 or P2 has the same shape as X before expanding the
+                    categoricals, we assume that the penalty at the location of
+                    the categorical is the same for all levels.
+                    """
+                    if isinstance(penalty, str):
+                        return penalty
+                    else:
+                        if np.asarray(penalty).shape[0] == X.shape[1]:
+                            if np.asarray(penalty).ndim == 2:
+                                raise ValueError(
+                                    "When the penalty is two dimensional, it has "
+                                    "to have the same length as the number of "
+                                    "columns of X, after the categoricals "
+                                    "have been expanded."
+                                )
+                            return np.array(
+                                list(
+                                    chain.from_iterable(
+                                        [elmt for _ in dtype.categories]
+                                        if pd.api.types.is_categorical_dtype(dtype)
+                                        else [elmt]
+                                        for elmt, dtype in zip(penalty, X.dtypes)
+                                    )
+                                )
+                            )
+                        else:
+                            return penalty
+
+                P1 = _expand_categorical_penalties(self.P1, X)
+                P2 = _expand_categorical_penalties(self.P2, X)
+
                 X = mx.from_pandas(X)
             else:
                 self.feature_names_ = X.columns
@@ -1429,7 +1532,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         if (
             not isinstance(X, mx.CategoricalMatrix)
             and hasattr(X, "dtype")
-            and X.dtype == np.int64  # type: ignore
+            and np.issubdtype(X.dtype, np.integer)  # type: ignore
         ):
             if self.copy_X is not None and not self.copy_X:
                 raise ValueError(
@@ -1491,7 +1594,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         elif isinstance(X, np.ndarray):
             X = mx.DenseMatrix(X)
 
-        return X, y, weights, offset, weights_sum
+        return X, y, weights, offset, weights_sum, P1, P2
 
 
 class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
@@ -1550,7 +1653,10 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         With this array, you can exclude coefficients from the L1 penalty.
         Set the corresponding value to 1 (include) or 0 (exclude). The
         default value ``'identity'`` is the same as a 1d array of ones.
-        Note that ``n_features = X.shape[1]``.
+        Note that ``n_features = X.shape[1]``. If ``X`` is a pandas DataFrame
+        with a categorical dtype and P1 has the same size as the number of columns,
+        the penalty of the categorical column will be applied to all the levels of
+        the categorical.
 
     P2 : {'identity', array-like, sparse matrix}, shape (n_features,) \
             or (n_features, n_features), optional (default='identity')
@@ -1561,7 +1667,11 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         ``'identity'`` sets the identity matrix, which gives the usual squared
         L2-norm. If you just want to exclude certain coefficients, pass a 1d
         array filled with 1 and 0 for the coefficients to be excluded. Note that
-        P2 must be positive semi-definite.
+        P2 must be positive semi-definite. If ``X`` is a pandas DataFrame
+        with a categorical dtype and P2 has the same size as the number of columns,
+        the penalty of the categorical column will be applied to all the levels of
+        the categorical. Note that if P2 is two-dimensional, its size needs to be
+        of the same length as the expanded ``X`` matrix.
 
     fit_intercept : bool, optional (default=True)
         Specifies if a constant (a.k.a. bias or intercept) should be
@@ -1965,7 +2075,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
 
         # NOTE: This function checks if all the entries in X and y are
         # finite. That can be expensive. But probably worthwhile.
-        X, y, weights, offset, weights_sum = self.set_up_and_check_fit_args(
+        X, y, weights, offset, weights_sum, P1, P2 = self.set_up_and_check_fit_args(
             X,
             y,
             sample_weight,
@@ -1986,8 +2096,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
 
         # 1.3 arguments to take special care ##################################
         # P1, P2, start_params
-        P1_no_alpha = setup_p1(self.P1, X, X.dtype, 1, self.l1_ratio)
-        P2_no_alpha = setup_p2(self.P2, X, _stype, X.dtype, 1, self.l1_ratio)
+        P1_no_alpha = setup_p1(P1, X, X.dtype, 1, self.l1_ratio)
+        P2_no_alpha = setup_p2(P2, X, _stype, X.dtype, 1, self.l1_ratio)
 
         lower_bounds = check_bounds(self.lower_bounds, X.shape[1], X.dtype)
         upper_bounds = check_bounds(self.upper_bounds, X.shape[1], X.dtype)

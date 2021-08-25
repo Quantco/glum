@@ -1,30 +1,31 @@
-name: conda-build Windows
+name: CI
 on:
   push:
     paths:
       - '.github/**'
-      - 'conda.recipe/**'
+      - '**/*.pyx'
+      - '**/*.cpp'
 jobs:
-  windows-conda-build:
-    name: "Windows - conda-build - ${{ matrix.CONDA_BUILD_YML }}"
+  windows-ci:
+    name: "Win - tests - Python ${{ matrix.PYTHON_VERSION }}"
     runs-on: windows-latest
     env:
       CI: True
       CONDA_CHANNEL_UPLOAD_USER: ${{ secrets.CONDA_CHANNEL_UPLOAD_USER }}
       CONDA_CHANNEL_UPLOAD_PASSWORD: ${{ secrets.CONDA_CHANNEL_UPLOAD_PASSWORD }}
-      CONDA_BUILD_YML: "${{ matrix.CONDA_BUILD_YML }}"
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
-        CONDA_BUILD_YML:
-          - win_64_python3.6.____cpython
+        PYTHON_VERSION: ['3.7']
     steps:
+      - name: Set git to use LF
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.eol lf
       - name: Checkout branch
         uses: actions/checkout@v2.3.4
         with:
           ref: ${{ github.head_ref }}
-      - name: Fetch full git history
-        run: git fetch --prune --unshallow
       - name: Create .condarc
         shell: pwsh
         run: |
@@ -32,13 +33,15 @@ jobs:
           ((Get-Content -path .github/workflows/.condarc) -replace 'CONDA_CHANNEL_UPLOAD_PASSWORD', '${{ secrets.CONDA_CHANNEL_UPLOAD_PASSWORD }}') | Set-Content .github/workflows/.condarc
       - uses: conda-incubator/setup-miniconda@35d1405e78aa3f784fe3ce9a2eb378d5eeb62169
         with:
+          python-version: ${{ matrix.PYTHON_VERSION }}
           miniforge-variant: Mambaforge
           miniforge-version: 4.10.0-0
           use-mamba: true
           condarc-file: .github/workflows/.condarc
-      - name: Build conda package
+          environment-file: environment-win.yml
+          activate-environment: quantcore.glm
+      - name: Run Unit Tests
         shell: pwsh
         run: |
-          mamba install -n base -y conda-build
-          conda build -m .ci_support/${{ matrix.CONDA_BUILD_YML}}.yaml conda.recipe
-
+          python -m pip install -e . --no-deps -vv --no-use-pep517 --disable-pip-version-check
+          pytest tests --doctest-modules src/
