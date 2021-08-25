@@ -41,6 +41,7 @@ dependencies:
   - sphinxcontrib-apidoc
   - nbclassic=0.2.7
   - nbsphinx=0.8.3
+  - jinja2<3
   - altair # used in docs/tutorials/rossman
   - libpysal # used in docs/tutorials/regularization_housing_data
   - shapely # used in docs/tutorials/regularization_housing_data
