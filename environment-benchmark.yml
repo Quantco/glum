@@ -1,5 +1,6 @@
 name: quantcore.glm
 channels:
+  - quantco_main
   - conda-forge
   - nodefaults
 dependencies:
