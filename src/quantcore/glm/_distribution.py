@@ -635,9 +635,6 @@ class GeneralizedHyperbolicSecant(ExponentialDispersionModel):
     include_lower_bound = False
     include_upper_bound = False
 
-    def __init__(self):
-        return
-
     def unit_variance(self, mu: np.ndarray) -> np.ndarray:
         """Get the unit-level expected variance.
 
@@ -745,12 +742,8 @@ class BinomialDistribution(ExponentialDispersionModel):
         -------
         array-like
         """
-        return 2 * (
-            special.xlogy(y, y)
-            - special.xlogy(y, mu)
-            + special.xlogy(1 - y, 1 - y)
-            - special.xlogy(1 - y, 1 - mu)
-        )
+        # see Wooldridge and Papke (1996) for the fractional case
+        return -2 * (special.xlogy(y, mu) + special.xlogy(1 - y, 1 - mu))
 
     def _rowwise_gradient_hessian(
         self, link, y, weights, eta, mu, gradient_rows, hessian_rows
