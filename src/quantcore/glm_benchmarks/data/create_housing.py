@@ -5,9 +5,6 @@ import pandas as pd
 from git_root import git_root
 from sklearn.datasets import load_boston
 
-# taken from https://github.com/lorentzenchr/Tutorial_freMTPL2/blob/master/glm_freMTPL2_example.ipynb  # noqa: B950
-# Modified to generate data sets of different sizes
-
 
 def create_housing_raw_data() -> None:
     """Do some basic processing on the data that we will later transform into our \
