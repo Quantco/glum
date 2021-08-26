@@ -1,6 +1,6 @@
 from abc import ABCMeta, abstractmethod
 from functools import partial
-from typing import Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 import numexpr
 import numpy as np
@@ -457,8 +457,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         -------
         float
         """
-        y = np.asanyarray(y)
-        mu = np.asanyarray(mu)
+        y, mu, weights = _as_float_arrays(y, mu, weights)
 
         if method == "pearson":
             pearson_residuals = ((y - mu) ** 2) / self.unit_variance(mu)
@@ -594,14 +593,8 @@ class TweedieDistribution(ExponentialDispersionModel):
             Sample weights.
         """
         p = self.power
+        y, mu, weights = _as_float_arrays(y, mu, weights)
         weights = np.ones_like(y) if weights is None else weights
-
-        if not str(y.dtype).startswith("float"):
-            y = np.asanyarray(y, dtype="float")
-        if not str(mu.dtype).startswith("float"):
-            mu = np.asanyarray(mu, dtype="float")
-        if not str(weights.dtype).startswith("float"):
-            weights = np.asanyarray(weights, dtype="float")
 
         # NOTE: the dispersion parameter is only necessary to convey
         # type information on account of a bug in Cython
@@ -701,14 +694,8 @@ class TweedieDistribution(ExponentialDispersionModel):
             Dispersion parameter. Estimated if ``None``.
         """
         p = self.power
+        y, mu, weights = _as_float_arrays(y, mu, weights)
         weights = np.ones_like(y) if weights is None else weights
-
-        if not str(y.dtype).startswith("float"):
-            y = np.asanyarray(y, dtype="float")
-        if not str(mu.dtype).startswith("float"):
-            mu = np.asanyarray(mu, dtype="float")
-        if not str(weights.dtype).startswith("float"):
-            weights = np.asanyarray(weights, dtype="float")
 
         if (p != 1) and (phi is None):
             phi = self.dispersion(y, mu, weights)
@@ -751,8 +738,7 @@ class TweedieDistribution(ExponentialDispersionModel):
         float
         """
         p = self.power  # noqa: F841
-        y = np.asanyarray(y)
-        mu = np.asanyarray(mu)
+        y, mu, weights = _as_float_arrays(y, mu, weights)
 
         if method == "pearson":
             formula = "((y - mu) ** 2) / (mu ** p)"
@@ -988,8 +974,7 @@ class BinomialDistribution(ExponentialDispersionModel):
         -------
         float
         """
-        y = np.asanyarray(y)
-        mu = np.asanyarray(mu)
+        y, mu, weights = _as_float_arrays(y, mu, weights)
 
         if method == "pearson":
             formula = "((y - mu) ** 2) / (mu * (1 - mu))"
@@ -1082,3 +1067,15 @@ def get_one_over_variance(
             eta = np.clip(eta, -max_float_for_exp, max_float_for_exp)  # type: ignore
         return weights * (np.exp(eta) + 2 + np.exp(-eta)) / phi
     return 1.0 / distribution.variance(mu, phi=phi, weights=weights)
+
+
+def _as_float_arrays(*args) -> List[Optional[np.ndarray]]:
+    out = []  # type: ignore
+    for arg in args:
+        if isinstance(arg, (int, float)):
+            out.append(np.array([arg], dtype="float"))
+        elif (arg is None) or str(arg.dtype).startswith("float"):
+            out.append(arg)
+        else:
+            out.append(np.asanyarray(arg, dtype="float"))
+    return out  # type: ignore
