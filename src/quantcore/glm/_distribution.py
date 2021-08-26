@@ -432,6 +432,49 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         gradient_rows[:] = d1_sigma_inv * (y - mu)
         hessian_rows[:] = d1 * d1_sigma_inv
 
+    def dispersion(self, y, mu, weights=None, ddof=1, method="pearson") -> float:
+        """Estimate the dispersion parameter.
+
+        Parameters
+        ----------
+        y : array-like, shape (n_samples,)
+            Target values.
+
+        mu : array-like, shape (n_samples,)
+            Predicted mean.
+
+        weights : array-like, shape (n_samples,), optional (default=1)
+            Weights or exposure to which variance is inversely proportional.
+
+        ddof : int, optional (default=1)
+            Degrees of freedom consumed by the model for ``mu``.
+
+        method = {'pearson', 'residuals'}, optional (default='pearson')
+            Whether to base the estimate on the Pearson residuals or the deviance.
+
+        Returns
+        -------
+        float
+        """
+        y = np.asanyarray(y)
+        mu = np.asanyarray(mu)
+
+        if method == "pearson":
+            pearson_residuals = ((y - mu) ** 2) / self.unit_variance(mu)
+            if weights is None:
+                numerator = pearson_residuals.sum()
+            else:
+                numerator = np.dot(pearson_residuals, weights)
+        elif method == "residuals":
+            numerator = self.deviance(y, mu, weights)
+        else:
+            raise NotImplementedError(f"Method {method} hasn't been implemented.")
+
+        if weights is None:
+            return numerator / (len(y) - ddof)
+        else:
+            return numerator / (weights.sum() - ddof)
+
 
 class TweedieDistribution(ExponentialDispersionModel):
     r"""A class for the Tweedie distribution.
@@ -535,42 +578,6 @@ class TweedieDistribution(ExponentialDispersionModel):
         p = self.power  # noqa: F841
         return numexpr.evaluate("p * mu ** (p - 1)")
 
-    def log_likelihood(self, y, mu, weights=None, phi=1) -> float:
-        """Compute the log likelihood.
-
-        Parameters
-        ----------
-        y : array-like, shape (n_samples,)
-            Target values.
-
-        mu : array-like, shape (n_samples,)
-            Predicted mean.
-
-        weights : array-like, shape (n_samples,), optional (default=1)
-            Sample weights.
-
-        phi : float, optional (default=1)
-            Dispersion parameter.
-        """
-        p = self.power
-        weights = np.ones_like(y) if weights is None else weights
-
-        if not str(y.dtype).startswith("float"):
-            y = np.asanyarray(y, dtype="float")
-        if not str(weights.dtype).startswith("float"):
-            weights = np.asanyarray(weights, dtype="float")
-
-        if p == 0:
-            return normal_log_likelihood(y, weights, mu, float(phi))
-        if p == 1:
-            # NOTE: the dispersion parameter is only necessary to convey
-            # type information to Cython on account of a bug
-            return poisson_log_likelihood(y, weights, mu, float(phi))
-        elif p == 2:
-            return gamma_log_likelihood(y, weights, mu, float(phi))
-        else:
-            raise NotImplementedError
-
     def deviance(self, y, mu, weights=None) -> float:
         """Compute the deviance.
 
@@ -588,13 +595,13 @@ class TweedieDistribution(ExponentialDispersionModel):
         p = self.power
         weights = np.ones_like(y) if weights is None else weights
 
-        # NOTE: the dispersion parameter is only necessary to convey
-        # type information to Cython on account of a bug
-
         if not str(y.dtype).startswith("float"):
             y = np.asanyarray(y, dtype="float")
         if not str(weights.dtype).startswith("float"):
             weights = np.asanyarray(weights, dtype="float")
+
+        # NOTE: the dispersion parameter is only necessary to convey
+        # type information on account of a bug in Cython
 
         if p == 0:
             return normal_deviance(y, weights, mu, dispersion=1.0)
@@ -669,6 +676,83 @@ class TweedieDistribution(ExponentialDispersionModel):
         return super()._eta_mu_deviance(
             link, factor, cur_eta, X_dot_d, y, weights, eta_out, mu_out
         )
+
+    def log_likelihood(self, y, mu, weights=None, phi=None) -> float:
+        """Compute the log likelihood.
+
+        Parameters
+        ----------
+        y : array-like, shape (n_samples,)
+            Target values.
+
+        mu : array-like, shape (n_samples,)
+            Predicted mean.
+
+        weights : array-like, shape (n_samples,), optional (default=1)
+            Sample weights.
+
+        phi : float, optional (default=None)
+            Dispersion parameter. Estimated if ``None``.
+        """
+        p = self.power
+        weights = np.ones_like(y) if weights is None else weights
+
+        if not str(y.dtype).startswith("float"):
+            y = np.asanyarray(y, dtype="float")
+        if not str(weights.dtype).startswith("float"):
+            weights = np.asanyarray(weights, dtype="float")
+
+        if (p != 1) and (phi is None):
+            phi = self.dispersion(y, mu, weights)
+
+        if p == 0:
+            return normal_log_likelihood(y, weights, mu, float(phi))
+        if p == 1:
+            # NOTE: the dispersion parameter is only necessary to convey
+            # type information on account of a bug in Cython
+            return poisson_log_likelihood(y, weights, mu, 1.0)
+        elif p == 2:
+            return gamma_log_likelihood(y, weights, mu, float(phi))
+        else:
+            raise NotImplementedError
+
+    def dispersion(self, y, mu, weights=None, ddof=1, method="pearson") -> float:
+        """Estimate the dispersion parameter.
+
+        Parameters
+        ----------
+        y : array-like, shape (n_samples,)
+            Target values.
+
+        mu : array-like, shape (n_samples,)
+            Predicted mean.
+
+        weights : array-like, shape (n_samples,), optional (default=None)
+            Weights or exposure to which variance is inversely proportional.
+
+        ddof : int, optional (default=1)
+            Degrees of freedom consumed by the model for ``mu``.
+
+        method = {'pearson', 'residuals'}, optional (default='pearson')
+            Whether to base the estimate on the Pearson residuals or the deviance.
+
+        Returns
+        -------
+        float
+        """
+        p = self.power  # noqa: F841
+        y = np.asanyarray(y)
+        mu = np.asanyarray(mu)
+
+        if method == "pearson":
+            formula = "((y - mu) ** 2) / (mu ** p)"
+            if weights is None:
+                return numexpr.evaluate(formula).sum() / (len(y) - ddof)
+            else:
+                formula = f"weights * {formula}"
+                return numexpr.evaluate(formula).sum() / (weights.sum() - ddof)
+
+        return super().dispersion(y, mu, weights=weights, ddof=ddof, method=method)
 
 
 class NormalDistribution(TweedieDistribution):
@@ -869,6 +953,43 @@ class BinomialDistribution(ExponentialDispersionModel):
         """
         ll = special.xlogy(y, mu) + special.xlogy(1 - y, 1 - mu)
         return np.sum(ll) if weights is None else np.dot(ll, weights)
+
+    def dispersion(self, y, mu, weights=None, ddof=1, method="pearson") -> float:
+        """Estimate the dispersion parameter.
+
+        Parameters
+        ----------
+        y : array-like, shape (n_samples,)
+            Target values.
+
+        mu : array-like, shape (n_samples,)
+            Predicted mean.
+
+        weights : array-like, shape (n_samples,), optional (default=None)
+            Weights or exposure to which variance is inversely proportional.
+
+        ddof : int, optional (default=1)
+            Degrees of freedom consumed by the model for ``mu``.
+
+        method = {'pearson', 'residuals'}, optional (default='pearson')
+            Whether to base the estimate on the Pearson residuals or the deviance.
+
+        Returns
+        -------
+        float
+        """
+        y = np.asanyarray(y)
+        mu = np.asanyarray(mu)
+
+        if method == "pearson":
+            formula = "((y - mu) ** 2) / (mu * (1 - mu))"
+            if weights is None:
+                return numexpr.evaluate(formula).sum() / (len(y) - ddof)
+            else:
+                formula = f"weights * {formula}"
+                return numexpr.evaluate(formula).sum() / (weights.sum() - ddof)
+
+        return super().dispersion(y, mu, weights=weights, ddof=ddof, method=method)
 
 
 def guess_intercept(
