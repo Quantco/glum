@@ -24,6 +24,7 @@ from ._functions import (
     poisson_log_rowwise_gradient_hessian,
     tweedie_deviance,
     tweedie_log_eta_mu_deviance,
+    tweedie_log_likelihood,
     tweedie_log_rowwise_gradient_hessian,
 )
 from ._link import IdentityLink, Link, LogitLink, LogLink
@@ -597,6 +598,8 @@ class TweedieDistribution(ExponentialDispersionModel):
 
         if not str(y.dtype).startswith("float"):
             y = np.asanyarray(y, dtype="float")
+        if not str(mu.dtype).startswith("float"):
+            mu = np.asanyarray(mu, dtype="float")
         if not str(weights.dtype).startswith("float"):
             weights = np.asanyarray(weights, dtype="float")
 
@@ -680,6 +683,9 @@ class TweedieDistribution(ExponentialDispersionModel):
     def log_likelihood(self, y, mu, weights=None, phi=None) -> float:
         """Compute the log likelihood.
 
+        For ``1 < power < 2``, we use the series approximation by Dunn and Smyth
+        (2005) to compute the normalization term.
+
         Parameters
         ----------
         y : array-like, shape (n_samples,)
@@ -699,6 +705,8 @@ class TweedieDistribution(ExponentialDispersionModel):
 
         if not str(y.dtype).startswith("float"):
             y = np.asanyarray(y, dtype="float")
+        if not str(mu.dtype).startswith("float"):
+            mu = np.asanyarray(mu, dtype="float")
         if not str(weights.dtype).startswith("float"):
             weights = np.asanyarray(weights, dtype="float")
 
@@ -713,6 +721,8 @@ class TweedieDistribution(ExponentialDispersionModel):
             return poisson_log_likelihood(y, weights, mu, 1.0)
         elif p == 2:
             return gamma_log_likelihood(y, weights, mu, float(phi))
+        elif p < 2:
+            return tweedie_log_likelihood(y, weights, mu, float(p), float(phi))
         else:
             raise NotImplementedError
 

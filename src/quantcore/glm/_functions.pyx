@@ -3,9 +3,16 @@
 from cython cimport floating
 from cython.parallel import prange
 
-from libc.math cimport M_PI, exp, fmax, lgamma, log
+from libc.math cimport M_PI, ceil, exp, floor, fmax, lgamma, log
 
 import numpy as np
+
+ctypedef fused numeric:
+    short
+    int
+    long
+    float
+    double
 
 # If an argument is readonly, that will fail with a typical floating[:]
 # memoryview. However, const floating[:] causes failures because currently,
@@ -102,7 +109,7 @@ def poisson_log_eta_mu_deviance(
     for i in prange(n, nogil=True):
         eta_out[i] = cur_eta[i] + factor * X_dot_d[i]
         mu_out[i] = exp(eta_out[i])
-        # True log likelihood: y * eta - mu - loggamma(1 + y)
+        # True log likelihood: y * eta - mu - lgamma(1 + y)
         deviance += weights[i] * (y[i] * eta_out[i] - mu_out[i])
     return -2 * deviance
 
@@ -280,6 +287,84 @@ def tweedie_deviance(
             (mu1mp * mu[i]) / (2 - p)
         )
     return 2 * D
+
+def tweedie_log_likelihood(
+    const_floating1d y,
+    const_floating1d weights,
+    const_floating1d mu,
+    floating p,
+    floating dispersion,
+):
+    cdef int n = y.shape[0]
+    cdef int i
+    cdef floating ll = 0.0
+    for i in prange(n, nogil=True):
+        ll += weights[i] * _tweedie_unit_loglikelihood(y[i], mu[i], p, dispersion)
+    return ll
+
+cdef floating _tweedie_unit_loglikelihood(floating y, floating mu, floating power, floating dispersion) nogil:
+
+    cdef floating kappa, normalization, theta
+
+    if y == 0:
+        return -(mu ** (2 - power)) / (dispersion * (2 - power))
+    else:
+        theta = mu ** (1 - power)
+        kappa = mu * theta / (2 - power)
+        theta = theta / (1 - power)
+        normalization = _tweedie_normalization(y, power, dispersion)
+        return (theta * y - kappa) / dispersion + normalization
+
+cdef floating _tweedie_normalization(floating y, floating power, floating dispersion) nogil:
+
+    cdef int j, j_lower, j_upper
+
+    cdef floating j_max = exp((2 - power) * log(y) - log(dispersion) - log(2 - power))
+    cdef floating w_max = _log_w_j(y, power, dispersion, j_max)
+    cdef floating w_summand = 0.0
+
+    j_lower, j_upper = _sum_limits(y, power, dispersion, j_max)
+
+    for j in range(j_lower, j_upper + 1):
+        w_summand += exp(_log_w_j(y, power, dispersion, j) - w_max)
+
+    return w_max + log(w_summand) - log(y)
+
+cdef (int, int) _sum_limits(floating y, floating power, floating dispersion, floating j_max) nogil:
+
+    cdef floating j_lower = 1.0
+    cdef floating j_upper = ceil(j_max)
+    cdef floating w_lower
+    cdef floating w_upper = _log_w_j(y, power, dispersion, j_upper)
+
+    cdef floating w_crt = _log_w_j(y, power, dispersion, j_max) - 37
+    cdef floating w_one = _log_w_j(y, power, dispersion, 1)
+
+    if w_one <= w_crt:
+        j_lower = floor(j_max)
+        w_lower = _log_w_j(y, power, dispersion, j_lower)
+        while w_lower >= w_crt:
+            j_lower -= 1
+            w_lower = _log_w_j(y, power, dispersion, j_lower)
+    while w_upper >= w_crt:
+        j_upper += 1
+        w_upper = _log_w_j(y, power, dispersion, j_upper)
+
+    return int(j_lower), int(j_upper)
+
+cdef floating _log_w_j(floating y, floating power, floating dispersion, numeric j) nogil:
+    cdef floating alpha = (2 - power) / (1 - power)
+    return j * _log_z(y, power, dispersion) - lgamma(1 + j) - lgamma(-alpha * j)
+
+
+cdef floating _log_z(floating y, floating power, floating dispersion) nogil:
+    cdef floating alpha = (2 - power) / (1 - power)
+    return (
+        alpha * log(power - 1)
+        - alpha * log(y)
+        - (1 - alpha) * log(dispersion)
+        - log(2 - power)
+    )
 
 def binomial_logit_eta_mu_deviance(
     const_floating1d cur_eta,
