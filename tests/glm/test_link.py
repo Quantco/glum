@@ -1,10 +1,10 @@
 import numpy as np
 import pytest
 
-from quantcore.glm._link import IdentityLink, LogitLink, LogLink, TweedieLink
+from quantcore.glm._link import Link, LogitLink
 
 
-@pytest.mark.parametrize("link", [IdentityLink, LogitLink, LogLink, TweedieLink])
+@pytest.mark.parametrize("link", Link.__subclasses__())
 def test_link_properties(link):
     """Test link inverse and derivative."""
     rng = np.random.RandomState(42)
