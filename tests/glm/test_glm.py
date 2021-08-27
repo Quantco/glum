@@ -8,8 +8,7 @@ import numpy as np
 import pandas as pd
 import pytest
 import quantcore.matrix as mx
-import scipy as sp
-from numpy.testing import assert_allclose, assert_array_equal
+from numpy.testing import assert_allclose
 from scipy import optimize, sparse
 from sklearn.base import clone
 from sklearn.datasets import make_classification, make_regression
@@ -19,26 +18,23 @@ from sklearn.metrics import mean_absolute_error
 from sklearn.utils.estimator_checks import check_estimator
 
 from quantcore.glm import GeneralizedLinearRegressorCV
-from quantcore.glm._distribution import guess_intercept
-from quantcore.glm._glm import (
+from quantcore.glm._distribution import (
     BinomialDistribution,
     ExponentialDispersionModel,
     GammaDistribution,
     GeneralizedHyperbolicSecant,
-    GeneralizedLinearRegressor,
-    IdentityLink,
     InverseGaussianDistribution,
-    Link,
-    LogitLink,
-    LogLink,
     NormalDistribution,
     PoissonDistribution,
     TweedieDistribution,
-    TweedieLink,
+    guess_intercept,
+)
+from quantcore.glm._glm import (
+    GeneralizedLinearRegressor,
     _unstandardize,
     is_pos_semidef,
 )
-from quantcore.glm._util import _safe_sandwich_dot
+from quantcore.glm._link import IdentityLink, Link, LogitLink, LogLink
 
 GLM_SOLVERS = ["irls-ls", "lbfgs", "irls-cd", "trust-constr"]
 
@@ -77,210 +73,6 @@ def y():
 @pytest.fixture
 def X():
     return np.array([[1], [2]])
-
-
-@pytest.mark.parametrize("link", Link.__subclasses__())
-def test_link_properties(link):
-    """Test link inverse and derivative."""
-    rng = np.random.RandomState(42)
-    x = rng.rand(100) * 100
-    if link.__name__ == "TweedieLink":
-        link = link(1.5)
-    else:
-        link = link()  # instantiate object
-    if isinstance(link, LogitLink):
-        # careful for large x, note expit(36) = 1
-        # limit max eta to 15
-        x = x / 100 * 15
-    assert_allclose(link.link(link.inverse(x)), x)
-    # if f(g(x)) = x, then f'(g(x)) = 1/g'(x)
-    assert_allclose(link.derivative(link.inverse(x)), 1.0 / link.inverse_derivative(x))
-
-    assert link.inverse_derivative2(x).shape == link.inverse_derivative(x).shape
-
-
-@pytest.mark.parametrize(
-    "family, expected",
-    [
-        (NormalDistribution(), [True, True, True]),
-        (PoissonDistribution(), [False, True, True]),
-        (TweedieDistribution(power=1.5), [False, True, True]),
-        (GammaDistribution(), [False, False, True]),
-        (InverseGaussianDistribution(), [False, False, True]),
-        (TweedieDistribution(power=4.5), [False, False, True]),
-    ],
-)
-def test_family_bounds(family, expected):
-    """Test the valid range of distributions at -1, 0, 1."""
-    result = family.in_y_range([-1, 0, 1])
-    assert_array_equal(result, expected)
-
-
-def test_tweedie_distribution_power():
-    with pytest.raises(ValueError, match="no distribution exists"):
-        TweedieDistribution(power=0.5)
-
-    with pytest.raises(TypeError, match="must be an int or float"):
-        TweedieDistribution(power=1j)
-
-    with pytest.raises(TypeError, match="must be an int or float"):
-        dist = TweedieDistribution()
-        dist.power = 1j
-
-    dist = TweedieDistribution()
-    assert dist.include_lower_bound is False
-    dist.power = 1
-    assert dist.include_lower_bound is True
-
-
-@pytest.mark.parametrize(
-    "family, chk_values",
-    [
-        (NormalDistribution(), [-1.5, -0.1, 0.1, 2.5]),
-        (PoissonDistribution(), [0.1, 1.5]),
-        (GammaDistribution(), [0.1, 1.5]),
-        (InverseGaussianDistribution(), [0.1, 1.5]),
-        (TweedieDistribution(power=-2.5), [0.1, 1.5]),
-        (TweedieDistribution(power=-1), [0.1, 1.5]),
-        (TweedieDistribution(power=1.5), [0.1, 1.5]),
-        (TweedieDistribution(power=2.5), [0.1, 1.5]),
-        (TweedieDistribution(power=-4), [0.1, 1.5]),
-        (GeneralizedHyperbolicSecant(), [0.1, 1.5]),
-    ],
-)
-def test_deviance_zero(family, chk_values):
-    """Test deviance(y,y) = 0 for different families."""
-    for x in chk_values:
-        assert_allclose(family.deviance(x, x), 0, atol=1e-9)
-
-
-@pytest.mark.parametrize(
-    "family, link",
-    [
-        (NormalDistribution(), IdentityLink()),
-        (PoissonDistribution(), LogLink()),
-        (GammaDistribution(), LogLink()),
-        (InverseGaussianDistribution(), LogLink()),
-        (TweedieDistribution(power=1.5), LogLink()),
-        (TweedieDistribution(power=2.5), LogLink()),
-        (BinomialDistribution(), LogitLink()),
-        (TweedieDistribution(power=1.5), TweedieLink(1.5)),
-        (TweedieDistribution(power=2.5), TweedieLink(2.5)),
-    ],
-    ids=lambda args: args.__class__.__name__,
-)
-def test_gradients(family, link):
-    np.random.seed(1001)
-    for _ in range(5):
-        nrows = 100
-        ncols = 10
-        X = np.random.rand(nrows, ncols)
-        coef = np.random.rand(ncols)
-        y = np.random.rand(nrows)
-        weights = np.ones(nrows)
-
-        eta, mu, _ = family.eta_mu_deviance(
-            link, 1.0, np.zeros(nrows), X.dot(coef), y, weights
-        )
-        gradient_rows, _ = family.rowwise_gradient_hessian(
-            link=link,
-            coef=coef,
-            phi=1.0,
-            X=X,
-            y=y,
-            weights=weights,
-            eta=eta,
-            mu=mu,
-        )
-        score_analytic = gradient_rows @ X
-
-        def f(coef2):
-            _, _, ll = family.eta_mu_deviance(
-                link, 1.0, np.zeros(nrows), X.dot(coef2), y, weights
-            )
-            return -0.5 * ll
-
-        score_numeric = np.empty_like(score_analytic)
-        epsilon = 1e-7
-        for k in range(score_numeric.shape[0]):
-            L = coef.copy()
-            L[k] -= epsilon
-            R = coef.copy()
-            R[k] += epsilon
-            score_numeric[k] = (f(R) - f(L)) / (2 * epsilon)
-        assert_allclose(score_numeric, score_analytic, rtol=5e-5)
-
-
-@pytest.mark.parametrize(
-    "family, link, true_hessian",
-    [
-        (NormalDistribution(), IdentityLink(), False),
-        (PoissonDistribution(), LogLink(), False),
-        (GammaDistribution(), LogLink(), True),
-        (InverseGaussianDistribution(), LogLink(), False),
-        (TweedieDistribution(power=1.5), LogLink(), True),
-        (TweedieDistribution(power=4.5), LogLink(), False),
-    ],
-    ids=lambda args: args.__class__.__name__,
-)
-def test_hessian_matrix(family, link, true_hessian):
-    """Test the Hessian matrix numerically.
-
-    Trick: For the FIM, use numerical differentiation with y = mu
-    """
-    coef = np.array([-2, 1, 0, 1, 2.5])
-    phi = 0.5
-    rng = np.random.RandomState(42)
-    X = mx.DenseMatrix(rng.randn(10, 5))
-    lin_pred = np.dot(X, coef)
-    mu = link.inverse(lin_pred)
-    weights = rng.randn(10) ** 2 + 1
-    _, hessian_rows = family.rowwise_gradient_hessian(
-        link=link,
-        coef=coef,
-        phi=phi,
-        X=X,
-        y=weights,
-        weights=weights,
-        eta=lin_pred,
-        mu=mu,
-    )
-    hessian = _safe_sandwich_dot(X, hessian_rows)
-    # check that the Hessian matrix is square and positive definite
-    assert hessian.ndim == 2
-    assert hessian.shape[0] == hessian.shape[1]
-    assert np.all(np.linalg.eigvals(hessian) >= 0)
-
-    approx = np.array([]).reshape(0, coef.shape[0])
-    for i in range(coef.shape[0]):
-
-        def f(coef):
-            this_eta = X.dot(coef)
-            this_mu = link.inverse(this_eta)
-            yv = mu
-            if true_hessian:
-                # If we're using the true hessian, use the true y
-                yv = weights
-            else:
-                # If we're using the FIM, use y = mu
-                yv = mu
-            gradient_rows, _ = family.rowwise_gradient_hessian(
-                link=link,
-                coef=coef,
-                phi=phi,
-                X=X,
-                y=yv,
-                weights=weights,
-                eta=this_eta,
-                mu=this_mu,
-            )
-            score = gradient_rows @ X
-            return -score[i]
-
-        approx = np.vstack(
-            [approx, sp.optimize.approx_fprime(xk=coef, f=f, epsilon=1e-5)]
-        )
-    assert_allclose(hessian, approx, rtol=1e-3)
 
 
 @pytest.mark.parametrize("estimator, kwargs", estimators)
@@ -526,6 +318,32 @@ def test_positive_semidefinite():
 
     assert is_pos_semidef(np.eye(2))
     assert is_pos_semidef(sparse.eye(2))
+
+
+def test_P1_P2_expansion_with_categoricals():
+    rng = np.random.default_rng(42)
+    X = pd.DataFrame(
+        data={
+            "dense": np.linspace(0, 10, 60),
+            "cat": pd.Categorical(rng.integers(5, size=60)),
+        }
+    )
+    y = rng.normal(size=60)
+
+    mdl1 = GeneralizedLinearRegressor(
+        l1_ratio=0.01,
+        P1=[1, 2, 2, 2, 2, 2],
+        P2=[2, 1, 1, 1, 1, 1],
+    )
+    mdl1.fit(X, y)
+
+    mdl2 = GeneralizedLinearRegressor(
+        l1_ratio=0.01,
+        P1=[1, 2],
+        P2=[2, 1],
+    )
+    mdl2.fit(X, y)
+    np.testing.assert_allclose(mdl1.coef_, mdl2.coef_)
 
 
 @pytest.mark.parametrize(
@@ -865,8 +683,6 @@ def test_glm_identity_regression_categorical_data(solver, offset, convert_x_fn):
     np.testing.assert_almost_equal(X.A if hasattr(X, "A") else X, x_mat)
     res = glm.fit(X, y, offset=offset)
 
-    fit_coef = res.coef_
-    assert fit_coef.dtype.itemsize == X.dtype.itemsize
     assert_allclose(res.coef_, coef, rtol=1e-6)
 
 
@@ -925,7 +741,7 @@ def test_normal_ridge_comparison(n_samples, n_features, solver, use_offset):
     """
     alpha = 1.0
     n_predict = 10
-    X, y, coef = make_regression(
+    X, y, _ = make_regression(
         n_samples=n_samples + n_predict,
         n_features=n_features,
         n_informative=n_features - 2,
@@ -1009,12 +825,12 @@ def test_poisson_ridge(solver, tol, scale_predictors, use_sparse):
     # true_beta = model["beta"][:, 0]
     # print(true_intercept, true_beta)
 
-    X_dense = np.array([[-2, -1, 1, 2], [0, 0, 1, 1]], dtype=np.float).T
+    X_dense = np.array([[-2, -1, 1, 2], [0, 0, 1, 1]], dtype=np.float_).T
     if use_sparse:
         X = sparse.csc_matrix(X_dense)
     else:
         X = X_dense
-    y = np.array([0, 1, 1, 2], dtype=np.float)
+    y = np.array([0, 1, 1, 2], dtype=np.float_)
     model_args = dict(
         alpha=1,
         l1_ratio=0,
@@ -1056,8 +872,8 @@ def test_poisson_ridge(solver, tol, scale_predictors, use_sparse):
 
 @pytest.mark.parametrize("scale_predictors", [True, False])
 def test_poisson_ridge_bounded(scale_predictors):
-    X = np.array([[-1, 1, 1, 2], [0, 0, 1, 1]], dtype=np.float).T
-    y = np.array([0, 1, 1, 2], dtype=np.float)
+    X = np.array([[-1, 1, 1, 2], [0, 0, 1, 1]], dtype=np.float_).T
+    y = np.array([0, 1, 1, 2], dtype=np.float_)
     lb = np.array([-0.1, -0.1])
     ub = np.array([0.1, 0.1])
 
@@ -1095,8 +911,8 @@ def test_poisson_ridge_bounded(scale_predictors):
 
 @pytest.mark.parametrize("scale_predictors", [True, False])
 def test_poisson_ridge_ineq_constrained(scale_predictors):
-    X = np.array([[-1, 1, 1, 2], [0, 0, 1, 1]], dtype=np.float).T
-    y = np.array([0, 1, 1, 2], dtype=np.float)
+    X = np.array([[-1, 1, 1, 2], [0, 0, 1, 1]], dtype=np.float_).T
+    y = np.array([0, 1, 1, 2], dtype=np.float_)
     A_ineq = np.array([[1, 0], [0, 1], [-1, 0], [0, -1]])
     b_ineq = 0.1 * np.ones(shape=(4))
 
@@ -1546,7 +1362,7 @@ def test_clonable(estimator):
 def test_get_best_intercept(
     link: Link, distribution: ExponentialDispersionModel, tol: float, offset
 ):
-    y = np.array([1, 1, 1, 2], dtype=np.float)
+    y = np.array([1, 1, 1, 2], dtype=np.float_)
     if isinstance(distribution, BinomialDistribution):
         y -= 1
 
@@ -1620,6 +1436,77 @@ def test_alpha_search(regression_data):
 
     assert_allclose(mdl_path.coef_, mdl_no_path.coef_)
     assert_allclose(mdl_path.intercept_, mdl_no_path.intercept_)
+
+
+@pytest.mark.parametrize("alpha, alpha_index", [(0.5, 0), (0.75, 1), (None, 1)])
+def test_predict_scalar(regression_data, alpha, alpha_index):
+
+    X, y = regression_data
+    offset = np.ones_like(y)
+
+    estimator = GeneralizedLinearRegressor(alpha=[0.5, 0.75], alpha_search=True)
+    estimator.fit(X, y)
+
+    target = estimator.predict(X, alpha_index=alpha_index)
+
+    candidate = estimator.predict(X, alpha=alpha, offset=offset)
+    np.testing.assert_allclose(candidate, target + 1)
+
+
+@pytest.mark.parametrize(
+    "alpha, alpha_index",
+    [([0.5, 0.75], [0, 1]), ([0.75, 0.5], [1, 0]), ([0.5, 0.5], [0, 0])],
+)
+def test_predict_list(regression_data, alpha, alpha_index):
+
+    X, y = regression_data
+    offset = np.ones_like(y)
+
+    estimator = GeneralizedLinearRegressor(alpha=[0.5, 0.75], alpha_search=True)
+    estimator.fit(X, y)
+
+    target = np.stack(
+        [
+            estimator.predict(X, alpha_index=alpha_index[0]),
+            estimator.predict(X, alpha_index=alpha_index[1]),
+        ],
+        axis=1,
+    )
+
+    candidate = estimator.predict(X, alpha=alpha, offset=offset)
+    np.testing.assert_allclose(candidate, target + 1)
+
+    candidate = estimator.predict(X, alpha_index=alpha_index, offset=offset)
+    np.testing.assert_allclose(candidate, target + 1)
+
+
+def test_predict_error(regression_data):
+
+    X, y = regression_data
+
+    estimator = GeneralizedLinearRegressor(alpha=0.5, alpha_search=False).fit(X, y)
+
+    with pytest.raises(ValueError):
+        estimator.predict(X, alpha=0.5)
+    with pytest.raises(ValueError):
+        estimator.predict(X, alpha=[0.5])
+    with pytest.raises(AttributeError):
+        estimator.predict(X, alpha_index=0)
+    with pytest.raises(AttributeError):
+        estimator.predict(X, alpha_index=[0])
+
+    estimator.set_params(alpha=[0.5, 0.75], alpha_search=True).fit(X, y)
+
+    with pytest.raises(IndexError):
+        estimator.predict(X, y, alpha=0.25)
+    with pytest.raises(IndexError):
+        estimator.predict(X, y, alpha=[0.25, 0.5])
+    with pytest.raises(IndexError):
+        estimator.predict(X, y, alpha_index=2)
+    with pytest.raises(IndexError):
+        estimator.predict(X, y, alpha_index=[2, 0])
+    with pytest.raises(ValueError):
+        estimator.predict(X, y, alpha_index=0, alpha=0.5)
 
 
 def test_very_large_initial_gradient():
@@ -1810,3 +1697,11 @@ def test_alpha_parametrization_fail(kwargs, regression_data):
     with pytest.raises((ValueError, TypeError)):
         model = GeneralizedLinearRegressor(**kwargs)
         model.fit(X=X, y=y)
+
+
+def test_verbose(regression_data, capsys):
+    X, y = regression_data
+    mdl = GeneralizedLinearRegressor(verbose=1)
+    mdl.fit(X=X, y=y)
+    captured = capsys.readouterr()
+    assert "Iteration" in captured.err

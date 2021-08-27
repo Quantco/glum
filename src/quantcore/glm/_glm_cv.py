@@ -44,7 +44,10 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         With this array, you can exclude coefficients from the L1 penalty.
         Set the corresponding value to 1 (include) or 0 (exclude). The
         default value ``'identity'`` is the same as a 1d array of ones.
-        Note that ``n_features = X.shape[1]``.
+        Note that ``n_features = X.shape[1]``. If ``X`` is a pandas DataFrame
+        with a categorical dtype and P1 has the same size as the number of columns,
+        the penalty of the categorical column will be applied to all the levels of
+        the categorical.
 
     P2 : {'identity', array-like, sparse matrix}, shape (n_features,) \
             or (n_features, n_features), optional (default='identity')
@@ -55,7 +58,11 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         ``'identity'`` sets the identity matrix, which gives the usual squared
         L2-norm. If you just want to exclude certain coefficients, pass a 1d
         array filled with 1 and 0 for the coefficients to be excluded. Note that
-        P2 must be positive semi-definite.
+        P2 must be positive semi-definite. If ``X`` is a pandas DataFrame
+        with a categorical dtype and P2 has the same size as the number of columns,
+        the penalty of the categorical column will be applied to all the levels of
+        the categorical. Note that if P2 is two-dimensional, its size needs to be
+        of the same length as the expanded ``X`` matrix.
 
     fit_intercept : bool, optional (default=True)
         Specifies if a constant (a.k.a. bias or intercept) should be
@@ -400,7 +407,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         """
         self._validate_hyperparameters()
 
-        X, y, weights, offset, weights_sum = self.set_up_and_check_fit_args(
+        X, y, weights, offset, weights_sum, P1, P2 = self.set_up_and_check_fit_args(
             X,
             y,
             sample_weight,
@@ -498,8 +505,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
                 _dtype=_dtype,
             )
 
-            P1_no_alpha = setup_p1(self.P1, X, X.dtype, 1, l1)
-            P2_no_alpha = setup_p2(self.P2, X, _stype, X.dtype, 1, l1)
+            P1_no_alpha = setup_p1(P1, X, X.dtype, 1, l1)
+            P2_no_alpha = setup_p2(P2, X, _stype, X.dtype, 1, l1)
 
             (
                 x_train,
@@ -626,8 +633,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             self.l1_ratio_ = l1_ratio[best_l1]
             self.alpha_ = self.alphas_[best_alpha]
 
-        P1 = setup_p1(self.P1, X, X.dtype, self.alpha_, self.l1_ratio_)
-        P2 = setup_p2(self.P2, X, _stype, X.dtype, self.alpha_, self.l1_ratio_)
+        P1 = setup_p1(P1, X, X.dtype, self.alpha_, self.l1_ratio_)
+        P2 = setup_p2(P2, X, _stype, X.dtype, self.alpha_, self.l1_ratio_)
 
         # Refit with full data and best alpha and lambda
         (
