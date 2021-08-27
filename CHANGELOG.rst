@@ -16,6 +16,11 @@ Unreleased
   the penalty associated with a categorical feature will be expanded to as many elements as there are levels,
   all with the same value.
 
+
+**Other:**
+
+- The methods of the link classes will now return scalars when given scalar inputs. Under certain circumstances, they'd return zero-dimensional arrays.
+
 1.5.1 - 2021-07-22
 ------------------
 
