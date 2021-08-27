@@ -77,7 +77,7 @@ def normal_log_likelihood(
     cdef floating sum_weights  # helper
 
     cdef int n = y.shape[0]  # loop length
-    cdef floating ll = 0.0
+    cdef floating ll = 0.0  # output
 
     for i in prange(n, nogil=True):
         ll += weights[i] * (y[i] - mu[i]) ** 2
@@ -323,7 +323,7 @@ def tweedie_log_likelihood(
     cdef int i  # loop counter
 
     cdef int n = y.shape[0]  # loop length
-    cdef floating ll = 0.0
+    cdef floating ll = 0.0  # output
 
     for i in prange(n, nogil=True):
         ll += weights[i] * _tweedie_unit_loglikelihood(y[i], mu[i], p, dispersion)
