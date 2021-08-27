@@ -15,6 +15,7 @@ from quantcore.glm._distribution import (
     PoissonDistribution,
     TweedieDistribution,
 )
+from quantcore.glm._glm import GeneralizedLinearRegressor
 from quantcore.glm._link import IdentityLink, LogitLink, LogLink, TweedieLink
 from quantcore.glm._util import _safe_sandwich_dot
 
@@ -216,3 +217,162 @@ def test_hessian_matrix(family, link, true_hessian):
             [approx, sp.optimize.approx_fprime(xk=coef, f=f, epsilon=1e-5)]
         )
     np.testing.assert_allclose(hessian, approx, rtol=1e-3)
+
+
+def test_poisson_deviance_dispersion_loglihood():
+
+    # y <- c(0, 0, 1, 2, 3)
+    # glm_model = glm(y ~ 1, family = poisson)
+
+    # glm_model$coefficients  # 0.1823216
+    # sum(glm_model$weights * glm_model$residuals^2)/4  # 1.416679
+    # glm_model$deviance  # 7.176404
+    # logLik(glm_model)  # -7.390977 (df=1)
+
+    regressor = GeneralizedLinearRegressor(
+        alpha=0,
+        family="poisson",
+        fit_intercept=False,
+        gradient_tol=1e-8,
+        check_input=False,
+    )
+
+    y = np.array([0, 0, 1, 2, 3])
+    x = np.ones((len(y), 1))
+    mu = regressor.fit(x, y).predict(x)
+    family = regressor._family_instance
+
+    np.testing.assert_approx_equal(regressor.coef_[0], 0.1823216)
+    # higher tolerance for the dispersion parameter because of numerical precision
+    np.testing.assert_approx_equal(family.dispersion(y, mu), 1.416679, significant=5)
+    np.testing.assert_approx_equal(family.deviance(y, mu), 7.176404)
+    np.testing.assert_approx_equal(family.log_likelihood(y, mu), -7.390977)
+
+
+def test_gamma_deviance_dispersion_loglihood():
+
+    # y <- c(1, 2, 2, 3, 4)
+    # glm_model = glm(y ~ 1, family = Gamma(link = "log"))
+
+    # glm_model$coefficients  # 0.8754687
+    # sum(glm_model$weights * glm_model$residuals^2)/4  # 0.2256944
+    # glm_model$deviance  # 1.012285
+    # logLik(glm_model)  # -7.057068 (df=2)
+
+    regressor = GeneralizedLinearRegressor(
+        alpha=0,
+        family="gamma",
+        fit_intercept=False,
+        gradient_tol=1e-8,
+        check_input=False,
+    )
+
+    y = np.array([1, 2, 2, 3, 4])
+    x = np.ones((len(y), 1))
+    mu = regressor.fit(x, y).predict(x)
+    family = regressor._family_instance
+
+    np.testing.assert_approx_equal(regressor.coef_[0], 0.8754687)
+    np.testing.assert_approx_equal(family.dispersion(y, mu), 0.2256944)
+    np.testing.assert_approx_equal(family.deviance(y, mu), 1.012285)
+
+    np.testing.assert_approx_equal(
+        family.log_likelihood(y, mu, phi=family.deviance(y, mu) / 5), -7.057068
+    )
+
+
+def test_gaussian_deviance_dispersion_loglihood():
+
+    # y <- c(-1, -1, 0, 1, 2)
+    # glm_model = glm(y ~ 1, family = gaussian)
+
+    # glm_model$coefficients  # 0.2
+    # sum(glm_model$weights * glm_model$residuals^2)/4  # 1.7
+    # glm_model$deviance  # 6.8
+    # logLik(glm_model)  # 7.863404 (df=2)
+
+    regressor = GeneralizedLinearRegressor(
+        alpha=0,
+        family="normal",
+        fit_intercept=False,
+        gradient_tol=1e-8,
+        check_input=False,
+    )
+
+    y = np.array([-1, -1, 0, 1, 2])
+    x = np.ones((len(y), 1))
+    mu = regressor.fit(x, y).predict(x)
+    family = regressor._family_instance
+
+    np.testing.assert_approx_equal(regressor.coef_[0], 0.2)
+    np.testing.assert_approx_equal(family.dispersion(y, mu), 1.7)
+    np.testing.assert_approx_equal(family.deviance(y, mu), 6.8)
+
+    np.testing.assert_approx_equal(
+        family.log_likelihood(y, mu, phi=family.deviance(y, mu) / 5), 7.863404
+    )
+
+
+def test_tweedie_deviance_dispersion_loglihood():
+
+    # library(statmod)  # Tweedie GLMs
+    # library(tweedie)  # Tweedie log likelihood
+
+    # y <- c(0, 0, 1, 2, 3)
+    # glm_model = glm(y ~ 1, family = tweedie(var.power = 1.5, link.power = 0))
+
+    # glm_model$coefficients  # 0.1823216
+    # sum(glm_model$weights * glm_model$residuals^2)/4  # 1.293318
+    # glm_model$deviance  # 10.64769
+    # logLiktweedie(glm_model)  # -8.35485
+
+    regressor = GeneralizedLinearRegressor(
+        alpha=0,
+        family=TweedieDistribution(1.5),
+        fit_intercept=False,
+        gradient_tol=1e-8,
+        check_input=False,
+    )
+
+    y = np.array([0, 0, 1, 2, 3])
+    x = np.ones((len(y), 1))
+    mu = regressor.fit(x, y).predict(x)
+    family = regressor._family_instance
+
+    np.testing.assert_approx_equal(regressor.coef_[0], 0.1823216)
+    # higher tolerance for the dispersion parameter because of numerical precision
+    np.testing.assert_approx_equal(family.dispersion(y, mu), 1.293318, significant=5)
+    np.testing.assert_approx_equal(family.deviance(y, mu), 10.64769)
+
+    np.testing.assert_approx_equal(
+        family.log_likelihood(y, mu, phi=family.deviance(y, mu) / 5), -8.35485
+    )
+
+
+def test_binomial_deviance_dispersion_loglihood():
+
+    # y <- c(0, 1, 0, 1, 0)
+    # glm_model = glm(y ~ 1, family = binomial)
+
+    # glm_model$coefficients  # -0.4054651
+    # sum(glm_model$weights * glm_model$residuals^2)/4  # 1.25
+    # glm_model$deviance  # 6.730117
+    # logLik(glm_model)  # -3.365058 (df=1)
+
+    regressor = GeneralizedLinearRegressor(
+        alpha=0,
+        family="binomial",
+        fit_intercept=False,
+        gradient_tol=1e-8,
+        check_input=False,
+    )
+
+    y = np.array([0, 1, 0, 1, 0])
+    x = np.ones((len(y), 1))
+    mu = regressor.fit(x, y).predict(x)
+    family = regressor._family_instance
+
+    np.testing.assert_approx_equal(regressor.coef_[0], -0.4054651)
+    np.testing.assert_approx_equal(family.dispersion(y, mu), 1.25)
+    np.testing.assert_approx_equal(family.deviance(y, mu), 6.730117)
+    np.testing.assert_approx_equal(family.log_likelihood(y, mu), -3.365058)
