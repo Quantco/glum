@@ -1,6 +1,6 @@
 from abc import ABCMeta, abstractmethod
 from functools import partial
-from typing import List, Optional, Tuple, Union
+from typing import Tuple, Union
 
 import numexpr
 import numpy as np
@@ -837,8 +837,8 @@ class GeneralizedHyperbolicSecant(ExponentialDispersionModel):
         -------
         array-like
         """
-        return 2 * (
-            y * (np.arctan(y) - np.arctan(mu)) + np.log((1 + mu ** 2) / (1 + y ** 2))
+        return 2 * y * (np.arctan(y) - np.arctan(mu)) + np.log(
+            (1 + mu ** 2) / (1 + y ** 2)
         )
 
 
@@ -1072,13 +1072,32 @@ def get_one_over_variance(
     return 1.0 / distribution.variance(mu, phi=phi, weights=weights)
 
 
-def _as_float_arrays(*args) -> List[Optional[np.ndarray]]:
-    out = []  # type: ignore
-    for arg in args:
+def _as_float_arrays(*args):
+    """Convert to a float array, passing ``None`` through, and broadcast."""
+    never_broadcast = {}  # type: ignore
+    maybe_broadcast = {}
+    always_broadcast = {}
+
+    for ix, arg in enumerate(args):
         if isinstance(arg, (int, float)):
-            out.append(np.array([arg], dtype="float"))
-        elif (arg is None) or str(arg.dtype).startswith("float"):
-            out.append(arg)
+            maybe_broadcast[ix] = np.array([arg], dtype="float")
+        elif arg is None:
+            never_broadcast[ix] = None
         else:
-            out.append(np.asanyarray(arg, dtype="float"))
-    return out  # type: ignore
+            always_broadcast[ix] = np.asanyarray(arg, dtype="float")
+
+    if always_broadcast and maybe_broadcast:
+        to_broadcast = {**always_broadcast, **maybe_broadcast}
+        _broadcast = np.broadcast_arrays(*to_broadcast.values())
+        broadcast = dict(zip(to_broadcast.keys(), _broadcast))
+    elif always_broadcast:
+        _broadcast = np.broadcast_arrays(*always_broadcast.values())
+        broadcast = dict(zip(always_broadcast.keys(), _broadcast))
+    elif maybe_broadcast:
+        broadcast = maybe_broadcast
+    else:
+        broadcast = {}
+
+    out = {**never_broadcast, **broadcast}
+
+    return [out[ix] for ix in range(len(args))]
