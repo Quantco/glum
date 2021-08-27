@@ -1,14 +1,11 @@
 import warnings
 from abc import ABCMeta, abstractmethod
-from typing import TypeVar, Union
+from typing import Union
 
 import numpy as np
-import pandas as pd
 from scipy import special
 
-VectorLike = TypeVar(
-    "VectorLike", np.ndarray, pd.api.extensions.ExtensionArray, pd.Index, pd.Series
-)
+from ._util import _asanyarray
 
 
 class Link(metaclass=ABCMeta):
@@ -336,7 +333,7 @@ class TweedieLink(Link):
     def __init__(self, p):
         self.p = p
 
-    def link(self, mu: VectorLike) -> np.ndarray:
+    def link(self, mu):
         """
         Get the Tweedie canonical link.
 
@@ -348,7 +345,7 @@ class TweedieLink(Link):
         """
         return _asanyarray(mu) ** (1 - self.p)
 
-    def derivative(self, mu: VectorLike) -> np.ndarray:
+    def derivative(self, mu):
         """
         Get the derivative of the Tweedie link.
 
@@ -361,7 +358,7 @@ class TweedieLink(Link):
         return (1 - self.p) * _asanyarray(mu) ** (-self.p)
 
     @catch_p
-    def inverse(self, lin_pred: VectorLike) -> np.ndarray:
+    def inverse(self, lin_pred):
         """
         Get the inverse of the Tweedie link.
 
@@ -374,7 +371,7 @@ class TweedieLink(Link):
         return _asanyarray(lin_pred) ** (1 / (1 - self.p))
 
     @catch_p
-    def inverse_derivative(self, lin_pred: VectorLike) -> np.ndarray:
+    def inverse_derivative(self, lin_pred):
         """Compute the derivative of the inverse Tweedie link function ``h'(lin_pred)``.
 
         Parameters
@@ -385,7 +382,7 @@ class TweedieLink(Link):
         return (1 / (1 - self.p)) * _asanyarray(lin_pred) ** (self.p / (1 - self.p))
 
     @catch_p
-    def inverse_derivative2(self, lin_pred: VectorLike) -> np.ndarray:
+    def inverse_derivative2(self, lin_pred):
         """Compute secondnd derivative of the inverse Tweedie link function \
             ``h''(lin_pred)``.
 
@@ -397,8 +394,3 @@ class TweedieLink(Link):
         result = _asanyarray(lin_pred) ** ((2 * self.p - 1) / (1 - self.p))
         result *= self.p / (1 - self.p) ** 2
         return result
-
-
-def _asanyarray(x, **kwargs):
-    """np.asanyarray with passthrough for scalars."""
-    return x if pd.api.types.is_scalar(x) else np.asanyarray(x, **kwargs)
