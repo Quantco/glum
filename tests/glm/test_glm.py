@@ -825,12 +825,12 @@ def test_poisson_ridge(solver, tol, scale_predictors, use_sparse):
     # true_beta = model["beta"][:, 0]
     # print(true_intercept, true_beta)
 
-    X_dense = np.array([[-2, -1, 1, 2], [0, 0, 1, 1]], dtype=np.float).T
+    X_dense = np.array([[-2, -1, 1, 2], [0, 0, 1, 1]], dtype=np.float_).T
     if use_sparse:
         X = sparse.csc_matrix(X_dense)
     else:
         X = X_dense
-    y = np.array([0, 1, 1, 2], dtype=np.float)
+    y = np.array([0, 1, 1, 2], dtype=np.float_)
     model_args = dict(
         alpha=1,
         l1_ratio=0,
@@ -872,8 +872,8 @@ def test_poisson_ridge(solver, tol, scale_predictors, use_sparse):
 
 @pytest.mark.parametrize("scale_predictors", [True, False])
 def test_poisson_ridge_bounded(scale_predictors):
-    X = np.array([[-1, 1, 1, 2], [0, 0, 1, 1]], dtype=np.float).T
-    y = np.array([0, 1, 1, 2], dtype=np.float)
+    X = np.array([[-1, 1, 1, 2], [0, 0, 1, 1]], dtype=np.float_).T
+    y = np.array([0, 1, 1, 2], dtype=np.float_)
     lb = np.array([-0.1, -0.1])
     ub = np.array([0.1, 0.1])
 
@@ -911,8 +911,8 @@ def test_poisson_ridge_bounded(scale_predictors):
 
 @pytest.mark.parametrize("scale_predictors", [True, False])
 def test_poisson_ridge_ineq_constrained(scale_predictors):
-    X = np.array([[-1, 1, 1, 2], [0, 0, 1, 1]], dtype=np.float).T
-    y = np.array([0, 1, 1, 2], dtype=np.float)
+    X = np.array([[-1, 1, 1, 2], [0, 0, 1, 1]], dtype=np.float_).T
+    y = np.array([0, 1, 1, 2], dtype=np.float_)
     A_ineq = np.array([[1, 0], [0, 1], [-1, 0], [0, -1]])
     b_ineq = 0.1 * np.ones(shape=(4))
 
