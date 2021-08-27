@@ -1,3 +1,5 @@
+from typing import Union
+
 import numpy as np
 import pytest
 import quantcore.matrix as mx
@@ -5,6 +7,7 @@ import scipy as sp
 
 from quantcore.glm._distribution import (
     BinomialDistribution,
+    ExponentialDispersionModel,
     GammaDistribution,
     GeneralizedHyperbolicSecant,
     InverseGaussianDistribution,
@@ -27,7 +30,9 @@ from quantcore.glm._util import _safe_sandwich_dot
         (TweedieDistribution(power=1.5), 0),
     ],
 )
-def test_lower_bounds(distribution, expected):
+def test_lower_bounds(
+    distribution: ExponentialDispersionModel, expected: Union[float, int]
+):
     assert distribution.lower_bound == expected
 
 
