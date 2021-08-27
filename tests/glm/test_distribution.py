@@ -219,7 +219,8 @@ def test_hessian_matrix(family, link, true_hessian):
     np.testing.assert_allclose(hessian, approx, rtol=1e-3)
 
 
-def test_poisson_deviance_dispersion_loglihood():
+@pytest.mark.parametrize("weighted", [False, True])
+def test_poisson_deviance_dispersion_loglihood(weighted):
 
     # y <- c(0, 0, 1, 2, 3)
     # glm_model = glm(y ~ 1, family = poisson)
@@ -238,18 +239,33 @@ def test_poisson_deviance_dispersion_loglihood():
     )
 
     y = np.array([0, 0, 1, 2, 3])
+
+    if weighted:
+        y, wgts = np.unique(y, return_counts=True)
+    else:
+        wgts = None
+
     x = np.ones((len(y), 1))
-    mu = regressor.fit(x, y).predict(x)
+    mu = regressor.fit(x, y, sample_weight=wgts).predict(x)
     family = regressor._family_instance
 
+    # R bases dispersion on the deviance for log_likelihood
+    ll = family.log_likelihood(
+        y, mu, weights=wgts, phi=family.deviance(y, mu, weights=wgts) / 5
+    )
+
     np.testing.assert_approx_equal(regressor.coef_[0], 0.1823216)
+    np.testing.assert_approx_equal(family.deviance(y, mu, weights=wgts), 7.176404)
+    np.testing.assert_approx_equal(ll, -7.390977)
+
     # higher tolerance for the dispersion parameter because of numerical precision
-    np.testing.assert_approx_equal(family.dispersion(y, mu), 1.416679, significant=5)
-    np.testing.assert_approx_equal(family.deviance(y, mu), 7.176404)
-    np.testing.assert_approx_equal(family.log_likelihood(y, mu), -7.390977)
+    np.testing.assert_approx_equal(
+        family.dispersion(y, mu, weights=wgts), 1.416679, significant=5
+    )
 
 
-def test_gamma_deviance_dispersion_loglihood():
+@pytest.mark.parametrize("weighted", [False, True])
+def test_gamma_deviance_dispersion_loglihood(weighted):
 
     # y <- c(1, 2, 2, 3, 4)
     # glm_model = glm(y ~ 1, family = Gamma(link = "log"))
@@ -268,20 +284,29 @@ def test_gamma_deviance_dispersion_loglihood():
     )
 
     y = np.array([1, 2, 2, 3, 4])
+
+    if weighted:
+        y, wgts = np.unique(y, return_counts=True)
+    else:
+        wgts = None
+
     x = np.ones((len(y), 1))
-    mu = regressor.fit(x, y).predict(x)
+    mu = regressor.fit(x, y, sample_weight=wgts).predict(x)
     family = regressor._family_instance
 
-    np.testing.assert_approx_equal(regressor.coef_[0], 0.8754687)
-    np.testing.assert_approx_equal(family.dispersion(y, mu), 0.2256944)
-    np.testing.assert_approx_equal(family.deviance(y, mu), 1.012285)
-
-    np.testing.assert_approx_equal(
-        family.log_likelihood(y, mu, phi=family.deviance(y, mu) / 5), -7.057068
+    # R bases dispersion on the deviance for log_likelihood
+    ll = family.log_likelihood(
+        y, mu, weights=wgts, phi=family.deviance(y, mu, weights=wgts) / 5
     )
 
+    np.testing.assert_approx_equal(regressor.coef_[0], 0.8754687)
+    np.testing.assert_approx_equal(family.dispersion(y, mu, weights=wgts), 0.2256944)
+    np.testing.assert_approx_equal(family.deviance(y, mu, weights=wgts), 1.012285)
+    np.testing.assert_approx_equal(ll, -7.057068)
 
-def test_gaussian_deviance_dispersion_loglihood():
+
+@pytest.mark.parametrize("weighted", [False, True])
+def test_gaussian_deviance_dispersion_loglihood(weighted):
 
     # y <- c(-1, -1, 0, 1, 2)
     # glm_model = glm(y ~ 1, family = gaussian)
@@ -300,20 +325,29 @@ def test_gaussian_deviance_dispersion_loglihood():
     )
 
     y = np.array([-1, -1, 0, 1, 2])
+
+    if weighted:
+        y, wgts = np.unique(y, return_counts=True)
+    else:
+        wgts = None
+
     x = np.ones((len(y), 1))
-    mu = regressor.fit(x, y).predict(x)
+    mu = regressor.fit(x, y, sample_weight=wgts).predict(x)
     family = regressor._family_instance
 
-    np.testing.assert_approx_equal(regressor.coef_[0], 0.2)
-    np.testing.assert_approx_equal(family.dispersion(y, mu), 1.7)
-    np.testing.assert_approx_equal(family.deviance(y, mu), 6.8)
-
-    np.testing.assert_approx_equal(
-        family.log_likelihood(y, mu, phi=family.deviance(y, mu) / 5), 7.863404
+    # R bases dispersion on the deviance for log_likelihood
+    ll = family.log_likelihood(
+        y, mu, weights=wgts, phi=family.deviance(y, mu, weights=wgts) / 5
     )
 
+    np.testing.assert_approx_equal(regressor.coef_[0], 0.2)
+    np.testing.assert_approx_equal(family.dispersion(y, mu, weights=wgts), 1.7)
+    np.testing.assert_approx_equal(family.deviance(y, mu, weights=wgts), 6.8)
+    np.testing.assert_approx_equal(ll, 7.863404)
 
-def test_tweedie_deviance_dispersion_loglihood():
+
+@pytest.mark.parametrize("weighted", [False, True])
+def test_tweedie_deviance_dispersion_loglihood(weighted):
 
     # library(statmod)  # Tweedie GLMs
     # library(tweedie)  # Tweedie log likelihood
@@ -335,21 +369,33 @@ def test_tweedie_deviance_dispersion_loglihood():
     )
 
     y = np.array([0, 0, 1, 2, 3])
+
+    if weighted:
+        y, wgts = np.unique(y, return_counts=True)
+    else:
+        wgts = None
+
     x = np.ones((len(y), 1))
-    mu = regressor.fit(x, y).predict(x)
+    mu = regressor.fit(x, y, sample_weight=wgts).predict(x)
     family = regressor._family_instance
 
-    np.testing.assert_approx_equal(regressor.coef_[0], 0.1823216)
-    # higher tolerance for the dispersion parameter because of numerical precision
-    np.testing.assert_approx_equal(family.dispersion(y, mu), 1.293318, significant=5)
-    np.testing.assert_approx_equal(family.deviance(y, mu), 10.64769)
+    # R bases dispersion on the deviance for log_likelihood
+    ll = family.log_likelihood(
+        y, mu, weights=wgts, phi=family.deviance(y, mu, weights=wgts) / 5
+    )
 
+    np.testing.assert_approx_equal(regressor.coef_[0], 0.1823216)
+    np.testing.assert_approx_equal(family.deviance(y, mu, weights=wgts), 10.64769)
+    np.testing.assert_approx_equal(ll, -8.35485)
+
+    # higher tolerance for the dispersion parameter because of numerical precision
     np.testing.assert_approx_equal(
-        family.log_likelihood(y, mu, phi=family.deviance(y, mu) / 5), -8.35485
+        family.dispersion(y, mu, weights=wgts), 1.293318, significant=5
     )
 
 
-def test_binomial_deviance_dispersion_loglihood():
+@pytest.mark.parametrize("weighted", [False, True])
+def test_binomial_deviance_dispersion_loglihood(weighted):
 
     # y <- c(0, 1, 0, 1, 0)
     # glm_model = glm(y ~ 1, family = binomial)
@@ -368,11 +414,22 @@ def test_binomial_deviance_dispersion_loglihood():
     )
 
     y = np.array([0, 1, 0, 1, 0])
+
+    if weighted:
+        y, wgts = np.unique(y, return_counts=True)
+    else:
+        wgts = None
+
     x = np.ones((len(y), 1))
-    mu = regressor.fit(x, y).predict(x)
+    mu = regressor.fit(x, y, sample_weight=wgts).predict(x)
     family = regressor._family_instance
 
+    # R bases dispersion on the deviance for log_likelihood
+    ll = family.log_likelihood(
+        y, mu, weights=wgts, phi=family.deviance(y, mu, weights=wgts) / 5
+    )
+
     np.testing.assert_approx_equal(regressor.coef_[0], -0.4054651)
-    np.testing.assert_approx_equal(family.dispersion(y, mu), 1.25)
-    np.testing.assert_approx_equal(family.deviance(y, mu), 6.730117)
-    np.testing.assert_approx_equal(family.log_likelihood(y, mu), -3.365058)
+    np.testing.assert_approx_equal(family.dispersion(y, mu, weights=wgts), 1.25)
+    np.testing.assert_approx_equal(family.deviance(y, mu, weights=wgts), 6.730117)
+    np.testing.assert_approx_equal(ll, -3.365058)

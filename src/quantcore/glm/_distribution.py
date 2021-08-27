@@ -273,7 +273,10 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         -------
         float
         """
-        return np.sum(weights * self.unit_deviance(y, mu))
+        if weights is None:
+            return np.sum(self.unit_deviance(y, mu))
+        else:
+            return np.sum(self.unit_deviance(y, mu) * weights)
 
     def deviance_derivative(self, y, mu, weights=1):
         r"""Compute the derivative of the deviance with respect to ``mu``.
