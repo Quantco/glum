@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import pytest
 import quantcore.matrix as mx
+import statsmodels.api as sm
 from numpy.testing import assert_allclose
 from scipy import optimize, sparse
 from sklearn.base import clone
@@ -1705,3 +1706,31 @@ def test_verbose(regression_data, capsys):
     mdl.fit(X=X, y=y)
     captured = capsys.readouterr()
     assert "Iteration" in captured.err
+
+
+def test_std_errors(regression_data):
+    X, y = regression_data
+    mdl = GeneralizedLinearRegressor(alpha=0, family="normal")
+    mdl.fit(X=X, y=y)
+
+    mdl_sm = sm.OLS(endog=y, exog=sm.add_constant(X))
+
+    # nonrobust
+    # Here, statsmodels does not do a degree of freedom adjustment,
+    # so we manually add it.
+    ourse = mdl.std_errors(X=X, y=y, robust=False)
+    corr = len(y) / (len(y) - X.shape[1] - 1)
+    smse = mdl_sm.fit(cov_type="nonrobust").bse * np.sqrt(corr)
+    np.testing.assert_allclose(ourse, smse, rtol=1e-8)
+
+    # robust
+    ourse = mdl.std_errors(X=X, y=y, robust=True)
+    smse = mdl_sm.fit(cov_type="HC1").bse
+    np.testing.assert_allclose(ourse, smse, rtol=1e-8)
+
+    # clustered
+    rng = np.random.default_rng(42)
+    clu = rng.integers(5, size=len(y))
+    ourse = mdl.std_errors(X=X, y=y, clusters=clu)
+    smse = mdl_sm.fit(cov_type="cluster", cov_kwds={"groups": clu}).bse
+    np.testing.assert_allclose(ourse, smse, rtol=1e-8)
