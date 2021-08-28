@@ -384,7 +384,6 @@ cdef floating _log_w_j(floating y, floating power, floating dispersion, numeric 
     cdef floating alpha = (2 - power) / (1 - power)
     return j * _log_z(y, power, dispersion) - lgamma(1 + j) - lgamma(-alpha * j)
 
-
 cdef floating _log_z(floating y, floating power, floating dispersion) nogil:
     cdef floating alpha = (2 - power) / (1 - power)
     return (
