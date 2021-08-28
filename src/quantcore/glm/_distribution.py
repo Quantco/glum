@@ -20,7 +20,7 @@ from ._functions import (
     tweedie_log_rowwise_gradient_hessian,
 )
 from ._link import IdentityLink, Link, LogitLink, LogLink
-from ._util import _safe_lin_pred
+from ._util import _safe_lin_pred, _safe_sandwich_dot
 
 
 class ExponentialDispersionModel(metaclass=ABCMeta):
@@ -428,6 +428,92 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         d1_sigma_inv = d1 * sigma_inv
         gradient_rows[:] = d1_sigma_inv * (y - mu)
         hessian_rows[:] = d1 * d1_sigma_inv
+
+    def fisher_information(
+        self, link, X, y, mu, sample_weight, dispersion, fit_intercept
+    ):
+        """Compute the expected information matrix.
+
+        Parameters
+        ----------
+        link: Link
+            Link function
+        X : pandas.DataFrame
+            The design matrix.
+        y : array-like
+            Array with outcomes.
+        mu : array-like
+            Array with predictions.
+        sample_weight : array-like
+            Array with weights.
+        dispersion : float
+            The dispersion parameter.
+        """
+        W = (link.inverse_derivative(link.link(mu)) ** 2) * get_one_over_variance(
+            self, link, mu, link.inverse(mu), dispersion, sample_weight
+        )
+
+        return _safe_sandwich_dot(X, W, intercept=fit_intercept)
+
+    def observed_information(
+        self, link, X, y, mu, sample_weight, dispersion, fit_intercept
+    ):
+        """Compute the observed information matrix.
+
+        Parameters
+        ----------
+        X : pandas.DataFrame
+            The design matrix.
+        y : array-like
+            Array with outcomes.
+        mu : array-like
+            Array with predictions.
+        sample_weight : array-like
+            Array with weights.
+        dispersion : float
+            The dispersion parameter.
+        """
+        linpred = link.link(mu)
+
+        W = (
+            -link.inverse_derivative2(linpred) * (y - mu)
+            + (link.inverse_derivative(linpred) ** 2)
+            * (
+                1
+                + (y - mu) * self.unit_variance_derivative(mu) / self.unit_variance(mu)
+            )
+        ) * get_one_over_variance(self, link, mu, linpred, dispersion, sample_weight)
+
+        return _safe_sandwich_dot(np.asanyarray(X), W, intercept=fit_intercept)
+
+    def score_matrix(self, link, X, y, mu, sample_weight, dispersion, fit_intercept):
+        """Compute the score.
+
+        Parameters
+        ----------
+        X : pandas.DataFrame
+            The design matrix.
+        y : array-like
+            Array with outcomes.
+        mu : array-like
+            Array with predictions.
+        sample_weight: array-like
+            Array with sampling weights.
+        dispersion : float
+            The dispersion parameter.
+        """
+        linpred = link.link(mu)
+
+        W = (
+            get_one_over_variance(self, link, mu, linpred, dispersion, sample_weight)
+            * link.inverse_derivative(linpred)
+            * (y - mu)
+        ).reshape(-1, 1)
+
+        if fit_intercept:
+            return np.hstack((W, np.multiply(X, W)))
+        else:
+            return np.multiply(X, W)
 
 
 class TweedieDistribution(ExponentialDispersionModel):
