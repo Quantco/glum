@@ -8,6 +8,7 @@ from __future__ import division
 
 import copy
 import logging
+import sys
 import warnings
 from collections.abc import Iterable
 from itertools import chain
@@ -49,7 +50,6 @@ from ._solvers import (
     _least_squares_solver,
     _trust_constr_solver,
 )
-from ._util import _safe_sandwich_dot
 
 _logger = logging.getLogger(__name__)
 
@@ -1404,7 +1404,15 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             Whether to use the expected or observed information matrix.
             Only relevant when computing robust std-errors.
         """
-        X, y, sample_weight, offset, sum_weights = self.set_up_and_check_fit_args(
+        (
+            X,
+            y,
+            sample_weight,
+            offset,
+            sum_weights,
+            P1,
+            P2,
+        ) = self.set_up_and_check_fit_args(
             X,
             y,
             sample_weight,
@@ -1412,12 +1420,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             solver=self.solver,
             force_all_finite=self.force_all_finite,
         )
-        if sparse.issparse(X):
-            _logger.warning(
-                "Can't compute standard errors for sparse matrices. "
-                "Please convert to dense."
-            )
-            return None
 
         mu = self.predict(X, offset=offset) if mu is None else np.asanyarray(mu)
 
@@ -1426,13 +1428,43 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 X=X, y=y, sample_weight=sample_weight, estimation_method="chisqr"
             )
 
-        try:
+        if (
+            np.linalg.cond(X) > 1 / sys.float_info.epsilon
+        ):  # if design matrix is singular
+            raise np.linalg.LinAlgError(
+                "Matrix is singular. Cannot estimate standard errors."
+            )
+        else:
             if robust or clusters is not None:
                 if expected_information:
-                    oim = self.fisher_information(X, y, mu, sample_weight, dispersion)
+                    oim = self._family_instance.fisher_information(
+                        self._link_instance,
+                        X,
+                        y,
+                        mu,
+                        sample_weight,
+                        dispersion,
+                        self.fit_intercept,
+                    )
                 else:
-                    oim = self.observed_information(X, y, mu, sample_weight, dispersion)
-                gradient = self.score_matrix(X, y, mu, sample_weight, dispersion)
+                    oim = self._family_instance.observed_information(
+                        self._link_instance,
+                        X,
+                        y,
+                        mu,
+                        sample_weight,
+                        dispersion,
+                        self.fit_intercept,
+                    )
+                gradient = self._family_instance.score_matrix(
+                    self._link_instance,
+                    X,
+                    y,
+                    mu,
+                    sample_weight,
+                    dispersion,
+                    self.fit_intercept,
+                )
                 if clusters is not None:
                     n_groups = len(np.unique(clusters))
                     grouped_gradient = _group_sum(clusters, gradient)
@@ -1449,154 +1481,21 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 vcov = linalg.solve(oim, linalg.solve(oim, inner_part).T)
                 vcov *= correction
             else:
-                fisher = self.fisher_information(X, y, mu, sample_weight, dispersion)
+                fisher = self._family_instance.fisher_information(
+                    self._link_instance,
+                    X,
+                    y,
+                    mu,
+                    sample_weight,
+                    dispersion,
+                    self.fit_intercept,
+                )
                 vcov = linalg.inv(fisher)
                 vcov *= sum_weights / (
                     sum_weights - self.n_features_in_ - int(self.fit_intercept)
                 )
 
             return vcov
-
-        except linalg.misc.LinAlgError:
-
-            gradient = self.score_matrix(X, y, mu, sample_weight, dispersion)
-            zero_gradient = np.abs(np.sum(gradient, axis=0)) < 1e-12
-
-            if zero_gradient.any():
-
-                if hasattr(self, "columns_"):
-                    if hasattr(self, "fit_intercept") and self.fit_intercept:
-                        columns = np.array(["(INTERCEPT)"] + self.columns_)
-                    else:
-                        columns = np.array(self.columns_)
-                else:
-                    columns = np.arange(len(zero_gradient))
-
-                _logger.warning(
-                    "Estimation of standard errors failed. Matrix is singular. "
-                    "The following coefficients have zero gradients: "
-                    f"{columns[zero_gradient]}"
-                )
-
-                return np.full((len(gradient), len(gradient)), np.nan)
-
-    def fisher_information(self, X, y, mu=None, sample_weight=None, dispersion=None):
-        """Compute the expected information matrix.
-
-        Parameters
-        ----------
-        X : pandas.DataFrame
-            The design matrix.
-        y : array-like
-            Array with outcomes.
-        mu : array-like, optional, default=None
-            Array with predictions. Estimated if absent.
-        sample_weight : array-like, optional, default=None
-            Array with weights.
-        dispersion : float, optional, default=None
-            The dispersion parameter. Estimated if absent.
-        """
-        mu = self.predict(X) if mu is None else np.asanyarray(mu)
-
-        if dispersion is None:
-            dispersion = self.estimate_phi(
-                X=X, y=y, sample_weight=sample_weight, estimation_method="chisqr"
-            )
-
-        sum_weights = len(X) if sample_weight is None else sample_weight.sum()
-
-        W = self._link_instance.inverse_derivative(self._link_instance.link(mu))
-        W **= 2
-        W /= self._family_instance.unit_variance(mu)
-        W /= dispersion * sum_weights
-
-        if sample_weight is not None:
-            W *= np.asanyarray(sample_weight)
-
-        return _safe_sandwich_dot(np.asanyarray(X), W, intercept=self.fit_intercept)
-
-    def observed_information(self, X, y, mu=None, sample_weight=None, dispersion=None):
-        """Compute the observed information matrix.
-
-        Parameters
-        ----------
-        X : pandas.DataFrame
-            The design matrix.
-        y : array-like
-            Array with outcomes.
-        mu : array-like, optional, default=None
-            Array with predictions. Estimated if absent.
-        sample_weight : array-like, optional, default=None
-            Array with weights.
-        dispersion : float, optional, default=None
-            The dispersion parameter. Estimated if absent.
-        """
-        mu = self.predict(X) if mu is None else np.asanyarray(mu)
-        linpred = self._link_instance.link(mu)
-        y = np.asanyarray(y)
-
-        if dispersion is None:
-            dispersion = self.estimate_phi(
-                X=X, y=y, sample_weight=sample_weight, estimation_method="chisqr"
-            )
-
-        sum_weights = len(X) if sample_weight is None else sample_weight.sum()
-        inv_unit_variance = 1 / self._family_instance.unit_variance(mu)
-        temp = inv_unit_variance / (dispersion * sum_weights)
-
-        if sample_weight is not None:
-            temp *= np.asanyarray(sample_weight)
-
-        dp = self._link_instance.inverse_derivative2(linpred)
-        d2 = self._link_instance.inverse_derivative(linpred) ** 2
-        v = self._family_instance.unit_variance_derivative(mu)
-        v *= inv_unit_variance
-        r = y - mu
-        temp *= -dp * r + d2 * v * r + d2
-
-        return _safe_sandwich_dot(np.asanyarray(X), temp, intercept=self.fit_intercept)
-
-    def score_matrix(self, X, y, mu=None, sample_weight=None, dispersion=None):
-        """Compute the score.
-
-        Parameters
-        ----------
-        X : pandas.DataFrame
-            The design matrix.
-        y : array-like
-            Array with outcomes.
-        mu : array-like, optional, default=None
-            Array with predictions. Estimated if absent.
-        sample_weight: array-like, optional, default=None
-            Array with sampling weights.
-        dispersion : float, optional, default=None
-            The dispersion parameter. Estimated if absent.
-        """
-        mu = self.predict(X) if mu is None else np.asanyarray(mu)
-        linpred = self._link_instance.link(mu)
-        y = np.asanyarray(y)
-        X = np.asanyarray(X.todense()) if sparse.issparse(X) else np.asanyarray(X)
-
-        if dispersion is None:
-            dispersion = self.estimate_phi(
-                X=X, y=y, sample_weight=sample_weight, estimation_method="chisqr"
-            )
-
-        sum_weights = len(X) if sample_weight is None else sample_weight.sum()
-        W = 1 / self._family_instance.unit_variance(mu)
-        W /= dispersion * sum_weights
-
-        if sample_weight is not None:
-            W *= np.asanyarray(sample_weight)
-
-        W *= self._link_instance.inverse_derivative(linpred)
-        W *= y - mu
-        W = W.reshape(-1, 1)
-
-        if self.fit_intercept:
-            return np.hstack((W, np.multiply(X, W)))
-        else:
-            return np.multiply(X, W)
 
     # Note: check_estimator(GeneralizedLinearRegressor) might raise
     # "AssertionError: -0.28014056555724598 not greater than 0.5"
