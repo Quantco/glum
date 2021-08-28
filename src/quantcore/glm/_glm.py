@@ -1428,9 +1428,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 X=X, y=y, sample_weight=sample_weight, estimation_method="chisqr"
             )
 
-        if (
-            np.linalg.cond(X) > 1 / sys.float_info.epsilon
-        ):  # if design matrix is singular
+        # if design matrix is singular
+        if np.linalg.cond(X) > 1 / sys.float_info.epsilon:
             raise np.linalg.LinAlgError(
                 "Matrix is singular. Cannot estimate standard errors."
             )
