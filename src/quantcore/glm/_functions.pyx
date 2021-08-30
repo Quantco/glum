@@ -147,11 +147,9 @@ def poisson_log_likelihood(
     cdef floating ll = 0.0  # output
 
     for i in prange(n, nogil=True):
-        ll += weights[i] * (
-            (y[i] * log(mu[i]) - mu[i] - lgamma(1 + y[i]))
-            if y[i] > 0 else
-            -mu[i]
-        )
+        ll -= weights[i] * mu[i]
+        if y[i] > 0:
+            ll -= weights[i] * (lgamma(1 + y[i]) - y[i] * log(mu[i]))
 
     return ll
 
@@ -167,11 +165,9 @@ def poisson_deviance(
     cdef floating D = 0.0  # output
 
     for i in prange(n, nogil=True):
-        D += weights[i] * (
-            (y[i] * (log(y[i]) - log(mu[i])) - y[i] + mu[i])
-            if y[i] > 0 else
-            mu[i]
-        )
+        D += weights[i] * mu[i]
+        if y[i] > 0:
+            D += weights[i] * y[i] * (log(y[i]) - log(mu[i]) - 1)
 
     return 2 * D
 
@@ -303,13 +299,11 @@ def tweedie_deviance(
     for i in prange(n, nogil=True):
 
         mu1mp = mu[i] ** (1 - p)
-        yo1mp = y[i] / (1 - p)
+        D += weights[i] * (mu1mp * mu[i]) / (2 - p)
 
-        D += weights[i] * (
-            (yo1mp * (y[i] ** (1 - p)) + mu1mp * mu[i]) / (2 - p) - yo1mp * mu1mp
-            if y[i] > 0 else
-            (mu1mp * mu[i]) / (2 - p)
-        )
+        if y[i] > 0:
+            yo1mp = y[i] / (1 - p)
+            D += weights[i] * ((y[i] ** (1 - p)) * yo1mp / (2 - p) - yo1mp * mu1mp)
 
     return 2 * D
 
