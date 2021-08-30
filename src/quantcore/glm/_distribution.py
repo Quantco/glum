@@ -1093,10 +1093,8 @@ def _as_float_arrays(*args):
     elif always_broadcast:
         _broadcast = np.broadcast_arrays(*always_broadcast.values())
         broadcast = dict(zip(always_broadcast.keys(), _broadcast))
-    elif maybe_broadcast:
-        broadcast = maybe_broadcast
     else:
-        broadcast = {}
+        broadcast = maybe_broadcast  # possibly `{}`
 
     out = {**never_broadcast, **broadcast}
 
