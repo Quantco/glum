@@ -360,9 +360,10 @@ cdef floating _tweedie_normalization(floating y, floating power, floating disper
 
 cdef (int, int) _sum_limits(floating y, floating power, floating dispersion, floating j_max) nogil:
 
+    cdef floating w_lower
+
     cdef floating j_lower = 1.0
     cdef floating j_upper = ceil(j_max)
-    cdef floating w_lower
     cdef floating w_upper = _log_w_j(y, power, dispersion, j_upper)
 
     cdef floating w_crt = _log_w_j(y, power, dispersion, j_max) - 37
