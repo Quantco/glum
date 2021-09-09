@@ -436,8 +436,8 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
 
         Parameters
         ----------
-        link: Link
-            Link function
+        link : Link
+            A link function (i.e. an instance of :class:`~quantcore.glm._link.Link`).
         X : pandas.DataFrame
             The design matrix.
         y : array-like
