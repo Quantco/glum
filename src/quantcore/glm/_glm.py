@@ -1436,7 +1436,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         else:
             if robust or clusters is not None:
                 if expected_information:
-                    oim = self._family_instance.fisher_information(
+                    oim = self._family_instance._fisher_information(
                         self._link_instance,
                         X,
                         y,
@@ -1446,7 +1446,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                         self.fit_intercept,
                     )
                 else:
-                    oim = self._family_instance.observed_information(
+                    oim = self._family_instance._observed_information(
                         self._link_instance,
                         X,
                         y,
@@ -1455,7 +1455,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                         dispersion,
                         self.fit_intercept,
                     )
-                gradient = self._family_instance.score_matrix(
+                gradient = self._family_instance._score_matrix(
                     self._link_instance,
                     X,
                     y,
@@ -1480,7 +1480,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 vcov = linalg.solve(oim, linalg.solve(oim, inner_part).T)
                 vcov *= correction
             else:
-                fisher = self._family_instance.fisher_information(
+                fisher = self._family_instance._fisher_information(
                     self._link_instance,
                     X,
                     y,

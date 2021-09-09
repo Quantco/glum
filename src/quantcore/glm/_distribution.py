@@ -429,7 +429,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         gradient_rows[:] = d1_sigma_inv * (y - mu)
         hessian_rows[:] = d1 * d1_sigma_inv
 
-    def fisher_information(
+    def _fisher_information(
         self, link, X, y, mu, sample_weight, dispersion, fit_intercept
     ):
         """Compute the expected information matrix.
@@ -445,17 +445,19 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         mu : array-like
             Array with predictions.
         sample_weight : array-like
-            Array with weights.
+            Array with weights. Should sum up to 1.
         dispersion : float
             The dispersion parameter.
         """
+        # sample_weight should sum up to 1.
+        assert np.abs(np.sum(sample_weight) - 1) < 1e-5
         W = (link.inverse_derivative(link.link(mu)) ** 2) * get_one_over_variance(
             self, link, mu, link.inverse(mu), dispersion, sample_weight
         )
 
         return _safe_sandwich_dot(X, W, intercept=fit_intercept)
 
-    def observed_information(
+    def _observed_information(
         self, link, X, y, mu, sample_weight, dispersion, fit_intercept
     ):
         """Compute the observed information matrix.
@@ -469,10 +471,12 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         mu : array-like
             Array with predictions.
         sample_weight : array-like
-            Array with weights.
+            Array with weights. Should sum up to 1.
         dispersion : float
             The dispersion parameter.
         """
+        # sample_weight should sum up to 1.
+        assert np.abs(np.sum(sample_weight) - 1) < 1e-5
         linpred = link.link(mu)
 
         W = (
@@ -486,7 +490,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
 
         return _safe_sandwich_dot(np.asanyarray(X), W, intercept=fit_intercept)
 
-    def score_matrix(self, link, X, y, mu, sample_weight, dispersion, fit_intercept):
+    def _score_matrix(self, link, X, y, mu, sample_weight, dispersion, fit_intercept):
         """Compute the score.
 
         Parameters
@@ -498,10 +502,12 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         mu : array-like
             Array with predictions.
         sample_weight: array-like
-            Array with sampling weights.
+            Array with sampling weights. Should sum up to 1.
         dispersion : float
             The dispersion parameter.
         """
+        # sample_weight should sum up to 1.
+        assert np.abs(np.sum(sample_weight) - 1) < 1e-5
         linpred = link.link(mu)
 
         W = (
