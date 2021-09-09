@@ -439,13 +439,13 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         link : Link
             A link function (i.e. an instance of :class:`~quantcore.glm._link.Link`).
         X : pandas.DataFrame
-            The design matrix.
+            Training data.
         y : array-like
-            Array with outcomes.
+            Target values.
         mu : array-like
-            Array with predictions.
+            Predicted mean.
         sample_weight : array-like
-            Array with weights.
+            Weights or exposure to which variance is inversely proportional.
         dispersion : float
             The dispersion parameter.
         """
