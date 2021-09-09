@@ -449,6 +449,8 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
             Should sum up to 1.
         dispersion : float
             The dispersion parameter.
+        fit_intercept : bool
+            Whether the model has an intercept.
         """
         # sample_weight should sum up to 1.
         assert np.abs(np.sum(sample_weight) - 1) < 1e-5
@@ -466,15 +468,18 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         Parameters
         ----------
         X : pandas.DataFrame
-            The design matrix.
+            Training data.
         y : array-like
-            Array with outcomes.
+            Target values.
         mu : array-like
-            Array with predictions.
+            Predicted mean.
         sample_weight : array-like
-            Array with weights. Should sum up to 1.
+            Weights or exposure to which variance is inversely proportional.
+            Should sum up to 1.
         dispersion : float
             The dispersion parameter.
+        fit_intercept : bool
+            Whether the model has an intercept.
         """
         # sample_weight should sum up to 1.
         assert np.abs(np.sum(sample_weight) - 1) < 1e-5
@@ -497,15 +502,18 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         Parameters
         ----------
         X : pandas.DataFrame
-            The design matrix.
+            Training data.
         y : array-like
-            Array with outcomes.
+            Target values.
         mu : array-like
-            Array with predictions.
-        sample_weight: array-like
-            Array with sampling weights. Should sum up to 1.
+            Predicted mean.
+        sample_weight : array-like
+            Weights or exposure to which variance is inversely proportional.
+            Should sum up to 1.
         dispersion : float
             The dispersion parameter.
+        fit_intercept : bool
+            Whether the model has an intercept.
         """
         # sample_weight should sum up to 1.
         assert np.abs(np.sum(sample_weight) - 1) < 1e-5
