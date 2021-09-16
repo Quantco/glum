@@ -20,6 +20,7 @@ Unreleased
 **Other:**
 
 - The methods of the link classes will now return scalars when given scalar inputs. Under certain circumstances, they'd return zero-dimensional arrays.
+- There is a new benchmark available `glm_benchmarks_run` based on the Boston housing dataset. See `here <https://github.com/Quantco/quantcore.glm/pull/376>`.
 
 1.5.1 - 2021-07-22
 ------------------
