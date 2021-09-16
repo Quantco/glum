@@ -41,8 +41,8 @@ dependencies:
   - sphinxcontrib-apidoc
   - sphinxcontrib-fulltoc
   - nbclassic=0.2.7
-  - nbsphinx=0.8.3
-  - jinja2<3 # jinja2 version 3 causes nbsphinx problems https://github.com/spatialaudio/nbsphinx/issues/563
+  - nbsphinx
+  - jinja2
   - altair # used in docs/tutorials/rossman
   - libpysal # used in docs/tutorials/regularization_housing_data
   - shapely # used in docs/tutorials/regularization_housing_data
