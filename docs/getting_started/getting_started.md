@@ -6,7 +6,7 @@ jupyter:
       extension: .md
       format_name: markdown
       format_version: '1.3'
-      jupytext_version: 1.11.4
+      jupytext_version: 1.12.0
   kernelspec:
     display_name: Python 3 (ipykernel)
     language: python
@@ -19,7 +19,7 @@ Welcome to `quantcore.glm`! Generalized linear models (GLMs) are core statistica
 
 The purpose of this tutorial is to show the basics of `quantcore.glm`. It assumes a working knowledge of python, regularized linear models, and machine learning. The API is very similar to sklearn. After all, `quantcore.glm` is based on a fork of scikit-learn.
 
-If you have not done so already, please refer to our [installation instructions](../install) for installing `quantcore.glm`.
+If you have not done so already, please refer to our [installation instructions](../install.rst) for installing `quantcore.glm`.
 
 *Note:* We use the [sklearn boston housing dataset](https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_boston.html) throughout the tutorial. If you wish to explore this dataset further, there are a handful of resources online. For example, [this blog](https://medium.com/@amitg0161/sklearn-linear-regression-tutorial-with-boston-house-dataset-cde74afd460a). 
 

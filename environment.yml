@@ -40,7 +40,7 @@ dependencies:
   - sphinx_rtd_theme
   - sphinxcontrib-apidoc
   - sphinxcontrib-fulltoc
-  - nbclassic=0.2.7
+  - nbclassic>=0.2.8
   - nbsphinx
   - jinja2
   - altair # used in docs/tutorials/rossman

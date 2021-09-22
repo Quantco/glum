@@ -47,12 +47,12 @@ Within the `irls-cd` solver, the inner loop involves solving for `beta` with coo
 The "inner loop" of the `irls-ls` solver is simply a direct least squares solve.
 
 Active set tracking
-^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 When penalizing with an L1-norm, it is common for many coefficients to be exactly zero. And, it is possible to predict during a given iteration which of those coefficients will stay zero. As a result, we track the "active set" consisting of all the coefficients that are either currently non-zero or likely to remain non-zero. We follow the outer loop active set tracking algorithm in the `newglmnet` reference. That paper refers to the same concept as "shrinkage", whereas the `glmnet` reference calls this the "active set". Currently, we have not yet implemented the inner loop active set tracking from the `newglmnet` reference.
 
 Hessian approximation. 
-^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Depending on the distribution and link functions, we may not use the true Hessian. There are two potentially useful approximations:
 
@@ -60,7 +60,7 @@ Depending on the distribution and link functions, we may not use the true Hessia
 2. The Fisher information matrix.  See [this discussion for an explanation of the BHHH algorithm.](https://github.com/Quantco/glm_benchmarks/pull/156#discussion_r434746239)
 
 Approximate Hessian updating
-^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 When we compute the Gauss-Newton approximation to the Hessian, the computation takes the form:
 
@@ -116,7 +116,7 @@ References
 `coordinate_descent` - [Coordinate Descent Algorithms](http://www.optimization-online.org/DB_FILE/2014/12/4679.pdf)
 
 Matrix Types
---------
+------------------------
 
 Along with the GLM solvers, this package supports dense, sparse, categorical matrix types and mixtures of these types. Using the most efficient matrix representations massively improves performacne. 
 
@@ -131,11 +131,11 @@ We implement a CategoricalMatrix object that efficiently represents these matric
 Finally, SplitMatrix allows mixing different matrix types for different columns to minimize overhead.
 
 Standardization
----------
+---------------------------
 
 Internal to `GeneralizedLinearRegressor`, all matrix types are wrapped in a `StandardizedMatrix` which offsets columns to have mean zero and standard deviation one without modifying the matrix data itself. This avoids situations where modifying a matrix to have mean zero would result in losing the sparsity structure and avoids ever needing to copy or modify the input data matrix. As a result, memory usage is very low. 
 
 Code structure
----------
+---------------------------
 
 
