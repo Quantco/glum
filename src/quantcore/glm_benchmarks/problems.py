@@ -12,6 +12,7 @@ from joblib import Memory
 from scipy.sparse import csc_matrix
 
 from .data import (
+    generate_housing_dataset,
     generate_intermediate_insurance_dataset,
     generate_narrow_insurance_dataset,
     generate_real_insurance_dataset,
@@ -151,22 +152,48 @@ def get_all_problems() -> Dict[str, Problem]:
 
     """
     regularization_strength = 0.001
-    distributions = ["gaussian", "poisson", "gamma", "tweedie-p=1.5", "binomial"]
-    load_funcs = {
+
+    housing_distributions = ["gaussian", "gamma", "binomial"]
+    housing_load_funcs = {
+        "intermediate-housing": generate_housing_dataset,
+    }
+
+    insurance_distributions = [
+        "gaussian",
+        "poisson",
+        "gamma",
+        "tweedie-p=1.5",
+        "binomial",
+    ]
+    insurance_load_funcs = {
         "intermediate-insurance": generate_intermediate_insurance_dataset,
         "narrow-insurance": generate_narrow_insurance_dataset,
         "wide-insurance": generate_wide_insurance_dataset,
     }
     if os.path.isfile(git_root("data", "X.parquet")):
-        load_funcs["real-insurance"] = generate_real_insurance_dataset
+        insurance_load_funcs["real-insurance"] = generate_real_insurance_dataset
 
     problems = {}
     for penalty_str, l1_ratio in [("l2", 0.0), ("net", 0.5), ("lasso", 1.0)]:
-        for distribution in distributions:
+        # Add housing problems
+        for distribution in housing_distributions:
             suffix = penalty_str + "-" + distribution
             dist = distribution
-
-            for problem_name, load_fn in load_funcs.items():
+            for problem_name, load_fn in housing_load_funcs.items():
+                for data_setup in ["no-weights", "offset"]:
+                    problems["-".join((problem_name, data_setup, suffix))] = Problem(
+                        data_loader=partial(
+                            load_data, load_fn, distribution=dist, data_setup=data_setup
+                        ),
+                        distribution=distribution,
+                        regularization_strength=regularization_strength,
+                        l1_ratio=l1_ratio,
+                    )
+        # Add insurance problems
+        for distribution in insurance_distributions:
+            suffix = penalty_str + "-" + distribution
+            dist = distribution
+            for problem_name, load_fn in insurance_load_funcs.items():
                 for data_setup in ["weights", "no-weights", "offset"]:
                     problems["-".join((problem_name, data_setup, suffix))] = Problem(
                         data_loader=partial(
