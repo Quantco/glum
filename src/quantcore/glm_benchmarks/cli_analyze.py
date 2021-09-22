@@ -137,7 +137,10 @@ def _extract_dict_results_to_pd_series(
     # weights and offsets are solving the same problem, but the objective is set up to
     # deal with weights, so load the data for the weights problem rather than the
     # offset problem
-    prob_name_weights = "weights".join(params.problem_name.split("offset"))
+    if "housing" not in params.problem_name:
+        prob_name_weights = "weights".join(params.problem_name.split("offset"))
+    else:
+        prob_name_weights = params.problem_name
     problem = get_all_problems()[prob_name_weights]
 
     formatted: Dict[str, Any] = params.__dict__
