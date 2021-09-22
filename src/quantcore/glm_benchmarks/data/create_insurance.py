@@ -14,7 +14,7 @@ from ..util import exposure_and_offset_to_weights
 # Modified to generate data sets of different sizes
 
 
-def create_raw_data() -> None:
+def create_insurance_raw_data() -> None:
     """Do some basic processing on the data that we will later transform into our \
     benchmark data sets."""
     # load the datasets
