@@ -1,5 +1,5 @@
 Background, design and architecture
-=========
+======================================================
 
 .. toctree::
    :maxdepth: 2
