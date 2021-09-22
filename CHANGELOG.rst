@@ -15,6 +15,8 @@ Unreleased
 - P1 and P2 now accepts 1d array with the same number of elements as the unexpanded design matrix. In this case,
   the penalty associated with a categorical feature will be expanded to as many elements as there are levels,
   all with the same value.
+- :class:`ExponentialDispersionModel` gains a :meth:`dispersion` method.
+- :class:`BinomialDistribution` and :class:`TweedieDistribution` gain a :meth:`log_likelihood` method.
 
 
 **Other:**
