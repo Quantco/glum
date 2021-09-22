@@ -5,7 +5,7 @@ channels:
   - nodefaults
 dependencies:
   - h2o-py
-  - openjdk
   - johnlees-glmnet_python
+  - openjdk
   - rpy2
 
