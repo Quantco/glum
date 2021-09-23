@@ -1502,8 +1502,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                     if isinstance(penalty, str):
                         return penalty
                     else:
-                        if np.asarray(penalty).shape[0] == X.shape[1]:
-                            if np.asarray(penalty).ndim == 2:
+                        if penalty.shape[0] == X.shape[1]:
+                            if penalty.ndim == 2:
                                 raise ValueError(
                                     "When the penalty is two dimensional, it has "
                                     "to have the same length as the number of "
@@ -1523,8 +1523,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                         else:
                             return penalty
 
-                P1 = _expand_categorical_penalties(self.P1, X)
-                P2 = _expand_categorical_penalties(self.P2, X)
+                P1 = _expand_categorical_penalties(np.asarray(self.P1), X)
+                P2 = _expand_categorical_penalties(
+                    self.P2 if sparse.issparse(self.P2) else np.asarray(self.P2), X
+                )
 
                 X = mx.from_pandas(X)
             else:
