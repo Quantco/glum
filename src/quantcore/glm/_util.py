@@ -1,8 +1,14 @@
 from typing import Union
 
 import numpy as np
+import pandas as pd
 from quantcore.matrix import MatrixBase, StandardizedMatrix
 from scipy import sparse
+
+
+def _asanyarray(x, **kwargs):
+    """``np.asanyarray`` with passthrough for scalars."""
+    return x if pd.api.types.is_scalar(x) else np.asanyarray(x, **kwargs)
 
 
 def _safe_lin_pred(
