@@ -72,7 +72,8 @@ where ``hessian_rows`` is a vector with length equal to the number of observatio
 Instead of computing ``H`` directly, we will compute updates to ``H``: ``dH``
 
 So, given ``H0`` from a previous iterations:
-````
+
+```
 H0 = X^T @ diag(hessian_rows_0) @ X
 ```
 we want to compute H1 from this iteration:
@@ -120,22 +121,23 @@ Matrix Types
 
 Along with the GLM solvers, this package supports dense, sparse, categorical matrix types and mixtures of these types. Using the most efficient matrix representations massively improves performacne. 
 
-For more details, see the [README for quantcore.matrix](https://github.com/Quantco/quantcore.matrix)
+For more details, see the `README for quantcore.matrix <https://github.com/Quantco/quantcore.matrix>`_
 
 We support dense matrices via standard numpy arrays. 
 
 We support sparse CSR and CSC matrices via standard ``scipy.sparse`` objects. However, we have extended these operations with custom matrix-vector and sandwich product routines that are optimized and parallelized. A user does not need to modify their code to take advantage of this optimization. If a ``scipy.sparse.csc_matrix`` object is passed in, it will be automatically converted to a ``SparseMatrix`` object. This operation is almost free because no data needs to be copied.
 
-We implement a CategoricalMatrix object that efficiently represents these matrices without nearly as much overhead as a normal CSC or CSR sparse matrix.
+We implement a ``CategoricalMatrix`` object that efficiently represents these matrices without nearly as much overhead as a normal CSC or CSR sparse matrix.
 
-Finally, SplitMatrix allows mixing different matrix types for different columns to minimize overhead.
+Finally, ``SplitMatrix`` allows mixing different matrix types for different columns to minimize overhead.
 
 Standardization
 ---------------------------
 
-Internal to ``GeneralizedLinearRegressor``, all matrix types are wrapped in a ``StandardizedMatrix`` which offsets columns to have mean zero and standard deviation one without modifying the matrix data itself. This avoids situations where modifying a matrix to have mean zero would result in losing the sparsity structure and avoids ever needing to copy or modify the input data matrix. As a result, memory usage is very low. 
+Internal to :class:`GeneralizedLinearRegressor`, all matrix types are wrapped in a ``StandardizedMatrix`` which offsets columns to have mean zero and standard deviation one without modifying the matrix data itself. This avoids situations where modifying a matrix to have mean zero would result in losing the sparsity structure and avoids ever needing to copy or modify the input data matrix. As a result, memory usage is very low. 
 
 Code structure
 ---------------------------
 
+Fill in!
 
