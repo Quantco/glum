@@ -111,3 +111,32 @@ For building the package locally, you can use the following command:
    conda build conda.recipe
 
 This will build the recipe using the standard compiler flags set by the conda-forge activation scripts.
+
+Developing the documentation
+----------------------------------------
+
+The documentation is built with a mix of Sphinx, autodoc, and nbsphinx. To develop the documentation:
+
+::
+
+   cd docs
+   make html
+   python -m http.server --directory _build/html
+
+Then, navigate to `<http://localhost:8000>`_ to view the documentation.
+
+Alternatively, if you install `entr <http://eradman.com/entrproject/>`_, then you can auto-rebuild the documentation any time a file changes with:
+
+:: 
+
+   cd docs
+   ./dev
+
+If you are a newbie to Sphinx, the links below may help get you up to speed on some of the trickier aspects:
+
+* `An idiot's guide to Sphinx <https://samnicholls.net/2016/06/15/how-to-sphinx-readthedocs/>`_
+* `Links between documents <https://stackoverflow.com/questions/37553750/how-can-i-link-reference-another-rest-file-in-the-documentation>`_
+* `Cross-referencing python objects <http://certik.github.io/sphinx/markup/inline.html#cross-referencing-python-objects>`_ using things like ``:mod:`` and ``:meth:`` and ``:class:``.
+* `autodoc is used for automatically converting docstrings to docs <https://www.sphinx-doc.org/en/master/usage/extensions/autodoc.html#module-sphinx.ext.autodoc>`_
+* `We follow the numpy docstring style guide <https://numpydoc.readthedocs.io/en/latest/format.html#docstring-standard>`_
+* `To create links between ipynb files when using nbsphinx <https://nbsphinx.readthedocs.io/en/0.4.1/markdown-cells.html#Links-to-*.rst-Files-(and-Other-Sphinx-Source-Files)>`_

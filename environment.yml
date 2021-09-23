@@ -6,29 +6,29 @@ channels:
 dependencies:
   # required for users (note: this is not where you specify new dependencies
   # for the conda packages. please put those `conda.recipe/meta.yaml`!!
-  - quantcore.matrix>=2.0.1
   - libblas>=0=*mkl
-  - tqdm
-  - scikit-learn >= 0.23
   - numexpr
-  - scipy
   - pandas
+  - quantcore.matrix>=2.0.1
+  - scikit-learn >= 0.23
+  - scipy
+  - tqdm
 
   # development tools
-  - setuptools_scm
-  - pip
-  - pre-commit
   - black
-  - flake8
-  - pytest
-  - pytest-xdist
-  - git_root
   - dask-ml # used for data creation for the benchmark problems
+  - flake8
+  - git_root
   - ipdb
   - ipython
   - line_profiler
   - memory_profiler
+  - setuptools_scm
+  - pip
+  - pre-commit
   - pyarrow
+  - pytest
+  - pytest-xdist
   
   # build tools
   - c-compiler
@@ -36,17 +36,16 @@ dependencies:
   - cython
 
   # documentation dev
+  - altair # used in docs/tutorials/rossman
+  - jinja2<3
+  - jupyterlab
+  - jupytext
+  - libpysal # used in docs/tutorials/regularization_housing_data
+  - make
+  - nbclassic>=0.2.8
+  - nbsphinx=0.8.3
+  - openml # used for downloading datasets in the tutorials.
+  - shapely # used in docs/tutorials/regularization_housing_data
   - sphinx=3.5.3
   - sphinx_rtd_theme
   - sphinxcontrib-apidoc
-  - sphinxcontrib-fulltoc
-  - nbclassic>=0.2.8
-  - nbsphinx
-  - jinja2
-  - altair # used in docs/tutorials/rossman
-  - libpysal # used in docs/tutorials/regularization_housing_data
-  - shapely # used in docs/tutorials/regularization_housing_data
-  - openml # used for downloading datasets in the tutorials.
-  - jupyterlab
-  - jupytext
-  - make
