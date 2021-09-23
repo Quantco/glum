@@ -1596,7 +1596,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     while ``alpha`` corresponds to the lambda parameter in glmnet.
     Specifically, ``l1_ratio = 1`` is the lasso penalty.
 
-    Read more in the :ref:`User Guide <Generalized_linear_regression>`.
+    Read more in :doc:`/background/background`.
 
     Parameters
     ----------
@@ -1849,7 +1849,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     :math:`\\mu_i \\equiv \\mathrm{E}(y_i) = h(x_i' w)` and
     :math:`\\mathrm{var}(y_i) = (\\phi / s_i) v(\\mu_i)`. The unit
     variance function :math:`v(\\mu_i)` is a property of and given by the
-    specific EDM; see :ref:`User Guide <Generalized_linear_regression>`.
+    specific EDM; see :doc:`/background/background`.
 
     The parameters :math:`w` (``coef_`` and ``intercept_``) are estimated by
     minimizing the deviance plus penalty term, which is equivalent to

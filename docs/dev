@@ -8,7 +8,7 @@
 
 trap "kill 0" EXIT
 
-python -m http.server --directory _build/html &> /dev/null &
+python -m http.server --directory _build/html 8001 &> /dev/null &
 
 while true
 do
