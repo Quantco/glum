@@ -73,14 +73,14 @@ def cli_analyze(
     res_df["problem_name"] = [
         "weights".join(x.split("offset")) for x in res_df["problem_name"]
     ]
-    problem_id_cols = ["problem_name", "num_rows", "regularization_strength"]
+    problem_id_cols = ["problem_name", "num_rows", "regularization_strength", "offset"]
     res_df = res_df.set_index(problem_id_cols).sort_values("library_name").sort_index()
     if params.cv:
         for col in ["max_alpha", "min_alpha"]:
             res_df[col] = res_df[col].astype(float)
 
     res_df["rel_obj_val"] = (
-        res_df[["obj_val"]] - res_df.groupby(level=[0, 1, 2])[["obj_val"]].min()
+        res_df[["obj_val"]] - res_df.groupby(level=[0, 1, 2, 3])[["obj_val"]].min()
     )
 
     with pd.option_context(
@@ -96,7 +96,6 @@ def cli_analyze(
                 "single_precision",
                 "n_iter",
                 "runtime",
-                "offset",
             ]
             if res_df["cv"].any():
                 cols_to_show += ["n_alphas", "max_alpha", "min_alpha", "best_alpha"]
