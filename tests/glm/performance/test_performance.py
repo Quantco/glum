@@ -155,7 +155,6 @@ def get_spmv_runtime():
     diag_data = np.random.rand(5, N)
     mat = sps.spdiags(diag_data, [0, 1, -1, 2, -2], N, N).tocsr()
     v = np.random.rand(N)
-
     return runtime(lambda: mat.dot(v), 5)[0] / (mp.cpu_count() // 2)
 
 
