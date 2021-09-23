@@ -1,5 +1,6 @@
-from .create import (
-    create_raw_data,
+from .create_housing import create_housing_raw_data, generate_housing_dataset
+from .create_insurance import (
+    create_insurance_raw_data,
     generate_intermediate_insurance_dataset,
     generate_narrow_insurance_dataset,
     generate_real_insurance_dataset,
@@ -12,6 +13,8 @@ __all__ = [
     "generate_narrow_insurance_dataset",
     "generate_wide_insurance_dataset",
     "generate_real_insurance_dataset",
-    "create_raw_data",
+    "create_insurance_raw_data",
     "simulate_glm_data",
+    "generate_housing_dataset",
+    "create_housing_raw_data",
 ]

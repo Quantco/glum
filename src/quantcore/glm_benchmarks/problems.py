@@ -12,6 +12,7 @@ from joblib import Memory
 from scipy.sparse import csc_matrix
 
 from .data import (
+    generate_housing_dataset,
     generate_intermediate_insurance_dataset,
     generate_narrow_insurance_dataset,
     generate_real_insurance_dataset,
@@ -53,27 +54,35 @@ def load_data(
     'exposure' as a weight. Everywhere else, exposures will be referred to as weights.
     """
     # TODO: add a weights_and_offset option
+    # Step 1) Load the data.
     if data_setup not in ["weights", "offset", "no-weights"]:
         raise NotImplementedError
-    X, y, exposure = loader_func(num_rows, noise, distribution)
+    X_in, y, exposure = loader_func(num_rows, noise, distribution)
 
+    # Step 2) Convert to needed precision level.
     if single_precision:
-        X = X.astype(np.float32)
+        X_in = X_in.astype(np.float32)
         y = y.astype(np.float32)
         if exposure is not None:
             exposure = exposure.astype(np.float32)
 
+    # Step 3) One hot encode columns if we are not using CategoricalMatrix
     def transform_col(i: int, dtype) -> Union[pd.DataFrame, mx.CategoricalMatrix]:
         if dtype.name == "category":
             if storage == "cat":
-                return mx.CategoricalMatrix(X.iloc[:, i])
-            return DummyEncoder().fit_transform(X.iloc[:, [i]])
-        return X.iloc[:, [i]]
+                return mx.CategoricalMatrix(X_in.iloc[:, i])
+            return DummyEncoder().fit_transform(X_in.iloc[:, [i]])
+        return X_in.iloc[:, [i]]
 
-    mat_parts = [transform_col(i, dtype) for i, dtype in enumerate(X.dtypes)]
+    mat_parts = [transform_col(i, dtype) for i, dtype in enumerate(X_in.dtypes)]
     # TODO: add a threshold for the number of categories needed to make a categorical
     #  matrix
-    if storage == "cat":
+
+    # Step 4) Convert the matrix to the appopriate storage type.
+    if storage == "auto":
+        dtype = np.float32 if single_precision else np.float64
+        X = mx.from_pandas(X_in, dtype, sparse_threshold=0.1, cat_threshold=3)
+    elif storage == "cat":
         cat_indices_in_expanded_arr: List[np.ndarray] = []
         dense_indices_in_expanded_arr: List[int] = []
         i = 0
@@ -102,14 +111,15 @@ def load_data(
             indices=[np.array(dense_indices_in_expanded_arr)]
             + cat_indices_in_expanded_arr,
         )
-    else:
-        X = pd.concat(mat_parts, axis=1)
-
-    if storage == "sparse":
-        X = csc_matrix(X)
+    elif storage == "sparse":
+        X = csc_matrix(pd.concat(mat_parts, axis=1))
     elif storage.startswith("split"):
         threshold = float(storage.split("split")[1])
-        X = mx.csc_to_split(csc_matrix(X), threshold)
+        X = mx.csc_to_split(csc_matrix(pd.concat(mat_parts, axis=1)), threshold)
+    else:  # Fall back to using a dense matrix.
+        X = pd.concat(mat_parts, axis=1)
+
+    # Step 5) Handle weights or offsets if needed.
     if data_setup == "weights":
         # The exposure correction doesn't make sense for these distributions since
         # they don't use a log link (plus binomial isn't in the tweedie family),
@@ -142,22 +152,48 @@ def get_all_problems() -> Dict[str, Problem]:
 
     """
     regularization_strength = 0.001
-    distributions = ["gaussian", "poisson", "gamma", "tweedie-p=1.5", "binomial"]
-    load_funcs = {
+
+    housing_distributions = ["gaussian", "gamma", "binomial"]
+    housing_load_funcs = {
+        "intermediate-housing": generate_housing_dataset,
+    }
+
+    insurance_distributions = [
+        "gaussian",
+        "poisson",
+        "gamma",
+        "tweedie-p=1.5",
+        "binomial",
+    ]
+    insurance_load_funcs = {
         "intermediate-insurance": generate_intermediate_insurance_dataset,
         "narrow-insurance": generate_narrow_insurance_dataset,
         "wide-insurance": generate_wide_insurance_dataset,
     }
     if os.path.isfile(git_root("data", "X.parquet")):
-        load_funcs["real-insurance"] = generate_real_insurance_dataset
+        insurance_load_funcs["real-insurance"] = generate_real_insurance_dataset
 
     problems = {}
     for penalty_str, l1_ratio in [("l2", 0.0), ("net", 0.5), ("lasso", 1.0)]:
-        for distribution in distributions:
+        # Add housing problems
+        for distribution in housing_distributions:
             suffix = penalty_str + "-" + distribution
             dist = distribution
-
-            for problem_name, load_fn in load_funcs.items():
+            for problem_name, load_fn in housing_load_funcs.items():
+                for data_setup in ["no-weights", "offset"]:
+                    problems["-".join((problem_name, data_setup, suffix))] = Problem(
+                        data_loader=partial(
+                            load_data, load_fn, distribution=dist, data_setup=data_setup
+                        ),
+                        distribution=distribution,
+                        regularization_strength=regularization_strength,
+                        l1_ratio=l1_ratio,
+                    )
+        # Add insurance problems
+        for distribution in insurance_distributions:
+            suffix = penalty_str + "-" + distribution
+            dist = distribution
+            for problem_name, load_fn in insurance_load_funcs.items():
                 for data_setup in ["weights", "no-weights", "offset"]:
                     problems["-".join((problem_name, data_setup, suffix))] = Problem(
                         data_loader=partial(
