@@ -28,14 +28,11 @@ requirements:
   host:
     - python
     - cython
-    - jemalloc     # [not win]
     - llvm-openmp  # [osx]
-    - mako
     - numpy
     - pip
     - scikit-learn >=0.23
     - setuptools_scm
-    - xsimd
   run:
     - python
     - joblib
