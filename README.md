@@ -69,5 +69,3 @@ Please install the package through conda-forge:
 conda config --prepend channels conda-forge
 conda install quantcore.glm
 ```
-
-For more information, including tutorials and API reference, please see [the documentation](https://docs.dev.quantco.cloud/qc-github-artifacts/Quantco/quantcore.glm/latest/index.html).
