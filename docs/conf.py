@@ -10,15 +10,12 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
-# import os
-# import sys
-# sys.path.insert(0, os.path.abspath('.'))
-
-# -- Project information -----------------------------------------------------
-
+import os
 import sys
 
-sys.path.append("../src/quantcore/")
+sys.path.insert(0, os.path.abspath("../src"))
+
+# -- Project information -----------------------------------------------------
 
 project = "quantcore.glm"
 copyright = "(C) 2020-2021 QuantCo Inc."
@@ -26,7 +23,6 @@ author = "QuantCo Inc."
 
 extensions = [
     "sphinx.ext.napoleon",
-    "sphinxcontrib.apidoc",
     "altair.sphinxext.altairplot",
     "IPython.sphinxext.ipython_console_highlighting",
     "IPython.sphinxext.ipython_directive",
@@ -34,10 +30,7 @@ extensions = [
     "sphinx.ext.mathjax",
 ]
 
-apidoc_module_dir = "../src/quantcore"
-apidoc_excluded_paths = ["glm_benchmarks"]
-apidoc_output_dir = "./api"
-apidoc_separate_modules = False
+autodoc_typehints = "description"
 
 templates_path = ["_templates"]
 exclude_patterns = [
@@ -46,6 +39,9 @@ exclude_patterns = [
     "Thumbs.db",
     ".DS_Store",
     "**.ipynb_checkpoints",
+    "lasso.ipynb",
+    "spatial-smoothing.ipynb",
+    "tutorials/rossman/explore_data.ipynb",
 ]
 html_theme = "sphinx_rtd_theme"
 html_static_path = ["_static"]

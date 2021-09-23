@@ -35,10 +35,4 @@ We suggest visiting the :doc:`Installation<install>` and :doc:`Getting Started<g
    GitHub <https://github.com/Quantco/quantcore.glm>
    Changelog <changelog>
 
-
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
+:ref:`modindex`

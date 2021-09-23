@@ -26,8 +26,7 @@ from ._util import _safe_lin_pred
 class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
     """Generalized linear model with iterative fitting along a regularization path.
 
-    See glossary entry for :term:`cross-validation estimator`. The best model is
-    selected by cross-validation.
+    The best model is selected by cross-validation.
 
     Cross-validated regression via a Generalized Linear Model (GLM) with
     penalties. For more on GLMs and on these parameters, see the documentation
@@ -228,17 +227,14 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
 
         - ``None``, to use the default 5-fold cross-validation,
         - ``int``, to specify the number of folds.
-        - :term:`CV splitter`,
         - ``Iterable`` yielding (train, test) splits as arrays of indices.
 
-        For integer/``None`` inputs, :class:`KFold` is used. Refer to
-        :ref:`User Guide <cross_validation>` for the various cross-validation
-        strategies available.
+        For integer/``None`` inputs, :class:`KFold` is used
 
     n_jobs : int, optional (default=None)
         Number of CPUs to use during cross validation. ``None`` means ``1``
         unless in a :obj:`joblib.parallel_backend` context. ``-1`` means using
-        all processors. See :term:`Glossary <n_jobs>` for more details.
+        all processors.
 
     Attributes
     ----------

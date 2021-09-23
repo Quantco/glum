@@ -6,7 +6,7 @@ jupyter:
       extension: .md
       format_name: markdown
       format_version: '1.3'
-      jupytext_version: 1.12.0
+      jupytext_version: 1.11.4
   kernelspec:
     display_name: Python 3 (ipykernel)
     language: python
@@ -55,9 +55,9 @@ We'll use `quantcore.glm.GeneralizedLinearRegressor` to predict the house prices
 
 We set three key parameters:
 
-- **`family`**: the family parameter specifies the distributional assumption of the GLM and, as a consequence, the loss function to be minimized. Accepted strings are 'normal', 'poisson', 'gamma', 'inverse.gaussian', and 'binomial'. You can also pass in an instantiated `quantcore.glm` distribution (e.g. `quantcore.glm.TweedieDistribution(1.5)` )
-- **`alpha`**: the constant multiplying the penalty term that determines regularization strength. (*Note*: `GeneralizedLinearRegressor` also has an alpha-search option. See the `GeneralizedLinearRegressorCV` example below for details on how alpha-search works).
-- **`l1_ratio`**: the elastic net mixing parameter (`0 <= l1_ratio <= 1`). For `l1_ratio = 0`, the penalty is the L2 penalty (ridge). ``For l1_ratio = 1``, it is an L1 penalty (lasso).  For ``0 < l1_ratio < 1``, the penalty is a combination of L1 and L2.
+- `family`: the family parameter specifies the distributional assumption of the GLM and, as a consequence, the loss function to be minimized. Accepted strings are 'normal', 'poisson', 'gamma', 'inverse.gaussian', and 'binomial'. You can also pass in an instantiated `quantcore.glm` distribution (e.g. `quantcore.glm.TweedieDistribution(1.5)` )
+- `alpha`: the constant multiplying the penalty term that determines regularization strength. (*Note*: `GeneralizedLinearRegressor` also has an alpha-search option. See the `GeneralizedLinearRegressorCV` example below for details on how alpha-search works).
+- `l1_ratio`: the elastic net mixing parameter (`0 <= l1_ratio <= 1`). For `l1_ratio = 0`, the penalty is the L2 penalty (ridge). ``For l1_ratio = 1``, it is an L1 penalty (lasso).  For ``0 < l1_ratio < 1``, the penalty is a combination of L1 and L2.
 
 To be precise, we will be minimizing the function with respect to the parameters, $\beta$:
 
@@ -91,16 +91,16 @@ Now, we fit using automatic cross validation with `quantcore.glm.GeneralizedLine
 
 Some important parameters:
 
-- **`alphas`**: for `GeneralizedLinearRegressorCV`, the best `alpha` will be found by searching along the regularization path. The regularization path is determined as follows:
-    1. If ``alpha`` is an iterable, use it directly. All other parameters
+- `alphas`: for `GeneralizedLinearRegressorCV`, the best `alpha` will be found by searching along the regularization path. The regularization path is determined as follows:
+    1. If `alpha` is an iterable, use it directly. All other parameters
         governing the regularization path are ignored.
-    2. If ``min_alpha`` is set, create a path from ``min_alpha`` to the
+    2. If `min_alpha` is set, create a path from `min_alpha` to the
         lowest alpha such that all coefficients are zero.
-    3. If ``min_alpha_ratio`` is set, create a path where the ratio of
-        ``min_alpha / max_alpha = min_alpha_ratio``.
-    4. If none of the above parameters are set, use a ``min_alpha_ratio``
+    3. If `min_alpha_ratio` is set, create a path where the ratio of
+        `min_alpha / max_alpha = min_alpha_ratio`.
+    4. If none of the above parameters are set, use a `min_alpha_ratio`
         of 1e-6.      
-- **l1_ratio**: for `GeneralizedLinearRegressorCV`, if you pass ``l1_ratio`` as an array, the `fit` method will choose the best value of `l1_ratio` and store it as `self.l1_ratio_`.
+- `l1_ratio`: for `GeneralizedLinearRegressorCV`, if you pass `l1_ratio` as an array, the `fit` method will choose the best value of `l1_ratio` and store it as `self.l1_ratio_`.
 
 ```python
 glmcv = GeneralizedLinearRegressorCV(
