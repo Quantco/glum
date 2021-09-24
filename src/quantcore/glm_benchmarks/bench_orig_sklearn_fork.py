@@ -60,8 +60,8 @@ def orig_sklearn_fork_bench(
         return result
 
     fit_args = dict(X=X, y=dat["y"])
-    if "weights" in dat.keys():
-        fit_args.update({"sample_weight": dat["weights"]})
+    if "sample_weight" in dat.keys():
+        fit_args.update({"sample_weight": dat["sample_weight"]})
     if "offset" in dat.keys():
         warnings.warn("Original sklearn_fork does not support offsets.")
         return result
