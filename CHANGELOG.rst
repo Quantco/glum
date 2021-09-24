@@ -10,6 +10,11 @@ Changelog
 Unreleased
 ----------
 
+**Breaking change:**
+
+- :class:`~quantcore.glm.GeneralizedLinearRegressor` and :class:`~quantcore.glm.GeneralizedLinearRegressorCV` lose the ``fit_dispersion`` parameter.
+  Please use the :meth:`dispersion` method of the appropriate family instance instead.
+
 **New features:**
 
 - P1 and P2 now accepts 1d array with the same number of elements as the unexpanded design matrix. In this case,

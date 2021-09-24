@@ -33,7 +33,6 @@ from sklearn.utils.validation import (
     check_consistent_length,
     check_is_fitted,
     check_random_state,
-    check_X_y,
     column_or_1d,
 )
 
@@ -621,7 +620,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         fit_intercept=True,
         family: Union[str, ExponentialDispersionModel] = "normal",
         link: Union[str, Link] = "auto",
-        fit_dispersion=None,
         solver="auto",
         max_iter=100,
         gradient_tol: Optional[float] = None,
@@ -651,7 +649,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self.fit_intercept = fit_intercept
         self.family = family
         self.link = link
-        self.fit_dispersion = fit_dispersion
         self.solver = solver
         self.max_iter = max_iter
         self.gradient_tol = gradient_tol
@@ -795,13 +792,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         #######################################################################
         # 5a. undo standardization
         #######################################################################
-        if self.fit_dispersion in ["chisqr", "deviance"]:
-            # attention because of rescaling of weights
-            X_unstandardized = X.mat if isinstance(X, mx.StandardizedMatrix) else X
-            self.dispersion_ = (
-                self.estimate_phi(X_unstandardized, y, weights) * weights_sum
-            )
-
         del self._center_predictors
         del self._solver
         del self._random_state
@@ -1243,58 +1233,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         weights = _check_weights(sample_weight, X.shape[0], X.dtype)
         return mu * weights
 
-    def estimate_phi(
-        self, X: ArrayLike, y: ArrayLike, sample_weight: Optional[ArrayLike] = None
-    ):
-        """Estimate/fit the dispersion parameter φ.
-
-        Parameters
-        ----------
-        X : {array-like, sparse matrix}, shape (n_samples, n_features)
-            The data matrix.
-
-        y : array-like, shape (n_samples,)
-            Target values.
-
-        sample_weight : array-like, shape (n_samples,), optional (default=None)
-            Sample weights.
-
-        Returns
-        -------
-        float
-            Dispersion parameter.
-        """
-        check_is_fitted(self, "coef_")
-        _dtype = [np.float64, np.float32]
-        if isinstance(X, mx.MatrixBase):
-            X, y = check_X_y_matrix_compliant(
-                X, y, accept_sparse=["csr", "csc", "coo"], dtype=_dtype
-            )
-        else:
-            X, y = check_X_y(X, y, accept_sparse=["csr", "csc", "coo"], dtype=_dtype)
-
-        n_samples, n_features = X.shape
-        weights = _check_weights(sample_weight, n_samples, X.dtype)
-        eta = X @ self.coef_
-        if self.fit_intercept is True:
-            eta += self.intercept_
-            n_features += 1
-        if n_samples <= n_features:
-            raise ValueError(
-                "Estimation of dispersion parameter phi requires more samples than "
-                f"features; got (X.shape[0]={n_samples}) samples and "
-                f"(X.shape[1]+fit_intercept={n_features}) n_features."
-            )
-        mu = self._link_instance.inverse(eta)
-        if self.fit_dispersion == "chisqr":
-            chisq = np.sum(
-                weights * (y - mu) ** 2 / self._family_instance.unit_variance(mu)
-            )
-            return float(chisq) / (n_samples - n_features)
-        elif self.fit_dispersion == "deviance":
-            dev = self._family_instance.deviance(y, mu, weights)
-            return float(dev) / (n_samples - n_features)
-
     # Note: check_estimator(GeneralizedLinearRegressor) might raise
     # "AssertionError: -0.28014056555724598 not greater than 0.5"
     # unless GeneralizedLinearRegressor has a score which passes the test.
@@ -1706,11 +1644,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
           ``'inverse.gaussian'``
         - ``'logit'`` for family ``'binomial'``
 
-    fit_dispersion : {None, 'chisqr', 'deviance'}, optional (default=None)
-        Method for estimation of the dispersion parameter φ. Whether to use the
-        χ² statistic or the deviance statistic. If ``None``, the dispersion is
-        not estimated.
-
     solver : {'auto', 'irls-cd', 'irls-ls', 'lbfgs', 'trust-constr'}, \
             optional (default='auto')
         Algorithm to use in the optimization problem:
@@ -1889,9 +1822,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     intercept_ : float
         Intercept (a.k.a. bias) added to linear predictor.
 
-    dispersion_ : float
-        The dispersion parameter φ if ``fit_dispersion`` was set.
-
     n_iter_ : int
         Actual number of iterations used in solver.
 
@@ -1940,7 +1870,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         fit_intercept=True,
         family: Union[str, ExponentialDispersionModel] = "normal",
         link: Union[str, Link] = "auto",
-        fit_dispersion=None,
         solver="auto",
         max_iter=100,
         gradient_tol: Optional[float] = None,
@@ -1974,7 +1903,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             fit_intercept=fit_intercept,
             family=family,
             link=link,
-            fit_dispersion=fit_dispersion,
             solver=solver,
             max_iter=max_iter,
             gradient_tol=gradient_tol,
