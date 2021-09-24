@@ -417,7 +417,7 @@ class IRLSData:
         self,
         X,
         y: np.ndarray,
-        weights: np.ndarray,
+        sample_weight: np.ndarray,
         P1: Union[np.ndarray, sparse.spmatrix],
         P2: Union[np.ndarray, sparse.spmatrix],
         fit_intercept: bool,
@@ -438,7 +438,7 @@ class IRLSData:
     ):
         self.X = X
         self.y = y
-        self.weights = weights
+        self.sample_weight = sample_weight
         self.P1 = P1
 
         # Note: we already set P2 = l2*P2, P1 = l1*P1
@@ -646,7 +646,7 @@ def _update_predictions(state, data, coef, X_dot_step=None, factor=1.0):
         coef,
         state.eta,
         data.y,
-        data.weights,
+        data.sample_weight,
         data.P1,
         data.P2,
         data.intercept_offset,
@@ -661,14 +661,14 @@ def eta_mu_objective(
     coef,
     cur_eta,
     y,
-    weights,
+    sample_weight,
     P1,
     P2,
     intercept_offset,
 ):
     """Calculate eta, mu, and the objective value."""
     eta, mu, deviance = family.eta_mu_deviance(
-        link, factor, cur_eta, X_dot_step, y, weights
+        link, factor, cur_eta, X_dot_step, y, sample_weight
     )
     obj_val = 0.5 * deviance
     obj_val += linalg.norm(P1 * coef[intercept_offset:], ord=1)
@@ -688,7 +688,7 @@ def update_quadratic(
         phi=1,
         X=data.X,
         y=data.y,
-        weights=data.weights,
+        sample_weight=data.sample_weight,
         offset=data.offset,
         eta=state.eta,
         mu=state.mu,
@@ -815,14 +815,14 @@ def _get_obj_and_derivative(
     coef,
     X,
     y: np.ndarray,
-    weights: np.ndarray,
+    sample_weight: np.ndarray,
     P2: Union[np.ndarray, sparse.spmatrix],
     family: ExponentialDispersionModel,
     link: Link,
     offset: np.ndarray = None,
 ):
-    mu, devp = family._mu_deviance_derivative(coef, X, y, weights, link, offset)
-    dev = family.deviance(y, mu, weights)
+    mu, devp = family._mu_deviance_derivative(coef, X, y, sample_weight, link, offset)
+    dev = family.deviance(y, mu, sample_weight)
     intercept = coef.size == X.shape[1] + 1
     idx = 1 if intercept else 0  # offset if coef[0] is intercept
     if P2.ndim == 1:
@@ -839,7 +839,7 @@ def _lbfgs_solver(
     coef,
     X,
     y: np.ndarray,
-    weights: np.ndarray,
+    sample_weight: np.ndarray,
     P2: Union[np.ndarray, sparse.spmatrix],
     verbose: bool,
     family: ExponentialDispersionModel,
@@ -852,7 +852,7 @@ def _lbfgs_solver(
         _get_obj_and_derivative,
         X=X,
         y=y,
-        weights=weights,
+        sample_weight=sample_weight,
         P2=P2,
         family=family,
         link=link,
@@ -884,7 +884,7 @@ def _trust_constr_solver(
     coef,
     X,
     y: np.ndarray,
-    weights: np.ndarray,
+    sample_weight: np.ndarray,
     P2: Union[np.ndarray, sparse.spmatrix],
     fit_intercept: bool,
     verbose: bool,
@@ -901,7 +901,7 @@ def _trust_constr_solver(
         _get_obj_and_derivative,
         X=X,
         y=y,
-        weights=weights,
+        sample_weight=sample_weight,
         P2=P2,
         family=family,
         link=link,
