@@ -675,6 +675,22 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self.b_ineq = b_ineq
         self.force_all_finite = force_all_finite
 
+    @property
+    def family_instance(self) -> ExponentialDispersionModel:
+        """Return an :class:`~quantcore.glm._distribution.ExponentialDispersionModel`."""
+        if hasattr(self, "_family_instance"):
+            return self._family_instance
+        else:
+            return get_family(self.family)
+
+    @property
+    def link_instance(self) -> Link:
+        """Return a :class:`~quantcore.glm._link.Link`."""
+        if hasattr(self, "_link_instance"):
+            return self._link_instance
+        else:
+            return get_link(self.link, self.family_instance)
+
     def get_start_coef(
         self,
         start_params,
