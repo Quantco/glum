@@ -17,13 +17,6 @@ from quantcore.glm_benchmarks.util import (
 from quantcore.glm_benchmarks.zeros_benchmark import zeros_bench
 
 try:
-    from .bench_glmnet_python import glmnet_python_bench  # isort:skip
-
-    GLMNET_PYTHON_INSTALLED = True
-except ImportError:
-    GLMNET_PYTHON_INSTALLED = False
-
-try:
     from .bench_h2o import h2o_bench  # isort:skip
 
     H20_INSTALLED = True
@@ -191,9 +184,6 @@ def get_all_libraries() -> Dict[str, Any]:
         "orig-sklearn-fork": orig_sklearn_fork_bench,
         "zeros": zeros_bench,
     }
-
-    if GLMNET_PYTHON_INSTALLED:
-        all_libraries["glmnet-python"] = glmnet_python_bench
 
     if H20_INSTALLED:
         all_libraries["h2o"] = h2o_bench
