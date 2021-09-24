@@ -1635,6 +1635,22 @@ def test_feature_names(X, feature_names):
 
 
 @pytest.mark.parametrize(
+    "X, dtypes",
+    [
+        (pd.DataFrame({"x1": np.arange(5)}, dtype="int64"), {"x1": np.int64}),
+        (pd.DataFrame({"x1": np.arange(5)}).to_numpy(), None),
+        (
+            pd.DataFrame({"x1": pd.Categorical(np.arange(5))}),
+            {"x1": pd.CategoricalDtype(list(range(5)), ordered=False)},
+        ),
+    ],
+)
+def test_feature_dtypes(X, dtypes):
+    model = GeneralizedLinearRegressor(family="poisson").fit(X, np.arange(5))
+    np.testing.assert_array_equal(getattr(model, "feature_dtypes_", None), dtypes)
+
+
+@pytest.mark.parametrize(
     "k, n",
     [
         (5, 5),

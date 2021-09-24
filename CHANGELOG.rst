@@ -17,7 +17,8 @@ Unreleased
   all with the same value.
 - :class:`ExponentialDispersionModel` gains a :meth:`dispersion` method.
 - :class:`BinomialDistribution` and :class:`TweedieDistribution` gain a :meth:`log_likelihood` method.
-
+- The :meth:`fit` method of :class:`~quantcore.glm.GeneralizedLinearRegressor` and :class:`~quantcore.glm.GeneralizedLinearRegressorCV`
+  now saves the column types of pandas data frames.
 
 **Other:**
 
