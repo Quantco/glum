@@ -33,10 +33,23 @@ def _setup_r_glmnet():
     is_initialized = True
 
 
-def _numpy_to_r_obj(np_arr, R_name):
-    nr = np_arr.shape[0]
-    nc = 1 if len(np_arr.shape) == 1 else np_arr.shape[1]
-    ro.r.assign(R_name, ro.r.matrix(np_arr, nrow=nr, ncol=nc))
+def _to_r_obj(X, R_name):
+    nr = X.shape[0]
+    nc = 1 if len(X.shape) == 1 else X.shape[1]
+    if sps.issparse(X):
+        r_Matrix = importr("Matrix")
+        X_coo = X.tocoo()
+        ro.r.assign(
+            R_name,
+            r_Matrix.sparseMatrix(
+                i=ro.IntVector(X_coo.row + 1),
+                j=ro.IntVector(X_coo.col + 1),
+                x=ro.FloatVector(X_coo.data),
+                dims=ro.IntVector(X_coo.shape),
+            ),
+        )
+    else:  # if dense
+        ro.r.assign(R_name, ro.r.matrix(X, nrow=nr, ncol=nc))
 
 
 def r_glmnet_bench(
@@ -97,8 +110,8 @@ def r_glmnet_bench(
     r = ro.r
     # Do this before fitting so we're not including python to R conversion
     # times
-    _numpy_to_r_obj(X, "X_in_R")
-    _numpy_to_r_obj(dat["y"], "y_in_R")
+    _to_r_obj(X, "X_in_R")
+    _to_r_obj(dat["y"], "y_in_R")
 
     glmnet_kws = dict(
         x=r["X_in_R"],
