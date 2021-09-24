@@ -164,7 +164,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         """
         pass
 
-    def variance(self, mu: np.ndarray, phi=1, sample_weight=1) -> np.ndarray:
+    def variance(self, mu: np.ndarray, dispersion=1, sample_weight=1) -> np.ndarray:
         r"""Compute the variance function.
 
         The variance of :math:`Y_i \sim \mathrm{EDM}(\mu_i, \phi / s_i)` is
@@ -176,8 +176,8 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         mu : array-like, shape (n_samples,)
             Predicted mean.
 
-        phi : float, optional (default=1)
-            Dispersion parameter.
+        dispersion : float, optional (default=1)
+            Dispersion parameter :math:`\phi`.
 
         sample_weight : array-like, shape (n_samples,), optional (default=1)
             Weights or exposure to which variance is inverse proportional.
@@ -186,13 +186,13 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         -------
         array-like, shape (n_samples,)
         """
-        return self.unit_variance(mu) * phi / sample_weight
+        return self.unit_variance(mu) * dispersion / sample_weight
 
-    def variance_derivative(self, mu, phi=1, sample_weight=1):
+    def variance_derivative(self, mu, dispersion=1, sample_weight=1):
         r"""Compute the derivative of the variance with respect to ``mu``.
 
         The derivative of the variance is equal to
-        :math:`(phi / s_i) * v'(\mu_i)`, where :math:`v(\mu)` is the unit
+        :math:`(\phi / s_i) * v'(\mu_i)`, where :math:`v(\mu)` is the unit
         variance and :math:`s_i` are weights.
 
         Parameters
@@ -200,8 +200,8 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         mu : array-like, shape (n_samples,)
             Predicted mean.
 
-        phi : float, optional (default=1)
-            Dispersion parameter.
+        dispersion : float, optional (default=1)
+            Dispersion parameter :math:`\phi`.
 
         sample_weight : array-like, shape (n_samples,), optional (default=1)
             Weights or exposure to which variance is inverse proportional.
@@ -210,7 +210,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         -------
         array-like, shape (n_samples,)
         """
-        return self.unit_variance_derivative(mu) * phi / sample_weight
+        return self.unit_variance_derivative(mu) * dispersion / sample_weight
 
     @abstractmethod
     def unit_deviance(self, y, mu):
@@ -385,7 +385,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         self,
         link: Link,
         coef: np.ndarray,
-        phi,
+        dispersion,
         X: Union[MatrixBase, StandardizedMatrix],
         y: np.ndarray,
         sample_weight: np.ndarray,
@@ -435,7 +435,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         hessian_rows[:] = d1 * d1_sigma_inv
 
     def dispersion(self, y, mu, sample_weight=None, ddof=1, method="pearson") -> float:
-        """Estimate the dispersion parameter.
+        r"""Estimate the dispersion parameter :math:`\phi`.
 
         Parameters
         ----------
@@ -674,8 +674,8 @@ class TweedieDistribution(ExponentialDispersionModel):
             link, factor, cur_eta, X_dot_d, y, sample_weight, eta_out, mu_out
         )
 
-    def log_likelihood(self, y, mu, sample_weight=None, phi=None) -> float:
-        """Compute the log likelihood.
+    def log_likelihood(self, y, mu, sample_weight=None, dispersion=None) -> float:
+        r"""Compute the log likelihood.
 
         For ``1 < power < 2``, we use the series approximation by Dunn and Smyth
         (2005) to compute the normalization term.
@@ -691,31 +691,33 @@ class TweedieDistribution(ExponentialDispersionModel):
         sample_weight : array-like, shape (n_samples,), optional (default=1)
             Sample weights.
 
-        phi : float, optional (default=None)
-            Dispersion parameter. Estimated if ``None``.
+        dispersion : float, optional (default=None)
+            Dispersion parameter :math:`\phi`. Estimated if ``None``.
         """
         p = self.power
         y, mu, sample_weight = _as_float_arrays(y, mu, sample_weight)
         sample_weight = np.ones_like(y) if sample_weight is None else sample_weight
 
-        if (p != 1) and (phi is None):
-            phi = self.dispersion(y, mu, sample_weight)
+        if (p != 1) and (dispersion is None):
+            dispersion = self.dispersion(y, mu, sample_weight)
 
         if p == 0:
-            return normal_log_likelihood(y, sample_weight, mu, float(phi))
+            return normal_log_likelihood(y, sample_weight, mu, float(dispersion))
         if p == 1:
             # NOTE: the dispersion parameter is only necessary to convey
             # type information on account of a bug in Cython
             return poisson_log_likelihood(y, sample_weight, mu, 1.0)
         elif p == 2:
-            return gamma_log_likelihood(y, sample_weight, mu, float(phi))
+            return gamma_log_likelihood(y, sample_weight, mu, float(dispersion))
         elif p < 2:
-            return tweedie_log_likelihood(y, sample_weight, mu, float(p), float(phi))
+            return tweedie_log_likelihood(
+                y, sample_weight, mu, float(p), float(dispersion)
+            )
         else:
             raise NotImplementedError
 
     def dispersion(self, y, mu, sample_weight=None, ddof=1, method="pearson") -> float:
-        """Estimate the dispersion parameter.
+        r"""Estimate the dispersion parameter :math:`\phi`.
 
         Parameters
         ----------
@@ -933,7 +935,7 @@ class BinomialDistribution(ExponentialDispersionModel):
             link, factor, cur_eta, X_dot_d, y, sample_weight, eta_out, mu_out
         )
 
-    def log_likelihood(self, y, mu, sample_weight=None, phi=1) -> float:
+    def log_likelihood(self, y, mu, sample_weight=None, dispersion=1) -> float:
         """Compute the log likelihood.
 
         Parameters
@@ -947,14 +949,14 @@ class BinomialDistribution(ExponentialDispersionModel):
         sample_weight : array-like, shape (n_samples,), optional (default=1)
             Sample weights.
 
-        phi : float, optional (default=1)
+        dispersion : float, optional (default=1)
             Ignored.
         """
         ll = special.xlogy(y, mu) + special.xlogy(1 - y, 1 - mu)
         return np.sum(ll) if sample_weight is None else np.dot(ll, sample_weight)
 
     def dispersion(self, y, mu, sample_weight=None, ddof=1, method="pearson") -> float:
-        """Estimate the dispersion parameter.
+        r"""Estimate the dispersion parameter :math:`\phi`.
 
         Parameters
         ----------
@@ -1053,7 +1055,7 @@ def get_one_over_variance(
     link: Link,
     mu: np.ndarray,
     eta: np.ndarray,
-    phi,
+    dispersion,
     sample_weight: np.ndarray,
 ):
     """
@@ -1070,8 +1072,10 @@ def get_one_over_variance(
         max_float_for_exp = np.log(np.finfo(eta.dtype).max / 10)
         if np.any(np.abs(eta) > max_float_for_exp):
             eta = np.clip(eta, -max_float_for_exp, max_float_for_exp)  # type: ignore
-        return sample_weight * (np.exp(eta) + 2 + np.exp(-eta)) / phi
-    return 1.0 / distribution.variance(mu, phi=phi, sample_weight=sample_weight)
+        return sample_weight * (np.exp(eta) + 2 + np.exp(-eta)) / dispersion
+    return 1.0 / distribution.variance(
+        mu, dispersion=dispersion, sample_weight=sample_weight
+    )
 
 
 def _as_float_arrays(*args):
