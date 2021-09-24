@@ -1241,25 +1241,6 @@ def test_solver_equivalence_cv(params, use_offset):
     )
 
 
-@pytest.mark.parametrize("estimator, kwargs", estimators)
-def test_fit_dispersion(estimator, kwargs, regression_data):
-    X, y = regression_data
-
-    est1 = estimator(random_state=2, **kwargs)
-    est1.fit(X, y)
-    assert not hasattr(est1, "dispersion_")
-
-    est2 = estimator(random_state=2, fit_dispersion="chisqr", **kwargs)
-    est2.fit(X, y)
-    assert isinstance(est2.dispersion_, float)
-
-    est3 = estimator(random_state=2, fit_dispersion="deviance", **kwargs)
-    est3.fit(X, y)
-    assert isinstance(est3.dispersion_, float)
-
-    assert_allclose(est2.dispersion_, est3.dispersion_)
-
-
 @pytest.mark.parametrize("solver", GLM_SOLVERS)
 def test_convergence_warning(solver, regression_data):
     X, y = regression_data
