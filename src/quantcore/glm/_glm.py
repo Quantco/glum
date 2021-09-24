@@ -259,11 +259,11 @@ def check_inequality_constraints(
             dtype=dtype,
             copy=True,
         )
-        if A_ineq.shape[1] != n_features:
+        if A_ineq.shape[1] != n_features:  # type: ignore
             raise ValueError("A_ineq must have same number of columns as X.")
-        if A_ineq.shape[0] != b_ineq.shape[0]:
+        if A_ineq.shape[0] != b_ineq.shape[0]:  # type: ignore
             raise ValueError("A_ineq and b_ineq must have same number of rows.")
-        if b_ineq.ndim > 1:
+        if b_ineq.ndim > 1:  # type: ignore
             raise ValueError("b_ineq must be 1D array.")
     return A_ineq, b_ineq
 
@@ -1483,6 +1483,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         copy_X = self._should_copy_X()
 
         if isinstance(X, pd.DataFrame):
+
+            self.feature_dtypes_ = X.dtypes.to_dict()
+
             if any(X.dtypes == "category"):
                 self.feature_names_ = list(
                     chain.from_iterable(
