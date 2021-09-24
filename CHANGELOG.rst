@@ -15,6 +15,7 @@ Unreleased
 - :class:`~quantcore.glm.GeneralizedLinearRegressor` and :class:`~quantcore.glm.GeneralizedLinearRegressorCV` lose the ``fit_dispersion`` parameter.
   Please use the :meth:`dispersion` method of the appropriate family instance instead.
 - All functions now use ``sample_weight`` as a keyword instead of ``weights``, in line with scikit-learn.
+- All functions now use ``dispersion`` as a keyword instead of ``phi``.
 
 **New features:**
 
