@@ -80,7 +80,7 @@ def r_glmnet_bench(
         X = X.to_numpy()
     elif not isinstance(X, np.ndarray):
         warnings.warn(
-            "glmnet_python requires data as scipy.sparse matrix, pandas dataframe, or "
+            "glmnet requires data as scipy.sparse matrix, pandas dataframe, or "
             "numpy array. Skipping."
         )
         return result
