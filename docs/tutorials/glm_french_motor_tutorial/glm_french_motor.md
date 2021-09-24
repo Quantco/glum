@@ -183,11 +183,11 @@ To measure our model's test and train performance, we use the deviance function 
 ```python
 PoissonDist = TweedieDistribution(1)
 print('training loss f_glm1: {}'.format(
-    PoissonDist.deviance(y_train_p, f_glm1.predict(X_train_p), weights=w_train_p)/np.sum(w_train_p)
+    PoissonDist.deviance(y_train_p, f_glm1.predict(X_train_p), sample_weight=w_train_p)/np.sum(w_train_p)
 ))
 
 print('test loss f_glm1: {}'.format(
-      PoissonDist.deviance(y_test_p, f_glm1.predict(X_test_p), weights=w_test_p)/np.sum(w_test_p)))
+      PoissonDist.deviance(y_test_p, f_glm1.predict(X_test_p), sample_weight=w_test_p)/np.sum(w_test_p)))
 ```
 
 A GLM with canonical link function (Normal - identity, Poisson - log, Gamma - 1/x, Binomial - logit) with an intercept term has the so called **balance property**. Neglecting small deviations due to an imperfect fit, on the training sample the results satisfy the equality:
@@ -244,8 +244,8 @@ def my_agg(x):
     x_cnb = x['ClaimNb']
     n = x_sev.shape[0]
     names = {
-        'Sev_mean': np.average(x_sev, weights=x_cnb),
-        'Sev_var': 1/(n-1) * np.sum((x_cnb/np.sum(x_cnb)) * (x_sev-np.average(x_sev, weights=x_cnb))**2),
+        'Sev_mean': np.average(x_sev, sample_weight=x_cnb),
+        'Sev_var': 1/(n-1) * np.sum((x_cnb/np.sum(x_cnb)) * (x_sev-np.average(x_sev, sample_weight=x_cnb))**2),
         'ClaimNb_sum': x_cnb.sum()
     }
     return pd.Series(names, index=['Sev_mean', 'Sev_var', 'ClaimNb_sum'])
@@ -340,7 +340,7 @@ Again, we measure peformance with the deviance of the distribution. We also comp
 GammaDist = TweedieDistribution(2)
 print('training loss (deviance) s_glm1:     {}'.format(
     GammaDist.deviance(
-        y_train_g, s_glm1.predict(X_train_g), weights=w_train_g
+        y_train_g, s_glm1.predict(X_train_g), sample_weight=w_train_g
     )/np.sum(w_train_g)
 ))
 print('training mean absolute error s_glm1: {}'.format(
@@ -349,7 +349,7 @@ print('training mean absolute error s_glm1: {}'.format(
 
 print('\ntesting loss s_glm1 (deviance):      {}'.format(
     GammaDist.deviance(
-        y_test_g, s_glm1.predict(X_test_g), weights=w_test_g
+        y_test_g, s_glm1.predict(X_test_g), sample_weight=w_test_g
     )/np.sum(w_test_g)
 ))
 print('testing mean absolute error s_glm1:  {}'.format(
@@ -358,11 +358,11 @@ print('testing mean absolute error s_glm1:  {}'.format(
 
 print('\ntesting loss Mean (deviance):        {}'.format(
     GammaDist.deviance(
-        y_test_g, np.average(z_train_g, weights=w_train_g)*np.ones_like(z_test_g), weights=w_test_g
+        y_test_g, np.average(z_train_g, sample_weight=w_train_g)*np.ones_like(z_test_g), sample_weight=w_test_g
     )/np.sum(w_test_g)
 ))
 print('testing mean absolute error Mean:    {}'.format(
-    mean_absolute_error(y_test_g, np.average(z_train_g, weights=w_train_g)*np.ones_like(z_test_g))
+    mean_absolute_error(y_test_g, np.average(z_train_g, sample_weight=w_train_g)*np.ones_like(z_test_g))
 ))
 ```
 
@@ -420,10 +420,10 @@ Again, we use the distribution's deviance to measure model performance
 
 ```python
 print('training loss s_glm1: {}'.format(
-    TweedieDist.deviance(y_train_t, t_glm1.predict(X_train_t), weights=w_train_t)/np.sum(w_train_t)))
+    TweedieDist.deviance(y_train_t, t_glm1.predict(X_train_t), sample_weight=w_train_t)/np.sum(w_train_t)))
 
 print('testing loss s_glm1:  {}'.format(
-    TweedieDist.deviance(y_test_t, t_glm1.predict(X_test_t), weights=w_test_t)/np.sum(w_test_t)))
+    TweedieDist.deviance(y_test_t, t_glm1.predict(X_test_t), sample_weight=w_test_t)/np.sum(w_test_t)))
 ```
 
 Finally, we again show the total predicted vs. true claim amount on the training and test set
