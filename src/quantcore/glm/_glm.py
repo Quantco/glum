@@ -155,7 +155,7 @@ def _check_weights(
             raise ValueError("Sample weights must be non-negative.")
         return np.full(n_samples, sample_weight, dtype=dtype)
 
-    weights = check_array(
+    sample_weight = check_array(
         sample_weight,
         accept_sparse=False,
         force_all_finite=force_all_finite,
@@ -163,16 +163,16 @@ def _check_weights(
         dtype=[np.float64, np.float32],
     )
 
-    if weights.ndim > 1:
+    if sample_weight.ndim > 1:
         raise ValueError("Sample weights must be 1D array or scalar.")
-    if weights.shape[0] != n_samples:
+    if sample_weight.shape[0] != n_samples:
         raise ValueError("Sample weights must have the same length as y.")
-    if np.any(weights < 0):
+    if np.any(sample_weight < 0):
         raise ValueError("Sample weights must be non-negative.")
-    if np.sum(weights) == 0:
+    if np.sum(sample_weight) == 0:
         raise ValueError("Sample weights must have at least one positive element.")
 
-    return weights
+    return sample_weight
 
 
 def _check_offset(
@@ -269,7 +269,7 @@ def check_inequality_constraints(
 
 def _standardize(
     X: mx.MatrixBase,
-    weights: np.ndarray,
+    sample_weight: np.ndarray,
     center_predictors: bool,
     estimate_as_if_scaled_model: bool,
     lower_bounds: Optional[np.ndarray],
@@ -299,7 +299,7 @@ def _standardize(
     Parameters
     ----------
     X : MatrixBase
-    weights : numpy.ndarray
+    sample_weight : numpy.ndarray
     center_predictors : bool
         If ``True``, adjust the data matrix so that columns have mean zero.
     estimate_as_if_scaled_model : bool
@@ -316,7 +316,7 @@ def _standardize(
     P1
     P2
     """
-    X, col_means, col_stds = X.standardize(weights, center_predictors, True)
+    X, col_means, col_stds = X.standardize(sample_weight, center_predictors, True)
 
     if col_stds is not None:
         # We copy the bounds when multiplying here so the we avoid
@@ -693,7 +693,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         start_params,
         X: Union[mx.MatrixBase, mx.StandardizedMatrix],
         y: np.ndarray,
-        weights: np.ndarray,
+        sample_weight: np.ndarray,
         offset: Optional[np.ndarray],
         col_means: Optional[np.ndarray],
         col_stds: Optional[np.ndarray],
@@ -712,7 +712,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                     X.shape[1] + 1, dtype=_float_itemsize_to_dtype[X.dtype.itemsize]
                 )
                 coef[0] = guess_intercept(
-                    y, weights, self._link_instance, self._family_instance, offset
+                    y, sample_weight, self._link_instance, self._family_instance, offset
                 )
             else:
                 coef = np.zeros(
@@ -799,7 +799,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         y: np.ndarray,
         col_means: Optional[np.ndarray],
         col_stds: Optional[np.ndarray],
-        weights: np.ndarray,
+        sample_weight: np.ndarray,
         weights_sum: Optional[float],
     ):
         """
@@ -863,7 +863,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             coef = np.zeros(X.shape[1] + 1)
             coef[0] = guess_intercept(
                 y=y,
-                weights=w,
+                sample_weight=w,
                 link=self._link_instance,
                 distribution=self._family_instance,
             )
@@ -875,7 +875,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             coef=coef,
             X=X,
             y=y,
-            weights=w,
+            sample_weight=w,
             link=self._link_instance,
             offset=offset,
         )
@@ -894,7 +894,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self,
         X: Union[mx.MatrixBase, mx.StandardizedMatrix],
         y: np.ndarray,
-        weights: np.ndarray,
+        sample_weight: np.ndarray,
         P2,
         P1: np.ndarray,
         coef: np.ndarray,
@@ -929,7 +929,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             irls_data = IRLSData(
                 X=X,
                 y=y,
-                weights=weights,
+                sample_weight=sample_weight,
                 P1=P1,
                 P2=P2,
                 fit_intercept=self.fit_intercept,
@@ -962,7 +962,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 coef=coef,
                 X=X,
                 y=y,
-                weights=weights,
+                sample_weight=sample_weight,
                 P2=P2,
                 verbose=self.verbose,
                 family=self._family_instance,
@@ -983,7 +983,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 coef=coef,
                 X=X,
                 y=y,
-                weights=weights,
+                sample_weight=sample_weight,
                 P2=P2,
                 fit_intercept=self.fit_intercept,
                 verbose=self.verbose > 0,
@@ -1001,7 +1001,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self,
         X: Union[mx.MatrixBase, mx.StandardizedMatrix],
         y: np.ndarray,
-        weights: np.ndarray,
+        sample_weight: np.ndarray,
         alphas: np.ndarray,
         P2_no_alpha,
         P1_no_alpha: np.ndarray,
@@ -1022,7 +1022,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             coef = self.solve(
                 X=X,
                 y=y,
-                weights=weights,
+                sample_weight=sample_weight,
                 P2=P2,
                 P1=P1,
                 coef=coef,
@@ -1246,8 +1246,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         if sample_weight is None:
             return mu
 
-        weights = _check_weights(sample_weight, X.shape[0], X.dtype)
-        return mu * weights
+        sample_weight = _check_weights(sample_weight, X.shape[0], X.dtype)
+        return mu * sample_weight
 
     # Note: check_estimator(GeneralizedLinearRegressor) might raise
     # "AssertionError: -0.28014056555724598 not greater than 0.5"
@@ -1278,7 +1278,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         y : array-like, shape (n_samples,)
             True values of target.
 
-        sample_weight :array-like, shape (n_samples,), optional (default=None)
+        sample_weight : array-like, shape (n_samples,), optional (default=None)
             Sample weights.
 
         Returns
@@ -1289,12 +1289,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         # Note, default score defined in RegressorMixin is R^2 score.
         # TODO: make D^2 a score function in module metrics (and thereby get
         #       input validation and so on)
-        weights = _check_weights(sample_weight, y.shape[0], X.dtype)
+        sample_weight = _check_weights(sample_weight, y.shape[0], X.dtype)
         mu = self.predict(X)
         family = get_family(self.family)
-        dev = family.deviance(y, mu, weights=weights)
-        y_mean = np.average(y, weights=weights)
-        dev_null = family.deviance(y, y_mean, weights=weights)
+        dev = family.deviance(y, mu, sample_weight=sample_weight)
+        y_mean = np.average(y, weights=sample_weight)
+        dev_null = family.deviance(y, y_mean, sample_weight=sample_weight)
         return 1.0 - dev / dev_null
 
     def _validate_hyperparameters(self) -> None:
@@ -1542,7 +1542,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         # This will prevent accidental upcasting later and slow operations on
         # mixed-precision numbers
         y = np.asarray(y, dtype=X.dtype)
-        weights = _check_weights(
+        sample_weight = _check_weights(
             sample_weight, y.shape[0], X.dtype, force_all_finite=force_all_finite
         )
         offset = _check_offset(offset, y.shape[0], X.dtype)
@@ -1552,8 +1552,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         # deviance = sum(sample_weight * unit_deviance),
         # we rescale weights such that sum(weights) = 1 and this becomes
         # 1/2*deviance + L1 + L2 with deviance=sum(weights * unit_deviance)
-        weights_sum: float = np.sum(weights)  # type: ignore
-        weights = weights / weights_sum
+        weights_sum: float = np.sum(sample_weight)  # type: ignore
+        sample_weight = sample_weight / weights_sum
         #######################################################################
         # 2b. convert to wrapper matrix types
         #######################################################################
@@ -1562,7 +1562,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         elif isinstance(X, np.ndarray):
             X = mx.DenseMatrix(X)
 
-        return X, y, weights, offset, weights_sum, P1, P2
+        return X, y, sample_weight, offset, weights_sum, P1, P2
 
 
 class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
@@ -2033,7 +2033,15 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
 
         # NOTE: This function checks if all the entries in X and y are
         # finite. That can be expensive. But probably worthwhile.
-        X, y, weights, offset, weights_sum, P1, P2 = self.set_up_and_check_fit_args(
+        (
+            X,
+            y,
+            sample_weight,
+            offset,
+            weights_sum,
+            P1,
+            P2,
+        ) = self.set_up_and_check_fit_args(
             X,
             y,
             sample_weight,
@@ -2104,7 +2112,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             P2_no_alpha,
         ) = _standardize(
             X,
-            weights,
+            sample_weight,
             self._center_predictors,
             self.scale_predictors,
             lower_bounds,
@@ -2122,7 +2130,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
 
         # set start values for coef
         coef = self.get_start_coef(
-            start_params, X, y, weights, offset, col_means, col_stds
+            start_params, X, y, sample_weight, offset, col_means, col_stds
         )
 
         #######################################################################
@@ -2136,7 +2144,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
                 self._alphas = self.alphas
             elif self.alpha is None:
                 self._alphas = self._get_alpha_path(
-                    P1_no_alpha=P1_no_alpha, X=X, y=y, w=weights, offset=offset
+                    P1_no_alpha=P1_no_alpha, X=X, y=y, w=sample_weight, offset=offset
                 )
             else:
                 self._alphas = self.alpha
@@ -2148,7 +2156,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             coef = self.solve_regularization_path(
                 X=X,
                 y=y,
-                weights=weights,
+                sample_weight=sample_weight,
                 P2_no_alpha=P2_no_alpha,
                 P1_no_alpha=P1_no_alpha,
                 alphas=self._alphas,
@@ -2190,7 +2198,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             coef = self.solve(
                 X=X,
                 y=y,
-                weights=weights,
+                sample_weight=sample_weight,
                 P2=P2_no_alpha * _alpha,
                 P1=P1_no_alpha * _alpha,
                 coef=coef,
@@ -2211,6 +2219,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
                     col_means, col_stds, 0.0, coef
                 )
 
-        self.tear_down_from_fit(X, y, col_means, col_stds, weights, weights_sum)
+        self.tear_down_from_fit(X, y, col_means, col_stds, sample_weight, weights_sum)
 
         return self
