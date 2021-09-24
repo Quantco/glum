@@ -83,11 +83,6 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
           ``'inverse.gaussian'``
         - ``'logit'`` for family ``'binomial'``
 
-    fit_dispersion : {None, 'chisqr', 'deviance'}, optional (default=None)
-        Method for estimation of the dispersion parameter φ. Whether to use the
-        χ² statistic or the deviance statistic. If None, the dispersion is not
-        estimated.
-
     solver : {'auto', 'irls-cd', 'irls-ls', 'lbfgs'}, optional (default='auto')
         Algorithm to use in the optimization problem:
 
@@ -266,9 +261,6 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
     intercept_ : float
         Intercept (a.k.a. bias) added to linear predictor.
 
-    dispersion_ : float
-        The dispersion parameter φ if ``fit_dispersion`` was set.
-
     n_iter_ : int
         The number of iterations run by the CD solver to reach the specified
         tolerance for the optimal alpha.
@@ -289,7 +281,6 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         fit_intercept=True,
         family: Union[str, ExponentialDispersionModel] = "normal",
         link: Union[str, Link] = "auto",
-        fit_dispersion: Optional[bool] = None,
         solver="auto",
         max_iter=100,
         gradient_tol: Optional[float] = None,
@@ -325,7 +316,6 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             fit_intercept=fit_intercept,
             family=family,
             link=link,
-            fit_dispersion=fit_dispersion,
             solver=solver,
             max_iter=max_iter,
             gradient_tol=gradient_tol,
@@ -674,7 +664,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             y=y,
             weights=weights,
             P2=P2,
-            P1=P1,
+            P1=P1,  # type: ignore
             coef=coef,
             offset=offset,
             lower_bounds=lower_bounds,
