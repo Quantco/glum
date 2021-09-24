@@ -1484,7 +1484,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         if isinstance(X, pd.DataFrame):
 
-            self.feature_dtypes_ = {column: x.dtype for column, x in X.items()}
+            self.feature_dtypes_ = X.dtypes.to_dict()
 
             if any(X.dtypes == "category"):
                 self.feature_names_ = list(
