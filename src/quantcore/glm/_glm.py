@@ -1504,27 +1504,29 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                     """
                     if isinstance(penalty, str):
                         return penalty
-                    else:
-                        if np.asarray(penalty).shape[0] == X.shape[1]:
-                            if np.asarray(penalty).ndim == 2:
-                                raise ValueError(
-                                    "When the penalty is two dimensional, it has "
-                                    "to have the same length as the number of "
-                                    "columns of X, after the categoricals "
-                                    "have been expanded."
-                                )
-                            return np.array(
-                                list(
-                                    chain.from_iterable(
-                                        [elmt for _ in dtype.categories]
-                                        if pd.api.types.is_categorical_dtype(dtype)
-                                        else [elmt]
-                                        for elmt, dtype in zip(penalty, X.dtypes)
-                                    )
+                    if not sparse.issparse(penalty):
+                        penalty = np.asanyarray(penalty)
+
+                    if penalty.shape[0] == X.shape[1]:
+                        if penalty.ndim == 2:
+                            raise ValueError(
+                                "When the penalty is two dimensional, it has "
+                                "to have the same length as the number of "
+                                "columns of X, after the categoricals "
+                                "have been expanded."
+                            )
+                        return np.array(
+                            list(
+                                chain.from_iterable(
+                                    [elmt for _ in dtype.categories]
+                                    if pd.api.types.is_categorical_dtype(dtype)
+                                    else [elmt]
+                                    for elmt, dtype in zip(penalty, X.dtypes)
                                 )
                             )
-                        else:
-                            return penalty
+                        )
+                    else:
+                        return penalty
 
                 P1 = _expand_categorical_penalties(self.P1, X)
                 P2 = _expand_categorical_penalties(self.P2, X)
