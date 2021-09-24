@@ -19,6 +19,7 @@ Unreleased
 - :class:`BinomialDistribution` and :class:`TweedieDistribution` gain a :meth:`log_likelihood` method.
 - The :meth:`fit` method of :class:`~quantcore.glm.GeneralizedLinearRegressor` and :class:`~quantcore.glm.GeneralizedLinearRegressorCV`
   now saves the column types of pandas data frames.
+- :class:`~quantcore.glm.GeneralizedLinearRegressor` and :class:`~quantcore.glm.GeneralizedLinearRegressorCV` gain two properties: ``family_instance`` and ``link_instance``.
 
 **Other:**
 
