@@ -685,7 +685,7 @@ def update_quadratic(
     gradient_rows, hessian_rows = data.family.rowwise_gradient_hessian(
         data.link,
         coef=state.coef,
-        phi=1,
+        dispersion=1,
         X=data.X,
         y=data.y,
         sample_weight=data.sample_weight,

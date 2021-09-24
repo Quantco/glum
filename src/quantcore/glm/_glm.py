@@ -2125,10 +2125,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         #######################################################################
         # 3. initialization of coef = (intercept_, coef_)                     #
         #######################################################################
-        # Note: Since phi=self.dispersion_ does not enter the estimation
-        #       of mu_i=E[y_i], set it to 1.
 
-        # set start values for coef
         coef = self.get_start_coef(
             start_params, X, y, sample_weight, offset, col_means, col_stds
         )
