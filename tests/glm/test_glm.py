@@ -80,35 +80,35 @@ def test_sample_weights_validation(estimator, kwargs):
     """Test the raised errors in the validation of sample_weight."""
     # scalar value but not positive
     X, y = get_small_x_y(estimator)
-    weights: Any = 0
+    sample_weight: Any = 0
     glm = estimator(fit_intercept=False, **kwargs)
     with pytest.raises(ValueError, match="weights must be non-negative"):
-        glm.fit(X, y, weights)
+        glm.fit(X, y, sample_weight)
 
     # Positive weights are accepted
     glm.fit(X, y, sample_weight=1)
 
     # 2d array
-    weights = [[0]]
+    sample_weight = [[0]]
     with pytest.raises(ValueError, match="must be 1D array or scalar"):
-        glm.fit(X, y, weights)
+        glm.fit(X, y, sample_weight)
 
     # 1d but wrong length
-    weights = [1, 0]
+    sample_weight = [1, 0]
     with pytest.raises(ValueError, match="weights must have the same length as y"):
-        glm.fit(X, y, weights)
+        glm.fit(X, y, sample_weight)
 
     # 1d but only zeros (sum not greater than 0)
-    weights = [0, 0]
+    sample_weight = [0, 0]
     X = [[0], [1]]
     y = [1, 2]
     with pytest.raises(ValueError, match="must have at least one positive element"):
-        glm.fit(X, y, weights)
+        glm.fit(X, y, sample_weight)
 
     # 5. 1d but with a negative value
-    weights = [2, -1]
+    sample_weight = [2, -1]
     with pytest.raises(ValueError, match="weights must be non-negative"):
-        glm.fit(X, y, weights)
+        glm.fit(X, y, sample_weight)
 
 
 @pytest.mark.parametrize("estimator, kwargs", estimators)
@@ -1353,15 +1353,15 @@ def test_get_best_intercept(
     if isinstance(distribution, BinomialDistribution):
         y -= 1
 
-    weights = np.array([0.1, 0.2, 5, 1])
-    best_intercept = guess_intercept(y, weights, link, distribution, offset)
+    sample_weight = np.array([0.1, 0.2, 5, 1])
+    best_intercept = guess_intercept(y, sample_weight, link, distribution, offset)
     assert np.isfinite(best_intercept)
 
     def _get_dev(intercept):
         eta = intercept if offset is None else offset + intercept
         mu = link.inverse(eta)
         assert np.isfinite(mu).all()
-        return distribution.deviance(y, mu, weights)
+        return distribution.deviance(y, mu, sample_weight)
 
     obj = _get_dev(best_intercept)
     obj_low = _get_dev(best_intercept - tol)

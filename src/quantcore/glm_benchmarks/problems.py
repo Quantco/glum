@@ -125,13 +125,13 @@ def load_data(
         # they don't use a log link (plus binomial isn't in the tweedie family),
         # but this is what we were doing before.
         if distribution in ["gaussian", "binomial"]:
-            return dict(X=X, y=y, weights=exposure)
-        # when poisson, should be y=y, weights=exposure
+            return dict(X=X, y=y, sample_weight=exposure)
+        # when poisson, should be y=y, sample_weight=exposure
         # instead have y = y / exposure, weight = exposure
         y, sample_weight = exposure_and_offset_to_weights(
             get_tweedie_p(distribution), y, exposure
         )
-        return dict(X=X, y=y * exposure, weights=sample_weight)
+        return dict(X=X, y=y * exposure, sample_weight=sample_weight)
 
     if data_setup == "offset":
         log_exposure = np.log(exposure)

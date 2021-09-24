@@ -55,8 +55,8 @@ def quantcore_glm_bench(
 
     X = dat["X"]
     fit_args = dict(X=X, y=dat["y"])
-    if "weights" in dat.keys():
-        fit_args.update({"sample_weight": dat["weights"]})
+    if "sample_weight" in dat.keys():
+        fit_args.update({"sample_weight": dat["sample_weight"]})
     if "offset" in dat.keys():
         fit_args.update({"offset": dat["offset"]})
 
