@@ -51,7 +51,6 @@ On MacOS, docker cannot use the "host" `network_mode` and will therefore have no
 
 ## Library examples:
 
-glmnet_python: see https://bitbucket.org/quantco/wayfairelastpricing/tests/test_glmnet_numerical.py
 H2O: https://github.com/h2oai/h2o-tutorials/blob/master/tutorials/glm/glm_h2oworld_demo.py
 
 ## Profiling
