@@ -18,10 +18,6 @@ Unreleased
 - :class:`ExponentialDispersionModel` gains a :meth:`dispersion` method.
 - :class:`BinomialDistribution` and :class:`TweedieDistribution` gain a :meth:`log_likelihood` method.
 
-**Bug fix:**
-
-- The ``P2`` parameter of :class:`~quantcore.glm.GeneralizedLinearRegressor` was failing when a sparse matrix was used and the data matrix matrix contained categoricals. See `here <https://github.com/Quantco/quantcore.glm/issues/406>`_.
-
 **Other:**
 
 - The methods of the link classes will now return scalars when given scalar inputs. Under certain circumstances, they'd return zero-dimensional arrays.
