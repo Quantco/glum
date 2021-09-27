@@ -63,7 +63,7 @@ from load_transform import load_transform
 ## 1. Load and prepare datasets from Openml<a class="anchor"></a>
 [back to table of contents](#Table-of-Contents)
 
-First, we load in our [dataset from openML]("https://www.openml.org/d/41214") and apply several transformations. In the interest of simplicity, we do not include the data loading and preparation code in this notebook. Below is a list of further resources if you wish to explore further: 
+First, we load in our [dataset from openML]("https://www.openml.org/d/41214") and apply several transformations. In the interest of simplicity, we do not include the data loading and preparation code in this notebook. Below is a list of further resources if you wish to explore further:
 
 1. If you want to run the same code yourself, please see the helper functions [here](https://github.com/Quantco/quantcore.glm/tree/open-sourcing/docs/tutorials/glm_french_motor_tutorial).
 2. For a detailed description of the data, see [here](http://dutangc.free.fr/pub/RRepos/web/CASdatasets-index.html).
@@ -90,7 +90,7 @@ with pd.option_context('display.max_rows', 10):
 We start with the first part of our two part GLM - modeling the frequency of claims using a Poisson regression. Below, we give some background on why the Poisson family makes the most sense in this context.
 
 ### 2.1 Why Poisson distributions?
-Poisson distributions are typically used to model the number of events occuring in a fixed period of time when the events occur independently at a constant rate. In our case, we can think of motor insurance claims as the events, and a unit of exposure (i.e. a year) as the fixed period of time. 
+Poisson distributions are typically used to model the number of events occuring in a fixed period of time when the events occur independently at a constant rate. In our case, we can think of motor insurance claims as the events, and a unit of exposure (i.e. a year) as the fixed period of time.
 
 To get more technical:
 
@@ -129,9 +129,9 @@ This is a strong confirmation for the use of a Poisson when fitting!
 
 ### 2.2 Train and test frequency GLM
 
-Now, we start fitting our model. We use claims frequency = claim number/exposure as our outcome variable. We then divide the dataset into training set and test set with a 9:1 random split. 
+Now, we start fitting our model. We use claims frequency = claim number/exposure as our outcome variable. We then divide the dataset into training set and test set with a 9:1 random split.
 
-Also, notice that we do not one hot encode our columns. Rather, we take advantage of `quantcore.glm`'s integration with `quantcore.matrix`, which allows us to pass in categorical columns directly! `quantcore.matrix` will handle the encoding for us and even includes a handful of helpful matrix operation optimizations. We use the `Categorizer` from [dask_ml](https://ml.dask.org/modules/generated/dask_ml.preprocessing.Categorizer.html) to set our categorical columns as categorical dtypes and to ensure that the categories align in fitting and predicting. 
+Also, notice that we do not one hot encode our columns. Rather, we take advantage of `quantcore.glm`'s integration with `quantcore.matrix`, which allows us to pass in categorical columns directly! `quantcore.matrix` will handle the encoding for us and even includes a handful of helpful matrix operation optimizations. We use the `Categorizer` from [dask_ml](https://ml.dask.org/modules/generated/dask_ml.preprocessing.Categorizer.html) to set our categorical columns as categorical dtypes and to ensure that the categories align in fitting and predicting.
 <!-- #endregion -->
 
 ```python
@@ -148,7 +148,7 @@ glm_categorizer = Categorizer(columns=categoricals)
 
 X_train_p = glm_categorizer.fit_transform(df[predictors].iloc[train])
 X_test_p = glm_categorizer.transform(df[predictors].iloc[test])
-y_train_p, y_test_p = y[train], y[test] 
+y_train_p, y_test_p = y[train], y[test]
 w_train_p, w_test_p = weight[train], weight[test]
 z_train_p, z_test_p = z[train], z[test]
 ```
@@ -176,9 +176,9 @@ pd.DataFrame({'coefficient': np.concatenate(([f_glm1.intercept_], f_glm1.coef_))
              index=['intercept'] + f_glm1.feature_names_).T
 ```
 
-To measure our model's test and train performance, we use the deviance function for the Poisson family. We can get the total deviance function directly from `quantcore.glm`'s distribution classes and divide it by the sum of our sample weight. 
+To measure our model's test and train performance, we use the deviance function for the Poisson family. We can get the total deviance function directly from `quantcore.glm`'s distribution classes and divide it by the sum of our sample weight.
 
-*Note*: a Poisson distribution is equivlane to a Tweedie distribution with power = 1. 
+*Note*: a Poisson distribution is equivlane to a Tweedie distribution with power = 1.
 
 ```python
 PoissonDist = TweedieDistribution(1)
@@ -211,7 +211,7 @@ We define:
 - $y = \frac{z}{w}$: severity
 
 ### 3.1 Why Gamma distributions
-The severity $y$ is a positive, real number, $y \in (0, \infty)$. Theoretically, especially for liability claims, one could have arbitrary large numbers&mdash;very unlikely but possible. A very simple distribution for this range is an Exponential distribution, or its generalization, a Gamma distribution $y \sim Gamma$. In the insurance industry, it is well known that the severity might be skewed by a few very large losses. It's common to model these tail losses separately so here we cut out claims larger than 100,000 to focus on modeling small and moderate claims. 
+The severity $y$ is a positive, real number, $y \in (0, \infty)$. Theoretically, especially for liability claims, one could have arbitrary large numbers&mdash;very unlikely but possible. A very simple distribution for this range is an Exponential distribution, or its generalization, a Gamma distribution $y \sim Gamma$. In the insurance industry, it is well known that the severity might be skewed by a few very large losses. It's common to model these tail losses separately so here we cut out claims larger than 100,000 to focus on modeling small and moderate claims.
 
 ```python
 df_plot = (
@@ -281,7 +281,7 @@ for col in ['VehPower', 'BonusMalus']:
 ```
 
 <!-- #region -->
-Great! A Gamma distribution seems to be an empirically reasonable assumption for this dataset. 
+Great! A Gamma distribution seems to be an empirically reasonable assumption for this dataset.
 
 
 *Hint*: If Y were normal distributed, one should see a horizontal line, because $Var[Y] = constant/Exposure$
@@ -289,7 +289,7 @@ Great! A Gamma distribution seems to be an empirically reasonable assumption for
 <!-- #endregion -->
 
 ### 3.2 Severity GLM with train and test data
-We fit a GLM for the severity with the same features as the frequency model. We use the same categorizer as before. 
+We fit a GLM for the severity with the same features as the frequency model. We use the same categorizer as before.
 
 *Note*:
 
@@ -317,7 +317,7 @@ itest = idx & itest
 
 X_train_g = glm_categorizer.fit_transform(df[predictors].iloc[itrain])
 X_test_g = glm_categorizer.transform(df[predictors].iloc[itest])
-y_train_g, y_test_g = y[itrain], y[itest] 
+y_train_g, y_test_g = y[itrain], y[itest]
 w_train_g, w_test_g = weight[itrain], weight[itest]
 z_train_g, z_test_g = z[itrain], z[itest]
 ```
@@ -332,7 +332,7 @@ pd.DataFrame({'coefficient': np.concatenate(([s_glm1.intercept_], s_glm1.coef_))
              index=['intercept'] + s_glm1.feature_names_).T
 ```
 
-Again, we measure peformance with the deviance of the distribution. We also compare against the simple arithmetic mean and include the mean absolute error to help understand the actual scale of our results. 
+Again, we measure peformance with the deviance of the distribution. We also compare against the simple arithmetic mean and include the mean absolute error to help understand the actual scale of our results.
 
 *Note*: a Gamma distribution is equivalent to a Tweedie distribution with power = 2.
 
@@ -366,7 +366,7 @@ print('testing mean absolute error Mean:    {}'.format(
 ))
 ```
 
-Even though the deviance improvement seems small, the improvement in mean absolute error is not! (In the insurance world, this will make a significant difference when aggregated over all claims). 
+Even though the deviance improvement seems small, the improvement in mean absolute error is not! (In the insurance world, this will make a significant difference when aggregated over all claims).
 
 
 ### 3.3 Combined frequency and severity results
@@ -398,11 +398,11 @@ y = df["PurePremium"]
 
 X_train_t = glm_categorizer.fit_transform(df[predictors].iloc[train])
 X_test_t = glm_categorizer.transform(df[predictors].iloc[test])
-y_train_t, y_test_t = y.iloc[train], y.iloc[test] 
+y_train_t, y_test_t = y.iloc[train], y.iloc[test]
 w_train_t, w_test_t = weight[train], weight[test]
 ```
 
-For now, we just arbitrarily select 1.5 as the power parameter for our Tweedie model. However for a better fit we could include the power parameter in the optimization/fitting process, possibly via a simple grid search. 
+For now, we just arbitrarily select 1.5 as the power parameter for our Tweedie model. However for a better fit we could include the power parameter in the optimization/fitting process, possibly via a simple grid search.
 
 *Note*: notice how we pass a `TweedieDistribution` object in directly for the family parameter. While `quantcore.glm` supports strings for common families, it is also possible to pass in a quantcore.glm distribution directly.
 

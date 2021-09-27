@@ -3,13 +3,13 @@ Tutorials
 
 .. toctree::
    :maxdepth: 1
-   
+
 Basics
 ########
 
 .. toctree::
    :maxdepth: 1
-   
+
    Getting Started <getting_started/getting_started.ipynb>
    Poisson, Gamma, and Tweedie with French Motor Third-Party Liability Claims <glm_french_motor_tutorial/glm_french_motor.ipynb>
 
