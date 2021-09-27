@@ -141,7 +141,9 @@ def execute_problem_library(
     # to the "weights instead of offset" setup), but this will get undone by weight
     # normalization. So instead divide the penalty by the new weight sum divided by
     # the old weight sum
-    reg_multiplier = 1 / dat["weights"].mean() if "weights" in dat.keys() else None
+    reg_multiplier = (
+        1 / dat["sample_weight"].mean() if "sample_weight" in dat.keys() else None
+    )
     result = L(
         dat,
         distribution=P.distribution,

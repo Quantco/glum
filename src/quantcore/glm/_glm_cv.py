@@ -83,11 +83,6 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
           ``'inverse.gaussian'``
         - ``'logit'`` for family ``'binomial'``
 
-    fit_dispersion : {None, 'chisqr', 'deviance'}, optional (default=None)
-        Method for estimation of the dispersion parameter φ. Whether to use the
-        χ² statistic or the deviance statistic. If None, the dispersion is not
-        estimated.
-
     solver : {'auto', 'irls-cd', 'irls-ls', 'lbfgs'}, optional (default='auto')
         Algorithm to use in the optimization problem:
 
@@ -266,9 +261,6 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
     intercept_ : float
         Intercept (a.k.a. bias) added to linear predictor.
 
-    dispersion_ : float
-        The dispersion parameter φ if ``fit_dispersion`` was set.
-
     n_iter_ : int
         The number of iterations run by the CD solver to reach the specified
         tolerance for the optimal alpha.
@@ -289,7 +281,6 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         fit_intercept=True,
         family: Union[str, ExponentialDispersionModel] = "normal",
         link: Union[str, Link] = "auto",
-        fit_dispersion: Optional[bool] = None,
         solver="auto",
         max_iter=100,
         gradient_tol: Optional[float] = None,
@@ -325,7 +316,6 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             fit_intercept=fit_intercept,
             family=family,
             link=link,
-            fit_dispersion=fit_dispersion,
             solver=solver,
             max_iter=max_iter,
             gradient_tol=gradient_tol,
@@ -407,7 +397,15 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         """
         self._validate_hyperparameters()
 
-        X, y, weights, offset, weights_sum, P1, P2 = self.set_up_and_check_fit_args(
+        (
+            X,
+            y,
+            sample_weight,
+            offset,
+            weights_sum,
+            P1,
+            P2,
+        ) = self.set_up_and_check_fit_args(
             X,
             y,
             sample_weight,
@@ -428,7 +426,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         l1_ratio = np.atleast_1d(self.l1_ratio)
 
         if self.alphas is None:
-            alphas = [self._get_alpha_path(l1, X, y, weights) for l1 in l1_ratio]
+            alphas = [self._get_alpha_path(l1, X, y, sample_weight) for l1 in l1_ratio]
         else:
             alphas = np.tile(np.sort(self.alphas)[::-1], (len(l1_ratio), 1))
 
@@ -458,7 +456,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             y,
             l1,
             alphas,
-            weights,
+            sample_weight,
             offset,
             lower_bounds,
             upper_bounds,
@@ -469,14 +467,14 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             x_train, y_train, w_train = (
                 X[train_idx, :],
                 y[train_idx],
-                weights[train_idx],
+                sample_weight[train_idx],
             )
             w_train /= w_train.sum()
 
             x_test, y_test, w_test = (
                 X[test_idx, :],
                 y[test_idx],
-                weights[test_idx],
+                sample_weight[test_idx],
             )
 
             if offset is not None:
@@ -489,7 +487,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
                 mu = self._link_instance.inverse(
                     _safe_lin_pred(x_test, coef, offset_test)
                 )
-                return self._family_instance.deviance(y_test, mu, weights=w_test)
+                return self._family_instance.deviance(y_test, mu, sample_weight=w_test)
 
             if (
                 hasattr(self._family_instance, "_power")
@@ -552,7 +550,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             coef = self.solve_regularization_path(
                 X=x_train,
                 y=y_train,
-                weights=w_train,
+                sample_weight=w_train,
                 alphas=alphas,
                 P2_no_alpha=P2_no_alpha,
                 P1_no_alpha=P1_no_alpha,
@@ -593,7 +591,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
                 y=y,
                 l1=this_l1_ratio,
                 alphas=this_alphas,
-                weights=weights,
+                sample_weight=sample_weight,
                 offset=offset,
                 lower_bounds=lower_bounds,
                 upper_bounds=upper_bounds,
@@ -648,7 +646,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             P2,
         ) = _standardize(
             X,
-            weights,
+            sample_weight,
             self._center_predictors,
             self.scale_predictors,
             lower_bounds,
@@ -666,15 +664,15 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         )
 
         coef = self.get_start_coef(
-            start_params, X, y, weights, offset, col_means, col_stds
+            start_params, X, y, sample_weight, offset, col_means, col_stds
         )
 
         coef = self.solve(
             X=X,
             y=y,
-            weights=weights,
+            sample_weight=sample_weight,
             P2=P2,
-            P1=P1,
+            P1=P1,  # type: ignore
             coef=coef,
             offset=offset,
             lower_bounds=lower_bounds,
@@ -691,6 +689,6 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             # set intercept to zero as the other linear models do
             self.intercept_, self.coef_ = _unstandardize(col_means, col_stds, 0.0, coef)
 
-        self.tear_down_from_fit(X, y, col_means, col_stds, weights, weights_sum)
+        self.tear_down_from_fit(X, y, col_means, col_stds, sample_weight, weights_sum)
 
         return self

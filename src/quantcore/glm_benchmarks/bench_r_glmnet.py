@@ -118,8 +118,8 @@ def r_glmnet_bench(
         standardize=False,
         thresh=benchmark_convergence_tolerance,
     )
-    if "weights" in dat.keys():
-        glmnet_kws.update({"weights": ro.FloatVector(dat["weights"])})
+    if "sample_weight" in dat.keys():
+        glmnet_kws.update({"weights": ro.FloatVector(dat["sample_weight"])})
     if "offset" in dat.keys():
         glmnet_kws.update({"offset": ro.FloatVector(dat["offset"])})
 

@@ -16,14 +16,14 @@ jupyter:
 <!-- #region -->
 # Getting Started
 
-Welcome to `quantcore.glm`! Generalized linear models (GLMs) are core statistical tools that include many common methods like least-squares regression, Poisson regression, and logistic regression as special cases. At QuantCo, we have developed `quantcore.glm`, a fast Python-first GLM library. 
+Welcome to `quantcore.glm`! Generalized linear models (GLMs) are core statistical tools that include many common methods like least-squares regression, Poisson regression, and logistic regression as special cases. At QuantCo, we have developed `quantcore.glm`, a fast Python-first GLM library.
 
 The purpose of this tutorial is to show the basics of `quantcore.glm`. It assumes a working knowledge of python, regularized linear models, and machine learning. The API is very similar to sklearn. (After all, `quantcore.glm` is based on a fork of scikit-learn).
 
 If you have not done so already, please refer to our [installation instructions](https://github.com/Quantco/quantcore.glm#installation) for installing `quantcore.glm`.
 
 
-*Note:* We use the [sklearn boston housing dataset](https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_boston.html) throughout the tutorial. If you wish to explore this dataset further, there are a handful of resources online. For example, [this blog](https://medium.com/@amitg0161/sklearn-linear-regression-tutorial-with-boston-house-dataset-cde74afd460a). 
+*Note:* We use the [sklearn boston housing dataset](https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_boston.html) throughout the tutorial. If you wish to explore this dataset further, there are a handful of resources online. For example, [this blog](https://medium.com/@amitg0161/sklearn-linear-regression-tutorial-with-boston-house-dataset-cde74afd460a).
 <!-- #endregion -->
 
 ```python
@@ -62,7 +62,7 @@ The following is a simple example where we fit and predict using `quantcore.glm`
 
 - **alpha**: the constant multiplying the penalty term that determines regularization strength. (*Note*: `GeneralizedLinearRegressor` also has an alpha-search option. See the `GeneralizedLinearRegressorCV` example below for details on how alpha-search works).
 
-                
+
 - **l1_ratio**: the elastic net mixing parameter (`0 <= l1_ratio <= 1`). For `l1_ratio = 0`, the penalty is the L2 penalty (ridge). ``For l1_ratio = 1``, it is an L1 penalty (lasso).  For ``0 < l1_ratio < 1``, the penalty is a combination of L1 and L2.
 <!-- #endregion -->
 
@@ -99,7 +99,7 @@ Some important parameters:
     4. If none of the above parameters are set, use a ``min_alpha_ratio``
         of 1e-6.
 
-                
+
 - **l1_ratio**: for `GeneralizedLinearRegressorCV()`, if you pass ``l1_ratio`` as an array, the `fit` method will choose the best value of `l1_ratio` and store it as `self.l1_ratio_`.
 
 ```python

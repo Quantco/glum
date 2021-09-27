@@ -10,6 +10,13 @@ Changelog
 Unreleased
 ----------
 
+**Breaking changes:**
+
+- :class:`~quantcore.glm.GeneralizedLinearRegressor` and :class:`~quantcore.glm.GeneralizedLinearRegressorCV` lose the ``fit_dispersion`` parameter.
+  Please use the :meth:`dispersion` method of the appropriate family instance instead.
+- All functions now use ``sample_weight`` as a keyword instead of ``weights``, in line with scikit-learn.
+- All functions now use ``dispersion`` as a keyword instead of ``phi``.
+
 **New features:**
 
 - P1 and P2 now accepts 1d array with the same number of elements as the unexpanded design matrix. In this case,
@@ -19,6 +26,7 @@ Unreleased
 - :class:`BinomialDistribution` and :class:`TweedieDistribution` gain a :meth:`log_likelihood` method.
 - The :meth:`fit` method of :class:`~quantcore.glm.GeneralizedLinearRegressor` and :class:`~quantcore.glm.GeneralizedLinearRegressorCV`
   now saves the column types of pandas data frames.
+- :class:`~quantcore.glm.GeneralizedLinearRegressor` and :class:`~quantcore.glm.GeneralizedLinearRegressorCV` gain two properties: ``family_instance`` and ``link_instance``.
 
 **Other:**
 
@@ -26,6 +34,7 @@ Unreleased
 - There is a new benchmark available ``glm_benchmarks_run`` based on the Boston housing dataset. See `here <https://github.com/Quantco/quantcore.glm/pull/376>`_.
 - ``glm_benchmarks_analyze`` now includes ``offset`` in the index. See `here <https://github.com/Quantco/quantcore.glm/issues/346>`_.
 - ``glmnet_python`` was removed from the benchmarks suite.
+- The innermost coordinate descent was optimized. This speeds up coordinate descent dominated problems like LASSO by about 1.5-2x. See `here <https://github.com/Quantco/quantcore.glm/pull/424>`_.
 
 1.5.1 - 2021-07-22
 ------------------
