@@ -20,12 +20,12 @@ jupyter:
 
 This tutorial demonstrates how to create models with high dimensional fixed effects using `quantcore.glm`. Using `quantcore.matrix`, we can pass categorical variables with a large range of values. `quantcore.glm` and `quantcore.matrix` will handle the creation of the one-hot-encoded design matrix.
 
-In some real-world problems, we have used millions of categories. This would be impossible with a dense matrix. General-purpose sparse matrices like compressed sparse row (CSR) matrices help but still leave a lot on the table. For a categorical matrix, we know that each row has only a single non-zero value and that value is 1. These optimizations are implemented in `quantcore.matrix.CategoricalMatrix`. 
+In some real-world problems, we have used millions of categories. This would be impossible with a dense matrix. General-purpose sparse matrices like compressed sparse row (CSR) matrices help but still leave a lot on the table. For a categorical matrix, we know that each row has only a single non-zero value and that value is 1. These optimizations are implemented in `quantcore.matrix.CategoricalMatrix`.
 
 
 **Background**
 
-For this tutorial, we will be predicting sales for the European drug store chain Rossman. Specifically, we are tasked with predicting daily sales for future dates. Ideally, we want a model that can capture the many factors that influence stores sales -- promotions, competition, school, holidays, seasonality, etc. As a baseline, we will start with a simple model that only uses a few basic predictors. Then, we will fit a model with a large number of fixed effects. For both models, we will use OLS with L2 regularization. 
+For this tutorial, we will be predicting sales for the European drug store chain Rossman. Specifically, we are tasked with predicting daily sales for future dates. Ideally, we want a model that can capture the many factors that influence stores sales -- promotions, competition, school, holidays, seasonality, etc. As a baseline, we will start with a simple model that only uses a few basic predictors. Then, we will fit a model with a large number of fixed effects. For both models, we will use OLS with L2 regularization.
 
 We will use a gamma distribution for our model. This choice is motivated by two main factors. First, our target variable, sales, is a positive real number, which matches the support of the gamma distribution. Second, it is expected that factors influencing sales are multiplicative rather than additive, which is better captured with a gamma regression than say, OLS.
 
@@ -83,7 +83,7 @@ if not all(Path(p).exists() for p in ["processed_data/train.parquet", "processed
     "Processed data not found. Processing data from raw data..."
     process_data()
     "Done"
-    
+
 df = load_train().sort_values(["store", "date"])
 df = df.iloc[:int(.1*len(df))]
 df.head()
@@ -112,7 +112,7 @@ df.head()
 
 ### 1.3 Train vs. validation selection
 
-Lastly, we split our data into training and validation sets. Kaggle provides a test set for the Rossman challenge, but it does not directly include outcome data (sales), so we do not use it for our tutorial. Instead, we simulate predicting future sales by taking the last 5 months of our training data as our validation set. 
+Lastly, we split our data into training and validation sets. Kaggle provides a test set for the Rossman challenge, but it does not directly include outcome data (sales), so we do not use it for our tutorial. Instead, we simulate predicting future sales by taking the last 5 months of our training data as our validation set.
 
 ```python
 validation_window = [pd.to_datetime("2015-03-15"), pd.to_datetime("2015-07-31")]
@@ -131,9 +131,9 @@ select_val = (
 ## 2. Fit baseline GLM<a class="anchor"></a>
 [back to table of contents](#Table-of-Contents)
 
-We start with a simple model that uses only year, month, day of the week, and store as predictors. Even with these variables alone, we should still be able to capture a lot of valuable information. Year can capture overall sales trends, month can capture seasonality, week day can capture the variation in sales across the week, and store can capture locality. We will treat these all as categorical variables. 
+We start with a simple model that uses only year, month, day of the week, and store as predictors. Even with these variables alone, we should still be able to capture a lot of valuable information. Year can capture overall sales trends, month can capture seasonality, week day can capture the variation in sales across the week, and store can capture locality. We will treat these all as categorical variables.
 
-With the `GeneralizedLinearRegressor()` class, we can pass in `pandas.Categorical` variables directly without having to encode them ourselves. This is convenient, especially when we start adding more fixed effects. But it is very important that the categories are aligned between calls to `fit` and `predict`. One way of achieving this alignment is with a `dask_ml.preprocessing.Categorizer`. Note, however, that the `Categorizer` class fails to enforce category alignment if the input column is already a categorical data type. 
+With the `GeneralizedLinearRegressor()` class, we can pass in `pandas.Categorical` variables directly without having to encode them ourselves. This is convenient, especially when we start adding more fixed effects. But it is very important that the categories are aligned between calls to `fit` and `predict`. One way of achieving this alignment is with a `dask_ml.preprocessing.Categorizer`. Note, however, that the `Categorizer` class fails to enforce category alignment if the input column is already a categorical data type.
 
 You can reference the [pandas documentation on Categoricals](https://pandas.pydata.org/pandas-docs/stable/user_guide/categorical.html) to learn more about how these data types work.
 
@@ -148,7 +148,7 @@ baseline_glm = GeneralizedLinearRegressor(
 )
 ```
 
-Fit the model making sure to process the data frame with the Categorizer first and inspect the coefficients. 
+Fit the model making sure to process the data frame with the Categorizer first and inspect the coefficients.
 
 ```python
 baseline_glm.fit(
@@ -173,7 +173,7 @@ df["predicted_sales_baseline"] = df["predicted_sales_baseline"].fillna(0)
 df["predicted_sales_baseline"] = df["predicted_sales_baseline"]
 ```
 
-We use root mean squared percentage error (RMSPE) as our performance metric. (Useful for thinking about error relative to total sales of each store).  
+We use root mean squared percentage error (RMSPE) as our performance metric. (Useful for thinking about error relative to total sales of each store).
 
 ```python
 train_err = root_mean_squared_percentage_error(
@@ -186,13 +186,13 @@ print(f'Training Error: {round(train_err, 2)}%')
 print(f'Validation Error: {round(val_err, 2)}%')
 ```
 
-The results aren't bad for a start, but we can do better :) 
+The results aren't bad for a start, but we can do better :)
 
 
 ## 3. GLM with high dimensional fixed effects<a class="anchor"></a>
 [back to table of contents](#Table-of-Contents)
 
-Now, we repeat a similar process to above, but, this time, we take advantage of the full range of categoricals we created in our data transformation step. Since we will create a very large number of fixed effects, we may run into cases where our validation data has categorical values not seen in our training data. In these cases, Dask-ML's `Categorizer` will output null values when transforming the validation columns to the categoricals that were created on the training set. To fix this, we add Dask-ML's  [SimpleImputer](https://ml.dask.org/modules/generated/dask_ml.impute.SimpleImputer.html) to our pipeline. 
+Now, we repeat a similar process to above, but, this time, we take advantage of the full range of categoricals we created in our data transformation step. Since we will create a very large number of fixed effects, we may run into cases where our validation data has categorical values not seen in our training data. In these cases, Dask-ML's `Categorizer` will output null values when transforming the validation columns to the categoricals that were created on the training set. To fix this, we add Dask-ML's  [SimpleImputer](https://ml.dask.org/modules/generated/dask_ml.impute.SimpleImputer.html) to our pipeline.
 
 ```python
 highdim_features = [
@@ -312,7 +312,7 @@ axs[1].set_title("Validation Results: Total Sales per Month")
 plt.show()
 ```
 
-We can also look at aggregate sales for a subset of stores. We select the first 20 stores and plot in order of increasing sales. 
+We can also look at aggregate sales for a subset of stores. We select the first 20 stores and plot in order of increasing sales.
 
 ```python
 _, axs = plt.subplots(2, 1, figsize=(14, 12))
