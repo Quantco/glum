@@ -33,7 +33,6 @@ from sklearn.utils.validation import (
     check_consistent_length,
     check_is_fitted,
     check_random_state,
-    check_X_y,
     column_or_1d,
 )
 
@@ -156,7 +155,7 @@ def _check_weights(
             raise ValueError("Sample weights must be non-negative.")
         return np.full(n_samples, sample_weight, dtype=dtype)
 
-    weights = check_array(
+    sample_weight = check_array(
         sample_weight,
         accept_sparse=False,
         force_all_finite=force_all_finite,
@@ -164,16 +163,16 @@ def _check_weights(
         dtype=[np.float64, np.float32],
     )
 
-    if weights.ndim > 1:
+    if sample_weight.ndim > 1:
         raise ValueError("Sample weights must be 1D array or scalar.")
-    if weights.shape[0] != n_samples:
+    if sample_weight.shape[0] != n_samples:
         raise ValueError("Sample weights must have the same length as y.")
-    if np.any(weights < 0):
+    if np.any(sample_weight < 0):
         raise ValueError("Sample weights must be non-negative.")
-    if np.sum(weights) == 0:
+    if np.sum(sample_weight) == 0:
         raise ValueError("Sample weights must have at least one positive element.")
 
-    return weights
+    return sample_weight
 
 
 def _check_offset(
@@ -270,7 +269,7 @@ def check_inequality_constraints(
 
 def _standardize(
     X: mx.MatrixBase,
-    weights: np.ndarray,
+    sample_weight: np.ndarray,
     center_predictors: bool,
     estimate_as_if_scaled_model: bool,
     lower_bounds: Optional[np.ndarray],
@@ -300,7 +299,7 @@ def _standardize(
     Parameters
     ----------
     X : MatrixBase
-    weights : numpy.ndarray
+    sample_weight : numpy.ndarray
     center_predictors : bool
         If ``True``, adjust the data matrix so that columns have mean zero.
     estimate_as_if_scaled_model : bool
@@ -317,7 +316,7 @@ def _standardize(
     P1
     P2
     """
-    X, col_means, col_stds = X.standardize(weights, center_predictors, True)
+    X, col_means, col_stds = X.standardize(sample_weight, center_predictors, True)
 
     if col_stds is not None:
         # We copy the bounds when multiplying here so the we avoid
@@ -621,7 +620,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         fit_intercept=True,
         family: Union[str, ExponentialDispersionModel] = "normal",
         link: Union[str, Link] = "auto",
-        fit_dispersion=None,
         solver="auto",
         max_iter=100,
         gradient_tol: Optional[float] = None,
@@ -651,7 +649,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self.fit_intercept = fit_intercept
         self.family = family
         self.link = link
-        self.fit_dispersion = fit_dispersion
         self.solver = solver
         self.max_iter = max_iter
         self.gradient_tol = gradient_tol
@@ -675,12 +672,28 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self.b_ineq = b_ineq
         self.force_all_finite = force_all_finite
 
+    @property
+    def family_instance(self) -> ExponentialDispersionModel:
+        """Return an :class:`~quantcore.glm._distribution.ExponentialDispersionModel`."""
+        if hasattr(self, "_family_instance"):
+            return self._family_instance
+        else:
+            return get_family(self.family)
+
+    @property
+    def link_instance(self) -> Link:
+        """Return a :class:`~quantcore.glm._link.Link`."""
+        if hasattr(self, "_link_instance"):
+            return self._link_instance
+        else:
+            return get_link(self.link, self.family_instance)
+
     def get_start_coef(
         self,
         start_params,
         X: Union[mx.MatrixBase, mx.StandardizedMatrix],
         y: np.ndarray,
-        weights: np.ndarray,
+        sample_weight: np.ndarray,
         offset: Optional[np.ndarray],
         col_means: Optional[np.ndarray],
         col_stds: Optional[np.ndarray],
@@ -699,7 +712,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                     X.shape[1] + 1, dtype=_float_itemsize_to_dtype[X.dtype.itemsize]
                 )
                 coef[0] = guess_intercept(
-                    y, weights, self._link_instance, self._family_instance, offset
+                    y, sample_weight, self._link_instance, self._family_instance, offset
                 )
             else:
                 coef = np.zeros(
@@ -786,7 +799,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         y: np.ndarray,
         col_means: Optional[np.ndarray],
         col_stds: Optional[np.ndarray],
-        weights: np.ndarray,
+        sample_weight: np.ndarray,
         weights_sum: Optional[float],
     ):
         """
@@ -795,13 +808,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         #######################################################################
         # 5a. undo standardization
         #######################################################################
-        if self.fit_dispersion in ["chisqr", "deviance"]:
-            # attention because of rescaling of weights
-            X_unstandardized = X.mat if isinstance(X, mx.StandardizedMatrix) else X
-            self.dispersion_ = (
-                self.estimate_phi(X_unstandardized, y, weights) * weights_sum
-            )
-
         del self._center_predictors
         del self._solver
         del self._random_state
@@ -857,7 +863,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             coef = np.zeros(X.shape[1] + 1)
             coef[0] = guess_intercept(
                 y=y,
-                weights=w,
+                sample_weight=w,
                 link=self._link_instance,
                 distribution=self._family_instance,
             )
@@ -869,7 +875,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             coef=coef,
             X=X,
             y=y,
-            weights=w,
+            sample_weight=w,
             link=self._link_instance,
             offset=offset,
         )
@@ -888,7 +894,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self,
         X: Union[mx.MatrixBase, mx.StandardizedMatrix],
         y: np.ndarray,
-        weights: np.ndarray,
+        sample_weight: np.ndarray,
         P2,
         P1: np.ndarray,
         coef: np.ndarray,
@@ -923,7 +929,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             irls_data = IRLSData(
                 X=X,
                 y=y,
-                weights=weights,
+                sample_weight=sample_weight,
                 P1=P1,
                 P2=P2,
                 fit_intercept=self.fit_intercept,
@@ -956,7 +962,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 coef=coef,
                 X=X,
                 y=y,
-                weights=weights,
+                sample_weight=sample_weight,
                 P2=P2,
                 verbose=self.verbose,
                 family=self._family_instance,
@@ -977,7 +983,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 coef=coef,
                 X=X,
                 y=y,
-                weights=weights,
+                sample_weight=sample_weight,
                 P2=P2,
                 fit_intercept=self.fit_intercept,
                 verbose=self.verbose > 0,
@@ -995,7 +1001,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self,
         X: Union[mx.MatrixBase, mx.StandardizedMatrix],
         y: np.ndarray,
-        weights: np.ndarray,
+        sample_weight: np.ndarray,
         alphas: np.ndarray,
         P2_no_alpha,
         P1_no_alpha: np.ndarray,
@@ -1016,7 +1022,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             coef = self.solve(
                 X=X,
                 y=y,
-                weights=weights,
+                sample_weight=sample_weight,
                 P2=P2,
                 P1=P1,
                 coef=coef,
@@ -1240,60 +1246,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         if sample_weight is None:
             return mu
 
-        weights = _check_weights(sample_weight, X.shape[0], X.dtype)
-        return mu * weights
-
-    def estimate_phi(
-        self, X: ArrayLike, y: ArrayLike, sample_weight: Optional[ArrayLike] = None
-    ):
-        """Estimate/fit the dispersion parameter φ.
-
-        Parameters
-        ----------
-        X : {array-like, sparse matrix}, shape (n_samples, n_features)
-            The data matrix.
-
-        y : array-like, shape (n_samples,)
-            Target values.
-
-        sample_weight : array-like, shape (n_samples,), optional (default=None)
-            Sample weights.
-
-        Returns
-        -------
-        float
-            Dispersion parameter.
-        """
-        check_is_fitted(self, "coef_")
-        _dtype = [np.float64, np.float32]
-        if isinstance(X, mx.MatrixBase):
-            X, y = check_X_y_matrix_compliant(
-                X, y, accept_sparse=["csr", "csc", "coo"], dtype=_dtype
-            )
-        else:
-            X, y = check_X_y(X, y, accept_sparse=["csr", "csc", "coo"], dtype=_dtype)
-
-        n_samples, n_features = X.shape
-        weights = _check_weights(sample_weight, n_samples, X.dtype)
-        eta = X @ self.coef_
-        if self.fit_intercept is True:
-            eta += self.intercept_
-            n_features += 1
-        if n_samples <= n_features:
-            raise ValueError(
-                "Estimation of dispersion parameter phi requires more samples than "
-                f"features; got (X.shape[0]={n_samples}) samples and "
-                f"(X.shape[1]+fit_intercept={n_features}) n_features."
-            )
-        mu = self._link_instance.inverse(eta)
-        if self.fit_dispersion == "chisqr":
-            chisq = np.sum(
-                weights * (y - mu) ** 2 / self._family_instance.unit_variance(mu)
-            )
-            return float(chisq) / (n_samples - n_features)
-        elif self.fit_dispersion == "deviance":
-            dev = self._family_instance.deviance(y, mu, weights)
-            return float(dev) / (n_samples - n_features)
+        sample_weight = _check_weights(sample_weight, X.shape[0], X.dtype)
+        return mu * sample_weight
 
     # Note: check_estimator(GeneralizedLinearRegressor) might raise
     # "AssertionError: -0.28014056555724598 not greater than 0.5"
@@ -1324,7 +1278,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         y : array-like, shape (n_samples,)
             True values of target.
 
-        sample_weight :array-like, shape (n_samples,), optional (default=None)
+        sample_weight : array-like, shape (n_samples,), optional (default=None)
             Sample weights.
 
         Returns
@@ -1335,12 +1289,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         # Note, default score defined in RegressorMixin is R^2 score.
         # TODO: make D^2 a score function in module metrics (and thereby get
         #       input validation and so on)
-        weights = _check_weights(sample_weight, y.shape[0], X.dtype)
+        sample_weight = _check_weights(sample_weight, y.shape[0], X.dtype)
         mu = self.predict(X)
         family = get_family(self.family)
-        dev = family.deviance(y, mu, weights=weights)
-        y_mean = np.average(y, weights=weights)
-        dev_null = family.deviance(y, y_mean, weights=weights)
+        dev = family.deviance(y, mu, sample_weight=sample_weight)
+        y_mean = np.average(y, weights=sample_weight)
+        dev_null = family.deviance(y, y_mean, sample_weight=sample_weight)
         return 1.0 - dev / dev_null
 
     def _validate_hyperparameters(self) -> None:
@@ -1504,27 +1458,29 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                     """
                     if isinstance(penalty, str):
                         return penalty
-                    else:
-                        if np.asarray(penalty).shape[0] == X.shape[1]:
-                            if np.asarray(penalty).ndim == 2:
-                                raise ValueError(
-                                    "When the penalty is two dimensional, it has "
-                                    "to have the same length as the number of "
-                                    "columns of X, after the categoricals "
-                                    "have been expanded."
-                                )
-                            return np.array(
-                                list(
-                                    chain.from_iterable(
-                                        [elmt for _ in dtype.categories]
-                                        if pd.api.types.is_categorical_dtype(dtype)
-                                        else [elmt]
-                                        for elmt, dtype in zip(penalty, X.dtypes)
-                                    )
+                    if not sparse.issparse(penalty):
+                        penalty = np.asanyarray(penalty)
+
+                    if penalty.shape[0] == X.shape[1]:
+                        if penalty.ndim == 2:
+                            raise ValueError(
+                                "When the penalty is two dimensional, it has "
+                                "to have the same length as the number of "
+                                "columns of X, after the categoricals "
+                                "have been expanded."
+                            )
+                        return np.array(
+                            list(
+                                chain.from_iterable(
+                                    [elmt for _ in dtype.categories]
+                                    if pd.api.types.is_categorical_dtype(dtype)
+                                    else [elmt]
+                                    for elmt, dtype in zip(penalty, X.dtypes)
                                 )
                             )
-                        else:
-                            return penalty
+                        )
+                    else:
+                        return penalty
 
                 P1 = _expand_categorical_penalties(self.P1, X)
                 P2 = _expand_categorical_penalties(self.P2, X)
@@ -1586,7 +1542,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         # This will prevent accidental upcasting later and slow operations on
         # mixed-precision numbers
         y = np.asarray(y, dtype=X.dtype)
-        weights = _check_weights(
+        sample_weight = _check_weights(
             sample_weight, y.shape[0], X.dtype, force_all_finite=force_all_finite
         )
         offset = _check_offset(offset, y.shape[0], X.dtype)
@@ -1596,8 +1552,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         # deviance = sum(sample_weight * unit_deviance),
         # we rescale weights such that sum(weights) = 1 and this becomes
         # 1/2*deviance + L1 + L2 with deviance=sum(weights * unit_deviance)
-        weights_sum: float = np.sum(weights)  # type: ignore
-        weights = weights / weights_sum
+        weights_sum: float = np.sum(sample_weight)  # type: ignore
+        sample_weight = sample_weight / weights_sum
         #######################################################################
         # 2b. convert to wrapper matrix types
         #######################################################################
@@ -1606,7 +1562,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         elif isinstance(X, np.ndarray):
             X = mx.DenseMatrix(X)
 
-        return X, y, weights, offset, weights_sum, P1, P2
+        return X, y, sample_weight, offset, weights_sum, P1, P2
 
 
 class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
@@ -1703,11 +1659,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         - ``'log'`` for families ``'poisson'``, ``'gamma'`` and
           ``'inverse.gaussian'``
         - ``'logit'`` for family ``'binomial'``
-
-    fit_dispersion : {None, 'chisqr', 'deviance'}, optional (default=None)
-        Method for estimation of the dispersion parameter φ. Whether to use the
-        χ² statistic or the deviance statistic. If ``None``, the dispersion is
-        not estimated.
 
     solver : {'auto', 'irls-cd', 'irls-ls', 'lbfgs', 'trust-constr'}, \
             optional (default='auto')
@@ -1887,9 +1838,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     intercept_ : float
         Intercept (a.k.a. bias) added to linear predictor.
 
-    dispersion_ : float
-        The dispersion parameter φ if ``fit_dispersion`` was set.
-
     n_iter_ : int
         Actual number of iterations used in solver.
 
@@ -1938,7 +1886,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         fit_intercept=True,
         family: Union[str, ExponentialDispersionModel] = "normal",
         link: Union[str, Link] = "auto",
-        fit_dispersion=None,
         solver="auto",
         max_iter=100,
         gradient_tol: Optional[float] = None,
@@ -1972,7 +1919,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             fit_intercept=fit_intercept,
             family=family,
             link=link,
-            fit_dispersion=fit_dispersion,
             solver=solver,
             max_iter=max_iter,
             gradient_tol=gradient_tol,
@@ -2087,7 +2033,15 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
 
         # NOTE: This function checks if all the entries in X and y are
         # finite. That can be expensive. But probably worthwhile.
-        X, y, weights, offset, weights_sum, P1, P2 = self.set_up_and_check_fit_args(
+        (
+            X,
+            y,
+            sample_weight,
+            offset,
+            weights_sum,
+            P1,
+            P2,
+        ) = self.set_up_and_check_fit_args(
             X,
             y,
             sample_weight,
@@ -2158,7 +2112,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             P2_no_alpha,
         ) = _standardize(
             X,
-            weights,
+            sample_weight,
             self._center_predictors,
             self.scale_predictors,
             lower_bounds,
@@ -2171,12 +2125,9 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         #######################################################################
         # 3. initialization of coef = (intercept_, coef_)                     #
         #######################################################################
-        # Note: Since phi=self.dispersion_ does not enter the estimation
-        #       of mu_i=E[y_i], set it to 1.
 
-        # set start values for coef
         coef = self.get_start_coef(
-            start_params, X, y, weights, offset, col_means, col_stds
+            start_params, X, y, sample_weight, offset, col_means, col_stds
         )
 
         #######################################################################
@@ -2190,7 +2141,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
                 self._alphas = self.alphas
             elif self.alpha is None:
                 self._alphas = self._get_alpha_path(
-                    P1_no_alpha=P1_no_alpha, X=X, y=y, w=weights, offset=offset
+                    P1_no_alpha=P1_no_alpha, X=X, y=y, w=sample_weight, offset=offset
                 )
             else:
                 self._alphas = self.alpha
@@ -2202,7 +2153,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             coef = self.solve_regularization_path(
                 X=X,
                 y=y,
-                weights=weights,
+                sample_weight=sample_weight,
                 P2_no_alpha=P2_no_alpha,
                 P1_no_alpha=P1_no_alpha,
                 alphas=self._alphas,
@@ -2244,7 +2195,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             coef = self.solve(
                 X=X,
                 y=y,
-                weights=weights,
+                sample_weight=sample_weight,
                 P2=P2_no_alpha * _alpha,
                 P1=P1_no_alpha * _alpha,
                 coef=coef,
@@ -2265,6 +2216,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
                     col_means, col_stds, 0.0, coef
                 )
 
-        self.tear_down_from_fit(X, y, col_means, col_stds, weights, weights_sum)
+        self.tear_down_from_fit(X, y, col_means, col_stds, sample_weight, weights_sum)
 
         return self
