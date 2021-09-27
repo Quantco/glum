@@ -122,6 +122,7 @@ def enet_coordinate_descent_gram(int[::1] active_set,
 
     cdef floating w_ii
     cdef floating P1_ii
+    cdef floating qii_temp
     cdef floating d_w_max
     cdef floating w_max
     cdef floating d_w_ii
@@ -156,16 +157,8 @@ def enet_coordinate_descent_gram(int[::1] active_set,
 
                 w_ii = w[ii]  # Store previous value
 
-                if w_ii != 0.0:
-                    # q -= w_ii * Q[ii]
-                    # TODO: this update is unnecessary and could be combined
-                    # with the re-addition below.  just make sure to modify the
-                    # w[ii] update to account for the change in q[ii]
-                    for active_set_jj in range(n_active_features):
-                        jj = active_set[active_set_jj]
-                        q[jj] -= w[ii] * Q[active_set_ii, active_set_jj]
-
-                w[ii] = fsign(-q[ii]) * fmax(fabs(q[ii]) - P1_ii, 0) / Q[active_set_ii, active_set_ii]
+                qii_temp = q[ii] - w[ii] * Q[active_set_ii, active_set_ii]
+                w[ii] = fsign(-qii_temp) * fmax(fabs(qii_temp) - P1_ii, 0) / Q[active_set_ii, active_set_ii]
 
                 if ii >= <unsigned int>intercept:
                     if has_lower_bounds:
@@ -175,11 +168,11 @@ def enet_coordinate_descent_gram(int[::1] active_set,
                         if w[ii] > upper_bounds[ii - intercept]:
                             w[ii] = upper_bounds[ii - intercept]
 
-                if w[ii] != 0.0:
-                    # q +=  w[ii] * Q[ii] # Update q = X.T (X w - y)
+                if w[ii] != 0.0 or w_ii != 0.0:
+                    # q +=  (w[ii] - w_ii) * Q[ii] # Update q = X.T (X w - y)
                     for active_set_jj in range(n_active_features):
                         jj = active_set[active_set_jj]
-                        q[jj] += w[ii] * Q[active_set_ii, active_set_jj]
+                        q[jj] += (w[ii] - w_ii) * Q[active_set_ii, active_set_jj]
 
                 # update the maximum absolute coefficient update
                 d_w_ii = fabs(w[ii] - w_ii)
