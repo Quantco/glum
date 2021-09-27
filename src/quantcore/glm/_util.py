@@ -1,3 +1,4 @@
+import logging
 from typing import Union
 
 import numpy as np
@@ -5,10 +6,61 @@ import pandas as pd
 from quantcore.matrix import MatrixBase, StandardizedMatrix
 from scipy import sparse
 
+_logger = logging.getLogger(__name__)
+
 
 def _asanyarray(x, **kwargs):
     """``np.asanyarray`` with passthrough for scalars."""
     return x if pd.api.types.is_scalar(x) else np.asanyarray(x, **kwargs)
+
+
+def _align_df_dtypes(df, dtypes) -> pd.DataFrame:
+    """Align data types for prediction.
+
+    This function checks that columns are numeric if expected to and that
+    categorical columns have the right categories in the right order. Invalid
+    entries will be cast to ``numpy.nan``.
+    """
+    if not isinstance(df, pd.DataFrame):
+        raise TypeError(f"Expected `pandas.DataFrame'; got {type(df)}.")
+    if dtypes.keys() - set(df.columns):
+        raise KeyError(f"Missing columns: {dtypes.keys() - set(df.columns)}.")
+
+    changed_dtypes = {}
+
+    numeric_dtypes = [
+        column
+        for column, dtype in dtypes.items()
+        if pd.api.types.is_numeric_dtype(dtype)
+    ]
+
+    categorical_dtypes = [
+        column
+        for column, dtype in dtypes.items()
+        if pd.api.types.is_categorical_dtype(dtype)
+    ]
+
+    for column in numeric_dtypes:
+        if not pd.api.types.is_numeric_dtype(df[column]):
+            _logger.warning(f"Casting {column} to numeric.")
+            changed_dtypes[column] = pd.to_numeric(df[column], errors="coerce")
+    for column in categorical_dtypes:
+        if not pd.api.types.is_categorical_dtype(df[column]):
+            _logger.warning(f"Casting {column} to categorical.")
+            changed_dtypes[column] = df[column].astype(dtypes[column])
+        elif list(df[column].cat.categories) != list(dtypes[column].categories):
+            _logger.warning(f"Aligning categories of {column}.")
+            changed_dtypes[column] = df[column].cat.set_categories(
+                dtypes[column].categories
+            )
+
+    if changed_dtypes:
+        df = df.assign(**changed_dtypes)
+    if df.columns.to_list != list(dtypes.keys()):
+        _logger.warning(f"Reordering columns to {list(dtypes.keys())}.")
+        df = df[list(dtypes.keys())]
+
+    return df
 
 
 def _safe_lin_pred(
