@@ -1,3 +1,6 @@
+# Author: Alexandre Gramfort <alexandre.gramfort@inria.fr>
+#         Fabian Pedregosa <fabian.pedregosa@inria.fr>
+#         Olivier Grisel <olivier.grisel@ensta.org>
 #         Alexis Mignon <alexis.mignon@gmail.com>
 #         Manoj Kumar <manojkumarsivaraj334@gmail.com>
 #
@@ -166,7 +169,7 @@ def enet_coordinate_descent_gram(int[::1] active_set,
                             w[ii] = upper_bounds[ii - intercept]
 
                 if w[ii] != 0.0 or w_ii != 0.0:
-                    # q +=  w[ii] * Q[ii] # Update q = X.T (X w - y)
+                    # q +=  (w[ii] - w_ii) * Q[ii] # Update q = X.T (X w - y)
                     for active_set_jj in range(n_active_features):
                         jj = active_set[active_set_jj]
                         q[jj] += (w[ii] - w_ii) * Q[active_set_ii, active_set_jj]
