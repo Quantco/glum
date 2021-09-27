@@ -60,14 +60,41 @@ def test_align_df_dtypes_categorical(df):
 
 
 def test_align_df_dtypes_excess_columns(df):
-    dtypes = {"x1": np.float64}
-    expected = pd.DataFrame({"x1": np.array([0, 1], dtype="int64")})
+
+    dtypes = {"x4": np.float64}
+
+    expected = pd.DataFrame(
+        {
+            "x1": np.array([0, 1], dtype="int64"),
+            "x2": np.array([0, 1], dtype="bool"),
+            "x3": np.array([0, 1], dtype="float64"),
+            "x4": np.array([0, 1], dtype="int64"),
+            "x5": ["a", "b"],
+            "x6": pd.Categorical(["a", "b"]),
+            "x7": pd.Categorical(["a", "b"], categories=["b", "a"]),
+        }
+    )
+
     pd.testing.assert_frame_equal(_align_df_dtypes(df, dtypes), expected)
 
 
 def test_align_df_dtypes_missing_columns(df):
-    with pytest.raises(KeyError):
-        _align_df_dtypes(df, {"x0": np.float64})
+
+    dtypes = {"x0": np.float64}
+
+    expected = pd.DataFrame(
+        {
+            "x1": np.array([0, 1], dtype="int64"),
+            "x2": np.array([0, 1], dtype="bool"),
+            "x3": np.array([0, 1], dtype="float64"),
+            "x4": ["0", "1"],
+            "x5": ["a", "b"],
+            "x6": pd.Categorical(["a", "b"]),
+            "x7": pd.Categorical(["a", "b"], categories=["b", "a"]),
+        }
+    )
+
+    pd.testing.assert_frame_equal(_align_df_dtypes(df, dtypes), expected)
 
 
 def test_align_df_dtypes_not_df():
