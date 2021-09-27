@@ -103,9 +103,6 @@ def r_glmnet_bench(
     elif distribution.startswith("tweedie"):
         p = float(distribution.split("tweedie-p=")[1])
         distribution = ro.r["tweedie"](link_power=0, var_power=p)
-    elif distribution == "binomial":
-        warnings.warn("r-glmnet fails for binomial")
-        return result
 
     r = ro.r
     # Do this before fitting so we're not including python to R conversion
