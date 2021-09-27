@@ -23,21 +23,19 @@ def _align_df_dtypes(df, dtypes) -> pd.DataFrame:
     """
     if not isinstance(df, pd.DataFrame):
         raise TypeError(f"Expected `pandas.DataFrame'; got {type(df)}.")
-    if dtypes.keys() - set(df.columns):
-        raise KeyError(f"Missing columns: {dtypes.keys() - set(df.columns)}.")
 
     changed_dtypes = {}
 
     numeric_dtypes = [
         column
         for column, dtype in dtypes.items()
-        if pd.api.types.is_numeric_dtype(dtype)
+        if pd.api.types.is_numeric_dtype(dtype) and (column in df)
     ]
 
     categorical_dtypes = [
         column
         for column, dtype in dtypes.items()
-        if pd.api.types.is_categorical_dtype(dtype)
+        if pd.api.types.is_categorical_dtype(dtype) and (column in df)
     ]
 
     for column in numeric_dtypes:
@@ -56,9 +54,6 @@ def _align_df_dtypes(df, dtypes) -> pd.DataFrame:
 
     if changed_dtypes:
         df = df.assign(**changed_dtypes)
-    if df.columns.to_list != list(dtypes.keys()):
-        _logger.warning(f"Reordering columns to {list(dtypes.keys())}.")
-        df = df[list(dtypes.keys())]
 
     return df
 

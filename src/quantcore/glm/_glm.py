@@ -1231,7 +1231,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         array, shape (n_samples, n_alphas)
             Predicted values times ``sample_weight``.
         """
-        if hasattr(self, "feature_dtypes_"):
+        if isinstance(X, pd.DataFrame) and hasattr(self, "feature_dtypes_"):
             X = _align_df_dtypes(X, self.feature_dtypes_)
 
         X = check_array_matrix_compliant(
