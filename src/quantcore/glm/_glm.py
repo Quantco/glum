@@ -56,6 +56,7 @@ from ._solvers import (
     _least_squares_solver,
     _trust_constr_solver,
 )
+from ._util import _align_df_dtypes
 
 _float_itemsize_to_dtype = {8: np.float64, 4: np.float32, 2: np.float16}
 
@@ -1230,6 +1231,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         array, shape (n_samples, n_alphas)
             Predicted values times ``sample_weight``.
         """
+        if hasattr(self, "feature_dtypes_"):
+            X = _align_df_dtypes(X, self.feature_dtypes_)
+
         X = check_array_matrix_compliant(
             X,
             accept_sparse=["csr", "csc", "coo"],
