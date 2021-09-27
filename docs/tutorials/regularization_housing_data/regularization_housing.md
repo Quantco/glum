@@ -20,12 +20,12 @@ jupyter:
 
 This tutorial shows how to use variable $L_2$ regularization with quantcore.glm. The `P2` parameter of the `GeneralizedLinearRegressor` class allows you to directly set the $L_2$ penalty matrix $w^T P_2 w$. If a 2d array is passed for the `P2` parameter, it is used directly, while if you pass a 1d array as `P2` it will be interpreted as the diagonal of $P_2$ and all other entries will be assumed to be zero.
 
-*Note*: Variable $L_1$ regularization is also available by passing an array with length `n_features` to the `P1` parameter. 
+*Note*: Variable $L_1$ regularization is also available by passing an array with length `n_features` to the `P1` parameter.
 
 
 **Background**
 
-For this tutorial, we will model the selling price of homes in King's County, Washington (Seattle-Tacoma Metro area) between May 2014 and May 2015. However, in order to demonstrate a Tikhonov regularization-based spatial smoothing technique, we will focus on a small, skewed data sample from that region in our training data. Specifically, we will show that when we have (a) a fixed effect for each postal code region and (b) only a select number of training observations in a certain region, we can improve the predictive power of our model by regularizing the difference between the coefficients of neighboring regions. While we are constructing a somewhat artificial example here in order to demonstrate the spatial smoothing technique, we have found similar techniques to be applicable to real-world problems. 
+For this tutorial, we will model the selling price of homes in King's County, Washington (Seattle-Tacoma Metro area) between May 2014 and May 2015. However, in order to demonstrate a Tikhonov regularization-based spatial smoothing technique, we will focus on a small, skewed data sample from that region in our training data. Specifically, we will show that when we have (a) a fixed effect for each postal code region and (b) only a select number of training observations in a certain region, we can improve the predictive power of our model by regularizing the difference between the coefficients of neighboring regions. While we are constructing a somewhat artificial example here in order to demonstrate the spatial smoothing technique, we have found similar techniques to be applicable to real-world problems.
 
 We will use a gamma distribution for our model. This choice is motivated by two main factors. First, our target variable, home price, is a positive real number, which matches the support of the gamma distribution. Second, it is expected that factors influencing housing prices are multiplicative rather than additive, which is better captured with a gamma regression than say, OLS.
 
@@ -72,11 +72,11 @@ import maps
 
 
 ### 1.1. Download and transform
-The main dataset is downloaded from OpenML. You can find the main page for the dataset [here](https://www.openml.org/d/42092). It is also available through Kaggle [here](https://www.kaggle.com/harlfoxem/housesalesprediction). 
+The main dataset is downloaded from OpenML. You can find the main page for the dataset [here](https://www.openml.org/d/42092). It is also available through Kaggle [here](https://www.kaggle.com/harlfoxem/housesalesprediction).
 
 As part of data preparation, we also do some transformations to the data:
 
-- We remove some outliers (homes over 1.5 million and under 100k). 
+- We remove some outliers (homes over 1.5 million and under 100k).
 - Since we want to focus on geographic features, we also remove a handful of the other features.
 
 Below, you can see some example rows from the dataset.
@@ -89,7 +89,7 @@ df.head()
 ## 2. Visualize geographic data with GIS open<a class="anchor"></a>
 [back to table of contents](#Table-of-Contents)
 
-To help visualize the geographic data, we use geopandas and GIS Open Data to display price information on the King's county map. You can get the map data [here]("https://gis-kingcounty.opendata.arcgis.com/datasets/all-zipcodes-and-po-box-as-centroids-for-king-county-zipcode-all-point/data?geometry=-126.017%2C46.845%2C-116.788%2C48.144&page=2"). 
+To help visualize the geographic data, we use geopandas and GIS Open Data to display price information on the King's county map. You can get the map data [here]("https://gis-kingcounty.opendata.arcgis.com/datasets/all-zipcodes-and-po-box-as-centroids-for-king-county-zipcode-all-point/data?geometry=-126.017%2C46.845%2C-116.788%2C48.144&page=2").
 
 To show the relatioship between home price and geography, we merge the map data with our sales data and use a heat map to plot mean home sale price for each postal code region.
 
@@ -116,9 +116,9 @@ We can see a clear relationship between postal code and home price. Seattle (981
 
 
 ### 3.1 Feature selection and one hot encoding
-Since we want to focus on geographic data, we drop a number of colums below. We keep a handful of columns so that we can still create a reasonable model. 
+Since we want to focus on geographic data, we drop a number of colums below. We keep a handful of columns so that we can still create a reasonable model.
 
-We then create a fixed effect for each of the postal code regions. We add the encoded postcode columns in numeric order to help us maintain the proper order of columns while building and training the model. 
+We then create a fixed effect for each of the postal code regions. We add the encoded postcode columns in numeric order to help us maintain the proper order of columns while building and training the model.
 
 ```python
 sorted_zips = sorted(list(df["zipcode"].unique()))
@@ -132,7 +132,7 @@ df.head()
 ### 3.2 Test train split
 As we mentioned in the introduction, we want to focus on modeling the selling price in a specific region while only using a very small, skewed data sample from that region in our training data. This scenario could arise if say, our task was to predict the sales prices for homes in Enumclaw (large region with zip code 98022 in the southeast corner of the map), but the only data we had from there was from a small luxury realtor.
 
-To mimic this, instead creating a random split between our training and test data, we will intentionally create a highly skewed sample. For our test set, we will take all of the home sales in Enumclaw, *except* for the 15 highest priced homes. 
+To mimic this, instead creating a random split between our training and test data, we will intentionally create a highly skewed sample. For our test set, we will take all of the home sales in Enumclaw, *except* for the 15 highest priced homes.
 
 Finally, we standardize our predictors.
 
@@ -165,7 +165,7 @@ To smooth the coefficients for neighboring regions, we will create a penalty mat
 $$\begin{pmatrix} \beta_{98022}, \beta_{98045}\end{pmatrix} P \begin{pmatrix} \beta_{98022} \\ \beta_{98045}\end{pmatrix}
 = (\beta_{98022} - \beta_{98045})^2$$
 
-In this example, we would get this result with $P = \begin{pmatrix} 1 & -1 \\ -1 & 1\end{pmatrix}$. 
+In this example, we would get this result with $P = \begin{pmatrix} 1 & -1 \\ -1 & 1\end{pmatrix}$.
 
 Since we have 72 postal code regions, it would be rather annoying to construct this matrix by hand. Luckily, there are libaries that exist for this. We use [pysal](http://pysal.org)'s [pysal.lib.weights.Queen](https://pysal.org/libpysal/generated/libpysal.weights.Queen.html) to retrieve a neighbor's matrix from our map data. The construction of the penalty matrix is rather straightfoward once we have this information.
 
@@ -173,7 +173,7 @@ We leave the non-geographic features unregularized (all zeros in the $P$ matrix)
 
 ```python
 # format is {zip1: {neighbord1: 1, neighbor2: 1, ...}}
-neighbor_matrix = libpysal.weights.Queen.from_dataframe(df_map, ids="ZIP") 
+neighbor_matrix = libpysal.weights.Queen.from_dataframe(df_map, ids="ZIP")
 
 n_features = X_train.shape[1]
 P2 = np.zeros((n_features, n_features))
@@ -181,7 +181,7 @@ P2 = np.zeros((n_features, n_features))
 zip2index = dict(zip(sorted_zips, range(len(sorted_zips))))
 for zip1 in sorted_zips:
     for zip2 in neighbor_matrix[zip1].keys():
-        if zip1 in zip2index and zip2 in zip2index: # ignore regions w/o data 
+        if zip1 in zip2index and zip2 in zip2index: # ignore regions w/o data
             if zip2index[zip1] < zip2index[zip2]: # don't repeat if already saw neighbor pair in earlier iteration
                 P2[zip2index[zip1], zip2index[zip1]] += 1
                 P2[zip2index[zip2], zip2index[zip2]] += 1
@@ -193,33 +193,33 @@ P2
 ## 5. Fit models<a class="anchor"></a>
 [back to table of contents](#Table-of-Contents)
 
-Now, we will fit several L2 regularized OLS models using different levels of regularization. All will use the penalty matrix defined above, but the alpha parameter, the constant that multiplies the penalty terms and thus determines the regularization strength, will vary. 
+Now, we will fit several L2 regularized OLS models using different levels of regularization. All will use the penalty matrix defined above, but the alpha parameter, the constant that multiplies the penalty terms and thus determines the regularization strength, will vary.
 
 For each model, we will measure test performance using root mean squared percentage error (RMSPE), so that we can get a relaitve result. We will also plot a heatmat of the coefficient values over the regions.
 
-*Note*: alpha=1e-12 is effectively no regularization. But we can't set alpha to zero because the unregularized problem has co-linear columns, resulting in a singular design matrix. 
+*Note*: alpha=1e-12 is effectively no regularization. But we can't set alpha to zero because the unregularized problem has co-linear columns, resulting in a singular design matrix.
 
 ```python
 fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(20, 20))
 for i, alpha in enumerate([1e-12, 1e-1, 1, 10]):
-    
+
     glm = GeneralizedLinearRegressor(family='gamma', alpha=alpha, P2=P2, fit_intercept=True)
     glm.fit(X_train, y_train)
     y_test_hat = glm.predict(X_test)
-    
+
     coeffs = pd.DataFrame({'coefficient': np.concatenate(([glm.intercept_], glm.coef_))}, ["intercept"]+predictors)
-    
+
     print(f"alpha={alpha}")
     print(f"Test region coefficient: {coeffs.loc[test_region].values[0]}")
     print(f"Test RMSPE: {root_mean_squared_percentage_error(y_test_hat, y_test)}\n")
-    
+
     df_map_coeffs = df_map.merge(
         coeffs.loc[sorted_zips],
         left_on="ZIP",
         right_index=True,
         how="outer"
     )
-    
+
     ax = axs[i//2, i%2]
     df_map_coeffs["annotation"] = df_map_coeffs["ZIP"].apply(lambda x: "" if x!=test_region else x)
     maps.plot_heatmap(
@@ -231,7 +231,7 @@ for i, alpha in enumerate([1e-12, 1e-1, 1, 10]):
         vmax=0.025
     )
     ax.set_title(f"alpha={alpha}")
-          
+
 plt.show()
 ```
 
