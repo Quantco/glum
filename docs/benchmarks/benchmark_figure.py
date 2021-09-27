@@ -20,24 +20,24 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 # %%
+# !rm -r benchmark_output
+
+# %%
 base_cmd = (
     "glm_benchmarks_run --threads 6 --num_rows {n} --storage {s} "
     "--problem_name {p} --library_name {lib}"
 )
 
-size = "intermediate"
-problems = [
-    f"{size}-insurance-no-weights-lasso-tweedie-p=1.5",
-    f"{size}-insurance-no-weights-lasso-poisson",
-    f"{size}-insurance-no-weights-lasso-gaussian",
-    f"{size}-insurance-no-weights-lasso-gamma",
-    f"{size}-insurance-no-weights-lasso-binomial",
-    f"{size}-insurance-no-weights-l2-tweedie-p=1.5",
-    f"{size}-insurance-no-weights-l2-poisson",
-    f"{size}-insurance-no-weights-l2-gaussian",
-    f"{size}-insurance-no-weights-l2-gamma",
-    f"{size}-insurance-no-weights-l2-binomial",
-]
+problems = []
+for p in ["narrow-insurance", "intermediate-insurance", "wide-insurance"]:
+    for reg in ["l2", "lasso"]:
+        for dist in ["tweedie-p=1.5", "poisson", "gaussian", "gamma", "binomial"]:
+            problems.append(f"{p}-no-weights-{reg}-{dist}")
+
+p = "intermediate-housing"
+for reg in ["l2", "lasso"]:
+    for dist in ["gaussian", "gamma", "binomial"]:
+        problems.append(f"{p}-no-weights-{reg}-{dist}")
 
 libraries = ["quantcore-glm", "r-glmnet", "h2o"]
 
@@ -87,43 +87,67 @@ df["distribution"] = (
 # %config InlineBackend.figure_format='retina'
 
 # %%
-for width in ["intermediate"]:  # "narrow", "intermediate"]:
+for prob_name in ["intermediate-insurance"]:  # "narrow", "intermediate"]:
     for reg in ["l2", "lasso"]:
         plot_df = (
             df[
                 df["problem_name"].str.contains(reg)
-                & df["problem_name"].str.contains(width)
+                & df["problem_name"].str.contains(prob_name)
             ]
             .copy()
             .set_index(["distribution"])[["runtime", "library_name"]]
         )
         plot_df = plot_df.pivot(columns="library_name")
         plot_df.columns = plot_df.columns.get_level_values(1)
-        plot_df.index = [x[0:1].upper() + x[1:] for x in plot_df.index]
+        plot_df.index = [x.title() for x in plot_df.index]
 
-        reg_title = "Lasso" if reg == "lasso" else "Tikhonov"
+        title = prob_name.title() + " - " + ("Lasso" if reg == "lasso" else "Tikhonov")
         plot_df.plot.bar(
             ylim=[0, 4],
-            title=reg_title,
+            title=title,
             legend=False,
             figsize=(6, 3),
             width=0.8,
-            ylabel="runtime (s)",
+            ylabel="run time (s)",
             yticks=[0, 1, 2, 3, 4],
+            cmap="Paired",
         )
         plt.legend(bbox_to_anchor=(1, 1), loc="upper left", ncol=1)
+        plt.xticks(rotation=45, ha="right")
+
         ax = plt.gca()
+
+        # Hide the right and top spines
+        ax.spines["right"].set_visible(False)
+        ax.spines["top"].set_visible(False)
+
+        # Only show ticks on the left and bottom spines
+        ax.yaxis.set_ticks_position("left")
+        ax.xaxis.set_ticks_position("bottom")
+
         for p in ax.patches:
             x = p.get_x()  # type: ignore
             y = p.get_height()  # type: ignore
             if y > 3.6:
-                plot_y = 3.3
+                text_x = x + 0.03
+                text_y = 2.8 if y > 10 else 3.0
                 ax.annotate(
                     f"{y:.1f}",
-                    (x + 0.03, plot_y),
+                    (text_x, text_y),
                     fontsize=14,
                     rotation="vertical",
                 )
-        plt.show()
+                arrow_x = text_x + 0.10
+                arrow_y = 3.5
+                ax.annotate(
+                    "",
+                    xy=(arrow_x, arrow_y + 0.5),
+                    xytext=(arrow_x, arrow_y),
+                    arrowprops=dict(arrowstyle="->"),
+                )
 
-# %%
+        fp = f"../_static/{prob_name}-{reg}.png"
+        plt.savefig(fp, dpi=300)
+        fp = f"../_static/{prob_name}-{reg}.pdf"
+        plt.savefig(fp)
+        plt.show()
