@@ -21,11 +21,11 @@ import pandas as pd
 
 # %%
 base_cmd = (
-    "glm_benchmarks_run --threads 6 --num_rows {n} --storage {s}"
+    "glm_benchmarks_run --threads 6 --num_rows {n} --storage {s} "
     "--problem_name {p} --library_name {lib}"
 )
 
-size = "narrow"
+size = "intermediate"
 problems = [
     f"{size}-insurance-no-weights-lasso-tweedie-p=1.5",
     f"{size}-insurance-no-weights-lasso-poisson",
@@ -87,39 +87,43 @@ df["distribution"] = (
 # %config InlineBackend.figure_format='retina'
 
 # %%
-for reg in ["l2", "lasso"]:
-    plot_df = (
-        df[df["problem_name"].str.contains(reg)]
-        .copy()
-        .set_index(["distribution"])[["runtime", "library_name"]]
-    )
-    plot_df = plot_df.pivot(columns="library_name")
-    plot_df.columns = plot_df.columns.get_level_values(1)
-    plot_df.index = [x[0:1].upper() + x[1:] for x in plot_df.index]
+for width in ["intermediate"]:  # "narrow", "intermediate"]:
+    for reg in ["l2", "lasso"]:
+        plot_df = (
+            df[
+                df["problem_name"].str.contains(reg)
+                & df["problem_name"].str.contains(width)
+            ]
+            .copy()
+            .set_index(["distribution"])[["runtime", "library_name"]]
+        )
+        plot_df = plot_df.pivot(columns="library_name")
+        plot_df.columns = plot_df.columns.get_level_values(1)
+        plot_df.index = [x[0:1].upper() + x[1:] for x in plot_df.index]
 
-    reg_title = "Lasso" if reg == "lasso" else "Tikhonov"
-    plot_df.plot.bar(
-        ylim=[0, 4],
-        title=reg_title,
-        legend=False,
-        figsize=(6, 3),
-        width=0.8,
-        ylabel="runtime (s)",
-        yticks=[0, 1, 2, 3, 4],
-    )
-    plt.legend(bbox_to_anchor=(1, 1), loc="upper left", ncol=1)
-    ax = plt.gca()
-    for p in ax.patches:
-        x = p.get_x()  # type: ignore
-        y = p.get_height()  # type: ignore
-        if y > 3.6:
-            y = 3.3
-            ax.annotate(
-                f"{y:.1f}",
-                (x + 0.03, y * 1.005),
-                fontsize=14,
-                rotation="vertical",
-            )
-    plt.show()
+        reg_title = "Lasso" if reg == "lasso" else "Tikhonov"
+        plot_df.plot.bar(
+            ylim=[0, 4],
+            title=reg_title,
+            legend=False,
+            figsize=(6, 3),
+            width=0.8,
+            ylabel="runtime (s)",
+            yticks=[0, 1, 2, 3, 4],
+        )
+        plt.legend(bbox_to_anchor=(1, 1), loc="upper left", ncol=1)
+        ax = plt.gca()
+        for p in ax.patches:
+            x = p.get_x()  # type: ignore
+            y = p.get_height()  # type: ignore
+            if y > 3.6:
+                plot_y = 3.3
+                ax.annotate(
+                    f"{y:.1f}",
+                    (x + 0.03, plot_y),
+                    fontsize=14,
+                    rotation="vertical",
+                )
+        plt.show()
 
 # %%
