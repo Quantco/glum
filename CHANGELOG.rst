@@ -34,6 +34,7 @@ Unreleased
 - There is a new benchmark available ``glm_benchmarks_run`` based on the Boston housing dataset. See `here <https://github.com/Quantco/quantcore.glm/pull/376>`_.
 - ``glm_benchmarks_analyze`` now includes ``offset`` in the index. See `here <https://github.com/Quantco/quantcore.glm/issues/346>`_.
 - ``glmnet_python`` was removed from the benchmarks suite.
+- The innermost coordinate descent was optimized. This speeds up coordinate descent dominated problems like LASSO by about 1.5-2x. See `here <https://github.com/Quantco/quantcore.glm/pull/424>`_.
 
 1.5.1 - 2021-07-22
 ------------------
