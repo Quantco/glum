@@ -689,6 +689,6 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             # set intercept to zero as the other linear models do
             self.intercept_, self.coef_ = _unstandardize(col_means, col_stds, 0.0, coef)
 
-        self.tear_down_from_fit(X, y, col_means, col_stds, sample_weight, weights_sum)
+        self._tear_down_from_fit()
 
         return self
