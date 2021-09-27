@@ -793,21 +793,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                     f"{self._family_instance.__class__.__name__}."
                 )
 
-    def tear_down_from_fit(
-        self,
-        X: Union[mx.MatrixBase, mx.StandardizedMatrix],
-        y: np.ndarray,
-        col_means: Optional[np.ndarray],
-        col_stds: Optional[np.ndarray],
-        sample_weight: np.ndarray,
-        weights_sum: Optional[float],
-    ):
+    def _tear_down_from_fit(self):
         """
         Delete attributes that were only needed for the fit method.
         """
-        #######################################################################
-        # 5a. undo standardization
-        #######################################################################
         del self._center_predictors
         del self._solver
         del self._random_state
@@ -906,7 +895,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
     ) -> np.ndarray:
         """
         Must be run after running :func:`set_up_for_fit` and before running
-        :func:`tear_down_from_fit`. Sets ``self.coef_`` and ``self.intercept_``.
+        :func:`_tear_down_from_fit`. Sets ``self.coef_`` and ``self.intercept_``.
         """
         fixed_inner_tol = None
         if (
@@ -2216,6 +2205,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
                     col_means, col_stds, 0.0, coef
                 )
 
-        self.tear_down_from_fit(X, y, col_means, col_stds, sample_weight, weights_sum)
+        self._tear_down_from_fit()
 
         return self
