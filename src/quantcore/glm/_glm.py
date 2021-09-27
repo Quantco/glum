@@ -688,7 +688,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         else:
             return get_link(self.link, self.family_instance)
 
-    def get_start_coef(
+    def _get_start_coef(
         self,
         start_params,
         X: Union[mx.MatrixBase, mx.StandardizedMatrix],
@@ -744,7 +744,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         return coef
 
-    def set_up_for_fit(self, y: np.ndarray) -> None:
+    def _set_up_for_fit(self, y: np.ndarray) -> None:
         #######################################################################
         # 1. input validation                                                 #
         #######################################################################
@@ -879,7 +879,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         )
         return _make_grid(alpha_max)
 
-    def solve(
+    def _solve(
         self,
         X: Union[mx.MatrixBase, mx.StandardizedMatrix],
         y: np.ndarray,
@@ -986,7 +986,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             )
         return coef
 
-    def solve_regularization_path(
+    def _solve_regularization_path(
         self,
         X: Union[mx.MatrixBase, mx.StandardizedMatrix],
         y: np.ndarray,
@@ -1008,7 +1008,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             P1 = P1_no_alpha * alpha
             P2 = P2_no_alpha * alpha
 
-            coef = self.solve(
+            coef = self._solve(
                 X=X,
                 y=y,
                 sample_weight=sample_weight,
@@ -1396,7 +1396,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             # If not a numpy array or pandas data frame, we assume it is contiguous.
             return True
 
-    def set_up_and_check_fit_args(
+    def _set_up_and_check_fit_args(
         self,
         X: ArrayLike,
         y: ArrayLike,
@@ -2030,7 +2030,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             weights_sum,
             P1,
             P2,
-        ) = self.set_up_and_check_fit_args(
+        ) = self._set_up_and_check_fit_args(
             X,
             y,
             sample_weight,
@@ -2041,7 +2041,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         assert isinstance(X, mx.MatrixBase)
         assert isinstance(y, np.ndarray)
 
-        self.set_up_for_fit(y)
+        self._set_up_for_fit(y)
 
         _dtype = [np.float64, np.float32]
         if self._solver == "irls-cd":
@@ -2115,7 +2115,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         # 3. initialization of coef = (intercept_, coef_)                     #
         #######################################################################
 
-        coef = self.get_start_coef(
+        coef = self._get_start_coef(
             start_params, X, y, sample_weight, offset, col_means, col_stds
         )
 
@@ -2139,7 +2139,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
                         "`alpha` is set. Ignoring `min_alpha` and `min_alpha_ratio`."
                     )
 
-            coef = self.solve_regularization_path(
+            coef = self._solve_regularization_path(
                 X=X,
                 y=y,
                 sample_weight=sample_weight,
@@ -2181,7 +2181,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
                         self._solver, _alpha, self.l1_ratio
                     )
                 )
-            coef = self.solve(
+            coef = self._solve(
                 X=X,
                 y=y,
                 sample_weight=sample_weight,

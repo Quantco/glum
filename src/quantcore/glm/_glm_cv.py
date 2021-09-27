@@ -405,7 +405,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             weights_sum,
             P1,
             P2,
-        ) = self.set_up_and_check_fit_args(
+        ) = self._set_up_and_check_fit_args(
             X,
             y,
             sample_weight,
@@ -416,7 +416,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
 
         #########
         # Checks
-        self.set_up_for_fit(y)
+        self._set_up_for_fit(y)
         if (
             hasattr(self._family_instance, "_power")
             and self._family_instance._power == 1.5  # type: ignore
@@ -527,7 +527,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
                 P2_no_alpha,
             )
 
-            coef = self.get_start_coef(
+            coef = self._get_start_coef(
                 start_params,
                 x_train,
                 y_train,
@@ -547,7 +547,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
                             error = "P2 must be positive semi-definite."
                         raise ValueError(error)
 
-            coef = self.solve_regularization_path(
+            coef = self._solve_regularization_path(
                 X=x_train,
                 y=y_train,
                 sample_weight=w_train,
@@ -663,11 +663,11 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             _dtype=X.dtype,
         )
 
-        coef = self.get_start_coef(
+        coef = self._get_start_coef(
             start_params, X, y, sample_weight, offset, col_means, col_stds
         )
 
-        coef = self.solve(
+        coef = self._solve(
             X=X,
             y=y,
             sample_weight=sample_weight,
