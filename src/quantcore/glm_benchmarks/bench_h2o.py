@@ -65,9 +65,11 @@ def h2o_bench(
 
     train_mat = _hstack_sparse_or_dense((dat["X"], dat["y"][:, np.newaxis]))
 
-    use_weights = "weights" in dat.keys()
+    use_weights = "sample_weight" in dat.keys()
     if use_weights:
-        train_mat = _hstack_sparse_or_dense((train_mat, dat["weights"][:, np.newaxis]))
+        train_mat = _hstack_sparse_or_dense(
+            (train_mat, dat["sample_weight"][:, np.newaxis])
+        )
     if "offset" in dat.keys():
         train_mat = _hstack_sparse_or_dense((train_mat, dat["offset"][:, np.newaxis]))
 

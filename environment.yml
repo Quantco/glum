@@ -4,50 +4,50 @@ channels:
   - conda-forge
   - nodefaults
 dependencies:
-  - altair
+  # required for users (note: this is not where you specify new dependencies
+  # for the conda packages. please put those `conda.recipe/meta.yaml`!!
+  - libblas>=0=*mkl
+  - numexpr
+  - pandas
+  - quantcore.matrix>=2.0.1
+  - scikit-learn >= 0.23
+  - scipy
+  - tqdm
+
+  # development tools
   - black
-  - c-compiler
-  - cxx-compiler
-  - cython
-  - dask-ml
+  - dask-ml # used for data creation for the benchmark problems
   - flake8
   - git_root
-  - h2o-py
   - ipdb
   - ipython
-  - jemalloc
-  - jinja2==2.11.3
-  - johnlees-glmnet_python
-  - jupyterlab
-  - jupytext
-  - libblas>=0=*mkl
-  - libpysal
   - line_profiler
-  - make
-  - mako
   - memory_profiler
-  - mkl-include
-  - nbclassic=0.2.7
-  - nbsphinx=0.8.3
-  - numexpr
-  - openjdk
-  - openml
-  - pandas
+  - setuptools_scm
   - pip
   - pre-commit
   - pyarrow
-  - pyshp
   - pytest
   - pytest-xdist
-  - quantcore.matrix>=1.0.0
-  - rpy2
-  - scikit-learn
-  - setuptools_scm
-  - shapely
-  - sparse_dot_mkl>=0.5.3
+  
+  # build tools
+  - c-compiler
+  - cxx-compiler
+  - cython
+
+  # documentation dev
+  - altair # used in docs/tutorials/rossman
+  - jinja2<3
+  - jupyterlab
+  - jupytext
+  - libpysal # used in docs/tutorials/regularization_housing_data
+  - make
+  - nbclassic=0.2.7
+  - nbsphinx=0.8.3
+  - openml # used for downloading datasets in the tutorials.
+  - shapely # used in docs/tutorials/regularization_housing_data
   - sphinx=3.5.3
   - sphinx_rtd_theme
   - sphinxcontrib-apidoc
   - statsmodels
   - tqdm
-  - xsimd
