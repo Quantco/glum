@@ -4,7 +4,7 @@
 
 [Documentation](https://docs.dev.quantco.cloud/qc-github-artifacts/Quantco/quantcore.glm/latest/index.html)
 
-Generalized linear models (GLM) are a core statistical tool that include many common methods like least-squares regression, Poisson regression and logistic regression as special cases. At QuantCo, we have used GLMs in e-commerce pricing, insurance claims prediction and more. We have developed `quantcore.glm`, a fast Python-first GLM library. `quantcore.glm` is starting to be used at DIL and will soon be used by DIL actuaries. It is based on a fork of scikit-learn, so it has a scikit-learn-like API.
+Generalized linear models (GLM) are a core statistical tool that include many common methods like least-squares regression, Poisson regression and logistic regression as special cases. At QuantCo, we have used GLMs in e-commerce pricing, insurance claims prediction and more. We have developed `quantcore.glm`, a fast Python-first GLM library. `quantcore.glm` is starting to be used at DIL and will soon be used by DIL actuaries. The development was based on [a fork of scikit-learn](https://github.com/scikit-learn/scikit-learn/pull/9405), so it has a scikit-learn-like API. We are thankful for the starting point provided by Christian Lorentzen in that PR!
 
 `quantcore.glm` is at least as feature-complete as existing GLM libraries like `glmnet` or `h2o`. It supports
 
@@ -39,7 +39,7 @@ Table of Contents
       * [References](#references)
    * [Matrix Types](#matrix-types)
    * [Standardization](#standardization)
-   
+
 
 # Installation
 
@@ -52,7 +52,7 @@ conda config --system --set custom_channels.quantco_main https://dil_ro:password
 conda install quantcore.glm
 ```
 
-For development, you should do an editable installation: 
+For development, you should do an editable installation:
 
 ```bash
 # First, make sure you have conda-forge as your primary conda channel:
@@ -69,19 +69,19 @@ pre-commit install
 # Set up the quantco_main conda channel. For the password, substitute in the correct password. You should be able to get the password by searching around on slack or asking on the glm_benchmarks slack channel!
 conda config --system --prepend channels quantco_main
 conda config --system --set custom_channels.quantco_main https://dil_ro:password@conda.quantco.cloud
-  
+
 # Set up a conda environment with name "quantcore.glm"
 conda install mamba=0.2.12
 mamba env create
 
-# Install this package in editable mode. 
+# Install this package in editable mode.
 conda activate quantcore.glm
 pip install --no-use-pep517 --disable-pip-version-check -e .
 ```
 
 # A quick usage example
 
-This example uses a public French car insurance dataset. 
+This example uses a public French car insurance dataset.
 ```python
 import pandas as pd
 import numpy as np
@@ -137,7 +137,7 @@ Note that a float32 data matrix is acceptable and will result in the entire algo
 
 ## Golden master tests
 
-We use golden master testing to preserve correctness. The results of many different GLM models have been saved. After an update, the tests will compare the new output to the saved models. Any significant deviation will result in a test failure. This doesn't strictly mean that the update was wrong. In case of a bug fix, it's possible that the new output will be more accurate than the old output. In that situation, the golden master results can be overwritten as explained below. 
+We use golden master testing to preserve correctness. The results of many different GLM models have been saved. After an update, the tests will compare the new output to the saved models. Any significant deviation will result in a test failure. This doesn't strictly mean that the update was wrong. In case of a bug fix, it's possible that the new output will be more accurate than the old output. In that situation, the golden master results can be overwritten as explained below.
 
 There are two sets of golden master tests, one with artificial data and one directly using the benchmarking problems from `quantcore.glm_benchmarks`. For both sets of tests, creating the golden master and the tests definition are located in the same file. Calling the file with pytest will run the tests while calling the file as a python script will generate the golden master result. When creating the golden master results, both scripts accept the `--overwrite` command line flag. If set, the existing golden master results will be overwritten. Otherwise, only the new problems will be run.
 
@@ -173,7 +173,7 @@ conda build conda.recipe
 ```
 
 This will build the recipe using the standard compiler flags set by the conda-forge activation scripts.
-Instead, we can override to build the architecture using a variant. 
+Instead, we can override to build the architecture using a variant.
 
 ```
 conda build conda.recipe --variants "{GLM_ARCHITECTURE: ['skylake']}"
@@ -188,7 +188,7 @@ conda install quantcore.glm=*=*skylake
 
 # The algorithm
 
-## What kind of problems can we solve? 
+## What kind of problems can we solve?
 
 This package is intended to fit L1 and L2-norm penalized Generalized Linear Models. Bounce over to [the Jupyter notebook for an introduction to GLMs](docs/glms.ipynb).
 
@@ -202,11 +202,11 @@ In words, we minimize the log likelihood plus a L1 and/or L2 penalty term.
 
 ## Solvers overview
 
-There are three solvers implemented in the sklearn-fork subpackage. 
+There are three solvers implemented in the sklearn-fork subpackage.
 
 The first solver, `lbfgs` uses the scipy `fmin_l_bfgs_b` optimizer to minimize L2-penalized GLMs. The L-BFGS solver does not work with L1-penalties. Because L-BFGS does not store the full Hessian, it can be particularly effective for very high dimensional problems with several thousand or more columns. For more details, see: https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.fmin_l_bfgs_b.html
 
-The second and third solver are both based on Iteratively Reweighted Least Squares (IRLS). IRLS proceeds by iteratively approximating the objective function with a quadratic, then solving that quadratic for the optimal update. For purely L2-penalized settings, the `irls-ls` uses a least squares inner solver for each quadratic subproblem. For problems that have any L1-penalty component, the `irls-cd` uses a coordinate descent inner solver for each quadratic subproblem. 
+The second and third solver are both based on Iteratively Reweighted Least Squares (IRLS). IRLS proceeds by iteratively approximating the objective function with a quadratic, then solving that quadratic for the optimal update. For purely L2-penalized settings, the `irls-ls` uses a least squares inner solver for each quadratic subproblem. For problems that have any L1-penalty component, the `irls-cd` uses a coordinate descent inner solver for each quadratic subproblem.
 
 The IRLS-LS and IRLS-CD implementations largely follow the algorithm described in `newglmnet` (see references below).
 
@@ -222,7 +222,7 @@ The "inner loop" of the `irls-ls` solver is simply a direct least squares solve.
 
 When penalizing with an L1-norm, it is common for many coefficients to be exactly zero. And, it is possible to predict during a given iteration which of those coefficients will stay zero. As a result, we track the "active set" consisting of all the coefficients that are either currently non-zero or likely to remain non-zero. We follow the outer loop active set tracking algorithm in the `newglmnet` reference. That paper refers to the same concept as "shrinkage", whereas the `glmnet` reference calls this the "active set". Currently, we have not yet implemented the inner loop active set tracking from the `newglmnet` reference.
 
-#### Hessian approximation. 
+#### Hessian approximation.
 
 Depending on the distribution and link functions, we may not use the true Hessian. There are two potentially useful approximations:
 
@@ -269,7 +269,7 @@ The goal of the approximate update is to filter to a subset of `hessian_rows_dif
 ```
 abs(hessian_rows_diff[i]) >= T * max(abs(hessian_rows_diff)
 ```
-then, we will include row `i` in the update. Essentially, this criteria ignores data matrix rows that have not seen the second derivatives of their predictions change very much in the last iteration. Smaller values of `T` result in a more accurate update, while larger values will result in a faster but less accurate update. If `T = 0`, then the update is exact. Thresholds (`T`) between 0.001 and 0.1 seem to work well. 
+then, we will include row `i` in the update. Essentially, this criteria ignores data matrix rows that have not seen the second derivatives of their predictions change very much in the last iteration. Smaller values of `T` result in a more accurate update, while larger values will result in a faster but less accurate update. If `T = 0`, then the update is exact. Thresholds (`T`) between 0.001 and 0.1 seem to work well.
 
 It is critical to only update our `hessian_rows_0` for those rows that were included. That way, hessian_rows_diff is no longer the change since the last iteration, but instead, the change since the last iteration that a row was active. This ensures that we handle situations where a row changes a small amount over several iterations, eventually accumulating into a large change.
 
@@ -287,18 +287,18 @@ It is critical to only update our `hessian_rows_0` for those rows that were incl
 
 # Matrix Types
 
-Along with the GLM solvers, this package supports dense, sparse, categorical matrix types and mixtures of these types. Using the most efficient matrix representations massively improves performacne. 
+Along with the GLM solvers, this package supports dense, sparse, categorical matrix types and mixtures of these types. Using the most efficient matrix representations massively improves performacne.
 
 For more details, see the [README for quantcore.matrix](https://github.com/Quantco/quantcore.matrix)
 
-We support dense matrices via standard numpy arrays. 
+We support dense matrices via standard numpy arrays.
 
-We support sparse CSR and CSC matrices via standard `scipy.sparse` objects. These `scipy.sparse` matrices have been modified in the `SparseMatrix` class to use MKL via the `sparse_dot_mkl` package. As a result, sparse matrix-vector and matrix-matrix multiplies are optimized and parallelized. A user does not need to modify their code to take advantage of this optimization. If a `scipy.sparse.csc_matrix` object is passed in, it will be automatically converted to a `SparseMatrix` object. This operation is almost free because no data needs to be copied.
+We support sparse CSR and CSC matrices via standard `scipy.sparse` objects. However, we have extended these operations with custom matrix-vector and sandwich product routines that are optimized and parallelized. A user does not need to modify their code to take advantage of this optimization. If a `scipy.sparse.csc_matrix` object is passed in, it will be automatically converted to a `SparseMatrix` object. This operation is almost free because no data needs to be copied.
 
-We implement a CategoricalMatrix object that efficiently represents these matrices without nearly as much overhead as a normal CSC or CSR sparse matrix.
+We implement a `CategoricalMatrix` object that efficiently represents these matrices without nearly as much overhead as a normal CSC or CSR sparse matrix.
 
-Finally, SplitMatrix allows mixing different matrix types for different columns to minimize overhead.
+Finally, `SplitMatrix` allows mixing different matrix types for different columns to minimize overhead.
 
 # Standardization
 
-Internal to `GeneralizedLinearRegressor`, all matrix types are wrapped in a `StandardizedMat` which offsets columns to have mean zero and standard deviation one without modifying the matrix data itself. This avoids situations where modifying a matrix to have mean zero would result in losing the sparsity structure and avoids ever needing to copy or modify the input data matrix. As a result, memory usage is very low. 
+Internal to `GeneralizedLinearRegressor`, all matrix types are wrapped in a `StandardizedMat` which offsets columns to have mean zero and standard deviation one without modifying the matrix data itself. This avoids situations where modifying a matrix to have mean zero would result in losing the sparsity structure and avoids ever needing to copy or modify the input data matrix. As a result, memory usage is very low.
