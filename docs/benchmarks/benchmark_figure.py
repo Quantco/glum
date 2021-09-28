@@ -102,7 +102,7 @@ for prob_name in ["narrow-insurance", "intermediate-insurance", "intermediate-ho
         plot_df.columns = plot_df.columns.get_level_values(1)
         plot_df.index = [x.title() for x in plot_df.index]
 
-        title = prob_name.title() + "-" + ("Lasso" if reg == "lasso" else "Tikhonov")
+        title = prob_name.title() + "-" + ("Lasso" if reg == "lasso" else "Ridge")
         plot_df.plot.bar(
             ylim=[0, 4],
             title=title,
@@ -169,7 +169,7 @@ for prob_name in ["wide-insurance"]:
         plot_df.columns = plot_df.columns.get_level_values(1)
         plot_df.index = [x.title() for x in plot_df.index]
 
-        title = prob_name.title() + "-" + ("Lasso" if reg == "lasso" else "Tikhonov")
+        title = prob_name.title() + "-" + ("Lasso" if reg == "lasso" else "Ridge")
         plot_df.plot.bar(
             ylim=[0, 15],
             title=title,
