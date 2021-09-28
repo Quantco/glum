@@ -17,9 +17,17 @@ def _asanyarray(x, **kwargs):
 def _align_df_dtypes(df, dtypes) -> pd.DataFrame:
     """Align data types for prediction.
 
-    This function checks that columns are numeric if expected to and that
-    categorical columns have the right categories in the right order. Invalid
-    entries will be cast to ``numpy.nan``.
+    This function checks that columns are numeric if specified to be numeric in
+    ``dtypes`` to and that categorical columns have same categories in the same
+    order as specified in ``dtypes``. If an entry cannot be cast to numeric, it
+    will be set to ``numpy.nan``. If an entry has a numeric type other than that
+    prescribed by ``dtypes``, it is passed through. If an entry has a category
+    not specified in ``dtypes``, it will be set to ``numpy.nan``.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+    dtypes : Dict[str, Union[str, type, pandas.core.dtypes.base.ExtensionDtype]]
     """
     if not isinstance(df, pd.DataFrame):
         raise TypeError(f"Expected `pandas.DataFrame'; got {type(df)}.")
