@@ -105,6 +105,7 @@ def r_glmnet_bench(
         distribution = ro.r["tweedie"](link_power=0, var_power=p)
 
     r = ro.r
+
     # Do this before fitting so we're not including python to R conversion
     # times
     _to_r_obj(X, "X_in_R")
@@ -123,8 +124,12 @@ def r_glmnet_bench(
     if "offset" in dat.keys():
         glmnet_kws.update({"offset": ro.FloatVector(dat["offset"])})
 
+    # By default, glmnet runs for 100 different values of regularization strength.
+    # For a fair comparison of runtime, we'd like to run for just a single value.
+    # These parameters ensure that is the case.
     glmnet_kws["lambda"] = alpha
-    # TODO: make sure that the runtime of converting array types to R is not included in here.
+    glmnet_kws["nlambda"] = 1
+
     result["runtime"], m = runtime(r["glmnet"], iterations, **glmnet_kws)
     result["intercept"] = m.rx2("a0")[0]
     result["coef"] = np.squeeze(np.asanyarray(r["as.matrix"](m.rx2("beta"))))
