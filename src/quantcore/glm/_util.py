@@ -48,14 +48,14 @@ def _align_df_dtypes(df, dtypes) -> pd.DataFrame:
 
     for column in numeric_dtypes:
         if not pd.api.types.is_numeric_dtype(df[column]):
-            _logger.warning(f"Casting {column} to numeric.")
+            _logger.info(f"Casting {column} to numeric.")
             changed_dtypes[column] = pd.to_numeric(df[column], errors="coerce")
     for column in categorical_dtypes:
         if not pd.api.types.is_categorical_dtype(df[column]):
-            _logger.warning(f"Casting {column} to categorical.")
+            _logger.info(f"Casting {column} to categorical.")
             changed_dtypes[column] = df[column].astype(dtypes[column])
         elif list(df[column].cat.categories) != list(dtypes[column].categories):
-            _logger.warning(f"Aligning categories of {column}.")
+            _logger.info(f"Aligning categories of {column}.")
             changed_dtypes[column] = df[column].cat.set_categories(
                 dtypes[column].categories
             )
