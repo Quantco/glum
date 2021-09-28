@@ -19,6 +19,8 @@ This repo also includes  tools for benchmarking GLM implementations in the `quan
 
 For more information on `quantcore.glm`, including tutorials and API reference, please see [the documentation](https://docs.dev.quantco.cloud/qc-github-artifacts/Quantco/quantcore.glm/latest/index.html).
 
+![](docs/_static/headline_benchmark.png)
+
 # An example: predicting car insurance claim frequency using Poisson regression.
 
 This example uses a public French car insurance dataset.
