@@ -130,6 +130,9 @@ def r_glmnet_bench(
     glmnet_kws["lambda"] = alpha
     glmnet_kws["nlambda"] = 1
 
+    # NOTE: We checked thoroughly and this runtime measurement only includes
+    # The cost of the glmnet function in R. We checked this by running the same
+    # problem directly from R.
     result["runtime"], m = runtime(r["glmnet"], iterations, **glmnet_kws)
     result["intercept"] = m.rx2("a0")[0]
     result["coef"] = np.squeeze(np.asanyarray(r["as.matrix"](m.rx2("beta"))))
