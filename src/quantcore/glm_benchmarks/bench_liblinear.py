@@ -93,7 +93,7 @@ def liblinear_bench(
     fit_args = dict(
         X=X,
         y=dat["y"].astype(np.int64).copy(),
-        sample_weight=dat["weights"] if "weights" in dat.keys() else None,
+        sample_weight=dat.get("sample_weight"),
     )
 
     result["runtime"], m = runtime(_build_and_fit, iterations, model_args, fit_args)

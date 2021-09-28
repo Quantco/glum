@@ -21,7 +21,7 @@ For more information on `quantcore.glm`, including tutorials and API reference, 
 
 # An example: predicting car insurance claim frequency using Poisson regression.
 
-This example uses a public French car insurance dataset. 
+This example uses a public French car insurance dataset.
 ```python
 import pandas as pd
 import numpy as np
