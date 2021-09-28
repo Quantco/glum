@@ -1,0 +1,6 @@
+# Allow pdfs in the docs/_static folder
+!_static/*.pdf
+
+# Ignore the benchmarks/benchmark_figure.ipynb notebook since it's created by
+# jupytext from the python file of the same name
+benchmarks/benchmark_figure.ipynb
