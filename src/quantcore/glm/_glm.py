@@ -894,7 +894,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         b_ineq: Optional[np.ndarray],
     ) -> np.ndarray:
         """
-        Must be run after running :func:`set_up_for_fit` and before running
+        Must be run after running :func:`_set_up_for_fit` and before running
         :func:`_tear_down_from_fit`. Sets ``self.coef_`` and ``self.intercept_``.
         """
         fixed_inner_tol = None
