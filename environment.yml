@@ -42,6 +42,7 @@ dependencies:
   - jupytext
   - libpysal # used in docs/tutorials/regularization_housing_data
   - make
+  - matplotlib-base
   - nbclassic=0.2.7
   - nbsphinx=0.8.3
   - openml # used for downloading datasets in the tutorials.
