@@ -41,6 +41,7 @@ exclude_patterns = [
     "**.ipynb_checkpoints",
     "lasso.ipynb",
     "spatial-smoothing.ipynb",
+    "benchmarks/*",
     "tutorials/rossman/explore_data.ipynb",
 ]
 html_theme = "sphinx_rtd_theme"
