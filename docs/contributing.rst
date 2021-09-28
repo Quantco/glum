@@ -140,3 +140,34 @@ If you are a newbie to Sphinx, the links below may help get you up to speed on s
 * `autodoc is used for automatically converting docstrings to docs <https://www.sphinx-doc.org/en/master/usage/extensions/autodoc.html#module-sphinx.ext.autodoc>`_
 * `We follow the numpy docstring style guide <https://numpydoc.readthedocs.io/en/latest/format.html#docstring-standard>`_
 * `To create links between ipynb files when using nbsphinx <https://nbsphinx.readthedocs.io/en/0.4.1/markdown-cells.html#Links-to-*.rst-Files-(and-Other-Sphinx-Source-Files)>`_
+
+Where to start looking in the source?
+-------------------------------------
+
+The primary user interface of ``quantcore.glm`` consists of the :class:`GeneralizedLinearRegressor <quantcore.glm.GeneralizedLinearRegressor>` and :class:`GeneralizedLinearRegressorCV <quantcore.glm.GeneralizedLinearRegressorCV>` classes via their constructors and the :meth:`fit() <quantcore.glm.GeneralizedLinearRegressor.fit>` and :meth:`predict() <quantcore.glm.GeneralizedLinearRegressor.predict>` functions. Those are the places to start looking if you plan to change the system in some way. 
+
+What follows is a high-level summary of the source code structure. For more details, please look in the documentation and docstrings of the relevant classes, functions and methods.
+
+* ``_glm.py`` - This is the main entrypoint and implements the core logic of the GLM. Most of the code in this file handles input arguments and prepares the data for the GLM fitting algorithm.
+* ``_glm_cv.py`` - This is the entrypoint for the cross validated GLM implementation. It depends on a lot of the code in ``_glm.py`` and only modifies the sections necessary for running training many models with different regularization parameters.
+* ``_solvers.py`` - This contains the bulk of the IRLS and L-BFGS algorithms for training GLMs. For details on the algorithm, see :doc:`background/background` for more details.
+* ``_cd_fast.pyx`` - This is a Cython implementation of the coordinate descent algorithm used for fitting L1 penalty GLMs. Note the ``.pyx`` extension indicating that it is a Cython source file.
+* ``_distribution.py`` - definitions of the distributions that can be used. Includes Normal, Poisson, Gamma, InverseGaussian, Tweedie, Binomial and GeneralizedHyperbolicSecant distributions. 
+* ``_link.py`` - definitions of the link functions that can be used. Includes identity, log, logit and Tweedie link functions.
+* ``_functions.pyx`` - This is a Cython implementation of the log likelihoods, gradients and Hessians for several popular distributions.
+* ``_util.py`` - This contains a few general purpose linear algebra routines that serve several other modules and don't fit well elsewhere.
+
+The GLM benchmark suite
+------------------------
+
+Before deciding to build a library custom built for our purposes, we did an thorough investigation of the various open source GLM implementations available. This resulted in an extensive suite of benchmarks for comparing the correctness, runtime and availability of features for these libraries. 
+
+The benchmark suite has two command line entrypoints:
+
+* ``glm_benchmarks_run``
+* ``glm_benchmarks_analyze``
+
+Both of these CLI tools take a range of arguments that specify the details of the benchmark problems and which libraries to benchmark.
+
+For more details on the benchmark suite, see the README in the source at ``src/quantcore/glm_benchmarks/README.md``.
+
