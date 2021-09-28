@@ -1348,7 +1348,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             sum_weights,
             P1,
             P2,
-        ) = self.set_up_and_check_fit_args(
+        ) = self._set_up_and_check_fit_args(
             X,
             y,
             sample_weight,
@@ -1360,8 +1360,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         mu = self.predict(X, offset=offset) if mu is None else np.asanyarray(mu)
 
         if dispersion is None:
-            dispersion = self.estimate_phi(
-                X=X, y=y, sample_weight=sample_weight, estimation_method="chisqr"
+            dispersion = self._family_instance.dispersion(
+                y, mu, sample_weight=sample_weight, method="pearson"
             )
 
         # if design matrix is singular
