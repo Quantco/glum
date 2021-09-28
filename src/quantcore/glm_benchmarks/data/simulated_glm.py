@@ -142,7 +142,7 @@ def simulate_glm_data(
     data = {
         "X": X,
         "y": y,
-        "weights": weights,
+        "sample_weight": weights,
         "offset": offset,
         "intercept": intercept,
         "coefs": coefs,

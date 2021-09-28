@@ -113,18 +113,18 @@ def test_gradients(family, link):
         X = np.random.rand(nrows, ncols)
         coef = np.random.rand(ncols)
         y = np.random.rand(nrows)
-        weights = np.ones(nrows)
+        sample_weight = np.ones(nrows)
 
         eta, mu, _ = family.eta_mu_deviance(
-            link, 1.0, np.zeros(nrows), X.dot(coef), y, weights
+            link, 1.0, np.zeros(nrows), X.dot(coef), y, sample_weight
         )
         gradient_rows, _ = family.rowwise_gradient_hessian(
             link=link,
             coef=coef,
-            phi=1.0,
+            dispersion=1.0,
             X=X,
             y=y,
-            weights=weights,
+            sample_weight=sample_weight,
             eta=eta,
             mu=mu,
         )
@@ -132,7 +132,7 @@ def test_gradients(family, link):
 
         def f(coef2):
             _, _, ll = family.eta_mu_deviance(
-                link, 1.0, np.zeros(nrows), X.dot(coef2), y, weights
+                link, 1.0, np.zeros(nrows), X.dot(coef2), y, sample_weight
             )
             return -0.5 * ll
 
@@ -165,19 +165,19 @@ def test_hessian_matrix(family, link, true_hessian):
     Trick: For the FIM, use numerical differentiation with y = mu
     """
     coef = np.array([-2, 1, 0, 1, 2.5])
-    phi = 0.5
+    dispersion = 0.5
     rng = np.random.RandomState(42)
     X = mx.DenseMatrix(rng.randn(10, 5))
     lin_pred = np.dot(X, coef)
     mu = link.inverse(lin_pred)
-    weights = rng.randn(10) ** 2 + 1
+    sample_weight = rng.randn(10) ** 2 + 1
     _, hessian_rows = family.rowwise_gradient_hessian(
         link=link,
         coef=coef,
-        phi=phi,
+        dispersion=dispersion,
         X=X,
-        y=weights,
-        weights=weights,
+        y=sample_weight,
+        sample_weight=sample_weight,
         eta=lin_pred,
         mu=mu,
     )
@@ -196,17 +196,17 @@ def test_hessian_matrix(family, link, true_hessian):
             yv = mu
             if true_hessian:
                 # If we're using the true hessian, use the true y
-                yv = weights
+                yv = sample_weight
             else:
                 # If we're using the FIM, use y = mu
                 yv = mu
             gradient_rows, _ = family.rowwise_gradient_hessian(
                 link=link,
                 coef=coef,
-                phi=phi,
+                dispersion=dispersion,
                 X=X,
                 y=yv,
-                weights=weights,
+                sample_weight=sample_weight,
                 eta=this_eta,
                 mu=this_mu,
             )
@@ -251,16 +251,19 @@ def test_poisson_deviance_dispersion_loglihood(weighted):
 
     # R bases dispersion on the deviance for log_likelihood
     ll = family.log_likelihood(
-        y, mu, weights=wgts, phi=family.deviance(y, mu, weights=wgts) / 5
+        y,
+        mu,
+        sample_weight=wgts,
+        dispersion=family.deviance(y, mu, sample_weight=wgts) / 5,
     )
 
     np.testing.assert_approx_equal(regressor.coef_[0], 0.1823216)
-    np.testing.assert_approx_equal(family.deviance(y, mu, weights=wgts), 7.176404)
+    np.testing.assert_approx_equal(family.deviance(y, mu, sample_weight=wgts), 7.176404)
     np.testing.assert_approx_equal(ll, -7.390977)
 
     # higher tolerance for the dispersion parameter because of numerical precision
     np.testing.assert_approx_equal(
-        family.dispersion(y, mu, weights=wgts), 1.416679, significant=5
+        family.dispersion(y, mu, sample_weight=wgts), 1.416679, significant=5
     )
 
 
@@ -296,12 +299,17 @@ def test_gamma_deviance_dispersion_loglihood(weighted):
 
     # R bases dispersion on the deviance for log_likelihood
     ll = family.log_likelihood(
-        y, mu, weights=wgts, phi=family.deviance(y, mu, weights=wgts) / 5
+        y,
+        mu,
+        sample_weight=wgts,
+        dispersion=family.deviance(y, mu, sample_weight=wgts) / 5,
     )
 
     np.testing.assert_approx_equal(regressor.coef_[0], 0.8754687)
-    np.testing.assert_approx_equal(family.dispersion(y, mu, weights=wgts), 0.2256944)
-    np.testing.assert_approx_equal(family.deviance(y, mu, weights=wgts), 1.012285)
+    np.testing.assert_approx_equal(
+        family.dispersion(y, mu, sample_weight=wgts), 0.2256944
+    )
+    np.testing.assert_approx_equal(family.deviance(y, mu, sample_weight=wgts), 1.012285)
     np.testing.assert_approx_equal(ll, -7.057068)
 
 
@@ -337,12 +345,15 @@ def test_gaussian_deviance_dispersion_loglihood(weighted):
 
     # R bases dispersion on the deviance for log_likelihood
     ll = family.log_likelihood(
-        y, mu, weights=wgts, phi=family.deviance(y, mu, weights=wgts) / 5
+        y,
+        mu,
+        sample_weight=wgts,
+        dispersion=family.deviance(y, mu, sample_weight=wgts) / 5,
     )
 
     np.testing.assert_approx_equal(regressor.coef_[0], 0.2)
-    np.testing.assert_approx_equal(family.dispersion(y, mu, weights=wgts), 1.7)
-    np.testing.assert_approx_equal(family.deviance(y, mu, weights=wgts), 6.8)
+    np.testing.assert_approx_equal(family.dispersion(y, mu, sample_weight=wgts), 1.7)
+    np.testing.assert_approx_equal(family.deviance(y, mu, sample_weight=wgts), 6.8)
     np.testing.assert_approx_equal(ll, 7.863404)
 
 
@@ -381,16 +392,19 @@ def test_tweedie_deviance_dispersion_loglihood(weighted):
 
     # R bases dispersion on the deviance for log_likelihood
     ll = family.log_likelihood(
-        y, mu, weights=wgts, phi=family.deviance(y, mu, weights=wgts) / 5
+        y,
+        mu,
+        sample_weight=wgts,
+        dispersion=family.deviance(y, mu, sample_weight=wgts) / 5,
     )
 
     np.testing.assert_approx_equal(regressor.coef_[0], 0.1823216)
-    np.testing.assert_approx_equal(family.deviance(y, mu, weights=wgts), 10.64769)
+    np.testing.assert_approx_equal(family.deviance(y, mu, sample_weight=wgts), 10.64769)
     np.testing.assert_approx_equal(ll, -8.35485)
 
     # higher tolerance for the dispersion parameter because of numerical precision
     np.testing.assert_approx_equal(
-        family.dispersion(y, mu, weights=wgts), 1.293318, significant=5
+        family.dispersion(y, mu, sample_weight=wgts), 1.293318, significant=5
     )
 
 
@@ -426,10 +440,13 @@ def test_binomial_deviance_dispersion_loglihood(weighted):
 
     # R bases dispersion on the deviance for log_likelihood
     ll = family.log_likelihood(
-        y, mu, weights=wgts, phi=family.deviance(y, mu, weights=wgts) / 5
+        y,
+        mu,
+        sample_weight=wgts,
+        dispersion=family.deviance(y, mu, sample_weight=wgts) / 5,
     )
 
     np.testing.assert_approx_equal(regressor.coef_[0], -0.4054651)
-    np.testing.assert_approx_equal(family.dispersion(y, mu, weights=wgts), 1.25)
-    np.testing.assert_approx_equal(family.deviance(y, mu, weights=wgts), 6.730117)
+    np.testing.assert_approx_equal(family.dispersion(y, mu, sample_weight=wgts), 1.25)
+    np.testing.assert_approx_equal(family.deviance(y, mu, sample_weight=wgts), 6.730117)
     np.testing.assert_approx_equal(ll, -3.365058)

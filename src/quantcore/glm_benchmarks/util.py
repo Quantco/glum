@@ -91,7 +91,7 @@ def get_obj_val(
         l1_ratio=l1_ratio,
         family=get_sklearn_family(distribution),
     )
-    model.set_up_for_fit(dat["y"])
+    model._set_up_for_fit(dat["y"])
 
     full_coefs = np.concatenate(([intercept], coefs))
     offset = dat.get("offset")

@@ -149,7 +149,7 @@ def fit_model(data, family, model_parameters, use_weights, use_offset, cv):
         "y": data["y"],
     }
     if use_weights:
-        fit_params.update({"sample_weight": data["weights"]})
+        fit_params.update({"sample_weight": data["sample_weight"]})
     if use_offset:
         fit_params.update({"offset": data["offset"]})
 
@@ -317,10 +317,10 @@ def test_weights_offset_equivalence(dist_power, data_all):
     offset_data = copy.copy(weights_data)
 
     exposure = np.exp(weights_data["offset"])
-    weights_data["weights"] = exposure ** (2 - power)
+    weights_data["sample_weight"] = exposure ** (2 - power)
     weights_data["y"] = weights_data["y"] / exposure
 
-    weights_parameters = {"alpha": 0.1 / weights_data["weights"].mean()}
+    weights_parameters = {"alpha": 0.1 / weights_data["sample_weight"].mean()}
     model_weights = fit_model(
         data=weights_data,
         family=distribution,

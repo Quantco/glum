@@ -15,13 +15,14 @@ jupyter:
 
 # Getting Started: fitting a Lasso model 
 
-Welcome to `quantcore.glm`! Generalized linear models (GLMs) are core statistical tools that include many common methods like least-squares regression, Poisson regression, and logistic regression as special cases. At QuantCo, we have developed `quantcore.glm`, a fast Python-first GLM library. 
+Welcome to `quantcore.glm`! Generalized linear models (GLMs) are core statistical tools that include many common methods like least-squares regression, Poisson regression, and logistic regression as special cases. At QuantCo, we have developed `quantcore.glm`, a fast Python-first GLM library.
 
 The purpose of this tutorial is to show the basics of `quantcore.glm`. It assumes a working knowledge of python, regularized linear models, and machine learning. The API is very similar to sklearn. After all, `quantcore.glm` is based on a fork of scikit-learn.
 
 If you have not done so already, please refer to our [installation instructions](../install.rst) for installing `quantcore.glm`.
 
-*Note:* We use the [sklearn boston housing dataset](https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_boston.html) throughout the tutorial. If you wish to explore this dataset further, there are a handful of resources online. For example, [this blog](https://medium.com/@amitg0161/sklearn-linear-regression-tutorial-with-boston-house-dataset-cde74afd460a). 
+*Note:* We use the [sklearn boston housing dataset](https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_boston.html) throughout the tutorial. If you wish to explore this dataset further, there are a handful of resources online. For example, [this blog](https://medium.com/@amitg0161/sklearn-linear-regression-tutorial-with-boston-house-dataset-cde74afd460a).
+<!-- #endregion -->
 
 ```python
 import pandas as pd

@@ -33,10 +33,23 @@ def _setup_r_glmnet():
     is_initialized = True
 
 
-def _numpy_to_r_obj(np_arr, R_name):
-    nr = np_arr.shape[0]
-    nc = 1 if len(np_arr.shape) == 1 else np_arr.shape[1]
-    ro.r.assign(R_name, ro.r.matrix(np_arr, nrow=nr, ncol=nc))
+def _to_r_obj(X, R_name):
+    nr = X.shape[0]
+    nc = 1 if len(X.shape) == 1 else X.shape[1]
+    if sps.issparse(X):
+        r_Matrix = importr("Matrix")
+        X_coo = X.tocoo()
+        ro.r.assign(
+            R_name,
+            r_Matrix.sparseMatrix(
+                i=ro.IntVector(X_coo.row + 1),
+                j=ro.IntVector(X_coo.col + 1),
+                x=ro.FloatVector(X_coo.data),
+                dims=ro.IntVector(X_coo.shape),
+            ),
+        )
+    else:  # if dense
+        ro.r.assign(R_name, ro.r.matrix(X, nrow=nr, ncol=nc))
 
 
 def r_glmnet_bench(
@@ -80,7 +93,7 @@ def r_glmnet_bench(
         X = X.to_numpy()
     elif not isinstance(X, np.ndarray):
         warnings.warn(
-            "glmnet_python requires data as scipy.sparse matrix, pandas dataframe, or "
+            "glmnet requires data as scipy.sparse matrix, pandas dataframe, or "
             "numpy array. Skipping."
         )
         return result
@@ -90,15 +103,13 @@ def r_glmnet_bench(
     elif distribution.startswith("tweedie"):
         p = float(distribution.split("tweedie-p=")[1])
         distribution = ro.r["tweedie"](link_power=0, var_power=p)
-    elif distribution == "binomial":
-        warnings.warn("r-glmnet fails for binomial")
-        return result
 
     r = ro.r
+
     # Do this before fitting so we're not including python to R conversion
     # times
-    _numpy_to_r_obj(X, "X_in_R")
-    _numpy_to_r_obj(dat["y"], "y_in_R")
+    _to_r_obj(X, "X_in_R")
+    _to_r_obj(dat["y"], "y_in_R")
 
     glmnet_kws = dict(
         x=r["X_in_R"],
@@ -108,13 +119,20 @@ def r_glmnet_bench(
         standardize=False,
         thresh=benchmark_convergence_tolerance,
     )
-    if "weights" in dat.keys():
-        glmnet_kws.update({"weights": ro.FloatVector(dat["weights"])})
+    if "sample_weight" in dat.keys():
+        glmnet_kws.update({"weights": ro.FloatVector(dat["sample_weight"])})
     if "offset" in dat.keys():
         glmnet_kws.update({"offset": ro.FloatVector(dat["offset"])})
 
+    # By default, glmnet runs for 100 different values of regularization strength.
+    # For a fair comparison of runtime, we'd like to run for just a single value.
+    # These parameters ensure that is the case.
     glmnet_kws["lambda"] = alpha
-    # TODO: make sure that the runtime of converting array types to R is not included in here.
+    glmnet_kws["nlambda"] = 1
+
+    # NOTE: We checked thoroughly and this runtime measurement only includes
+    # The cost of the glmnet function in R. We checked this by running the same
+    # problem directly from R.
     result["runtime"], m = runtime(r["glmnet"], iterations, **glmnet_kws)
     result["intercept"] = m.rx2("a0")[0]
     result["coef"] = np.squeeze(np.asanyarray(r["as.matrix"](m.rx2("beta"))))
