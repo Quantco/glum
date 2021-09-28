@@ -11,6 +11,9 @@ Welcome to quantcore.glm's documentation!
 * Box and linear inequality constraints, sample weights, offsets.
 * A scikit-learn-like API to fit smoothly into existing workflows.
 
+.. image:: _static/headline_benchmark.png
+   :width: 600
+   
 We suggest visiting the :doc:`Installation<install>` and :doc:`Getting Started<getting_started/getting_started>` sections first.
 
 .. toctree::
@@ -19,6 +22,7 @@ We suggest visiting the :doc:`Installation<install>` and :doc:`Getting Started<g
    Installation <install.rst>
    Getting Started <getting_started/getting_started.ipynb>
    Motivation <motivation.rst>
+   Benchmarks vs glmnet/H2O <benchmarks.rst>
 
 .. toctree::
    :maxdepth: 2
