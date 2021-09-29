@@ -1357,7 +1357,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             solver=self.solver,
             force_all_finite=self.force_all_finite,
         )
-        # import ipdb; ipdb.set_trace()
 
         mu = self.predict(X, offset=offset) if mu is None else np.asanyarray(mu)
 
@@ -1365,7 +1364,11 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             # sample_weight here need to be non-normalized to count the number
             # of observations.
             dispersion = self._family_instance.dispersion(
-                y, mu, sample_weight=sample_weight * sum_weights, method="pearson"
+                y,
+                mu,
+                sample_weight=sample_weight * sum_weights,
+                ddof=0,
+                method="pearson",
             )
 
         if not sparse.issparse(X):
@@ -1382,7 +1385,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                     y,
                     mu,
                     sample_weight,
-                    dispersion,
+                    dispersion / sum_weights,
                     self.fit_intercept,
                 )
             else:
@@ -1392,7 +1395,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                     y,
                     mu,
                     sample_weight,
-                    dispersion,
+                    dispersion / sum_weights,
                     self.fit_intercept,
                 )
             gradient = self._family_instance._score_matrix(
@@ -1401,7 +1404,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 y,
                 mu,
                 sample_weight,
-                dispersion,
+                dispersion / sum_weights,
                 self.fit_intercept,
             )
             if clusters is not None:
@@ -1426,14 +1429,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 y,
                 mu,
                 sample_weight,
-                dispersion,
+                dispersion / sum_weights,
                 self.fit_intercept,
             )
-            import ipdb
-
-            ipdb.set_trace()
-            # vcov = linalg.inv(_safe_toarray(fisher))
-            vcov = linalg.inv(fisher)
+            vcov = linalg.inv(_safe_toarray(fisher))
             vcov *= sum_weights / (
                 sum_weights - self.n_features_in_ - int(self.fit_intercept)
             )
