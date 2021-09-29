@@ -23,12 +23,12 @@ dependencies:
   - ipython
   - line_profiler
   - memory_profiler
-  - setuptools_scm
   - pip
   - pre-commit
   - pyarrow
   - pytest
   - pytest-xdist
+  - setuptools_scm
   
   # build tools
   - c-compiler
@@ -43,7 +43,7 @@ dependencies:
   - libpysal # used in docs/tutorials/regularization_housing_data
   - make
   - matplotlib-base
-  - nbclassic=0.2.7
+  - nbclassic>=0.2.8
   - nbsphinx=0.8.3
   - openml # used for downloading datasets in the tutorials.
   - shapely # used in docs/tutorials/regularization_housing_data
