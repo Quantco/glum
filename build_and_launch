@@ -1,9 +1,0 @@
-#!/bin/bash
-set -e
-
-CONDA_BASE=$(conda info --base)
-source ${CONDA_BASE}/etc/profile.d/conda.sh
-
-conda activate quantcore.glm
-python setup.py build_ext --inplace
-exec "$@"
