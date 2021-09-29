@@ -1265,6 +1265,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
     ):
         """Calculate standard errors for generalized linear models.
 
+        See `covariance_matrix` for an in-depth explanation of how the
+        standard errors are computed.
+
         Parameters
         ----------
         estimator : LogitRegressor or TweedieRegressor
@@ -1339,7 +1342,47 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             computed if clusters is not None.
         expected_information : boolean, optional, default=False
             Whether to use the expected or observed information matrix.
-            Only relevant when computing robust std-errors.
+            Only relevant when computing robust standard errors.
+
+        Notes
+        -----
+        We support three types of covariance matrices:
+        - non-robust
+        - robust (HC-1)
+        - clustered
+
+        For maximum-likelihood estimator, the covariance matrix takes the form
+        :math:`\\mathcal{H}^{-1}(\theta_0)\\mathcal{I}(\theta_0)
+        \\mathcal{H}^{-1}(\theta_0)` where :math:`\\mathcal{H}^{-1}` is the
+        inverse Hessian and :math:`\\mathcal{I}` is the Information matrix.
+        The different types of covariance matrices use different approximation
+        of these quantities.
+
+        The non-robust covariance matrix is computed as the inverse of the Fisher
+        information matrix. This assumes that the information matrix equality holds.
+
+        The robust (HC-1) covariance matrix takes the form :math:`\\mathbf{H}^{−1}
+        (\\hat{\theta}})\\mathbf{G}^'(\\hat{\theta}\\mathbf{G}(\\hat{\theta})
+        \\mathbf{H}^{−1}(\\hat{\theta}})` where :math:`\\mathbf{H}` is the empirical
+        Hessian and :math:`\\mathbf{G}` is the gradient. We apply a finite-sample
+        correction of :math:`\frac{N}{N-p}`.
+
+        The clustered covariance matrix uses a similar approach to the robust (HC-1)
+        covariance matrix. However, instead of using :math:`\\mathbf{G}^'(\\hat{\theta}
+        \\mathbf{G}(\\hat{\theta})` directly, we first sum over all the groups first.
+        The finite-sample correction is affected as well, becoming :math:`\frac{M}{M-1}
+        \frac{N}{N-p}` where :math:`M` is the number of groups.
+
+        References
+        ----------
+        .. Davidson, Russell & MacKinnon, James G. (1993).
+           "Estimation and Inference in Econometrics," OUP Catalogue,
+           Oxford University Press
+
+        .. Cameron, A. C., & Trivedi, P. K. (2005).
+           "Microeconometrics: methods and applications,"
+           Cambridge university press
+
         """
         (
             X,
