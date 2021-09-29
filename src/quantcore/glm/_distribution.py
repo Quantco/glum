@@ -97,7 +97,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         """Return whether ``upper_bound`` is allowed as a value of ``y``."""
         pass
 
-    def in_y_range(self, x) -> np.bool_:
+    def in_y_range(self, x) -> np.ndarray:
         """Return ``True`` if ``x`` is in the valid range of the EDM.
 
         Parameters
@@ -107,7 +107,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
 
         Returns
         -------
-        np.bool_
+        np.ndarray
         """
         if self.include_lower_bound:
             if self.include_upper_bound:

@@ -1,0 +1,18 @@
+#!/bin/bash
+# Running this script will rebuild the documentation every time you change one
+# of the sources. 
+
+# In Firefox, install the Live Reload extension and set up a rule for:
+# Host URL: http://localhost:8000/*
+# Source file URLs: http://localhost:8000/*
+
+trap "kill 0" EXIT
+
+python -m http.server --directory _build/html 8001 &> /dev/null &
+
+while true
+do
+{ git ls-files; git ls-files . --exclude-standard --others; } | entr -d make html -j10
+done
+
+wait

@@ -6,9 +6,10 @@ https://github.com/scikit-learn/scikit-learn/pull/9405
 
 Original attribution from:
 https://github.com/scikit-learn/scikit-learn/pull/9405/files#diff-38e412190dc50455611b75cfcf2d002713dcf6d537a78b9a22cc6b1c164390d1 # noqa: B950
-
+'''
 Author: Christian Lorentzen <lorentzen.ch@googlemail.com>
 some parts and tricks stolen from other sklearn files.
+'''
 """
 
 # License: BSD 3 clause
@@ -296,6 +297,10 @@ def _standardize(
     This is only done for computational reasons and does not affect final
     estimates or alter the input data. Columns are always scaled to have unit
     standard deviation.
+
+    Bounds, inequality constraints and regularization coefficients are modified
+    appropriately so that the estimates remain unchanged compared to an
+    unstandardized problem.
 
     Parameters
     ----------
@@ -606,7 +611,6 @@ def is_pos_semidef(p: Union[sparse.spmatrix, np.ndarray]) -> Union[bool, np.bool
     return np.all(eigenvalues >= epsneg)
 
 
-# TODO: abc
 class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
     """
     Base class for :class:`GeneralizedLinearRegressor` and
@@ -1564,7 +1568,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     """Regression via a Generalized Linear Model (GLM) with penalties.
 
-    GLMs based on a reproductive Exponential Dispersion Model (EDM) aim at
+    GLMs based on a reproductive Exponential Dispersion Model (EDM) aimed at
     fitting and predicting the mean of the target ``y`` as ``mu=h(X*w)``.
     Therefore, the fit minimizes the following objective function with combined
     L1 and L2 priors as regularizer::
@@ -1592,7 +1596,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     while ``alpha`` corresponds to the lambda parameter in glmnet.
     Specifically, ``l1_ratio = 1`` is the lasso penalty.
 
-    Read more in the :ref:`User Guide <Generalized_linear_regression>`.
+    Read more in :doc:`/background/background`.
 
     Parameters
     ----------
@@ -1844,7 +1848,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     :math:`\\mu_i \\equiv \\mathrm{E}(y_i) = h(x_i' w)` and
     :math:`\\mathrm{var}(y_i) = (\\phi / s_i) v(\\mu_i)`. The unit
     variance function :math:`v(\\mu_i)` is a property of and given by the
-    specific EDM; see :ref:`User Guide <Generalized_linear_regression>`.
+    specific EDM; see :doc:`/background/background`.
 
     The parameters :math:`w` (``coef_`` and ``intercept_``) are estimated by
     minimizing the deviance plus penalty term, which is equivalent to
