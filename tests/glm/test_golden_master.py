@@ -95,7 +95,7 @@ def data_all_storage(request):
 
 @pytest.fixture(scope="module")
 def expected_all():
-    with open(git_root("golden_master/simulation_gm.json"), "r") as fh:
+    with open(git_root("tests/glm/golden_master/simulation_gm.json"), "r") as fh:
         return json.load(fh)
 
 
@@ -399,7 +399,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     try:
-        with open(git_root("golden_master/simulation_gm.json"), "r") as fh:
+        with open(git_root("tests/glm/golden_master/simulation_gm.json"), "r") as fh:
             gm_dict = json.load(fh)
     except FileNotFoundError:
         gm_dict = {}
@@ -455,5 +455,5 @@ if __name__ == "__main__":
                     overwrite=args.overwrite,
                 )
 
-    with open(git_root("golden_master/simulation_gm.json"), "w") as fh:
+    with open(git_root("tests/glm/golden_master/simulation_gm.json"), "w") as fh:
         json.dump(gm_dict, fh, indent=2)
