@@ -249,12 +249,14 @@ def test_poisson_deviance_dispersion_loglihood(weighted):
     mu = regressor.fit(x, y, sample_weight=wgts).predict(x)
     family = regressor._family_instance
 
-    # R bases dispersion on the deviance for log_likelihood
     ll = family.log_likelihood(
         y,
         mu,
         sample_weight=wgts,
-        dispersion=family.deviance(y, mu, sample_weight=wgts) / 5,
+        # R bases dispersion on the deviance for log_likelihood
+        dispersion=family.dispersion(
+            y, mu, sample_weight=wgts, method="deviance", ddof=0
+        ),
     )
 
     np.testing.assert_approx_equal(regressor.coef_[0], 0.1823216)
@@ -297,12 +299,14 @@ def test_gamma_deviance_dispersion_loglihood(weighted):
     mu = regressor.fit(x, y, sample_weight=wgts).predict(x)
     family = regressor._family_instance
 
-    # R bases dispersion on the deviance for log_likelihood
     ll = family.log_likelihood(
         y,
         mu,
         sample_weight=wgts,
-        dispersion=family.deviance(y, mu, sample_weight=wgts) / 5,
+        # R bases dispersion on the deviance for log_likelihood
+        dispersion=family.dispersion(
+            y, mu, sample_weight=wgts, method="deviance", ddof=0
+        ),
     )
 
     np.testing.assert_approx_equal(regressor.coef_[0], 0.8754687)
@@ -343,12 +347,14 @@ def test_gaussian_deviance_dispersion_loglihood(weighted):
     mu = regressor.fit(x, y, sample_weight=wgts).predict(x)
     family = regressor._family_instance
 
-    # R bases dispersion on the deviance for log_likelihood
     ll = family.log_likelihood(
         y,
         mu,
         sample_weight=wgts,
-        dispersion=family.deviance(y, mu, sample_weight=wgts) / 5,
+        # R bases dispersion on the deviance for log_likelihood
+        dispersion=family.dispersion(
+            y, mu, sample_weight=wgts, method="deviance", ddof=0
+        ),
     )
 
     np.testing.assert_approx_equal(regressor.coef_[0], 0.2)
@@ -390,12 +396,14 @@ def test_tweedie_deviance_dispersion_loglihood(weighted):
     mu = regressor.fit(x, y, sample_weight=wgts).predict(x)
     family = regressor._family_instance
 
-    # R bases dispersion on the deviance for log_likelihood
     ll = family.log_likelihood(
         y,
         mu,
         sample_weight=wgts,
-        dispersion=family.deviance(y, mu, sample_weight=wgts) / 5,
+        # R bases dispersion on the deviance for log_likelihood
+        dispersion=family.dispersion(
+            y, mu, sample_weight=wgts, method="deviance", ddof=0
+        ),
     )
 
     np.testing.assert_approx_equal(regressor.coef_[0], 0.1823216)
@@ -443,7 +451,9 @@ def test_binomial_deviance_dispersion_loglihood(weighted):
         y,
         mu,
         sample_weight=wgts,
-        dispersion=family.deviance(y, mu, sample_weight=wgts) / 5,
+        dispersion=family.dispersion(
+            y, mu, sample_weight=wgts, method="deviance", ddof=0
+        ),
     )
 
     np.testing.assert_approx_equal(regressor.coef_[0], -0.4054651)
