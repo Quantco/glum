@@ -19,6 +19,7 @@ Another large algorithmic improvement to the optimizer came from centering the p
 Much later on, we made major improvements to the quality of the quadratic approximations for binomial, gamma, and Tweedie distributions, where the Hessians turned out to be suboptimal. For the first couple months, we took for granted that the quadratic log-likelihood approximations from sklearn-fork were correct. However, after substantial investigation, it turned out that we were using a Fisher information matrix-based approximation to the hessian rather than the true Hessian. This was done in sklearn-fork because the Fisher information matrix (FIM) is guaranteed to be positive definite for any link function or distribution, a necessary condition for guaranteed convergence. However, in cases where the true Hessian is also positive definite, using it will result in much faster convergence. It turned out that switching to using the true Hessian for these special cases (linear, Poisson, gamma, logistic regression and Tweedie regression for 1 < p < 2) gave huge reductions in the number of IRLS iterations. Some gamma regression problems dropped from taking 50-100 iterations to taking just 5-10 iterations. 
 
 Other important improvements:
+
 * Using numerically stable log-likelihood, gradient and hessian formulas for the binomial distribution. In the naive version, we encounter floating point infinities for large parameter values in intermediate calculations.
 * Exploring the use of an ADMM iterative L1 solver compared to our current CD solver. We ended up sticking with CD. This helped identify some crucial differences between quantcore.glm and H2O, which uses an ADMM solver.
 * Active set iteration where we use heuristics to improve performance in L1-regularized problems by predicting, at the beginning of each iteration, which coefficients are likely to remain zero. This effectively reduces the set of predictors and significantly improves performance in severely L1-regularized problems.
@@ -37,6 +38,7 @@ The largest performance improvements have come from better tabular matrix handli
 We took our first step into developing custom matrix classes when we realized that even the pure dense and sparse matrix implementations were suboptimal. The default scipy.sparse matrix-multiply and matrix-vector product implementations are not parallel. Furthermore, many matrix-vector products only involve a small subset of rows or columns. As a result, we now have custom implementations of these operations that are parallelized and allow operating on a restricted set of rows and columns. 
 
 Before continuing, a quick summary of the only three matrix operations that we care about for GLM estimation:
+
 * Matrix-vector products. ``X.dot(v)`` in numpy notation
 * Transpose-matrix-vector products. ``X.T.dot(v)``
 * Sandwich products. ``X.T @ diag(d) @ X``
@@ -52,7 +54,8 @@ The end result of all these matrix optimizations is that we now have a fairly co
 New Features
 -------------
 
-In addition to the heavy focus on optimization and algorithmic correctness, we’ve also added a few important features to quantcore.glm beyond what was already available in sklearn-fork. 
+In addition to the heavy focus on optimization and algorithmic correctness, we’ve also added a few important features to quantcore.glm beyond what was already available in sklearn-fork.
+
 * Automatic cross validation and regularization path handling similar in behavior to glmnet.
 * Linear inequality on coefficients. 
 * A step size convergence criterion in addition to the typical gradient-norm based criterion.
