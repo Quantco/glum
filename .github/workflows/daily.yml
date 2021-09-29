@@ -1,0 +1,71 @@
+name: Daily runs
+on: [push]
+# on:
+#   schedule:
+#     - cron: '0 5 * * *'
+
+jobs:
+  linux-unittests:
+    name: "Linux - daily unit tests - Python ${{ matrix.PYTHON_VERSION }} ${{ matrix.PANDAS_VERSION }}"
+    runs-on: ubuntu-latest
+    env:
+      CI: True
+    strategy:
+      fail-fast: false
+      matrix:
+        PYTHON_VERSION: ['3.7', '3.8']
+        include:
+          - PYTHON_VERSION: '3.9' # run once with nightlies
+            PANDAS_VERSION: 'nightly'
+            NUMPY_VERSION: 'nightly'
+            SCIKIT_VERSION: 'nightly'
+          - PYTHON_VERSION: '3.9' # run once with normal dependencies
+            PANDAS_VERSION: ''
+            NUMPY_VERSION: ''
+            SCIKIT_VERSION: ''
+    steps:
+      - name: Docker login
+        run: docker login ghcr.io -u "${{ github.actor }}" -p "${{ secrets.GITHUB_TOKEN }}"
+      - name: Pull image
+        run: docker pull ***REMOVED***:latest
+      - name: Checkout branch
+        uses: actions/checkout@v2.3.4
+        with:
+          ref: ${{ github.head_ref }}
+      - name: Fetch full git history
+        run: git fetch --prune --unshallow
+      - name: Checkout github-actions repo
+        uses: actions/checkout@v2.3.4
+        with:
+          repository: Quantco/github-actions
+          ref: main
+          token: ${{ secrets.FQ_GH_TOKEN }}
+          path: .github/quantco-actions
+      - name: Run unit tests inside of container
+        uses: ./.github/quantco-actions/unittests
+        with:
+          python_version: ${{ matrix.PYTHON_VERSION }}
+          pandas_version: ${{ matrix.PANDAS_VERSION }}
+          numpy_version: ${{ matrix.NUMPY_VERSION }}
+          scikit_version: ${{ matrix.SCIKIT_VERSION }}
+      - name: Issue on failure
+        uses: actions/github-script@v5
+        if: ${{ failure() }}
+        with:
+          script: |
+            github.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open",
+              labels: "[bot] Periodic unittest"
+            }).then((issues) => {
+              if (issues.data.length === 0){
+                github.issues.create({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  title: "Daily run failure: Unit tests",
+                  assignees: ["lbittarello", "MarcAntoineSchmidtQC"],
+                  labels: ["[bot] Periodic unittest"]
+                })
+              }
+            });
