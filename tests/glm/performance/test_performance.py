@@ -147,15 +147,15 @@ def get_spmv_runtime():
     Get runtime of sparse matrix-vector product.
 
     Sparse matrix-vector product runtime should be representative of the memory
-    bandwidth of the machine. We use MKL to make sure that this is
-    parallelized. Otherwise, the performance will not scale properly in
-    comparison to the GLM code for machines with many cores.
+    bandwidth of the machine. Automatically scale the according to half the
+    number of cores since the scipy.sparse implementation is not parallelized
+    and quantcore.glm is parallelized.
     """
     N = 20000000
     diag_data = np.random.rand(5, N)
     mat = sps.spdiags(diag_data, [0, 1, -1, 2, -2], N, N).tocsr()
     v = np.random.rand(N)
-    return runtime(lambda: mat.dot(v), 5)[0]
+    return runtime(lambda: mat.dot(v), 5)[0] / (mp.cpu_count() // 2)
 
 
 def get_dense_inv_runtime():

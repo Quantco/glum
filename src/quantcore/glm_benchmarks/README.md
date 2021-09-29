@@ -15,26 +15,17 @@ Python package to benchmark GLM implementations.
 
 After installing the package, you should have two CLI tools: `glm_benchmarks_run` and `glm_benchmarks_analyze`. Use the `--help` flag for full details. Look in `src/quantcore/glm/problems.py` to see the list of problems that will be run through each library.
 
-To run the full benchmarking suite, just run `glm_benchmarks_run` with no flags. 
+To run the full benchmarking suite, just run `glm_benchmarks_run` with no flags. This will probably take a very long time.
 
 For a more advanced example: `glm_benchmarks_run --problem_name narrow-insurance-no-weights-l2-poisson --library_name sklearn-fork --storage dense --num_rows 100 --output_dir mydatadirname` will run just the first 100 rows of the `narrow-insurance-no-weights-l2-poisson` problem through the `sklearn-fork` library and save the output to `mydatadirname`. This demonstrates several capabilities that will speed development when you just want to run a subset of either data or problems or libraries. 
 
-The `--problem_name` and `--library_name` flags take comma separated lists. This mean that if you want to run both `sklearn-fork` and `glmnet-python`, you could run `glm_benchmarks_run --library_name sklearn-fork,glmnet-python`.
+The `--problem_name` and `--library_name` flags take comma separated lists. This mean that if you want to run both `sklearn-fork` and `r-glmnet`, you could run `glm_benchmarks_run --library_name sklearn-fork,r-glmnet`.
 
-The `glm_benchmarks_analyze` tool is still more a sketch-up and will evolve as we identify what we care about.
+The `glm_benchmarks_analyze` produces a dataframe comparing the correct and runtime of several runs/libraries. `glm_benchmarks_analyze` accepts an almost identical range of command line parameters as `glm_benchmarks_run`. You can use these CLI parameters to filter which problems and runs you would like to compare. 
 
-Benchmarks can be sped up by enabling caching of generated data. If you don't do this, 
-you will spend a lot of time repeatedly generating the same data set. If you are using
-Docker, caching is automatically enabled. The simulated data is written to an unmapped
-directory within Docker, so it will cease to exist upon exiting the container. If you
-are not using Docker, to enable caching, set the GLM_BENCHMARKS_CACHE environment
-variable to the directory you would like to write to.
+Benchmarks can be sped up by enabling caching of generated data. If you don't do this, you will spend a lot of time repeatedly generating the same data set. If you are using Docker, caching is automatically enabled. The simulated data is written to an unmapped directory within Docker, so it will cease to exist upon exiting the container. If you are not using Docker, to enable caching, set the GLM_BENCHMARKS_CACHE environment variable to the directory you would like to write to.
 
-We support several types of matrix storage, passed with the argument "--storage". 
-"dense" is the default. "sparse" stores data as a csc sparse matrix. "cat" splits
-the matrix into a dense component and categorical components. "split0.1" splits the
-matrix into sparse and dense parts, where any column with more than 10% nonzero elements
-is put into the dense part, and the rest is put into the sparse part.
+We support several types of matrix storage, passed with the argument "--storage".  "dense" is the default. "sparse" stores data as a csc sparse matrix. "cat" splits the matrix into a dense component and categorical components. "split0.1" splits the matrix into sparse and dense parts, where any column with more than 10% nonzero elements is put into the dense part, and the rest is put into the sparse part.
 
 ## Docker
 
