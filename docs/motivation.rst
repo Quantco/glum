@@ -28,7 +28,8 @@ Other important improvements:
 Software optimizations
 ----------------------
 
-Substantial performance improvements came from many places. 
+Substantial performance improvements came from many places.
+
 * Removing redundant calculations and storing intermediate results to re-use later. The line search step had a particularly large number of such optimization opportunities. 
 * Cython-izing the coordinate descent implementation based on a version from sklearn’s Lasso implementation. Several optimizations were possible even beyond the sklearn Lasso implementation and we hope to contribute some of these upstream.
 * Hand-optimizing the formulas and Cython-izing the code for common distributions' log likelihood, gradients, and hessians. We did this for normal, Poisson, gamma, Tweedie, binomial distributions.
