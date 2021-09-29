@@ -23,12 +23,12 @@ dependencies:
   - ipython
   - line_profiler
   - memory_profiler
-  - setuptools_scm
   - pip
   - pre-commit
   - pyarrow
   - pytest
   - pytest-xdist
+  - setuptools_scm
   
   # build tools
   - c-compiler
