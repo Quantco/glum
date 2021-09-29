@@ -558,7 +558,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         ddof : int, optional (default=1)
             Degrees of freedom consumed by the model for ``mu``.
 
-        method = {'pearson', 'residuals'}, optional (default='pearson')
+        method = {'pearson', 'deviance'}, optional (default='pearson')
             Whether to base the estimate on the Pearson residuals or the deviance.
 
         Returns
@@ -573,7 +573,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
                 numerator = pearson_residuals.sum()
             else:
                 numerator = np.dot(pearson_residuals, sample_weight)
-        elif method == "residuals":
+        elif method == "deviance":
             numerator = self.deviance(y, mu, sample_weight)
         else:
             raise NotImplementedError(f"Method {method} hasn't been implemented.")
@@ -840,7 +840,7 @@ class TweedieDistribution(ExponentialDispersionModel):
         ddof : int, optional (default=1)
             Degrees of freedom consumed by the model for ``mu``.
 
-        method = {'pearson', 'residuals'}, optional (default='pearson')
+        method = {'pearson', 'deviance'}, optional (default='pearson')
             Whether to base the estimate on the Pearson residuals or the deviance.
 
         Returns
@@ -1079,7 +1079,7 @@ class BinomialDistribution(ExponentialDispersionModel):
         ddof : int, optional (default=1)
             Degrees of freedom consumed by the model for ``mu``.
 
-        method = {'pearson', 'residuals'}, optional (default='pearson')
+        method = {'pearson', 'deviance'}, optional (default='pearson')
             Whether to base the estimate on the Pearson residuals or the deviance.
 
         Returns
