@@ -5,7 +5,7 @@ from typing import Tuple, Union
 import numexpr
 import numpy as np
 from quantcore.matrix import MatrixBase, StandardizedMatrix
-from scipy import special
+from scipy import sparse, special
 
 from ._functions import (
     binomial_logit_eta_mu_deviance,
@@ -443,7 +443,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         ----------
         link : Link
             A link function (i.e. an instance of :class:`~quantcore.glm._link.Link`).
-        X : pandas.DataFrame
+        X : array-like
             Training data.
         y : array-like
             Target values.
@@ -472,7 +472,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
 
         Parameters
         ----------
-        X : pandas.DataFrame
+        X : array-like
             Training data.
         y : array-like
             Target values.
@@ -499,14 +499,14 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
             )
         ) * get_one_over_variance(self, link, mu, linpred, dispersion, sample_weight)
 
-        return _safe_sandwich_dot(np.asanyarray(X), W, intercept=fit_intercept)
+        return _safe_sandwich_dot(X, W, intercept=fit_intercept)
 
     def _score_matrix(self, link, X, y, mu, sample_weight, dispersion, fit_intercept):
         """Compute the score.
 
         Parameters
         ----------
-        X : pandas.DataFrame
+        X : array-like
             Training data.
         y : array-like
             Target values.
@@ -531,9 +531,15 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         ).reshape(-1, 1)
 
         if fit_intercept:
-            return np.hstack((W, np.multiply(X, W)))
+            if sparse.issparse(X):
+                return sparse.hstack((W, X.multiply(W)))
+            else:
+                return np.hstack((W, np.multiply(X, W)))
         else:
-            return np.multiply(X, W)
+            if sparse.issparse(X):
+                return X.multiply(W)
+            else:
+                return np.multiply(X, W)
 
     def dispersion(self, y, mu, sample_weight=None, ddof=1, method="pearson") -> float:
         r"""Estimate the dispersion parameter :math:`\phi`.
