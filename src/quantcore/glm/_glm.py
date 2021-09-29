@@ -58,6 +58,7 @@ from ._solvers import (
     _least_squares_solver,
     _trust_constr_solver,
 )
+from ._util import _safe_toarray
 
 _logger = logging.getLogger(__name__)
 
@@ -1356,42 +1357,26 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             solver=self.solver,
             force_all_finite=self.force_all_finite,
         )
+        # import ipdb; ipdb.set_trace()
 
         mu = self.predict(X, offset=offset) if mu is None else np.asanyarray(mu)
 
         if dispersion is None:
+            # sample_weight here need to be non-normalized to count the number
+            # of observations.
             dispersion = self._family_instance.dispersion(
-                y, mu, sample_weight=sample_weight, method="pearson"
+                y, mu, sample_weight=sample_weight * sum_weights, method="pearson"
             )
 
-        # if design matrix is singular
-        if np.linalg.cond(X) > 1 / sys.float_info.epsilon:
-            raise np.linalg.LinAlgError(
-                "Matrix is singular. Cannot estimate standard errors."
-            )
-        else:
-            if robust or clusters is not None:
-                if expected_information:
-                    oim = self._family_instance._fisher_information(
-                        self._link_instance,
-                        X,
-                        y,
-                        mu,
-                        sample_weight,
-                        dispersion,
-                        self.fit_intercept,
-                    )
-                else:
-                    oim = self._family_instance._observed_information(
-                        self._link_instance,
-                        X,
-                        y,
-                        mu,
-                        sample_weight,
-                        dispersion,
-                        self.fit_intercept,
-                    )
-                gradient = self._family_instance._score_matrix(
+        if not sparse.issparse(X):
+            if np.linalg.cond(X) > 1 / sys.float_info.epsilon:
+                raise np.linalg.LinAlgError(
+                    "Matrix is singular. Cannot estimate standard errors."
+                )
+
+        if robust or clusters is not None:
+            if expected_information:
+                oim = self._family_instance._fisher_information(
                     self._link_instance,
                     X,
                     y,
@@ -1400,23 +1385,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                     dispersion,
                     self.fit_intercept,
                 )
-                if clusters is not None:
-                    n_groups = len(np.unique(clusters))
-                    grouped_gradient = _group_sum(clusters, gradient)
-                    inner_part = grouped_gradient.T @ grouped_gradient
-                    correction = (n_groups / (n_groups - 1)) * (
-                        (sum_weights - 1)
-                        / (sum_weights - self.n_features_in_ - int(self.fit_intercept))
-                    )
-                else:
-                    inner_part = gradient.T @ gradient
-                    correction = sum_weights / (
-                        sum_weights - self.n_features_in_ - int(self.fit_intercept)
-                    )
-                vcov = linalg.solve(oim, linalg.solve(oim, inner_part).T)
-                vcov *= correction
             else:
-                fisher = self._family_instance._fisher_information(
+                oim = self._family_instance._observed_information(
                     self._link_instance,
                     X,
                     y,
@@ -1425,12 +1395,50 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                     dispersion,
                     self.fit_intercept,
                 )
-                vcov = linalg.inv(fisher)
-                vcov *= sum_weights / (
+            gradient = self._family_instance._score_matrix(
+                self._link_instance,
+                X,
+                y,
+                mu,
+                sample_weight,
+                dispersion,
+                self.fit_intercept,
+            )
+            if clusters is not None:
+                n_groups = len(np.unique(clusters))
+                grouped_gradient = _group_sum(clusters, gradient)
+                inner_part = grouped_gradient.T @ grouped_gradient
+                correction = (n_groups / (n_groups - 1)) * (
+                    (sum_weights - 1)
+                    / (sum_weights - self.n_features_in_ - int(self.fit_intercept))
+                )
+            else:
+                inner_part = gradient.T @ gradient
+                correction = sum_weights / (
                     sum_weights - self.n_features_in_ - int(self.fit_intercept)
                 )
+            vcov = linalg.solve(oim, linalg.solve(oim, _safe_toarray(inner_part)).T)
+            vcov *= correction
+        else:
+            fisher = self._family_instance._fisher_information(
+                self._link_instance,
+                X,
+                y,
+                mu,
+                sample_weight,
+                dispersion,
+                self.fit_intercept,
+            )
+            import ipdb
 
-            return vcov
+            ipdb.set_trace()
+            # vcov = linalg.inv(_safe_toarray(fisher))
+            vcov = linalg.inv(fisher)
+            vcov *= sum_weights / (
+                sum_weights - self.n_features_in_ - int(self.fit_intercept)
+            )
+
+        return vcov
 
     # Note: check_estimator(GeneralizedLinearRegressor) might raise
     # "AssertionError: -0.28014056555724598 not greater than 0.5"
