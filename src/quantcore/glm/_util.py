@@ -14,15 +14,12 @@ def _asanyarray(x, **kwargs):
     return x if pd.api.types.is_scalar(x) else np.asanyarray(x, **kwargs)
 
 
-def _align_df_dtypes(df, dtypes) -> pd.DataFrame:
+def _align_df_categories(df, dtypes) -> pd.DataFrame:
     """Align data types for prediction.
 
-    This function checks that columns are numeric if specified to be numeric in
-    ``dtypes`` to and that categorical columns have same categories in the same
-    order as specified in ``dtypes``. If an entry cannot be cast to numeric, it
-    will be set to ``numpy.nan``. If an entry has a numeric type other than that
-    prescribed by ``dtypes``, it is passed through. If an entry has a category
-    not specified in ``dtypes``, it will be set to ``numpy.nan``.
+    This function checks that categorical columns have same categories in the
+    same order as specified in ``dtypes``. If an entry has a category not
+    specified in ``dtypes``, it will be set to ``numpy.nan``.
 
     Parameters
     ----------
@@ -34,22 +31,12 @@ def _align_df_dtypes(df, dtypes) -> pd.DataFrame:
 
     changed_dtypes = {}
 
-    numeric_dtypes = [
-        column
-        for column, dtype in dtypes.items()
-        if pd.api.types.is_numeric_dtype(dtype) and (column in df)
-    ]
-
     categorical_dtypes = [
         column
         for column, dtype in dtypes.items()
         if pd.api.types.is_categorical_dtype(dtype) and (column in df)
     ]
 
-    for column in numeric_dtypes:
-        if not pd.api.types.is_numeric_dtype(df[column]):
-            _logger.info(f"Casting {column} to numeric.")
-            changed_dtypes[column] = pd.to_numeric(df[column], errors="coerce")
     for column in categorical_dtypes:
         if not pd.api.types.is_categorical_dtype(df[column]):
             _logger.info(f"Casting {column} to categorical.")
