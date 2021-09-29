@@ -68,6 +68,5 @@ print('Model log-likelihood', get_obj_val(dat, 'poisson', 0.0, 0.0, model.interc
 
 Please install the package through conda-forge:
 ```bash
-conda config --prepend channels conda-forge
-conda install quantcore.glm
+conda install quantcore.glm -c conda-forge
 ```
