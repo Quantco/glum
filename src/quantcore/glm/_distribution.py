@@ -486,8 +486,8 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         fit_intercept : bool
             Whether the model has an intercept.
         """
-        # sample_weight should sum up to 1.
-        assert np.abs(np.sum(sample_weight) - 1) < 1e-5
+        if np.abs(np.sum(sample_weight) - 1) >= 1e-5:
+            raise ValueError("Sample weights should sum to unity.")
         linpred = link.link(mu)
 
         W = (
