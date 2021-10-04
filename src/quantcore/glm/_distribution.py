@@ -451,14 +451,11 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
             Predicted mean.
         sample_weight : array-like
             Weights or exposure to which variance is inversely proportional.
-            Should sum up to 1.
         dispersion : float
             The dispersion parameter.
         fit_intercept : bool
             Whether the model has an intercept.
         """
-        if np.abs(np.sum(sample_weight) - 1) >= 1e-5:
-            raise ValueError("Sample weights should sum to unity.")
         W = (link.inverse_derivative(link.link(mu)) ** 2) * get_one_over_variance(
             self, link, mu, link.inverse(mu), dispersion, sample_weight
         )
@@ -480,14 +477,11 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
             Predicted mean.
         sample_weight : array-like
             Weights or exposure to which variance is inversely proportional.
-            Should sum up to 1.
         dispersion : float
             The dispersion parameter.
         fit_intercept : bool
             Whether the model has an intercept.
         """
-        if np.abs(np.sum(sample_weight) - 1) >= 1e-5:
-            raise ValueError("Sample weights should sum to unity.")
         linpred = link.link(mu)
 
         W = (
@@ -514,14 +508,11 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
             Predicted mean.
         sample_weight : array-like
             Weights or exposure to which variance is inversely proportional.
-            Should sum up to 1.
         dispersion : float
             The dispersion parameter.
         fit_intercept : bool
             Whether the model has an intercept.
         """
-        if np.abs(np.sum(sample_weight) - 1) >= 1e-5:
-            raise ValueError("Sample weights should sum to unity.")
         linpred = link.link(mu)
 
         W = (
