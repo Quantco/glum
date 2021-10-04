@@ -1719,8 +1719,11 @@ def test_std_errors(regression_data):
     mdl_sm = sm.OLS(endog=y, exog=sm.add_constant(X))
 
     # nonrobust
+    # Here, statsmodels does not do a degree of freedom adjustment,
+    # so we manually add it.
     ourse = mdl.std_errors(X=X, y=y, robust=False)
-    smse = mdl_sm.fit(cov_type="nonrobust").bse
+    corr = len(y) / (len(y) - X.shape[1] - 1)
+    smse = mdl_sm.fit(cov_type="nonrobust").bse * np.sqrt(corr)
     np.testing.assert_allclose(ourse, smse, rtol=1e-8)
 
     # robust

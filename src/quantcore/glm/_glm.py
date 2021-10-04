@@ -1410,7 +1410,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 y,
                 mu,
                 sample_weight=sample_weight * sum_weights,
-                ddof=0,
+                ddof=X.shape[1] + self.fit_intercept,
                 method="pearson",
             )
 
