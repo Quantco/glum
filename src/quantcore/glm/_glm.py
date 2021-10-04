@@ -1401,6 +1401,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             force_all_finite=self.force_all_finite,
         )
 
+        # Here we don't want sample_weight to be normalized to sum up to 1
+        # We want sample_weight to sum up to the number of samples
+        sample_weight = sample_weight * sum_weights
+
         mu = self.predict(X, offset=offset) if mu is None else np.asanyarray(mu)
 
         if dispersion is None:
@@ -1409,7 +1413,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             dispersion = self._family_instance.dispersion(
                 y,
                 mu,
-                sample_weight=sample_weight * sum_weights,
+                sample_weight=sample_weight,
                 ddof=X.shape[1] + self.fit_intercept,
                 method="pearson",
             )
@@ -1428,7 +1432,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                     y,
                     mu,
                     sample_weight,
-                    dispersion / sum_weights,
+                    dispersion,
                     self.fit_intercept,
                 )
             else:
@@ -1438,7 +1442,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                     y,
                     mu,
                     sample_weight,
-                    dispersion / sum_weights,
+                    dispersion,
                     self.fit_intercept,
                 )
             gradient = self._family_instance._score_matrix(
@@ -1447,7 +1451,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 y,
                 mu,
                 sample_weight,
-                dispersion / sum_weights,
+                dispersion,
                 self.fit_intercept,
             )
             if clusters is not None:
@@ -1472,7 +1476,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 y,
                 mu,
                 sample_weight,
-                dispersion / sum_weights,
+                dispersion,
                 self.fit_intercept,
             )
             vcov = linalg.inv(_safe_toarray(fisher))
