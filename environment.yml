@@ -50,3 +50,4 @@ dependencies:
   - sphinx=3.5.3
   - sphinx_rtd_theme
   - sphinxcontrib-apidoc
+  - statsmodels
