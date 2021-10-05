@@ -339,7 +339,7 @@ def _standardize(
             A_ineq = A_ineq / col_stds
 
     if not estimate_as_if_scaled_model and col_stds is not None:
-        penalty_mult = mx.one_over_var_inf_to_val(col_stds, 1.0)
+        penalty_mult = _one_over_var_inf_to_val(col_stds, 1.0)
         P1 *= penalty_mult
         if sparse.issparse(P2):
             inv_col_stds_mat = sparse.diags(penalty_mult)
@@ -361,12 +361,25 @@ def _unstandardize(
     if col_stds is None:
         intercept -= np.squeeze(np.squeeze(col_means).dot(np.atleast_1d(coef).T))
     else:
-        penalty_mult = mx.one_over_var_inf_to_val(col_stds, 1.0)
+        penalty_mult = _one_over_var_inf_to_val(col_stds, 1.0)
         intercept -= np.squeeze(
             np.squeeze(col_means * penalty_mult).dot(np.atleast_1d(coef).T)
         )
         coef *= penalty_mult
     return intercept, coef
+
+
+def _one_over_var_inf_to_val(arr: np.ndarray, val: float) -> np.ndarray:
+    """
+    Return 1/arr unless the values are zeros.
+
+    If values are zeros, return val.
+    """
+    zeros = np.where(np.abs(arr) < 1e-7)
+    with np.errstate(divide="ignore"):
+        one_over = 1 / arr
+    one_over[zeros] = val
+    return one_over
 
 
 def _standardize_warm_start(
