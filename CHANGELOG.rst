@@ -28,6 +28,8 @@ Unreleased
 - The :meth:`fit` method of :class:`~quantcore.glm.GeneralizedLinearRegressor` and :class:`~quantcore.glm.GeneralizedLinearRegressorCV`
   now saves the column types of pandas data frames.
 - :class:`~quantcore.glm.GeneralizedLinearRegressor` and :class:`~quantcore.glm.GeneralizedLinearRegressorCV` gain two properties: ``family_instance`` and ``link_instance``.
+- :meth:`~quantcore.glm.GeneralizedLinearRegressor.std_errors` and :meth:`~quantcore.glm.GeneralizedLinearRegressor.covariance_matrix` have been added and support non-robust, robust (HC-1), and clustered
+  covariance matrices.
 
 **Other:**
 

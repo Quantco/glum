@@ -5,7 +5,7 @@ from typing import Tuple, Union
 import numexpr
 import numpy as np
 from quantcore.matrix import MatrixBase, StandardizedMatrix
-from scipy import special
+from scipy import sparse, special
 
 from ._functions import (
     binomial_logit_eta_mu_deviance,
@@ -28,7 +28,7 @@ from ._functions import (
     tweedie_log_rowwise_gradient_hessian,
 )
 from ._link import IdentityLink, Link, LogitLink, LogLink
-from ._util import _safe_lin_pred
+from ._util import _safe_lin_pred, _safe_sandwich_dot
 
 
 class ExponentialDispersionModel(metaclass=ABCMeta):
@@ -433,6 +433,104 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         d1_sigma_inv = d1 * sigma_inv
         gradient_rows[:] = d1_sigma_inv * (y - mu)
         hessian_rows[:] = d1 * d1_sigma_inv
+
+    def _fisher_information(
+        self, link, X, y, mu, sample_weight, dispersion, fit_intercept
+    ):
+        """Compute the expected information matrix.
+
+        Parameters
+        ----------
+        link : Link
+            A link function (i.e. an instance of :class:`~quantcore.glm._link.Link`).
+        X : array-like
+            Training data.
+        y : array-like
+            Target values.
+        mu : array-like
+            Predicted mean.
+        sample_weight : array-like
+            Weights or exposure to which variance is inversely proportional.
+        dispersion : float
+            The dispersion parameter.
+        fit_intercept : bool
+            Whether the model has an intercept.
+        """
+        W = (link.inverse_derivative(link.link(mu)) ** 2) * get_one_over_variance(
+            self, link, mu, link.inverse(mu), dispersion, sample_weight
+        )
+
+        return _safe_sandwich_dot(X, W, intercept=fit_intercept)
+
+    def _observed_information(
+        self, link, X, y, mu, sample_weight, dispersion, fit_intercept
+    ):
+        """Compute the observed information matrix.
+
+        Parameters
+        ----------
+        X : array-like
+            Training data.
+        y : array-like
+            Target values.
+        mu : array-like
+            Predicted mean.
+        sample_weight : array-like
+            Weights or exposure to which variance is inversely proportional.
+        dispersion : float
+            The dispersion parameter.
+        fit_intercept : bool
+            Whether the model has an intercept.
+        """
+        linpred = link.link(mu)
+
+        W = (
+            -link.inverse_derivative2(linpred) * (y - mu)
+            + (link.inverse_derivative(linpred) ** 2)
+            * (
+                1
+                + (y - mu) * self.unit_variance_derivative(mu) / self.unit_variance(mu)
+            )
+        ) * get_one_over_variance(self, link, mu, linpred, dispersion, sample_weight)
+
+        return _safe_sandwich_dot(X, W, intercept=fit_intercept)
+
+    def _score_matrix(self, link, X, y, mu, sample_weight, dispersion, fit_intercept):
+        """Compute the score.
+
+        Parameters
+        ----------
+        X : array-like
+            Training data.
+        y : array-like
+            Target values.
+        mu : array-like
+            Predicted mean.
+        sample_weight : array-like
+            Weights or exposure to which variance is inversely proportional.
+        dispersion : float
+            The dispersion parameter.
+        fit_intercept : bool
+            Whether the model has an intercept.
+        """
+        linpred = link.link(mu)
+
+        W = (
+            get_one_over_variance(self, link, mu, linpred, dispersion, sample_weight)
+            * link.inverse_derivative(linpred)
+            * (y - mu)
+        ).reshape(-1, 1)
+
+        if fit_intercept:
+            if sparse.issparse(X):
+                return sparse.hstack((W, X.multiply(W)))
+            else:
+                return np.hstack((W, np.multiply(X, W)))
+        else:
+            if sparse.issparse(X):
+                return X.multiply(W)
+            else:
+                return np.multiply(X, W)
 
     def dispersion(self, y, mu, sample_weight=None, ddof=1, method="pearson") -> float:
         r"""Estimate the dispersion parameter :math:`\phi`.
