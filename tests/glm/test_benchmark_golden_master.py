@@ -29,7 +29,7 @@ def is_weights_problem_with_offset_match(problem_name):
 
 @pytest.fixture(scope="module")
 def expected_all():
-    with open(git_root("golden_master/benchmark_gm.json"), "r") as fh:
+    with open(git_root("tests/glm/golden_master/benchmark_gm.json"), "r") as fh:
         return json.load(fh)
 
 
@@ -88,7 +88,7 @@ def test_gm_benchmarks(Pn: str, P: Problem, expected_all: dict):
 def run_and_store_golden_master(overwrite, problem_name):
 
     try:
-        with open(git_root("golden_master/benchmark_gm.json"), "r") as fh:
+        with open(git_root("tests/glm/golden_master/benchmark_gm.json"), "r") as fh:
             gm_dict = json.load(fh)
     except FileNotFoundError:
         gm_dict = {}
@@ -114,7 +114,7 @@ def run_and_store_golden_master(overwrite, problem_name):
             intercept=res["intercept"],
         )
 
-    with open(git_root("golden_master/benchmark_gm.json"), "w") as fh:
+    with open(git_root("tests/glm/golden_master/benchmark_gm.json"), "w") as fh:
         json.dump(gm_dict, fh, indent=2)
 
 
