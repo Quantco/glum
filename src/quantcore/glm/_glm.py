@@ -1426,25 +1426,18 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         if robust or clusters is not None:
             if expected_information:
-                oim = self._family_instance._fisher_information(
-                    self._link_instance,
-                    X,
-                    y,
-                    mu,
-                    sample_weight,
-                    dispersion,
-                    self.fit_intercept,
-                )
+                oim_fct = self._family_instance._fisher_information
             else:
-                oim = self._family_instance._observed_information(
-                    self._link_instance,
-                    X,
-                    y,
-                    mu,
-                    sample_weight,
-                    dispersion,
-                    self.fit_intercept,
-                )
+                oim_fct = self._family_instance._observed_information
+            oim = oim_fct(
+                self._link_instance,
+                X,
+                y,
+                mu,
+                sample_weight,
+                dispersion,
+                self.fit_intercept,
+            )
             gradient = self._family_instance._score_matrix(
                 self._link_instance,
                 X,
