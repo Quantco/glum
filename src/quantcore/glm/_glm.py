@@ -17,6 +17,8 @@ some parts and tricks stolen from other sklearn files.
 from __future__ import division
 
 import copy
+import logging
+import sys
 import warnings
 from collections.abc import Iterable
 from itertools import chain
@@ -57,7 +59,9 @@ from ._solvers import (
     _least_squares_solver,
     _trust_constr_solver,
 )
-from ._util import _align_df_categories
+from ._util import _align_df_categories, _safe_toarray
+
+_logger = logging.getLogger(__name__)
 
 _float_itemsize_to_dtype = {8: np.float64, 4: np.float32, 2: np.float16}
 
@@ -611,6 +615,15 @@ def is_pos_semidef(p: Union[sparse.spmatrix, np.ndarray]) -> Union[bool, np.bool
     return np.all(eigenvalues >= epsneg)
 
 
+def _group_sum(groups: np.ndarray, data: np.ndarray):
+    """Sum over groups."""
+    out = np.empty((len(np.unique(groups)), data.shape[1]))
+    for i in range(data.shape[1]):
+        out[:, i] = np.bincount(groups, weights=data[:, i])
+    return out
+
+
+# TODO: abc
 class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
     """
     Base class for :class:`GeneralizedLinearRegressor` and
@@ -1248,6 +1261,234 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         sample_weight = _check_weights(sample_weight, X.shape[0], X.dtype)
         return mu * sample_weight
+
+    def std_errors(
+        self,
+        X,
+        y,
+        mu=None,
+        offset=None,
+        sample_weight=None,
+        dispersion=None,
+        robust=True,
+        clusters: np.ndarray = None,
+        expected_information=False,
+    ):
+        """Calculate standard errors for generalized linear models.
+
+        See `covariance_matrix` for an in-depth explanation of how the
+        standard errors are computed.
+
+        Parameters
+        ----------
+        estimator : LogitRegressor or TweedieRegressor
+            An estimator.
+        X : pandas.DataFrame
+            The design matrix.
+        y : array-like
+            Array with outcomes.
+        mu : array-like, optional, default=None
+            Array with predictions. Estimated if absent.
+        offset : array-like, optional, default=None
+            Array with additive offsets.
+        sample_weight: array-like, optional, default=None
+            Array with sampling weights.
+        dispersion : float, optional, default=None
+            The dispersion parameter. Estimated if absent.
+        robust : boolean, optional, default=True
+            Whether to compute robust standard errors instead of normal ones.
+        clusters : array-like, optional, default=None
+            Array with clusters membership. Clustered standard errors are
+            computed if clusters is not None.
+        expected_information : boolean, optional, default=False
+            Whether to use the expected or observed information matrix.
+            Only relevant when computing robust std-errors.
+        """
+        return np.sqrt(
+            self.covariance_matrix(
+                X=X,
+                y=y,
+                mu=mu,
+                offset=offset,
+                sample_weight=sample_weight,
+                dispersion=dispersion,
+                robust=robust,
+                clusters=clusters,
+                expected_information=expected_information,
+            ).diagonal()
+        )
+
+    def covariance_matrix(
+        self,
+        X,
+        y,
+        mu=None,
+        offset=None,
+        sample_weight=None,
+        dispersion=None,
+        robust=True,
+        clusters: np.ndarray = None,
+        expected_information=False,
+    ):
+        """Calculate the covariance matrix for generalized linear models.
+
+        Parameters
+        ----------
+        X : pandas.DataFrame
+            The design matrix.
+        y : array-like
+            Array with outcomes.
+        mu : array-like, optional, default=None
+            Array with predictions. Estimated if absent.
+        offset : array-like, optional, default=None
+            Array with additive offsets.
+        sample_weight: array-like, optional, default=None
+            Array with sampling weights.
+        dispersion : float, optional, default=None
+            The dispersion parameter. Estimated if absent.
+        robust : boolean, optional, default=True
+            Whether to compute robust standard errors instead of normal ones.
+        clusters : array-like, optional, default=None
+            Array with clusters membership. Clustered standard errors are
+            computed if clusters is not None.
+        expected_information : boolean, optional, default=False
+            Whether to use the expected or observed information matrix.
+            Only relevant when computing robust standard errors.
+
+        Notes
+        -----
+        We support three types of covariance matrices:
+        - non-robust
+        - robust (HC-1)
+        - clustered
+
+        For maximum-likelihood estimator, the covariance matrix takes the form
+        :math:`\\mathcal{H}^{-1}(\theta_0)\\mathcal{I}(\theta_0)
+        \\mathcal{H}^{-1}(\theta_0)` where :math:`\\mathcal{H}^{-1}` is the
+        inverse Hessian and :math:`\\mathcal{I}` is the Information matrix.
+        The different types of covariance matrices use different approximation
+        of these quantities.
+
+        The non-robust covariance matrix is computed as the inverse of the Fisher
+        information matrix. This assumes that the information matrix equality holds.
+
+        The robust (HC-1) covariance matrix takes the form :math:`\\mathbf{H}^{−1}
+        (\\hat{\theta}})\\mathbf{G}^'(\\hat{\theta}\\mathbf{G}(\\hat{\theta})
+        \\mathbf{H}^{−1}(\\hat{\theta}})` where :math:`\\mathbf{H}` is the empirical
+        Hessian and :math:`\\mathbf{G}` is the gradient. We apply a finite-sample
+        correction of :math:`\frac{N}{N-p}`.
+
+        The clustered covariance matrix uses a similar approach to the robust (HC-1)
+        covariance matrix. However, instead of using :math:`\\mathbf{G}^'(\\hat{\theta}
+        \\mathbf{G}(\\hat{\theta})` directly, we first sum over all the groups first.
+        The finite-sample correction is affected as well, becoming :math:`\frac{M}{M-1}
+        \frac{N}{N-p}` where :math:`M` is the number of groups.
+
+        References
+        ----------
+        .. Davidson, Russell & MacKinnon, James G. (1993).
+           "Estimation and Inference in Econometrics," OUP Catalogue,
+           Oxford University Press
+
+        .. Cameron, A. C., & Trivedi, P. K. (2005).
+           "Microeconometrics: methods and applications,"
+           Cambridge university press
+
+        """
+        (
+            X,
+            y,
+            sample_weight,
+            offset,
+            sum_weights,
+            P1,
+            P2,
+        ) = self._set_up_and_check_fit_args(
+            X,
+            y,
+            sample_weight,
+            offset,
+            solver=self.solver,
+            force_all_finite=self.force_all_finite,
+        )
+
+        # Here we don't want sample_weight to be normalized to sum up to 1
+        # We want sample_weight to sum up to the number of samples
+        sample_weight = sample_weight * sum_weights
+
+        mu = self.predict(X, offset=offset) if mu is None else np.asanyarray(mu)
+
+        if dispersion is None:
+            # sample_weight here need to be non-normalized to count the number
+            # of observations.
+            dispersion = self._family_instance.dispersion(
+                y,
+                mu,
+                sample_weight=sample_weight,
+                ddof=X.shape[1] + self.fit_intercept,
+                method="pearson",
+            )
+
+        if not sparse.issparse(X):
+            if np.linalg.cond(X) > 1 / sys.float_info.epsilon:
+                raise np.linalg.LinAlgError(
+                    "Matrix is singular. Cannot estimate standard errors."
+                )
+
+        if robust or clusters is not None:
+            if expected_information:
+                oim_fct = self._family_instance._fisher_information
+            else:
+                oim_fct = self._family_instance._observed_information
+            oim = oim_fct(
+                self._link_instance,
+                X,
+                y,
+                mu,
+                sample_weight,
+                dispersion,
+                self.fit_intercept,
+            )
+            gradient = self._family_instance._score_matrix(
+                self._link_instance,
+                X,
+                y,
+                mu,
+                sample_weight,
+                dispersion,
+                self.fit_intercept,
+            )
+            if clusters is not None:
+                n_groups = len(np.unique(clusters))
+                grouped_gradient = _group_sum(clusters, gradient)
+                inner_part = grouped_gradient.T @ grouped_gradient
+                correction = (n_groups / (n_groups - 1)) * (
+                    (sum_weights - 1)
+                    / (sum_weights - self.n_features_in_ - int(self.fit_intercept))
+                )
+            else:
+                inner_part = gradient.T @ gradient
+                correction = sum_weights / (
+                    sum_weights - self.n_features_in_ - int(self.fit_intercept)
+                )
+            vcov = linalg.solve(oim, linalg.solve(oim, _safe_toarray(inner_part)).T)
+            vcov *= correction
+        else:
+            fisher = self._family_instance._fisher_information(
+                self._link_instance,
+                X,
+                y,
+                mu,
+                sample_weight,
+                dispersion,
+                self.fit_intercept,
+            )
+            vcov = linalg.inv(_safe_toarray(fisher))
+            vcov *= sum_weights / (
+                sum_weights - self.n_features_in_ - int(self.fit_intercept)
+            )
+
+        return vcov
 
     # Note: check_estimator(GeneralizedLinearRegressor) might raise
     # "AssertionError: -0.28014056555724598 not greater than 0.5"
