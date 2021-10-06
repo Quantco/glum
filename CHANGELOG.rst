@@ -31,6 +31,10 @@ Unreleased
 - :meth:`~quantcore.glm.GeneralizedLinearRegressor.std_errors` and :meth:`~quantcore.glm.GeneralizedLinearRegressor.covariance_matrix` have been added and support non-robust, robust (HC-1), and clustered
   covariance matrices.
 
+**Bug fix:**
+
+- The :meth:`score` method of :class:`~quantcore.glm.GeneralizedLinearRegressor` and :class:`~quantcore.glm.GeneralizedLinearRegressorCV` now accepts data frames.
+
 **Other:**
 
 - A major overhaul of the documentation. Everything is better!
