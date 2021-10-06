@@ -1756,3 +1756,33 @@ def test_sparse_std_errors(regression_data):
     actual3 = mdl.std_errors(X=X, y=y, clusters=clu)
     expected3 = mdl.std_errors(X=X, y=y, clusters=clu)
     np.testing.assert_allclose(actual3, expected3)
+
+
+@pytest.mark.parametrize("as_data_frame", [False, True])
+@pytest.mark.parametrize("weighted", [False, True])
+def test_score_method(as_data_frame, weighted):
+
+    regressor = GeneralizedLinearRegressor(
+        alpha=0,
+        family="normal",
+        fit_intercept=False,
+        gradient_tol=1e-8,
+        check_input=False,
+    )
+
+    y = np.array([-1, -1, 0, 1, 2])
+
+    if weighted:
+        y, wgts = np.unique(y, return_counts=True)
+    else:
+        wgts = None
+
+    if as_data_frame:
+        x = pd.DataFrame({"x": np.ones(len(y))})
+    else:
+        x = np.ones((len(y), 1))
+
+    score = regressor.fit(x, y, sample_weight=wgts).score(x, y, sample_weight=wgts)
+
+    # use pytest because NumPy used to always reject comparisons against zero
+    assert pytest.approx(score, 1e-8) == 0
