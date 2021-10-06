@@ -1057,7 +1057,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         return self.coef_path_
 
-    def _report_diagnostics(
+    def report_diagnostics(
         self, full_report: bool = False, custom_columns: Optional[Iterable] = None
     ) -> None:
         """Print diagnostics to ``stdout``.
