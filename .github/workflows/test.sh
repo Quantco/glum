@@ -11,3 +11,11 @@ mamba env update -n $(yq -r .name environment.yml) --file environment-benchmark.
 conda activate $(yq -r .name environment.yml)
 pip install --no-use-pep517 --no-deps --disable-pip-version-check -e .
 pytest -nauto tests --doctest-modules src/
+
+# Check that the readme example will work by running via doctest.
+# We run outside the repo to make the test a bit more similar to
+# a user running after installing with conda.
+mkdir ../temp
+cp README.md ../temp
+cd ../temp
+python -m doctest -v README.md
