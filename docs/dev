@@ -12,7 +12,7 @@ python -m http.server --directory _build/html 8001 &> /dev/null &
 
 while true
 do
-{ git ls-files; git ls-files . --exclude-standard --others; } | entr -d make html -j10
+{ git ls-files ../; git ls-files ../ --exclude-standard --others; } | entr -d make html -j10
 done
 
 wait
