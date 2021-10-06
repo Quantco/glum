@@ -317,8 +317,9 @@ def test_gamma_deviance_dispersion_loglihood(weighted):
     np.testing.assert_approx_equal(ll, -7.057068)
 
 
+@pytest.mark.parametrize("family", ["gaussian", "normal"])
 @pytest.mark.parametrize("weighted", [False, True])
-def test_gaussian_deviance_dispersion_loglihood(weighted):
+def test_gaussian_deviance_dispersion_loglihood(family, weighted):
 
     # y <- c(-1, -1, 0, 1, 2)
     # glm_model = glm(y ~ 1, family = gaussian)
@@ -330,7 +331,7 @@ def test_gaussian_deviance_dispersion_loglihood(weighted):
 
     regressor = GeneralizedLinearRegressor(
         alpha=0,
-        family="normal",
+        family=family,
         fit_intercept=False,
         gradient_tol=1e-8,
         check_input=False,
