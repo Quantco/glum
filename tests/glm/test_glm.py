@@ -1784,5 +1784,5 @@ def test_score_method(as_data_frame, weighted):
 
     score = regressor.fit(x, y, sample_weight=wgts).score(x, y, sample_weight=wgts)
 
-    # use pytets because NumPy used to always reject comparisons against zero
+    # use pytest because NumPy used to always reject comparisons against zero
     assert pytest.approx(score, 1e-8) == 0
