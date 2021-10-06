@@ -30,6 +30,7 @@ Unreleased
 - :class:`~quantcore.glm.GeneralizedLinearRegressor` and :class:`~quantcore.glm.GeneralizedLinearRegressorCV` gain two properties: ``family_instance`` and ``link_instance``.
 - :meth:`~quantcore.glm.GeneralizedLinearRegressor.std_errors` and :meth:`~quantcore.glm.GeneralizedLinearRegressor.covariance_matrix` have been added and support non-robust, robust (HC-1), and clustered
   covariance matrices.
+- :class:`~quantcore.glm.GeneralizedLinearRegressor` and :class:`~quantcore.glm.GeneralizedLinearRegressorCV` now accept ``family='gaussian'`` as an alternative to ``family='normal'``.
 
 **Other:**
 

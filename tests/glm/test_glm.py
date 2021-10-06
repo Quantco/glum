@@ -185,6 +185,7 @@ def test_gradient_tol_setting(estimator, kwargs, solver, gradient_tol):
 @pytest.mark.parametrize(
     "f, fam",
     [
+        ("gaussian", NormalDistribution()),
         ("normal", NormalDistribution()),
         ("poisson", PoissonDistribution()),
         ("gamma", GammaDistribution()),
