@@ -90,7 +90,7 @@ def create_insurance_raw_data(verbose=False) -> None:
     df["Exposure"] = df["Exposure"].clip(upper=1)
 
     out_path = git_root("data/insurance.parquet")
-    os.makedirs(os.path.dirname(out_path))
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
     df.to_parquet(out_path)
 
 
