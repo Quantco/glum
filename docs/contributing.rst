@@ -78,27 +78,17 @@ Skipping the slow tests
 
 If you want to skip the slow tests, add the ``-m "not slow"`` flag to any pytest command. The "wide" problems (all marked as slow tests) are especially poorly conditioned. This means that even for estimation with 10k observations, it might still be very slow. Furthermore, we also have golden master tests for the "narrow" and "intermediate" problems, so adding the "wide" problems do not add much coverage.
 
-Artificial golden master
+Storing and modifying
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-To overwrite the golden master results:
+To store the golden master results:
 
 ::
 
    python tests/glm/test_golden_master.py
-
-Add the ``--overwrite`` flag if you want to overwrite already existing golden master results
-
-Benchmarks golden master
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-To create the golden master results:
-
-:: 
-
    python tests/glm/test_benchmark_golden_master.py
 
-Add the ``--overwrite`` flag if you want to overwrite already existing golden master results.
+Add the ``--overwrite`` flag if you want to overwrite already existing golden master results
 
 Building a conda package
 ----------------------------------------
