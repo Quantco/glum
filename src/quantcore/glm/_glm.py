@@ -1371,11 +1371,14 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         The non-robust covariance matrix is computed as the inverse of the Fisher
         information matrix. This assumes that the information matrix equality holds.
 
+        :math:`\\boldsymbol{G}`
+        :math:`\\hat{\\theta}`
+
         The robust (HC-1) covariance matrix takes the form :math:`\\boldsymbol{H}^{−1}
         (\\hat{\\theta}})\\boldsymbol{G}^'(\\hat{\\theta}\\boldsymbol{G}(\\hat{\\theta})
         \\boldsymbol{H}^{−1}(\\hat{\\theta}})` where :math:`\\boldsymbol{H}` is the empirical
         Hessian and :math:`\\boldsymbol{G}` is the gradient. We apply a finite-sample
-        correction of :math:`\frac{N}{N-p}`.
+        correction of :math:`\\frac{N}{N-p}`.
 
         The clustered covariance matrix uses a similar approach to the robust (HC-1)
         covariance matrix. However, instead of using :math:`\\boldsymbol{G}^'(\\hat{\\theta}
