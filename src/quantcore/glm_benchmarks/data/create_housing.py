@@ -1,39 +1,54 @@
+import os
 from typing import Optional, Tuple
 
 import numpy as np
 import pandas as pd
 from git_root import git_root
-from sklearn.datasets import load_boston
+from sklearn.datasets import fetch_openml
 
 
 def create_housing_raw_data() -> None:
     """Do some basic processing on the data that we will later transform into our \
     benchmark data sets."""
     # Load the dataset from sklearn
-    boston = load_boston()
-    df_bos = pd.DataFrame(boston.data, columns=boston.feature_names)
+    house_data = fetch_openml(name="house_sales", version=3, as_frame=True)
 
+    import ipdb
+
+    ipdb.set_trace()
     # Use only select features
-    df_bos = df_bos[["CRIM", "ZN", "CHAS", "NOX", "RM", "AGE", "TAX", "B", "LSTAT"]]
+    df_house = house_data.data[
+        [
+            "bedrooms",
+            "bathrooms",
+            "sqft_living",
+            "floors",
+            "waterfront",
+            "view",
+            "condition",
+            "grade",
+            "yr_built",
+            "yr_renovated",
+        ]
+    ].copy()
 
     # Targets
-    df_bos["PRICE"] = boston.target
-    df_bos["ABOVE_MEDIAN_PRICE"] = (df_bos["PRICE"] < df_bos["PRICE"].median()).astype(
-        "int"
-    )
-
-    # Remove outliers
-    df_bos = df_bos[df_bos["PRICE"] <= 40]
+    df_house["price"] = house_data.target
+    df_house["above_median_price"] = (
+        df_house["price"] < df_house["price"].median()
+    ).astype("int")
 
     # Save
-    df_bos.to_parquet(git_root("data/housing.parquet"))
+    out_path = git_root("data/housing.parquet")
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    df_house.to_parquet(git_root("data/housing.parquet"))
 
 
 def add_noise(df: pd.DataFrame, noise: float) -> pd.DataFrame:
     """Add noise by swapping out data points."""
     np.random.seed(43212)
     for col in df.columns:
-        if col in ["PRICE", "ABOVE_MEDIAN_PRICE"]:
+        if col in ["price", "above_median_price"]:
             continue
         swap = np.random.uniform(size=len(df)) < noise
         shuffle = np.random.choice(df[col], size=len(df))
@@ -48,9 +63,9 @@ def compute_y_exposure(df, distribution):
     (Exposure/weights for boston housing data always all 1).
     """
     if distribution in ["gamma", "gaussian"]:
-        y = df["PRICE"].values
+        y = df["price"].values
     elif distribution == "binomial":
-        y = df["ABOVE_MEDIAN_PRICE"].values
+        y = df["above_median_price"].values
     else:
         raise ValueError(
             f"distribution for boston housing problems must be one of"
@@ -63,7 +78,10 @@ def compute_y_exposure(df, distribution):
 def _read_housing_data(
     num_rows: Optional[int], noise: Optional[float], distribution: str
 ) -> pd.DataFrame:
-    df = pd.read_parquet(git_root("data/housing.parquet"))
+    path = git_root("data/housing.parquet")
+    if not os.path.exists(path):
+        create_housing_raw_data()
+    df = pd.read_parquet(path)
 
     if num_rows is not None:
         # if we're oversampling, set default value for noise to 0.05

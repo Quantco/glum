@@ -1,5 +1,6 @@
 # Project-specific
 benchmark_output/
+/data/
 
 # Files created by templating
 dense.cpp
