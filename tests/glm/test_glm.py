@@ -612,7 +612,7 @@ def test_report_diagnostics(
 
     f = io.StringIO()
     with redirect_stdout(f):
-        res._report_diagnostics(full_report, custom_columns)
+        res.report_diagnostics(full_report, custom_columns)
     printed = f.getvalue()
     # Something should be printed
     assert len(printed) > 0
