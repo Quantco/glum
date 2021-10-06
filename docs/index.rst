@@ -11,7 +11,7 @@ Welcome to quantcore.glm's documentation!
 * Box and linear inequality constraints, sample weights, offsets.
 * A scikit-learn-like API to fit smoothly into existing workflows.
 
-``quantcore.glm`` was also built with performance in mind. The following figure shows the runtime of a realistic example using an insurance dataset. For more details and other benchmarks, see the :doc:`Benchmarks<benchmarks.rst>` section.
+``quantcore.glm`` was also built with performance in mind. The following figure shows the runtime of a realistic example using an insurance dataset. For more details and other benchmarks, see the :doc:`Benchmarks<benchmarks>` section.
 
 .. image:: _static/headline_benchmark.png
    :width: 600

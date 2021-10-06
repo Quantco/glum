@@ -1371,17 +1371,14 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         The non-robust covariance matrix is computed as the inverse of the Fisher
         information matrix. This assumes that the information matrix equality holds.
 
-        :math:`\\boldsymbol{G}`
-        :math:`\\hat{\\theta}`
-
         The robust (HC-1) covariance matrix takes the form :math:`\\boldsymbol{H}^{−1}
-        (\\hat{\\theta}})\\boldsymbol{G}^'(\\hat{\\theta}\\boldsymbol{G}(\\hat{\\theta})
-        \\boldsymbol{H}^{−1}(\\hat{\\theta}})` where :math:`\\boldsymbol{H}` is the empirical
+        (\\hat{\\theta})\\boldsymbol{G}^{T}(\\hat{\\theta})\\boldsymbol{G}(\\hat{\\theta})
+        \\boldsymbol{H}^{−1}(\\hat{\\theta})` where :math:`\\boldsymbol{H}` is the empirical
         Hessian and :math:`\\boldsymbol{G}` is the gradient. We apply a finite-sample
         correction of :math:`\\frac{N}{N-p}`.
 
         The clustered covariance matrix uses a similar approach to the robust (HC-1)
-        covariance matrix. However, instead of using :math:`\\boldsymbol{G}^'(\\hat{\\theta}
+        covariance matrix. However, instead of using :math:`\\boldsymbol{G}^{T}(\\hat{\\theta}
         \\boldsymbol{G}(\\hat{\\theta})` directly, we first sum over all the groups first.
         The finite-sample correction is affected as well, becoming :math:`\\frac{M}{M-1}
         \\frac{N}{N-p}` where :math:`M` is the number of groups.
@@ -1839,7 +1836,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     while ``alpha`` corresponds to the lambda parameter in glmnet.
     Specifically, ``l1_ratio = 1`` is the lasso penalty.
 
-    Read more in :doc:`/background/background`.
+    Read more in :doc:`background<background>`.
 
     Parameters
     ----------
@@ -2091,7 +2088,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     :math:`\\mu_i \\equiv \\mathrm{E}(y_i) = h(x_i' w)` and
     :math:`\\mathrm{var}(y_i) = (\\phi / s_i) v(\\mu_i)`. The unit
     variance function :math:`v(\\mu_i)` is a property of and given by the
-    specific EDM; see :doc:`/background/background`.
+    specific EDM; see :doc:`background<background>`.
 
     The parameters :math:`w` (``coef_`` and ``intercept_``) are estimated by
     minimizing the deviance plus penalty term, which is equivalent to
