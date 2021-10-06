@@ -13,9 +13,6 @@ def create_housing_raw_data() -> None:
     # Load the dataset from sklearn
     house_data = fetch_openml(name="house_sales", version=3, as_frame=True)
 
-    import ipdb
-
-    ipdb.set_trace()
     # Use only select features
     df_house = house_data.data[
         [
