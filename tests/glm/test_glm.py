@@ -550,7 +550,7 @@ def test_get_diagnostics(
     glm = GeneralizedLinearRegressor(fit_intercept=fit_intercept, solver=solver)
     res = glm.fit(X, y)
 
-    diagnostics = res._get_formatted_diagnostics(full_report, custom_columns)
+    diagnostics = res.get_formatted_diagnostics(full_report, custom_columns)
     if solver in ("lbfgs", "trust-constr"):
         assert diagnostics == "solver does not report diagnostics"
     else:
