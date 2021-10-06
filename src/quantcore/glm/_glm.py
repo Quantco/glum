@@ -1281,18 +1281,16 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         Parameters
         ----------
-        estimator : LogitRegressor or TweedieRegressor
-            An estimator.
-        X : pandas.DataFrame
-            The design matrix.
-        y : array-like
-            Array with outcomes.
+        X : {array-like, sparse matrix}, shape (n_samples, n_features)
+            Training data.
+        y : array-like, shape (n_samples,)
+            Target values.
         mu : array-like, optional, default=None
             Array with predictions. Estimated if absent.
         offset : array-like, optional, default=None
             Array with additive offsets.
-        sample_weight: array-like, optional, default=None
-            Array with sampling weights.
+        sample_weight : array-like, shape (n_samples,), optional (default=None)
+            Individual weights for each sample.
         dispersion : float, optional, default=None
             The dispersion parameter. Estimated if absent.
         robust : boolean, optional, default=True
@@ -1334,16 +1332,16 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         Parameters
         ----------
-        X : pandas.DataFrame
-            The design matrix.
-        y : array-like
-            Array with outcomes.
+        X : {array-like, sparse matrix}, shape (n_samples, n_features)
+            Training data.
+        y : array-like, shape (n_samples,)
+            Target values.
         mu : array-like, optional, default=None
             Array with predictions. Estimated if absent.
         offset : array-like, optional, default=None
             Array with additive offsets.
-        sample_weight: array-like, optional, default=None
-            Array with sampling weights.
+        sample_weight : array-like, shape (n_samples,), optional (default=None)
+            Individual weights for each sample.
         dispersion : float, optional, default=None
             The dispersion parameter. Estimated if absent.
         robust : boolean, optional, default=True
@@ -1358,13 +1356,14 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         Notes
         -----
         We support three types of covariance matrices:
+
         - non-robust
         - robust (HC-1)
         - clustered
 
         For maximum-likelihood estimator, the covariance matrix takes the form
-        :math:`\\mathcal{H}^{-1}(\theta_0)\\mathcal{I}(\theta_0)
-        \\mathcal{H}^{-1}(\theta_0)` where :math:`\\mathcal{H}^{-1}` is the
+        :math:`\\mathcal{H}^{-1}(\\theta_0)\\mathcal{I}(\\theta_0)
+        \\mathcal{H}^{-1}(\\theta_0)` where :math:`\\mathcal{H}^{-1}` is the
         inverse Hessian and :math:`\\mathcal{I}` is the Information matrix.
         The different types of covariance matrices use different approximation
         of these quantities.
@@ -1372,17 +1371,17 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         The non-robust covariance matrix is computed as the inverse of the Fisher
         information matrix. This assumes that the information matrix equality holds.
 
-        The robust (HC-1) covariance matrix takes the form :math:`\\mathbf{H}^{−1}
-        (\\hat{\theta}})\\mathbf{G}^'(\\hat{\theta}\\mathbf{G}(\\hat{\theta})
-        \\mathbf{H}^{−1}(\\hat{\theta}})` where :math:`\\mathbf{H}` is the empirical
-        Hessian and :math:`\\mathbf{G}` is the gradient. We apply a finite-sample
+        The robust (HC-1) covariance matrix takes the form :math:`\\boldsymbol{H}^{−1}
+        (\\hat{\\theta}})\\boldsymbol{G}^'(\\hat{\\theta}\\boldsymbol{G}(\\hat{\\theta})
+        \\boldsymbol{H}^{−1}(\\hat{\\theta}})` where :math:`\\boldsymbol{H}` is the empirical
+        Hessian and :math:`\\boldsymbol{G}` is the gradient. We apply a finite-sample
         correction of :math:`\frac{N}{N-p}`.
 
         The clustered covariance matrix uses a similar approach to the robust (HC-1)
-        covariance matrix. However, instead of using :math:`\\mathbf{G}^'(\\hat{\theta}
-        \\mathbf{G}(\\hat{\theta})` directly, we first sum over all the groups first.
-        The finite-sample correction is affected as well, becoming :math:`\frac{M}{M-1}
-        \frac{N}{N-p}` where :math:`M` is the number of groups.
+        covariance matrix. However, instead of using :math:`\\boldsymbol{G}^'(\\hat{\\theta}
+        \\boldsymbol{G}(\\hat{\\theta})` directly, we first sum over all the groups first.
+        The finite-sample correction is affected as well, becoming :math:`\\frac{M}{M-1}
+        \\frac{N}{N-p}` where :math:`M` is the number of groups.
 
         References
         ----------
