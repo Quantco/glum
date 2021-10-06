@@ -25,28 +25,37 @@ For more information on `quantcore.glm`, including tutorials and API reference, 
 
 This example uses a public French car insurance dataset.
 ```python
-import pandas as pd
-import numpy as np
+>>> import pandas as pd
+>>> import numpy as np
+>>> from quantcore.glm_benchmarks.problems import load_data, generate_narrow_insurance_dataset
+>>> from quantcore.glm_benchmarks.util import get_obj_val
+>>> from quantcore.glm import GeneralizedLinearRegressor
+>>>
+>>> # Load the French Motor Insurance dataset
+>>> dat = load_data(generate_narrow_insurance_dataset)
+>>> X, y, sample_weight = dat['X'], dat['y'], dat['sample_weight']
+>>>
+>>> # Model the number of claims per year as Poisson and regularize using a L1-penalty.
+>>> model = GeneralizedLinearRegressor(
+...     family='poisson',
+...     l1_ratio=1.0,
+...     alpha=0.001
+... )
+>>>
+>>> _ = model.fit(X=X, y=y, sample_weight=sample_weight)
+>>>
+>>> # .report_diagnostics shows details about the steps taken by the iterative solver
+>>> diags = model.get_formatted_diagnostics(full_report=True)
+>>> diags[['objective_fct']]
+        objective_fct
+n_iter               
+0            0.331670
+1            0.328841
+2            0.319605
+3            0.318660
+4            0.318641
+5            0.318641
 
-from quantcore.glm_benchmarks.problems import load_data, generate_narrow_insurance_dataset
-from quantcore.glm_benchmarks.util import get_obj_val
-from quantcore.glm import GeneralizedLinearRegressor
-
-# Load the French Motor Insurance dataset
-dat = load_data(generate_narrow_insurance_dataset)
-X, y, weights = dat['X'], dat['y'], dat['weights']
-
-# Model the number of claims per year as Poisson and regularize using a L1-penalty.
-model = GeneralizedLinearRegressor(
-    family='poisson',
-    l1_ratio=1.0,
-    alpha=0.001
-)
-
-model.fit(X=X, y=y, sample_weight=weights)
-
-# .report_diagnostics shows details about the steps taken by the iterative solver
-model._report_diagnostics(full_report=True)
 ```
 
 # Installation
