@@ -1900,8 +1900,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         Specifies if a constant (a.k.a. bias or intercept) should be
         added to the linear predictor (``X * coef + intercept``).
 
-    family : {'normal', 'poisson', 'gamma', 'inverse.gaussian', 'binomial'} \
-            or ExponentialDispersionModel, optional (default='normal')
+    family : {'normal', 'poisson', 'gamma', 'gaussian', 'inverse.gaussian', \
+            'binomial'} or ExponentialDispersionModel, optional (default='normal')
         The distributional assumption of the GLM, i.e. which distribution from
         the EDM, specifies the loss function to be minimized.
 
@@ -1910,7 +1910,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         (``X * coef``) to expectation (``mu``). Option ``'auto'`` sets the link
         depending on the chosen family as follows:
 
-        - ``'identity'`` for family ``'normal'``
+        - ``'identity'`` for family ``'normal'``/``'gaussian'``
         - ``'log'`` for families ``'poisson'``, ``'gamma'`` and
           ``'inverse.gaussian'``
         - ``'logit'`` for family ``'binomial'``
