@@ -397,21 +397,23 @@ def get_family(
 ) -> ExponentialDispersionModel:
     if isinstance(family, ExponentialDispersionModel):
         return family
+
     name_to_dist = {
+        "binomial": BinomialDistribution,
+        "gamma": GammaDistribution,
+        "gaussian": NormalDistribution,
+        "inverse.gaussian": InverseGaussianDistribution,
         "normal": NormalDistribution,
         "poisson": PoissonDistribution,
-        "gamma": GammaDistribution,
-        "inverse.gaussian": InverseGaussianDistribution,
-        "binomial": BinomialDistribution,
     }
-    try:
-        return name_to_dist[family]()
-    except KeyError:
-        raise ValueError(
-            "The family must be an instance of class ExponentialDispersionModel or an "
-            "element of ['normal', 'poisson', 'gamma', 'inverse.gaussian', 'binomial'];"
-            f" got (family={family})."
-        )
+
+    if family in name_to_dist:
+        return name_to_dist[family]()  # type: ignore
+
+    raise ValueError(
+        "The family must be an instance of class ExponentialDispersionModel or an "
+        f"element of {sorted(name_to_dist.keys())}; got (family={family})."
+    )
 
 
 def get_link(link: Union[str, Link], family: ExponentialDispersionModel) -> Link:
