@@ -1542,7 +1542,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         # Note, default score defined in RegressorMixin is R^2 score.
         # TODO: make D^2 a score function in module metrics (and thereby get
         #       input validation and so on)
-        sample_weight = _check_weights(sample_weight, y.shape[0], X.dtype)
+        sample_weight = _check_weights(sample_weight, y.shape[0], y.dtype)
         mu = self.predict(X)
         family = get_family(self.family)
         dev = family.deviance(y, mu, sample_weight=sample_weight)
