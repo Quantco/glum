@@ -1371,15 +1371,15 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         The non-robust covariance matrix is computed as the inverse of the Fisher
         information matrix. This assumes that the information matrix equality holds.
 
-        The robust (HC-1) covariance matrix takes the form :math:`\\boldsymbol{H}^{−1}
-        (\\hat{\\theta})\\boldsymbol{G}^{T}(\\hat{\\theta})\\boldsymbol{G}(\\hat{\\theta})
-        \\boldsymbol{H}^{−1}(\\hat{\\theta})` where :math:`\\boldsymbol{H}` is the empirical
-        Hessian and :math:`\\boldsymbol{G}` is the gradient. We apply a finite-sample
+        The robust (HC-1) covariance matrix takes the form :math:`\\mathbf{H}^{−1}
+        (\\hat{\\theta})\\mathbf{G}^{T}(\\hat{\\theta})\\mathbf{G}(\\hat{\\theta})
+        \\mathbf{H}^{−1}(\\hat{\\theta})` where :math:`\\mathbf{H}` is the empirical
+        Hessian and :math:`\\mathbf{G}` is the gradient. We apply a finite-sample
         correction of :math:`\\frac{N}{N-p}`.
 
         The clustered covariance matrix uses a similar approach to the robust (HC-1)
-        covariance matrix. However, instead of using :math:`\\boldsymbol{G}^{T}(\\hat{\\theta}
-        \\boldsymbol{G}(\\hat{\\theta})` directly, we first sum over all the groups first.
+        covariance matrix. However, instead of using :math:`\\mathbf{G}^{T}(\\hat{\\theta}
+        \\mathbf{G}(\\hat{\\theta})` directly, we first sum over all the groups first.
         The finite-sample correction is affected as well, becoming :math:`\\frac{M}{M-1}
         \\frac{N}{N-p}` where :math:`M` is the number of groups.
 
