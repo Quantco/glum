@@ -412,7 +412,7 @@ def get_family(
 
     raise ValueError(
         "The family must be an instance of class ExponentialDispersionModel or an "
-        f"element of {sorted(name_to_dist.keys())} ; got (family={family})."
+        f"element of {sorted(name_to_dist.keys())}; got (family={family})."
     )
 
 
