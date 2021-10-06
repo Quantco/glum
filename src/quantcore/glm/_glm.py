@@ -1072,7 +1072,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         custom_columns : iterable, optional (default=None)
             Print only the specified columns.
         """
-        diagnostics = self._get_formatted_diagnostics(full_report, custom_columns)
+        diagnostics = self.get_formatted_diagnostics(full_report, custom_columns)
         if isinstance(diagnostics, str):
             print(diagnostics)
             return
@@ -1083,7 +1083,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         with pd.option_context("max_rows", None, "max_columns", None):
             print(diagnostics)
 
-    def _get_formatted_diagnostics(
+    def get_formatted_diagnostics(
         self, full_report: bool = False, custom_columns: Optional[Iterable] = None
     ) -> Union[str, pd.DataFrame]:
         """Get formatted diagnostics; can be printed with _report_diagnostics.

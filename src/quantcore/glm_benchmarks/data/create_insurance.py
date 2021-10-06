@@ -1,3 +1,4 @@
+import os
 from typing import Any, Callable, List, Optional, Tuple
 
 import numpy as np
@@ -85,7 +86,9 @@ def create_insurance_raw_data() -> None:
     df["ClaimNb_pos"] = df["ClaimNb_pos"].clip(upper=4)
     df["Exposure"] = df["Exposure"].clip(upper=1)
 
-    df.to_parquet(git_root("data/insurance.parquet"))
+    out_path = git_root("data/insurance.parquet")
+    os.makedirs(os.path.dirname(out_path))
+    df.to_parquet(out_path)
 
 
 def get_categorizer(col_name: str, name="cat") -> Tuple[str, Categorizer]:
@@ -317,7 +320,10 @@ def compute_y_exposure(df, distribution):
 def _read_insurance_data(
     num_rows: Optional[int], noise: Optional[float], distribution: str
 ) -> pd.DataFrame:
-    df = pd.read_parquet(git_root("data/insurance.parquet"))
+    path = git_root("data/insurance.parquet")
+    if not os.path.exists(path):
+        create_insurance_raw_data()
+    df = pd.read_parquet(path)
 
     if distribution in ["gamma", "gaussian"]:
         df = df.query("ClaimAmountCut > 0")
