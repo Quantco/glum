@@ -19,9 +19,9 @@ jupyter:
 
 **Intro**
 
-This tutorial shows why and how to use Poisson, Gamma, and Tweedie GLMs on an insurance claims dataset using `quantcore.glm`. It was inspired by, and closely mirrors, two other GLM tutorials that used this dataset:
+This tutorial shows why and how to use Poisson, Gamma, and Tweedie GLMs on an insurance claims dataset using `glum`. It was inspired by, and closely mirrors, two other GLM tutorials that used this dataset:
 
-1. An sklearn-learn tutorial, [Tweedie regression on insurance claims](https://scikit-learn.org/stable/auto_examples/linear_model/plot_tweedie_regression_insurance_claims.html#pure-premium-modeling-via-a-product-model-vs-single-tweedieregressor), which was created for this (partially merged) [sklearn PR](https://github.com/scikit-learn/scikit-learn/pull/9405) that we based quantcore.glm on
+1. An sklearn-learn tutorial, [Tweedie regression on insurance claims](https://scikit-learn.org/stable/auto_examples/linear_model/plot_tweedie_regression_insurance_claims.html#pure-premium-modeling-via-a-product-model-vs-single-tweedieregressor), which was created for this (partially merged) [sklearn PR](https://github.com/scikit-learn/scikit-learn/pull/9405) that we based glum on
 2. An R tutorial, [Case Study: French Motor Third-Party Liability Claims](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3164764) with [R code](https://github.com/JSchelldorfer/ActuarialDataScience/tree/master/1%20-%20French%20Motor%20Third-Party%20Liability%20Claims).
 
 
@@ -54,8 +54,8 @@ import scipy.stats
 from dask_ml.preprocessing import Categorizer
 from sklearn.metrics import mean_absolute_error
 from sklearn.model_selection import ShuffleSplit
-from quantcore.glm import GeneralizedLinearRegressor
-from quantcore.glm import TweedieDistribution
+from glum import GeneralizedLinearRegressor
+from glum import TweedieDistribution
 
 from load_transform import load_transform
 ```
@@ -65,7 +65,7 @@ from load_transform import load_transform
 
 First, we load in our [dataset from openML]("https://www.openml.org/d/41214") and apply several transformations. In the interest of simplicity, we do not include the data loading and preparation code in this notebook. Below is a list of further resources if you wish to explore further:
 
-1. If you want to run the same code yourself, please see the helper functions [here](https://github.com/Quantco/quantcore.glm/tree/open-sourcing/docs/tutorials/glm_french_motor_tutorial).
+1. If you want to run the same code yourself, please see the helper functions [here](https://github.com/Quantco/glum/tree/open-sourcing/docs/tutorials/glm_french_motor_tutorial).
 2. For a detailed description of the data, see [here](http://dutangc.free.fr/pub/RRepos/web/CASdatasets-index.html).
 3. For an excellent exploratory data analysis, see the case study paper linked above.
 
@@ -131,7 +131,7 @@ This is a strong confirmation for the use of a Poisson when fitting!
 
 Now, we start fitting our model. We use claims frequency = claim number/exposure as our outcome variable. We then divide the dataset into training set and test set with a 9:1 random split.
 
-Also, notice that we do not one hot encode our columns. Rather, we take advantage of `quantcore.glm`'s integration with `quantcore.matrix`, which allows us to pass in categorical columns directly! `quantcore.matrix` will handle the encoding for us and even includes a handful of helpful matrix operation optimizations. We use the `Categorizer` from [dask_ml](https://ml.dask.org/modules/generated/dask_ml.preprocessing.Categorizer.html) to set our categorical columns as categorical dtypes and to ensure that the categories align in fitting and predicting.
+Also, notice that we do not one hot encode our columns. Rather, we take advantage of `glum`'s integration with `tabmat`, which allows us to pass in categorical columns directly! `tabmat` will handle the encoding for us and even includes a handful of helpful matrix operation optimizations. We use the `Categorizer` from [dask_ml](https://ml.dask.org/modules/generated/dask_ml.preprocessing.Categorizer.html) to set our categorical columns as categorical dtypes and to ensure that the categories align in fitting and predicting.
 <!-- #endregion -->
 
 ```python
@@ -153,15 +153,15 @@ w_train_p, w_test_p = weight[train], weight[test]
 z_train_p, z_test_p = z[train], z[test]
 ```
 
-Now, we define our GLM using the `GeneralizedLinearRegressor` class from `quantcore.glm`.
+Now, we define our GLM using the `GeneralizedLinearRegressor` class from `glum`.
 
 - `family='poisson'`: creates a Poisson regressor
 - `alpha_search=True`: tells the GLM to search along the regularization path for the best alpha
 - `l1_ratio = 1` tells the GLM to only use l1 penalty (not l2). `l1_ratio` is the elastic net mixing parameter. For ``l1_ratio = 0``, the penalty is an L2 penalty. ``For l1_ratio = 1``, it is an L1 penalty.  For ``0 < l1_ratio < 1``, the penalty is a combination of L1 and L2.
 
-See the `GeneralizedLinearRegressor` class [API documentation](https://docs.dev.***REMOVED***/***REMOVED***/Quantco/quantcore.glm/latest/api/modules.html) for more details.
+See the `GeneralizedLinearRegressor` class [API documentation](https://docs.dev.***REMOVED***/***REMOVED***/Quantco/glum/latest/api/modules.html) for more details.
 
-*Note*: `quantcore.glm` also supported a cross validation model GeneralizedLinearRegressorCV. However, because cross validation requires fitting many models, it is much slower and we don’t demonstrate it in this tutorial.
+*Note*: `glum` also supported a cross validation model GeneralizedLinearRegressorCV. However, because cross validation requires fitting many models, it is much slower and we don’t demonstrate it in this tutorial.
 
 ```python
 f_glm1 = GeneralizedLinearRegressor(family='poisson', alpha_search=True, l1_ratio=1, fit_intercept=True)
@@ -176,7 +176,7 @@ pd.DataFrame({'coefficient': np.concatenate(([f_glm1.intercept_], f_glm1.coef_))
              index=['intercept'] + f_glm1.feature_names_).T
 ```
 
-To measure our model's test and train performance, we use the deviance function for the Poisson family. We can get the total deviance function directly from `quantcore.glm`'s distribution classes and divide it by the sum of our sample weight.
+To measure our model's test and train performance, we use the deviance function for the Poisson family. We can get the total deviance function directly from `glum`'s distribution classes and divide it by the sum of our sample weight.
 
 *Note*: a Poisson distribution is equivlane to a Tweedie distribution with power = 1.
 
@@ -404,7 +404,7 @@ w_train_t, w_test_t = weight[train], weight[test]
 
 For now, we just arbitrarily select 1.5 as the power parameter for our Tweedie model. However for a better fit we could include the power parameter in the optimization/fitting process, possibly via a simple grid search.
 
-*Note*: notice how we pass a `TweedieDistribution` object in directly for the family parameter. While `quantcore.glm` supports strings for common families, it is also possible to pass in a quantcore.glm distribution directly.
+*Note*: notice how we pass a `TweedieDistribution` object in directly for the family parameter. While `glum` supports strings for common families, it is also possible to pass in a glum distribution directly.
 
 ```python
 TweedieDist = TweedieDistribution(1.5)

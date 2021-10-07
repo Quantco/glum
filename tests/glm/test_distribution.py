@@ -2,10 +2,10 @@ from typing import Union
 
 import numpy as np
 import pytest
-import quantcore.matrix as mx
+import tabmat as mx
 import scipy as sp
 
-from quantcore.glm._distribution import (
+from glum._distribution import (
     BinomialDistribution,
     ExponentialDispersionModel,
     GammaDistribution,
@@ -15,9 +15,9 @@ from quantcore.glm._distribution import (
     PoissonDistribution,
     TweedieDistribution,
 )
-from quantcore.glm._glm import GeneralizedLinearRegressor
-from quantcore.glm._link import IdentityLink, LogitLink, LogLink, TweedieLink
-from quantcore.glm._util import _safe_sandwich_dot
+from glum._glm import GeneralizedLinearRegressor
+from glum._link import IdentityLink, LogitLink, LogLink, TweedieLink
+from glum._util import _safe_sandwich_dot
 
 
 @pytest.mark.parametrize(

@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from quantcore.glm._util import _align_df_categories
+from glum._util import _align_df_categories
 
 
 @pytest.fixture()

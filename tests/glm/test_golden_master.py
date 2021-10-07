@@ -5,13 +5,13 @@ import warnings
 
 import numpy as np
 import pytest
-import quantcore.matrix as mx
+import tabmat as mx
 from git_root import git_root
 from scipy import sparse
 
-from quantcore.glm import GeneralizedLinearRegressor, GeneralizedLinearRegressorCV
-from quantcore.glm._glm import TweedieDistribution
-from quantcore.glm_benchmarks.data import simulate_glm_data
+from glum import GeneralizedLinearRegressor, GeneralizedLinearRegressorCV
+from glum._glm import TweedieDistribution
+from glum_benchmarks.data import simulate_glm_data
 
 distributions_to_test = ["normal", "poisson", "gamma", "tweedie_p=1.5", "binomial"]
 custom_family_link = [("normal", "log")]

@@ -1,4 +1,4 @@
-name: quantcore.glm
+name: glum
 channels:
   - ***REMOVED***
   - conda-forge
@@ -9,7 +9,7 @@ dependencies:
   - libblas>=0=*mkl
   - numexpr
   - pandas
-  - quantcore.matrix>=2.0.1
+  - tabmat>=2.0.1
   - scikit-learn >= 0.23
   - scipy
   - tqdm

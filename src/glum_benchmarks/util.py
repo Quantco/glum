@@ -8,11 +8,11 @@ from typing import Callable, Dict, Optional, Tuple, Union
 import click
 import numpy as np
 import pandas as pd
-import quantcore.matrix as mx
+import tabmat as mx
 from scipy import sparse as sps
 
-from quantcore.glm import GeneralizedLinearRegressor, TweedieDistribution
-from quantcore.glm._solvers import eta_mu_objective
+from glum import GeneralizedLinearRegressor, TweedieDistribution
+from glum._solvers import eta_mu_objective
 
 benchmark_convergence_tolerance = 1e-4
 cache_location = os.environ.get("GLM_BENCHMARKS_CACHE", None)
@@ -331,7 +331,7 @@ def benchmark_params_cli(func: Callable) -> Callable:
     @click.option(
         "--diagnostics_level",
         type=str,
-        help="Choose 'basic' for brief quantcore.glm diagnostics or 'full' for more "
+        help="Choose 'basic' for brief glum diagnostics or 'full' for more "
         "extensive diagnostics. Any other string will result in no diagnostic "
         "output at all.",
     )

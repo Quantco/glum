@@ -4,7 +4,7 @@ from typing import Tuple, Union
 
 import numexpr
 import numpy as np
-from quantcore.matrix import MatrixBase, StandardizedMatrix
+from tabmat import MatrixBase, StandardizedMatrix
 from scipy import sparse, special
 
 from ._functions import (
@@ -442,7 +442,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         Parameters
         ----------
         link : Link
-            A link function (i.e. an instance of :class:`~quantcore.glm._link.Link`).
+            A link function (i.e. an instance of :class:`~glum._link.Link`).
         X : array-like
             Training data.
         y : array-like

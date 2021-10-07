@@ -3,7 +3,7 @@ from typing import Union
 
 import numpy as np
 import pandas as pd
-from quantcore.matrix import MatrixBase, StandardizedMatrix
+from tabmat import MatrixBase, StandardizedMatrix
 from scipy import sparse
 
 _logger = logging.getLogger(__name__)
