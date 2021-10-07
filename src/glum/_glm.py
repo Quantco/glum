@@ -27,7 +27,7 @@ from typing import Any, Optional, Sequence, Tuple, Union, cast
 import numpy as np
 import pandas as pd
 import scipy.sparse.linalg as splinalg
-import tabmat as mx
+import tabmat as tm
 from scipy import linalg, sparse
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.utils import check_array
@@ -69,16 +69,16 @@ VectorLike = Union[np.ndarray, pd.api.extensions.ExtensionArray, pd.Index, pd.Se
 
 ArrayLike = Union[
     list,
-    mx.MatrixBase,
-    mx.StandardizedMatrix,
+    tm.MatrixBase,
+    tm.StandardizedMatrix,
     pd.DataFrame,
     sparse.spmatrix,
     VectorLike,
 ]
 
 ShapedArrayLike = Union[
-    mx.MatrixBase,
-    mx.StandardizedMatrix,
+    tm.MatrixBase,
+    tm.StandardizedMatrix,
     pd.DataFrame,
     sparse.spmatrix,
     VectorLike,
@@ -89,21 +89,21 @@ def check_array_matrix_compliant(mat: ArrayLike, **kwargs):
     to_copy = kwargs.get("copy", False)
 
     if isinstance(mat, pd.DataFrame) and any(mat.dtypes == "category"):
-        mat = mx.from_pandas(mat)
+        mat = tm.from_pandas(mat)
 
-    if isinstance(mat, mx.SplitMatrix):
+    if isinstance(mat, tm.SplitMatrix):
         kwargs.update({"ensure_min_features": 0})
         new_matrices = [check_array_matrix_compliant(m, **kwargs) for m in mat.matrices]
         new_indices = [elt.copy() for elt in mat.indices] if to_copy else mat.indices
-        return mx.SplitMatrix(new_matrices, new_indices)
+        return tm.SplitMatrix(new_matrices, new_indices)
 
-    if isinstance(mat, mx.CategoricalMatrix):
+    if isinstance(mat, tm.CategoricalMatrix):
         if to_copy:
             return copy.copy(mat)
         return mat
 
-    if isinstance(mat, mx.StandardizedMatrix):
-        return mx.StandardizedMatrix(
+    if isinstance(mat, tm.StandardizedMatrix):
+        return tm.StandardizedMatrix(
             check_array_matrix_compliant(mat.mat, **kwargs),
             check_array(mat.shift, **kwargs),
         )
@@ -111,7 +111,7 @@ def check_array_matrix_compliant(mat: ArrayLike, **kwargs):
     original_type = type(mat)
     res = check_array(mat, **kwargs)
 
-    if res is not mat and original_type in (mx.DenseMatrix, mx.SparseMatrix):
+    if res is not mat and original_type in (tm.DenseMatrix, tm.SparseMatrix):
         res = original_type(res)  # type: ignore
 
     return res
@@ -119,7 +119,7 @@ def check_array_matrix_compliant(mat: ArrayLike, **kwargs):
 
 def check_X_y_matrix_compliant(
     X: ArrayLike, y: Union[VectorLike, sparse.spmatrix], **kwargs
-) -> Tuple[Union[mx.MatrixBase, sparse.spmatrix, np.ndarray], np.ndarray]:
+) -> Tuple[Union[tm.MatrixBase, sparse.spmatrix, np.ndarray], np.ndarray]:
     """
     See the documentation for :func:`sklearn.utils.check_X_y`. This function
     behaves identically for inputs that are not from the Matrix package and
@@ -274,7 +274,7 @@ def check_inequality_constraints(
 
 
 def _standardize(
-    X: mx.MatrixBase,
+    X: tm.MatrixBase,
     sample_weight: np.ndarray,
     center_predictors: bool,
     estimate_as_if_scaled_model: bool,
@@ -284,7 +284,7 @@ def _standardize(
     P1: Union[np.ndarray, sparse.spmatrix],
     P2: Union[np.ndarray, sparse.spmatrix],
 ) -> Tuple[
-    mx.StandardizedMatrix,
+    tm.StandardizedMatrix,
     np.ndarray,
     Optional[np.ndarray],
     Optional[np.ndarray],
@@ -461,12 +461,12 @@ def get_link(link: Union[str, Link], family: ExponentialDispersionModel) -> Link
 
 def setup_p1(
     P1: Union[str, np.ndarray],
-    X: Union[mx.MatrixBase, mx.StandardizedMatrix],
+    X: Union[tm.MatrixBase, tm.StandardizedMatrix],
     _dtype,
     alpha: float,
     l1_ratio: float,
 ) -> np.ndarray:
-    if not isinstance(X, (mx.MatrixBase, mx.StandardizedMatrix)):
+    if not isinstance(X, (tm.MatrixBase, tm.StandardizedMatrix)):
         raise TypeError
 
     n_features = X.shape[1]
@@ -498,13 +498,13 @@ def setup_p1(
 
 def setup_p2(
     P2: Union[str, np.ndarray, sparse.spmatrix],
-    X: Union[mx.MatrixBase, mx.StandardizedMatrix],
+    X: Union[tm.MatrixBase, tm.StandardizedMatrix],
     _stype,
     _dtype,
     alpha: float,
     l1_ratio: float,
 ) -> Union[np.ndarray, sparse.spmatrix]:
-    if not isinstance(X, (mx.MatrixBase, mx.StandardizedMatrix)):
+    if not isinstance(X, (tm.MatrixBase, tm.StandardizedMatrix)):
         raise TypeError
 
     n_features = X.shape[1]
@@ -724,7 +724,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
     def _get_start_coef(
         self,
         start_params,
-        X: Union[mx.MatrixBase, mx.StandardizedMatrix],
+        X: Union[tm.MatrixBase, tm.StandardizedMatrix],
         y: np.ndarray,
         sample_weight: np.ndarray,
         offset: Optional[np.ndarray],
@@ -914,7 +914,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
     def _solve(
         self,
-        X: Union[mx.MatrixBase, mx.StandardizedMatrix],
+        X: Union[tm.MatrixBase, tm.StandardizedMatrix],
         y: np.ndarray,
         sample_weight: np.ndarray,
         P2,
@@ -1021,7 +1021,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
     def _solve_regularization_path(
         self,
-        X: Union[mx.MatrixBase, mx.StandardizedMatrix],
+        X: Union[tm.MatrixBase, tm.StandardizedMatrix],
         y: np.ndarray,
         sample_weight: np.ndarray,
         alphas: np.ndarray,
@@ -1671,7 +1671,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         solver: str,
         force_all_finite,
     ) -> Tuple[
-        mx.MatrixBase,
+        tm.MatrixBase,
         np.ndarray,
         np.ndarray,
         Optional[np.ndarray],
@@ -1740,7 +1740,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 P1 = _expand_categorical_penalties(self.P1, X)
                 P2 = _expand_categorical_penalties(self.P2, X)
 
-                X = mx.from_pandas(X)
+                X = tm.from_pandas(X)
             else:
                 self.feature_names_ = X.columns
 
@@ -1753,7 +1753,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             X = X.copy()
 
         if (
-            not isinstance(X, mx.CategoricalMatrix)
+            not isinstance(X, tm.CategoricalMatrix)
             and hasattr(X, "dtype")
             and np.issubdtype(X.dtype, np.integer)  # type: ignore
         ):
@@ -1769,7 +1769,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             # do that if X was intially int64.
             X = X.astype(np.float64)  # type: ignore
 
-        if isinstance(X, mx.MatrixBase):
+        if isinstance(X, tm.MatrixBase):
             X, y = check_X_y_matrix_compliant(
                 X,
                 y,
@@ -1812,10 +1812,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         #######################################################################
         # 2b. convert to wrapper matrix types
         #######################################################################
-        if sparse.issparse(X) and not isinstance(X, mx.SparseMatrix):
-            X = mx.SparseMatrix(X)
+        if sparse.issparse(X) and not isinstance(X, tm.SparseMatrix):
+            X = tm.SparseMatrix(X)
         elif isinstance(X, np.ndarray):
-            X = mx.DenseMatrix(X)
+            X = tm.DenseMatrix(X)
 
         return X, y, sample_weight, offset, weights_sum, P1, P2
 
@@ -2304,7 +2304,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             solver=self.solver,
             force_all_finite=self.force_all_finite,
         )
-        assert isinstance(X, mx.MatrixBase)
+        assert isinstance(X, tm.MatrixBase)
         assert isinstance(y, np.ndarray)
 
         self._set_up_for_fit(y)
