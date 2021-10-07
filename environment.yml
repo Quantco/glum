@@ -1,6 +1,5 @@
 name: quantcore.glm
 channels:
-  - ***REMOVED***
   - conda-forge
   - nodefaults
 dependencies:
@@ -9,7 +8,7 @@ dependencies:
   - libblas>=0=*mkl
   - numexpr
   - pandas
-  - quantcore.matrix>=2.0.1
+  - quantcore.matrix>=3.0.0
   - scikit-learn >= 0.23
   - scipy
   - tqdm
