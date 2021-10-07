@@ -86,7 +86,7 @@ def cli_run(
                 iterations,
                 defaults["diagnostics_level"]
                 if params.diagnostics_level is None
-                else params.diagnostics_level,
+                else params.diagnostics_level,  # type: ignore
             )
             _save_benchmark_results(
                 output_dir,
