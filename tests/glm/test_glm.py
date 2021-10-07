@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import numpy as np
 import pandas as pd
 import pytest
-import quantcore.matrix as mx
+import tabmat as mx
 import statsmodels.api as sm
 from numpy.testing import assert_allclose
 from scipy import optimize, sparse
@@ -18,8 +18,8 @@ from sklearn.linear_model import ElasticNet, LogisticRegression, Ridge
 from sklearn.metrics import mean_absolute_error
 from sklearn.utils.estimator_checks import check_estimator
 
-from quantcore.glm import GeneralizedLinearRegressorCV
-from quantcore.glm._distribution import (
+from glum import GeneralizedLinearRegressorCV
+from glum._distribution import (
     BinomialDistribution,
     ExponentialDispersionModel,
     GammaDistribution,
@@ -30,12 +30,12 @@ from quantcore.glm._distribution import (
     TweedieDistribution,
     guess_intercept,
 )
-from quantcore.glm._glm import (
+from glum._glm import (
     GeneralizedLinearRegressor,
     _unstandardize,
     is_pos_semidef,
 )
-from quantcore.glm._link import IdentityLink, Link, LogitLink, LogLink
+from glum._link import IdentityLink, Link, LogitLink, LogLink
 
 GLM_SOLVERS = ["irls-ls", "lbfgs", "irls-cd", "trust-constr"]
 

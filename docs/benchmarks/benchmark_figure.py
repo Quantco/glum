@@ -52,8 +52,8 @@ for lib in ["r-glmnet", "h2o"]:
         print(cmd)
         subprocess.run(cmd.split(" "))
 
-# run quantcore-glm benchmarks where auto storage works best.
-lib = "quantcore-glm"
+# run glum benchmarks where auto storage works best.
+lib = "glum"
 s = "auto"
 for p in problems:
     cmd = base_cmd.format(n=n, s=s, p=p, lib=lib)

@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.abspath("../src"))
 
 # -- Project information -----------------------------------------------------
 
-project = "quantcore.glm"
+project = "glum"
 copyright = "(C) 2020-2021 QuantCo Inc."
 author = "QuantCo Inc."
 

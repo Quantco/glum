@@ -18,5 +18,5 @@ select = B,C,E,F,W,T4,B9,D
 enable-extensions = flake8-docstrings
 per-file-ignores =
     tests/**:D101,D102,D103
-    src/quantcore/glm/_glm.py:D
+    src/glum/_glm.py:D
 docstring-convention = numpy

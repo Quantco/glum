@@ -26,7 +26,7 @@ from typing import Any, Optional, Sequence, Tuple, Union, cast
 
 import numpy as np
 import pandas as pd
-import quantcore.matrix as mx
+import tabmat as mx
 import scipy.sparse.linalg as splinalg
 from scipy import linalg, sparse
 from sklearn.base import BaseEstimator, RegressorMixin
@@ -707,7 +707,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
     @property
     def family_instance(self) -> ExponentialDispersionModel:
-        """Return an :class:`~quantcore.glm._distribution.ExponentialDispersionModel`."""
+        """Return an :class:`~glum._distribution.ExponentialDispersionModel`."""
         if hasattr(self, "_family_instance"):
             return self._family_instance
         else:
@@ -715,7 +715,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
     @property
     def link_instance(self) -> Link:
-        """Return a :class:`~quantcore.glm._link.Link`."""
+        """Return a :class:`~glum._link.Link`."""
         if hasattr(self, "_link_instance"):
             return self._link_instance
         else:

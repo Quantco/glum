@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import scipy.sparse as sps
 
-from quantcore.glm._glm import get_family, get_link
+from glum._glm import get_family, get_link
 
 
 def tweedie_rv(mu, sigma2=1, p=1.5):

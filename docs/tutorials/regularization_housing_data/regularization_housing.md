@@ -18,7 +18,7 @@ jupyter:
 
 **Intro**
 
-This tutorial shows how to use variable $L_2$ regularization with quantcore.glm. The `P2` parameter of the `GeneralizedLinearRegressor` class allows you to directly set the $L_2$ penalty matrix $w^T P_2 w$. If a 2d array is passed for the `P2` parameter, it is used directly, while if you pass a 1d array as `P2` it will be interpreted as the diagonal of $P_2$ and all other entries will be assumed to be zero.
+This tutorial shows how to use variable $L_2$ regularization with glum. The `P2` parameter of the `GeneralizedLinearRegressor` class allows you to directly set the $L_2$ penalty matrix $w^T P_2 w$. If a 2d array is passed for the `P2` parameter, it is used directly, while if you pass a 1d array as `P2` it will be interpreted as the diagonal of $P_2$ and all other entries will be assumed to be zero.
 
 *Note*: Variable $L_1$ regularization is also available by passing an array with length `n_features` to the `P1` parameter.
 
@@ -30,7 +30,7 @@ For this tutorial, we will model the selling price of homes in King's County, Wa
 We will use a gamma distribution for our model. This choice is motivated by two main factors. First, our target variable, home price, is a positive real number, which matches the support of the gamma distribution. Second, it is expected that factors influencing housing prices are multiplicative rather than additive, which is better captured with a gamma regression than say, OLS.
 
 
-*Note*: a few parts of this tutorial utilize local helper functions outside this notebook. If you wish to run the notebook on your own, you can find the rest of the code [here](https://github.com/Quantco/quantcore.glm/tree/open-sourcing/docs/tutorials/regularization_housing_data).
+*Note*: a few parts of this tutorial utilize local helper functions outside this notebook. If you wish to run the notebook on your own, you can find the rest of the code [here](https://github.com/Quantco/glum/tree/open-sourcing/docs/tutorials/regularization_housing_data).
 
 
 ## Table of Contents<a class="anchor"></a>
@@ -54,7 +54,7 @@ import pandas as pd
 from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
-from quantcore.glm import GeneralizedLinearRegressor
+from glum import GeneralizedLinearRegressor
 
 import sys
 sys.path.append("../")

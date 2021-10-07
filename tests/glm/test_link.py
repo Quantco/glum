@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from quantcore.glm._link import Link, LogitLink
+from glum._link import Link, LogitLink
 
 
 @pytest.mark.parametrize("link", Link.__subclasses__())
