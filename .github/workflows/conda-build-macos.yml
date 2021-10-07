@@ -15,7 +15,6 @@ jobs:
       fail-fast: false
       matrix:
         CONDA_BUILD_YML:
-          - osx_64_python3.6_default.____cpython
           - osx_64_python3.7_skylake.____cpython
           - osx_arm64_python3.9.____cpython
     steps:

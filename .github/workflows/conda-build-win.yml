@@ -15,7 +15,7 @@ jobs:
       fail-fast: false
       matrix:
         CONDA_BUILD_YML:
-          - win_64_python3.6.____cpython
+          - win_64_python3.7.____cpython
     steps:
       - name: Checkout branch
         uses: actions/checkout@v2.3.4
