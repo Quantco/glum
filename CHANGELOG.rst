@@ -12,6 +12,7 @@ Unreleased
 
 **Breaking changes:**
 
+- Renamed the package to ``glum``!! Hurray! Celebration. 
 - :class:`~glum.GeneralizedLinearRegressor` and :class:`~glum.GeneralizedLinearRegressorCV` lose the ``fit_dispersion`` parameter.
   Please use the :meth:`dispersion` method of the appropriate family instance instead.
 - All functions now use ``sample_weight`` as a keyword instead of ``weights``, in line with scikit-learn.
