@@ -57,7 +57,7 @@ def add_noise(df: pd.DataFrame, noise: float) -> pd.DataFrame:
 def compute_y_exposure(df, distribution):
     """Compute y and exposure depending on distribution.
 
-    (Exposure/weights for boston housing data always all 1).
+    (Exposure/weights for housing data always all 1).
     """
     if distribution in ["gamma", "gaussian"]:
         y = df["price"].values
@@ -65,7 +65,7 @@ def compute_y_exposure(df, distribution):
         y = df["above_median_price"].values
     else:
         raise ValueError(
-            f"distribution for boston housing problems must be one of"
+            f"distribution for housing problems must be one of"
             f"['gamma', 'gaussian', 'binomial'] not {distribution}."
         )
 
@@ -95,7 +95,7 @@ def _read_housing_data(
 def generate_housing_dataset(
     num_rows=None, noise=None, distribution="poisson"
 ) -> Tuple[pd.DataFrame, np.ndarray, np.ndarray]:
-    """Generate the sklearn boston housing dataset."""
+    """Generate the openml house_sales housing dataset."""
     df = _read_housing_data(num_rows, noise, distribution)
 
     y, exposure = compute_y_exposure(df, distribution)

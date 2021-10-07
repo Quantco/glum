@@ -6,48 +6,58 @@ jupyter:
       extension: .md
       format_name: markdown
       format_version: '1.3'
-      jupytext_version: 1.11.4
+      jupytext_version: 1.13.0
   kernelspec:
     display_name: Python 3 (ipykernel)
     language: python
     name: python3
 ---
 
+<!-- #region tags=[] -->
 # Getting Started: fitting a Lasso model 
 
-Welcome to `quantcore.glm`! Generalized linear models (GLMs) are core statistical tools that include many common methods like least-squares regression, Poisson regression, and logistic regression as special cases. At QuantCo, we have developed `quantcore.glm`, a fast Python-first GLM library.
-
-The purpose of this tutorial is to show the basics of `quantcore.glm`. It assumes a working knowledge of python, regularized linear models, and machine learning. The API is very similar to sklearn. After all, `quantcore.glm` is based on a fork of scikit-learn.
+The purpose of this tutorial is to show the basics of `quantcore.glm`. It assumes a working knowledge of python, regularized linear models, and machine learning. The API is very similar to scikit-learn. After all, `quantcore.glm` is based on a fork of scikit-learn.
 
 If you have not done so already, please refer to our [installation instructions](../install.rst) for installing `quantcore.glm`.
-
-*Note:* We use the [sklearn boston housing dataset](https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_boston.html) throughout the tutorial. If you wish to explore this dataset further, there are a handful of resources online. For example, [this blog](https://medium.com/@amitg0161/sklearn-linear-regression-tutorial-with-boston-house-dataset-cde74afd460a).
 <!-- #endregion -->
 
 ```python
 import pandas as pd
 import sklearn
+from sklearn.datasets import fetch_openml
 from quantcore.glm import GeneralizedLinearRegressor, GeneralizedLinearRegressorCV
 ```
 
 ## Data
 
-We start by loading the scikit-learn Boston housing dataset and splitting it into training and test sets. For simplicity, we don't go into any details regarding exploration or data cleaning.
+We start by loading the King County housing dataset from openML and splitting it into training and test sets. For simplicity, we don't go into any details regarding exploration or data cleaning.
 
 ```python
-from sklearn import datasets
+house_data = fetch_openml(name="house_sales", version=3, as_frame=True)
 
-boston = sklearn.datasets.load_boston()
-df_bos = pd.DataFrame(boston.data, columns = boston.feature_names)
-df_bos['PRICE'] = boston.target
-df_bos = df_bos[df_bos['PRICE'] <= 40] # remove outliers
-df_bos.head(3)
+# Use only select features
+X = house_data.data[
+    [
+        "bedrooms",
+        "bathrooms",
+        "sqft_living",
+        "floors",
+        "waterfront",
+        "view",
+        "condition",
+        "grade",
+        "yr_built",
+    ]
+].copy()
+
+# Targets
+y = house_data.target
 ```
 
 ```python
-X = df_bos[["CRIM", "ZN", "CHAS", "NOX", "RM", "AGE", "TAX", "B", "LSTAT"]]
-y = df_bos["PRICE"]
-X_train, X_test, y_train, y_test = sklearn.model_selection.train_test_split(X, y, test_size = 0.1, random_state=5)
+X_train, X_test, y_train, y_test = sklearn.model_selection.train_test_split(
+    X, y, test_size = 0.3, random_state=5
+)
 ```
 
 ## GLM basics: fitting and predicting using the normal family
@@ -67,23 +77,29 @@ To be precise, we will be minimizing the function with respect to the parameters
 \end{equation}
 
 ```python
-glm = GeneralizedLinearRegressor(family='normal', alpha=0.1, l1_ratio=1)
+glm = GeneralizedLinearRegressor(family="normal", alpha=0.1, l1_ratio=1)
 ```
 
 The `GeneralizedLinearRegressor.fit()` method follows typical sklearn API style and accepts two primary inputs:
 
 1. `X`: the design matrix with shape `(n_samples, n_features)`.
-2. `y`: the `n_sample` length array of target data.
+2. `y`: the `n_samples` length array of target data.
 
 ```python
 glm.fit(X_train, y_train)
 ```
 
-The `predict()` method is also similar to sklearn. It accepts an `(n_samples, n_feature)` shaped design matrix as its input
+Once the model has been estimated, we can retrieve useful information using an sklearn-style syntax.
 
 ```python
-print(f"Train RMSE: {sklearn.metrics.mean_squared_error(glm.predict(X_train), y_train, squared=False)}")
-print(f"Test  RMSE: {sklearn.metrics.mean_squared_error(glm.predict(X_test), y_test, squared=False)}")
+# retrieve the coefficients and the intercept
+coefs = glm.coef_
+intercept = glm.intercept_
+
+# use the model to predict on our test data
+preds = glm.predict(X_test)
+
+preds[0:5]
 ```
 
 ## Fitting a GLM with cross validation
@@ -105,20 +121,21 @@ Some important parameters:
 
 ```python
 glmcv = GeneralizedLinearRegressorCV(
-    family='normal',
+    family="normal",
     alphas=None,  # default
     min_alpha=None,  # default
     min_alpha_ratio=None,  # default
-    l1_ratio=[0, 0.2, 0.4, 0.6, 0.8, 1.0],
+    l1_ratio=[0, 0.5, 1.0],
     fit_intercept=True,
     max_iter=150
 )
 glmcv.fit(X_train, y_train)
 print(f"Chosen alpha:    {glmcv.alpha_}")
 print(f"Chosen l1 ratio: {glmcv.l1_ratio_}")
-
-print(f"Train RMSE: {sklearn.metrics.mean_squared_error(glmcv.predict(X_train), y_train, squared=False)}")
-print(f"Test  RMSE: {sklearn.metrics.mean_squared_error(glmcv.predict(X_test), y_test, squared=False)}")
 ```
 
 Congratulations! You have finished our getting started tutorial. If you wish to learn more, please see our other tutorials for more advanced topics like Poisson, Gamma, and Tweedie regression, high dimensional fixed effects, and spatial smoothing using Tikhonov regularization.
+
+```python
+
+```
