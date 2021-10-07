@@ -34,6 +34,7 @@ repos:
        - --check-untyped-defs
        - --ignore-missing-imports
        - --namespace-packages
+      exclude: ^tests/
  - repo: https://github.com/Quantco/pre-commit-mirrors-pyupgrade
    rev: 2.7.2
    hooks:
