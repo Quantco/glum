@@ -40,4 +40,4 @@ We suggest visiting the :doc:`Installation<install>` and :doc:`Getting Started<g
    GitHub <https://github.com/Quantco/quantcore.glm>
    Changelog <changelog>
 
-:ref:`modindex`
+:ref:`genindex`

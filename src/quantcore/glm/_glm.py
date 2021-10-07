@@ -1059,7 +1059,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         return self.coef_path_
 
-    def _report_diagnostics(
+    def report_diagnostics(
         self, full_report: bool = False, custom_columns: Optional[Iterable] = None
     ) -> None:
         """Print diagnostics to ``stdout``.
@@ -1074,7 +1074,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         custom_columns : iterable, optional (default=None)
             Print only the specified columns.
         """
-        diagnostics = self._get_formatted_diagnostics(full_report, custom_columns)
+        diagnostics = self.get_formatted_diagnostics(full_report, custom_columns)
         if isinstance(diagnostics, str):
             print(diagnostics)
             return
@@ -1085,7 +1085,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         with pd.option_context("max_rows", None, "max_columns", None):
             print(diagnostics)
 
-    def _get_formatted_diagnostics(
+    def get_formatted_diagnostics(
         self, full_report: bool = False, custom_columns: Optional[Iterable] = None
     ) -> Union[str, pd.DataFrame]:
         """Get formatted diagnostics; can be printed with _report_diagnostics.
@@ -1900,8 +1900,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         Specifies if a constant (a.k.a. bias or intercept) should be
         added to the linear predictor (``X * coef + intercept``).
 
-    family : {'normal', 'poisson', 'gamma', 'inverse.gaussian', 'binomial'} \
-            or ExponentialDispersionModel, optional (default='normal')
+    family : {'normal', 'poisson', 'gamma', 'gaussian', 'inverse.gaussian', \
+            'binomial'} or ExponentialDispersionModel, optional (default='normal')
         The distributional assumption of the GLM, i.e. which distribution from
         the EDM, specifies the loss function to be minimized.
 
@@ -1910,7 +1910,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         (``X * coef``) to expectation (``mu``). Option ``'auto'`` sets the link
         depending on the chosen family as follows:
 
-        - ``'identity'`` for family ``'normal'``
+        - ``'identity'`` for family ``'normal'``/``'gaussian'``
         - ``'log'`` for families ``'poisson'``, ``'gamma'`` and
           ``'inverse.gaussian'``
         - ``'logit'`` for family ``'binomial'``

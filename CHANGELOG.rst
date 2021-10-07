@@ -17,6 +17,7 @@ Unreleased
 - All functions now use ``sample_weight`` as a keyword instead of ``weights``, in line with scikit-learn.
 - All functions now use ``dispersion`` as a keyword instead of ``phi``.
 - Several methods :class:`~quantcore.glm.GeneralizedLinearRegressor` and :class:`~quantcore.glm.GeneralizedLinearRegressorCV` that should have been private have had an underscore prefixed on their names: :meth:`tear_down_from_fit`, :meth:`_set_up_for_fit`, :meth:`_set_up_and_check_fit_args`, :meth:`_get_start_coef`, :meth:`_solve` and :meth:`_solve_regularization_path`.
+- :meth:`quantcore.glm.GeneralizedLinearRegressor.report_diagnostics` and :meth:`quantcore.glm.GeneralizedLinearRegressor.get_formatted_diagnostics` are now public.
 
 **New features:**
 

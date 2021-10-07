@@ -94,16 +94,13 @@ def quantcore_glm_bench(
         result["min_alpha"] = alphas.min()
         result["best_alpha"] = m.alpha_
 
-    if diagnostics_level == "basic":
-        with pd.option_context(
-            "display.expand_frame_repr", False, "max_columns", None, "max_rows", None
-        ):
-            m._report_diagnostics()
-    elif diagnostics_level == "full":
-        with pd.option_context(
-            "display.expand_frame_repr", False, "max_columns", None, "max_rows", None
-        ):
-            m._report_diagnostics(full_report=True)
+    with pd.option_context(
+        "display.expand_frame_repr", False, "max_columns", None, "max_rows", None
+    ):
+        if diagnostics_level == "basic":
+            m.report_diagnostics()
+        elif diagnostics_level == "full":
+            m.report_diagnostics(full_report=True)
     return result
 
 

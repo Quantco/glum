@@ -1,3 +1,4 @@
+import os
 from typing import Any, Callable, List, Optional, Tuple
 
 import numpy as np
@@ -14,7 +15,7 @@ from ..util import exposure_and_offset_to_weights
 # Modified to generate data sets of different sizes
 
 
-def create_insurance_raw_data() -> None:
+def create_insurance_raw_data(verbose=False) -> None:
     """Do some basic processing on the data that we will later transform into our \
     benchmark data sets."""
     # load the datasets
@@ -50,28 +51,31 @@ def create_insurance_raw_data() -> None:
         how="outer",
         indicator=True,
     )
-    print(
-        "There are {} rows in freMTPL2sev that do not have a matching IDpol in "
-        "freMTPL2freq. They have a ClaimAmountCut of {}.".format(
-            df2[df2._merge == "left_only"].shape[0],
-            df2.ClaimAmountCut[df2._merge == "left_only"].sum(),
+    if verbose:
+        print(
+            "There are {} rows in freMTPL2sev that do not have a matching IDpol in "
+            "freMTPL2freq. They have a ClaimAmountCut of {}.".format(
+                df2[df2._merge == "left_only"].shape[0],
+                df2.ClaimAmountCut[df2._merge == "left_only"].sum(),
+            )
         )
-    )
 
     round(df_sev.ClaimAmountCut.sum() - df.ClaimAmountCut.sum(), 2)
 
-    print(
-        "Number or rows with ClaimAmountCut > 0 and ClaimNb == 0: {}".format(
-            df[(df.ClaimAmountCut > 0) & (df.ClaimNb == 0)].shape[0]
+    if verbose:
+        print(
+            "Number or rows with ClaimAmountCut > 0 and ClaimNb == 0: {}".format(
+                df[(df.ClaimAmountCut > 0) & (df.ClaimNb == 0)].shape[0]
+            )
         )
-    )
 
     # 9116 zero claims
-    print(
-        "Number or rows with ClaimAmountCut = 0 and ClaimNb >= 1: {}".format(
-            df[(df.ClaimAmountCut == 0) & (df.ClaimNb >= 1)].shape[0]
+    if verbose:
+        print(
+            "Number or rows with ClaimAmountCut = 0 and ClaimNb >= 1: {}".format(
+                df[(df.ClaimAmountCut == 0) & (df.ClaimNb >= 1)].shape[0]
+            )
         )
-    )
 
     # Note: Zero claims must be ignored in severity models, because the support is
     # (0, inf) not [0, inf). Therefore, we define the number of claims with positive
@@ -85,7 +89,9 @@ def create_insurance_raw_data() -> None:
     df["ClaimNb_pos"] = df["ClaimNb_pos"].clip(upper=4)
     df["Exposure"] = df["Exposure"].clip(upper=1)
 
-    df.to_parquet(git_root("data/insurance.parquet"))
+    out_path = git_root("data/insurance.parquet")
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    df.to_parquet(out_path)
 
 
 def get_categorizer(col_name: str, name="cat") -> Tuple[str, Categorizer]:
@@ -317,7 +323,10 @@ def compute_y_exposure(df, distribution):
 def _read_insurance_data(
     num_rows: Optional[int], noise: Optional[float], distribution: str
 ) -> pd.DataFrame:
-    df = pd.read_parquet(git_root("data/insurance.parquet"))
+    path = git_root("data/insurance.parquet")
+    if not os.path.exists(path):
+        create_insurance_raw_data()
+    df = pd.read_parquet(path)
 
     if distribution in ["gamma", "gaussian"]:
         df = df.query("ClaimAmountCut > 0")
