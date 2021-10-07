@@ -2,7 +2,7 @@ name: Run linter in Docker image
 description: Run private container from GitHub Packages Registry after Docker login
 runs:
   using: 'docker'
-  image: ***REMOVED***:latest
+  image: condaforge/mambaforge:latest
   args:
    - /bin/bash
    - "-l"

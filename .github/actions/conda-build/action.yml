@@ -6,7 +6,7 @@ inputs:
     required: true
 runs:
   using: 'docker'
-  image: ***REMOVED***:latest
+  image: condaforge/mambaforge:latest
   args:
    - /bin/bash
    - "-l"

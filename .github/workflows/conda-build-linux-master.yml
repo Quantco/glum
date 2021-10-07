@@ -17,10 +17,8 @@ jobs:
           - linux_64_python3.8_skylake.____cpython
           - linux_64_python3.9_default.____cpython
     steps:
-      - name: Docker login
-        run: docker login ghcr.io -u "${{ github.actor }}" -p "${{ secrets.GITHUB_TOKEN }}"
       - name: Pull image
-        run: docker pull ***REMOVED***:latest
+        run: docker pull condaforge/mambaforge:latest
       - name: Checkout branch
         uses: actions/checkout@v2.3.4
         with:

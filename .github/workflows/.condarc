@@ -1,5 +1,0 @@
-channels:
-  - ***REMOVED***
-  - conda-forge
-custom_channels:
-  ***REMOVED***: https://***REMOVED***:***REMOVED***@conda.***REMOVED***
