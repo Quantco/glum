@@ -2,14 +2,14 @@
 * @tbenthompson @MarcAntoineSchmidtQC
 
 # Core
-/src/quantcore/glm/ @MarcAntoineSchmidtQC
+/src/glum/ @MarcAntoineSchmidtQC
 
 # Cython / C++
 *.pyx @tbenthompson
 *.cpp @tbenthompson
 
 # GLM benchmarks
-/src/quantcore/glm_benchmarks/ @tbenthompson
+/src/glum_benchmarks/ @tbenthompson
 
 # Docs
 /docs/ @MarcAntoineSchmidtQC

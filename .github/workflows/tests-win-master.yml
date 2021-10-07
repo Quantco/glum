@@ -29,11 +29,11 @@ jobs:
           miniforge-version: 4.10.0-0
           use-mamba: true
           environment-file: environment.yml
-          activate-environment: quantcore.glm
+          activate-environment: glum
       - name: Install benchmark dependencies
         shell: pwsh
         run: |
-          mamba env update -n quantcore.glm --file environment-benchmark.yml
+          mamba env update -n glum --file environment-benchmark.yml
       - name: Run Unit Tests
         shell: pwsh
         run: |

@@ -1,7 +1,7 @@
 Contributing and Development
 ====================================
 
-Hello! And thanks for exploring quantcore.glm more deeply. Please see the issue tracker and pull requests tabs on Github for information about what is currently happening. Feel free to post an issue if you'd like to get involved in development and don't really know where to start -- we can give some advice. 
+Hello! And thanks for exploring glum more deeply. Please see the issue tracker and pull requests tabs on Github for information about what is currently happening. Feel free to post an issue if you'd like to get involved in development and don't really know where to start -- we can give some advice. 
 
 We welcome contributions of any kind!
 
@@ -17,7 +17,7 @@ Pull request process
 
 - Before working on a non-trivial PR, please first discuss the change you wish to make via issue, Slack, email or any other method with the owners of this repository. This is meant to prevent spending time on a feature that will not be merged.
 - Please make sure that a new feature comes with adequate tests. If these require data, please check if any of our existing test data sets fits the bill.
-- Please make sure that all functions come with proper docstrings. If you do extensive work on docstrings, please check if the Sphinx documentation renders them correctly. The CI system builds it on every commit and pushes the rendered HTMLs to ``https://docs.dev.***REMOVED***/***REMOVED***/Quantco/quantcore.glm/{YOUR_COMMIT}/index.html``
+- Please make sure that all functions come with proper docstrings. If you do extensive work on docstrings, please check if the Sphinx documentation renders them correctly. The CI system builds it on every commit and pushes the rendered HTMLs to ``https://docs.dev.***REMOVED***/***REMOVED***/Quantco/glum/{YOUR_COMMIT}/index.html``
 - Please make sure you have our pre-commit hooks installed.
 - If you fix a bug, please consider first contributing a test that _fails_ because of the bug and then adding the fix as a separate commit, so that the CI system picks it up.
 - Please add an entry to the change log and increment the version number according to the type of change. We use semantic versioning. Update the major if you break the public API. Update the minor if you add new functionality. Update the patch if you fixed a bug. All changes that have not been released are collected under the date ``UNRELEASED``.
@@ -25,12 +25,12 @@ Pull request process
 Releases
 --------------------------------------------------
 
-- We make package releases infrequently, but usually any time a new non-trivial feature is contributed or a bug is fixed. To make a release, just open a PR that updates the change log with the current date. Once that PR is approved and merged, you can create a new release on [GitHub](https://github.com/Quantco/quantcore.glm/releases/new). Use the version from the change log as tag and copy the change log entry into the release description. New releases on GitHub are automatically deployed to the QuantCo conda channel.
+- We make package releases infrequently, but usually any time a new non-trivial feature is contributed or a bug is fixed. To make a release, just open a PR that updates the change log with the current date. Once that PR is approved and merged, you can create a new release on [GitHub](https://github.com/Quantco/glum/releases/new). Use the version from the change log as tag and copy the change log entry into the release description. New releases on GitHub are automatically deployed to the QuantCo conda channel.
 
 Install for development
 --------------------------------------------------
 
-The first step is to set up a conda environment and install quantcore.glm in editable mode.
+The first step is to set up a conda environment and install glum in editable mode.
 ::
 
    # First, make sure you have conda-forge as your primary conda channel:
@@ -40,8 +40,8 @@ The first step is to set up a conda environment and install quantcore.glm in edi
    conda install -y pre-commit
 
    # Clone the repository
-   git clone git@github.com:Quantco/quantcore.glm.git
-   cd quantcore.glm
+   git clone git@github.com:Quantco/glum.git
+   cd glum
 
    # Set up our pre-commit hooks for black, mypy, isort and flake8.
    pre-commit install
@@ -50,15 +50,15 @@ The first step is to set up a conda environment and install quantcore.glm in edi
    conda config --system --prepend channels ***REMOVED***
    conda config --system --set custom_channels.***REMOVED*** https://***REMOVED***:password@conda.***REMOVED***
      
-   # Set up a conda environment with name "quantcore.glm"
+   # Set up a conda environment with name "glum"
    conda install mamba=0.2.12
    mamba env create
 
    # If you want to install the dependencies necessary for benchmarking against other GLM packages:
-   mamba env update -n quantcore.glm --file environment-benchmark.yml
+   mamba env update -n glum --file environment-benchmark.yml
 
    # Install this package in editable mode. 
-   conda activate quantcore.glm
+   conda activate glum
    pip install --no-use-pep517 --disable-pip-version-check -e .
 
 
@@ -71,7 +71,7 @@ Golden master tests
 
 We use golden master testing to preserve correctness. The results of many different GLM models have been saved. After an update, the tests will compare the new output to the saved models. Any significant deviation will result in a test failure. This doesn't strictly mean that the update was wrong. In case of a bug fix, it's possible that the new output will be more accurate than the old output. In that situation, the golden master results can be overwritten as explained below. 
 
-There are two sets of golden master tests, one with artificial data and one directly using the benchmarking problems from :mod:`quantcore.glm_benchmarks`. For both sets of tests, creating the golden master and the tests definition are located in the same file. Calling the file with pytest will run the tests while calling the file as a python script will generate the golden master result. When creating the golden master results, both scripts accept the ``--overwrite`` command line flag. If set, the existing golden master results will be overwritten. Otherwise, only the new problems will be run.
+There are two sets of golden master tests, one with artificial data and one directly using the benchmarking problems from :mod:`glum_benchmarks`. For both sets of tests, creating the golden master and the tests definition are located in the same file. Calling the file with pytest will run the tests while calling the file as a python script will generate the golden master result. When creating the golden master results, both scripts accept the ``--overwrite`` command line flag. If set, the existing golden master results will be overwritten. Otherwise, only the new problems will be run.
  
 Skipping the slow tests
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -134,7 +134,7 @@ If you are a newbie to Sphinx, the links below may help get you up to speed on s
 Where to start looking in the source?
 -------------------------------------
 
-The primary user interface of ``quantcore.glm`` consists of the :class:`GeneralizedLinearRegressor <quantcore.glm.GeneralizedLinearRegressor>` and :class:`GeneralizedLinearRegressorCV <quantcore.glm.GeneralizedLinearRegressorCV>` classes via their constructors and the :meth:`fit() <quantcore.glm.GeneralizedLinearRegressor.fit>` and :meth:`predict() <quantcore.glm.GeneralizedLinearRegressor.predict>` functions. Those are the places to start looking if you plan to change the system in some way. 
+The primary user interface of ``glum`` consists of the :class:`GeneralizedLinearRegressor <glum.GeneralizedLinearRegressor>` and :class:`GeneralizedLinearRegressorCV <glum.GeneralizedLinearRegressorCV>` classes via their constructors and the :meth:`fit() <glum.GeneralizedLinearRegressor.fit>` and :meth:`predict() <glum.GeneralizedLinearRegressor.predict>` functions. Those are the places to start looking if you plan to change the system in some way. 
 
 What follows is a high-level summary of the source code structure. For more details, please look in the documentation and docstrings of the relevant classes, functions and methods.
 
@@ -159,5 +159,5 @@ The benchmark suite has two command line entrypoints:
 
 Both of these CLI tools take a range of arguments that specify the details of the benchmark problems and which libraries to benchmark.
 
-For more details on the benchmark suite, see the README in the source at ``src/quantcore/glm_benchmarks/README.md``.
+For more details on the benchmark suite, see the README in the source at ``src/glum_benchmarks/README.md``.
 

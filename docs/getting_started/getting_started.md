@@ -16,16 +16,16 @@ jupyter:
 <!-- #region tags=[] -->
 # Getting Started: fitting a Lasso model 
 
-The purpose of this tutorial is to show the basics of `quantcore.glm`. It assumes a working knowledge of python, regularized linear models, and machine learning. The API is very similar to scikit-learn. After all, `quantcore.glm` is based on a fork of scikit-learn.
+The purpose of this tutorial is to show the basics of `glum`. It assumes a working knowledge of python, regularized linear models, and machine learning. The API is very similar to scikit-learn. After all, `glum` is based on a fork of scikit-learn.
 
-If you have not done so already, please refer to our [installation instructions](../install.rst) for installing `quantcore.glm`.
+If you have not done so already, please refer to our [installation instructions](../install.rst) for installing `glum`.
 <!-- #endregion -->
 
 ```python
 import pandas as pd
 import sklearn
 from sklearn.datasets import fetch_openml
-from quantcore.glm import GeneralizedLinearRegressor, GeneralizedLinearRegressorCV
+from glum import GeneralizedLinearRegressor, GeneralizedLinearRegressorCV
 ```
 
 ## Data
@@ -62,11 +62,11 @@ X_train, X_test, y_train, y_test = sklearn.model_selection.train_test_split(
 
 ## GLM basics: fitting and predicting using the normal family
 
-We'll use `quantcore.glm.GeneralizedLinearRegressor` to predict the house prices using the available predictors. 
+We'll use `glum.GeneralizedLinearRegressor` to predict the house prices using the available predictors. 
 
 We set three key parameters:
 
-- `family`: the family parameter specifies the distributional assumption of the GLM and, as a consequence, the loss function to be minimized. Accepted strings are 'normal', 'poisson', 'gamma', 'inverse.gaussian', and 'binomial'. You can also pass in an instantiated `quantcore.glm` distribution (e.g. `quantcore.glm.TweedieDistribution(1.5)` )
+- `family`: the family parameter specifies the distributional assumption of the GLM and, as a consequence, the loss function to be minimized. Accepted strings are 'normal', 'poisson', 'gamma', 'inverse.gaussian', and 'binomial'. You can also pass in an instantiated `glum` distribution (e.g. `glum.TweedieDistribution(1.5)` )
 - `alpha`: the constant multiplying the penalty term that determines regularization strength. (*Note*: `GeneralizedLinearRegressor` also has an alpha-search option. See the `GeneralizedLinearRegressorCV` example below for details on how alpha-search works).
 - `l1_ratio`: the elastic net mixing parameter (`0 <= l1_ratio <= 1`). For `l1_ratio = 0`, the penalty is the L2 penalty (ridge). ``For l1_ratio = 1``, it is an L1 penalty (lasso).  For ``0 < l1_ratio < 1``, the penalty is a combination of L1 and L2.
 
@@ -104,7 +104,7 @@ preds[0:5]
 
 ## Fitting a GLM with cross validation
 
-Now, we fit using automatic cross validation with `quantcore.glm.GeneralizedLinearRegressorCV`. This mirrors the commonly used `cv.glmnet` function. 
+Now, we fit using automatic cross validation with `glum.GeneralizedLinearRegressorCV`. This mirrors the commonly used `cv.glmnet` function. 
 
 Some important parameters:
 

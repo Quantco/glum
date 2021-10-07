@@ -1,11 +1,11 @@
 import numpy as np
 import pytest
-import quantcore.matrix as mx
+import tabmat as mx
 from scipy import sparse as sparse
 from sklearn.datasets import make_regression
 from sklearn.linear_model import ElasticNetCV, RidgeCV
 
-from quantcore.glm import GeneralizedLinearRegressorCV
+from glum import GeneralizedLinearRegressorCV
 
 GLM_SOLVERS = ["irls", "lbfgs", "cd", "trust-constr"]
 

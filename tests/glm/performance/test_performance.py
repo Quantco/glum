@@ -8,12 +8,12 @@ from typing import List, Optional
 import numpy as np
 import pandas as pd
 import psutil
-import quantcore.matrix as mx
+import tabmat as mx
 import scipy.sparse as sps
 
-from quantcore.glm import GeneralizedLinearRegressor
-from quantcore.glm_benchmarks.cli_run import get_all_problems
-from quantcore.glm_benchmarks.util import get_sklearn_family, runtime
+from glum import GeneralizedLinearRegressor
+from glum_benchmarks.cli_run import get_all_problems
+from glum_benchmarks.util import get_sklearn_family, runtime
 
 
 def _get_memory_usage() -> int:
@@ -149,7 +149,7 @@ def get_spmv_runtime():
     Sparse matrix-vector product runtime should be representative of the memory
     bandwidth of the machine. Automatically scale the according to half the
     number of cores since the scipy.sparse implementation is not parallelized
-    and quantcore.glm is parallelized.
+    and glum is parallelized.
     """
     N = 20000000
     diag_data = np.random.rand(5, N)
@@ -172,7 +172,7 @@ def get_dense_inv_runtime():
 
 def runtime_checker():
     """
-    Run various operations and check that quantcore.glm doesn't run too much
+    Run various operations and check that glum doesn't run too much
     slower than operations expected to be similar. This isn't a perfect test
     but it'll raise a red flag if the code has unexpectedly gotten much slower.
     """
