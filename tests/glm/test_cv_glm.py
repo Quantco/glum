@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-import tabmat as mx
+import tabmat as tm
 from scipy import sparse as sparse
 from sklearn.datasets import make_regression
 from sklearn.linear_model import ElasticNetCV, RidgeCV
@@ -18,9 +18,9 @@ GLM_SOLVERS = ["irls", "lbfgs", "cd", "trust-constr"]
         np.asarray,
         sparse.csc_matrix,
         sparse.csr_matrix,
-        mx.DenseMatrix,
-        lambda x: mx.SparseMatrix(sparse.csc_matrix(x)),
-        lambda x: mx.csc_to_split(sparse.csc_matrix(x)),
+        tm.DenseMatrix,
+        lambda x: tm.SparseMatrix(sparse.csc_matrix(x)),
+        lambda x: tm.from_csc(sparse.csc_matrix(x)),
     ],
 )
 def test_normal_elastic_net_comparison(l1_ratio, fit_intercept, convert_x_fn):

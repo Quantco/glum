@@ -3,7 +3,7 @@ from typing import Any, Callable, Dict, Tuple
 
 import numpy as np
 import pandas as pd
-import tabmat as mx
+import tabmat as tm
 from tabmat.ext.dense import dense_sandwich
 from tabmat.ext.sparse import sparse_sandwich
 from scipy import sparse as sps
@@ -34,7 +34,7 @@ def _fast_sandwich(X, d):
 
 
 def _split_sandwich(X, threshold):
-    Xsplit = mx.csc_to_split(X, threshold)
+    Xsplit = tm.from_split(X, threshold)
     return lambda _, d: Xsplit.sandwich(d)
 
 

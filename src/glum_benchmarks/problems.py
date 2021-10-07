@@ -5,7 +5,7 @@ from typing import Callable, Dict, List, Optional, Tuple, Union
 import attr
 import numpy as np
 import pandas as pd
-import tabmat as mx
+import tabmat as tm
 from dask_ml.preprocessing import DummyEncoder
 from git_root import git_root
 from joblib import Memory
@@ -67,10 +67,10 @@ def load_data(
             exposure = exposure.astype(np.float32)
 
     # Step 3) One hot encode columns if we are not using CategoricalMatrix
-    def transform_col(i: int, dtype) -> Union[pd.DataFrame, mx.CategoricalMatrix]:
+    def transform_col(i: int, dtype) -> Union[pd.DataFrame, tm.CategoricalMatrix]:
         if dtype.name == "category":
             if storage == "cat":
-                return mx.CategoricalMatrix(X_in.iloc[:, i])
+                return tm.CategoricalMatrix(X_in.iloc[:, i])
             return DummyEncoder().fit_transform(X_in.iloc[:, [i]])
         return X_in.iloc[:, [i]]
 
@@ -81,14 +81,14 @@ def load_data(
     # Step 4) Convert the matrix to the appopriate storage type.
     if storage == "auto":
         dtype = np.float32 if single_precision else np.float64
-        X = mx.from_pandas(X_in, dtype, sparse_threshold=0.1, cat_threshold=3)
+        X = tm.from_pandas(X_in, dtype, sparse_threshold=0.1, cat_threshold=3)
     elif storage == "cat":
         cat_indices_in_expanded_arr: List[np.ndarray] = []
         dense_indices_in_expanded_arr: List[int] = []
         i = 0
         for elt in mat_parts:
             assert elt.ndim == 2
-            if isinstance(elt, mx.CategoricalMatrix):
+            if isinstance(elt, tm.CategoricalMatrix):
                 ncol = elt.shape[1]
                 cat_indices_in_expanded_arr.append(np.arange(i, i + ncol))
                 i += ncol
@@ -96,18 +96,18 @@ def load_data(
                 dense_indices_in_expanded_arr.append(i)
                 i += 1
 
-        non_cat_part = mx.DenseMatrix(
+        non_cat_part = tm.DenseMatrix(
             np.hstack(
                 [
                     elt.values
                     for elt in mat_parts
-                    if not isinstance(elt, mx.CategoricalMatrix)
+                    if not isinstance(elt, tm.CategoricalMatrix)
                 ]
             )
         )
-        X = mx.SplitMatrix(
+        X = tm.SplitMatrix(
             matrices=[non_cat_part]
-            + [elt for elt in mat_parts if isinstance(elt, mx.CategoricalMatrix)],
+            + [elt for elt in mat_parts if isinstance(elt, tm.CategoricalMatrix)],
             indices=[np.array(dense_indices_in_expanded_arr)]
             + cat_indices_in_expanded_arr,
         )
@@ -115,7 +115,7 @@ def load_data(
         X = csc_matrix(pd.concat(mat_parts, axis=1))
     elif storage.startswith("split"):
         threshold = float(storage.split("split")[1])
-        X = mx.csc_to_split(csc_matrix(pd.concat(mat_parts, axis=1)), threshold)
+        X = tm.from_csc(csc_matrix(pd.concat(mat_parts, axis=1)), threshold)
     else:  # Fall back to using a dense matrix.
         X = pd.concat(mat_parts, axis=1)
 

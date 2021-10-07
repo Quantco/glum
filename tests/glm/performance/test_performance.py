@@ -8,7 +8,7 @@ from typing import List, Optional
 import numpy as np
 import pandas as pd
 import psutil
-import tabmat as mx
+import tabmat as tm
 import scipy.sparse as sps
 
 from glum import GeneralizedLinearRegressor
@@ -63,9 +63,9 @@ def _get_x_bytes(x) -> int:
             mat.data.nbytes + mat.indices.nbytes + mat.indptr.nbytes
             for mat in [x, x.x_csr]
         )
-    if isinstance(x, mx.CategoricalMatrix):
+    if isinstance(x, tm.CategoricalMatrix):
         return x.indices.nbytes
-    if isinstance(x, mx.SplitMatrix):
+    if isinstance(x, tm.SplitMatrix):
         return sum(_get_x_bytes(elt) for elt in x.matrices)
     raise NotImplementedError(f"Can't get bytes for matrix of type {type(x)}.")
 
@@ -80,8 +80,8 @@ def _runner(storage, copy_X: Optional[bool]):
     if isinstance(dat["X"], pd.DataFrame):
         X = dat["X"].to_numpy()
     elif sps.issparse(dat["X"]):
-        X = mx.SparseMatrix(dat["X"])
-    elif isinstance(dat["X"], mx.SplitMatrix):
+        X = tm.SparseMatrix(dat["X"])
+    elif isinstance(dat["X"], tm.SplitMatrix):
         X = dat["X"]
 
     data_memory = _get_x_bytes(X)
