@@ -2,7 +2,7 @@
 {% set build_string = "py{}h{}_{}_{}".format(CONDA_PY, PKG_HASH, build_number, GLM_ARCHITECTURE) %}
 
 package:
-  name: quantcore.glm
+  name: glum
   version: {{ environ.get('GIT_DESCRIBE_TAG', '').lstrip('v') }}{% if environ.get('GIT_DESCRIBE_NUMBER', 0)|int != 0 %}.post{{ GIT_DESCRIBE_NUMBER }}+{{ GIT_DESCRIBE_HASH }}{% endif %}
 
 source:
@@ -13,7 +13,7 @@ build:
   number: {{ build_number }}
   string: "{{ build_string }}"
   track_features:
-    {{ "- quantcore-glm-{}".format(GLM_ARCHITECTURE) if GLM_ARCHITECTURE != "default" else "" }}
+    {{ "- glum-{}".format(GLM_ARCHITECTURE) if GLM_ARCHITECTURE != "default" else "" }}
 
 
 requirements:
@@ -41,7 +41,7 @@ requirements:
     - pandas
     - scikit-learn >=0.23
     - scipy
-    - quantcore.matrix >=1.0.0
+    - tabmat >=1.0.0
 
 test:
   requires:
@@ -49,8 +49,8 @@ test:
   commands:
     - pip check
   imports:
-    - quantcore.glm
+    - glum
 
 about:
-  home: https://github.com/Quantco/quantcore.glm
+  home: https://github.com/Quantco/glum
   license: Proprietary

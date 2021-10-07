@@ -37,19 +37,19 @@ extension_args = dict(
 )
 ext_modules = [
     Extension(
-        name="quantcore.glm._functions",
-        sources=["src/quantcore/glm/_functions.pyx"],
+        name="glum._functions",
+        sources=["src/glum/_functions.pyx"],
         **extension_args,
     ),
     Extension(
-        name="quantcore.glm._cd_fast",
-        sources=["src/quantcore/glm/_cd_fast.pyx"],
+        name="glum._cd_fast",
+        sources=["src/glum/_cd_fast.pyx"],
         **extension_args,
     ),
 ]
 
 setup(
-    name="quantcore.glm",
+    name="glum",
     use_scm_version={"version_scheme": "post-release"},
     setup_requires=["setuptools_scm"],
     description="Python package to benchmark GLM implementations.",
@@ -66,15 +66,15 @@ setup(
     ],
     package_dir={"": "src"},
     packages=find_namespace_packages(
-        where="src", include=["quantcore.glm"] if os.environ.get("CONDA_BUILD") else []
+        where="src", include=["glum"] if os.environ.get("CONDA_BUILD") else []
     ),
     install_requires=[],
     entry_points=None
     if os.environ.get("CONDA_BUILD")
     else """
         [console_scripts]
-        glm_benchmarks_run = quantcore.glm_benchmarks.cli_run:cli_run
-        glm_benchmarks_analyze = quantcore.glm_benchmarks.cli_analyze:cli_analyze
+        glm_benchmarks_run = glum_benchmarks.cli_run:cli_run
+        glm_benchmarks_analyze = glum_benchmarks.cli_analyze:cli_analyze
     """,
     ext_modules=cythonize(ext_modules, annotate=False),
     zip_safe=False,

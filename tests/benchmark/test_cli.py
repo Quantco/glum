@@ -7,9 +7,9 @@ import click
 import pytest
 from click.testing import CliRunner
 
-from quantcore.glm_benchmarks.cli_analyze import _identify_parameter_fnames
-from quantcore.glm_benchmarks.cli_run import cli_run
-from quantcore.glm_benchmarks.util import (
+from glum_benchmarks.cli_analyze import _identify_parameter_fnames
+from glum_benchmarks.cli_run import cli_run
+from glum_benchmarks.util import (
     BenchmarkParams,
     benchmark_params_cli,
     defaults,
@@ -60,7 +60,7 @@ def test_correct_problems_run():
         "narrow-insurance-weights-l2-gamma",
         "wide-insurance-no-weights-net-poisson",
     ]
-    library_names = ["zeros", "quantcore-glm"]
+    library_names = ["zeros", "glum"]
     num_rows = 20
     regularization_strength = 1000.0
 
@@ -115,11 +115,11 @@ def test_correct_problems_run():
     expected_problems_run_2 = [
         f"narrow-insurance-weights-l2-gamma_zeros_20_dense_{n_threads}_False_1000.0_Fals"
         "e_0.0_basic.pkl",
-        f"narrow-insurance-weights-l2-gamma_quantcore-glm_20_dense_{n_threads}_False_10"
+        f"narrow-insurance-weights-l2-gamma_glum_20_dense_{n_threads}_False_10"
         "00.0_False_0.0_basic.pkl",
         f"wide-insurance-no-weights-net-poisson_zeros_20_dense_{n_threads}_False_1000.0"
         "_False_0.0_basic.pkl",
-        f"wide-insurance-no-weights-net-poisson_quantcore-glm_20_dense_{n_threads}_False"
+        f"wide-insurance-no-weights-net-poisson_glum_20_dense_{n_threads}_False"
         "_1000.0_False_0.0_basic.pkl",
     ]
 

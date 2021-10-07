@@ -18,9 +18,9 @@ jupyter:
 
 **Intro**
 
-This tutorial demonstrates how to create models with high dimensional fixed effects using `quantcore.glm`. Using `quantcore.matrix`, we can pass categorical variables with a large range of values. `quantcore.glm` and `quantcore.matrix` will handle the creation of the one-hot-encoded design matrix.
+This tutorial demonstrates how to create models with high dimensional fixed effects using `glum`. Using `tabmat`, we can pass categorical variables with a large range of values. `glum` and `tabmat` will handle the creation of the one-hot-encoded design matrix.
 
-In some real-world problems, we have used millions of categories. This would be impossible with a dense matrix. General-purpose sparse matrices like compressed sparse row (CSR) matrices help but still leave a lot on the table. For a categorical matrix, we know that each row has only a single non-zero value and that value is 1. These optimizations are implemented in `quantcore.matrix.CategoricalMatrix`.
+In some real-world problems, we have used millions of categories. This would be impossible with a dense matrix. General-purpose sparse matrices like compressed sparse row (CSR) matrices help but still leave a lot on the table. For a categorical matrix, we know that each row has only a single non-zero value and that value is 1. These optimizations are implemented in `tabmat.CategoricalMatrix`.
 
 
 **Background**
@@ -30,7 +30,7 @@ For this tutorial, we will be predicting sales for the European drug store chain
 We will use a gamma distribution for our model. This choice is motivated by two main factors. First, our target variable, sales, is a positive real number, which matches the support of the gamma distribution. Second, it is expected that factors influencing sales are multiplicative rather than additive, which is better captured with a gamma regression than say, OLS.
 
 
-*Note*: a few parts of this tutorial utilize local helper functions outside this notebook. If you wish to run the notebook on your own, you can find the rest of the code [here](https://github.com/Quantco/quantcore.glm/tree/open-sourcing/docs/tutorials/rossman).
+*Note*: a few parts of this tutorial utilize local helper functions outside this notebook. If you wish to run the notebook on your own, you can find the rest of the code [here](https://github.com/Quantco/glum/tree/open-sourcing/docs/tutorials/rossman).
 
 ## Table of Contents<a class="anchor"></a>
 * [1. Data Loading and Feature Engineering](#1.-Data-Loading-and-Feature-Engineering)
@@ -50,7 +50,7 @@ import pandas as pd
 
 from dask_ml.impute import SimpleImputer
 from dask_ml.preprocessing import Categorizer
-from quantcore.glm import GeneralizedLinearRegressor
+from glum import GeneralizedLinearRegressor
 from sklearn.pipeline import Pipeline
 
 from feature_engineering import apply_all_transformations

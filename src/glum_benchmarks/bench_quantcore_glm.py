@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 from scipy import sparse as sps
 
-from quantcore.glm import GeneralizedLinearRegressor, GeneralizedLinearRegressorCV
+from glum import GeneralizedLinearRegressor, GeneralizedLinearRegressorCV
 
 from .util import benchmark_convergence_tolerance, get_sklearn_family, runtime
 
@@ -18,7 +18,7 @@ def _build_and_fit(model_args, fit_args, cv: bool):
     return GeneralizedLinearRegressor(**model_args).fit(**fit_args)
 
 
-def quantcore_glm_bench(
+def glum_bench(
     dat: Dict[str, Union[np.ndarray, sps.spmatrix]],
     distribution: str,
     alpha: float,
@@ -31,7 +31,7 @@ def quantcore_glm_bench(
     **kwargs,
 ):
     """
-    Run the quantcore.glm.GeneralizedLinearRegressor benchmark.
+    Run the glum.GeneralizedLinearRegressor benchmark.
 
     Parameters
     ----------

@@ -12,12 +12,13 @@ Unreleased
 
 **Breaking changes:**
 
-- :class:`~quantcore.glm.GeneralizedLinearRegressor` and :class:`~quantcore.glm.GeneralizedLinearRegressorCV` lose the ``fit_dispersion`` parameter.
+- Renamed the package to ``glum``!! Hurray! Celebration. 
+- :class:`~glum.GeneralizedLinearRegressor` and :class:`~glum.GeneralizedLinearRegressorCV` lose the ``fit_dispersion`` parameter.
   Please use the :meth:`dispersion` method of the appropriate family instance instead.
 - All functions now use ``sample_weight`` as a keyword instead of ``weights``, in line with scikit-learn.
 - All functions now use ``dispersion`` as a keyword instead of ``phi``.
-- Several methods :class:`~quantcore.glm.GeneralizedLinearRegressor` and :class:`~quantcore.glm.GeneralizedLinearRegressorCV` that should have been private have had an underscore prefixed on their names: :meth:`tear_down_from_fit`, :meth:`_set_up_for_fit`, :meth:`_set_up_and_check_fit_args`, :meth:`_get_start_coef`, :meth:`_solve` and :meth:`_solve_regularization_path`.
-- :meth:`quantcore.glm.GeneralizedLinearRegressor.report_diagnostics` and :meth:`quantcore.glm.GeneralizedLinearRegressor.get_formatted_diagnostics` are now public.
+- Several methods :class:`~glum.GeneralizedLinearRegressor` and :class:`~glum.GeneralizedLinearRegressorCV` that should have been private have had an underscore prefixed on their names: :meth:`tear_down_from_fit`, :meth:`_set_up_for_fit`, :meth:`_set_up_and_check_fit_args`, :meth:`_get_start_coef`, :meth:`_solve` and :meth:`_solve_regularization_path`.
+- :meth:`glum.GeneralizedLinearRegressor.report_diagnostics` and :meth:`glum.GeneralizedLinearRegressor.get_formatted_diagnostics` are now public.
 
 **New features:**
 
@@ -26,32 +27,32 @@ Unreleased
   all with the same value.
 - :class:`ExponentialDispersionModel` gains a :meth:`dispersion` method.
 - :class:`BinomialDistribution` and :class:`TweedieDistribution` gain a :meth:`log_likelihood` method.
-- The :meth:`fit` method of :class:`~quantcore.glm.GeneralizedLinearRegressor` and :class:`~quantcore.glm.GeneralizedLinearRegressorCV`
+- The :meth:`fit` method of :class:`~glum.GeneralizedLinearRegressor` and :class:`~glum.GeneralizedLinearRegressorCV`
   now saves the column types of pandas data frames.
-- :class:`~quantcore.glm.GeneralizedLinearRegressor` and :class:`~quantcore.glm.GeneralizedLinearRegressorCV` gain two properties: ``family_instance`` and ``link_instance``.
-- :meth:`~quantcore.glm.GeneralizedLinearRegressor.std_errors` and :meth:`~quantcore.glm.GeneralizedLinearRegressor.covariance_matrix` have been added and support non-robust, robust (HC-1), and clustered
+- :class:`~glum.GeneralizedLinearRegressor` and :class:`~glum.GeneralizedLinearRegressorCV` gain two properties: ``family_instance`` and ``link_instance``.
+- :meth:`~glum.GeneralizedLinearRegressor.std_errors` and :meth:`~glum.GeneralizedLinearRegressor.covariance_matrix` have been added and support non-robust, robust (HC-1), and clustered
   covariance matrices.
-- :class:`~quantcore.glm.GeneralizedLinearRegressor` and :class:`~quantcore.glm.GeneralizedLinearRegressorCV` now accept ``family='gaussian'`` as an alternative to ``family='normal'``.
+- :class:`~glum.GeneralizedLinearRegressor` and :class:`~glum.GeneralizedLinearRegressorCV` now accept ``family='gaussian'`` as an alternative to ``family='normal'``.
 
 **Bug fix:**
 
-- The :meth:`score` method of :class:`~quantcore.glm.GeneralizedLinearRegressor` and :class:`~quantcore.glm.GeneralizedLinearRegressorCV` now accepts data frames.
+- The :meth:`score` method of :class:`~glum.GeneralizedLinearRegressor` and :class:`~glum.GeneralizedLinearRegressorCV` now accepts data frames.
 
 **Other:**
 
 - A major overhaul of the documentation. Everything is better!
 - The methods of the link classes will now return scalars when given scalar inputs. Under certain circumstances, they'd return zero-dimensional arrays.
-- There is a new benchmark available ``glm_benchmarks_run`` based on the Boston housing dataset. See `here <https://github.com/Quantco/quantcore.glm/pull/376>`_.
-- ``glm_benchmarks_analyze`` now includes ``offset`` in the index. See `here <https://github.com/Quantco/quantcore.glm/issues/346>`_.
+- There is a new benchmark available ``glm_benchmarks_run`` based on the Boston housing dataset. See `here <https://github.com/Quantco/glum/pull/376>`_.
+- ``glm_benchmarks_analyze`` now includes ``offset`` in the index. See `here <https://github.com/Quantco/glum/issues/346>`_.
 - ``glmnet_python`` was removed from the benchmarks suite.
-- The innermost coordinate descent was optimized. This speeds up coordinate descent dominated problems like LASSO by about 1.5-2x. See `here <https://github.com/Quantco/quantcore.glm/pull/424>`_.
+- The innermost coordinate descent was optimized. This speeds up coordinate descent dominated problems like LASSO by about 1.5-2x. See `here <https://github.com/Quantco/glum/pull/424>`_.
 
 1.5.1 - 2021-07-22
 ------------------
 
 **Bug fix:**
 
-* Have the :meth:`linear_predictor` and :meth:`predict` methods of :class:`~quantcore.glm.GeneralizedLinearRegressor` and :class:`~quantcore.glm.GeneralizedLinearRegressorCV`
+* Have the :meth:`linear_predictor` and :meth:`predict` methods of :class:`~glum.GeneralizedLinearRegressor` and :class:`~glum.GeneralizedLinearRegressorCV`
   honor the offset when ``alpha`` is ``None``.
 
 1.5.0 - 2021-07-15
@@ -59,12 +60,12 @@ Unreleased
 
 **New features:**
 
-* The :meth:`linear_predictor` and :meth:`predict` methods of :class:`~quantcore.glm.GeneralizedLinearRegressor` and :class:`~quantcore.glm.GeneralizedLinearRegressorCV`
+* The :meth:`linear_predictor` and :meth:`predict` methods of :class:`~glum.GeneralizedLinearRegressor` and :class:`~glum.GeneralizedLinearRegressorCV`
   gain an ``alpha`` parameter (in complement to ``alpha_index``). Moreover, they are now able to predict for multiple penalties.
 
 **Other:**
 
-* Methods of :class:`~quantcore.glm._link.Link` now consistently return NumPy arrays, whereas they used to preserve pandas series in special cases.
+* Methods of :class:`~glum._link.Link` now consistently return NumPy arrays, whereas they used to preserve pandas series in special cases.
 * Don't list ``sparse_dot_mkl`` as a runtime requirement from the conda recipe.
 * The minimal ``numpy`` pin should be dependent on the ``numpy`` version in ``host`` and not fixed to ``1.16``.
 
@@ -89,7 +90,7 @@ Unreleased
 
 **Other:**
 
-- Small improvement in documentation for the ``alpha_index`` argument to :meth:`~quantcore.glm.GeneralizedLinearRegressor.predict`.
+- Small improvement in documentation for the ``alpha_index`` argument to :meth:`~glum.GeneralizedLinearRegressor.predict`.
 - Pinned pre-commit hooks versions.
 
 1.4.1 - 2021-05-01
@@ -102,18 +103,18 @@ We now have Windows builds!
 
 **Deprecations:**
 
-- Fusing the ``alpha`` and ``alphas`` arguments for :class:`~quantcore.glm.GeneralizedLinearRegressor`. ``alpha`` now also accepts array like inputs. ``alphas`` is now deprecated but can still be used for backward compatibility. The ``alphas`` argument will be removed with the next major version.
+- Fusing the ``alpha`` and ``alphas`` arguments for :class:`~glum.GeneralizedLinearRegressor`. ``alpha`` now also accepts array like inputs. ``alphas`` is now deprecated but can still be used for backward compatibility. The ``alphas`` argument will be removed with the next major version.
 
 **Bug fix:**
 
-- We removed entry points to functions in ``quantcore.glm_benchmarks`` from the conda package.
+- We removed entry points to functions in ``glum_benchmarks`` from the conda package.
 
 1.3.1 - 2021-04-12
 ------------------
 
 **Bug fix:**
 
-- :func:`quantcore.glm._distribution.unit_variance_derivative` is
+- :func:`glum._distribution.unit_variance_derivative` is
   evaluating a proper numexpr expression again (regression in 1.3.0).
 
 1.3.0 - 2021-04-12
@@ -127,7 +128,7 @@ We now have Windows builds!
 1.2.0 - 2021-02-04
 ------------------
 
-We removed ``quantcore.glm_benchmarks`` from the conda package.
+We removed ``glum_benchmarks`` from the conda package.
 
 1.1.1 - 2021-01-11
 ------------------
@@ -144,14 +145,14 @@ Maintenance release to get a fresh build for OSX.
 1.0.1 - 2020-11-12
 ------------------
 
-This is a maintenance release to be compatible with ``quantcore.matrix>=1.0.0``.
+This is a maintenance release to be compatible with ``tabmat>=1.0.0``.
 
 1.0.0 - 2020-11-11
 ------------------
 
 **Other:**
 
-- Renamed ``alpha_level`` attribute of :class:`~quantcore.glm.GeneralizedLinearRegressor` and :class:`~quantcore.glm.GeneralizedLinearRegressorCV` to ``alpha_index``.
+- Renamed ``alpha_level`` attribute of :class:`~glum.GeneralizedLinearRegressor` and :class:`~glum.GeneralizedLinearRegressorCV` to ``alpha_index``.
 - Clarified behavior of ``scale_predictors``.
 
 0.0.15 - 2020-11-11
@@ -159,7 +160,7 @@ This is a maintenance release to be compatible with ``quantcore.matrix>=1.0.0``.
 
 **Other:**
 
-- Pin ``quantcore.matrix<1.0.0`` as we are expecting a breaking change with version 1.0.0.
+- Pin ``tabmat<1.0.0`` as we are expecting a breaking change with version 1.0.0.
 
 0.0.14 - 2020-08-06
 -------------------

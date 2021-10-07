@@ -1,4 +1,4 @@
-name: quantcore.glm
+name: glum
 channels:
   - conda-forge
   - nodefaults

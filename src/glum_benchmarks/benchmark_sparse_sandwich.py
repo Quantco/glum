@@ -3,9 +3,9 @@ from typing import Any, Callable, Dict, Tuple
 
 import numpy as np
 import pandas as pd
-import quantcore.matrix as mx
-from quantcore.matrix.ext.dense import dense_sandwich
-from quantcore.matrix.ext.sparse import sparse_sandwich
+import tabmat as mx
+from tabmat.ext.dense import dense_sandwich
+from tabmat.ext.sparse import sparse_sandwich
 from scipy import sparse as sps
 
 from .problems import (
