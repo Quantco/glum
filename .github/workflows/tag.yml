@@ -15,8 +15,6 @@ jobs:
       fail-fast: false
       matrix:
         CONDA_BUILD_YML:
-          - linux_64_python3.6_default.____cpython
-          - linux_64_python3.6_skylake.____cpython
           - linux_64_python3.7_default.____cpython
           - linux_64_python3.7_skylake.____cpython
           - linux_64_python3.8_default.____cpython
@@ -49,8 +47,6 @@ jobs:
       fail-fast: false
       matrix:
         CONDA_BUILD_YML:
-          - osx_64_python3.6_default.____cpython
-          - osx_64_python3.6_skylake.____cpython
           - osx_64_python3.7_default.____cpython
           - osx_64_python3.7_skylake.____cpython
           - osx_64_python3.8_default.____cpython
@@ -83,7 +79,6 @@ jobs:
       fail-fast: false
       matrix:
         CONDA_BUILD_YML:
-          - win_64_python3.6.____cpython
           - win_64_python3.7.____cpython
           - win_64_python3.8.____cpython
           - win_64_python3.9.____cpython

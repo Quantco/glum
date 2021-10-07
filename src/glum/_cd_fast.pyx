@@ -5,7 +5,7 @@
 #         Manoj Kumar <manojkumarsivaraj334@gmail.com>
 #
 # License: BSD 3 clause
-#         Substantial modifications by Ben Thompson <ben.thompson@quantco.com>
+#         Substantial modifications by Ben Thompson <t.ben.thompson@gmail.com>
 #
 # cython: boundscheck=False, wraparound=False, cdivision=True
 from libc.math cimport fabs
