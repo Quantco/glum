@@ -1,6 +1,5 @@
 name: glum
 channels:
-  - ***REMOVED***
   - conda-forge
   - nodefaults
 dependencies:

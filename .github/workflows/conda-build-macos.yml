@@ -10,8 +10,6 @@ jobs:
     runs-on: macos-latest
     env:
       CI: True
-      ***REMOVED***: ${{ secrets.***REMOVED*** }}
-      ***REMOVED***: ${{ secrets.***REMOVED*** }}
       CONDA_BUILD_YML: ${{ matrix.CONDA_BUILD_YML }}
     strategy:
       fail-fast: false
@@ -27,20 +25,12 @@ jobs:
           ref: ${{ github.head_ref }}
       - name: Fetch full git history
         run: git fetch --prune --unshallow
-      - name: Create .condarc
-        shell: bash -l {0}
-        run: |
-          sed -ie "s/***REMOVED***/${***REMOVED***}/g" .github/workflows/.condarc
-          sed -ie "s/***REMOVED***/${***REMOVED***}/g" .github/workflows/.condarc
-        env:
-          ***REMOVED***: ${{ secrets.***REMOVED*** }}
-          ***REMOVED***: ${{ secrets.***REMOVED*** }}
       - uses: conda-incubator/setup-miniconda@35d1405e78aa3f784fe3ce9a2eb378d5eeb62169
         with:
           miniforge-variant: Mambaforge
           miniforge-version: 4.10.0-0
           use-mamba: true
-          condarc-file: .github/workflows/.condarc
+          channels: conda-forge
       - name: Build conda package
         shell: bash -l {0}
         run: ./.github/workflows/macos-conda-build.sh
