@@ -1,5 +1,11 @@
 [build-system]
-requires = ['setuptools', 'setuptools-scm', 'wheel']
+requires = [
+  'setuptools',
+  'setuptools-scm',
+  'wheel',
+  'Cython',
+  'numpy',
+]
 
 [tool.black]
 exclude = '''
