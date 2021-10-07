@@ -46,16 +46,11 @@ The first step is to set up a conda environment and install glum in editable mod
    # Set up our pre-commit hooks for black, mypy, isort and flake8.
    pre-commit install
 
-   # Set up the ***REMOVED*** conda channel. For the password, substitute in the correct password. You should be able to get the password by searching around on slack or asking on the glm_benchmarks slack channel!
-   conda config --system --prepend channels ***REMOVED***
-   conda config --system --set custom_channels.***REMOVED*** https://***REMOVED***:password@conda.***REMOVED***
-     
    # Set up a conda environment with name "glum"
-   conda install mamba=0.2.12
-   mamba env create
+   conda env create
 
    # If you want to install the dependencies necessary for benchmarking against other GLM packages:
-   mamba env update -n glum --file environment-benchmark.yml
+   conda env update -n glum --file environment-benchmark.yml
 
    # Install this package in editable mode. 
    conda activate glum
