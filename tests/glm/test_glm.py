@@ -7,8 +7,8 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import numpy as np
 import pandas as pd
 import pytest
-import tabmat as mx
 import statsmodels.api as sm
+import tabmat as mx
 from numpy.testing import assert_allclose
 from scipy import optimize, sparse
 from sklearn.base import clone
@@ -30,11 +30,7 @@ from glum._distribution import (
     TweedieDistribution,
     guess_intercept,
 )
-from glum._glm import (
-    GeneralizedLinearRegressor,
-    _unstandardize,
-    is_pos_semidef,
-)
+from glum._glm import GeneralizedLinearRegressor, _unstandardize, is_pos_semidef
 from glum._link import IdentityLink, Link, LogitLink, LogLink
 
 GLM_SOLVERS = ["irls-ls", "lbfgs", "irls-cd", "trust-constr"]

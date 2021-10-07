@@ -8,8 +8,8 @@ from typing import List, Optional
 import numpy as np
 import pandas as pd
 import psutil
-import tabmat as mx
 import scipy.sparse as sps
+import tabmat as mx
 
 from glum import GeneralizedLinearRegressor
 from glum_benchmarks.cli_run import get_all_problems

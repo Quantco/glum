@@ -2,8 +2,8 @@ from typing import Union
 
 import numpy as np
 import pytest
-import tabmat as mx
 import scipy as sp
+import tabmat as mx
 
 from glum._distribution import (
     BinomialDistribution,
