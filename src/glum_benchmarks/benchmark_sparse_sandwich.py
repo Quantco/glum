@@ -4,9 +4,9 @@ from typing import Any, Callable, Dict, Tuple
 import numpy as np
 import pandas as pd
 import tabmat as mx
+from scipy import sparse as sps
 from tabmat.ext.dense import dense_sandwich
 from tabmat.ext.sparse import sparse_sandwich
-from scipy import sparse as sps
 
 from .problems import (
     generate_narrow_insurance_dataset,

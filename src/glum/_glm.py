@@ -26,8 +26,8 @@ from typing import Any, Optional, Sequence, Tuple, Union, cast
 
 import numpy as np
 import pandas as pd
-import tabmat as mx
 import scipy.sparse.linalg as splinalg
+import tabmat as mx
 from scipy import linalg, sparse
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.utils import check_array
