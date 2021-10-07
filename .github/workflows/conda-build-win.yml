@@ -10,8 +10,6 @@ jobs:
     runs-on: windows-latest
     env:
       CI: True
-      ***REMOVED***: ${{ secrets.***REMOVED*** }}
-      ***REMOVED***: ${{ secrets.***REMOVED*** }}
       CONDA_BUILD_YML: "${{ matrix.CONDA_BUILD_YML }}"
     strategy:
       fail-fast: false
@@ -25,17 +23,11 @@ jobs:
           ref: ${{ github.head_ref }}
       - name: Fetch full git history
         run: git fetch --prune --unshallow
-      - name: Create .condarc
-        shell: pwsh
-        run: |
-          ((Get-Content -path .github/workflows/.condarc) -replace '***REMOVED***', '${{ secrets.***REMOVED*** }}') | Set-Content .github/workflows/.condarc
-          ((Get-Content -path .github/workflows/.condarc) -replace '***REMOVED***', '${{ secrets.***REMOVED*** }}') | Set-Content .github/workflows/.condarc
       - uses: conda-incubator/setup-miniconda@35d1405e78aa3f784fe3ce9a2eb378d5eeb62169
         with:
           miniforge-variant: Mambaforge
           miniforge-version: 4.10.0-0
           use-mamba: true
-          condarc-file: .github/workflows/.condarc
       - name: Build conda package
         shell: pwsh
         run: |

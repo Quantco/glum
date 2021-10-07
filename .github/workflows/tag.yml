@@ -10,8 +10,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       CI: True
-      ***REMOVED***: ${{ secrets.***REMOVED*** }}
-      ***REMOVED***: ${{ secrets.***REMOVED*** }}
       CONDA_BUILD_YML: "${{ matrix.CONDA_BUILD_YML }}"
     strategy:
       fail-fast: false
@@ -26,10 +24,8 @@ jobs:
           - linux_64_python3.9_default.____cpython
           - linux_64_python3.9_skylake.____cpython
     steps:
-      - name: Docker login
-        run: docker login ghcr.io -u "${{ github.actor }}" -p "${{ secrets.GITHUB_TOKEN }}"
       - name: Pull image
-        run: docker pull ***REMOVED***:latest
+        run: docker pull condaforge/mambaforge:latest
       - name: Checkout branch
         uses: actions/checkout@v2.3.4
         with:
@@ -48,8 +44,6 @@ jobs:
     runs-on: macos-latest
     env:
       CI: True
-      ***REMOVED***: ${{ secrets.***REMOVED*** }}
-      ***REMOVED***: ${{ secrets.***REMOVED*** }}
       CONDA_BUILD_YML: "${{ matrix.CONDA_BUILD_YML }}"
     strategy:
       fail-fast: false
@@ -70,17 +64,11 @@ jobs:
         uses: actions/checkout@v2.3.4
         with:
           ref: ${{ github.head_ref }}
-      - name: Create .condarc
-        shell: bash -l {0}
-        run: |
-          sed -ie "s/***REMOVED***/${***REMOVED***}/g" .github/workflows/.condarc
-          sed -ie "s/***REMOVED***/${***REMOVED***}/g" .github/workflows/.condarc
       - uses: conda-incubator/setup-miniconda@35d1405e78aa3f784fe3ce9a2eb378d5eeb62169
         with:
           miniforge-variant: Mambaforge
           miniforge-version: 4.10.0-0
           use-mamba: true
-          condarc-file: .github/workflows/.condarc
       - name: Build and upload conda package
         shell: bash -l {0}
         run: ./.github/workflows/macos-tag.sh
@@ -90,8 +78,6 @@ jobs:
     runs-on: windows-latest
     env:
       CI: True
-      ***REMOVED***: ${{ secrets.***REMOVED*** }}
-      ***REMOVED***: ${{ secrets.***REMOVED*** }}
       CONDA_BUILD_YML: "${{ matrix.CONDA_BUILD_YML }}"
     strategy:
       fail-fast: false
@@ -106,17 +92,11 @@ jobs:
         uses: actions/checkout@v2.3.4
         with:
           ref: ${{ github.head_ref }}
-      - name: Create .condarc
-        shell: pwsh
-        run: |
-          ((Get-Content -path .github/workflows/.condarc) -replace '***REMOVED***', '${{ secrets.***REMOVED*** }}') | Set-Content .github/workflows/.condarc
-          ((Get-Content -path .github/workflows/.condarc) -replace '***REMOVED***', '${{ secrets.***REMOVED*** }}') | Set-Content .github/workflows/.condarc
       - uses: conda-incubator/setup-miniconda@35d1405e78aa3f784fe3ce9a2eb378d5eeb62169
         with:
           miniforge-variant: Mambaforge
           miniforge-version: 4.10.0-0
           use-mamba: true
-          condarc-file: .github/workflows/.condarc
       - name: Build conda package
         shell: pwsh
         run: |
