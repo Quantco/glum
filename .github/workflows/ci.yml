@@ -38,26 +38,6 @@ jobs:
        uses: ./.github/actions/unittests
        with:
          python_version: ${{ matrix.PYTHON_VERSION }}
-  docs:
-    name: "Documentation"
-    runs-on: ubuntu-latest
-    env:
-      CI: True
-    strategy:
-      fail-fast: false
-      matrix:
-        PYTHON_VERSION: ['3.9']
-    steps:
-     - name: Pull image
-       run: docker pull condaforge/mambaforge:latest
-     - name: Checkout branch
-       uses: actions/checkout@v2.3.4
-       with:
-         ref: ${{ github.head_ref }}
-     - name: Run CI inside of container
-       uses: ./.github/actions/docs
-       with:
-         python_version: ${{ matrix.PYTHON_VERSION }}
   linux-conda-build:
     name: "Linux - conda-build - Python ${{ matrix.CONDA_BUILD_YML }}"
     runs-on: ubuntu-latest
