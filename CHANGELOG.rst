@@ -7,8 +7,8 @@
 Changelog
 =========
 
-Unreleased
-----------
+2.0.0 - 2021-10-08
+------------------
 
 **Breaking changes:**
 
@@ -37,7 +37,7 @@ Unreleased
 **Bug fix:**
 
 - The :meth:`score` method of :class:`~glum.GeneralizedLinearRegressor` and :class:`~glum.GeneralizedLinearRegressorCV` now accepts data frames.
-- Upgrading the code to use tabmat 3.0.0.
+- Upgraded the code to use tabmat 3.0.0.
 
 **Other:**
 
