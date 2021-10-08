@@ -101,8 +101,10 @@ for prob_name in ["narrow-insurance", "intermediate-insurance", "intermediate-ho
         plot_df = plot_df.pivot(columns="library_name")
         plot_df.columns = plot_df.columns.get_level_values(1)
         plot_df.index = [x.title() for x in plot_df.index]
-        plot_df = plot_df[['h2o', 'glum', 'r-glmnet']].rename(columns={'r-glmnet': 'glmnet'})
-        
+        plot_df = plot_df[["h2o", "glum", "r-glmnet"]].rename(
+            columns={"r-glmnet": "glmnet"}
+        )
+
         title = prob_name.title() + "-" + ("Lasso" if reg == "lasso" else "Ridge")
         plot_df.plot.bar(
             ylim=[0, 4],
