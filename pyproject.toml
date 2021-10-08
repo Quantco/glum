@@ -5,6 +5,7 @@ requires = [
   'wheel',
   'Cython',
   'numpy',
+  'scikit-learn',
 ]
 
 [tool.black]
