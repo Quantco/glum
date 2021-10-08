@@ -2,8 +2,8 @@ from typing import Union
 
 import numpy as np
 import pytest
-import tabmat as mx
 import scipy as sp
+import tabmat as tm
 
 from glum._distribution import (
     BinomialDistribution,
@@ -167,7 +167,7 @@ def test_hessian_matrix(family, link, true_hessian):
     coef = np.array([-2, 1, 0, 1, 2.5])
     dispersion = 0.5
     rng = np.random.RandomState(42)
-    X = mx.DenseMatrix(rng.randn(10, 5))
+    X = tm.DenseMatrix(rng.randn(10, 5))
     lin_pred = np.dot(X, coef)
     mu = link.inverse(lin_pred)
     sample_weight = rng.randn(10) ** 2 + 1
