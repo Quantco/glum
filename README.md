@@ -21,6 +21,8 @@ This repo also includes tools for benchmarking GLM implementations in the `glum_
 
 For more information on `glum`, including tutorials and API reference, please see [the documentation](https://glum.readthedocs.io/en/latest/).
 
+Why did we choose the name `glum`? We wanted a name that had the letters GLM and wasn't easily confused with any existing implementation. And we thought glum sounded like a funny name (and not glum at all!). If you need a more professional sounding name, feel free to pronounce it as G-L-um. Or maybe it stands for "Generalized linear... ummm... modeling?"
+
 # An example: predicting car insurance claim frequency using Poisson regression.
 
 This example uses a public French car insurance dataset.
