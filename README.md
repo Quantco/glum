@@ -25,7 +25,7 @@ Why did we choose the name `glum`? We wanted a name that had the letters GLM and
 
 # An example: predicting car insurance claim frequency using Poisson regression.
 
-This example uses a public French car insurance dataset.
+This example uses a public dataset with Seattle-area housing price data.
 ```python
 >>> from sklearn.datasets import fetch_openml
 >>> from glum import GeneralizedLinearRegressor
