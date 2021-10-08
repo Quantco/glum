@@ -27,36 +27,53 @@ Why did we choose the name `glum`? We wanted a name that had the letters GLM and
 
 This example uses a public French car insurance dataset.
 ```python
->>> import pandas as pd
->>> import numpy as np
->>> from glum_benchmarks.problems import load_data, generate_narrow_insurance_dataset
->>> from glum_benchmarks.util import get_obj_val
+>>> from sklearn.datasets import fetch_openml
 >>> from glum import GeneralizedLinearRegressor
 >>>
->>> # Load the French Motor Insurance dataset
->>> dat = load_data(generate_narrow_insurance_dataset)
->>> X, y, sample_weight = dat['X'], dat['y'], dat['sample_weight']
+>>> # This dataset contains house sale prices for King County, which includes
+>>> # Seattle. It includes homes sold between May 2014 and May 2015.
+>>> house_data = fetch_openml(name="house_sales", version=3, as_frame=True)
 >>>
->>> # Model the number of claims per year as Poisson and regularize using a L1-penalty.
+>>> # Use only select features
+>>> X = house_data.data[
+...     [
+...         "bedrooms",
+...         "bathrooms",
+...         "sqft_living",
+...         "floors",
+...         "waterfront",
+...         "view",
+...         "condition",
+...         "grade",
+...         "yr_built",
+...         "yr_renovated",
+...     ]
+... ].copy()
+>>>
+>>>
+>>> # Model whether a house had an above or below median price via a Binomial
+>>> # distribution. We'll be doing L1-regularized Logistic regression.
+>>> price = house_data.target
+>>> y = (price < price.median()).values.astype(int)
 >>> model = GeneralizedLinearRegressor(
-...     family='poisson',
+...     family='binomial',
 ...     l1_ratio=1.0,
 ...     alpha=0.001
 ... )
 >>>
->>> _ = model.fit(X=X, y=y, sample_weight=sample_weight)
+>>> _ = model.fit(X=X, y=y)
 >>>
 >>> # .report_diagnostics shows details about the steps taken by the iterative solver
 >>> diags = model.get_formatted_diagnostics(full_report=True)
 >>> diags[['objective_fct']]
         objective_fct
 n_iter               
-0            0.331670
-1            0.328841
-2            0.319605
-3            0.318660
-4            0.318641
-5            0.318641
+0            0.693091
+1            0.489500
+2            0.449585
+3            0.443681
+4            0.443498
+5            0.443497
 
 ```
 
