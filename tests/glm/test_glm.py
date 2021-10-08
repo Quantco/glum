@@ -7,8 +7,8 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import numpy as np
 import pandas as pd
 import pytest
-import tabmat as mx
 import statsmodels.api as sm
+import tabmat as tm
 from numpy.testing import assert_allclose
 from scipy import optimize, sparse
 from sklearn.base import clone
@@ -30,11 +30,7 @@ from glum._distribution import (
     TweedieDistribution,
     guess_intercept,
 )
-from glum._glm import (
-    GeneralizedLinearRegressor,
-    _unstandardize,
-    is_pos_semidef,
-)
+from glum._glm import GeneralizedLinearRegressor, _unstandardize, is_pos_semidef
 from glum._link import IdentityLink, Link, LogitLink, LogLink
 
 GLM_SOLVERS = ["irls-ls", "lbfgs", "irls-cd", "trust-constr"]
@@ -507,9 +503,9 @@ def test_glm_check_input_argument(estimator, check_input):
         np.asarray,
         sparse.csc_matrix,
         sparse.csr_matrix,
-        mx.DenseMatrix,
-        lambda x: mx.SparseMatrix(sparse.csc_matrix(x)),
-        lambda x: mx.split_matrix.csc_to_split(sparse.csc_matrix(x)),
+        tm.DenseMatrix,
+        lambda x: tm.SparseMatrix(sparse.csc_matrix(x)),
+        lambda x: tm.from_csc(sparse.csc_matrix(x)),
     ],
 )
 def test_glm_identity_regression(solver, fit_intercept, offset, convert_x_fn):
@@ -628,9 +624,9 @@ def test_report_diagnostics(
         np.asarray,
         sparse.csc_matrix,
         sparse.csr_matrix,
-        mx.DenseMatrix,
-        lambda x: mx.SparseMatrix(sparse.csc_matrix(x)),
-        lambda x: mx.split_matrix.csc_to_split(sparse.csc_matrix(x)),
+        tm.DenseMatrix,
+        lambda x: tm.SparseMatrix(sparse.csc_matrix(x)),
+        lambda x: tm.from_csc(sparse.csc_matrix(x)),
     ],
 )
 def test_x_not_modified_inplace(solver, fit_intercept, offset, convert_x_fn):
@@ -666,10 +662,10 @@ def test_x_not_modified_inplace(solver, fit_intercept, offset, convert_x_fn):
         np.asarray,
         sparse.csc_matrix,
         sparse.csr_matrix,
-        lambda x: mx.DenseMatrix(x.astype(float)),
-        lambda x: mx.SparseMatrix(sparse.csc_matrix(x)),
-        lambda x: mx.split_matrix.csc_to_split(sparse.csc_matrix(x).astype(float)),
-        lambda x: mx.CategoricalMatrix(x.dot([0, 1])),
+        lambda x: tm.DenseMatrix(x.astype(float)),
+        lambda x: tm.SparseMatrix(sparse.csc_matrix(x)),
+        lambda x: tm.from_csc(sparse.csc_matrix(x).astype(float)),
+        lambda x: tm.CategoricalMatrix(x.dot([0, 1])),
     ],
 )
 def test_glm_identity_regression_categorical_data(solver, offset, convert_x_fn):
@@ -1267,9 +1263,9 @@ def test_standardize(use_sparse, scale_predictors):
     M = row_mults[:, None] * col_mults[None, :]
 
     if use_sparse:
-        M = mx.SparseMatrix(sparse.csc_matrix(M))
+        M = tm.SparseMatrix(sparse.csc_matrix(M))
     else:
-        M = mx.DenseMatrix(M)
+        M = tm.DenseMatrix(M)
 
     X, col_means, col_stds = M.standardize(np.ones(NR) / NR, True, scale_predictors)
     if use_sparse:
@@ -1289,12 +1285,12 @@ def test_standardize(use_sparse, scale_predictors):
         Xdense = X
     for i in range(1, NC):
         if scale_predictors:
-            if isinstance(Xdense, mx.StandardizedMatrix):
+            if isinstance(Xdense, tm.StandardizedMatrix):
                 one, two = Xdense.A[:, 0], Xdense.A[:, i]
             else:
                 one, two = Xdense[:, 0], Xdense[:, i]
         else:
-            if isinstance(Xdense, mx.StandardizedMatrix):
+            if isinstance(Xdense, tm.StandardizedMatrix):
                 one, two = (i + 1) * Xdense.A[:, 0], Xdense.A[:, i]
             else:
                 one, two = (i + 1) * Xdense[:, 0], Xdense[:, i]

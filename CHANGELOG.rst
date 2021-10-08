@@ -37,6 +37,7 @@ Unreleased
 **Bug fix:**
 
 - The :meth:`score` method of :class:`~glum.GeneralizedLinearRegressor` and :class:`~glum.GeneralizedLinearRegressorCV` now accepts data frames.
+- Upgrading the code to use tabmat 3.0.0.
 
 **Other:**
 

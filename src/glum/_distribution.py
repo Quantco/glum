@@ -4,8 +4,8 @@ from typing import Tuple, Union
 
 import numexpr
 import numpy as np
-from tabmat import MatrixBase, StandardizedMatrix
 from scipy import sparse, special
+from tabmat import MatrixBase, StandardizedMatrix
 
 from ._functions import (
     binomial_logit_eta_mu_deviance,

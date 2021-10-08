@@ -9,11 +9,7 @@ from click.testing import CliRunner
 
 from glum_benchmarks.cli_analyze import _identify_parameter_fnames
 from glum_benchmarks.cli_run import cli_run
-from glum_benchmarks.util import (
-    BenchmarkParams,
-    benchmark_params_cli,
-    defaults,
-)
+from glum_benchmarks.util import BenchmarkParams, benchmark_params_cli, defaults
 
 
 @pytest.mark.parametrize(

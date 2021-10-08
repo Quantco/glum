@@ -4,8 +4,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import click
 
-from glum_benchmarks.bench_orig_sklearn_fork import orig_sklearn_fork_bench
 from glum_benchmarks.bench_glum import glum_bench
+from glum_benchmarks.bench_orig_sklearn_fork import orig_sklearn_fork_bench
 from glum_benchmarks.problems import Problem, get_all_problems
 from glum_benchmarks.util import (
     BenchmarkParams,
@@ -86,7 +86,7 @@ def cli_run(
                 iterations,
                 defaults["diagnostics_level"]
                 if params.diagnostics_level is None
-                else params.diagnostics_level,
+                else params.diagnostics_level,  # type: ignore
             )
             _save_benchmark_results(
                 output_dir,

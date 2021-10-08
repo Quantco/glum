@@ -3,8 +3,8 @@ from typing import Union
 
 import numpy as np
 import pandas as pd
-from tabmat import MatrixBase, StandardizedMatrix
 from scipy import sparse
+from tabmat import MatrixBase, StandardizedMatrix
 
 _logger = logging.getLogger(__name__)
 
