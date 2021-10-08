@@ -2,7 +2,7 @@
 
 ![CI](https://github.com/Quantco/glm_benchmarks/workflows/CI/badge.svg)
 
-[Documentation](https://docs.dev.***REMOVED***/***REMOVED***/Quantco/glum/latest/index.html)
+[Documentation](https://glum.readthedocs.io/en/latest/)
 
 Generalized linear models (GLM) are a core statistical tool that include many common methods like least-squares regression, Poisson regression and logistic regression as special cases. At QuantCo, we have used GLMs in e-commerce pricing, insurance claims prediction and more. We have developed `glum`, a fast Python-first GLM library. The development was based on [a fork of scikit-learn](https://github.com/scikit-learn/scikit-learn/pull/9405), so it has a scikit-learn-like API. We are thankful for the starting point provided by Christian Lorentzen in that PR!
 
@@ -19,7 +19,7 @@ This repo also includes tools for benchmarking GLM implementations in the `glum_
 
 ![](docs/_static/headline_benchmark.png)
 
-For more information on `glum`, including tutorials and API reference, please see [the documentation](https://docs.dev.***REMOVED***/***REMOVED***/Quantco/glum/latest/index.html).
+For more information on `glum`, including tutorials and API reference, please see [the documentation](https://glum.readthedocs.io/en/latest/).
 
 # An example: predicting car insurance claim frequency using Poisson regression.
 

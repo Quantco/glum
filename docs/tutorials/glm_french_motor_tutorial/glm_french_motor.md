@@ -159,7 +159,7 @@ Now, we define our GLM using the `GeneralizedLinearRegressor` class from `glum`.
 - `alpha_search=True`: tells the GLM to search along the regularization path for the best alpha
 - `l1_ratio = 1` tells the GLM to only use l1 penalty (not l2). `l1_ratio` is the elastic net mixing parameter. For ``l1_ratio = 0``, the penalty is an L2 penalty. ``For l1_ratio = 1``, it is an L1 penalty.  For ``0 < l1_ratio < 1``, the penalty is a combination of L1 and L2.
 
-See the `GeneralizedLinearRegressor` class [API documentation](https://docs.dev.***REMOVED***/***REMOVED***/Quantco/glum/latest/api/modules.html) for more details.
+See the `GeneralizedLinearRegressor` class [API documentation](https://glum.readthedocs.io/en/latest/api/modules.html) for more details.
 
 *Note*: `glum` also supported a cross validation model GeneralizedLinearRegressorCV. However, because cross validation requires fitting many models, it is much slower and we don’t demonstrate it in this tutorial.
 
