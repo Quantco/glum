@@ -4,7 +4,7 @@ from os import path
 
 import numpy as np
 from Cython.Build import cythonize
-from setuptools import Extension, find_namespace_packages, setup
+from setuptools import Extension, find_packages, setup
 
 here = path.abspath(path.dirname(__file__))
 
@@ -52,10 +52,10 @@ setup(
     name="glum",
     use_scm_version={"version_scheme": "post-release"},
     setup_requires=["setuptools_scm"],
-    description="Python package to benchmark GLM implementations.",
+    description="High performance Python GLMs with all the features!",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/Quantco/glm_benchmarks",
+    url="https://github.com/Quantco/glum",
     author="QuantCo, Inc.",
     author_email="noreply@quantco.com",
     classifiers=[  # Optional
@@ -63,10 +63,14 @@ setup(
         "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
     ],
     package_dir={"": "src"},
-    packages=find_namespace_packages(
-        where="src", include=["glum"] if os.environ.get("CONDA_BUILD") else []
+    packages=find_packages(
+        where="src",
+        include=["glum"]
+        if os.environ.get("CONDA_BUILD")
+        else ["glum", "glum_benchmarks"],
     ),
     install_requires=[],
     entry_points=None
