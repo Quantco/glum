@@ -7,6 +7,13 @@
 Changelog
 =========
 
+2.0.1 - 2021-10-11
+------------------
+
+**Bug fix:**
+
+- Fixed pyproject.toml. We now support installing through pip and pep517.
+
 2.0.0 - 2021-10-08
 ------------------
 
