@@ -23,9 +23,8 @@ For more information on `glum`, including tutorials and API reference, please se
 
 Why did we choose the name `glum`? We wanted a name that had the letters GLM and wasn't easily confused with any existing implementation. And we thought glum sounded like a funny name (and not glum at all!). If you need a more professional sounding name, feel free to pronounce it as G-L-um. Or maybe it stands for "Generalized linear... ummm... modeling?"
 
-# An example: predicting car insurance claim frequency using Poisson regression.
+# A classic example predicting housing prices
 
-This example uses a public dataset with Seattle-area housing price data.
 ```python
 >>> from sklearn.datasets import fetch_openml
 >>> from glum import GeneralizedLinearRegressor
@@ -52,7 +51,7 @@ This example uses a public dataset with Seattle-area housing price data.
 >>>
 >>>
 >>> # Model whether a house had an above or below median price via a Binomial
->>> # distribution. We'll be doing L1-regularized Logistic regression.
+>>> # distribution. We'll be doing L1-regularized logistic regression.
 >>> price = house_data.target
 >>> y = (price < price.median()).values.astype(int)
 >>> model = GeneralizedLinearRegressor(
