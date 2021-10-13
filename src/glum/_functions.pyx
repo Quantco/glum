@@ -80,8 +80,8 @@ def normal_log_likelihood(
     cdef floating ll = 0.0  # output
 
     for i in prange(n, nogil=True):
-        ll += weights[i] * (y[i] - mu[i]) ** 2
-        sum_weights += weights[i]
+        ll -= weights[i] * (y[i] - mu[i]) ** 2
+        sum_weights -= weights[i]
 
     return ll / (2 * dispersion) + sum_weights * log(2 * M_PI * dispersion) / 2
 
