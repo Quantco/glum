@@ -234,9 +234,11 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         For integer/``None`` inputs, :class:`KFold` is used
 
     n_jobs : int, optional (default=None)
-        Number of CPUs to use during cross validation. ``None`` means ``1``
-        unless in a :obj:`joblib.parallel_backend` context. ``-1`` means using
-        all processors.
+        The maximum number of concurrently running jobs. The number of jobs that
+        are needed is ``len(l1_ratio)`` x ``n_folds``. ``-1`` is the same as the
+        number of CPU on your machine. ``None`` means ``1`` unless in a
+        :obj:`joblib.parallel_backend` context.
+
 
     Attributes
     ----------
