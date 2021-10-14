@@ -327,7 +327,7 @@ def test_gaussian_deviance_dispersion_loglihood(family, weighted):
     # glm_model$coefficients  # 0.2
     # sum(glm_model$weights * glm_model$residuals^2)/4  # 1.7
     # glm_model$deviance  # 6.8
-    # logLik(glm_model)  # 7.863404 (df=2)
+    # logLik(glm_model)  # -7.863404 (df=2)
 
     regressor = GeneralizedLinearRegressor(
         alpha=0,
@@ -361,7 +361,7 @@ def test_gaussian_deviance_dispersion_loglihood(family, weighted):
     np.testing.assert_approx_equal(regressor.coef_[0], 0.2)
     np.testing.assert_approx_equal(family.dispersion(y, mu, sample_weight=wgts), 1.7)
     np.testing.assert_approx_equal(family.deviance(y, mu, sample_weight=wgts), 6.8)
-    np.testing.assert_approx_equal(ll, 7.863404)
+    np.testing.assert_approx_equal(ll, -7.863404)
 
 
 @pytest.mark.parametrize("weighted", [False, True])
