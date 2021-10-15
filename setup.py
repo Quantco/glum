@@ -58,6 +58,7 @@ setup(
     url="https://github.com/Quantco/glum",
     author="QuantCo, Inc.",
     author_email="noreply@quantco.com",
+    license="BSD",
     classifiers=[  # Optional
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.6",
