@@ -53,4 +53,6 @@ test:
 
 about:
   home: https://github.com/Quantco/glum
-  license: Proprietary
+  license: BSD-3-Clause
+  license_family: BSD
+  license_file: LICENSE
