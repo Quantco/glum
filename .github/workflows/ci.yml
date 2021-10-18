@@ -13,7 +13,7 @@ jobs:
      - name: Pull image
        run: docker pull condaforge/mambaforge:latest
      - name: Checkout branch
-       uses: actions/checkout@v2.3.4
+       uses: actions/checkout@v2.3.5
        with:
          ref: ${{ github.head_ref }}
      - name: Run linter inside of container
@@ -31,7 +31,7 @@ jobs:
      - name: Pull image
        run: docker pull condaforge/mambaforge:latest
      - name: Checkout branch
-       uses: actions/checkout@v2.3.4
+       uses: actions/checkout@v2.3.5
        with:
          ref: ${{ github.head_ref }}
      - name: Run CI inside of container
@@ -52,7 +52,7 @@ jobs:
       - name: Pull image
         run: docker pull condaforge/mambaforge:latest
       - name: Checkout branch
-        uses: actions/checkout@v2.3.4
+        uses: actions/checkout@v2.3.5
         with:
           ref: ${{ github.head_ref }}
       - name: Fetch full git history
