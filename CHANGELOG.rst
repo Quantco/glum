@@ -13,7 +13,7 @@ Unreleased
 **Bug fix:**
 
 - Fixed the sign of the log likelihood of the Gaussian distribution (not used for fitting coefficients).
-
+- Renamed functions checking for qc.matrix compliance to refer to tabmat.
 
 2.0.1 - 2021-10-11
 ------------------
