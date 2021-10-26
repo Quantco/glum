@@ -32,3 +32,13 @@ default_section = 'THIRDPARTY'
 skip = ["cp310-*", "pp*"]
 manylinux-x86_64-image = "quay.io/pypa/manylinux_2_24_x86_64:latest"
 test-requires = ["pytest", "pytest-xdist"]
+
+[tool.cibuildwheel.macos]
+before-all = [
+  "brew install llvm libomp",
+]
+
+[tool.cibuildwheel.macos.environment]
+LDFLAGS="-L/usr/local/lib"
+CXX="/usr/local/opt/llvm/bin/clang++"
+CC="/usr/local/opt/llvm/bin/clang"
