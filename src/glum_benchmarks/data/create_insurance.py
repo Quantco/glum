@@ -406,7 +406,7 @@ def generate_wide_insurance_dataset(
     transformer = make_column_transformer(
         (
             FunctionTransformer(),
-            lambda x: x.select_dtypes(["number"]).columns,
+            lambda x: [elmt for elmt in x.select_dtypes(["number"]).columns if elmt not in cat_cols],
         ),
         (
             Pipeline([get_categorizer(col, "cat_" + col) for col in cat_cols]),
