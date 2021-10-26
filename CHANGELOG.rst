@@ -13,7 +13,7 @@ Unreleased
 **Bug fix:**
 
 - Fixed the sign of the log likelihood of the Gaussian distribution (not used for fitting coefficients).
-
+- Fixed the wide benchmarks which had duplicated columns (categorical and numerical).
 
 2.0.1 - 2021-10-11
 ------------------
