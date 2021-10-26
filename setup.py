@@ -1,4 +1,5 @@
 import os
+import sys
 
 import numpy as np
 from Cython.Build import cythonize
@@ -9,8 +10,28 @@ here = os.path.abspath(os.path.dirname(__file__))
 with open(os.path.join(here, "README.md"), encoding="utf-8") as f:
     long_description = f.read()
 
+if sys.platform == "win32":
+    allocator_libs = []  # type: ignore
+    extra_compile_args = ["/openmp", "/O2"]
+    extra_link_args = ["/openmp"]
+else:
+    allocator_libs = ["jemalloc"]
+    extra_compile_args = [
+        "-fopenmp",
+        "-O3",
+        "-ffast-math",
+        "--std=c++17",
+    ]
+    extra_link_args = ["-fopenmp"]
+
+architecture = os.environ.get("GLM_ARCHITECTURE", "native")
+if architecture != "default":
+    extra_compile_args.append("-march=" + architecture)
+
 extension_args = dict(
     include_dirs=[np.get_include()],
+    extra_compile_args=extra_compile_args,
+    extra_link_args=extra_link_args,
     language="c++",
 )
 ext_modules = [
