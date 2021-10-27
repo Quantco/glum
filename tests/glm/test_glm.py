@@ -768,9 +768,7 @@ def test_normal_ridge_comparison(n_samples, n_features, solver, use_offset):
         ridge_params = {"solver": "sag", "max_iter": 10000, "tol": 1e-9}
 
     # GLM has 1/(2*n) * Loss + 1/2*L2, Ridge has Loss + L2
-    ridge = Ridge(
-        alpha=alpha * n_samples, normalize=False, random_state=42, **ridge_params
-    )
+    ridge = Ridge(alpha=alpha * n_samples, random_state=42, **ridge_params)
     ridge.fit(X, y if offset is None else y - offset)
 
     glm = GeneralizedLinearRegressor(
@@ -978,7 +976,6 @@ def test_normal_enet():
         alpha=alpha,
         l1_ratio=l1_ratio,
         fit_intercept=True,
-        normalize=False,
         tol=1e-8,
         copy_X=True,
     )
