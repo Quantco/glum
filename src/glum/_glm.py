@@ -85,7 +85,7 @@ ShapedArrayLike = Union[
 ]
 
 
-def check_array_matrix_compliant(mat: ArrayLike, **kwargs):
+def check_array_tabmat_compliant(mat: ArrayLike, **kwargs):
     to_copy = kwargs.get("copy", False)
 
     if isinstance(mat, pd.DataFrame) and any(mat.dtypes == "category"):
@@ -93,7 +93,7 @@ def check_array_matrix_compliant(mat: ArrayLike, **kwargs):
 
     if isinstance(mat, tm.SplitMatrix):
         kwargs.update({"ensure_min_features": 0})
-        new_matrices = [check_array_matrix_compliant(m, **kwargs) for m in mat.matrices]
+        new_matrices = [check_array_tabmat_compliant(m, **kwargs) for m in mat.matrices]
         new_indices = [elt.copy() for elt in mat.indices] if to_copy else mat.indices
         return tm.SplitMatrix(new_matrices, new_indices)
 
@@ -104,7 +104,7 @@ def check_array_matrix_compliant(mat: ArrayLike, **kwargs):
 
     if isinstance(mat, tm.StandardizedMatrix):
         return tm.StandardizedMatrix(
-            check_array_matrix_compliant(mat.mat, **kwargs),
+            check_array_tabmat_compliant(mat.mat, **kwargs),
             check_array(mat.shift, **kwargs),
         )
 
@@ -117,7 +117,7 @@ def check_array_matrix_compliant(mat: ArrayLike, **kwargs):
     return res
 
 
-def check_X_y_matrix_compliant(
+def check_X_y_tabmat_compliant(
     X: ArrayLike, y: Union[VectorLike, sparse.spmatrix], **kwargs
 ) -> Tuple[Union[tm.MatrixBase, sparse.spmatrix, np.ndarray], np.ndarray]:
     """
@@ -142,7 +142,7 @@ def check_X_y_matrix_compliant(
         y = y.astype(np.float64)
 
     check_consistent_length(X, y)
-    X = check_array_matrix_compliant(X, **kwargs)
+    X = check_array_tabmat_compliant(X, **kwargs)
 
     return X, y
 
@@ -1186,7 +1186,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         elif alpha is not None:
             alpha_index = [self._find_alpha_index(a) for a in alpha]  # type: ignore
 
-        X = check_array_matrix_compliant(
+        X = check_array_tabmat_compliant(
             X,
             accept_sparse=["csr", "csc", "coo"],
             dtype="numeric",
@@ -1258,7 +1258,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         if isinstance(X, pd.DataFrame) and hasattr(self, "feature_dtypes_"):
             X = _align_df_categories(X, self.feature_dtypes_)
 
-        X = check_array_matrix_compliant(
+        X = check_array_tabmat_compliant(
             X,
             accept_sparse=["csr", "csc", "coo"],
             dtype="numeric",
@@ -1770,7 +1770,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             X = X.astype(np.float64)  # type: ignore
 
         if isinstance(X, tm.MatrixBase):
-            X, y = check_X_y_matrix_compliant(
+            X, y = check_X_y_tabmat_compliant(
                 X,
                 y,
                 accept_sparse=_stype,
