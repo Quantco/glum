@@ -27,3 +27,17 @@ line_length = 88
 known_first_party = "glum"
 skip_glob = '\.eggs/*,\.git/*,\.venv/*,build/*,dist/*'
 default_section = 'THIRDPARTY'
+
+[tool.cibuildwheel]
+skip = ["cp310-*", "pp*"]
+test-requires = ["pytest", "pytest-xdist"]
+
+[tool.cibuildwheel.macos]
+before-all = [
+  "brew install llvm libomp",
+]
+
+[tool.cibuildwheel.macos.environment]
+LDFLAGS="-L/usr/local/lib"
+CXX="/usr/local/opt/llvm/bin/clang++"
+CC="/usr/local/opt/llvm/bin/clang"

@@ -1,14 +1,13 @@
 import os
 import sys
-from os import path
 
 import numpy as np
 from Cython.Build import cythonize
 from setuptools import Extension, find_packages, setup
 
-here = path.abspath(path.dirname(__file__))
+here = os.path.abspath(os.path.dirname(__file__))
 
-with open(path.join(here, "README.md"), encoding="utf-8") as f:
+with open(os.path.join(here, "README.md"), encoding="utf-8") as f:
     long_description = f.read()
 
 if sys.platform == "win32":
