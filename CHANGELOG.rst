@@ -7,12 +7,15 @@
 Changelog
 =========
 
-Unreleased
-----------
+2.0.2 - 2021-11-03
+------------------
 
 **Bug fix:**
 
 - Fixed the sign of the log likelihood of the Gaussian distribution (not used for fitting coefficients).
+
+** Other:**
+
 - The CI now builds the wheels and upload to pypi with every new release.
 
 2.0.1 - 2021-10-11
