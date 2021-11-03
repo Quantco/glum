@@ -74,4 +74,3 @@ jobs:
         with:
           user: __token__
           password: ${{ secrets.GH_PYPI_UPLOAD }}
-          repository_url: https://pypi.org/legacy/
