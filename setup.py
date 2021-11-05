@@ -73,12 +73,12 @@ setup(
         else ["glum", "glum_benchmarks"],
     ),
     install_requires=[
-        "numpy",
         "joblib",
-        "scipy",
         "numexpr",
-        "scikit-learn>=0.23",
+        "numpy",
         "pandas",
+        "scikit-learn>=0.23",
+        "scipy",
         "tabmat>=3.0.1",
     ],
     entry_points=None
