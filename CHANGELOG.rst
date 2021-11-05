@@ -7,6 +7,14 @@
 Changelog
 =========
 
+2.0.3 - 2021-11-05
+------------------
+
+**Other:**
+
+- We are now specifying the run time dependencies in ``setup.py``, so that missing dependencies are automatically installed from PyPI when installing ``glum`` via pip.
+
+
 2.0.2 - 2021-11-03
 ------------------
 
@@ -15,7 +23,7 @@ Changelog
 - Fixed the sign of the log likelihood of the Gaussian distribution (not used for fitting coefficients).
 - Fixed the wide benchmarks which had duplicated columns (categorical and numerical).
 
-** Other:**
+**Other:**
 
 - The CI now builds the wheels and upload to pypi with every new release.
 - Renamed functions checking for qc.matrix compliance to refer to tabmat.
