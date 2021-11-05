@@ -72,7 +72,15 @@ setup(
         if os.environ.get("CONDA_BUILD")
         else ["glum", "glum_benchmarks"],
     ),
-    install_requires=[],
+    install_requires=[
+        "joblib",
+        "numexpr",
+        "numpy",
+        "pandas",
+        "scikit-learn>=0.23",
+        "scipy",
+        "tabmat>=3.0.1",
+    ],
     entry_points=None
     if os.environ.get("CONDA_BUILD")
     else """
