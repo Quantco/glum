@@ -7,13 +7,19 @@
 Changelog
 =========
 
+2.0.4 - 202X-XX-XX
+------------------
+
+**Bug fix:**
+
+- The :meth:`score` method of :class:`~glum.GeneralizedLinearRegressor` and :class:`~glum.GeneralizedLinearRegressorCV` now accepts offsets.
+
 2.0.3 - 2021-11-05
 ------------------
 
 **Other:**
 
 - We are now specifying the run time dependencies in ``setup.py``, so that missing dependencies are automatically installed from PyPI when installing ``glum`` via pip.
-
 
 2.0.2 - 2021-11-03
 ------------------

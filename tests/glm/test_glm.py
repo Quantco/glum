@@ -1753,8 +1753,9 @@ def test_sparse_std_errors(regression_data):
 
 
 @pytest.mark.parametrize("as_data_frame", [False, True])
+@pytest.mark.parametrize("offset", [False, True])
 @pytest.mark.parametrize("weighted", [False, True])
-def test_score_method(as_data_frame, weighted):
+def test_score_method(as_data_frame, offset, weighted):
 
     regressor = GeneralizedLinearRegressor(
         alpha=0,
@@ -1776,7 +1777,14 @@ def test_score_method(as_data_frame, weighted):
     else:
         x = np.ones((len(y), 1))
 
-    score = regressor.fit(x, y, sample_weight=wgts).score(x, y, sample_weight=wgts)
+    if offset:
+        offset = y
+    else:
+        offset = None
+
+    score = regressor.fit(x, y, offset=offset, sample_weight=wgts).score(
+        x, y, offset=offset, sample_weight=wgts
+    )
 
     # use pytest because NumPy used to always reject comparisons against zero
-    assert pytest.approx(score, 1e-8) == 0
+    assert pytest.approx(score, 1e-8) == int(offset is not None)
