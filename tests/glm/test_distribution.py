@@ -461,3 +461,34 @@ def test_binomial_deviance_dispersion_loglihood(weighted):
     np.testing.assert_approx_equal(family.dispersion(y, mu, sample_weight=wgts), 1.25)
     np.testing.assert_approx_equal(family.deviance(y, mu, sample_weight=wgts), 6.730117)
     np.testing.assert_approx_equal(ll, -3.365058)
+
+
+@pytest.mark.parametrize("dispersion", [1, 5, 10, 25])
+@pytest.mark.parametrize("power", [1.1, 1.5, 1.9, 1.99])
+def test_tweedie_normalization(dispersion, power):
+    def scipy_based_normalization(y, power, dispersion):
+        alpha = (2 - power) / (1 - power)
+        x = (((power - 1) / y) ** alpha) / ((2 - power) * (dispersion ** (1 - alpha)))
+        return np.log(sp.special.wright_bessel(-alpha, 0, x)) - np.log(y)
+
+    def scipy_based_loglihood(y, mu, power, dispersion):
+
+        ll = np.zeros_like(y)
+        ix = y > 0
+
+        kappa = (mu[ix] ** (2 - power)) / (2 - power)
+        theta = (mu[ix] ** (1 - power)) / (1 - power)
+        normalization = scipy_based_normalization(y[ix], power, dispersion)
+
+        ll[~ix] = -(mu[~ix] ** (2 - power)) / (dispersion * (2 - power))
+        ll[ix] = (theta * y[ix] - kappa) / dispersion + normalization
+
+        return ll.sum()
+
+    y = np.arange(0, 100, step=0.5, dtype="float")
+    mu = np.full_like(y, y.mean())
+
+    candidate = TweedieDistribution(power).log_likelihood(y, mu, dispersion=dispersion)
+    target = scipy_based_loglihood(y, mu, power, dispersion)
+
+    np.testing.assert_allclose(candidate, target, rtol=1e-6)

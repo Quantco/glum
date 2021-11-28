@@ -17,7 +17,6 @@ some parts and tricks stolen from other sklearn files.
 from __future__ import division
 
 import copy
-import logging
 import sys
 import warnings
 from collections.abc import Iterable
@@ -60,8 +59,6 @@ from ._solvers import (
     _trust_constr_solver,
 )
 from ._util import _align_df_categories, _safe_toarray
-
-_logger = logging.getLogger(__name__)
 
 _float_itemsize_to_dtype = {8: np.float64, 4: np.float32, 2: np.float16}
 
