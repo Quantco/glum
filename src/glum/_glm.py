@@ -1512,6 +1512,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         X: ShapedArrayLike,
         y: ShapedArrayLike,
         sample_weight: Optional[ArrayLike] = None,
+        offset: Optional[ArrayLike] = None,
     ):
         """Compute :math:`D^2`, the percentage of deviance explained.
 
@@ -1536,16 +1537,18 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         sample_weight : array-like, shape (n_samples,), optional (default=None)
             Sample weights.
 
+        offset : array-like, shape (n_samples,), optional (default=None)
+
         Returns
         -------
-        score : float
+        float
             D^2 of self.predict(X) w.r.t. y.
         """
         # Note, default score defined in RegressorMixin is R^2 score.
         # TODO: make D^2 a score function in module metrics (and thereby get
         #       input validation and so on)
         sample_weight = _check_weights(sample_weight, y.shape[0], y.dtype)
-        mu = self.predict(X)
+        mu = self.predict(X, offset=offset)
         family = get_family(self.family)
         dev = family.deviance(y, mu, sample_weight=sample_weight)
         y_mean = np.average(y, weights=sample_weight)
