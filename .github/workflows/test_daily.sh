@@ -5,15 +5,35 @@ set -exo pipefail
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 source ${SCRIPT_DIR}/base.sh $1
 
-export PANDAS_VERSION=$2
-export NUMPY_VERSION=$3
-export SCIKIT_VERSION=$4
+PANDAS_VERSION=$2
+NUMPY_VERSION=$3
+SCIKIT_VERSION=$4
 
 mamba install -y yq
+# TODO: Figure out how to replace dependencies if they are already present in
+# environment.yml
 yq -Y ". + {dependencies: [.dependencies[], \"python=${PYTHON_VERSION}\"] }" environment.yml > /tmp/environment.yml
 mamba env create -f /tmp/environment.yml
 mamba env update -n $(yq -r .name environment.yml) --file environment-benchmark.yml
 conda activate $(yq -r .name environment.yml)
+
+PRE_WHEELS="https://pypi.anaconda.org/scipy-wheels-nightly/simple"
+if [[ "$NUMPY_VERSION" == "nightly" ]]; then
+    echo "Installing Numpy nightly"
+    conda uninstall -y --force numpy
+    pip install --pre --no-deps --upgrade --timeout=60 -i $PRE_WHEELS numpy
+fi
+if [[ "$PANDAS_VERSION" == "nightly" ]]; then
+    echo "Installing Pandas nightly"
+    conda uninstall -y --force pandas
+    pip install --pre --no-deps --upgrade --timeout=60 -i $PRE_WHEELS pandas
+fi
+if [[ "$SCIKIT_VERSION" == "nightly" ]]; then
+    echo "Install scikit-learn nightly"
+    conda uninstall -y --force scikit-learn
+    pip install --pre --no-deps --upgrade --timeout=60 -i $PRE_WHEELS scikit-learn
+fi
+
 pip install --no-use-pep517 --no-deps --disable-pip-version-check -e .
 pytest -nauto tests --doctest-modules src/
 
