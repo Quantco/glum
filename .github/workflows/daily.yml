@@ -25,16 +25,16 @@ jobs:
             NUMPY_VERSION: ''
             SCIKIT_VERSION: ''
     steps:
-     - name: Pull image
-       run: docker pull condaforge/mambaforge:latest
-     - name: Checkout branch
-       uses: actions/checkout@v2.3.5
-       with:
-         ref: ${{ github.head_ref }}
-     - name: Run CI inside of container
-       uses: ./.github/actions/unittests
-       with:
-         python_version: ${{ matrix.PYTHON_VERSION }}
+      - name: Pull image
+        run: docker pull condaforge/mambaforge:latest
+      - name: Checkout branch
+        uses: actions/checkout@v2.3.5
+        with:
+          ref: ${{ github.head_ref }}
+      - name: Run CI inside of container
+        uses: ./.github/actions/unittests
+        with:
+          python_version: ${{ matrix.PYTHON_VERSION }}
       - name: Issue on failure
         uses: actions/github-script@v5
         if: ${{ failure() }}
