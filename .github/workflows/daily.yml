@@ -1,7 +1,8 @@
 name: Daily runs
-on:
-  schedule:
-    - cron: '0 5 * * *'
+on: [push]
+# on:
+#   schedule:
+#     - cron: '0 5 * * *'
 
 jobs:
   linux-daily-unittests:
