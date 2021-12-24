@@ -10,9 +10,18 @@ NUMPY_VERSION=$3
 SCIKIT_VERSION=$4
 
 mamba install -y yq
-# TODO: Figure out how to replace dependencies if they are already present in
-# environment.yml
-yq -Y ". + {dependencies: [.dependencies[], \"python=${PYTHON_VERSION}\"] }" environment.yml > /tmp/environment.yml
+
+cat environment.yml > /tmp/environment.yml
+DEPENDENCIES=("python" "numpy" "pandas" "scikit-learn")
+for dependency in "${DEPENDENCIES[@]}"; do
+    _dependency="${dependency^^}_VERSION"
+    version=${!_dependency}
+    # Delete any existing entry in the environment.yml to avoid duplicate entries when
+    # appending
+    yq -Y --in-place "del( .dependencies[] | select(startswith(\"${_dependency}\")))" /tmp/environment.yml
+    yq -Y --in-place ". + {dependencies: [.dependencies[], \"${_dependency}=${version}\"] }" /tmp/environment.yml
+done
+
 mamba env create -f /tmp/environment.yml
 mamba env update -n $(yq -r .name environment.yml) --file environment-benchmark.yml
 conda activate $(yq -r .name environment.yml)
