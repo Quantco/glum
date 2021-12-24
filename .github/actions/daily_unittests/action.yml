@@ -1,0 +1,23 @@
+name: Run image
+description: Run private container from GitHub Packages Registry after Docker login
+inputs:
+  python_version:
+    description: 'Python version'
+    required: true
+  pandas_version:
+    description: 'Pandas version'
+    required: true
+  numpy_version:
+    description: 'Numpy version'
+    required: true
+  scikit_version:
+    description: 'Scikit-learn version'
+    required: true
+runs:
+  using: 'docker'
+  image: condaforge/mambaforge:latest
+  args:
+   - /bin/bash
+   - "-l"
+   - "-c"
+   - "./.github/workflows/test_daily.sh ${{ inputs.python_version }} ${{ inputs.pandas_version }} ${{ inputs.numpy_version }} ${{ inputs.scikit_version }}"

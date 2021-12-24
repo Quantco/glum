@@ -32,9 +32,12 @@ jobs:
         with:
           ref: ${{ github.head_ref }}
       - name: Run CI inside of container
-        uses: ./.github/actions/unittests
+        uses: ./.github/actions/daily_unittests
         with:
           python_version: ${{ matrix.PYTHON_VERSION }}
+          pandas_version: ${{ matrix.PANDAS_VERSION }}
+          numpy_version: ${{ matrix.NUMPY_VERSION }}
+          scikit_version: ${{ matrix.SCIKIT_VERSION }}
       - name: Issue on failure
         uses: actions/github-script@v5
         if: ${{ failure() }}
