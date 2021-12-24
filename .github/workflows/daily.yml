@@ -5,7 +5,7 @@ on:
 
 jobs:
   linux-daily-unittests:
-    # Specify PANDAS_VERSION to differentiate between nightlies and normal dependencies
+    # specify PANDAS_VERSION to differentiate between nightlies and normal dependencies
     name: "Linux - daily unit tests - Python ${{ matrix.PYTHON_VERSION }} ${{ matrix.PANDAS_VERSION }}"
     runs-on: ubuntu-latest
     env:
