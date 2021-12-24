@@ -1,0 +1,57 @@
+name: Daily runs
+on:
+  schedule:
+    - cron: '0 5 * * *'
+
+jobs:
+  linux-daily-unittests:
+    # Specify PANDAS_VERSION to differentiate between nightlies and normal dependencies
+    name: "Linux - daily unit tests - Python ${{ matrix.PYTHON_VERSION }} ${{ matrix.PANDAS_VERSION }}"
+    runs-on: ubuntu-latest
+    env:
+      CI: True
+    strategy:
+      fail-fast: false
+      matrix:
+        PYTHON_VERSION: ['3.7', '3.8']
+        include:
+          - PYTHON_VERSION: '3.9' # run once with nightlies
+            PANDAS_VERSION: 'nightly'
+            NUMPY_VERSION: 'nightly'
+            SCIKIT_VERSION: 'nightly'
+          - PYTHON_VERSION: '3.9' # run once with normal dependencies
+            PANDAS_VERSION: ''
+            NUMPY_VERSION: ''
+            SCIKIT_VERSION: ''
+    steps:
+     - name: Pull image
+       run: docker pull condaforge/mambaforge:latest
+     - name: Checkout branch
+       uses: actions/checkout@v2.3.5
+       with:
+         ref: ${{ github.head_ref }}
+     - name: Run CI inside of container
+       uses: ./.github/actions/unittests
+       with:
+         python_version: ${{ matrix.PYTHON_VERSION }}
+      - name: Issue on failure
+        uses: actions/github-script@v5
+        if: ${{ failure() }}
+        with:
+          script: |
+            github.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open",
+              labels: "[bot] Periodic unittest"
+            }).then((issues) => {
+              if (issues.data.length === 0){
+                github.issues.create({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  title: "Daily run failure: Unit tests",
+                  assignees: ["BenBarrettQC"],
+                  labels: ["[bot] Periodic unittest"]
+                })
+              }
+            });
