@@ -7,7 +7,7 @@ source ${SCRIPT_DIR}/base.sh $1
 
 export PANDAS_VERSION=$2
 export NUMPY_VERSION=$3
-export SCIKIT-LEARN_VERSION=$4
+export SCIKIT_VERSION=$4
 
 mamba install -y yq
 
