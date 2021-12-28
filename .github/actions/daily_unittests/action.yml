@@ -10,7 +10,7 @@ inputs:
   numpy_version:
     description: 'Numpy version'
     required: true
-  scikit_version:
+  scikit-learn_version:
     description: 'Scikit-learn version'
     required: true
 runs:
@@ -20,4 +20,4 @@ runs:
    - /bin/bash
    - "-l"
    - "-c"
-   - "./.github/workflows/test_daily.sh ${{ inputs.python_version }} ${{ inputs.pandas_version }} ${{ inputs.numpy_version }} ${{ inputs.scikit_version }}"
+   - "./.github/workflows/test_daily.sh ${{ inputs.python_version }} ${{ inputs.pandas_version }} ${{ inputs.numpy_version }} ${{ inputs.scikit-learn_version }}"
