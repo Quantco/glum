@@ -12,7 +12,7 @@ SCIKIT_VERSION=$4
 mamba install -y yq
 
 cat environment.yml > /tmp/environment.yml
-DEPENDENCIES=("python" "numpy" "pandas" "scikit-learn")
+DEPENDENCIES=("python" "numpy" "pandas" "scikit")
 for dependency in "${DEPENDENCIES[@]}"; do
     _dependency="${dependency^^}_VERSION"
     version=${!_dependency}
