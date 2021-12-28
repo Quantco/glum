@@ -14,6 +14,10 @@ Changelog
 
 - The :meth:`score` method of :class:`~glum.GeneralizedLinearRegressor` and :class:`~glum.GeneralizedLinearRegressorCV` now accepts offsets.
 
+**Other:**
+
+- The CI now runs daily unit tests against the nightly builds of numpy, pandas and scikit-learn.
+
 2.0.3 - 2021-11-05
 ------------------
 
