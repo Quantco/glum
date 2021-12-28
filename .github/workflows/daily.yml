@@ -43,19 +43,20 @@ jobs:
         if: ${{ failure() }}
         with:
           script: |
-            github.issues.listForRepo({
+            github.rest.issues.listForRepo({
               owner: context.repo.owner,
               repo: context.repo.repo,
               state: "open",
-              labels: "[bot] Periodic unittest"
+              labels: "[bot] Daily run"
             }).then((issues) => {
               if (issues.data.length === 0){
-                github.issues.create({
+                github.rest.issues.create({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
                   title: "Daily run failure: Unit tests",
+                  body: "The daily unit tests failed. See https://github.com/Quantco/glum/actions/runs/${{ github.run_id }} for details.",
                   assignees: ["BenBarrettQC"],
-                  labels: ["[bot] Periodic unittest"]
+                  labels: ["[bot] Daily run"]
                 })
               }
             });
