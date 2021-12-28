@@ -19,11 +19,11 @@ jobs:
           - PYTHON_VERSION: '3.9' # run once with nightlies
             PANDAS_VERSION: 'nightly'
             NUMPY_VERSION: 'nightly'
-            SCIKIT-LEARN_VERSION: 'nightly'
+            SCIKIT_VERSION: 'nightly'
           - PYTHON_VERSION: '3.9' # run once with normal dependencies
             PANDAS_VERSION: ''
             NUMPY_VERSION: ''
-            SCIKIT-LEARN_VERSION: ''
+            SCIKIT_VERSION: ''
     steps:
       - name: Pull image
         run: docker pull condaforge/mambaforge:latest
@@ -37,7 +37,7 @@ jobs:
           python_version: ${{ matrix.PYTHON_VERSION }}
           pandas_version: ${{ matrix.PANDAS_VERSION }}
           numpy_version: ${{ matrix.NUMPY_VERSION }}
-          scikit-learn_version: ${{ matrix.SCIKIT-LEARN_VERSION }}
+          scikit_version: ${{ matrix.SCIKIT_VERSION }}
       # - name: Issue on failure
       #   uses: actions/github-script@v5
       #   if: ${{ failure() }}

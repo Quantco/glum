@@ -12,13 +12,18 @@ export SCIKIT-LEARN_VERSION=$4
 mamba install -y yq
 
 cat environment.yml > /tmp/environment.yml
-DEPENDENCIES=("python" "numpy" "pandas" "scikit-learn")
+DEPENDENCIES=("python" "numpy" "pandas" "scikit")
 for dependency in "${DEPENDENCIES[@]}"; do
     _dependency="${dependency^^}_VERSION"
     version=${!_dependency}
     # Delete any existing entry in the environment.yml to avoid duplicate entries when
     # appending
     yq -Y --in-place "del( .dependencies[] | select(startswith(\"${dependency}\")))" /tmp/environment.yml
+    # Handle hyphenation
+    # (see e.g. https://unix.stackexchange.com/questions/23659/can-shell-variable-name-include-a-hyphen-or-dash)
+    if [[ "${dependency}" == "scikit" ]]; then
+        dependency="scikit-learn"
+    fi
     yq -Y --in-place ". + {dependencies: [.dependencies[], \"${dependency}=${version}\"] }" /tmp/environment.yml
 done
 
@@ -37,7 +42,7 @@ if [[ "${PANDAS_VERSION}" == "nightly" ]]; then
     conda uninstall -y --force pandas
     pip install --pre --no-deps --upgrade --timeout=60 -i $PRE_WHEELS pandas
 fi
-if [[ "${SCIKIT-LEARN_VERSION}" == "nightly" ]]; then
+if [[ "${SCIKIT_VERSION}" == "nightly" ]]; then
     echo "Install scikit-learn nightly"
     conda uninstall -y --force scikit-learn
     pip install --pre --no-deps --upgrade --timeout=60 -i $PRE_WHEELS scikit-learn
