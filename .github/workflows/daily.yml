@@ -40,7 +40,7 @@ jobs:
         with:
           ref: ${{ github.head_ref }}
       - name: Run CI inside of container
-        uses: ./.github/actions/daily_unittests
+        uses: ./.github/actions/unittests
         with:
           python_version: ${{ matrix.PYTHON_VERSION }}
           pandas_version: ${{ matrix.PANDAS_VERSION }}
