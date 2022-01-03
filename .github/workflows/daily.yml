@@ -17,12 +17,14 @@ jobs:
       matrix:
         PYTHON_VERSION: ['3.9']
         include:
-          - PANDAS_VERSION: 'nightly' # run once with nightlies
+          - PYTHON_VERSION: '3.9'
+            PANDAS_VERSION: 'nightly' # run once with nightlies
             NUMPY_VERSION: 'nightly'
             SCIKIT_VERSION: 'nightly'
             SCIPY_VERSION: 'nightly'
             TABMAT_VERSION: 'nightly'
-          - PANDAS_VERSION: '' # run once with normal dependencies
+          - PYTHON_VERSION: '3.9'
+            PANDAS_VERSION: '' # run once with normal dependencies
             NUMPY_VERSION: ''
             SCIKIT_VERSION: ''
             SCIPY_VERSION: ''
