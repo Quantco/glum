@@ -1,10 +1,13 @@
 name: Build and upload to PyPI
 
 on:
-  pull_request:
-  release:
-    types:
-      - published
+  # pull_request:
+  # release:
+  #   types:
+  #     - published
+  push:
+    branches:
+      - main # Temporary to minimize Github Actions runs during development
 
 jobs:
   build_wheels:
