@@ -4,7 +4,7 @@ requires = [
   'setuptools-scm',
   'wheel',
   'Cython',
-  'numpy',
+  'oldest-supported-numpy',
   'scikit-learn',
 ]
 
