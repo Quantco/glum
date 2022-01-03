@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # run once with nightlies, and once with normal dependencies
+        # run once with nightlies, and once also with normal dependencies
         RUN_VERSION: ['nightly', '']
     steps:
       - name: Pull image
