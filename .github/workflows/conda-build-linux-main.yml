@@ -2,7 +2,7 @@ name: conda-build Linux
 on:
   push:
     branches:
-      - master
+      - main
 jobs:
   linux-conda-build:
     name: "Linux - conda-build - Python ${{ matrix.CONDA_BUILD_YML }}"
