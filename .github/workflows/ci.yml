@@ -1,9 +1,5 @@
 name: CI
-# on: [push]
-on:
-  push:
-    branches:
-      - main  # Temporary to minimize Github Actions runs during development
+on: [push]
 
 jobs:
   linter:
