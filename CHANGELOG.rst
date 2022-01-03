@@ -17,6 +17,7 @@ Changelog
 **Other:**
 
 - The CI now runs daily unit tests against the nightly builds of numpy, pandas and scikit-learn.
+- ``oldest-supported-numpy`` is used for build. 
 
 2.0.3 - 2021-11-05
 ------------------
