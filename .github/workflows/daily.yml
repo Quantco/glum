@@ -1,22 +1,32 @@
 name: Daily runs
 on:
-  push:
-    paths:
-    - './.github/workflows/daily.yml'
   schedule:
     - cron: '0 5 * * *'
+  push:
+    paths:
+    - '.github/workflows/daily.yml'
 
 jobs:
   linux-daily-unittests:
-    name: "Linux - daily unit tests - Python 3.9 ${{ matrix.RUN_VERSION }}"
+    name: "Linux - daily unit tests - Python ${{ matrix.PYTHON_VERSION}} ${{ matrix.PANDAS_VERSION }}"
     runs-on: ubuntu-latest
     env:
       CI: True
     strategy:
       fail-fast: false
       matrix:
-        # run once with nightlies, and once also with normal dependencies
-        RUN_VERSION: ['nightly', '']
+        PYTHON_VERSION: ['3.9']
+        include:
+          - PANDAS_VERSION: 'nightly' # run once with nightlies
+            NUMPY_VERSION: 'nightly'
+            SCIKIT_VERSION: 'nightly'
+            SCIPY_VERSION: 'nightly'
+            TABMAT_VERSION: 'nightly'
+          - PANDAS_VERSION: '' # run once with normal dependencies
+            NUMPY_VERSION: ''
+            SCIKIT_VERSION: ''
+            SCIPY_VERSION: ''
+            TABMAT_VERSION: ''
     steps:
       - name: Pull image
         run: docker pull condaforge/mambaforge:latest
@@ -27,12 +37,12 @@ jobs:
       - name: Run CI inside of container
         uses: ./.github/actions/daily_unittests
         with:
-          python_version: '3.9'
-          pandas_version: ${{ matrix.RUN_VERSION }}
-          numpy_version: ${{ matrix.RUN_VERSION }}
-          scikit_version: ${{ matrix.RUN_VERSION }}
-          scipy_version: ${{ matrix.RUN_VERSION }}
-          tabmat_version: ${{ matrix.RUN_VERSION }}
+          python_version: ${{ matrix.PYTHON_VERSION }}
+          pandas_version: ${{ matrix.PANDAS_VERSION }}
+          numpy_version: ${{ matrix.NUMPY_VERSION }}
+          scikit_version: ${{ matrix.SCIKIT_VERSION }}
+          scipy_version: ${{ matrix.SCIPY_VERSION }}
+          tabmat_version: ${{ matrix.TABMAT_VERSION }}
       # - name: Issue on failure
       #   uses: actions/github-script@v5
       #   if: ${{ failure() }}
