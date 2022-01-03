@@ -13,6 +13,9 @@ inputs:
   scikit_version:
     description: 'Scikit-learn version'
     required: true
+  scipy_version:
+    description: 'Scipy version'
+    required: true
   tabmat_version:
     description: 'Tabmat version'
     required: true
@@ -23,4 +26,4 @@ runs:
    - /bin/bash
    - "-l"
    - "-c"
-   - "./.github/workflows/test_daily.sh ${{ inputs.python_version }} ${{ inputs.pandas_version }} ${{ inputs.numpy_version }} ${{ inputs.scikit_version }}  ${{ inputs.tabmat_version }}"
+   - "PYTHON_VERSION=${{ inputs.python_version }} PANDAS_VERSION=${{ inputs.pandas_version }} NUMPY_VERSION=${{ inputs.numpy_version }} SCIKIT_VERSION=${{ inputs.scikit_version }} SCIPY_VERSION=${{ inputs.scipy_version }} TABMAT_VERSION=${{ inputs.tabmat_version }} ./.github/workflows/test_daily.sh"
