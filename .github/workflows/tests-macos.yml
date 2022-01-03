@@ -1,12 +1,10 @@
 name: CI
 on:
   push:
-    branches:
-      - main # Temporary to minimize Github Actions runs during development
-    # paths:
-    #   - '.github/**'
-    #   - '**/*.pyx'
-    #   - '**/*.cpp'
+    paths:
+      - '.github/**'
+      - '**/*.pyx'
+      - '**/*.cpp'
 
 jobs:
   macos:

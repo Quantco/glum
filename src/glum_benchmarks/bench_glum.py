@@ -95,7 +95,12 @@ def glum_bench(
         result["best_alpha"] = m.alpha_
 
     with pd.option_context(
-        "display.expand_frame_repr", False, "max_columns", None, "max_rows", None
+        "display.expand_frame_repr",
+        False,
+        "display.max_columns",
+        None,
+        "display.max_rows",
+        None,
     ):
         if diagnostics_level == "basic":
             m.report_diagnostics()

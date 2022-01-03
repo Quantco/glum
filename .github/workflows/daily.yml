@@ -19,7 +19,9 @@ jobs:
           - PYTHON_VERSION: '3.9'
             PANDAS_VERSION: 'nightly'
             NUMPY_VERSION: 'nightly'
-            SCIKIT_VERSION: 'nightly'
+            # See https://github.com/Quantco/glum/issues/506
+            # SCIKIT_VERSION: 'nightly'
+            SCIKIT_VERSION: ''
             SCIPY_VERSION: 'nightly'
             TABMAT_VERSION: 'nightly'
             NOTE: 'Nightly Builds' # run once with nightlies
@@ -46,25 +48,25 @@ jobs:
           scikit_version: ${{ matrix.SCIKIT_VERSION }}
           scipy_version: ${{ matrix.SCIPY_VERSION }}
           tabmat_version: ${{ matrix.TABMAT_VERSION }}
-      # - name: Issue on failure
-      #   uses: actions/github-script@v5
-      #   if: ${{ failure() }}
-      #   with:
-      #     script: |
-      #       github.rest.issues.listForRepo({
-      #         owner: context.repo.owner,
-      #         repo: context.repo.repo,
-      #         state: "open",
-      #         labels: "[bot] Daily run"
-      #       }).then((issues) => {
-      #         if (issues.data.length === 0){
-      #           github.rest.issues.create({
-      #             owner: context.repo.owner,
-      #             repo: context.repo.repo,
-      #             title: "Daily run failure: Unit tests",
-      #             body: "The daily unit tests failed. See https://github.com/Quantco/glum/actions/runs/${{ github.run_id }} for details.",
-      #             assignees: ["MarcAntoineSchmidtQC", "lbittarello"],
-      #             labels: ["[bot] Daily run"]
-      #           })
-      #         }
-      #       });
+      - name: Issue on failure
+        uses: actions/github-script@v5
+        if: ${{ failure() }}
+        with:
+          script: |
+            github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open",
+              labels: "[bot] Daily run"
+            }).then((issues) => {
+              if (issues.data.length === 0){
+                github.rest.issues.create({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  title: "Daily run failure: Unit tests",
+                  body: "The daily unit tests failed. See https://github.com/Quantco/glum/actions/runs/${{ github.run_id }} for details.",
+                  assignees: ["MarcAntoineSchmidtQC", "lbittarello"],
+                  labels: ["[bot] Daily run"]
+                })
+              }
+            });

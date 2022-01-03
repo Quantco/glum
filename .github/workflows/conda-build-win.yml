@@ -1,11 +1,9 @@
 name: conda-build Windows
 on:
   push:
-    branches:
-      - main # Temporary to minimize Github Actions runs during development
-    # paths:
-    #   - '.github/**'
-    #   - 'conda.recipe/**'
+    paths:
+      - '.github/**'
+      - 'conda.recipe/**'
 jobs:
   windows-conda-build:
     name: "Windows - conda-build - ${{ matrix.CONDA_BUILD_YML }}"
