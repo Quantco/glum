@@ -17,19 +17,19 @@ jobs:
       matrix:
         include:
           - PYTHON_VERSION: '3.9'
-            PANDAS_VERSION: 'nightly' # run once with nightlies
+            PANDAS_VERSION: 'nightly'
             NUMPY_VERSION: 'nightly'
             SCIKIT_VERSION: 'nightly'
             SCIPY_VERSION: 'nightly'
             TABMAT_VERSION: 'nightly'
-            NOTE: 'Nightly Builds'
+            NOTE: 'Nightly Builds' # run once with nightlies
           - PYTHON_VERSION: '3.9'
-            PANDAS_VERSION: '' # run once with normal dependencies
+            PANDAS_VERSION: ''
             NUMPY_VERSION: ''
             SCIKIT_VERSION: ''
             SCIPY_VERSION: ''
             TABMAT_VERSION: ''
-            NOTE: 'Default Builds'
+            NOTE: 'Default Builds' # run once with normal dependencies
     steps:
       - name: Pull image
         run: docker pull condaforge/mambaforge:latest
