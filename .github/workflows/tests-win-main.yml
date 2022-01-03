@@ -2,7 +2,7 @@ name: CI
 on:
   push:
     branches:
-      - master
+      - main
 jobs:
   windows-ci:
     name: "Win - tests - Python ${{ matrix.PYTHON_VERSION }}"
