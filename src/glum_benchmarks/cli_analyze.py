@@ -84,7 +84,12 @@ def cli_analyze(
     )
 
     with pd.option_context(
-        "display.expand_frame_repr", False, "max_columns", None, "max_rows", None
+        "display.expand_frame_repr",
+        False,
+        "display.max_columns",
+        None,
+        "display.max_rows",
+        None,
     ):
         if cols is not None:
             cols_to_show = _get_comma_sep_names(cols)

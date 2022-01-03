@@ -1,0 +1,72 @@
+name: Daily runs
+on:
+  schedule:
+    - cron: '0 5 * * *'
+  push:
+    paths:
+    - '.github/workflows/daily.yml'
+
+jobs:
+  linux-daily-unittests:
+    name: "Linux - daily unit tests - Python ${{ matrix.PYTHON_VERSION}} - ${{ matrix.NOTE }}"
+    runs-on: ubuntu-latest
+    env:
+      CI: True
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - PYTHON_VERSION: '3.9'
+            PANDAS_VERSION: 'nightly'
+            NUMPY_VERSION: 'nightly'
+            # See https://github.com/Quantco/glum/issues/506
+            # SCIKIT_VERSION: 'nightly'
+            SCIKIT_VERSION: ''
+            SCIPY_VERSION: 'nightly'
+            TABMAT_VERSION: 'nightly'
+            NOTE: 'Nightly Builds' # run once with nightlies
+          - PYTHON_VERSION: '3.9'
+            PANDAS_VERSION: ''
+            NUMPY_VERSION: ''
+            SCIKIT_VERSION: ''
+            SCIPY_VERSION: ''
+            TABMAT_VERSION: ''
+            NOTE: 'Default Builds' # run once with normal dependencies
+    steps:
+      - name: Pull image
+        run: docker pull condaforge/mambaforge:latest
+      - name: Checkout branch
+        uses: actions/checkout@v2.3.5
+        with:
+          ref: ${{ github.head_ref }}
+      - name: Run CI inside of container
+        uses: ./.github/actions/daily_unittests
+        with:
+          python_version: ${{ matrix.PYTHON_VERSION }}
+          pandas_version: ${{ matrix.PANDAS_VERSION }}
+          numpy_version: ${{ matrix.NUMPY_VERSION }}
+          scikit_version: ${{ matrix.SCIKIT_VERSION }}
+          scipy_version: ${{ matrix.SCIPY_VERSION }}
+          tabmat_version: ${{ matrix.TABMAT_VERSION }}
+      - name: Issue on failure
+        uses: actions/github-script@v5
+        if: ${{ failure() }}
+        with:
+          script: |
+            github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open",
+              labels: "[bot] Daily run"
+            }).then((issues) => {
+              if (issues.data.length === 0){
+                github.rest.issues.create({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  title: "Daily run failure: Unit tests",
+                  body: "The daily unit tests failed. See https://github.com/Quantco/glum/actions/runs/${{ github.run_id }} for details.",
+                  assignees: ["MarcAntoineSchmidtQC", "lbittarello"],
+                  labels: ["[bot] Daily run"]
+                })
+              }
+            });

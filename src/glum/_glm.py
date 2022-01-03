@@ -1079,7 +1079,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         import pandas as pd
 
         print("Diagnostics:")
-        with pd.option_context("max_rows", None, "max_columns", None):
+        with pd.option_context("display.max_rows", None, "display.max_columns", None):
             print(diagnostics)
 
     def get_formatted_diagnostics(
