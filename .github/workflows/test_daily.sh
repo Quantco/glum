@@ -28,6 +28,12 @@ mamba env create -f /tmp/environment.yml
 mamba env update -n $(yq -r .name environment.yml) --file environment-benchmark.yml
 conda activate $(yq -r .name environment.yml)
 
+# This needs to be done before any 'uninstall --force'
+if [[ "$TABMAT_VERSION" == "nightly" ]]; then
+    echo "Install compilation dependencies"
+    mamba install -y c-compiler cxx-compiler cython jemalloc-local libgomp mako xsimd
+fi
+
 PRE_WHEELS="https://pypi.anaconda.org/scipy-wheels-nightly/simple"
 if [[ "$NUMPY_VERSION" == "nightly" ]]; then
     echo "Installing Numpy nightly"
@@ -50,10 +56,6 @@ if [[ "$SCIPY_VERSION" == "nightly" ]]; then
     pip install --pre --no-deps --upgrade --timeout=60 -i $PRE_WHEELS scipy
 fi
 if [[ "$TABMAT_VERSION" == "nightly" ]]; then
-    # This needs to be done before any 'uninstall --force'
-    echo "Install compilation dependencies"
-    mamba install -y c-compiler cxx-compiler cython jemalloc-local libgomp mako xsimd
-
     echo "Install tabmat nightly"
     # TODO: switch to a special channel once we have a Quetz instance up and running
     conda uninstall -y --force tabmat

@@ -8,7 +8,7 @@ on:
 
 jobs:
   linux-daily-unittests:
-    name: "Linux - daily unit tests - Python ${{ matrix.PYTHON_VERSION}} ${{ matrix.PANDAS_VERSION }}"
+    name: "Linux - daily unit tests - Python ${{ matrix.PYTHON_VERSION}} - ${{ matrix.NOTE }}"
     runs-on: ubuntu-latest
     env:
       CI: True
@@ -22,12 +22,14 @@ jobs:
             SCIKIT_VERSION: 'nightly'
             SCIPY_VERSION: 'nightly'
             TABMAT_VERSION: 'nightly'
+            NOTE: 'Nightly Builds'
           - PYTHON_VERSION: '3.9'
             PANDAS_VERSION: '' # run once with normal dependencies
             NUMPY_VERSION: ''
             SCIKIT_VERSION: ''
             SCIPY_VERSION: ''
             TABMAT_VERSION: ''
+            NOTE: 'Default Builds'
     steps:
       - name: Pull image
         run: docker pull condaforge/mambaforge:latest
