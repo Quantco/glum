@@ -13,6 +13,9 @@ inputs:
   scikit_version:
     description: 'Scikit-learn version'
     required: true
+  tabmat_version:
+    description: 'Tabmat version'
+    required: true
 runs:
   using: 'docker'
   image: condaforge/mambaforge:latest
@@ -20,4 +23,4 @@ runs:
    - /bin/bash
    - "-l"
    - "-c"
-   - "./.github/workflows/test_daily.sh ${{ inputs.python_version }} ${{ inputs.pandas_version }} ${{ inputs.numpy_version }} ${{ inputs.scikit_version }}"
+   - "./.github/workflows/test_daily.sh ${{ inputs.python_version }} ${{ inputs.pandas_version }} ${{ inputs.numpy_version }} ${{ inputs.scikit_version }}  ${{ inputs.tabmat_version }}"

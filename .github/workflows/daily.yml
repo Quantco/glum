@@ -19,10 +19,12 @@ jobs:
             PANDAS_VERSION: 'nightly'
             NUMPY_VERSION: 'nightly'
             SCIKIT_VERSION: 'nightly'
+            TABMAT_VERSION: 'nightly'
           - PYTHON_VERSION: '3.9' # run once with normal dependencies
             PANDAS_VERSION: ''
             NUMPY_VERSION: ''
             SCIKIT_VERSION: ''
+            TABMAT_VERSION: ''
     steps:
       - name: Pull image
         run: docker pull condaforge/mambaforge:latest
@@ -37,6 +39,7 @@ jobs:
           pandas_version: ${{ matrix.PANDAS_VERSION }}
           numpy_version: ${{ matrix.NUMPY_VERSION }}
           scikit_version: ${{ matrix.SCIKIT_VERSION }}
+          tabmat_version: ${{ matrix.TABMAT_VERSION }}
       # - name: Issue on failure
       #   uses: actions/github-script@v5
       #   if: ${{ failure() }}

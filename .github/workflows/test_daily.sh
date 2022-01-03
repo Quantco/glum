@@ -8,46 +8,56 @@ source ${SCRIPT_DIR}/base.sh $1
 PANDAS_VERSION=$2
 NUMPY_VERSION=$3
 SCIKIT_VERSION=$4
+TABMAT_VERSION=$5
 
 mamba install -y yq
 
 cat environment.yml > /tmp/environment.yml
-DEPENDENCIES=("python" "numpy" "pandas" "scikit")
-for dependency in "${DEPENDENCIES[@]}"; do
-    _dependency="${dependency^^}_VERSION"
-    version=${!_dependency}
+
+# pin version of some libraries, if specified
+LIBRARIES=("python" "pandas" "numpy" "scikit" "tabmat")
+for library in "${LIBRARIES[@]}"; do
+    varname="${library^^}_VERSION"
+    version=${!varname}
     if [[ -n "$version" && "$version" != "nightly" ]]; then
-        # Delete any existing entry in the environment.yml to avoid duplicate entries when
-        # appending
-        yq -Y --in-place "del( .dependencies[] | select(startswith(\"${dependency}\")))" /tmp/environment.yml
-        # Handle hyphenation
-        # (see e.g. https://unix.stackexchange.com/questions/23659/can-shell-variable-name-include-a-hyphen-or-dash)
-        if [[ "${dependency}" == "scikit" ]]; then
-            dependency="scikit-learn"
+        if [[ "${library}" == "scikit" ]]; then
+            library="scikit-learn"
         fi
-        yq -Y --in-place ". + {dependencies: [.dependencies[], \"${dependency}=${version}\"] }" /tmp/environment.yml
+        yq -Y --in-place ". + {dependencies: [.dependencies[], \"${library}=${version}\"]}" /tmp/environment.yml
     fi
 done
+
+cat /tmp/environment.yml
 
 mamba env create -f /tmp/environment.yml
 mamba env update -n $(yq -r .name environment.yml) --file environment-benchmark.yml
 conda activate $(yq -r .name environment.yml)
 
 PRE_WHEELS="https://pypi.anaconda.org/scipy-wheels-nightly/simple"
-if [[ "${NUMPY_VERSION}" == "nightly" ]]; then
+if [[ "$NUMPY_VERSION" == "nightly" ]]; then
     echo "Installing Numpy nightly"
     conda uninstall -y --force numpy
     pip install --pre --no-deps --upgrade --timeout=60 -i $PRE_WHEELS numpy
 fi
-if [[ "${PANDAS_VERSION}" == "nightly" ]]; then
+if [[ "$PANDAS_VERSION" == "nightly" ]]; then
     echo "Installing Pandas nightly"
     conda uninstall -y --force pandas
     pip install --pre --no-deps --upgrade --timeout=60 -i $PRE_WHEELS pandas
 fi
-if [[ "${SCIKIT_VERSION}" == "nightly" ]]; then
+if [[ "$SCIKIT_VERSION" == "nightly" ]]; then
     echo "Install scikit-learn nightly"
     conda uninstall -y --force scikit-learn
     pip install --pre --no-deps --upgrade --timeout=60 -i $PRE_WHEELS scikit-learn
+fi
+if [[ "$TABMAT_VERSION" == "nightly" ]]; then
+    # This needs to be done before any 'uninstall --force'
+    echo "Install compilation dependencies"
+    mamba install -y c-compiler cxx-compiler cython jemalloc-local libgomp mako xsimd
+
+    echo "Install tabmat nightly"
+    # TODO: switch to a special channel once we have a Quetz instance up and running
+    conda uninstall -y --force tabmat
+    pip install git+https://github.com/Quantco/tabmat
 fi
 
 pip install --no-use-pep517 --no-deps --disable-pip-version-check -e .
