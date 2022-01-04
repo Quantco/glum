@@ -65,7 +65,7 @@ jobs:
                   repo: context.repo.repo,
                   title: "Daily run failure: Unit tests",
                   body: "The daily unit tests failed. See https://github.com/Quantco/glum/actions/runs/${{ github.run_id }} for details.",
-                  assignees: ["MarcAntoineSchmidtQC", "lbittarello"],
+                  assignees: ["MarcAntoineSchmidtQC"],
                   labels: ["[bot] Daily run"]
                 })
               }
