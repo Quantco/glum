@@ -43,10 +43,10 @@ dependencies:
   - make
   - matplotlib-base
   - nbclassic>=0.2.8
-  - nbsphinx=0.8.3
+  - nbsphinx>=0.8.3
   - openml # used for downloading datasets in the tutorials.
   - shapely # used in docs/tutorials/regularization_housing_data
-  - sphinx=3.5.3
+  - sphinx>=3.5.3
   - sphinx_rtd_theme
   - sphinxcontrib-apidoc
   - statsmodels
