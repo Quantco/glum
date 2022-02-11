@@ -1788,3 +1788,10 @@ def test_score_method(as_data_frame, offset, weighted):
 
     # use pytest because NumPy used to always reject comparisons against zero
     assert pytest.approx(score, 1e-8) == int(offset is not None)
+
+
+def test_information_criteria(regression_data):
+    X, y = regression_data
+    regressor = GeneralizedLinearRegressor(family="normal", alpha=0)
+    regressor.fit(X, y)
+    assert np.allclose([138.80, 168.20], [regressor.aic, regressor.bic], atol=0.1)

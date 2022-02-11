@@ -17,6 +17,7 @@ some parts and tricks stolen from other sklearn files.
 from __future__ import division
 
 import copy
+import logging
 import sys
 import warnings
 from collections.abc import Iterable
@@ -59,6 +60,8 @@ from ._solvers import (
     _trust_constr_solver,
 )
 from ._util import _align_df_categories, _safe_toarray
+
+_logger = logging.getLogger(__name__)
 
 _float_itemsize_to_dtype = {8: np.float64, 4: np.float32, 2: np.float16}
 
@@ -718,6 +721,30 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         else:
             return get_link(self.link, self.family_instance)
 
+    @property
+    def aic(self):
+        """
+        Akaike's information criteria.
+        """
+        return self.get_info_criteria("aic")
+
+    @property
+    def bic(self):
+        """
+        Bayesian information criterion
+        """
+        return self.get_info_criteria("bic")
+
+    def get_info_criteria(self, crit: str):
+        if hasattr(self, "_info_criteria"):
+            if self.l1_ratio <= 1.0:
+                _logger.warning(
+                    f"{crit} the model's degrees of freedom are not well "
+                    + "defined for a L2 penalty."
+                )
+            return self._info_criteria[crit]
+        return None
+
     def _get_start_coef(
         self,
         start_params,
@@ -830,6 +857,20 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         del self._center_predictors
         del self._solver
         del self._random_state
+        self._tear_down_from_info_criteria()
+
+    def _set_up_for_info_criteria(self, **kwargs):
+
+        if not hasattr(self, "_info_criteria"):
+            self._info_criteria = {}
+
+        self._info_criteria.update(kwargs)
+
+    def _tear_down_from_info_criteria(self):
+
+        if hasattr(self, "_info_criteria"):
+            del self._info_criteria["X"]
+            del self._info_criteria["y"]
 
     def _get_alpha_path(
         self,
@@ -1551,6 +1592,51 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         y_mean = np.average(y, weights=sample_weight)
         dev_null = family.deviance(y, y_mean, sample_weight=sample_weight)
         return 1.0 - dev / dev_null
+
+    def _compute_information_criteria(self):
+        """Computes and stores the degrees of freedom, and the 'aic' and 'bic'
+        information criterion for the model.
+
+        References
+        ----------
+        Burnham KP, Anderson KR (2002). Model Selection and Multimodel
+        Inference; Springer New York.
+        """
+        # degrees of freedom in design matrix
+        df_model = np.sum(np.abs(self.coef_) > np.finfo(self.coef_.dtype).eps)
+
+        X = self._info_criteria["X"]
+        y = self._info_criteria["y"]
+        weights = self._info_criteria["weights"]
+
+        k_params = df_model + self.fit_intercept
+        mu = self.predict(X)
+        (nobs,) = mu.shape
+
+        # we require that the log_likelihood be definied
+        if isinstance(
+            self.family_instance,
+            (
+                BinomialDistribution,
+                GammaDistribution,
+                NormalDistribution,
+                PoissonDistribution,
+            ),
+        ):
+            ll = self.family_instance.log_likelihood(y, mu, sample_weight=weights)
+
+            aic = -2 * ll + 2 * k_params
+            bic = -2 * ll + np.log(nobs) * k_params
+
+            self._info_criteria["aic"] = aic
+            self._info_criteria["bic"] = bic
+            self._info_criteria["df_model"] = df_model
+        else:
+            _logger.warn(
+                "Cannot compute information criteria without a definition "
+                + "for the log-likelihood"
+            )
+        return True
 
     def _validate_hyperparameters(self) -> None:
 
@@ -2283,7 +2369,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         -------
         self
         """
-
+        self._set_up_for_info_criteria(X=X, weights=sample_weight)
         self._validate_hyperparameters()
 
         # NOTE: This function checks if all the entries in X and y are
@@ -2308,6 +2394,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         assert isinstance(y, np.ndarray)
 
         self._set_up_for_fit(y)
+        self._set_up_for_info_criteria(y=y)
 
         _dtype = [np.float64, np.float32]
         if self._solver == "irls-cd":
@@ -2470,6 +2557,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
                 self.intercept_, self.coef_ = _unstandardize(
                     col_means, col_stds, 0.0, coef
                 )
+
+        self._compute_information_criteria()
 
         self._tear_down_from_fit()
 
