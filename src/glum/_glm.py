@@ -724,14 +724,27 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
     @property
     def aic(self):
         """
-        Akaike's information criteria.
+        Akaike's information criteria. Computed as: :math:`
+        -2\\log\\hat{\\mathcal{L}} + 2\\hat{k}` where
+        :math:`\\hat{\\mathcal{L}}` is the maximum likelihood estimate of the
+        model, and :math:`\\hat{k}` is the effective number of parameters under
+        an assumption of lasso regularisation [1]. In practice, this is the
+        number of non-zero coefficients. When ridge or elastic net
+        regularisation is used, this attribute returns a warning.
         """
         return self.get_info_criteria("aic")
 
     @property
     def bic(self):
         """
-        Bayesian information criterion
+        Bayesian information criterion. Computed as: :math:`
+        -2\\log\\hat{\\mathcal{L}} + k\\log(n)` where
+        :math:`\\hat{\\mathcal{L}}` is the maximum likelihood estimate of the
+        model, :math:`n` is the number of training instances, and
+        :math:`\\hat{k}` is the effective number of parameters under an
+        assumption of lasso regularisation [1]. In practice, this is the
+        number of non-zero coefficients. When ridge or elastic net
+        regularisation is used, this attribute returns a warning.
         """
         return self.get_info_criteria("bic")
 
@@ -857,9 +870,11 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         del self._center_predictors
         del self._solver
         del self._random_state
-        self._tear_down_from_info_criteria()
 
     def _set_up_for_info_criteria(self, **kwargs):
+        """
+        Require the raw feature input, dependent variable to be stored.
+        """
 
         if not hasattr(self, "_info_criteria"):
             self._info_criteria = {}
@@ -867,6 +882,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self._info_criteria.update(kwargs)
 
     def _tear_down_from_info_criteria(self):
+        """
+        Delete attributes that are only required for the computation
+        of the information criteria.
+        """
 
         if hasattr(self, "_info_criteria"):
             del self._info_criteria["X"]
@@ -1594,7 +1613,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         return 1.0 - dev / dev_null
 
     def _compute_information_criteria(self):
-        """Computes and stores the degrees of freedom, and the 'aic' and 'bic'
+        """
+        Computes and stores the degrees of freedom, and the 'aic' and 'bic'
         information criterion for the model.
 
         References
@@ -1602,7 +1622,23 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         Burnham KP, Anderson KR (2002). Model Selection and Multimodel
         Inference; Springer New York.
         """
-        # degrees of freedom in design matrix
+
+        # we require that the log_likelihood be definied
+        if not isinstance(
+            self.family_instance,
+            (
+                BinomialDistribution,
+                GammaDistribution,
+                NormalDistribution,
+                PoissonDistribution,
+            ),
+        ):
+            _logger.warn(
+                "Cannot compute information criteria without a definition "
+                + "for the log-likelihood"
+            )
+            return False
+
         df_model = np.sum(np.abs(self.coef_) > np.finfo(self.coef_.dtype).eps)
 
         X = self._info_criteria["X"]
@@ -1612,30 +1648,16 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         k_params = df_model + self.fit_intercept
         mu = self.predict(X)
         (nobs,) = mu.shape
+        ll = self.family_instance.log_likelihood(y, mu, sample_weight=weights)
 
-        # we require that the log_likelihood be definied
-        if isinstance(
-            self.family_instance,
-            (
-                BinomialDistribution,
-                GammaDistribution,
-                NormalDistribution,
-                PoissonDistribution,
-            ),
-        ):
-            ll = self.family_instance.log_likelihood(y, mu, sample_weight=weights)
+        aic = -2 * ll + 2 * k_params
+        bic = -2 * ll + np.log(nobs) * k_params
 
-            aic = -2 * ll + 2 * k_params
-            bic = -2 * ll + np.log(nobs) * k_params
+        self._info_criteria["aic"] = aic
+        self._info_criteria["bic"] = bic
+        self._info_criteria["df_model"] = df_model
 
-            self._info_criteria["aic"] = aic
-            self._info_criteria["bic"] = bic
-            self._info_criteria["df_model"] = df_model
-        else:
-            _logger.warn(
-                "Cannot compute information criteria without a definition "
-                + "for the log-likelihood"
-            )
+        self._tear_down_from_info_criteria()
         return True
 
     def _validate_hyperparameters(self) -> None:
