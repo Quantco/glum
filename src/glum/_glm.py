@@ -762,8 +762,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         if hasattr(self, "_info_criteria"):
             if self.l1_ratio <= 1.0:
                 _logger.warning(
-                    f"{crit} the model's degrees of freedom are not well "
-                    + "defined for a L2 penalty."
+                    "There is no robust definition for the model's degrees of "
+                    + f"freedom under L2 (ridge) regularisation. The {crit} "
+                    + "might not be well defined in these cases."
                 )
             return self._info_criteria[crit]
         return None
