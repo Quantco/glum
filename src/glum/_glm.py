@@ -885,7 +885,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
     def _set_up_for_info_criteria(self, **kwargs):
         """
-        Require the raw feature input, dependent variable to be stored.
+        To compute the information criteria, we require several intermediary
+        results to be temporarily stored on the object.
         """
 
         if not hasattr(self, "_info_criteria"):
