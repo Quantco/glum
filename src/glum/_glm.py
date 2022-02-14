@@ -894,16 +894,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         self._info_criteria.update(kwargs)
 
-    def _tear_down_from_info_criteria(self):
-        """
-        Delete attributes that are only required for the computation
-        of the information criteria.
-        """
-
-        if hasattr(self, "_info_criteria"):
-            del self._info_criteria["X"]
-            del self._info_criteria["y"]
-
     def _get_alpha_path(
         self,
         P1_no_alpha: np.ndarray,
@@ -1625,7 +1615,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         dev_null = family.deviance(y, y_mean, sample_weight=sample_weight)
         return 1.0 - dev / dev_null
 
-    def _compute_information_criteria(self):
+    def _compute_information_criteria(
+        self,
+        X: ShapedArrayLike,
+        y: ShapedArrayLike,
+        sample_weight: Optional[ArrayLike] = None,
+    ):
         """
         Computes and stores the model's degrees of freedom, and the 'aic',
         'aicc' and 'bic' information criterion for the model.
@@ -1638,26 +1633,22 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         # we require that the log_likelihood be definied
         if not isinstance(
-            self.family_instance,
-            (
-                BinomialDistribution,
-                GammaDistribution,
-                NormalDistribution,
-                PoissonDistribution,
-            ),
+            self.family_instance, (BinomialDistribution, TweedieDistribution)
         ):
+            return False
+
+        if isinstance(
+            self.family_instance, TweedieDistribution
+        ) and self.family_instance.power not in [0, 1, 2]:
             return False
 
         ddof = np.sum(np.abs(self.coef_) > np.finfo(self.coef_.dtype).eps)
 
-        X = self._info_criteria["X"]
-        y = self._info_criteria["y"]
-        weights = self._info_criteria["weights"]
-
         k_params = ddof + self.fit_intercept
+
         mu = self.predict(X)
         (nobs,) = mu.shape
-        ll = self.family_instance.log_likelihood(y, mu, sample_weight=weights)
+        ll = self.family_instance.log_likelihood(y, mu, sample_weight=sample_weight)
 
         aic = -2 * ll + 2 * k_params
 
@@ -1669,7 +1660,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             )
         self._info_criteria["ddof"] = ddof
 
-        self._tear_down_from_info_criteria()
         return True
 
     def _validate_hyperparameters(self) -> None:
@@ -2403,8 +2393,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         -------
         self
         """
-        self._set_up_for_info_criteria(X=X, weights=sample_weight)
         self._validate_hyperparameters()
+        X_in, sample_weights_in = X, sample_weight
 
         # NOTE: This function checks if all the entries in X and y are
         # finite. That can be expensive. But probably worthwhile.
@@ -2592,7 +2582,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
                     col_means, col_stds, 0.0, coef
                 )
 
-        self._compute_information_criteria()
+        self._compute_information_criteria(X_in, y, sample_weights_in)
 
         self._tear_down_from_fit()
 
