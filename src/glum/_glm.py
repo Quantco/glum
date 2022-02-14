@@ -721,11 +721,11 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
     @property
     def aic(self):
         """
-        Akaike's information criteria. Computed as: :math:`
-        -2\\log\\hat{\\mathcal{L}} + 2\\hat{k}` where
+        Akaike's information criteria. Computed as:
+        :math:`-2\\log\\hat{\\mathcal{L}} + 2\\hat{k}` where
         :math:`\\hat{\\mathcal{L}}` is the maximum likelihood estimate of the
         model, and :math:`\\hat{k}` is the effective number of parameters under
-        an assumption of lasso regularisation [1]. In practice, this is the
+        an assumption of lasso regularisation. In practice, this is the
         number of non-zero coefficients. When ridge or elastic net
         regularisation is used, this attribute returns a warning.
         """
@@ -735,27 +735,28 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
     def aicc(self):
         """
         Second-order Akaike's information criteria (or small sample AIC).
-        Computed as: :math:` -2\\log\\hat{\\mathcal{L}} + 2\\hat{k} +
-        \\frac{2k(k+1)}{n-k-1}` where :math:`\\hat{\\mathcal{L}}` is the maximum
-        likelihood estimate of the model, :math:`n` is the number of training
-        instances, and :math:`\\hat{k}` is the effective number of parameters
-        under an assumption of lasso regularisation [1]. In practice, this is
-        the number of non-zero coefficients. When ridge or elastic net
-        regularisation is used, this attribute returns a warning.
+        Computed as:
+        :math:` -2\\log\\hat{\\mathcal{L}} + 2\\hat{k} + \\frac{2k(k+1)}{n-k-1}`
+        where :math:`\\hat{\\mathcal{L}}` is the maximum likelihood estimate of
+        the model, :math:`n` is the number of training instances, and
+        :math:`\\hat{k}` is the effective number of parameters under an
+        assumption of lasso regularisation. In practice, this is the number of
+        non-zero coefficients. When ridge or elastic net regularisation is used,
+        this attribute returns a warning.
         """
         return self.get_info_criteria("aicc")
 
     @property
     def bic(self):
         """
-        Bayesian information criterion. Computed as: :math:`
-        -2\\log\\hat{\\mathcal{L}} + k\\log(n)` where
+        Bayesian information criterion. Computed as:
+        :math:`-2\\log\\hat{\\mathcal{L}} + k\\log(n)` where
         :math:`\\hat{\\mathcal{L}}` is the maximum likelihood estimate of the
         model, :math:`n` is the number of training instances, and
         :math:`\\hat{k}` is the effective number of parameters under an
-        assumption of lasso regularisation [1]. In practice, this is the
-        number of non-zero coefficients. When ridge or elastic net
-        regularisation is used, this attribute returns a warning.
+        assumption of lasso regularisation. In practice, this is the number of
+        non-zero coefficients. When ridge or elastic net regularisation is used,
+        this attribute returns a warning.
         """
         return self.get_info_criteria("bic")
 
