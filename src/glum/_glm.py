@@ -731,6 +731,11 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         an assumption of lasso regularisation [1]. In practice, this is the
         number of non-zero coefficients. When ridge or elastic net
         regularisation is used, this attribute returns a warning.
+
+        References
+        ----------
+        [1] Zou, H., Hastie, T. and Tibshirani, R., 2007. On the “degrees of
+        reedom” of the lasso.
         """
         return self.get_info_criteria("aic")
 
@@ -745,6 +750,11 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         assumption of lasso regularisation [1]. In practice, this is the
         number of non-zero coefficients. When ridge or elastic net
         regularisation is used, this attribute returns a warning.
+
+        References
+        ----------
+        [1] Zou, H., Hastie, T. and Tibshirani, R., 2007. On the “degrees of
+        reedom” of the lasso.
         """
         return self.get_info_criteria("bic")
 
@@ -1619,7 +1629,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         References
         ----------
-        Burnham KP, Anderson KR (2002). Model Selection and Multimodel
+        [1] Burnham KP, Anderson KR (2002). Model Selection and Multimodel
         Inference; Springer New York.
         """
 
