@@ -2,6 +2,7 @@
 #
 # License: BSD 3 clause
 import copy
+import warnings
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
@@ -1790,8 +1791,28 @@ def test_score_method(as_data_frame, offset, weighted):
     assert pytest.approx(score, 1e-8) == int(offset is not None)
 
 
+@pytest.mark.filterwarnings("ignore: There is no robust")
 def test_information_criteria(regression_data):
     X, y = regression_data
     regressor = GeneralizedLinearRegressor(family="normal", alpha=0)
     regressor.fit(X, y)
-    assert np.allclose([138.80, 168.20], [regressor.aic, regressor.bic], atol=0.1)
+    assert np.allclose(
+        [138.80, 141.59, 168.20],
+        [regressor.aic, regressor.aicc, regressor.bic],
+        atol=0.1,
+    )
+
+    # checking no warnings are raised for L1 regularisation
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        regressor = GeneralizedLinearRegressor(family="normal", l1_ratio=1.0)
+        regressor.fit(X, y)
+        regressor.aic, regressor.aicc, regressor.bic
+
+    # checking warnings are raised for L2 regularisation
+    with pytest.warns(match="There is no robust definition") as records:
+        regressor = GeneralizedLinearRegressor(family="normal", l1_ratio=0.0)
+        regressor.fit(X, y)
+        regressor.aic, regressor.aicc, regressor.bic
+
+    assert len(records) == 3

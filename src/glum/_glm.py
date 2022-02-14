@@ -17,7 +17,6 @@ some parts and tricks stolen from other sklearn files.
 from __future__ import division
 
 import copy
-import logging
 import sys
 import warnings
 from collections.abc import Iterable
@@ -60,8 +59,6 @@ from ._solvers import (
     _trust_constr_solver,
 )
 from ._util import _align_df_categories, _safe_toarray
-
-_logger = logging.getLogger(__name__)
 
 _float_itemsize_to_dtype = {8: np.float64, 4: np.float32, 2: np.float16}
 
@@ -731,13 +728,22 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         an assumption of lasso regularisation [1]. In practice, this is the
         number of non-zero coefficients. When ridge or elastic net
         regularisation is used, this attribute returns a warning.
-
-        References
-        ----------
-        [1] Zou, H., Hastie, T. and Tibshirani, R., 2007. On the “degrees of
-        reedom” of the lasso.
         """
         return self.get_info_criteria("aic")
+
+    @property
+    def aicc(self):
+        """
+        Second-order Akaike's information criteria (or small sample AIC).
+        Computed as: :math:` -2\\log\\hat{\\mathcal{L}} + 2\\hat{k} +
+        \\frac{2k(k+1)}{n-k-1}` where :math:`\\hat{\\mathcal{L}}` is the maximum
+        likelihood estimate of the model, :math:`n` is the number of training
+        instances, and :math:`\\hat{k}` is the effective number of parameters
+        under an assumption of lasso regularisation [1]. In practice, this is
+        the number of non-zero coefficients. When ridge or elastic net
+        regularisation is used, this attribute returns a warning.
+        """
+        return self.get_info_criteria("aicc")
 
     @property
     def bic(self):
@@ -750,18 +756,13 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         assumption of lasso regularisation [1]. In practice, this is the
         number of non-zero coefficients. When ridge or elastic net
         regularisation is used, this attribute returns a warning.
-
-        References
-        ----------
-        [1] Zou, H., Hastie, T. and Tibshirani, R., 2007. On the “degrees of
-        reedom” of the lasso.
         """
         return self.get_info_criteria("bic")
 
     def get_info_criteria(self, crit: str):
         if hasattr(self, "_info_criteria"):
-            if self.l1_ratio <= 1.0:
-                _logger.warning(
+            if (self.alpha is not None and self.alpha > 0) or self.l1_ratio < 1.0:
+                warnings.warn(
                     "There is no robust definition for the model's degrees of "
                     + f"freedom under L2 (ridge) regularisation. The {crit} "
                     + "might not be well defined in these cases."
@@ -1625,8 +1626,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
     def _compute_information_criteria(self):
         """
-        Computes and stores the degrees of freedom, and the 'aic' and 'bic'
-        information criterion for the model.
+        Computes and stores the model's degrees of freedom, and the 'aic',
+        'aicc' and 'bic' information criterion for the model.
 
         References
         ----------
@@ -1644,29 +1645,28 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 PoissonDistribution,
             ),
         ):
-            _logger.warn(
-                "Cannot compute information criteria without a definition "
-                + "for the log-likelihood"
-            )
             return False
 
-        df_model = np.sum(np.abs(self.coef_) > np.finfo(self.coef_.dtype).eps)
+        ddof = np.sum(np.abs(self.coef_) > np.finfo(self.coef_.dtype).eps)
 
         X = self._info_criteria["X"]
         y = self._info_criteria["y"]
         weights = self._info_criteria["weights"]
 
-        k_params = df_model + self.fit_intercept
+        k_params = ddof + self.fit_intercept
         mu = self.predict(X)
         (nobs,) = mu.shape
         ll = self.family_instance.log_likelihood(y, mu, sample_weight=weights)
 
         aic = -2 * ll + 2 * k_params
-        bic = -2 * ll + np.log(nobs) * k_params
 
         self._info_criteria["aic"] = aic
-        self._info_criteria["bic"] = bic
-        self._info_criteria["df_model"] = df_model
+        self._info_criteria["bic"] = -2 * ll + np.log(nobs) * k_params
+        if nobs > k_params + 1:
+            self._info_criteria["aicc"] = aic + 2 * k_params * (k_params + 1) / (
+                nobs - k_params - 1
+            )
+        self._info_criteria["ddof"] = ddof
 
         self._tear_down_from_info_criteria()
         return True
