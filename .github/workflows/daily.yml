@@ -49,7 +49,7 @@ jobs:
           scipy_version: ${{ matrix.SCIPY_VERSION }}
           tabmat_version: ${{ matrix.TABMAT_VERSION }}
       - name: Issue on failure
-        uses: actions/github-script@v5
+        uses: actions/github-script@v6
         if: ${{ failure() }}
         with:
           script: |
