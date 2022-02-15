@@ -881,25 +881,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                     f"{self._family_instance.__class__.__name__}."
                 )
 
-    def _tear_down_from_fit(self):
-        """
-        Delete attributes that were only needed for the fit method.
-        """
-        del self._center_predictors
-        del self._solver
-        del self._random_state
-
-    def _set_up_for_info_criteria(self, **kwargs):
-        """
-        To compute the information criteria, we require several intermediary
-        results to be temporarily stored on the object.
-        """
-
-        if not hasattr(self, "_info_criteria"):
-            self._info_criteria = {}
-
-        self._info_criteria.update(kwargs)
-
     def _get_alpha_path(
         self,
         P1_no_alpha: np.ndarray,
@@ -2424,7 +2405,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         assert isinstance(y, np.ndarray)
 
         self._set_up_for_fit(y)
-        self._set_up_for_info_criteria(y=y)
 
         _dtype = [np.float64, np.float32]
         if self._solver == "irls-cd":
