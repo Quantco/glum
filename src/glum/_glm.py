@@ -736,7 +736,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         """
         Second-order Akaike's information criteria (or small sample AIC).
         Computed as:
-        :math:` -2\\log\\hat{\\mathcal{L}} + 2\\hat{k} + \\frac{2k(k+1)}{n-k-1}`
+        :math:`-2\\log\\hat{\\mathcal{L}} + 2\\hat{k} + \\frac{2k(k+1)}{n-k-1}`
         where :math:`\\hat{\\mathcal{L}}` is the maximum likelihood estimate of
         the model, :math:`n` is the number of training instances, and
         :math:`\\hat{k}` is the effective number of parameters under an
