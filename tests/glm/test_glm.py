@@ -1814,5 +1814,13 @@ def test_information_criteria(regression_data):
         regressor = GeneralizedLinearRegressor(family="normal", l1_ratio=0.0)
         regressor.fit(X, y)
         regressor.aic, regressor.aicc, regressor.bic
-
     assert len(records) == 3
+
+    # check exceptions are raised when information criteria called but model not fitted
+    regressor = GeneralizedLinearRegressor()
+    with pytest.raises(Exception):
+        regressor.aic
+    with pytest.raises(Exception):
+        regressor.aicc
+    with pytest.raises(Exception):
+        regressor.bic

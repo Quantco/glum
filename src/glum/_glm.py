@@ -29,6 +29,7 @@ import scipy.sparse.linalg as splinalg
 import tabmat as tm
 from scipy import linalg, sparse
 from sklearn.base import BaseEstimator, RegressorMixin
+from sklearn.exceptions import NotFittedError
 from sklearn.utils import check_array
 from sklearn.utils.validation import (
     _assert_all_finite,
@@ -769,7 +770,11 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                     + "might not be well defined in these cases."
                 )
             return self._info_criteria[crit]
-        return None
+        raise NotFittedError(
+            f"This instance has no {crit} score as it has not "
+            + "been fitted. Call 'fit' with the appropriate "
+            + "arguments before using this attribute."
+        )
 
     def _get_start_coef(
         self,
