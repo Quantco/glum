@@ -881,6 +881,14 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                     f"{self._family_instance.__class__.__name__}."
                 )
 
+    def _tear_down_from_fit(self):
+        """
+        Delete attributes that were only needed for the fit method.
+        """
+        del self._center_predictors
+        del self._solver
+        del self._random_state
+
     def _get_alpha_path(
         self,
         P1_no_alpha: np.ndarray,
