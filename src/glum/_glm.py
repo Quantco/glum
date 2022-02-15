@@ -1632,7 +1632,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         Inference; Springer New York.
         """
 
-        # we require that the log_likelihood be definied
+        # we require that the log_likelihood be defined
         if not isinstance(
             self.family_instance, (BinomialDistribution, TweedieDistribution)
         ):
