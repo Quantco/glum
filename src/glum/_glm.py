@@ -1624,7 +1624,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
     ):
         """
         Computes and stores the model's degrees of freedom, and the 'aic',
-        'aicc' and 'bic' information criterion for the model.
+        'aicc' and 'bic' information criteria for the model.
 
         References
         ----------
