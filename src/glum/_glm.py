@@ -29,7 +29,6 @@ import scipy.sparse.linalg as splinalg
 import tabmat as tm
 from scipy import linalg, sparse
 from sklearn.base import BaseEstimator, RegressorMixin
-from sklearn.exceptions import NotFittedError
 from sklearn.utils import check_array
 from sklearn.utils.validation import (
     _assert_all_finite,
@@ -718,63 +717,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             return self._link_instance
         else:
             return get_link(self.link, self.family_instance)
-
-    @property
-    def aic(self):
-        """
-        Akaike's information criteria. Computed as:
-        :math:`-2\\log\\hat{\\mathcal{L}} + 2\\hat{k}` where
-        :math:`\\hat{\\mathcal{L}}` is the maximum likelihood estimate of the
-        model, and :math:`\\hat{k}` is the effective number of parameters under
-        an assumption of lasso regularisation. In practice, this is the
-        number of non-zero coefficients. When ridge or elastic net
-        regularisation is used, this attribute returns a warning.
-        """
-        return self.get_info_criteria("aic")
-
-    @property
-    def aicc(self):
-        """
-        Second-order Akaike's information criteria (or small sample AIC).
-        Computed as:
-        :math:`-2\\log\\hat{\\mathcal{L}} + 2\\hat{k} + \\frac{2k(k+1)}{n-k-1}`
-        where :math:`\\hat{\\mathcal{L}}` is the maximum likelihood estimate of
-        the model, :math:`n` is the number of training instances, and
-        :math:`\\hat{k}` is the effective number of parameters under an
-        assumption of lasso regularisation. In practice, this is the number of
-        non-zero coefficients. When ridge or elastic net regularisation is used,
-        this attribute returns a warning.
-        """
-        return self.get_info_criteria("aicc")
-
-    @property
-    def bic(self):
-        """
-        Bayesian information criterion. Computed as:
-        :math:`-2\\log\\hat{\\mathcal{L}} + k\\log(n)` where
-        :math:`\\hat{\\mathcal{L}}` is the maximum likelihood estimate of the
-        model, :math:`n` is the number of training instances, and
-        :math:`\\hat{k}` is the effective number of parameters under an
-        assumption of lasso regularisation. In practice, this is the number of
-        non-zero coefficients. When ridge or elastic net regularisation is used,
-        this attribute returns a warning.
-        """
-        return self.get_info_criteria("bic")
-
-    def get_info_criteria(self, crit: str):
-        if hasattr(self, "_info_criteria"):
-            if (self.alpha is not None and self.alpha > 0) or self.l1_ratio < 1.0:
-                warnings.warn(
-                    "There is no robust definition for the model's degrees of "
-                    + f"freedom under L2 (ridge) regularisation. The {crit} "
-                    + "might not be well defined in these cases."
-                )
-            return self._info_criteria[crit]
-        raise NotFittedError(
-            f"This instance has no {crit} score as it has not "
-            + "been fitted. Call 'fit' with the appropriate "
-            + "arguments before using this attribute."
-        )
 
     def _get_start_coef(
         self,
@@ -1610,53 +1552,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         dev_null = family.deviance(y, y_mean, sample_weight=sample_weight)
         return 1.0 - dev / dev_null
 
-    def _compute_information_criteria(
-        self,
-        X: ShapedArrayLike,
-        y: ShapedArrayLike,
-        sample_weight: Optional[ArrayLike] = None,
-    ):
-        """
-        Computes and stores the model's degrees of freedom, and the 'aic',
-        'aicc' and 'bic' information criteria for the model.
-
-        References
-        ----------
-        [1] Burnham KP, Anderson KR (2002). Model Selection and Multimodel
-        Inference; Springer New York.
-        """
-
-        # we require that the log_likelihood be defined
-        if not isinstance(
-            self.family_instance, (BinomialDistribution, TweedieDistribution)
-        ):
-            return False
-
-        if isinstance(
-            self.family_instance, TweedieDistribution
-        ) and self.family_instance.power not in [0, 1, 2]:
-            return False
-
-        ddof = np.sum(np.abs(self.coef_) > np.finfo(self.coef_.dtype).eps)
-
-        k_params = ddof + self.fit_intercept
-
-        mu = self.predict(X)
-        nobs = mu.shape[0]
-        ll = self.family_instance.log_likelihood(y, mu, sample_weight=sample_weight)
-
-        aic = -2 * ll + 2 * k_params
-
-        self._info_criteria = {"aic": aic}
-        self._info_criteria["bic"] = -2 * ll + np.log(nobs) * k_params
-        if nobs > k_params + 1:
-            self._info_criteria["aicc"] = aic + 2 * k_params * (k_params + 1) / (
-                nobs - k_params - 1
-            )
-        self._info_criteria["ddof"] = ddof
-
-        return True
-
     def _validate_hyperparameters(self) -> None:
 
         if not isinstance(self.fit_intercept, bool):
@@ -2389,7 +2284,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         self
         """
         self._validate_hyperparameters()
-        X_in, sample_weights_in = X, sample_weight
 
         # NOTE: This function checks if all the entries in X and y are
         # finite. That can be expensive. But probably worthwhile.
@@ -2576,8 +2470,130 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
                     col_means, col_stds, 0.0, coef
                 )
 
-        self._compute_information_criteria(X_in, y, sample_weights_in)
-
         self._tear_down_from_fit()
 
         return self
+
+    def _compute_information_criteria(
+        self,
+        X: ShapedArrayLike,
+        y: ShapedArrayLike,
+        sample_weight: Optional[ArrayLike] = None,
+    ):
+        """
+        Computes and stores the model's degrees of freedom, the 'aic',
+        'aicc' and 'bic' information criteria.
+
+        The model's degrees of freedom are used to calculate the effective
+        number of parameters that are used. This is calculated differently
+        depending on the type of regularisation used (lasso, ridge or elastic
+        net).
+
+        lasso (alpha > 0 & l1_ratio = 1):
+
+        ridge (alpha > 0 & l1_ratio = 0):
+
+        elastic net (alpha > 0 & 0 < l1_ratio < 1):
+
+
+        References
+        ----------
+        [1] Burnham KP, Anderson KR (2002). Model Selection and Multimodel
+        Inference; Springer New York.
+        """
+
+        # we require that the log_likelihood be defined
+        model_err_str = (
+            "The computation of the information criteria has only "
+            + "been defined for models with a Binomial likelihood or a Tweedie "
+            + "likelihood with power <= 2."
+        )
+        if not isinstance(
+            self.family_instance, (BinomialDistribution, TweedieDistribution)
+        ):
+            raise NotImplementedError(model_err_str)
+
+        # the log_likelihood has not been implemented for the InverseGaussianDistribution
+        if (
+            isinstance(self.family_instance, TweedieDistribution)
+            and self.family_instance.power > 2
+        ):
+            raise NotImplementedError(model_err_str)
+
+        ddof = np.sum(np.abs(self.coef_) > np.finfo(self.coef_.dtype).eps)
+
+        k_params = ddof + self.fit_intercept
+
+        mu = self.predict(X)
+        nobs = mu.shape[0]
+
+        # TODO: check the same number of datapoints used at train time
+        ll = self.family_instance.log_likelihood(y, mu, sample_weight=sample_weight)
+
+        aic = -2 * ll + 2 * k_params
+        bic = -2 * ll + np.log(nobs) * k_params
+        if nobs > k_params + 1:
+            aicc = aic + 2 * k_params * (k_params + 1) / (nobs - k_params - 1)
+        else:
+            aicc = None
+
+        self._info_criteria = {"aic": aic, "aicc": aicc, "bic": bic}
+
+        return True
+
+    def aic(
+        self, X: ArrayLike, y: ArrayLike, sample_weight: Optional[ArrayLike] = None
+    ):
+        """
+        Akaike's information criteria. Computed as:
+        :math:`-2\\log\\hat{\\mathcal{L}} + 2\\hat{k}` where
+        :math:`\\hat{\\mathcal{L}}` is the maximum likelihood estimate of the
+        model, and :math:`\\hat{k}` is the effective number of parameters. See
+        `_compute_information_criteria` for more information on the computation
+        of :math:`\\hat{k}`.
+        """
+        return self.get_info_criteria("aic", X, y, sample_weight)
+
+    def aicc(
+        self, X: ArrayLike, y: ArrayLike, sample_weight: Optional[ArrayLike] = None
+    ):
+        """
+        Second-order Akaike's information criteria (or small sample AIC).
+        Computed as:
+        :math:`-2\\log\\hat{\\mathcal{L}} + 2\\hat{k} + \\frac{2k(k+1)}{n-k-1}`
+        where :math:`\\hat{\\mathcal{L}}` is the maximum likelihood estimate of
+        the model, :math:`n` is the number of training instances, and
+        :math:`\\hat{k}` is the effective number of parameters. See
+        `_compute_information_criteria` for more information on the computation
+        of :math:`\\hat{k}`.
+        """
+        return self.get_info_criteria("aicc", X, y, sample_weight)
+
+    def bic(
+        self, X: ArrayLike, y: ArrayLike, sample_weight: Optional[ArrayLike] = None
+    ):
+        """
+        Bayesian information criterion. Computed as:
+        :math:`-2\\log\\hat{\\mathcal{L}} + k\\log(n)` where
+        :math:`\\hat{\\mathcal{L}}` is the maximum likelihood estimate of the
+        model, :math:`n` is the number of training instances, and
+        :math:`\\hat{k}` is the effective number of parameters. See
+        `_compute_information_criteria` for more information on the computation
+        of :math:`\\hat{k}`.
+        """
+        return self.get_info_criteria("bic", X, y, sample_weight)
+
+    def get_info_criteria(
+        self,
+        crit: str,
+        X: ArrayLike,
+        y: ArrayLike,
+        sample_weight: Optional[ArrayLike] = None,
+    ):
+
+        check_is_fitted(self, "coef_")
+
+        if not hasattr(self, "_info_criteria"):
+            self._compute_information_criteria(X, y, sample_weight)
+
+        return self._info_criteria[crit]

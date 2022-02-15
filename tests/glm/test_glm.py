@@ -2,7 +2,6 @@
 #
 # License: BSD 3 clause
 import copy
-import warnings
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
@@ -1798,29 +1797,15 @@ def test_information_criteria(regression_data):
     regressor.fit(X, y)
     assert np.allclose(
         [138.80, 141.59, 168.20],
-        [regressor.aic, regressor.aicc, regressor.bic],
+        [regressor.aic(X, y), regressor.aicc(X, y), regressor.bic(X, y)],
         atol=0.1,
     )
-
-    # checking no warnings are raised for L1 regularisation
-    with warnings.catch_warnings():
-        warnings.simplefilter("error")
-        regressor = GeneralizedLinearRegressor(family="normal", l1_ratio=1.0)
-        regressor.fit(X, y)
-        regressor.aic, regressor.aicc, regressor.bic
-
-    # checking warnings are raised for L2 regularisation
-    with pytest.warns(match="There is no robust definition") as records:
-        regressor = GeneralizedLinearRegressor(family="normal", l1_ratio=0.0)
-        regressor.fit(X, y)
-        regressor.aic, regressor.aicc, regressor.bic
-    assert len(records) == 3
 
     # check exceptions are raised when information criteria called but model not fitted
     regressor = GeneralizedLinearRegressor()
     with pytest.raises(Exception):
-        regressor.aic
+        regressor.aic(X, y)
     with pytest.raises(Exception):
-        regressor.aicc
+        regressor.aicc(X, y)
     with pytest.raises(Exception):
-        regressor.bic
+        regressor.bic(X, y)
