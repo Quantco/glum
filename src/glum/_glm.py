@@ -1648,7 +1648,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         k_params = ddof + self.fit_intercept
 
         mu = self.predict(X)
-        (nobs,) = mu.shape
+        nobs = mu.shape[0]
         ll = self.family_instance.log_likelihood(y, mu, sample_weight=sample_weight)
 
         aic = -2 * ll + 2 * k_params
