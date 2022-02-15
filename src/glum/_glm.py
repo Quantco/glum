@@ -1647,7 +1647,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         aic = -2 * ll + 2 * k_params
 
-        self._info_criteria["aic"] = aic
+        self._info_criteria = {"aic": aic}
         self._info_criteria["bic"] = -2 * ll + np.log(nobs) * k_params
         if nobs > k_params + 1:
             self._info_criteria["aicc"] = aic + 2 * k_params * (k_params + 1) / (
