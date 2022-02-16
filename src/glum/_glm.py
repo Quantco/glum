@@ -2308,6 +2308,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         assert isinstance(y, np.ndarray)
 
         self._set_up_for_fit(y)
+        self._num_obs = X.shape[0]
 
         _dtype = [np.float64, np.float32]
         if self._solver == "irls-cd":
@@ -2521,13 +2522,17 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             raise NotImplementedError(model_err_str)
 
         ddof = np.sum(np.abs(self.coef_) > np.finfo(self.coef_.dtype).eps)
-
         k_params = ddof + self.fit_intercept
+        nobs = X.shape[0]
+
+        if nobs != self._num_obs:
+            raise ValueError(
+                "The same dataset that was used for training should "
+                + "also be used for the computation of information "
+                + "criteria"
+            )
 
         mu = self.predict(X)
-        nobs = mu.shape[0]
-
-        # TODO: check the same number of datapoints used at train time
         ll = self.family_instance.log_likelihood(y, mu, sample_weight=sample_weight)
 
         aic = -2 * ll + 2 * k_params
@@ -2551,6 +2556,17 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         model, and :math:`\\hat{k}` is the effective number of parameters. See
         `_compute_information_criteria` for more information on the computation
         of :math:`\\hat{k}`.
+
+        Parameters
+        ----------
+        X : {array-like, sparse matrix}, shape (n_samples, n_features)
+            Same data as used in 'fit'
+
+        y : array-like, shape (n_samples,)
+            Same data as used in 'fit'
+
+        sample_weight : array-like, shape (n_samples,), optional (default=None)
+             Same data as used in 'fit'
         """
         return self.get_info_criteria("aic", X, y, sample_weight)
 
@@ -2566,6 +2582,17 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         :math:`\\hat{k}` is the effective number of parameters. See
         `_compute_information_criteria` for more information on the computation
         of :math:`\\hat{k}`.
+
+        Parameters
+        ----------
+        X : {array-like, sparse matrix}, shape (n_samples, n_features)
+            Same data as used in 'fit'
+
+        y : array-like, shape (n_samples,)
+            Same data as used in 'fit'
+
+        sample_weight : array-like, shape (n_samples,), optional (default=None)
+             Same data as used in 'fit'
         """
         return self.get_info_criteria("aicc", X, y, sample_weight)
 
@@ -2580,6 +2607,17 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         :math:`\\hat{k}` is the effective number of parameters. See
         `_compute_information_criteria` for more information on the computation
         of :math:`\\hat{k}`.
+
+        Parameters
+        ----------
+        X : {array-like, sparse matrix}, shape (n_samples, n_features)
+            Same data as used in 'fit'
+
+        y : array-like, shape (n_samples,)
+            Same data as used in 'fit'
+
+        sample_weight : array-like, shape (n_samples,), optional (default=None)
+             Same data as used in 'fit'
         """
         return self.get_info_criteria("bic", X, y, sample_weight)
 

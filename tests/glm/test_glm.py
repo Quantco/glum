@@ -1791,7 +1791,6 @@ def test_score_method(as_data_frame, offset, weighted):
     assert pytest.approx(score, 1e-8) == int(offset is not None)
 
 
-@pytest.mark.filterwarnings("ignore: There is no robust")
 def test_information_criteria(regression_data):
     X, y = regression_data
     regressor = GeneralizedLinearRegressor(family="normal", alpha=0)
@@ -1802,21 +1801,26 @@ def test_information_criteria(regression_data):
         atol=0.1,
     )
 
-    # checking no warnings are raised for L1 regularisation
+
+@pytest.mark.filterwarnings("ignore: There is no robust")
+def test_information_criteria_raises_correct_warnings_and_errors(regression_data):
+    X, y = regression_data
+
+    # test no warnings are raised for L1 regularisation
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         regressor = GeneralizedLinearRegressor(family="normal", l1_ratio=1.0)
         regressor.fit(X, y)
         regressor.aic(X, y), regressor.aicc(X, y), regressor.bic(X, y)
 
-    # checking warnings are raised for L2 regularisation
+    # test warnings are raised for L2 regularisation
     with pytest.warns(match="There is no") as records:
         regressor = GeneralizedLinearRegressor(family="normal", l1_ratio=0.0)
         regressor.fit(X, y)
         regressor.aic(X, y), regressor.aicc(X, y), regressor.bic(X, y)
     assert len(records) == 3
 
-    # check exceptions are raised when information criteria called but model not fitted
+    # test exceptions are raised when information criteria called but model not fitted
     regressor = GeneralizedLinearRegressor()
     with pytest.raises(Exception):
         regressor.aic(X, y)
@@ -1824,3 +1828,10 @@ def test_information_criteria(regression_data):
         regressor.aicc(X, y)
     with pytest.raises(Exception):
         regressor.bic(X, y)
+
+    # test exception is raised when not train set is used
+    regressor.fit(X, y)
+    X_not_train = np.ones((10, 2))
+    y_not_train = np.ones(10)
+    with pytest.raises(Exception):
+        regressor.aic(X_not_train, y_not_train)
