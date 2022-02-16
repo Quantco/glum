@@ -2481,25 +2481,24 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         sample_weight: Optional[ArrayLike] = None,
     ):
         """
-        Computes and stores the model's degrees of freedom, the 'aic',
-        'aicc' and 'bic' information criteria.
+        Computes and stores the model's degrees of freedom, the 'aic', 'aicc'
+        and 'bic' information criteria.
 
         The model's degrees of freedom are used to calculate the effective
-        number of parameters that are used. This is calculated differently
-        depending on the type of regularisation used (lasso, ridge or elastic
-        net).
-
-        lasso (alpha > 0 & l1_ratio = 1):
-
-        ridge (alpha > 0 & l1_ratio = 0):
-
-        elastic net (alpha > 0 & 0 < l1_ratio < 1):
-
+        number of parameters that are used. This uses the suggestion from [2]
+        and [3] that for L1 regularisation the number of non-zero parameters
+        in the trained model is an unbiased approximator of the degrees of
+        freedom of the model. Note that this might not hold true for L2
+        regularisation and thus we raise a warning for this case.
 
         References
         ----------
         [1] Burnham KP, Anderson KR (2002). Model Selection and Multimodel
         Inference; Springer New York.
+        [2] Zou, H., Hastie, T. and Tibshirani, R., (2007). On the “degrees of
+        freedom” of the lasso; The Annals of Statistics.
+        [3] Park, M.Y., 2006. Generalized linear models with regularization;
+        Stanford Universty.
         """
 
         # we require that the log_likelihood be defined
@@ -2595,5 +2594,12 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
 
         if not hasattr(self, "_info_criteria"):
             self._compute_information_criteria(X, y, sample_weight)
+
+        if (self.alpha is not None and self.alpha > 0) or self.l1_ratio < 1.0:
+            warnings.warn(
+                "There is no general definition for the model's degrees of "
+                + f"freedom under L2 (ridge) regularisation. The {crit} "
+                + "might not be well defined in these cases."
+            )
 
         return self._info_criteria[crit]
