@@ -2637,7 +2637,9 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         if not hasattr(self, "_info_criteria"):
             self._compute_information_criteria(X, y, sample_weight)
 
-        if (self.alpha is not None and self.alpha > 0) or self.l1_ratio < 1.0:
+        if (
+            self.alpha is None or (self.alpha is not None and self.alpha > 0)
+        ) and self.l1_ratio < 1.0:
             warnings.warn(
                 "There is no general definition for the model's degrees of "
                 + f"freedom under L2 (ridge) regularisation. The {crit} "
