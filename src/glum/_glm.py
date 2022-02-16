@@ -790,6 +790,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         # substantially change estimates
         self._center_predictors: bool = self.fit_intercept
 
+        # require number of observations in the training data for later
+        # computation of information criteria
+        self._num_obs: int = y.shape[0]
+
         if self.solver == "auto":
             if (self.A_ineq is not None) and (self.b_ineq is not None):
                 self._solver = "trust-constr"
@@ -2308,7 +2312,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         assert isinstance(y, np.ndarray)
 
         self._set_up_for_fit(y)
-        self._num_obs = X.shape[0]
 
         _dtype = [np.float64, np.float32]
         if self._solver == "irls-cd":
