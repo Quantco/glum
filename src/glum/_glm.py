@@ -2485,11 +2485,11 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         and 'bic' information criteria.
 
         The model's degrees of freedom are used to calculate the effective
-        number of parameters that are used. This uses the suggestion from [2]
-        and [3] that for L1 regularisation the number of non-zero parameters
-        in the trained model is an unbiased approximator of the degrees of
-        freedom of the model. Note that this might not hold true for L2
-        regularisation and thus we raise a warning for this case.
+        number of parameters. This uses the claim by [2] and [3] that, for
+        L1 regularisation, the number of non-zero parameters in the trained model
+        is an unbiased approximator of the degrees of freedom of the model. Note
+        that this might not hold true for L2 regularisation and thus we raise a
+        warning for this case.
 
         References
         ----------

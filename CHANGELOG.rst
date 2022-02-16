@@ -21,7 +21,7 @@ Unreleased
 
 **New feature:**
 
-- Added :meth:`aic`, :meth:`aicc` and :meth:`bic` attributes to the :class:`~glum.GeneralizedLinearRegressorBase`. 
+- Added :meth:`aic`, :meth:`aicc` and :meth:`bic` attributes to the :class:`~glum.GeneralizedLinearRegressor`. 
   These attributes provide the information criteria based on the training data and the effective degrees of freedom 
   of the maximum likelihood estimate for the model's parameters.
 
