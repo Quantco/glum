@@ -2283,6 +2283,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         -------
         self
         """
+
         self._validate_hyperparameters()
 
         # NOTE: This function checks if all the entries in X and y are
