@@ -20,7 +20,7 @@ The goal of `glum` is to be at least as feature-complete as existing GLM librari
 * Normal, Poisson, logistic, gamma, and Tweedie distributions, plus varied and customizable link functions
 * Box constraints, linear inequality constraints, sample weights, offsets
 
-This repo also includes tools for benchmarking GLM implementations in the `glum_benchmarks` module. For details on the benchmarking, [see here](src/glum_benchmarks/README.md). Although the performance of `glum` relative to `glmnet` and `h2o` depends on the specific problem, we find that when N >> K (there are more samples than predictors), it is consistently much faster for a wide range of problems.
+This repo also includes tools for benchmarking GLM implementations in the `glum_benchmarks` module. For details on the benchmarking, [see here](src/glum_benchmarks/README.md). Although the performance of `glum` relative to `glmnet` and `h2o` depends on the specific problem, we find that when N >> K (there are more observations than predictors), it is consistently much faster for a wide range of problems.
 
 ![](docs/_static/headline_benchmark.png)
 
