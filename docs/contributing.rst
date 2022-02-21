@@ -31,29 +31,30 @@ Install for development
 --------------------------------------------------
 
 The first step is to set up a conda environment and install glum in editable mode.
+We strongly suggest to use ``mamba`` instead of ``conda`` as this provides the same functionality at much greater speed.
+
 ::
 
    # First, make sure you have conda-forge as your primary conda channel:
    conda config --add channels conda-forge
 
-   # And install pre-commit
-   conda install -y pre-commit
-
    # Clone the repository
    git clone git@github.com:Quantco/glum.git
    cd glum
 
+   # Set up a conda environment with name "glum"
+   mamba env create
+
+   # If you want to install the dependencies necessary for benchmarking against other GLM packages:
+   mamba env update -n glum --file environment-benchmark.yml
+
+   # Activate the previously created conda environment
+   conda activate glum
+
    # Set up our pre-commit hooks for black, mypy, isort and flake8.
    pre-commit install
 
-   # Set up a conda environment with name "glum"
-   conda env create
-
-   # If you want to install the dependencies necessary for benchmarking against other GLM packages:
-   conda env update -n glum --file environment-benchmark.yml
-
-   # Install this package in editable mode. 
-   conda activate glum
+   # Install this package in editable mode.
    pip install --no-use-pep517 --disable-pip-version-check -e .
 
 
