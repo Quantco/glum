@@ -629,9 +629,16 @@ def is_pos_semidef(p: Union[sparse.spmatrix, np.ndarray]) -> Union[bool, np.bool
 
 def _group_sum(groups: np.ndarray, data: np.ndarray):
     """Sum over groups."""
-    out = np.empty((len(np.unique(groups)), data.shape[1]))
-    for i in range(data.shape[1]):
-        out[:, i] = np.bincount(groups, weights=data[:, i])
+    ngroups = len(np.unique(groups))
+    out = np.empty((ngroups, data.shape[1]))
+    print(data)
+    print(data.shape)
+    if sparse.issparse(data):  # could be implemented for all cases, if faster
+        for i in range(data.shape[1]):
+            out[:, i] = (np.eye(ngroups)[:, groups] @ data.getcol(i)).ravel()
+    else:
+        for i in range(data.shape[1]):
+            out[:, i] = np.bincount(groups, weights=data[:, i])
     return out
 
 
@@ -1472,7 +1479,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             if clusters is not None:
                 n_groups = len(np.unique(clusters))
                 grouped_gradient = _group_sum(clusters, gradient)
-                inner_part = grouped_gradient.T @ grouped_gradient
+                if not isinstance(grouped_gradient, tm.SplitMatrix):
+                    inner_part = grouped_gradient.T @ grouped_gradient
+                else:
+                    inner_part = grouped_gradient.sandwich(np.ones_like(y))
                 correction = (n_groups / (n_groups - 1)) * (
                     (sum_weights - 1)
                     / (sum_weights - self.n_features_in_ - int(self.fit_intercept))
