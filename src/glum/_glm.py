@@ -1440,7 +1440,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 method="pearson",
             )
 
-        if not sparse.issparse(X):
+        if sparse.sputils.isdense(X):
             if np.linalg.cond(X) > 1 / sys.float_info.epsilon:
                 raise np.linalg.LinAlgError(
                     "Matrix is singular. Cannot estimate standard errors."
@@ -1478,7 +1478,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                     / (sum_weights - self.n_features_in_ - int(self.fit_intercept))
                 )
             else:
-                inner_part = gradient.T @ gradient
+                if not isinstance(gradient, tm.SplitMatrix):
+                    inner_part = gradient.T @ gradient
+                else:
+                    inner_part = gradient.sandwich(np.ones_like(y))
                 correction = sum_weights / (
                     sum_weights - self.n_features_in_ - int(self.fit_intercept)
                 )
