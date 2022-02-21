@@ -631,8 +631,6 @@ def _group_sum(groups: np.ndarray, data: np.ndarray):
     """Sum over groups."""
     ngroups = len(np.unique(groups))
     out = np.empty((ngroups, data.shape[1]))
-    print(data)
-    print(data.shape)
     if sparse.issparse(data):  # could be implemented for all cases, if faster
         for i in range(data.shape[1]):
             out[:, i] = (np.eye(ngroups)[:, groups] @ data.getcol(i)).ravel()
