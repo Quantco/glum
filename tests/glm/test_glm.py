@@ -1752,6 +1752,56 @@ def test_sparse_std_errors(regression_data):
     np.testing.assert_allclose(actual3, expected3)
 
 
+# Tests:
+# Sparse CHECK
+# Dense CHECK
+# Splitmatrix (intercept TODO -non-intercept)
+# Categorical matrix (intercepts TODO -non-intercept)
+# Standardized matrix (scale_predictors=True and all types of matrices)
+
+# TODO
+# Parameterize: intercepts and scale predictors
+# Split, categorical and dense/sparse
+# Must drop a coefficient to compare against statsmodels --> use drop_first
+# in categorical matrix and tm.from_pandas once released
+
+# TODO
+# Additional data formats: numpy, pandas, scipy.sparse, tabmats.
+def test_categorical_std_errors(regression_data):
+    rng = np.random.default_rng(42)
+    X, y = regression_data
+
+    X = pd.DataFrame(X).assign(cat=rng.choice(["A", "B", "C"], size=len(y)))
+    X["cat"] = X["cat"].astype("category")
+    # X = pd.DataFrame(X["cat"])
+    X_sm = pd.get_dummies(X)
+
+    mdl = GeneralizedLinearRegressor(
+        alpha=0, family="normal", fit_intercept=False, scale_predictors=True
+    )
+    mdl.fit(X=X, y=y)
+    mdl_sm = sm.OLS(endog=y, exog=X_sm)
+
+    # nonrobust
+    # manually add dof adjustment in statsmodels
+    ourse = mdl.std_errors(X=X, y=y, robust=False)
+    corr = len(y) / (len(y) - X_sm.shape[1])
+    smse = mdl_sm.fit(cov_type="nonrobust").bse * np.sqrt(corr)
+    np.testing.assert_allclose(ourse, smse, rtol=1e-8)
+
+    # robust
+    ourse = mdl.std_errors(X=X, y=y, robust=True)
+    smse = mdl_sm.fit(cov_type="HC1").bse
+    np.testing.assert_allclose(ourse, smse, rtol=1e-8)
+
+    # clustered
+    rng = np.random.default_rng(42)
+    clu = rng.integers(5, size=len(y))
+    ourse = mdl.std_errors(X=X, y=y, clusters=clu)
+    smse = mdl_sm.fit(cov_type="cluster", cov_kwds={"groups": clu}).bse
+    np.testing.assert_allclose(ourse, smse, rtol=1e-8)
+
+
 @pytest.mark.parametrize("as_data_frame", [False, True])
 @pytest.mark.parametrize("offset", [False, True])
 @pytest.mark.parametrize("weighted", [False, True])
