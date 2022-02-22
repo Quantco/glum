@@ -1776,9 +1776,7 @@ def test_categorical_std_errors(regression_data):
     # X = pd.DataFrame(X["cat"])
     X_sm = pd.get_dummies(X)
 
-    mdl = GeneralizedLinearRegressor(
-        alpha=0, family="normal", fit_intercept=False, scale_predictors=True
-    )
+    mdl = GeneralizedLinearRegressor(alpha=0, family="normal", fit_intercept=False)
     mdl.fit(X=X, y=y)
     mdl_sm = sm.OLS(endog=y, exog=X_sm)
 
