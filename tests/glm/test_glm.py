@@ -1752,28 +1752,18 @@ def test_sparse_std_errors(regression_data):
     np.testing.assert_allclose(actual3, expected3)
 
 
-# Tests:
-# Sparse CHECK
-# Dense CHECK
-# Splitmatrix (intercept TODO -non-intercept)
-# Categorical matrix (intercepts TODO -non-intercept)
-# Standardized matrix (scale_predictors=True and all types of matrices)
-
 # TODO
-# Parameterize: intercepts and scale predictors
-# Split, categorical and dense/sparse
-# Must drop a coefficient to compare against statsmodels --> use drop_first
-# in categorical matrix and tm.from_pandas once released
-
-# TODO
-# Additional data formats: numpy, pandas, scipy.sparse, tabmats.
+# Test different input dtypes in one test (add fixtures/parametrize)
+# Parameterize: fit intercepts and scale predictors
+# Drop a dummy to compare against statsmodels with intercept
 def test_categorical_std_errors(regression_data):
     rng = np.random.default_rng(42)
     X, y = regression_data
-
-    X = pd.DataFrame(X).assign(cat=rng.choice(["A", "B", "C"], size=len(y)))
-    X["cat"] = X["cat"].astype("category")
-    # X = pd.DataFrame(X["cat"])
+    k_cat = 4
+    categories = np.arange(k_cat)
+    group = rng.choice(categories, size=X.shape[0])
+    # Add categorical type
+    X = pd.DataFrame(X).assign(col_cat=pd.Categorical(group, categories=categories))
     X_sm = pd.get_dummies(X)
 
     mdl = GeneralizedLinearRegressor(alpha=0, family="normal", fit_intercept=False)
