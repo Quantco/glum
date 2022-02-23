@@ -634,7 +634,7 @@ def _group_sum(groups: np.ndarray, data: np.ndarray):
     if sparse.sputils.isdense(data):
         for i in range(data.shape[1]):
             out[:, i] = np.bincount(groups, weights=data[:, i])
-    else:  # could be implemented for all cases, if faster
+    else:
         for i in range(data.shape[1]):
             out[:, i] = (np.eye(ngroups)[:, groups] @ data.getcol(i)).ravel()
     return out
