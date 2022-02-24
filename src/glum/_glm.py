@@ -1477,10 +1477,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             if clusters is not None:
                 n_groups = len(np.unique(clusters))
                 grouped_gradient = _group_sum(clusters, gradient)
-                if not isinstance(grouped_gradient, tm.SplitMatrix):
-                    inner_part = grouped_gradient.T @ grouped_gradient
-                else:
-                    inner_part = grouped_gradient.sandwich(np.ones_like(y))
+                inner_part = grouped_gradient.T @ grouped_gradient
                 correction = (n_groups / (n_groups - 1)) * (
                     (sum_weights - 1)
                     / (sum_weights - self.n_features_in_ - int(self.fit_intercept))
