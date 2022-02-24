@@ -1,12 +1,17 @@
 # glum
 
-![CI](https://github.com/Quantco/glm_benchmarks/workflows/CI/badge.svg)
+[![CI](https://github.com/Quantco/glm_benchmarks/workflows/CI/badge.svg)](https://github.com/Quantco/glum/actions)
+[![Docs](https://readthedocs.org/projects/pip/badge/?version=latest&style=flat)](https://glum.readthedocs.io/)
+[![Conda-forge](https://img.shields.io/conda/vn/conda-forge/glum?logoColor=white&logo=conda-forge)](https://anaconda.org/conda-forge/glum)
+[![PypiVersion](https://img.shields.io/pypi/v/glum.svg?logo=pypi&logoColor=white)](https://pypi.org/project/glum)
+[![PythonVersion](https://img.shields.io/pypi/pyversions/glum?logoColor=white&logo=python)](https://pypi.org/project/glum)
+
 
 [Documentation](https://glum.readthedocs.io/en/latest/)
 
 Generalized linear models (GLM) are a core statistical tool that include many common methods like least-squares regression, Poisson regression and logistic regression as special cases. At QuantCo, we have used GLMs in e-commerce pricing, insurance claims prediction and more. We have developed `glum`, a fast Python-first GLM library. The development was based on [a fork of scikit-learn](https://github.com/scikit-learn/scikit-learn/pull/9405), so it has a scikit-learn-like API. We are thankful for the starting point provided by Christian Lorentzen in that PR!
 
-`glum` is at least as feature-complete as existing GLM libraries like `glmnet` or `h2o`. It supports
+The goal of `glum` is to be at least as feature-complete as existing GLM libraries like `glmnet` or `h2o`. It supports
 
 * Built-in cross validation for optimal regularization, efficiently exploiting a “regularization path”
 * L1 regularization, which produces sparse and easily interpretable solutions
@@ -15,7 +20,7 @@ Generalized linear models (GLM) are a core statistical tool that include many co
 * Normal, Poisson, logistic, gamma, and Tweedie distributions, plus varied and customizable link functions
 * Box constraints, linear inequality constraints, sample weights, offsets
 
-This repo also includes tools for benchmarking GLM implementations in the `glum_benchmarks` module. For details on the benchmarking, [see here](src/glum_benchmarks/README.md). Although the performance of `glum` relative to `glmnet` and `h2o` depends on the specific problem, we find that it is consistently much faster for a wide range of problems.
+This repo also includes tools for benchmarking GLM implementations in the `glum_benchmarks` module. For details on the benchmarking, [see here](src/glum_benchmarks/README.md). Although the performance of `glum` relative to `glmnet` and `h2o` depends on the specific problem, we find that when N >> K (there are more observations than predictors), it is consistently much faster for a wide range of problems.
 
 ![](docs/_static/headline_benchmark.png)
 
