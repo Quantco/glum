@@ -2600,8 +2600,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         aicc = self._get_info_criteria("aicc", X, y, sample_weight)
         if not aicc:
             raise ValueError(
-                "There should not be more degrees of freedom in the"
-                + "model than training data."
+                "Model degrees of freedom should be more than training datapoints."
             )
         return aicc
 
