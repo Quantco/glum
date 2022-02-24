@@ -2571,7 +2571,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         sample_weight : array-like, shape (n_samples,), optional (default=None)
              Same data as used in 'fit'
         """
-        return self.get_info_criteria("aic", X, y, sample_weight)
+        return self._get_info_criteria("aic", X, y, sample_weight)
 
     def aicc(
         self, X: ArrayLike, y: ArrayLike, sample_weight: Optional[ArrayLike] = None
@@ -2597,7 +2597,13 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         sample_weight : array-like, shape (n_samples,), optional (default=None)
              Same data as used in 'fit'
         """
-        return self.get_info_criteria("aicc", X, y, sample_weight)
+        aicc = self._get_info_criteria("aicc", X, y, sample_weight)
+        if not aicc:
+            raise ValueError(
+                "There should not be more degrees of freedom in the"
+                + "model than training data."
+            )
+        return aicc
 
     def bic(
         self, X: ArrayLike, y: ArrayLike, sample_weight: Optional[ArrayLike] = None
@@ -2622,9 +2628,9 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         sample_weight : array-like, shape (n_samples,), optional (default=None)
              Same data as used in 'fit'
         """
-        return self.get_info_criteria("bic", X, y, sample_weight)
+        return self._get_info_criteria("bic", X, y, sample_weight)
 
-    def get_info_criteria(
+    def _get_info_criteria(
         self,
         crit: str,
         X: ArrayLike,

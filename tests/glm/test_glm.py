@@ -1796,7 +1796,7 @@ def test_information_criteria(regression_data):
     regressor = GeneralizedLinearRegressor(family="normal", alpha=0)
     regressor.fit(X, y)
     assert np.allclose(
-        [138.80, 141.59, 168.20],
+        [138.80, 141.59, 168.20],  # values taken from statsmodels run
         [regressor.aic(X, y), regressor.aicc(X, y), regressor.bic(X, y)],
         atol=0.1,
     )
