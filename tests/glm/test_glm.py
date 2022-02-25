@@ -18,6 +18,7 @@ from sklearn.exceptions import ConvergenceWarning
 from sklearn.linear_model import ElasticNet, LogisticRegression, Ridge
 from sklearn.metrics import mean_absolute_error
 from sklearn.utils.estimator_checks import check_estimator
+from statsmodels.tools import eval_measures
 
 from glum import GeneralizedLinearRegressorCV
 from glum._distribution import (
@@ -1793,12 +1794,19 @@ def test_score_method(as_data_frame, offset, weighted):
 
 def test_information_criteria(regression_data):
     X, y = regression_data
-    regressor = GeneralizedLinearRegressor(family="normal", alpha=0)
+    regressor = GeneralizedLinearRegressor(family="gaussian", alpha=0)
     regressor.fit(X, y)
+
+    llf = regressor.family_instance.log_likelihood(y, regressor.predict(X))
+    nobs, df = X.shape[0], X.shape[1] + 1
+    sm_aic = eval_measures.aic(llf, nobs, df)
+    sm_bic = eval_measures.bic(llf, nobs, df)
+    sm_aicc = eval_measures.aicc(llf, nobs, df)
+
     assert np.allclose(
-        [138.80, 141.59, 168.20],  # values taken from statsmodels run
+        [sm_aic, sm_aicc, sm_bic],
         [regressor.aic(X, y), regressor.aicc(X, y), regressor.bic(X, y)],
-        atol=0.1,
+        atol=1e-8,
     )
 
 
