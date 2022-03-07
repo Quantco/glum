@@ -12,7 +12,6 @@ dependencies:
   - scikit-learn >= 0.23
   - scipy
   - tqdm
-  - python<3.10
 
   # development tools
   - black
