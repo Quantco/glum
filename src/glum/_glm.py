@@ -790,6 +790,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         # substantially change estimates
         self._center_predictors: bool = self.fit_intercept
 
+        # require number of observations in the training data for later
+        # computation of information criteria
+        self._num_obs: int = y.shape[0]
+
         if self.solver == "auto":
             if (self.A_ineq is not None) and (self.b_ineq is not None):
                 self._solver = "trust-constr"
@@ -2474,3 +2478,177 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         self._tear_down_from_fit()
 
         return self
+
+    def _compute_information_criteria(
+        self,
+        X: ShapedArrayLike,
+        y: ShapedArrayLike,
+        sample_weight: Optional[ArrayLike] = None,
+    ):
+        """
+        Computes and stores the model's degrees of freedom, the 'aic', 'aicc'
+        and 'bic' information criteria.
+
+        The model's degrees of freedom are used to calculate the effective
+        number of parameters. This uses the claim by [2] and [3] that, for
+        L1 regularisation, the number of non-zero parameters in the trained model
+        is an unbiased approximator of the degrees of freedom of the model. Note
+        that this might not hold true for L2 regularisation and thus we raise a
+        warning for this case.
+
+        References
+        ----------
+        [1] Burnham KP, Anderson KR (2002). Model Selection and Multimodel
+        Inference; Springer New York.
+        [2] Zou, H., Hastie, T. and Tibshirani, R., (2007). On the “degrees of
+        freedom” of the lasso; The Annals of Statistics.
+        [3] Park, M.Y., 2006. Generalized linear models with regularization;
+        Stanford Universty.
+        """
+
+        # we require that the log_likelihood be defined
+        model_err_str = (
+            "The computation of the information criteria has only "
+            + "been defined for models with a Binomial likelihood or a Tweedie "
+            + "likelihood with power <= 2."
+        )
+        if not isinstance(
+            self.family_instance, (BinomialDistribution, TweedieDistribution)
+        ):
+            raise NotImplementedError(model_err_str)
+
+        # the log_likelihood has not been implemented for the InverseGaussianDistribution
+        if (
+            isinstance(self.family_instance, TweedieDistribution)
+            and self.family_instance.power > 2
+        ):
+            raise NotImplementedError(model_err_str)
+
+        ddof = np.sum(np.abs(self.coef_) > np.finfo(self.coef_.dtype).eps)
+        k_params = ddof + self.fit_intercept
+        nobs = X.shape[0]
+
+        if nobs != self._num_obs:
+            raise ValueError(
+                "The same dataset that was used for training should "
+                + "also be used for the computation of information "
+                + "criteria"
+            )
+
+        mu = self.predict(X)
+        ll = self.family_instance.log_likelihood(y, mu, sample_weight=sample_weight)
+
+        aic = -2 * ll + 2 * k_params
+        bic = -2 * ll + np.log(nobs) * k_params
+        if nobs > k_params + 1:
+            aicc = aic + 2 * k_params * (k_params + 1) / (nobs - k_params - 1)
+        else:
+            aicc = None
+
+        self._info_criteria = {"aic": aic, "aicc": aicc, "bic": bic}
+
+        return True
+
+    def aic(
+        self, X: ArrayLike, y: ArrayLike, sample_weight: Optional[ArrayLike] = None
+    ):
+        """
+        Akaike's information criteria. Computed as:
+        :math:`-2\\log\\hat{\\mathcal{L}} + 2\\hat{k}` where
+        :math:`\\hat{\\mathcal{L}}` is the maximum likelihood estimate of the
+        model, and :math:`\\hat{k}` is the effective number of parameters. See
+        `_compute_information_criteria` for more information on the computation
+        of :math:`\\hat{k}`.
+
+        Parameters
+        ----------
+        X : {array-like, sparse matrix}, shape (n_samples, n_features)
+            Same data as used in 'fit'
+
+        y : array-like, shape (n_samples,)
+            Same data as used in 'fit'
+
+        sample_weight : array-like, shape (n_samples,), optional (default=None)
+             Same data as used in 'fit'
+        """
+        return self._get_info_criteria("aic", X, y, sample_weight)
+
+    def aicc(
+        self, X: ArrayLike, y: ArrayLike, sample_weight: Optional[ArrayLike] = None
+    ):
+        """
+        Second-order Akaike's information criteria (or small sample AIC).
+        Computed as:
+        :math:`-2\\log\\hat{\\mathcal{L}} + 2\\hat{k} + \\frac{2k(k+1)}{n-k-1}`
+        where :math:`\\hat{\\mathcal{L}}` is the maximum likelihood estimate of
+        the model, :math:`n` is the number of training instances, and
+        :math:`\\hat{k}` is the effective number of parameters. See
+        `_compute_information_criteria` for more information on the computation
+        of :math:`\\hat{k}`.
+
+        Parameters
+        ----------
+        X : {array-like, sparse matrix}, shape (n_samples, n_features)
+            Same data as used in 'fit'
+
+        y : array-like, shape (n_samples,)
+            Same data as used in 'fit'
+
+        sample_weight : array-like, shape (n_samples,), optional (default=None)
+             Same data as used in 'fit'
+        """
+        aicc = self._get_info_criteria("aicc", X, y, sample_weight)
+        if not aicc:
+            raise ValueError(
+                "Model degrees of freedom should be more than training datapoints."
+            )
+        return aicc
+
+    def bic(
+        self, X: ArrayLike, y: ArrayLike, sample_weight: Optional[ArrayLike] = None
+    ):
+        """
+        Bayesian information criterion. Computed as:
+        :math:`-2\\log\\hat{\\mathcal{L}} + k\\log(n)` where
+        :math:`\\hat{\\mathcal{L}}` is the maximum likelihood estimate of the
+        model, :math:`n` is the number of training instances, and
+        :math:`\\hat{k}` is the effective number of parameters. See
+        `_compute_information_criteria` for more information on the computation
+        of :math:`\\hat{k}`.
+
+        Parameters
+        ----------
+        X : {array-like, sparse matrix}, shape (n_samples, n_features)
+            Same data as used in 'fit'
+
+        y : array-like, shape (n_samples,)
+            Same data as used in 'fit'
+
+        sample_weight : array-like, shape (n_samples,), optional (default=None)
+             Same data as used in 'fit'
+        """
+        return self._get_info_criteria("bic", X, y, sample_weight)
+
+    def _get_info_criteria(
+        self,
+        crit: str,
+        X: ArrayLike,
+        y: ArrayLike,
+        sample_weight: Optional[ArrayLike] = None,
+    ):
+
+        check_is_fitted(self, "coef_")
+
+        if not hasattr(self, "_info_criteria"):
+            self._compute_information_criteria(X, y, sample_weight)
+
+        if (
+            self.alpha is None or (self.alpha is not None and self.alpha > 0)
+        ) and self.l1_ratio < 1.0:
+            warnings.warn(
+                "There is no general definition for the model's degrees of "
+                + f"freedom under L2 (ridge) regularisation. The {crit} "
+                + "might not be well defined in these cases."
+            )
+
+        return self._info_criteria[crit]
