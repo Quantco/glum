@@ -1707,7 +1707,7 @@ def test_verbose(regression_data, capsys):
     assert "Iteration" in captured.err
 
 
-def test_std_errors(regression_data):
+def test_array_std_errors(regression_data):
     X, y = regression_data
     mdl = GeneralizedLinearRegressor(alpha=0, family="normal")
     mdl.fit(X=X, y=y)
@@ -1755,20 +1755,32 @@ def test_sparse_std_errors(regression_data):
 
 
 # TODO
-# Test different input dtypes in one test (add fixtures/parametrize)
 # Parameterize: fit intercepts and scale predictors
 # Drop a dummy to compare against statsmodels with intercept
-def test_categorical_std_errors(regression_data):
-    rng = np.random.default_rng(42)
+# And resolve sparse.sputils.isdense warnings
+@pytest.mark.parametrize(
+    "categorical, split", [(True, False), (False, True), (False, False)]
+)
+@pytest.mark.parametrize("fit_intercept", [True, False])
+def test_dataframe_std_errors(regression_data, categorical, split, fit_intercept):
     X, y = regression_data
-    k_cat = 4
-    categories = np.arange(k_cat)
-    group = rng.choice(categories, size=X.shape[0])
-    # Add categorical type
-    X = pd.DataFrame(X).assign(col_cat=pd.Categorical(group, categories=categories))
-    X_sm = pd.get_dummies(X)
+    X = pd.DataFrame(X)
+    if categorical or split:
+        rng = np.random.default_rng(42)
+        categories = np.arange(4)
+        group = rng.choice(categories, size=len(X))
+        # Add categorical type
+        if categorical:
+            X = pd.DataFrame(pd.Categorical(group, categories=categories))
+        if split:
+            X = X.assign(col_cat=pd.Categorical(group, categories=categories))
+    X_sm = pd.get_dummies(X, drop_first=fit_intercept)
+    if fit_intercept:
+        X_sm = sm.add_constant(X_sm)
 
-    mdl = GeneralizedLinearRegressor(alpha=0, family="normal", fit_intercept=False)
+    mdl = GeneralizedLinearRegressor(
+        alpha=0, family="normal", fit_intercept=fit_intercept
+    )
     mdl.fit(X=X, y=y)
     mdl_sm = sm.OLS(endog=y, exog=X_sm)
 
