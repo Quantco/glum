@@ -7,7 +7,7 @@
 Changelog
 =========
 
-2.0.4 - 202X-XX-XX
+Unreleased
 ------------------
 
 **Bug fix:**
@@ -18,6 +18,12 @@ Changelog
 
 - The CI now runs daily unit tests against the nightly builds of numpy, pandas and scikit-learn.
 - ``oldest-supported-numpy`` is used for build. 
+
+**New feature:**
+
+- Added :meth:`aic`, :meth:`aicc` and :meth:`bic` attributes to the :class:`~glum.GeneralizedLinearRegressor`. 
+  These attributes provide the information criteria based on the training data and the effective degrees of freedom 
+  of the maximum likelihood estimate for the model's parameters.
 
 2.0.3 - 2021-11-05
 ------------------
