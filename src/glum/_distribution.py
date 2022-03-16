@@ -5,13 +5,7 @@ from typing import Tuple, Union
 import numexpr
 import numpy as np
 from scipy import sparse, special
-from tabmat import (
-    DenseMatrix,
-    MatrixBase,
-    SparseMatrix,
-    SplitMatrix,
-    StandardizedMatrix,
-)
+from tabmat import MatrixBase, StandardizedMatrix
 
 from ._functions import (
     binomial_logit_eta_mu_deviance,
@@ -531,32 +525,12 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
             if sparse.sputils.isdense(X):
                 return np.hstack((W, np.multiply(X, W)))
             else:
-                if isinstance(X, SplitMatrix):
-                    mat_new = [
-                        DenseMatrix(np.multiply(m, W))
-                        if sparse.sputils.isdense(m)
-                        else SparseMatrix(m.multiply(W))
-                        for m in X.matrices
-                    ]
-                    return SplitMatrix(
-                        [DenseMatrix(W), SplitMatrix(mat_new, X.indices)]
-                    )
-                else:
-                    return sparse.hstack((W, X.multiply(W)))
+                return sparse.hstack((W, X.multiply(W)))
         else:
             if sparse.sputils.isdense(X):
                 return np.multiply(X, W)
             else:
-                if isinstance(X, SplitMatrix):
-                    mat_new = [
-                        DenseMatrix(np.multiply(m, W))
-                        if sparse.sputils.isdense(m)
-                        else SparseMatrix(m.multiply(W))
-                        for m in X.matrices
-                    ]
-                    return SplitMatrix(mat_new, X.indices)
-                else:
-                    return X.multiply(W)
+                return X.multiply(W)
 
     def dispersion(self, y, mu, sample_weight=None, ddof=1, method="pearson") -> float:
         r"""Estimate the dispersion parameter :math:`\phi`.

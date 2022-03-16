@@ -1487,10 +1487,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                     / (sum_weights - self.n_features_in_ - int(self.fit_intercept))
                 )
             else:
-                if not isinstance(gradient, tm.SplitMatrix):
-                    inner_part = gradient.T @ gradient
-                else:
+                if isinstance(gradient, tm.SplitMatrix):
                     inner_part = gradient.sandwich(np.ones_like(y))
+                else:
+                    inner_part = gradient.T @ gradient
                 correction = sum_weights / (
                     sum_weights - self.n_features_in_ - int(self.fit_intercept)
                 )
