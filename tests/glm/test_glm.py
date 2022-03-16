@@ -2,6 +2,7 @@
 #
 # License: BSD 3 clause
 import copy
+import warnings
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
@@ -17,6 +18,7 @@ from sklearn.exceptions import ConvergenceWarning
 from sklearn.linear_model import ElasticNet, LogisticRegression, Ridge
 from sklearn.metrics import mean_absolute_error
 from sklearn.utils.estimator_checks import check_estimator
+from statsmodels.tools import eval_measures
 
 from glum import GeneralizedLinearRegressorCV
 from glum._distribution import (
@@ -1826,3 +1828,56 @@ def test_score_method(as_data_frame, offset, weighted):
 
     # use pytest because NumPy used to always reject comparisons against zero
     assert pytest.approx(score, 1e-8) == int(offset is not None)
+
+
+def test_information_criteria(regression_data):
+    X, y = regression_data
+    regressor = GeneralizedLinearRegressor(family="gaussian", alpha=0)
+    regressor.fit(X, y)
+
+    llf = regressor.family_instance.log_likelihood(y, regressor.predict(X))
+    nobs, df = X.shape[0], X.shape[1] + 1
+    sm_aic = eval_measures.aic(llf, nobs, df)
+    sm_bic = eval_measures.bic(llf, nobs, df)
+    sm_aicc = eval_measures.aicc(llf, nobs, df)
+
+    assert np.allclose(
+        [sm_aic, sm_aicc, sm_bic],
+        [regressor.aic(X, y), regressor.aicc(X, y), regressor.bic(X, y)],
+        atol=1e-8,
+    )
+
+
+@pytest.mark.filterwarnings("ignore: There is no")
+def test_information_criteria_raises_correct_warnings_and_errors(regression_data):
+    X, y = regression_data
+
+    # test no warnings are raised for L1 regularisation
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        regressor = GeneralizedLinearRegressor(family="normal", l1_ratio=1.0)
+        regressor.fit(X, y)
+        regressor.aic(X, y), regressor.aicc(X, y), regressor.bic(X, y)
+
+    # test warnings are raised for L2 regularisation
+    with pytest.warns(match="There is no") as records:
+        regressor = GeneralizedLinearRegressor(family="normal", l1_ratio=0.0)
+        regressor.fit(X, y)
+        regressor.aic(X, y), regressor.aicc(X, y), regressor.bic(X, y)
+    assert len(records) == 3
+
+    # test exceptions are raised when information criteria called but model not fitted
+    regressor = GeneralizedLinearRegressor()
+    with pytest.raises(Exception):
+        regressor.aic(X, y)
+    with pytest.raises(Exception):
+        regressor.aicc(X, y)
+    with pytest.raises(Exception):
+        regressor.bic(X, y)
+
+    # test exception is raised when not train set is used
+    regressor.fit(X, y)
+    X_not_train = np.ones((10, 2))
+    y_not_train = np.ones(10)
+    with pytest.raises(Exception):
+        regressor.aic(X_not_train, y_not_train)
