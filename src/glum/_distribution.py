@@ -5,7 +5,7 @@ from typing import Tuple, Union
 import numexpr
 import numpy as np
 from scipy import sparse, special
-from tabmat import MatrixBase, StandardizedMatrix
+from tabmat import CategoricalMatrix, MatrixBase, SplitMatrix, StandardizedMatrix
 
 from ._functions import (
     binomial_logit_eta_mu_deviance,
@@ -457,7 +457,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
             Whether the model has an intercept.
         """
         W = (link.inverse_derivative(link.link(mu)) ** 2) * get_one_over_variance(
-            self, link, mu, link.inverse(mu), dispersion, sample_weight
+            self, link, mu, link.link(mu), dispersion, sample_weight
         )
 
         return _safe_sandwich_dot(X, W, intercept=fit_intercept)
@@ -522,12 +522,16 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         ).reshape(-1, 1)
 
         if fit_intercept:
-            if sparse.sputils.isdense(X):
+            if not (
+                sparse.issparse(X) or isinstance(X, (SplitMatrix, CategoricalMatrix))
+            ):
                 return np.hstack((W, np.multiply(X, W)))
             else:
                 return sparse.hstack((W, X.multiply(W)))
         else:
-            if sparse.sputils.isdense(X):
+            if not (
+                sparse.issparse(X) or isinstance(X, (SplitMatrix, CategoricalMatrix))
+            ):
                 return np.multiply(X, W)
             else:
                 return X.multiply(W)

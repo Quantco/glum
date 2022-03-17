@@ -631,12 +631,14 @@ def _group_sum(groups: np.ndarray, data: np.ndarray):
     """Sum over groups."""
     ngroups = len(np.unique(groups))
     out = np.empty((ngroups, data.shape[1]))
-    if sparse.sputils.isdense(data):
-        for i in range(data.shape[1]):
-            out[:, i] = np.bincount(groups, weights=data[:, i])
-    else:
+    if sparse.issparse(data) or isinstance(
+        data, (tm.SplitMatrix, tm.CategoricalMatrix)
+    ):
         for i in range(data.shape[1]):
             out[:, i] = (np.eye(ngroups)[:, groups] @ data.getcol(i)).ravel()
+    else:
+        for i in range(data.shape[1]):
+            out[:, i] = np.bincount(groups, weights=data[:, i])
     return out
 
 
@@ -1449,7 +1451,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 method="pearson",
             )
 
-        if sparse.sputils.isdense(X):
+        if not (
+            sparse.issparse(X) or isinstance(X, (tm.SplitMatrix, tm.CategoricalMatrix))
+        ):
             if np.linalg.cond(X) > 1 / sys.float_info.epsilon:
                 raise np.linalg.LinAlgError(
                     "Matrix is singular. Cannot estimate standard errors."
