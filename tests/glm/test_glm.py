@@ -68,10 +68,9 @@ def classification_data():
     X, y = make_classification(
         n_samples=107,
         n_features=6,
-        random_state=2,
         n_informative=5,
         n_redundant=0,
-        n_repeated=0,
+        random_state=2,
     )
     return X, y
 
@@ -1720,6 +1719,34 @@ def test_verbose(regression_data, capsys):
     assert "Iteration" in captured.err
 
 
+def test_std_errors(regression_data):
+    X, y = regression_data
+    mdl = GeneralizedLinearRegressor(alpha=0, family="normal")
+    mdl.fit(X=X, y=y)
+
+    mdl_sm = sm.OLS(endog=y, exog=sm.add_constant(X))
+
+    # nonrobust
+    # Here, statsmodels does not do a degree of freedom adjustment,
+    # so we manually add it.
+    ourse = mdl.std_errors(X=X, y=y, robust=False)
+    corr = len(y) / (len(y) - X.shape[1] - 1)
+    smse = mdl_sm.fit(cov_type="nonrobust").bse * np.sqrt(corr)
+    np.testing.assert_allclose(ourse, smse, rtol=1e-8)
+
+    # robust
+    ourse = mdl.std_errors(X=X, y=y, robust=True)
+    smse = mdl_sm.fit(cov_type="HC1").bse
+    np.testing.assert_allclose(ourse, smse, rtol=1e-8)
+
+    # clustered
+    rng = np.random.default_rng(42)
+    clu = rng.integers(5, size=len(y))
+    ourse = mdl.std_errors(X=X, y=y, clusters=clu)
+    smse = mdl_sm.fit(cov_type="cluster", cov_kwds={"groups": clu}).bse
+    np.testing.assert_allclose(ourse, smse, rtol=1e-8)
+
+
 @pytest.mark.parametrize("fit_intercept", [True, False])
 @pytest.mark.parametrize("family", ["poisson", "normal", "binomial"])
 def test_array_std_errors(regression_data, classification_data, family, fit_intercept):
@@ -1738,8 +1765,7 @@ def test_array_std_errors(regression_data, classification_data, family, fit_inte
 
     mdl = GeneralizedLinearRegressor(
         alpha=0, family=family, fit_intercept=fit_intercept
-    )
-    mdl.fit(X=X, y=y)
+    ).fit(X=X, y=y)
 
     if fit_intercept:
         mdl_sm = sm.GLM(endog=y, exog=sm.add_constant(X), family=sm_family)
