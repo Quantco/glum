@@ -1719,7 +1719,7 @@ def test_verbose(regression_data, capsys):
     assert "Iteration" in captured.err
 
 
-def test_std_errors(regression_data):
+def test_ols_std_errors(regression_data):
     X, y = regression_data
     mdl = GeneralizedLinearRegressor(alpha=0, family="normal")
     mdl.fit(X=X, y=y)
