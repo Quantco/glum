@@ -522,19 +522,15 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         ).reshape(-1, 1)
 
         if fit_intercept:
-            if not (
-                sparse.issparse(X) or isinstance(X, (SplitMatrix, CategoricalMatrix))
-            ):
-                return np.hstack((W, np.multiply(X, W)))
-            else:
+            if sparse.issparse(X) or isinstance(X, (SplitMatrix, CategoricalMatrix)):
                 return sparse.hstack((W, X.multiply(W)))
-        else:
-            if not (
-                sparse.issparse(X) or isinstance(X, (SplitMatrix, CategoricalMatrix))
-            ):
-                return np.multiply(X, W)
             else:
+                return np.hstack((W, np.multiply(X, W)))
+        else:
+            if sparse.issparse(X) or isinstance(X, (SplitMatrix, CategoricalMatrix)):
                 return X.multiply(W)
+            else:
+                return np.multiply(X, W)
 
     def dispersion(self, y, mu, sample_weight=None, ddof=1, method="pearson") -> float:
         r"""Estimate the dispersion parameter :math:`\phi`.
