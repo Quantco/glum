@@ -20,6 +20,7 @@ Unreleased
 - The CI now runs daily unit tests against the nightly builds of numpy, pandas and scikit-learn.
 - ``oldest-supported-numpy`` is used for build. 
 - :meth:`std_errors` and :meth:`covariance_matrix` of :class:`~glum.GeneralizedLinearRegressor` now accept data frames with categorical data or high sparsity.
+- Updated ``environment.yml`` and ``conda.recipe/meta.yaml`` to use tabmat 3.1.0.
 
 **New feature:**
 
