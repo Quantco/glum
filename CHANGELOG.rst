@@ -13,11 +13,13 @@ Unreleased
 **Bug fix:**
 
 - The :meth:`score` method of :class:`~glum.GeneralizedLinearRegressor` and :class:`~glum.GeneralizedLinearRegressorCV` now accepts offsets.
+- Fixed the calculation of the information matrix for the Binomial distribution with logit link, which affected nonrobust standard errors.
 
 **Other:**
 
 - The CI now runs daily unit tests against the nightly builds of numpy, pandas and scikit-learn.
 - ``oldest-supported-numpy`` is used for build. 
+- :meth:`std_errors` and :meth:`covariance_matrix` of :class:`~glum.GeneralizedLinearRegressor` now accept data frames with categorical data or high sparsity.
 
 **New feature:**
 
