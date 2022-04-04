@@ -27,7 +27,7 @@ repos:
     - id: isort-conda
       additional_dependencies: [toml]
  - repo: https://github.com/Quantco/pre-commit-mirrors-mypy
-   rev: "0.790"
+   rev: "0.942"
    hooks:
     - id: mypy-conda
       args:
@@ -35,6 +35,7 @@ repos:
        - --ignore-missing-imports
        - --namespace-packages
       exclude: ^tests/
+      additional_dependencies: [-c, conda-forge, types-setuptools, attrs]
  - repo: https://github.com/Quantco/pre-commit-mirrors-pyupgrade
    rev: 2.31.1
    hooks:
