@@ -883,14 +883,14 @@ class GeneralizedHyperbolicSecant(ExponentialDispersionModel):
         self._include_upper_bound = False
 
     def unit_variance(self, mu):
-        return 1 + mu ** 2
+        return 1 + mu**2
 
     def unit_variance_derivative(self, mu):
         return 2 * mu
 
     def unit_deviance(self, y, mu):
         return 2 * y * (np.arctan(y) - np.arctan(mu)) + np.log(
-            (1 + mu ** 2) / (1 + y ** 2)
+            (1 + mu**2) / (1 + y**2)
         )
 
 
@@ -1023,7 +1023,7 @@ def _irls_solver(coef, X, y, weights, P2, fit_intercept, family, link, max_iter,
         # coef_old = coef
         # working weights W, in principle a diagonal matrix
         # therefore here just as 1d array
-        W = hp ** 2 / V
+        W = hp**2 / V
         # working observations
         z = eta + (y - mu) / hp
         # solve A*coef = b
@@ -2182,7 +2182,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                     hp = link.inverse_derivative(eta)
                     # working weights W, in principle a diagonal matrix
                     # therefore here just as 1d array
-                    W = hp ** 2 / family.variance(mu, phi=1, weights=weights)
+                    W = hp**2 / family.variance(mu, phi=1, weights=weights)
                     # working observations
                     z = eta + (y - mu) / hp
                     # solve A*coef = b

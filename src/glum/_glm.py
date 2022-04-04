@@ -342,7 +342,7 @@ def _standardize(
             inv_col_stds_mat = sparse.diags(penalty_mult)
             P2 = inv_col_stds_mat @ P2 @ inv_col_stds_mat
         elif P2.ndim == 1:
-            P2 *= penalty_mult ** 2
+            P2 *= penalty_mult**2
         else:
             P2 = (penalty_mult[:, None] * P2) * penalty_mult[None, :]
 

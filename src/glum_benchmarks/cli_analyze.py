@@ -135,7 +135,7 @@ def _extract_dict_results_to_pd_series(
     coefs = results["coef"]
     runtime_per_iter = results["runtime"] / results["n_iter"]
     l1_norm = np.sum(np.abs(coefs))
-    l2_norm = np.sum(coefs ** 2)
+    l2_norm = np.sum(coefs**2)
     num_nonzero_coef = np.sum(np.abs(coefs) > 1e-8)
 
     # weights and offsets are solving the same problem, but the objective is set up to

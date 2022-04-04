@@ -409,7 +409,7 @@ def clear_cache(force=False):
         return
 
     cache_size_limit = float(
-        os.environ.get("GLM_BENCHMARKS_CACHE_SIZE_LIMIT", 1024 ** 3)
+        os.environ.get("GLM_BENCHMARKS_CACHE_SIZE_LIMIT", 1024**3)
     )
 
     if force or _get_size_of_cache_directory() > cache_size_limit:
