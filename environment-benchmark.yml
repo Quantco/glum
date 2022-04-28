@@ -5,4 +5,4 @@ channels:
 dependencies:
   - h2o-py
   - openjdk
-  - rpy2
+  - rpy2<3.5
