@@ -1,10 +1,6 @@
 name: CI
-on:
-  push:
-    paths:
-      - '.github/**'
-      - '**/*.pyx'
-      - '**/*.cpp'
+on: [push]
+
 jobs:
   windows-ci:
     name: "Win - tests - Python ${{ matrix.PYTHON_VERSION }}"
