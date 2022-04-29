@@ -42,4 +42,4 @@ jobs:
         shell: pwsh
         run: |
           python -m pip install -e . --no-deps -vv --no-use-pep517 --disable-pip-version-check
-          pytest tests --doctest-modules src/
+          pytest tests --doctest-modules src/glum
