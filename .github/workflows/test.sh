@@ -61,8 +61,10 @@ if [[ "$TABMAT_VERSION" == "nightly" ]]; then
     pip install git+https://github.com/Quantco/tabmat
 fi
 
+git config --global --add safe.directory /github/workspace
+
 pip install --no-use-pep517 --no-deps --disable-pip-version-check -e .
-pytest -nauto tests --doctest-modules src/
+pytest -nauto tests --doctest-modules src/glum/
 
 # Check that the readme example will work by running via doctest.
 # We run outside the repo to make the test a bit more similar to
