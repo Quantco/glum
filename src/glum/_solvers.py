@@ -145,15 +145,31 @@ def update_hessian(state, data, active_set):
         # 4) just like an update, we only update the active_set
         hessian_init = build_hessian_delta(
             data.X,
-            state.hessian_rows,
+            state.hessian_rows,  # this is the d that goes into sandwich
             data.fit_intercept,
             data.P2,
             np.arange(data.X.shape[0], dtype=np.int32),
             active_set,
         )
-        state.hessian[np.ix_(active_set, active_set)] = hessian_init
+
+        # In the sparse Hessian case, stsate.hessian is a coo_matrix.
+        # hessian_init is a numpy array of size active_set x active_set;
+        # we can convert this to a coo_matrix and simply add it to the state.hessian
+        if state.use_sparse_hessian:
+            coo_data = hessian_init.flatten()
+            coo_rows = np.repeat(active_set, active_set.shape[0])
+            coo_cols = np.tile(active_set, active_set.shape[0])
+
+            state.hessian = sparse.coo_matrix(
+                (coo_data, (coo_rows, coo_cols)),
+                shape=(state.coef.shape[0], state.coef.shape[0]),
+            )
+        else:
+            state.hessian[np.ix_(active_set, active_set)] = hessian_init
+
         state.hessian_initialized = True
         n_active_rows = data.X.shape[0]
+
     else:
 
         # In an update iteration, we want to:
@@ -176,13 +192,31 @@ def update_hessian(state, data, active_set):
             active_rows=active_rows,
             active_cols=active_set,
         )
-        state.hessian[np.ix_(active_set, active_set)] += hessian_delta
+
+        if state.use_sparse_hessian:
+            coo_data = hessian_delta.flatten()
+            coo_rows = np.repeat(active_set, active_set.shape[0])
+            coo_cols = np.tile(active_set, active_set.shape[0])
+
+            state.hessian += sparse.coo_matrix(
+                (coo_data, (coo_rows, coo_cols)),
+                shape=(state.coef.shape[0], state.coef.shape[0]),
+            )
+        else:
+            state.hessian[np.ix_(active_set, active_set)] += hessian_delta
+
         n_active_rows = active_rows.shape[0]
 
-    return (
-        state.hessian[np.ix_(active_set, active_set)],
-        n_active_rows,
-    )
+    # If state.hessian is in COO form, we have to convert to CSC in order to index the
+    # active set elements, which we then convert to a numpy array for compatibility with
+    # the rest of the code
+    if state.use_sparse_hessian:
+        return (
+            state.hessian.tocsc()[np.ix_(active_set, active_set)].toarray(),
+            n_active_rows,
+        )
+    else:
+        return state.hessian[np.ix_(active_set, active_set)], n_active_rows
 
 
 def _is_subset(x, y):
@@ -208,6 +242,8 @@ def build_hessian_delta(
     """
     idx = 1 if intercept else 0
     active_cols_non_intercept = active_cols[idx:] - idx
+    # Here is the safe sandwich dot that calls sandwich
+    # active_cols is small even for a large number of columns (2304 for 1M)
     delta = _safe_sandwich_dot(
         X, hessian_rows, active_rows, active_cols_non_intercept, intercept
     )
@@ -271,7 +307,7 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
     ----------
     inner_solver
         A least squares solver that can handle the appropriate penalties. With
-        an L1 penalty, this will _cd_solver. With only an L2 penalty,
+        an L1 penalty, this will be _cd_solver. With only an L2 penalty,
         _least_squares_solver will be more efficient.
     coef : ndarray, shape (c,)
         If fit_intercept=False, shape c=X.shape[1].
@@ -528,9 +564,19 @@ class IRLSState:
         self.old_hessian_rows = np.zeros(data.X.shape[0], dtype=data.X.dtype)
         self.gradient_rows = None
         self.hessian_rows = None
-        self.hessian = np.zeros(
-            (self.coef.shape[0], self.coef.shape[0]), dtype=data.X.dtype
-        )
+
+        # In order to avoid memory issues for very wide datasets (e.g. Issue #485), we
+        # can instantiate the Hessian as a sparse COO matrix.
+        self.use_sparse_hessian = True
+        if self.use_sparse_hessian:
+            self.hessian = sparse.coo_matrix(
+                (self.coef.shape[0], self.coef.shape[0]), dtype=data.X.dtype
+            )
+        else:
+            self.hessian = np.zeros(
+                (self.coef.shape[0], self.coef.shape[0]), dtype=data.X.dtype
+            )
+
         self.hessian_initialized = False
         self.coef_P2 = None
         self.norm_min_subgrad = None
