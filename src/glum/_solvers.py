@@ -15,6 +15,7 @@ from sklearn.utils.validation import check_random_state
 from ._cd_fast import (
     _norm_min_subgrad,
     enet_coordinate_descent_gram,
+    enet_coordinate_descent_gram_diag_fisher,
     identify_active_rows,
 )
 from ._distribution import ExponentialDispersionModel
@@ -56,23 +57,62 @@ def _least_squares_solver(state, data, hessian):
 
 
 @timeit("inner_solver_runtime")
-def _cd_solver(state, data, active_hessian):
-    new_coef, gap, _, _, n_cycles = enet_coordinate_descent_gram(
-        state.active_set,
-        state.coef.copy(),
-        data.P1,
-        active_hessian,
-        -state.score,
-        data.max_inner_iter,
-        state.inner_tol,
-        data.random_state,
-        data.fit_intercept,
-        data.selection == "random",
-        data.has_lower_bounds,
-        data._lower_bounds,
-        data.has_upper_bounds,
-        data._upper_bounds,
-    )
+def _cd_solver(state, data, active_hessian, diag_fisher=False):
+    if diag_fisher:
+        if data.fit_intercept:
+            if 0 in state.active_set:
+                # remove the zero, subtract one from everything else
+                X_active = data.X[:, state.active_set[1:] - 1].A
+            else:
+                X_active = data.X[:, state.active_set - 1].A
+        else:
+            X_active = data.X[:, state.active_set].A
+        # instead of passing in data.X, we should pass in
+        # but remember! X is sparse. But X is not necessarily square
+        # we may need active rows and columns
+        # X_active = data.X[:, state.active_set].A
+        (
+            new_coef,
+            gap,
+            _,
+            _,
+            n_cycles,
+            Q_check,
+        ) = enet_coordinate_descent_gram_diag_fisher(
+            X_active,  # new
+            state.hessian_rows,  # new
+            state.active_set,
+            state.coef.copy(),
+            data.P1,
+            active_hessian,
+            -state.score,
+            data.max_inner_iter,
+            state.inner_tol,
+            data.random_state,
+            data.fit_intercept,
+            data.selection == "random",
+            data.has_lower_bounds,
+            data._lower_bounds,
+            data.has_upper_bounds,
+            data._upper_bounds,
+        )
+    else:
+        new_coef, gap, _, _, n_cycles = enet_coordinate_descent_gram(
+            state.active_set,
+            state.coef.copy(),
+            data.P1,
+            active_hessian,
+            -state.score,
+            data.max_inner_iter,
+            state.inner_tol,
+            data.random_state,
+            data.fit_intercept,
+            data.selection == "random",
+            data.has_lower_bounds,
+            data._lower_bounds,
+            data.has_upper_bounds,
+            data._upper_bounds,
+        )
     return new_coef - state.coef, n_cycles
 
 
@@ -143,16 +183,18 @@ def update_hessian(state, data, active_set):
         # 2) use all the rows
         # 3) Include the P2 components
         # 4) just like an update, we only update the active_set
+
+        # this is not needed for diag_fisher!
         hessian_init = build_hessian_delta(
             data.X,
             state.hessian_rows,  # this is the d that goes into sandwich
             data.fit_intercept,
             data.P2,
-            np.arange(data.X.shape[0], dtype=np.int32),
-            active_set,
+            np.arange(data.X.shape[0], dtype=np.int32),  # this uses all rows (16087)
+            active_set,  # (17650)
         )
 
-        # In the sparse Hessian case, stsate.hessian is a coo_matrix.
+        # In the sparse Hessian case, state.hessian is a coo_matrix.
         # hessian_init is a numpy array of size active_set x active_set;
         # we can convert this to a coo_matrix and simply add it to the state.hessian
         if state.use_sparse_hessian:
@@ -169,6 +211,7 @@ def update_hessian(state, data, active_set):
 
         state.hessian_initialized = True
         n_active_rows = data.X.shape[0]
+        # fortunately, none of these above variables are required
 
     else:
 
@@ -178,6 +221,9 @@ def update_hessian(state, data, active_set):
         # 3) Ignore the P2 components because those don't change and have
         #    already been added
         # 4) only update the active set subset of the hessian.
+
+        # in the diag_fisher case, we don't want to use the diff, we use the whole thing
+
         hessian_rows_diff, active_rows = identify_active_rows(
             state.gradient_rows,
             state.hessian_rows,
@@ -301,6 +347,7 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
 
     Repeat steps 1-3 until convergence.
     Note: Use hessian matrix instead of Hessian for H.
+        This used to say "Use Fisher matrix instead of Hessian for H."
     Note: f' = -score, H = hessian matrix
 
     Parameters
@@ -346,12 +393,35 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
             state.old_active_set = state.active_set
             state.active_set = identify_active_set(state, data)
 
-            # 0) Build the hessian
-            hessian, state.n_active_rows = update_hessian(state, data, state.active_set)
+            diag_fisher = True
 
-            # 1) Solve the L1 and L2 penalized least squares problem
-            d, n_cycles_this_iter = inner_solver(state, data, hessian)
-            state.n_cycles += n_cycles_this_iter
+            if not diag_fisher:
+                # 0) Build the hessian
+                hessian, state.n_active_rows = update_hessian(
+                    state, data, state.active_set
+                )
+                # state.n_active_rows never gets used again in this function
+                # may be used in logging, but we'll ignore for diag_fisher case
+
+                # 1) Solve the L1 and L2 penalized least squares problem
+                d, n_cycles_this_iter = inner_solver(
+                    state, data, hessian, diag_fisher=diag_fisher
+                )
+                state.n_cycles += n_cycles_this_iter
+
+            else:
+                # we need a hessian update step here
+                # but then we'd store mxm, which is undesired
+                # we'll instead store hessian diag, but have to update it first
+                # update_hessian_diag_fisher()  # will update state.hessian_rows
+                # not needed! because of update_quadratic() below
+
+                # sandwich product is between data.X, state.hessian_rows
+                # only use first row of X in the X^T part of the sandwich
+                d, n_cycles_this_iter = inner_solver(
+                    state, data, None, diag_fisher=diag_fisher
+                )
+                state.n_cycles += n_cycles_this_iter
 
             # 2) Line search
             state.old_hessian_rows[:] = state.hessian_rows
@@ -368,7 +438,7 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
             # 3) Update the quadratic approximation
             state.gradient_rows, state.score, state.hessian_rows = update_quadratic(
                 state, data, coef_P2
-            )
+            )  # is this where we update state.hessian_rows?? if so, no need for diff :)
 
             # 4) Check if we've converged
             (
