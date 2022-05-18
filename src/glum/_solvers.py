@@ -60,13 +60,16 @@ def _least_squares_solver(state, data, hessian):
 def _cd_solver(state, data, active_hessian, diag_fisher=False):
     if diag_fisher:
         if data.fit_intercept:
-            if 0 in state.active_set:
+            # the following line should be equivalent to the if/else below it
+            # X_active = data.X[:, state.active_set[(state.active_set[0] == 0):] - 1].A
+            if state.active_set[0] == 0:
                 # remove the zero, subtract one from everything else
-                X_active = data.X[:, state.active_set[1:] - 1].A
+                X_active = data.X[:, state.active_set[1:] - 1]  # .A
             else:
-                X_active = data.X[:, state.active_set - 1].A
+                X_active = data.X[:, state.active_set - 1]  # .A
         else:
-            X_active = data.X[:, state.active_set].A
+            # for some reason, active_set here is massive (everything!)
+            X_active = data.X[:, state.active_set]  # .A
         # instead of passing in data.X, we should pass in
         # but remember! X is sparse. But X is not necessarily square
         # we may need active rows and columns
@@ -77,7 +80,7 @@ def _cd_solver(state, data, active_hessian, diag_fisher=False):
             _,
             _,
             n_cycles,
-            Q_check,
+            # Q_check,
         ) = enet_coordinate_descent_gram_diag_fisher(
             X_active,  # new
             state.hessian_rows,  # new

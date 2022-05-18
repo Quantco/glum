@@ -209,7 +209,8 @@ def enet_coordinate_descent_gram(int[::1] active_set,
 def enet_coordinate_descent_gram_diag_fisher(
                                  #floating[:,:] X, 
                                  #floating[:] hessian_rows,
-                                 np.ndarray[np.float64_t, ndim=2] X,
+                                 #np.ndarray[np.float64_t, ndim=2] X,
+                                 X,
                                  np.ndarray[np.float64_t, ndim=1] hessian_rows,
                                  int[::1] active_set,
                                  floating[::1] w,
@@ -258,10 +259,12 @@ def enet_coordinate_descent_gram_diag_fisher(
     cdef np.ndarray[np.float64_t, ndim=1] Q_active_set_ii = np.empty(n_active_features, dtype=np.float64)
     # is empty bad?
 
-    # used to check correctness of code - compare with Q from non-diag-fisher
-    cdef np.ndarray[np.float64_t, ndim=2] Q_check = np.empty((n_active_features, n_active_features), dtype=np.float64)
+    cdef cur_col  # makes sure we can overwrite this and not take up too much memory?
 
-    # THE inefficiency here is that we must re-calculate the rows of Q for ever iteration.
+    # used to check correctness of code - compare with Q from non-diag-fisher
+    # cdef np.ndarray[np.float64_t, ndim=2] Q_check = np.empty((n_active_features, n_active_features), dtype=np.float64)
+
+    # THE inefficiency here is that we must re-calculate the rows of Q for every iteration.
 
     # with nogil:
     for n_iter in range(max_iter):
@@ -286,10 +289,20 @@ def enet_coordinate_descent_gram_diag_fisher(
             if active_set[0] < <unsigned int>intercept:
                 if ii == 0:
                     Q_active_set_ii[0] = hessian_rows.sum()
-                    Q_active_set_ii[1:] = np.matmul(hessian_rows, X)
+                    Q_active_set_ii[1:] = X.transpose_matvec(hessian_rows)
+                    # Q_active_set_ii[1:] = np.matmul(hessian_rows, X)  
                 else:
-                    Q_active_set_ii[0] = np.dot(hessian_rows, X[:, active_set_ii - 1])
-                    Q_active_set_ii[1:] = np.matmul((hessian_rows * X[:, active_set_ii - 1]), X)
+                    cur_col = X[:, active_set_ii - 1]
+                    Q_active_set_ii[0] = cur_col.transpose_matvec(hessian_rows)
+                    Q_active_set_ii[1:] = X.transpose_matvec(cur_col.multiply(hessian_rows).ravel())
+
+                    # Q_active_set_ii[0] = X[:, active_set_ii - 1].transpose_matvec(hessian_rows)
+                    # Q_active_set_ii[1:] = X.transpose_matvec(X[:, active_set_ii - 1].multiply(hessian_rows).ravel())
+
+                    # Q_active_set_ii[1:] = X.transpose_matvec(hessian_rows * X[:, active_set_ii - 1].A.ravel())
+                    # Q_active_set_ii[1:] = X.transpose_matvec(hessian_rows * X.A[:, active_set_ii - 1]) 
+                    # Q_active_set_ii[0] = np.dot(hessian_rows, X[:, active_set_ii - 1])
+                    # Q_active_set_ii[1:] = np.matmul((hessian_rows * X[:, active_set_ii - 1]), X)  # use matvec
 
             # if ii < <unsigned int>intercept:
             #     # Q_active_set_ii[1:] = np.matmul(hessian_rows, X[:, 1:])
@@ -309,7 +322,12 @@ def enet_coordinate_descent_gram_diag_fisher(
             # NB! We care about the intercept column as well, and must treat differently.
             # does feature_list in sklearnfork include the intercept column?
             else:
-                Q_active_set_ii = np.matmul((hessian_rows * X[:, active_set_ii]), X)
+                cur_col = X[:, active_set_ii]
+                Q_active_set_ii = X.transpose_matvec(cur_col.multiply(hessian_rows).ravel())
+
+                # Q_active_set_ii = X.transpose_matvec(hessian_rows * X[:, active_set_ii].A.ravel())
+                # Q_active_set_ii = X.transpose_matvec(hessian_rows * X.A[:, active_set_ii]) 
+                # Q_active_set_ii = np.matmul((hessian_rows * X[:, active_set_ii]), X)
                 # Q_active_set_ii[intercept:] = np.matmul((hessian_rows * X[:, active_set_ii - intercept]), X)
                 # Q_active_set_ii[intercept:] = np.matmul((hessian_rows * X[:, active_set_ii]), X[:, intercept:])
                 # CHECK that we've covered all the cases!!!!!
@@ -317,7 +335,7 @@ def enet_coordinate_descent_gram_diag_fisher(
 
                 # Q_active_set_ii[intercept:] = np.matmul((hessian_rows * X[:, intercept + active_set_ii]), X)
 
-            Q_check[active_set_ii] = Q_active_set_ii
+            # Q_check[active_set_ii] = Q_active_set_ii  # for checking correctness
 
             # for col_idx in range(X.shape[1]):
             #     for row_idx in range(X.shape[0]):
@@ -383,7 +401,7 @@ def enet_coordinate_descent_gram_diag_fisher(
                             "subgradient: {}, tolerance: {}".format(norm_min_subgrad, tol),
                             ConvergenceWarning)
 
-    return np.asarray(w), norm_min_subgrad, max_min_subgrad, tol, n_iter + 1, Q_check
+    return np.asarray(w), norm_min_subgrad, max_min_subgrad, tol, n_iter + 1 # , Q_check
 
 def enet_coordinate_descent_gram_diag_only(int[::1] active_set,
                                  floating[::1] w,
