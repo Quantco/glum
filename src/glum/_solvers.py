@@ -57,37 +57,24 @@ def _least_squares_solver(state, data, hessian):
 
 
 @timeit("inner_solver_runtime")
-def _cd_solver(state, data, active_hessian, diag_fisher=False):
-    if diag_fisher:
+def _cd_solver(state, data, active_hessian):
+    if data.diag_fisher:
         if data.fit_intercept:
-            # the following line should be equivalent to the if/else below it
-            # X_active = data.X[:, state.active_set[(state.active_set[0] == 0):] - 1].A
             if state.active_set[0] == 0:
-                # remove the zero, subtract one from everything else
-                X_active = data.X[:, state.active_set[1:] - 1]  # .A
+                # if the intercept column of X is in the active set, leave it out
+                # (we deal with intercepts separately in _cd_fast.pyx)
+                X_active = data.X[:, state.active_set[1:] - 1]
             else:
-                X_active = data.X[:, state.active_set - 1]  # .A
+                X_active = data.X[:, state.active_set - 1]
         else:
-            # for some reason, active_set here is massive (everything!)
-            X_active = data.X[:, state.active_set]  # .A
-        # instead of passing in data.X, we should pass in
-        # but remember! X is sparse. But X is not necessarily square
-        # we may need active rows and columns
-        # X_active = data.X[:, state.active_set].A
-        (
-            new_coef,
-            gap,
-            _,
-            _,
-            n_cycles,
-            # Q_check,
-        ) = enet_coordinate_descent_gram_diag_fisher(
-            X_active,  # new
-            state.hessian_rows,  # new
+            # with no intercept, active_set here can be massive on first iteration
+            X_active = data.X[:, state.active_set]
+        (new_coef, gap, _, _, n_cycles,) = enet_coordinate_descent_gram_diag_fisher(
+            X_active,
+            state.hessian_rows,
             state.active_set,
             state.coef.copy(),
             data.P1,
-            active_hessian,
             -state.score,
             data.max_inner_iter,
             state.inner_tol,
@@ -187,14 +174,13 @@ def update_hessian(state, data, active_set):
         # 3) Include the P2 components
         # 4) just like an update, we only update the active_set
 
-        # this is not needed for diag_fisher!
         hessian_init = build_hessian_delta(
             data.X,
-            state.hessian_rows,  # this is the d that goes into sandwich
+            state.hessian_rows,
             data.fit_intercept,
             data.P2,
-            np.arange(data.X.shape[0], dtype=np.int32),  # this uses all rows (16087)
-            active_set,  # (17650)
+            np.arange(data.X.shape[0], dtype=np.int32),
+            active_set,
         )
 
         # In the sparse Hessian case, state.hessian is a coo_matrix.
@@ -214,7 +200,6 @@ def update_hessian(state, data, active_set):
 
         state.hessian_initialized = True
         n_active_rows = data.X.shape[0]
-        # fortunately, none of these above variables are required
 
     else:
 
@@ -224,8 +209,6 @@ def update_hessian(state, data, active_set):
         # 3) Ignore the P2 components because those don't change and have
         #    already been added
         # 4) only update the active set subset of the hessian.
-
-        # in the diag_fisher case, we don't want to use the diff, we use the whole thing
 
         hessian_rows_diff, active_rows = identify_active_rows(
             state.gradient_rows,
@@ -260,6 +243,7 @@ def update_hessian(state, data, active_set):
     # active set elements, which we then convert to a numpy array for compatibility with
     # the rest of the code
     if state.use_sparse_hessian:
+        # this is a little awkward
         return (
             state.hessian.tocsc()[np.ix_(active_set, active_set)].toarray(),
             n_active_rows,
@@ -291,8 +275,6 @@ def build_hessian_delta(
     """
     idx = 1 if intercept else 0
     active_cols_non_intercept = active_cols[idx:] - idx
-    # Here is the safe sandwich dot that calls sandwich
-    # active_cols is small even for a large number of columns (2304 for 1M)
     delta = _safe_sandwich_dot(
         X, hessian_rows, active_rows, active_cols_non_intercept, intercept
     )
@@ -396,35 +378,17 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
             state.old_active_set = state.active_set
             state.active_set = identify_active_set(state, data)
 
-            diag_fisher = True
-
-            if not diag_fisher:
+            if not data.diag_fisher:
                 # 0) Build the hessian
                 hessian, state.n_active_rows = update_hessian(
                     state, data, state.active_set
                 )
-                # state.n_active_rows never gets used again in this function
-                # may be used in logging, but we'll ignore for diag_fisher case
-
                 # 1) Solve the L1 and L2 penalized least squares problem
-                d, n_cycles_this_iter = inner_solver(
-                    state, data, hessian, diag_fisher=diag_fisher
-                )
-                state.n_cycles += n_cycles_this_iter
-
+                d, n_cycles_this_iter = inner_solver(state, data, hessian)
             else:
-                # we need a hessian update step here
-                # but then we'd store mxm, which is undesired
-                # we'll instead store hessian diag, but have to update it first
-                # update_hessian_diag_fisher()  # will update state.hessian_rows
-                # not needed! because of update_quadratic() below
-
-                # sandwich product is between data.X, state.hessian_rows
-                # only use first row of X in the X^T part of the sandwich
-                d, n_cycles_this_iter = inner_solver(
-                    state, data, None, diag_fisher=diag_fisher
-                )
-                state.n_cycles += n_cycles_this_iter
+                # 0 & 1) Build the hessian row by row, solving as we go
+                d, n_cycles_this_iter = inner_solver(state, data, None)
+            state.n_cycles += n_cycles_this_iter
 
             # 2) Line search
             state.old_hessian_rows[:] = state.hessian_rows
@@ -441,7 +405,7 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
             # 3) Update the quadratic approximation
             state.gradient_rows, state.score, state.hessian_rows = update_quadratic(
                 state, data, coef_P2
-            )  # is this where we update state.hessian_rows?? if so, no need for diff :)
+            )
 
             # 4) Check if we've converged
             (
@@ -544,6 +508,7 @@ class IRLSData:
         lower_bounds: Optional[np.ndarray] = None,
         upper_bounds: Optional[np.ndarray] = None,
         verbose: bool = False,
+        diag_fisher: bool = False,
     ):
         self.X = X
         self.y = y
@@ -575,6 +540,7 @@ class IRLSData:
 
         self.intercept_offset = 1 if self.fit_intercept else 0
         self.verbose = verbose
+        self.diag_fisher = diag_fisher
 
         self._check_data()
 
