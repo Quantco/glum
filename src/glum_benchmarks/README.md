@@ -6,7 +6,7 @@ Python package to benchmark GLM implementations.
 
 ## Running the benchmarks
 
-After installing the package, you should have two CLI tools: `glm_benchmarks_run` and `glm_benchmarks_analyze`. Use the `--help` flag for full details. Look in `src/glum/problems.py` to see the list of problems that will be run through each library.
+After installing the package, you should have two CLI tools: `glm_benchmarks_run` and `glm_benchmarks_analyze`. Use the `--help` flag for full details. Look in `src/glum/glum_benchmarks/problems.py` to see the list of problems that will be run through each library.
 
 To run the full benchmarking suite, just run `glm_benchmarks_run` with no flags. This will probably take a very long time.
 
