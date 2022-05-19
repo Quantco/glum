@@ -117,9 +117,6 @@ def enet_coordinate_descent_gram(int[::1] active_set,
     """
 
     cdef unsigned int n_active_features = active_set.shape[0]
-    cdef unsigned int n_features = Q.shape[0]  # are you sure this is correct?
-    # n_features is exactly now the same as n_active_features; should it be q.shape[0]?
-    # however, the variable is never used again, so I guess we are okay
 
     cdef floating w_ii
     cdef floating P1_ii
@@ -141,7 +138,7 @@ def enet_coordinate_descent_gram(int[::1] active_set,
         for n_iter in range(max_iter):
             w_max = 0.0
             d_w_max = 0.0
-            for f_iter in range(n_active_features):
+            for f_iter in range(n_active_features):  # Loop over coordinates
                 if random:
                     active_set_ii = rand_int(n_active_features, rand_r_state)
                 else:
@@ -227,8 +224,8 @@ def enet_coordinate_descent_gram_diag_fisher(
         q = X^T y
 
         This version, for diag_fisher=True, never calculates the entire Hessian matrix; 
-        only rows, when necessary. The inefficiency here is that we must re-calculate 
-        the rows of Q for every iteration up to max_iter.
+        only rows, when necessary. This requires less memory. However, the inefficiency 
+        is that we must re-calculate the rows of Q for every iteration up to max_iter.
     """
 
     cdef unsigned int n_active_features = active_set.shape[0]
@@ -260,14 +257,13 @@ def enet_coordinate_descent_gram_diag_fisher(
     for n_iter in range(max_iter):
         w_max = 0.0
         d_w_max = 0.0
-        for f_iter in range(n_active_features):
+        for f_iter in range(n_active_features):  # Loop over coordinates
             if random:
                 active_set_ii = rand_int(n_active_features, rand_r_state)
             else:
                 active_set_ii = f_iter
             ii = active_set[active_set_ii]
 
-            # Check logic here
             if active_set[0] < <unsigned int>intercept:  
                 if ii == 0:
                     Q_active_set_ii[0] = hessian_rows.sum()
@@ -335,7 +331,7 @@ def enet_coordinate_descent_gram_diag_fisher(
                             "subgradient: {}, tolerance: {}".format(norm_min_subgrad, tol),
                             ConvergenceWarning)
 
-    return np.asarray(w), norm_min_subgrad, max_min_subgrad, tol, n_iter + 1 # , Q_check
+    return np.asarray(w), norm_min_subgrad, max_min_subgrad, tol, n_iter + 1
 
 
 cdef void cython_norm_min_subgrad(

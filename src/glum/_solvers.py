@@ -69,6 +69,7 @@ def _cd_solver(state, data, active_hessian):
         else:
             # with no intercept, active_set here can be massive on first iteration
             X_active = data.X[:, state.active_set]
+
         (new_coef, gap, _, _, n_cycles,) = enet_coordinate_descent_gram_diag_fisher(
             X_active,
             state.hessian_rows,
@@ -103,6 +104,7 @@ def _cd_solver(state, data, active_hessian):
             data.has_upper_bounds,
             data._upper_bounds,
         )
+
     return new_coef - state.coef, n_cycles
 
 
@@ -184,10 +186,10 @@ def update_hessian(state, data, active_set):
         )
 
         # In the sparse Hessian case, state.hessian is a coo_matrix.
-        # hessian_init is a numpy array of size active_set x active_set;
+        # hessian_init is np array of size active_set.shape[0] x active_set.shape[0];
         # we can convert this to a coo_matrix and simply add it to the state.hessian
-        if state.use_sparse_hessian:
-            coo_data = hessian_init.flatten()
+        if data.use_sparse_hessian:
+            coo_data = hessian_init.ravel(order="C")
             coo_rows = np.repeat(active_set, active_set.shape[0])
             coo_cols = np.tile(active_set, active_set.shape[0])
 
@@ -225,8 +227,8 @@ def update_hessian(state, data, active_set):
             active_cols=active_set,
         )
 
-        if state.use_sparse_hessian:
-            coo_data = hessian_delta.flatten()
+        if data.use_sparse_hessian:
+            coo_data = hessian_delta.ravel(order="C")
             coo_rows = np.repeat(active_set, active_set.shape[0])
             coo_cols = np.tile(active_set, active_set.shape[0])
 
@@ -241,9 +243,9 @@ def update_hessian(state, data, active_set):
 
     # If state.hessian is in COO form, we have to convert to CSC in order to index the
     # active set elements, which we then convert to a numpy array for compatibility with
-    # the rest of the code
-    if state.use_sparse_hessian:
-        # this is a little awkward
+    # the rest of the code. This numpy array is dense, but we care about problems in
+    # which the active set is usually much smaller than the number of data columns.
+    if data.use_sparse_hessian:
         return (
             state.hessian.tocsc()[np.ix_(active_set, active_set)].toarray(),
             n_active_rows,
@@ -332,7 +334,6 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
 
     Repeat steps 1-3 until convergence.
     Note: Use hessian matrix instead of Hessian for H.
-        This used to say "Use Fisher matrix instead of Hessian for H."
     Note: f' = -score, H = hessian matrix
 
     Parameters
@@ -508,6 +509,7 @@ class IRLSData:
         lower_bounds: Optional[np.ndarray] = None,
         upper_bounds: Optional[np.ndarray] = None,
         verbose: bool = False,
+        use_sparse_hessian: bool = True,
         diag_fisher: bool = False,
     ):
         self.X = X
@@ -540,6 +542,7 @@ class IRLSData:
 
         self.intercept_offset = 1 if self.fit_intercept else 0
         self.verbose = verbose
+        self.use_sparse_hessian = use_sparse_hessian
         self.diag_fisher = diag_fisher
 
         self._check_data()
@@ -606,8 +609,7 @@ class IRLSState:
 
         # In order to avoid memory issues for very wide datasets (e.g. Issue #485), we
         # can instantiate the Hessian as a sparse COO matrix.
-        self.use_sparse_hessian = True
-        if self.use_sparse_hessian:
+        if data.use_sparse_hessian:
             self.hessian = sparse.coo_matrix(
                 (self.coef.shape[0], self.coef.shape[0]), dtype=data.X.dtype
             )
