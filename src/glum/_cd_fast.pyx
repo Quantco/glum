@@ -111,11 +111,12 @@ def enet_coordinate_descent_gram(int[::1] active_set,
         for Elastic-Net regression
         We minimize
         (1/2) * w^T Q w - q^T w + P1 norm(w, 1)
-        which amounts to the L1 problem when:
+        which amounts to the Elastic-Net problem when:
         Q = X^T X (Gram matrix)
         q = X^T y
     """
 
+    # get the data information into easy vars
     cdef unsigned int n_active_features = active_set.shape[0]
 
     cdef floating w_ii
@@ -153,7 +154,7 @@ def enet_coordinate_descent_gram(int[::1] active_set,
                 if Q[active_set_ii, active_set_ii] == 0.0:
                     continue
 
-                w_ii = w[ii]
+                w_ii = w[ii]  # Store previous value
 
                 qii_temp = q[ii] - w[ii] * Q[active_set_ii, active_set_ii]
                 w[ii] = fsign(-qii_temp) * fmax(fabs(qii_temp) - P1_ii, 0) / Q[active_set_ii, active_set_ii]
@@ -228,6 +229,7 @@ def enet_coordinate_descent_gram_diag_fisher(
         is that we must re-calculate the rows of Q for every iteration up to max_iter.
     """
 
+    # get the data information into easy vars
     cdef unsigned int n_active_features = active_set.shape[0]
 
     cdef floating w_ii
@@ -284,7 +286,7 @@ def enet_coordinate_descent_gram_diag_fisher(
             if Q_active_set_ii[active_set_ii] == 0.0:
                 continue
 
-            w_ii = w[ii]
+            w_ii = w[ii]  # Store previous value
 
             qii_temp = q[ii] - w[ii] * Q_active_set_ii[active_set_ii]
             w[ii] = fsign(-qii_temp) * fmax(fabs(qii_temp) - P1_ii, 0) / Q_active_set_ii[active_set_ii]
