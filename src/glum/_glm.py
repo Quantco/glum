@@ -672,7 +672,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         A_ineq: Optional[np.ndarray] = None,
         b_ineq: Optional[np.ndarray] = None,
         force_all_finite: bool = True,
-        use_sparse_hessian: bool = True,
         diag_fisher: bool = False,
     ):
         self.l1_ratio = l1_ratio
@@ -703,7 +702,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self.A_ineq = A_ineq
         self.b_ineq = b_ineq
         self.force_all_finite = force_all_finite
-        self.use_sparse_hessian = use_sparse_hessian
         self.diag_fisher = diag_fisher
 
     @property
@@ -973,7 +971,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 lower_bounds=lower_bounds,
                 upper_bounds=upper_bounds,
                 verbose=self.verbose > 0,
-                use_sparse_hessian=self.use_sparse_hessian,
                 diag_fisher=self.diag_fisher,
             )
             if self._solver == "irls-ls":
@@ -2095,12 +2092,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         ``A_ineq w <= b_ineq``. Refer to the documentation of ``A_ineq`` for
         details.
 
-    use_sparse_hessian : boolean, optional, (default=True)
-        If ``True``, stores the current state of the Hessian as a sparse COO matrix.
-        If ``False``, stores as a dense matrix of size `num_cols` x `num_cols`, where
-        `num_cols` is the number of columns in the data X. Use ``True`` to avoid memory
-        issues when working with extremely wide data.
-
     diag_fisher : boolean, optional, (default=False)
         Only relevant for solver 'cd' (see also ``start_params='guess'``).
         If ``False``, the full Fisher matrix (expected Hessian) is computed in
@@ -2192,7 +2183,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         A_ineq: Optional[np.ndarray] = None,
         b_ineq: Optional[np.ndarray] = None,
         force_all_finite: bool = True,
-        use_sparse_hessian: bool = True,
         diag_fisher: bool = False,
     ):
         self.alphas = alphas
@@ -2226,7 +2216,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             A_ineq=A_ineq,
             b_ineq=b_ineq,
             force_all_finite=force_all_finite,
-            use_sparse_hessian=use_sparse_hessian,
             diag_fisher=diag_fisher,
         )
 
