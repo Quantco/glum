@@ -111,7 +111,7 @@ def enet_coordinate_descent_gram(int[::1] active_set,
         for Elastic-Net regression
         We minimize
         (1/2) * w^T Q w - q^T w + P1 norm(w, 1)
-        which amounts to the Elastic-Net problem when:
+        which amount to the Elastic-Net problem when:
         Q = X^T X (Gram matrix)
         q = X^T y
     """
