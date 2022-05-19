@@ -118,6 +118,7 @@ def enet_coordinate_descent_gram(int[::1] active_set,
 
     # get the data information into easy vars
     cdef unsigned int n_active_features = active_set.shape[0]
+    cdef unsigned int n_features = Q.shape[0]
 
     cdef floating w_ii
     cdef floating P1_ii
@@ -202,139 +203,6 @@ def enet_coordinate_descent_gram(int[::1] active_set,
                               ConvergenceWarning)
 
     return np.asarray(w), norm_min_subgrad, max_min_subgrad, tol, n_iter + 1
-
-def enet_coordinate_descent_gram_diag_fisher(
-                                 X,
-                                 np.ndarray[np.float64_t, ndim=1] hessian_rows,
-                                 int[::1] active_set,
-                                 floating[::1] w,
-                                 floating[::1] P1,
-                                 floating[::1] q,
-                                 int max_iter, floating tol, object rng,
-                                 bint intercept, bint random,
-                                 bint has_lower_bounds,
-                                 floating[:] lower_bounds,
-                                 bint has_upper_bounds,
-                                 floating[:] upper_bounds):
-    """Cython version of the coordinate descent algorithm
-        for Elastic-Net regression
-        We minimize
-        (1/2) * w^T Q w - q^T w + P1 norm(w, 1)
-        which amounts to the L1 problem when:
-        Q = X^T X (Gram matrix)
-        q = X^T y
-
-        This version, for diag_fisher=True, never calculates the entire Hessian matrix; 
-        only rows, when necessary. This requires less memory. However, the inefficiency 
-        is that we must re-calculate the rows of Q for every iteration up to max_iter.
-    """
-
-    # get the data information into easy vars
-    cdef unsigned int n_active_features = active_set.shape[0]
-
-    cdef floating w_ii
-    cdef floating P1_ii
-    cdef floating qii_temp
-    cdef floating d_w_max
-    cdef floating w_max
-    cdef floating d_w_ii
-    cdef floating d_w_tol = tol
-    cdef floating norm_min_subgrad = 0
-    cdef floating max_min_subgrad
-    cdef unsigned int active_set_ii, active_set_jj
-    cdef unsigned int ii, jj
-    cdef int n_iter = 0
-    cdef unsigned int f_iter
-    cdef UINT32_t rand_r_state_seed = rng.randint(0, RAND_R_MAX)
-    cdef UINT32_t* rand_r_state = &rand_r_state_seed
-
-    # Equivalent to Q[active_set_ii] in the diag_fisher=False version
-    cdef np.ndarray[np.float64_t, ndim=1] Q_active_set_ii = np.empty(n_active_features, dtype=np.float64)
-
-    cdef cur_col  # Does the cdef here (rather than using it as a local variable) reduce memory?
-    
-    # nogil is incompatible with our slicing, numpy, and sparse matrix operations, but 
-    # may be necessary to increase performance
-    # with nogil:  
-    for n_iter in range(max_iter):
-        w_max = 0.0
-        d_w_max = 0.0
-        for f_iter in range(n_active_features):  # Loop over coordinates
-            if random:
-                active_set_ii = rand_int(n_active_features, rand_r_state)
-            else:
-                active_set_ii = f_iter
-            ii = active_set[active_set_ii]
-
-            if active_set[0] < <unsigned int>intercept:  
-                if ii == 0:
-                    Q_active_set_ii[0] = hessian_rows.sum()
-                    Q_active_set_ii[1:] = X.transpose_matvec(hessian_rows)
-                else:
-                    cur_col = X[:, active_set_ii - 1]  # Does this reduce memory?
-                    Q_active_set_ii[0] = cur_col.transpose_matvec(hessian_rows)
-                    Q_active_set_ii[1:] = X.transpose_matvec(cur_col.multiply(hessian_rows).ravel())
-            else:
-                cur_col = X[:, active_set_ii]
-                Q_active_set_ii = X.transpose_matvec(cur_col.multiply(hessian_rows).ravel())
-
-            if ii < <unsigned int>intercept:
-                P1_ii = 0.0
-            else:
-                P1_ii = P1[ii - intercept]
-
-            if Q_active_set_ii[active_set_ii] == 0.0:
-                continue
-
-            w_ii = w[ii]  # Store previous value
-
-            qii_temp = q[ii] - w[ii] * Q_active_set_ii[active_set_ii]
-            w[ii] = fsign(-qii_temp) * fmax(fabs(qii_temp) - P1_ii, 0) / Q_active_set_ii[active_set_ii]
-
-            if ii >= <unsigned int>intercept:
-                if has_lower_bounds:
-                    if w[ii] < lower_bounds[ii - intercept]:
-                        w[ii] = lower_bounds[ii - intercept]
-                if has_upper_bounds:
-                    if w[ii] > upper_bounds[ii - intercept]:
-                        w[ii] = upper_bounds[ii - intercept]
-
-            if w[ii] != 0.0 or w_ii != 0.0:
-                # q +=  (w[ii] - w_ii) * Q[ii] # Update q = X.T (X w - y)
-                for active_set_jj in range(n_active_features):
-                    jj = active_set[active_set_jj]
-                    q[jj] += (w[ii] - w_ii) * Q_active_set_ii[active_set_jj]
-
-            # update the maximum absolute coefficient update
-            d_w_ii = fabs(w[ii] - w_ii)
-            if d_w_ii > d_w_max:
-                d_w_max = d_w_ii
-
-            if fabs(w[ii]) > w_max:
-                w_max = fabs(w[ii])
-
-        if w_max == 0.0 or d_w_max / w_max < d_w_tol or n_iter == max_iter - 1:
-            # the biggest coordinate update of this iteration was smaller than
-            # the tolerance: check the minimum norm subgradient as the
-            # ultimate stopping criterion
-            cython_norm_min_subgrad(
-                active_set,
-                w, q, P1, intercept,
-                has_lower_bounds, lower_bounds, has_upper_bounds, upper_bounds,
-                &norm_min_subgrad, &max_min_subgrad
-            )
-            if norm_min_subgrad <= tol:
-                break
-    else:
-        # for/else, runs if for doesn't end with a `break`
-        # with gil:
-        warnings.warn("Coordinate descent did not converge. You might want to "
-                            "increase the number of iterations. Minimum norm "
-                            "subgradient: {}, tolerance: {}".format(norm_min_subgrad, tol),
-                            ConvergenceWarning)
-
-    return np.asarray(w), norm_min_subgrad, max_min_subgrad, tol, n_iter + 1
-
 
 cdef void cython_norm_min_subgrad(
     int[::1] active_set,

@@ -673,7 +673,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         b_ineq: Optional[np.ndarray] = None,
         force_all_finite: bool = True,
         use_sparse_hessian: bool = True,
-        diag_fisher: bool = False,
     ):
         self.l1_ratio = l1_ratio
         self.P1 = P1
@@ -704,7 +703,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self.b_ineq = b_ineq
         self.force_all_finite = force_all_finite
         self.use_sparse_hessian = use_sparse_hessian
-        self.diag_fisher = diag_fisher
 
     @property
     def family_instance(self) -> ExponentialDispersionModel:
@@ -974,7 +972,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 upper_bounds=upper_bounds,
                 verbose=self.verbose > 0,
                 use_sparse_hessian=self.use_sparse_hessian,
-                diag_fisher=self.diag_fisher,
             )
             if self._solver == "irls-ls":
                 coef, self.n_iter_, self._n_cycles, self.diagnostics_ = _irls_solver(
@@ -2101,17 +2098,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         `num_cols` is the number of columns in the data X. Use ``True`` to avoid memory
         issues when working with extremely wide data.
 
-    diag_fisher : boolean, optional, (default=False)
-        Only relevant for solver 'cd' (see also ``start_params='guess'``).
-        If ``False``, the full Fisher matrix (expected Hessian) is computed in
-        each outer iteration (Newton iteration). If ``True``, only a diagonal
-        matrix (stored as 1d array) is computed, such that
-        fisher = X.T @ diag @ X. This saves memory and matrix-matrix
-        multiplications, but needs more matrix-vector multiplications. If you
-        use large sparse X or if you have many features,
-        i.e. n_features >> n_samples, you might set this option to ``True``.
-        (Text taken directly from the orig_sklearn_fork.)
-
     Attributes
     ----------
     coef_ : numpy.array, shape (n_features,)
@@ -2193,7 +2179,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         b_ineq: Optional[np.ndarray] = None,
         force_all_finite: bool = True,
         use_sparse_hessian: bool = True,
-        diag_fisher: bool = False,
     ):
         self.alphas = alphas
         self.alpha = alpha
@@ -2227,7 +2212,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             b_ineq=b_ineq,
             force_all_finite=force_all_finite,
             use_sparse_hessian=use_sparse_hessian,
-            diag_fisher=diag_fisher,
         )
 
     def _validate_hyperparameters(self) -> None:

@@ -15,7 +15,6 @@ from sklearn.utils.validation import check_random_state
 from ._cd_fast import (
     _norm_min_subgrad,
     enet_coordinate_descent_gram,
-    enet_coordinate_descent_gram_diag_fisher,
     identify_active_rows,
 )
 from ._distribution import ExponentialDispersionModel
@@ -58,53 +57,22 @@ def _least_squares_solver(state, data, hessian):
 
 @timeit("inner_solver_runtime")
 def _cd_solver(state, data, active_hessian):
-    if data.diag_fisher:
-        if data.fit_intercept:
-            if state.active_set[0] == 0:
-                # if the intercept column of X is in the active set, leave it out
-                # (we deal with intercepts separately in _cd_fast.pyx)
-                X_active = data.X[:, state.active_set[1:] - 1]
-            else:
-                X_active = data.X[:, state.active_set - 1]
-        else:
-            # with no intercept, active_set here can be massive on first iteration
-            X_active = data.X[:, state.active_set]
-
-        (new_coef, gap, _, _, n_cycles,) = enet_coordinate_descent_gram_diag_fisher(
-            X_active,
-            state.hessian_rows,
-            state.active_set,
-            state.coef.copy(),
-            data.P1,
-            -state.score,
-            data.max_inner_iter,
-            state.inner_tol,
-            data.random_state,
-            data.fit_intercept,
-            data.selection == "random",
-            data.has_lower_bounds,
-            data._lower_bounds,
-            data.has_upper_bounds,
-            data._upper_bounds,
-        )
-    else:
-        new_coef, gap, _, _, n_cycles = enet_coordinate_descent_gram(
-            state.active_set,
-            state.coef.copy(),
-            data.P1,
-            active_hessian,
-            -state.score,
-            data.max_inner_iter,
-            state.inner_tol,
-            data.random_state,
-            data.fit_intercept,
-            data.selection == "random",
-            data.has_lower_bounds,
-            data._lower_bounds,
-            data.has_upper_bounds,
-            data._upper_bounds,
-        )
-
+    new_coef, gap, _, _, n_cycles = enet_coordinate_descent_gram(
+        state.active_set,
+        state.coef.copy(),
+        data.P1,
+        active_hessian,
+        -state.score,
+        data.max_inner_iter,
+        state.inner_tol,
+        data.random_state,
+        data.fit_intercept,
+        data.selection == "random",
+        data.has_lower_bounds,
+        data._lower_bounds,
+        data.has_upper_bounds,
+        data._upper_bounds,
+    )
     return new_coef - state.coef, n_cycles
 
 
@@ -379,16 +347,11 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
             state.old_active_set = state.active_set
             state.active_set = identify_active_set(state, data)
 
-            if not data.diag_fisher:
-                # 0) Build the hessian
-                hessian, state.n_active_rows = update_hessian(
-                    state, data, state.active_set
-                )
-                # 1) Solve the L1 and L2 penalized least squares problem
-                d, n_cycles_this_iter = inner_solver(state, data, hessian)
-            else:
-                # 0 & 1) Build the hessian row by row, solving as we go
-                d, n_cycles_this_iter = inner_solver(state, data, None)
+            # 0) Build the hessian
+            hessian, state.n_active_rows = update_hessian(state, data, state.active_set)
+
+            # 1) Solve the L1 and L2 penalized least squares problem
+            d, n_cycles_this_iter = inner_solver(state, data, hessian)
             state.n_cycles += n_cycles_this_iter
 
             # 2) Line search
@@ -510,7 +473,6 @@ class IRLSData:
         upper_bounds: Optional[np.ndarray] = None,
         verbose: bool = False,
         use_sparse_hessian: bool = True,
-        diag_fisher: bool = False,
     ):
         self.X = X
         self.y = y
@@ -543,7 +505,6 @@ class IRLSData:
         self.intercept_offset = 1 if self.fit_intercept else 0
         self.verbose = verbose
         self.use_sparse_hessian = use_sparse_hessian
-        self.diag_fisher = diag_fisher
 
         self._check_data()
 
