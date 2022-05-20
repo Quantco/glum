@@ -1135,6 +1135,23 @@ def test_binomial_enet(alpha):
     assert_allclose(log.coef_[0, :], glm.coef_, rtol=5.1e-6)
 
 
+def test_diag_fisher(regression_data):
+    """Test that the diag_fisher option gives the same results."""
+    X, y = regression_data
+
+    glm_diag_fisher_false = GeneralizedLinearRegressor(
+        family="gaussian", l1_ratio=1, alpha=0.1, diag_fisher=False
+    )
+    glm_diag_fisher_false.fit(X, y)
+
+    glm_diag_fisher_true = GeneralizedLinearRegressor(
+        family="gaussian", l1_ratio=1, alpha=0.1, diag_fisher=True
+    )
+    glm_diag_fisher_true.fit(X, y)
+
+    assert_allclose(glm_diag_fisher_false.coef_, glm_diag_fisher_true.coef_, rtol=1e-6)
+
+
 @pytest.mark.parametrize(
     "params",
     [
