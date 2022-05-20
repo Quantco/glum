@@ -271,11 +271,11 @@ def enet_coordinate_descent_gram_diag_fisher(
                     Q_active_set_ii[0] = hessian_rows.sum()
                     Q_active_set_ii[1:] = X.transpose_matvec(hessian_rows)
                 else:
-                    cur_col = X[:, active_set_ii - 1]  # Does this reduce memory?
+                    cur_col = X.getcol(active_set_ii - 1)
                     Q_active_set_ii[0] = cur_col.transpose_matvec(hessian_rows)
                     Q_active_set_ii[1:] = X.transpose_matvec(cur_col.multiply(hessian_rows).ravel())
             else:
-                cur_col = X[:, active_set_ii]
+                cur_col = X.getcol(active_set_ii)
                 Q_active_set_ii = X.transpose_matvec(cur_col.multiply(hessian_rows).ravel())
 
             if ii < <unsigned int>intercept:
