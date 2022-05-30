@@ -9,13 +9,13 @@ dependencies:
   - numexpr
   - pandas
   - tabmat>=3.0.1
-  - scikit-learn >=0.23,<1.1.0 # dask-ml does not support sklearn 1.1 yet
+  - scikit-learn>=0.23
   - scipy
   - tqdm
 
   # development tools
   - black
-  - dask-ml # used for data creation for the benchmark problems
+  - dask-ml>=2022.5.27 # used for data creation for the benchmark problems
   - flake8
   - git_root
   - ipdb
