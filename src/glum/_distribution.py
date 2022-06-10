@@ -906,7 +906,7 @@ class GeneralizedHyperbolicSecant(ExponentialDispersionModel):
         -------
         array-like
         """
-        return 1 + mu ** 2
+        return 1 + mu**2
 
     def unit_variance_derivative(self, mu: np.ndarray) -> np.ndarray:
         """Get the derivative of the unit variance.
@@ -938,7 +938,7 @@ class GeneralizedHyperbolicSecant(ExponentialDispersionModel):
         array-like
         """
         return 2 * y * (np.arctan(y) - np.arctan(mu)) + np.log(
-            (1 + mu ** 2) / (1 + y ** 2)
+            (1 + mu**2) / (1 + y**2)
         )
 
 
