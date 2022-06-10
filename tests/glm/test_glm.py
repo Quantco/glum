@@ -1804,7 +1804,13 @@ def test_sparse_std_errors(regression_data):
 
 # TODO add intercepts for models with categorical variables when glum allows drop_first
 @pytest.mark.parametrize(
-    "categorical, split, fit_intercept", [(True, False, False), (False, True, False), (False, False, False), (False, False, True)]
+    "categorical, split, fit_intercept",
+    [
+        (True, False, False),
+        (False, True, False),
+        (False, False, False),
+        (False, False, True),
+    ],
 )
 def test_dataframe_std_errors(regression_data, categorical, split, fit_intercept):
     X, y = regression_data
@@ -1817,7 +1823,9 @@ def test_dataframe_std_errors(regression_data, categorical, split, fit_intercept
             X = pd.DataFrame(pd.Categorical(group, categories=categories))
         if split:
             X = X.assign(col_cat=pd.Categorical(group, categories=categories))
-    mdl = GeneralizedLinearRegressor(alpha=0, family="normal", fit_intercept=fit_intercept)
+    mdl = GeneralizedLinearRegressor(
+        alpha=0, family="normal", fit_intercept=fit_intercept
+    )
     mdl.fit(X=X, y=y)
     X_sm = pd.get_dummies(X)
     if fit_intercept:
