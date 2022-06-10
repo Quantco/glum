@@ -634,8 +634,9 @@ def _group_sum(groups: np.ndarray, data: np.ndarray):
     if sparse.issparse(data) or isinstance(
         data, (tm.SplitMatrix, tm.CategoricalMatrix)
     ):
+        eye_n = np.eye(ngroups)[:, groups]
         for i in range(data.shape[1]):
-            out[:, i] = (np.eye(ngroups)[:, groups] @ data.getcol(i)).ravel()
+            out[:, i] = (eye_n @ data.getcol(i)).ravel()
     else:
         for i in range(data.shape[1]):
             out[:, i] = np.bincount(groups, weights=data[:, i])

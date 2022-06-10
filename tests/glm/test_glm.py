@@ -64,18 +64,6 @@ def regression_data():
 
 
 @pytest.fixture
-def classification_data():
-    X, y = make_classification(
-        n_samples=107,
-        n_features=6,
-        n_informative=5,
-        n_redundant=0,
-        random_state=2,
-    )
-    return X, y
-
-
-@pytest.fixture
 def y():
     """Get values for y that are in range of all distributions."""
     return np.array([0.1, 0.5])
@@ -1749,14 +1737,15 @@ def test_ols_std_errors(regression_data):
 
 @pytest.mark.parametrize("fit_intercept", [True, False])
 @pytest.mark.parametrize("family", ["poisson", "normal", "binomial"])
-def test_array_std_errors(regression_data, classification_data, family, fit_intercept):
+def test_array_std_errors(regression_data, family, fit_intercept):
     X, y = regression_data
     if family == "poisson":
         y = np.round(abs(y))
         sm_family = sm.families.Poisson()
         dispersion = 1
     elif family == "binomial":
-        X, y = classification_data
+        rng = np.random.default_rng(42)
+        y = rng.choice([0, 1], len(y))
         sm_family = sm.families.Binomial()
         dispersion = 1
     else:
@@ -1813,11 +1802,11 @@ def test_sparse_std_errors(regression_data):
     np.testing.assert_allclose(actual3, expected3)
 
 
-# TODO add intercepts
+# TODO add intercepts for models with categorical variables when glum allows drop_first
 @pytest.mark.parametrize(
-    "categorical, split", [(True, False), (False, True), (False, False)]
+    "categorical, split, fit_intercept", [(True, False, False), (False, True, False), (False, False, False), (False, False, True)]
 )
-def test_dataframe_std_errors(regression_data, categorical, split):
+def test_dataframe_std_errors(regression_data, categorical, split, fit_intercept):
     X, y = regression_data
     X = pd.DataFrame(X)
     if categorical or split:
@@ -1828,15 +1817,18 @@ def test_dataframe_std_errors(regression_data, categorical, split):
             X = pd.DataFrame(pd.Categorical(group, categories=categories))
         if split:
             X = X.assign(col_cat=pd.Categorical(group, categories=categories))
-    mdl = GeneralizedLinearRegressor(alpha=0, family="normal", fit_intercept=False)
+    mdl = GeneralizedLinearRegressor(alpha=0, family="normal", fit_intercept=fit_intercept)
     mdl.fit(X=X, y=y)
     X_sm = pd.get_dummies(X)
-    mdl_sm = sm.OLS(endog=y, exog=X_sm)
+    if fit_intercept:
+        mdl_sm = sm.OLS(endog=y, exog=sm.add_constant(X_sm))
+    else:
+        mdl_sm = sm.OLS(endog=y, exog=X_sm)
 
     # nonrobust
     # manually add dof adjustment in statsmodels
     ourse = mdl.std_errors(X=X, y=y, robust=False)
-    corr = len(y) / (len(y) - X_sm.shape[1])
+    corr = len(y) / (len(y) - X_sm.shape[1] - fit_intercept)
     smse = mdl_sm.fit(cov_type="nonrobust").bse * np.sqrt(corr)
     np.testing.assert_allclose(ourse, smse, rtol=1e-8)
 
