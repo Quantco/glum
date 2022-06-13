@@ -5,6 +5,7 @@ on:
   push:
     paths:
     - '.github/workflows/daily.yml'
+    - '.github/workflows/test.sh'
 
 jobs:
   linux-daily-unittests:
@@ -19,9 +20,7 @@ jobs:
           - PYTHON_VERSION: '3.9'
             PANDAS_VERSION: 'nightly'
             NUMPY_VERSION: 'nightly'
-            # See https://github.com/Quantco/glum/issues/506
-            # SCIKIT_VERSION: 'nightly'
-            SCIKIT_VERSION: ''
+            SCIKIT_VERSION: 'nightly'
             SCIPY_VERSION: 'nightly'
             TABMAT_VERSION: 'nightly'
             NOTE: 'Nightly Builds' # run once with nightlies
