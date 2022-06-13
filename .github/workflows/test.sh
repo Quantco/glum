@@ -28,7 +28,6 @@ mamba env create -f /tmp/environment.yml
 mamba env update -n $(yq -r .name environment.yml) --file environment-benchmark.yml
 conda activate $(yq -r .name environment.yml)
 
-
 # This needs to be done before any 'uninstall --force'
 if [[ "$TABMAT_VERSION" == "nightly" ]]; then
     echo "Install compilation dependencies"
