@@ -21,7 +21,6 @@ jobs:
             PANDAS_VERSION: 'nightly'
             NUMPY_VERSION: 'nightly'
             SCIKIT_VERSION: 'nightly'
-            SCIKIT_VERSION: ''
             SCIPY_VERSION: 'nightly'
             TABMAT_VERSION: 'nightly'
             NOTE: 'Nightly Builds' # run once with nightlies
