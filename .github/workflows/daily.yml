@@ -19,8 +19,7 @@ jobs:
           - PYTHON_VERSION: '3.9'
             PANDAS_VERSION: 'nightly'
             NUMPY_VERSION: 'nightly'
-            # See https://github.com/Quantco/glum/issues/506
-            # SCIKIT_VERSION: 'nightly'
+            SCIKIT_VERSION: 'nightly'
             SCIKIT_VERSION: ''
             SCIPY_VERSION: 'nightly'
             TABMAT_VERSION: 'nightly'
