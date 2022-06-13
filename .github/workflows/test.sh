@@ -28,10 +28,6 @@ mamba env create -f /tmp/environment.yml
 mamba env update -n $(yq -r .name environment.yml) --file environment-benchmark.yml
 conda activate $(yq -r .name environment.yml)
 
-if [[ "$NUMPY_VERSION" == "nightly" ]]; then
-    echo "Pin setuptools for compatibility with NumPy nightlies"
-    mamba install -y 'setuptools=59.2.0'
-fi
 
 # This needs to be done before any 'uninstall --force'
 if [[ "$TABMAT_VERSION" == "nightly" ]]; then
@@ -43,22 +39,22 @@ PRE_WHEELS="https://pypi.anaconda.org/scipy-wheels-nightly/simple"
 if [[ "$NUMPY_VERSION" == "nightly" ]]; then
     echo "Installing Numpy nightly"
     conda uninstall -y --force numpy
-    pip install --pre --no-deps --upgrade --timeout=60 -i $PRE_WHEELS numpy
+    pip install --pre --no-deps --only-binary :all: --upgrade --timeout=60 -i $PRE_WHEELS numpy
 fi
 if [[ "$PANDAS_VERSION" == "nightly" ]]; then
     echo "Installing Pandas nightly"
     conda uninstall -y --force pandas
-    pip install --pre --no-deps --upgrade --timeout=60 -i $PRE_WHEELS pandas
+    pip install --pre --no-deps --only-binary :all: --upgrade --timeout=60 -i $PRE_WHEELS pandas
 fi
 if [[ "$SCIKIT_VERSION" == "nightly" ]]; then
     echo "Install scikit-learn nightly"
     conda uninstall -y --force scikit-learn
-    pip install --pre --no-deps --upgrade --timeout=60 -i $PRE_WHEELS scikit-learn
+    pip install --pre --no-deps --only-binary :all: --upgrade --timeout=60 -i $PRE_WHEELS scikit-learn
 fi
 if [[ "$SCIPY_VERSION" == "nightly" ]]; then
     echo "Installing Scipy nightly"
     conda uninstall -y --force scipy
-    pip install --pre --no-deps --upgrade --timeout=60 -i $PRE_WHEELS scipy
+    pip install --pre --no-deps --only-binary :all: --upgrade --timeout=60 -i $PRE_WHEELS scipy
 fi
 if [[ "$TABMAT_VERSION" == "nightly" ]]; then
     echo "Install tabmat nightly"
