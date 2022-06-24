@@ -629,9 +629,17 @@ def is_pos_semidef(p: Union[sparse.spmatrix, np.ndarray]) -> Union[bool, np.bool
 
 def _group_sum(groups: np.ndarray, data: np.ndarray):
     """Sum over groups."""
-    out = np.empty((len(np.unique(groups)), data.shape[1]))
-    for i in range(data.shape[1]):
-        out[:, i] = np.bincount(groups, weights=data[:, i])
+    ngroups = len(np.unique(groups))
+    out = np.empty((ngroups, data.shape[1]))
+    if sparse.issparse(data) or isinstance(
+        data, (tm.SplitMatrix, tm.CategoricalMatrix)
+    ):
+        eye_n = np.eye(ngroups)[:, groups]
+        for i in range(data.shape[1]):
+            out[:, i] = (eye_n @ data.getcol(i)).ravel()
+    else:
+        for i in range(data.shape[1]):
+            out[:, i] = np.bincount(groups, weights=data[:, i])
     return out
 
 
@@ -1444,7 +1452,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 method="pearson",
             )
 
-        if not sparse.issparse(X):
+        if not (
+            sparse.issparse(X) or isinstance(X, (tm.SplitMatrix, tm.CategoricalMatrix))
+        ):
             if np.linalg.cond(X) > 1 / sys.float_info.epsilon:
                 raise np.linalg.LinAlgError(
                     "Matrix is singular. Cannot estimate standard errors."
@@ -1482,7 +1492,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                     / (sum_weights - self.n_features_in_ - int(self.fit_intercept))
                 )
             else:
-                inner_part = gradient.T @ gradient
+                if isinstance(gradient, tm.SplitMatrix):
+                    inner_part = gradient.sandwich(np.ones_like(y))
+                else:
+                    inner_part = gradient.T @ gradient
                 correction = sum_weights / (
                     sum_weights - self.n_features_in_ - int(self.fit_intercept)
                 )

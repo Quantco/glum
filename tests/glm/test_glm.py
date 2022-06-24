@@ -1707,7 +1707,7 @@ def test_verbose(regression_data, capsys):
     assert "Iteration" in captured.err
 
 
-def test_std_errors(regression_data):
+def test_ols_std_errors(regression_data):
     X, y = regression_data
     mdl = GeneralizedLinearRegressor(alpha=0, family="normal")
     mdl.fit(X=X, y=y)
@@ -1735,6 +1735,54 @@ def test_std_errors(regression_data):
     np.testing.assert_allclose(ourse, smse, rtol=1e-8)
 
 
+@pytest.mark.parametrize("fit_intercept", [True, False])
+@pytest.mark.parametrize("family", ["poisson", "normal", "binomial"])
+def test_array_std_errors(regression_data, family, fit_intercept):
+    X, y = regression_data
+    if family == "poisson":
+        y = np.round(abs(y))
+        sm_family = sm.families.Poisson()
+        dispersion = 1
+    elif family == "binomial":
+        rng = np.random.default_rng(42)
+        y = rng.choice([0, 1], len(y))
+        sm_family = sm.families.Binomial()
+        dispersion = 1
+    else:
+        sm_family = sm.families.Gaussian()
+        dispersion = None
+
+    mdl = GeneralizedLinearRegressor(
+        alpha=0, family=family, fit_intercept=fit_intercept
+    ).fit(X=X, y=y)
+
+    if fit_intercept:
+        mdl_sm = sm.GLM(endog=y, exog=sm.add_constant(X), family=sm_family)
+    else:
+        mdl_sm = sm.GLM(endog=y, exog=X, family=sm_family)
+
+    # Here, statsmodels does not do a degree of freedom adjustment,
+    # so we manually add it for nonrobust and robust errors
+
+    # nonrobust
+    ourse = mdl.std_errors(X=X, y=y, dispersion=dispersion, robust=False)
+    corr = len(y) / (len(y) - X.shape[1] - int(fit_intercept))
+    smse = mdl_sm.fit(cov_type="nonrobust").bse * np.sqrt(corr)
+    np.testing.assert_allclose(ourse, smse, rtol=1e-4)
+
+    # robust
+    ourse = mdl.std_errors(X=X, y=y, robust=True)
+    smse = mdl_sm.fit(cov_type="HC1").bse * np.sqrt(corr)
+    np.testing.assert_allclose(ourse, smse, rtol=1e-4)
+
+    # clustered
+    rng = np.random.default_rng(42)
+    clu = rng.integers(5, size=len(y))
+    ourse = mdl.std_errors(X=X, y=y, clusters=clu)
+    smse = mdl_sm.fit(cov_type="cluster", cov_kwds={"groups": clu}).bse
+    np.testing.assert_allclose(ourse, smse, rtol=1e-4)
+
+
 def test_sparse_std_errors(regression_data):
     X, y = regression_data
     sp_X = sparse.csc_matrix(X)
@@ -1752,6 +1800,57 @@ def test_sparse_std_errors(regression_data):
     actual3 = mdl.std_errors(X=X, y=y, clusters=clu)
     expected3 = mdl.std_errors(X=X, y=y, clusters=clu)
     np.testing.assert_allclose(actual3, expected3)
+
+
+# TODO add intercepts for models with categorical variables when glum allows drop_first
+@pytest.mark.parametrize(
+    "categorical, split, fit_intercept",
+    [
+        (True, False, False),
+        (False, True, False),
+        (False, False, False),
+        (False, False, True),
+    ],
+)
+def test_dataframe_std_errors(regression_data, categorical, split, fit_intercept):
+    X, y = regression_data
+    X = pd.DataFrame(X)
+    if categorical or split:
+        rng = np.random.default_rng(42)
+        categories = np.arange(4)
+        group = rng.choice(categories, size=len(X))
+        if categorical:
+            X = pd.DataFrame(pd.Categorical(group, categories=categories))
+        if split:
+            X = X.assign(col_cat=pd.Categorical(group, categories=categories))
+    mdl = GeneralizedLinearRegressor(
+        alpha=0, family="normal", fit_intercept=fit_intercept
+    )
+    mdl.fit(X=X, y=y)
+    X_sm = pd.get_dummies(X)
+    if fit_intercept:
+        mdl_sm = sm.OLS(endog=y, exog=sm.add_constant(X_sm))
+    else:
+        mdl_sm = sm.OLS(endog=y, exog=X_sm)
+
+    # nonrobust
+    # manually add dof adjustment in statsmodels
+    ourse = mdl.std_errors(X=X, y=y, robust=False)
+    corr = len(y) / (len(y) - X_sm.shape[1] - fit_intercept)
+    smse = mdl_sm.fit(cov_type="nonrobust").bse * np.sqrt(corr)
+    np.testing.assert_allclose(ourse, smse, rtol=1e-8)
+
+    # robust
+    ourse = mdl.std_errors(X=X, y=y, robust=True)
+    smse = mdl_sm.fit(cov_type="HC1").bse
+    np.testing.assert_allclose(ourse, smse, rtol=1e-8)
+
+    # clustered
+    rng = np.random.default_rng(42)
+    clu = rng.integers(5, size=len(y))
+    ourse = mdl.std_errors(X=X, y=y, clusters=clu)
+    smse = mdl_sm.fit(cov_type="cluster", cov_kwds={"groups": clu}).bse
+    np.testing.assert_allclose(ourse, smse, rtol=1e-8)
 
 
 @pytest.mark.parametrize("as_data_frame", [False, True])
