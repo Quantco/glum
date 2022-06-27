@@ -15,6 +15,8 @@ Changelog
 - Added :meth:`aic`, :meth:`aicc` and :meth:`bic` attributes to the :class:`~glum.GeneralizedLinearRegressor`. 
   These attributes provide the information criteria based on the training data and the effective degrees of freedom 
   of the maximum likelihood estimate for the model's parameters.
+- :meth:`~glum.GeneralizedLinearRegressor.std_errors` and :meth:`~glum.GeneralizedLinearRegressor.covariance_matrix`
+  of :class:`~glum.GeneralizedLinearRegressor` now accept data frames with categorical data.
 
 **Bug fixes:**
 
@@ -24,10 +26,7 @@ Changelog
 **Other:**
 
 - The CI now runs daily unit tests against the nightly builds of numpy, pandas and scikit-learn.
-- ``oldest-supported-numpy`` is used for build. 
-- :meth:`~glum.GeneralizedLinearRegressor.std_errors` and :meth:`~glum.GeneralizedLinearRegressor.covariance_matrix`
-  of :class:`~glum.GeneralizedLinearRegressor` now accept data frames with categorical data or high sparsity.
-- Updated ``environment.yml`` and ``conda.recipe/meta.yaml`` to use tabmat 3.1.0.
+- The minimally required version of tabmat is now 3.1.0.
 
 
 2.0.3 - 2021-11-05
