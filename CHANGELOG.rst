@@ -7,10 +7,16 @@
 Changelog
 =========
 
-Unreleased
+2.1.0 - 2022-06-27
 ------------------
 
-**Bug fix:**
+**New features:**
+
+- Added :meth:`aic`, :meth:`aicc` and :meth:`bic` attributes to the :class:`~glum.GeneralizedLinearRegressor`. 
+  These attributes provide the information criteria based on the training data and the effective degrees of freedom 
+  of the maximum likelihood estimate for the model's parameters.
+
+**Bug fixes:**
 
 - The :meth:`score` method of :class:`~glum.GeneralizedLinearRegressor` and :class:`~glum.GeneralizedLinearRegressorCV` now accepts offsets.
 - Fixed the calculation of the information matrix for the Binomial distribution with logit link, which affected nonrobust standard errors.
@@ -23,11 +29,6 @@ Unreleased
   of :class:`~glum.GeneralizedLinearRegressor` now accept data frames with categorical data or high sparsity.
 - Updated ``environment.yml`` and ``conda.recipe/meta.yaml`` to use tabmat 3.1.0.
 
-**New feature:**
-
-- Added :meth:`aic`, :meth:`aicc` and :meth:`bic` attributes to the :class:`~glum.GeneralizedLinearRegressor`. 
-  These attributes provide the information criteria based on the training data and the effective degrees of freedom 
-  of the maximum likelihood estimate for the model's parameters.
 
 2.0.3 - 2021-11-05
 ------------------
