@@ -63,6 +63,7 @@ setup(
         "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
     ],
     package_dir={"": "src"},
     packages=find_packages(
@@ -78,7 +79,7 @@ setup(
         "pandas",
         "scikit-learn>=0.23",
         "scipy",
-        "tabmat>=3.0.1",
+        "tabmat>=3.1.0",
     ],
     entry_points=None
     if os.environ.get("CONDA_BUILD")
