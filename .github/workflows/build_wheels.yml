@@ -10,8 +10,6 @@ jobs:
   build_wheels:
     name: Build wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-    env:
-      GLM_ARCHITECTURE: default
     strategy:
       matrix:
         os: [ubuntu-20.04, macos-10.15, windows-2019]

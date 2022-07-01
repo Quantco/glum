@@ -31,6 +31,7 @@ default_section = 'THIRDPARTY'
 [tool.cibuildwheel]
 skip = ["cp310-*", "pp*", "*-musllinux_*"]
 test-requires = ["pytest", "pytest-xdist"]
+environment = "GLM_ARCHITECTURE='default'"
 
 [tool.cibuildwheel.macos]
 before-all = [
