@@ -17,6 +17,7 @@ jobs:
         CONDA_BUILD_YML:
           - osx_64_python3.7_skylake.____cpython
           - osx_arm64_python3.9.____cpython
+          - osx_arm64_python3.10.____cpython
     steps:
       - name: Checkout branch
         uses: actions/checkout@v3

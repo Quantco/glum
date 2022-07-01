@@ -1,5 +1,5 @@
 GLM_ARCHITECTURE:
-- 'default'
+- 'skylake'
 MACOSX_DEPLOYMENT_TARGET:
 - '10.9'
 c_compiler:
@@ -13,8 +13,9 @@ cxx_compiler_version:
 macos_machine:
 - x86_64-apple-darwin13.4.0
 numpy:
-- '1.17'
+- '1.21'
 python:
-- 3.6.* *_cpython
+- 3.10.* *_cpython
 target_platform:
 - osx-64
+

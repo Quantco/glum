@@ -15,6 +15,7 @@ jobs:
         CONDA_BUILD_YML:
           - linux_64_python3.8_skylake.____cpython
           - linux_64_python3.9_default.____cpython
+          - linux_64_python3.10_default.____cpython
     steps:
       - name: Pull image
         run: docker pull condaforge/mambaforge:latest
