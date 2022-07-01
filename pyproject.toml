@@ -42,3 +42,6 @@ before-all = [
 LDFLAGS="-L/usr/local/lib"
 CXX="/usr/local/opt/llvm/bin/clang++"
 CC="/usr/local/opt/llvm/bin/clang"
+
+[tool.cibuildwheel.windows.environment]
+SETUPTOOLS_USE_DISTUTILS=stdlib
