@@ -29,7 +29,7 @@ skip_glob = '\.eggs/*,\.git/*,\.venv/*,build/*,dist/*'
 default_section = 'THIRDPARTY'
 
 [tool.cibuildwheel]
-skip = ["cp310-*", "pp*", "*-musllinux_*"]
+skip = ["cp310-win32", "cp310-manylinux_i686", "pp*", "*-musllinux_*"]
 test-requires = ["pytest", "pytest-xdist"]
 environment = "GLM_ARCHITECTURE='default'"
 
@@ -42,3 +42,6 @@ before-all = [
 LDFLAGS="-L/usr/local/lib"
 CXX="/usr/local/opt/llvm/bin/clang++"
 CC="/usr/local/opt/llvm/bin/clang"
+
+[tool.cibuildwheel.windows.environment]
+SETUPTOOLS_USE_DISTUTILS="stdlib"

@@ -5,7 +5,7 @@ repos:
      - id: black-conda
        args:
          - --safe
-         - --target-version=py36
+         - --target-version=py37
  - repo: https://github.com/Quantco/pre-commit-mirrors-flake8
    rev: v3.9.2
    hooks:
