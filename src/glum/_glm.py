@@ -1725,11 +1725,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                         # TODO: what happens when there is only one category?
                         [
                             f"{column}__{category}"
-                            for category in (
-                                dtype.categories[1:]
-                                if self.drop_first
-                                else dtype.categories
-                            )
+                            for category in dtype.categories[1 * self.drop_first :]
                         ]
                         if pd.api.types.is_categorical_dtype(dtype)
                         else [column]
