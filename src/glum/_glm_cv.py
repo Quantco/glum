@@ -239,6 +239,10 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         number of CPU on your machine. ``None`` means ``1`` unless in a
         :obj:`joblib.parallel_backend` context.
 
+    drop_first : bool, optional (default = True)
+        If ``True``, drop the first column when encoding categorical variables.
+        This prevents singular feature matrices and thus enables fitting when
+        alpha=0 and leads to better lasso fits.
 
     Attributes
     ----------
@@ -303,6 +307,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         force_all_finite: bool = True,
         cv=None,
         n_jobs: Optional[int] = None,
+        drop_first: bool = True,
     ):
         self.alphas = alphas
         self.cv = cv
@@ -335,6 +340,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             A_ineq=A_ineq,
             b_ineq=b_ineq,
             force_all_finite=force_all_finite,
+            drop_first=drop_first,
         )
 
     def _validate_hyperparameters(self) -> None:
