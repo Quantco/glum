@@ -1942,3 +1942,11 @@ def test_information_criteria_raises_correct_warnings_and_errors(regression_data
     y_not_train = np.ones(10)
     with pytest.raises(Exception):
         regressor.aic(X_not_train, y_not_train)
+
+
+def test_no_regularised_regression_not_singular():
+    rng = np.random.default_rng(42)
+    y = np.random.normal(size=10)
+    X = pd.DataFrame(data={"cat": pd.Categorical(rng.integers(2, size=10))})
+    regressor = GeneralizedLinearRegressor(alpha=0)
+    regressor.fit(X, y)

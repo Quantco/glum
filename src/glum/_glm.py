@@ -82,15 +82,18 @@ ShapedArrayLike = Union[
 ]
 
 
-def check_array_tabmat_compliant(mat: ArrayLike, **kwargs):
+def check_array_tabmat_compliant(mat: ArrayLike, drop_first=True, **kwargs):
     to_copy = kwargs.get("copy", False)
 
     if isinstance(mat, pd.DataFrame) and any(mat.dtypes == "category"):
-        mat = tm.from_pandas(mat)
+        mat = tm.from_pandas(mat, drop_first=drop_first)
 
     if isinstance(mat, tm.SplitMatrix):
         kwargs.update({"ensure_min_features": 0})
-        new_matrices = [check_array_tabmat_compliant(m, **kwargs) for m in mat.matrices]
+        new_matrices = [
+            check_array_tabmat_compliant(m, drop_first=drop_first, **kwargs)
+            for m in mat.matrices
+        ]
         new_indices = [elt.copy() for elt in mat.indices] if to_copy else mat.indices
         return tm.SplitMatrix(new_matrices, new_indices)
 
@@ -101,7 +104,7 @@ def check_array_tabmat_compliant(mat: ArrayLike, **kwargs):
 
     if isinstance(mat, tm.StandardizedMatrix):
         return tm.StandardizedMatrix(
-            check_array_tabmat_compliant(mat.mat, **kwargs),
+            check_array_tabmat_compliant(mat.mat, drop_first=drop_first, **kwargs),
             check_array(mat.shift, **kwargs),
         )
 
@@ -680,6 +683,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         A_ineq: Optional[np.ndarray] = None,
         b_ineq: Optional[np.ndarray] = None,
         force_all_finite: bool = True,
+        drop_first: bool = True,
     ):
         self.l1_ratio = l1_ratio
         self.P1 = P1
@@ -709,6 +713,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self.A_ineq = A_ineq
         self.b_ineq = b_ineq
         self.force_all_finite = force_all_finite
+        self.drop_first = drop_first
 
     @property
     def family_instance(self) -> ExponentialDispersionModel:
@@ -1202,6 +1207,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             copy=True,
             ensure_2d=True,
             allow_nd=False,
+            drop_first=self.drop_first,
         )
 
         if alpha_index is None:
@@ -1274,6 +1280,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             copy=self._should_copy_X(),
             ensure_2d=True,
             allow_nd=False,
+            drop_first=True,
         )
         eta = self.linear_predictor(
             X, offset=offset, alpha_index=alpha_index, alpha=alpha
@@ -1715,7 +1722,15 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             if any(X.dtypes == "category"):
                 self.feature_names_ = list(
                     chain.from_iterable(
-                        [f"{column}__{category}" for category in dtype.categories]
+                        # TODO: what happens when there is only one category?
+                        [
+                            f"{column}__{category}"
+                            for category in (
+                                dtype.categories[1:]
+                                if self.drop_first
+                                else dtype.categories
+                            )
+                        ]
                         if pd.api.types.is_categorical_dtype(dtype)
                         else [column]
                         for column, dtype in zip(X.columns, X.dtypes)
@@ -1757,7 +1772,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 P1 = _expand_categorical_penalties(self.P1, X)
                 P2 = _expand_categorical_penalties(self.P2, X)
 
-                X = tm.from_pandas(X)
+                X = tm.from_pandas(X, drop_first=self.drop_first)
             else:
                 self.feature_names_ = X.columns
 
@@ -1794,6 +1809,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 dtype=_dtype,
                 copy=copy_X,
                 force_all_finite=force_all_finite,
+                drop_first=self.drop_first,
             )
             self._check_n_features(X, reset=True)
         else:
@@ -2181,6 +2197,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         A_ineq: Optional[np.ndarray] = None,
         b_ineq: Optional[np.ndarray] = None,
         force_all_finite: bool = True,
+        drop_first: bool = True,  # TODO: if alpha = 0 and drop_first=False then throw error?
     ):
         self.alphas = alphas
         self.alpha = alpha
@@ -2213,6 +2230,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             A_ineq=A_ineq,
             b_ineq=b_ineq,
             force_all_finite=force_all_finite,
+            drop_first=drop_first,
         )
 
     def _validate_hyperparameters(self) -> None:
