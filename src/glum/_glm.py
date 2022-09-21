@@ -2210,7 +2210,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         A_ineq: Optional[np.ndarray] = None,
         b_ineq: Optional[np.ndarray] = None,
         force_all_finite: bool = True,
-        drop_first: bool = True,  # TODO: if alpha = 0 and drop_first=False then throw error?
+        drop_first: bool = True,
     ):
         self.alphas = alphas
         self.alpha = alpha
