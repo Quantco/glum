@@ -331,22 +331,18 @@ def test_P1_P2_expansion_with_categoricals():
     y = rng.normal(size=60)
 
     mdl1 = GeneralizedLinearRegressor(
-        l1_ratio=0.01,
-        P1=[1, 2, 2, 2, 2, 2],
-        P2=[2, 1, 1, 1, 1, 1],
+        l1_ratio=0.01, P1=[1, 2, 2, 2, 2, 2], P2=[2, 1, 1, 1, 1, 1], drop_first=False
     )
     mdl1.fit(X, y)
 
     mdl2 = GeneralizedLinearRegressor(
-        l1_ratio=0.01,
-        P1=[1, 2],
-        P2=[2, 1],
+        l1_ratio=0.01, P1=[1, 2], P2=[2, 1], drop_first=False
     )
     mdl2.fit(X, y)
     np.testing.assert_allclose(mdl1.coef_, mdl2.coef_)
 
     mdl2 = GeneralizedLinearRegressor(
-        l1_ratio=0.01, P1=[1, 2], P2=sparse.diags([2, 1, 1, 1, 1, 1])
+        l1_ratio=0.01, P1=[1, 2], P2=sparse.diags([2, 1, 1, 1, 1, 1]), drop_first=False
     )
     mdl2.fit(X, y)
     np.testing.assert_allclose(mdl1.coef_, mdl2.coef_)
@@ -1614,7 +1610,9 @@ def test_passing_noncontiguous_as_X():
     ],
 )
 def test_feature_names(X, feature_names):
-    model = GeneralizedLinearRegressor(family="poisson").fit(X, np.arange(5))
+    model = GeneralizedLinearRegressor(family="poisson", drop_first=False).fit(
+        X, np.arange(5)
+    )
     np.testing.assert_array_equal(getattr(model, "feature_names_", None), feature_names)
 
 
@@ -1657,7 +1655,7 @@ def test_categorical_types(k, n):
     pred_cat = model_cat.predict(X_cat)
 
     # use one-hot encoding
-    X_oh = pd.get_dummies(X_cat)
+    X_oh = pd.get_dummies(X_cat, drop_first=True)
     model_oh = GeneralizedLinearRegressor(family="poisson").fit(X_oh, y)
     pred_oh = model_oh.predict(X_oh)
 
@@ -1824,7 +1822,7 @@ def test_dataframe_std_errors(regression_data, categorical, split, fit_intercept
         if split:
             X = X.assign(col_cat=pd.Categorical(group, categories=categories))
     mdl = GeneralizedLinearRegressor(
-        alpha=0, family="normal", fit_intercept=fit_intercept
+        alpha=0, family="normal", fit_intercept=fit_intercept, drop_first=False
     )
     mdl.fit(X=X, y=y)
     X_sm = pd.get_dummies(X)
