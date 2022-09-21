@@ -1948,3 +1948,14 @@ def test_no_regularised_regression_not_singular():
     X = pd.DataFrame(data={"cat": pd.Categorical(rng.integers(2, size=10))})
     regressor = GeneralizedLinearRegressor(alpha=0)
     regressor.fit(X, y)
+
+
+def test_error_on_distinct_categorical_column():
+    y = np.random.normal(size=10)
+    X = pd.DataFrame(data={"cat": pd.Categorical(np.ones(10))})
+    regressor = GeneralizedLinearRegressor(alpha=0)
+    with pytest.raises(ValueError):
+        regressor.fit(X, y)
+
+    regressor = GeneralizedLinearRegressor(alpha=0, drop_first=False)
+    regressor.fit(X, y)

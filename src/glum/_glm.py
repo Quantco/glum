@@ -211,6 +211,20 @@ def _check_offset(
     return offset
 
 
+def _name_categorical_variables(
+    categories: Tuple[str], column_name: str, drop_first: bool
+):
+    new_names = [
+        f"{column_name}__{category}" for category in categories[1 * drop_first :]
+    ]
+    if len(new_names) == 0:
+        raise ValueError(
+            f"Categorical column: {column_name}, contains only one category. "
+            + "This should dropped from the feature matrix."
+        )
+    return new_names
+
+
 def check_bounds(
     bounds: Optional[Union[float, VectorLike]], n_features: int, dtype
 ) -> Optional[np.ndarray]:
@@ -1722,11 +1736,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             if any(X.dtypes == "category"):
                 self.feature_names_ = list(
                     chain.from_iterable(
-                        # TODO: what happens when there is only one category?
-                        [
-                            f"{column}__{category}"
-                            for category in dtype.categories[1 * self.drop_first :]
-                        ]
+                        _name_categorical_variables(
+                            dtype.categories, column, self.drop_first
+                        )
                         if pd.api.types.is_categorical_dtype(dtype)
                         else [column]
                         for column, dtype in zip(X.columns, X.dtypes)
