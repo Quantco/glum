@@ -2117,6 +2117,11 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         ``A_ineq w <= b_ineq``. Refer to the documentation of ``A_ineq`` for
         details.
 
+    drop_first : bool, optional (default = True)
+        If ``True``, drop the first column when encoding categorical variables.
+        This prevents singular feature matrices and thus enables fitting when
+        alpha=0 and leads to better lasso fits.
+
     Attributes
     ----------
     coef_ : numpy.array, shape (n_features,)
