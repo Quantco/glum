@@ -2107,7 +2107,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         Constraint matrix for linear inequality constraints of the form
         ``A_ineq w <= b_ineq``. Setting inequality constraints forces the use
         of the local gradient-based solver ``'trust-constr'``, which may
-        increase runtime siginifcantly. Note that the constraints only apply
+        increase runtime significantly. Note that the constraints only apply
         to coefficients related to features in ``X``. If you want to constrain
         the intercept, add it to the feature matrix ``X`` manually and set
         ``fit_intercept==False``.
