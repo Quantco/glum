@@ -215,7 +215,7 @@ def _name_categorical_variables(
     categories: Tuple[str], column_name: str, drop_first: bool
 ):
     new_names = [
-        f"{column_name}__{category}" for category in categories[int(drop_first):]
+        f"{column_name}__{category}" for category in categories[int(drop_first) :]
     ]
     if len(new_names) == 0:
         raise ValueError(
@@ -1745,7 +1745,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                     )
                 )
 
-                def _expand_categorical_penalties(penalty, X):
+                def _expand_categorical_penalties(penalty, X, drop_first):
                     """
                     If P1 or P2 has the same shape as X before expanding the
                     categoricals, we assume that the penalty at the location of
@@ -1767,7 +1767,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                         return np.array(
                             list(
                                 chain.from_iterable(
-                                    [elmt for _ in dtype.categories]
+                                    [elmt for _ in dtype.categories[int(drop_first) :]]
                                     if pd.api.types.is_categorical_dtype(dtype)
                                     else [elmt]
                                     for elmt, dtype in zip(penalty, X.dtypes)
@@ -1777,8 +1777,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                     else:
                         return penalty
 
-                P1 = _expand_categorical_penalties(self.P1, X)
-                P2 = _expand_categorical_penalties(self.P2, X)
+                P1 = _expand_categorical_penalties(self.P1, X, self.drop_first)
+                P2 = _expand_categorical_penalties(self.P2, X, self.drop_first)
 
                 X = tm.from_pandas(X, drop_first=self.drop_first)
             else:

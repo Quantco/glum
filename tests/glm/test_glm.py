@@ -1963,3 +1963,22 @@ def test_error_on_distinct_categorical_column():
 
     regressor = GeneralizedLinearRegressor(alpha=0, drop_first=False)
     regressor.fit(X, y)
+
+
+def test_P1_P2_with_drop_first():
+    rng = np.random.default_rng(42)
+    y = np.random.normal(size=50)
+    X = pd.DataFrame(data={"cat": pd.Categorical(rng.integers(2, size=50))})
+    P_2 = np.ones(1)
+    P_1 = np.ones(1)
+    regressor = GeneralizedLinearRegressor(
+        alpha=0.1,
+        l1_ratio=0.5,
+        P1=P_1,
+        P2=P_2,
+    )
+    regressor.fit(X, y)
+    regressor = GeneralizedLinearRegressor(
+        alpha=0.1, drop_first=False, l1_ratio=0.5, P1=P_1, P2=P_2
+    )
+    regressor.fit(X, y)
