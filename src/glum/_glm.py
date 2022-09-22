@@ -82,7 +82,7 @@ ShapedArrayLike = Union[
 ]
 
 
-def check_array_tabmat_compliant(mat: ArrayLike, drop_first=True, **kwargs):
+def check_array_tabmat_compliant(mat: ArrayLike, drop_first: int = False, **kwargs):
     to_copy = kwargs.get("copy", False)
 
     if isinstance(mat, pd.DataFrame) and any(mat.dtypes == "category"):
@@ -697,7 +697,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         A_ineq: Optional[np.ndarray] = None,
         b_ineq: Optional[np.ndarray] = None,
         force_all_finite: bool = True,
-        drop_first: bool = True,
+        drop_first: bool = False,
     ):
         self.l1_ratio = l1_ratio
         self.P1 = P1
@@ -2125,7 +2125,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         ``A_ineq w <= b_ineq``. Refer to the documentation of ``A_ineq`` for
         details.
 
-    drop_first : bool, optional (default = True)
+    drop_first : bool, optional (default = False)
         If ``True``, drop the first column when encoding categorical variables.
         This prevents singular feature matrices and thus enables fitting when
         alpha=0 and leads to better lasso fits.
@@ -2210,7 +2210,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         A_ineq: Optional[np.ndarray] = None,
         b_ineq: Optional[np.ndarray] = None,
         force_all_finite: bool = True,
-        drop_first: bool = True,
+        drop_first: bool = False,
     ):
         self.alphas = alphas
         self.alpha = alpha
