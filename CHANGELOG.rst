@@ -12,7 +12,7 @@ UNRELEASED
 
 **New features:**
 
-- Add a default argument to GeneralizedLinearRegressorBase to drop the first category in a Categorical column using [implementation in tabmat](https://github.com/Quantco/tabmat/pull/168)
+- Add an argument to GeneralizedLinearRegressorBase to drop the first category in a Categorical column using [implementation in tabmat](https://github.com/Quantco/tabmat/pull/168)
 
 2.1.2 - 2022-07-01
 ------------------

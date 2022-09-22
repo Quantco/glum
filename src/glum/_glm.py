@@ -2127,8 +2127,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
 
     drop_first : bool, optional (default = False)
         If ``True``, drop the first column when encoding categorical variables.
-        This prevents singular feature matrices and thus enables fitting when
-        alpha=0 and leads to better lasso fits.
+        Set this to True when alpha=0 and solver='auto' to prevent an error due to a singular
+        feature matrix.
 
     Attributes
     ----------
