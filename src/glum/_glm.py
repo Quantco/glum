@@ -1294,7 +1294,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             copy=self._should_copy_X(),
             ensure_2d=True,
             allow_nd=False,
-            drop_first=True,
+            drop_first=self.drop_first,
         )
         eta = self.linear_predictor(
             X, offset=offset, alpha_index=alpha_index, alpha=alpha
