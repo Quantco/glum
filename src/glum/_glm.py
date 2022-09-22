@@ -220,7 +220,7 @@ def _name_categorical_variables(
     if len(new_names) == 0:
         raise ValueError(
             f"Categorical column: {column_name}, contains only one category. "
-            + "This should dropped from the feature matrix."
+            + "This should be dropped from the feature matrix."
         )
     return new_names
 
