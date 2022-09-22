@@ -215,7 +215,7 @@ def _name_categorical_variables(
     categories: Tuple[str], column_name: str, drop_first: bool
 ):
     new_names = [
-        f"{column_name}__{category}" for category in categories[1 * drop_first :]
+        f"{column_name}__{category}" for category in categories[int(drop_first):]
     ]
     if len(new_names) == 0:
         raise ValueError(
