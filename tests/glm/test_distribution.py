@@ -15,7 +15,7 @@ from glum._distribution import (
     PoissonDistribution,
     TweedieDistribution,
 )
-from glum._glm import GeneralizedLinearRegressor
+from glum._glm import GeneralizedLinearRegressor, get_family
 from glum._link import IdentityLink, LogitLink, LogLink, TweedieLink
 from glum._util import _safe_sandwich_dot
 
@@ -67,6 +67,22 @@ def test_tweedie_distribution_power():
     assert dist.include_lower_bound is False
     dist.power = 1
     assert dist.include_lower_bound is True
+
+
+def test_tweedie_distribution_parsing():
+
+    dist = get_family("tweedie")
+
+    assert isinstance(dist, TweedieDistribution)
+    assert dist.power == 1.5
+
+    dist = get_family("tweedie (1.3)")
+
+    assert isinstance(dist, TweedieDistribution)
+    assert dist.power == 1.3
+
+    with pytest.raises(ValueError):
+        get_family("tweedie (a)")
 
 
 @pytest.mark.parametrize(

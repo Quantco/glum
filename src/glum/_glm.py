@@ -17,6 +17,7 @@ some parts and tricks stolen from other sklearn files.
 from __future__ import division
 
 import copy
+import re
 import sys
 import warnings
 from collections.abc import Iterable
@@ -396,16 +397,22 @@ def get_family(
         return family
 
     name_to_dist = {
-        "binomial": BinomialDistribution,
-        "gamma": GammaDistribution,
-        "gaussian": NormalDistribution,
-        "inverse.gaussian": InverseGaussianDistribution,
-        "normal": NormalDistribution,
-        "poisson": PoissonDistribution,
+        "binomial": BinomialDistribution(),
+        "gamma": GammaDistribution(),
+        "gaussian": NormalDistribution(),
+        "inverse.gaussian": InverseGaussianDistribution(),
+        "normal": NormalDistribution(),
+        "poisson": PoissonDistribution(),
+        "tweedie": TweedieDistribution(1.5),
     }
 
     if family in name_to_dist:
-        return name_to_dist[family]()  # type: ignore
+        return name_to_dist[family]
+
+    custom_tweedie = re.search(r"tweedie \((.+)\)", family)
+
+    if custom_tweedie:
+        return TweedieDistribution(float(custom_tweedie.group(1)))
 
     raise ValueError(
         "The family must be an instance of class ExponentialDispersionModel or an "
@@ -1917,10 +1924,13 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         Specifies if a constant (a.k.a. bias or intercept) should be
         added to the linear predictor (``X * coef + intercept``).
 
-    family : {'normal', 'poisson', 'gamma', 'gaussian', 'inverse.gaussian', \
-            'binomial'} or ExponentialDispersionModel, optional (default='normal')
-        The distributional assumption of the GLM, i.e. which distribution from
-        the EDM, specifies the loss function to be minimized.
+    family : str or ExponentialDispersionModel, optional (default='normal')
+        The distributional assumption of the GLM, i.e. the loss function to
+        minimize. If a string, one of: ``'binomial'``, ``'gamma'``,
+        ``'gaussian'``, ``'inverse.gaussian'``, ``'normal'``, ``'poisson'`` or
+        ``'tweedie'``. Note that ``'tweedie'`` sets the power of the Tweedie
+        distribution to 1.5; to use another value, specify it in parentheses
+        (e.g., ``'tweedie (1.5)'``).
 
     link : {'auto', 'identity', 'log', 'logit'} or Link, optional (default='auto')
         The link function of the GLM, i.e. mapping from linear predictor
