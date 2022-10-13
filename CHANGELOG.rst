@@ -7,6 +7,15 @@
 Changelog
 =========
 
+2.2.0 - unreleased
+------------------
+
+**New feature**
+
+- One may now request the Tweedie loss by setting the ``'family'`` parameter of
+  :class:`~glum.GeneralizedLinearRegressor` and :class:`~glum.GeneralizedLinearRegressorCV`
+  to ``'tweedie'``.
+
 2.1.2 - 2022-07-01
 ------------------
 
@@ -26,8 +35,8 @@ Changelog
 
 **New features:**
 
-- Added :meth:`aic`, :meth:`aicc` and :meth:`bic` attributes to the :class:`~glum.GeneralizedLinearRegressor`. 
-  These attributes provide the information criteria based on the training data and the effective degrees of freedom 
+- Added :meth:`aic`, :meth:`aicc` and :meth:`bic` attributes to the :class:`~glum.GeneralizedLinearRegressor`.
+  These attributes provide the information criteria based on the training data and the effective degrees of freedom
   of the maximum likelihood estimate for the model's parameters.
 - :meth:`~glum.GeneralizedLinearRegressor.std_errors` and :meth:`~glum.GeneralizedLinearRegressor.covariance_matrix`
   of :class:`~glum.GeneralizedLinearRegressor` now accept data frames with categorical data.

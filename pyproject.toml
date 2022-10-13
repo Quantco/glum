@@ -45,3 +45,12 @@ CC="/usr/local/opt/llvm/bin/clang"
 
 [tool.cibuildwheel.windows.environment]
 SETUPTOOLS_USE_DISTUTILS="stdlib"
+
+[tool.pytest.ini_options]
+# Filters are standard python warning filters as described here:
+# https://docs.python.org/3/library/warnings.html#the-warnings-filter
+filterwarnings = [
+    "ignore:.*distutils.*:DeprecationWarning:.*",
+    "ignore:.*distutils.*:UserWarning:.*",
+    "ignore:.*The 'u' format is deprecated.*:DeprecationWarning:pywintypes",
+]
