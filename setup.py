@@ -78,9 +78,7 @@ setup(
         "numpy",
         "pandas",
         "scikit-learn>=0.23",
-        "scipy<=1.7.3;platform_machine=='i868'",
-        "scipy<=1.7.3;platform_machine=='win32'",
-        "scipy;platform_machine!='i868' and platform_machine!='win32'",
+        "scipy",
         "tabmat>=3.1.0",
     ],
     entry_points=None
