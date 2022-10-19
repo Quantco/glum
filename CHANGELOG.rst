@@ -16,6 +16,11 @@ Changelog
   :class:`~glum.GeneralizedLinearRegressor` and :class:`~glum.GeneralizedLinearRegressorCV`
   to ``'tweedie'``.
 
+**Bug fixes:**
+
+- Setting bounds for constant columns was not working (bounds were internally modified to 0).
+  A similar issue was preventing inequalities from working with constant columns. This is now fixed.
+
 2.1.2 - 2022-07-01
 ------------------
 
