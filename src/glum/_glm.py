@@ -327,17 +327,17 @@ def _standardize(
     X, col_means, col_stds = X.standardize(sample_weight, center_predictors, True)
 
     if col_stds is not None:
+        penalty_mult = _one_over_var_inf_to_val(col_stds, 1.0)
         # We copy the bounds when multiplying here so the we avoid
         # side effects.
         if lower_bounds is not None:
-            lower_bounds = lower_bounds * col_stds
+            lower_bounds = lower_bounds / penalty_mult
         if upper_bounds is not None:
-            upper_bounds = upper_bounds * col_stds
+            upper_bounds = upper_bounds / penalty_mult
         if A_ineq is not None:
-            A_ineq = A_ineq / col_stds
+            A_ineq = A_ineq * penalty_mult
 
     if not estimate_as_if_scaled_model and col_stds is not None:
-        penalty_mult = _one_over_var_inf_to_val(col_stds, 1.0)
         P1 *= penalty_mult
         if sparse.issparse(P2):
             inv_col_stds_mat = sparse.diags(penalty_mult)
@@ -846,8 +846,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         """
         Delete attributes that were only needed for the fit method.
         """
-        del self._center_predictors
-        del self._solver
         del self._random_state
 
     def _get_alpha_path(
