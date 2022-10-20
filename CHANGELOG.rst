@@ -16,6 +16,10 @@ Changelog
   :class:`~glum.GeneralizedLinearRegressor` and :class:`~glum.GeneralizedLinearRegressorCV`
   to ``'tweedie'``.
 
+**Other changes:**
+
+- No more builds for 32-bit systems with python >= 3.8. This is due to scipy not supporting it anymore.
+
 2.1.2 - 2022-07-01
 ------------------
 
