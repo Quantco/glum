@@ -131,7 +131,11 @@ def simulate_glm_data(
     link_inst = get_link(link=link, family=get_family("poisson"))
     family_rv = _get_family_rv(family, rand)
 
-    y = family_rv(link_inst.inverse(intercept + X.values @ coefs.values))
+    y = family_rv(
+        link_inst.inverse(
+            intercept + X.to_numpy(dtype=float) @ coefs.to_numpy(dtype=float)
+        )
+    )
 
     weights = rand.uniform(size=n_rows)
     offset = np.log(rand.uniform(size=n_rows))

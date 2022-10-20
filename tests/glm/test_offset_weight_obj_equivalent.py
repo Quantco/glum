@@ -52,7 +52,7 @@ def test_offset_solution_matches_weights_solution(
     np.random.seed(0)
     coefs = np.zeros(dat["X"].shape[1] + 1)
     coefs[1:] = np.random.normal(0, 0.01 / dat["X"].std(0))
-    eta = dat["X"].dot(coefs[1:]) + dat["offset"]
+    eta = dat["X"].to_numpy(dtype=float).dot(coefs[1:]) + dat["offset"]
     coefs[0] = np.log(dat["y"].mean() / np.exp(eta).mean())
 
     eps = 1e-7

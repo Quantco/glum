@@ -1827,7 +1827,7 @@ def test_dataframe_std_errors(regression_data, categorical, split, fit_intercept
         alpha=0, family="normal", fit_intercept=fit_intercept
     )
     mdl.fit(X=X, y=y)
-    X_sm = pd.get_dummies(X)
+    X_sm = pd.get_dummies(X).to_numpy(dtype=float)
     if fit_intercept:
         mdl_sm = sm.OLS(endog=y, exog=sm.add_constant(X_sm))
     else:
