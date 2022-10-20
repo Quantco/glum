@@ -16,6 +16,11 @@ Changelog
   :class:`~glum.GeneralizedLinearRegressor` and :class:`~glum.GeneralizedLinearRegressorCV`
   to ``'tweedie'``.
 
+**Bug fixes:**
+
+- Setting bounds for constant columns was not working (bounds were internally modified to 0).
+  A similar issue was preventing inequalities from working with constant columns. This is now fixed.
+
 **Other changes:**
 
 - No more builds for 32-bit systems with python >= 3.8. This is due to scipy not supporting it anymore.
