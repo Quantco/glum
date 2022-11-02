@@ -6,7 +6,6 @@ on:
     paths:
     - '.github/workflows/daily.yml'
     - '.github/workflows/test.sh'
-    - '*'
 
 jobs:
   linux-daily-unittests:
