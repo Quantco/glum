@@ -1657,7 +1657,7 @@ def test_categorical_types(k, n):
     pred_cat = model_cat.predict(X_cat)
 
     # use one-hot encoding
-    X_oh = pd.get_dummies(X_cat)
+    X_oh = pd.get_dummies(X_cat, dtype=float)
     model_oh = GeneralizedLinearRegressor(family="poisson").fit(X_oh, y)
     pred_oh = model_oh.predict(X_oh)
 
@@ -1827,7 +1827,7 @@ def test_dataframe_std_errors(regression_data, categorical, split, fit_intercept
         alpha=0, family="normal", fit_intercept=fit_intercept
     )
     mdl.fit(X=X, y=y)
-    X_sm = pd.get_dummies(X).to_numpy(dtype=float)
+    X_sm = pd.get_dummies(X, dtype=float)
     if fit_intercept:
         mdl_sm = sm.OLS(endog=y, exog=sm.add_constant(X_sm))
     else:

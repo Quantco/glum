@@ -116,7 +116,9 @@ def simulate_glm_data(
         np.arange(categorical_levels), size=(n_rows, categorical_features)
     )
     X_cat = pd.DataFrame(data=fixed_effects, columns=cat_feature_names)
-    X_cat_ohe = pd.get_dummies(X_cat, columns=cat_feature_names, drop_first=drop_first)
+    X_cat_ohe = pd.get_dummies(
+        X_cat, columns=cat_feature_names, drop_first=drop_first, dtype=float
+    )
 
     coefs_cat = pd.Series(
         data=rand.uniform(size=len(X_cat_ohe.columns)), index=X_cat_ohe.columns
@@ -131,11 +133,7 @@ def simulate_glm_data(
     link_inst = get_link(link=link, family=get_family("poisson"))
     family_rv = _get_family_rv(family, rand)
 
-    y = family_rv(
-        link_inst.inverse(
-            intercept + X.to_numpy(dtype=float) @ coefs.to_numpy(dtype=float)
-        )
-    )
+    y = family_rv(link_inst.inverse(intercept + X.to_numpy() @ coefs.to_numpy()))
 
     weights = rand.uniform(size=n_rows)
     offset = np.log(rand.uniform(size=n_rows))
