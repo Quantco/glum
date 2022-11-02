@@ -97,6 +97,8 @@ def get_obj_val(
     offset = dat.get("offset")
     if isinstance(dat["X"], tm.MatrixBase):
         X_dot_coef = dat["X"].matvec(coefs)
+    elif isinstance(dat["X"], pd.DataFrame):
+        X_dot_coef = dat["X"].to_numpy(dtype=float).dot(coefs)
     else:
         X_dot_coef = dat["X"].dot(coefs)
     X_dot_coef += intercept
