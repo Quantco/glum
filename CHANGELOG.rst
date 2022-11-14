@@ -8,11 +8,26 @@ Changelog
 =========
 
 UNRELEASED
-------------------
+----------
 
 **New features:**
 
 - Add an argument to GeneralizedLinearRegressorBase to drop the first category in a Categorical column using [implementation in tabmat](https://github.com/Quantco/tabmat/pull/168)
+
+**New feature**
+
+- One may now request the Tweedie loss by setting the ``'family'`` parameter of
+  :class:`~glum.GeneralizedLinearRegressor` and :class:`~glum.GeneralizedLinearRegressorCV`
+  to ``'tweedie'``.
+
+**Bug fixes:**
+
+- Setting bounds for constant columns was not working (bounds were internally modified to 0).
+  A similar issue was preventing inequalities from working with constant columns. This is now fixed.
+
+**Other changes:**
+
+- No more builds for 32-bit systems with python >= 3.8. This is due to scipy not supporting it anymore.
 
 2.1.2 - 2022-07-01
 ------------------
@@ -33,8 +48,8 @@ UNRELEASED
 
 **New features:**
 
-- Added :meth:`aic`, :meth:`aicc` and :meth:`bic` attributes to the :class:`~glum.GeneralizedLinearRegressor`. 
-  These attributes provide the information criteria based on the training data and the effective degrees of freedom 
+- Added :meth:`aic`, :meth:`aicc` and :meth:`bic` attributes to the :class:`~glum.GeneralizedLinearRegressor`.
+  These attributes provide the information criteria based on the training data and the effective degrees of freedom
   of the maximum likelihood estimate for the model's parameters.
 - :meth:`~glum.GeneralizedLinearRegressor.std_errors` and :meth:`~glum.GeneralizedLinearRegressor.covariance_matrix`
   of :class:`~glum.GeneralizedLinearRegressor` now accept data frames with categorical data.

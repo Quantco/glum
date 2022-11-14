@@ -17,6 +17,7 @@ some parts and tricks stolen from other sklearn files.
 from __future__ import division
 
 import copy
+import re
 import sys
 import warnings
 from collections.abc import Iterable
@@ -343,25 +344,25 @@ def _standardize(
     X, col_means, col_stds = X.standardize(sample_weight, center_predictors, True)
 
     if col_stds is not None:
+        inv_col_stds = _one_over_var_inf_to_val(col_stds, 1.0)
         # We copy the bounds when multiplying here so the we avoid
         # side effects.
         if lower_bounds is not None:
-            lower_bounds = lower_bounds * col_stds
+            lower_bounds = lower_bounds / inv_col_stds
         if upper_bounds is not None:
-            upper_bounds = upper_bounds * col_stds
+            upper_bounds = upper_bounds / inv_col_stds
         if A_ineq is not None:
-            A_ineq = A_ineq / col_stds
+            A_ineq = A_ineq * inv_col_stds
 
     if not estimate_as_if_scaled_model and col_stds is not None:
-        penalty_mult = _one_over_var_inf_to_val(col_stds, 1.0)
-        P1 *= penalty_mult
+        P1 *= inv_col_stds
         if sparse.issparse(P2):
-            inv_col_stds_mat = sparse.diags(penalty_mult)
+            inv_col_stds_mat = sparse.diags(inv_col_stds)
             P2 = inv_col_stds_mat @ P2 @ inv_col_stds_mat
         elif P2.ndim == 1:
-            P2 *= penalty_mult**2
+            P2 *= inv_col_stds**2
         else:
-            P2 = (penalty_mult[:, None] * P2) * penalty_mult[None, :]
+            P2 = (inv_col_stds[:, None] * P2) * inv_col_stds[None, :]
 
     return X, col_means, col_stds, lower_bounds, upper_bounds, A_ineq, P1, P2
 
@@ -413,16 +414,22 @@ def get_family(
         return family
 
     name_to_dist = {
-        "binomial": BinomialDistribution,
-        "gamma": GammaDistribution,
-        "gaussian": NormalDistribution,
-        "inverse.gaussian": InverseGaussianDistribution,
-        "normal": NormalDistribution,
-        "poisson": PoissonDistribution,
+        "binomial": BinomialDistribution(),
+        "gamma": GammaDistribution(),
+        "gaussian": NormalDistribution(),
+        "inverse.gaussian": InverseGaussianDistribution(),
+        "normal": NormalDistribution(),
+        "poisson": PoissonDistribution(),
+        "tweedie": TweedieDistribution(1.5),
     }
 
     if family in name_to_dist:
-        return name_to_dist[family]()  # type: ignore
+        return name_to_dist[family]
+
+    custom_tweedie = re.search(r"tweedie \((.+)\)", family)
+
+    if custom_tweedie:
+        return TweedieDistribution(float(custom_tweedie.group(1)))
 
     raise ValueError(
         "The family must be an instance of class ExponentialDispersionModel or an "
@@ -858,8 +865,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         """
         Delete attributes that were only needed for the fit method.
         """
-        del self._center_predictors
-        del self._solver
         del self._random_state
 
     def _get_alpha_path(
@@ -1941,10 +1946,13 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         Specifies if a constant (a.k.a. bias or intercept) should be
         added to the linear predictor (``X * coef + intercept``).
 
-    family : {'normal', 'poisson', 'gamma', 'gaussian', 'inverse.gaussian', \
-            'binomial'} or ExponentialDispersionModel, optional (default='normal')
-        The distributional assumption of the GLM, i.e. which distribution from
-        the EDM, specifies the loss function to be minimized.
+    family : str or ExponentialDispersionModel, optional (default='normal')
+        The distributional assumption of the GLM, i.e. the loss function to
+        minimize. If a string, one of: ``'binomial'``, ``'gamma'``,
+        ``'gaussian'``, ``'inverse.gaussian'``, ``'normal'``, ``'poisson'`` or
+        ``'tweedie'``. Note that ``'tweedie'`` sets the power of the Tweedie
+        distribution to 1.5; to use another value, specify it in parentheses
+        (e.g., ``'tweedie (1.5)'``).
 
     link : {'auto', 'identity', 'log', 'logit'} or Link, optional (default='auto')
         The link function of the GLM, i.e. mapping from linear predictor
