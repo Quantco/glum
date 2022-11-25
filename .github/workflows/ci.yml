@@ -47,7 +47,7 @@ jobs:
       fail-fast: true
       matrix:
         CONDA_BUILD_YML:
-          - linux_64_numpy1.20python3.8.____cpython.yaml
+          - linux_64_numpy1.20python3.8.____cpython
     steps:
       - name: Pull image
         run: docker pull condaforge/mambaforge:latest
