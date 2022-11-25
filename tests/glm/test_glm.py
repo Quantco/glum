@@ -1942,3 +1942,40 @@ def test_information_criteria_raises_correct_warnings_and_errors(regression_data
     y_not_train = np.ones(10)
     with pytest.raises(Exception):
         regressor.aic(X_not_train, y_not_train)
+
+
+def test_drop_first_allows_alpha_equals_0():
+    rng = np.random.default_rng(42)
+    y = np.random.normal(size=10)
+    X = pd.DataFrame(data={"cat": pd.Categorical(rng.integers(2, size=10))})
+    regressor = GeneralizedLinearRegressor(alpha=0, drop_first=True)
+    regressor.fit(X, y)
+
+    regressor = GeneralizedLinearRegressor(alpha=0)  # default is False
+    with pytest.raises(np.linalg.LinAlgError):
+        regressor.fit(X, y)
+
+
+def test_error_on_distinct_categorical_column():
+    y = np.random.normal(size=10)
+    X = pd.DataFrame(data={"cat": pd.Categorical(np.ones(10))})
+    regressor = GeneralizedLinearRegressor(alpha=0, drop_first=True)
+    with pytest.raises(ValueError):
+        regressor.fit(X, y)
+
+    regressor = GeneralizedLinearRegressor(alpha=0)
+    regressor.fit(X, y)
+
+
+def test_P1_P2_with_drop_first():
+    rng = np.random.default_rng(42)
+    y = np.random.normal(size=50)
+    X = pd.DataFrame(data={"cat": pd.Categorical(rng.integers(2, size=50))})
+    P_2 = np.ones(1)
+    P_1 = np.ones(1)
+    regressor = GeneralizedLinearRegressor(
+        alpha=0.1, l1_ratio=0.5, P1=P_1, P2=P_2, drop_first=True
+    )
+    regressor.fit(X, y)
+    regressor = GeneralizedLinearRegressor(alpha=0.1, l1_ratio=0.5, P1=P_1, P2=P_2)
+    regressor.fit(X, y)
