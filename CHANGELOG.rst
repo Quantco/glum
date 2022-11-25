@@ -10,6 +10,13 @@ Changelog
 UNRELEASED
 ----------
 
+2.2.1 - 2022-11-25
+------------------
+
+**Other changes:**
+
+- Fixing pypi upload issue. Version 2.2.0 will not be available through the standard distribution channels.
+
 2.2.0 - 2022-11-25
 ------------------
 
