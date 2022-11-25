@@ -26,7 +26,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        PYTHON_VERSION: ['3.7', '3.8', '3.9', '3.10']
+        PYTHON_VERSION: ['3.8', '3.9', '3.10', '3.11']
     steps:
      - name: Pull image
        run: docker pull condaforge/mambaforge:latest
@@ -47,7 +47,7 @@ jobs:
       fail-fast: true
       matrix:
         CONDA_BUILD_YML:
-          - linux_64_python3.7_default.____cpython
+          - linux_64_numpy1.20python3.8.____cpython.yaml
     steps:
       - name: Pull image
         run: docker pull condaforge/mambaforge:latest
