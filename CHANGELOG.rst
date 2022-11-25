@@ -10,12 +10,12 @@ Changelog
 UNRELEASED
 ----------
 
+2.2.0 - 2022-11-25
+------------------
+
 **New features:**
 
 - Add an argument to GeneralizedLinearRegressorBase to drop the first category in a Categorical column using [implementation in tabmat](https://github.com/Quantco/tabmat/pull/168)
-
-**New feature**
-
 - One may now request the Tweedie loss by setting the ``'family'`` parameter of
   :class:`~glum.GeneralizedLinearRegressor` and :class:`~glum.GeneralizedLinearRegressorCV`
   to ``'tweedie'``.
