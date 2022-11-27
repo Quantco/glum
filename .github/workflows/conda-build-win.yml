@@ -27,11 +27,10 @@ jobs:
       - uses: conda-incubator/setup-miniconda@3b0f2504dd76ef23b6d31f291f4913fb60ab5ff3
         with:
           miniforge-variant: Mambaforge
-          miniforge-version: 4.10.0-0
+          miniforge-version: 4.14.0-2
           use-mamba: true
       - name: Build conda package
         shell: pwsh
         run: |
-          mamba install -n base -y conda-build
-          conda build -m .ci_support/${{ matrix.CONDA_BUILD_YML}}.yaml conda.recipe
-
+          mamba install -n base -y boa
+          conda mambabuild -m .ci_support/${{ matrix.CONDA_BUILD_YML}}.yaml conda.recipe
