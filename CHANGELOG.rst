@@ -10,6 +10,11 @@ Changelog
 UNRELEASED
 ----------
 
+**Bug fixes:**
+
+- A dataframe with dense and sparse columns was transformed to a dense matrix instead of a split matrix by :meth:`~glum.GeneralizedLinearRegressor._set_up_and_check_fit_args`.
+  Fixed by calling ``tabmat.from_pandas`` on any dataframe.
+
 2.2.1 - 2022-11-25
 ------------------
 
