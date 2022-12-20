@@ -15,9 +15,10 @@ jobs:
       fail-fast: false
       matrix:
         CONDA_BUILD_YML:
-          - osx_64_python3.7_skylake.____cpython
-          - osx_arm64_python3.9.____cpython
-          - osx_arm64_python3.10.____cpython
+          - osx_64_numpy1.20python3.9.____cpython
+          - osx_64_numpy1.23python3.11.____cpython
+          - osx_arm64_numpy1.20python3.8.____cpython
+          - osx_arm64_numpy1.21python3.10.____cpython
     steps:
       - name: Checkout branch
         uses: actions/checkout@v3

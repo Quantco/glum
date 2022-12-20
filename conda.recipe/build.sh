@@ -12,4 +12,4 @@ if [[ "${GLM_ARCHITECTURE}" != "default" ]]; then
   fi
 fi
 
-python -m pip install . --no-deps --ignore-installed -vv --no-use-pep517 --disable-pip-version-check
+python -m pip install . -vv

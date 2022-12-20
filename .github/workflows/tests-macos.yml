@@ -1,4 +1,4 @@
-name: CI
+name: CI - macOS
 on:
   push:
     paths:
@@ -16,7 +16,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        PYTHON_VERSION: ['3.7']
+        PYTHON_VERSION: ['3.10']
     steps:
       - name: Checkout branch
         uses: actions/checkout@v3
