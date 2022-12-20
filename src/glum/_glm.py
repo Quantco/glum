@@ -1788,6 +1788,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 X = tm.from_pandas(X, drop_first=self.drop_first)
             else:
                 self.feature_names_ = X.columns
+                X = tm.from_pandas(X)
 
         if not self._is_contiguous(X):
             if self.copy_X is not None and not self.copy_X:
