@@ -1919,9 +1919,9 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         combination of L1 and L2.
 
     P1 : {'identity', array-like}, shape (n_features,), optional (default='identity')
-        With this array, you can exclude coefficients from the L1 penalty.
-        Set the corresponding value to 1 (include) or 0 (exclude). The
-        default value ``'identity'`` is the same as a 1d array of ones.
+        This array controls the strength of the regularization for each coefficient
+        independently. A high value will lead to higher regularization while a value of
+        zero will remove the regularization on this parameter.
         Note that ``n_features = X.shape[1]``. If ``X`` is a pandas DataFrame
         with a categorical dtype and P1 has the same size as the number of columns,
         the penalty of the categorical column will be applied to all the levels of
