@@ -84,6 +84,7 @@ def test_tweedie_distribution_parsing():
 def test_equality():
     assert TweedieDistribution(1) == TweedieDistribution(1)
     assert TweedieDistribution(1) == PoissonDistribution()
+    assert TweedieDistribution(2) == GammaDistribution()
     assert PoissonDistribution() == PoissonDistribution()
     assert TweedieDistribution(1) != TweedieDistribution(1.5)
     assert TweedieDistribution(1) != BinomialDistribution()
