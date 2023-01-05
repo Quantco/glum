@@ -1,5 +1,3 @@
-from typing import Union
-
 import numpy as np
 import pytest
 import scipy as sp
@@ -31,9 +29,7 @@ from glum._util import _safe_sandwich_dot
         (TweedieDistribution(power=1.5), 0),
     ],
 )
-def test_lower_bounds(
-    distribution: ExponentialDispersionModel, expected: Union[float, int]
-):
+def test_lower_bounds(distribution: ExponentialDispersionModel, expected: float):
     assert distribution.lower_bound == expected
 
 
@@ -85,6 +81,15 @@ def test_tweedie_distribution_parsing():
         get_family("tweedie (a)")
 
 
+def test_equality():
+    assert TweedieDistribution(1) == TweedieDistribution(1)
+    assert TweedieDistribution(1) == PoissonDistribution()
+    assert PoissonDistribution() == PoissonDistribution()
+    assert TweedieDistribution(1) != TweedieDistribution(1.5)
+    assert TweedieDistribution(1) != BinomialDistribution()
+    assert BinomialDistribution() == BinomialDistribution()
+
+
 @pytest.mark.parametrize(
     "family, chk_values",
     [
@@ -122,14 +127,17 @@ def test_deviance_zero(family, chk_values):
     ids=lambda args: args.__class__.__name__,
 )
 def test_gradients(family, link):
+
     np.random.seed(1001)
+
+    nrows = 100
+    ncols = 10
+    X = np.random.rand(nrows, ncols)
+    coef = np.random.rand(ncols)
+    y = np.random.rand(nrows)
+    sample_weight = np.ones(nrows)
+
     for _ in range(5):
-        nrows = 100
-        ncols = 10
-        X = np.random.rand(nrows, ncols)
-        coef = np.random.rand(ncols)
-        y = np.random.rand(nrows)
-        sample_weight = np.ones(nrows)
 
         eta, mu, _ = family.eta_mu_deviance(
             link, 1.0, np.zeros(nrows), X.dot(coef), y, sample_weight
@@ -227,7 +235,7 @@ def test_hessian_matrix(family, link, true_hessian):
                 mu=this_mu,
             )
             score = gradient_rows @ X
-            return -score[i]
+            return -score[i]  # noqa B023
 
         approx = np.vstack(
             [approx, sp.optimize.approx_fprime(xk=coef, f=f, epsilon=1e-5)]

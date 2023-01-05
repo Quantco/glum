@@ -39,10 +39,10 @@ def load_data(
         [Optional[int], Optional[float], Optional[str]],
         Tuple[pd.DataFrame, np.ndarray, np.ndarray],
     ],
-    num_rows: int = None,
+    num_rows: Optional[int] = None,
     storage: str = "dense",
     single_precision: bool = False,
-    noise: float = None,
+    noise: Optional[float] = None,
     distribution: str = "poisson",
     data_setup: str = "weights",
 ) -> Dict[str, np.ndarray]:

@@ -199,7 +199,9 @@ def runtime_checker():
             copy_X=False,
             force_all_finite=False,
         )
-        min_runtime, result = runtime(lambda: model.fit(X=dat["X"], y=dat["y"]), 5)
+        min_runtime, result = runtime(
+            lambda: model.fit(X=dat["X"], y=dat["y"]), 5  # noqa B023
+        )
 
         # Let's just guess that we're about half flop-limited and half
         # memory-limited.  This is a decent guess because the sandwich product is

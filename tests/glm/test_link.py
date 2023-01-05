@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from glum._link import Link, LogitLink
+from glum._link import Link, LogitLink, LogLink, TweedieLink
 
 
 @pytest.mark.parametrize("link", Link.__subclasses__())
@@ -27,3 +27,12 @@ def test_link_properties(link):
     )
 
     assert link.inverse_derivative2(x).shape == link.inverse_derivative(x).shape
+
+
+def test_equality():
+    assert TweedieLink(1.5) == TweedieLink(1.5)
+    assert TweedieLink(1) == LogLink()
+    assert LogLink() == LogLink()
+    assert TweedieLink(1.5) != TweedieLink(2.5)
+    assert TweedieLink(1.5) != LogitLink()
+    assert LogitLink() == LogitLink()
