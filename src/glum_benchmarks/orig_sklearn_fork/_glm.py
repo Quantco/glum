@@ -37,6 +37,8 @@ Generalized Linear Models with Exponential Dispersion Family
 # - The intercept term is the first index, i.e. coef[0]
 
 
+from __future__ import division
+
 import numbers
 import warnings
 from abc import ABCMeta, abstractmethod
@@ -844,28 +846,28 @@ class NormalDistribution(TweedieDistribution):
     """Class for the Normal (aka Gaussian) distribution"""
 
     def __init__(self):
-        super().__init__(power=0)
+        super(NormalDistribution, self).__init__(power=0)
 
 
 class PoissonDistribution(TweedieDistribution):
     """Class for the scaled Poisson distribution"""
 
     def __init__(self):
-        super().__init__(power=1)
+        super(PoissonDistribution, self).__init__(power=1)
 
 
 class GammaDistribution(TweedieDistribution):
     """Class for the Gamma distribution"""
 
     def __init__(self):
-        super().__init__(power=2)
+        super(GammaDistribution, self).__init__(power=2)
 
 
 class InverseGaussianDistribution(TweedieDistribution):
     """Class for the scaled InverseGaussianDistribution distribution"""
 
     def __init__(self):
-        super().__init__(power=3)
+        super(InverseGaussianDistribution, self).__init__(power=3)
 
 
 class GeneralizedHyperbolicSecant(ExponentialDispersionModel):

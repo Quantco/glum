@@ -2,7 +2,7 @@
 [flake8]
 ignore =
     B905,
-    # ignore temporarily https://github.com/adamchainz/flake8-comprehensions/pull/282
+    # allow calling dict() instead of the literal {} for readability
     C408,
     E203,
     # too many leading # for block comments

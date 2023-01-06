@@ -612,7 +612,7 @@ class TweedieDistribution(ExponentialDispersionModel):
         self.power = power
 
     def __eq__(self, other):  # noqa D
-        return isinstance(other, self.__class__) and (self.power == other.power)
+        return isinstance(other, TweedieDistribution) and (self.power == other.power)
 
     @property
     def lower_bound(self) -> float:
@@ -865,18 +865,12 @@ class NormalDistribution(TweedieDistribution):
     def __init__(self):
         super().__init__(power=0)
 
-    def __eq__(self, other):  # noqa D
-        return isinstance(other, TweedieDistribution) and (self.power == other.power)
-
 
 class PoissonDistribution(TweedieDistribution):
     """Class for the scaled Poisson distribution."""
 
     def __init__(self):
         super().__init__(power=1)
-
-    def __eq__(self, other):  # noqa D
-        return isinstance(other, TweedieDistribution) and (self.power == other.power)
 
 
 class GammaDistribution(TweedieDistribution):
@@ -885,18 +879,12 @@ class GammaDistribution(TweedieDistribution):
     def __init__(self):
         super().__init__(power=2)
 
-    def __eq__(self, other):  # noqa D
-        return isinstance(other, TweedieDistribution) and (self.power == other.power)
-
 
 class InverseGaussianDistribution(TweedieDistribution):
     """Class for the scaled Inverse Gaussian distribution."""
 
     def __init__(self):
         super().__init__(power=3)
-
-    def __eq__(self, other):  # noqa D
-        return isinstance(other, TweedieDistribution) and (self.power == other.power)
 
 
 class GeneralizedHyperbolicSecant(ExponentialDispersionModel):

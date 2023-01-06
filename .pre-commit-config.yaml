@@ -40,3 +40,4 @@ repos:
    rev: 3.3.1
    hooks:
     - id: pyupgrade-conda
+      exclude: ^src/glum_benchmarks/orig_sklearn_fork/
