@@ -14,7 +14,6 @@ some parts and tricks stolen from other sklearn files.
 
 # License: BSD 3 clause
 
-from __future__ import division
 
 import copy
 import re
@@ -170,13 +169,13 @@ def _check_weights(
         dtype=[np.float64, np.float32],
     )
 
-    if sample_weight.ndim > 1:
+    if sample_weight.ndim > 1:  # type: ignore
         raise ValueError("Sample weights must be 1D array or scalar.")
-    if sample_weight.shape[0] != n_samples:
+    if sample_weight.shape[0] != n_samples:  # type: ignore
         raise ValueError("Sample weights must have the same length as y.")
-    if np.any(sample_weight < 0):
+    if np.any(sample_weight < 0):  # type: ignore
         raise ValueError("Sample weights must be non-negative.")
-    if np.sum(sample_weight) == 0:
+    if np.sum(sample_weight) == 0:  # type: ignore
         raise ValueError("Sample weights must have at least one positive element.")
 
     return sample_weight
@@ -204,9 +203,9 @@ def _check_offset(
 
     offset = cast(np.ndarray, offset)
 
-    if offset.ndim > 1:
+    if offset.ndim > 1:  # type: ignore
         raise ValueError("Offsets must be 1D array or scalar.")
-    if offset.shape[0] != n_rows:
+    if offset.shape[0] != n_rows:  # type: ignore
         raise ValueError("Offsets must have the same length as y.")
 
     return offset
@@ -245,9 +244,9 @@ def check_bounds(
 
     bounds = cast(np.ndarray, bounds)
 
-    if bounds.ndim > 1:
+    if bounds.ndim > 1:  # type: ignore
         raise ValueError("Bounds must be 1D array or scalar.")
-    if bounds.shape[0] != n_features:
+    if bounds.shape[0] != n_features:  # type: ignore
         raise ValueError("Bounds must be the same length as X.shape[1].")
 
     return bounds
@@ -500,11 +499,11 @@ def setup_p1(
         P1 = np.atleast_1d(P1)
         try:
             P1 = P1.astype(_dtype, casting="safe", copy=False)
-        except TypeError:
+        except TypeError as e:
             raise TypeError(
                 "The given P1 cannot be converted to a numeric array; "
                 f"got (P1.dtype={P1.dtype})."
-            )
+            ) from e
         if (P1.ndim != 1) or (P1.shape[0] != n_features):
             raise ValueError(
                 "P1 must be either 'identity' or a 1d array with the length of "

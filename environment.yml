@@ -28,7 +28,7 @@ dependencies:
   - pytest
   - pytest-xdist
   - setuptools_scm
-  
+
   # build tools
   - c-compiler
   - cxx-compiler

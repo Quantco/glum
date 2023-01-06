@@ -131,7 +131,7 @@ def get_obj_val(
 
 
 def exposure_and_offset_to_weights(
-    power: Union[float, int],
+    power: float,
     y: np.ndarray,
     exposure: np.ndarray = None,
     sample_weight: np.ndarray = None,
@@ -418,7 +418,7 @@ def clear_cache(force=False):
         shutil.rmtree(cache_location)
 
 
-def get_tweedie_p(distribution: str) -> Union[float, int]:
+def get_tweedie_p(distribution: str) -> float:
     """
     Extract the "p" parameter of the Tweedie distribution from the string name of the \
     distribution.

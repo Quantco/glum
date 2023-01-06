@@ -88,11 +88,13 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         pass
 
     @property
+    @abstractmethod
     def include_lower_bound(self) -> bool:
         """Return whether ``lower_bound`` is allowed as a value of ``y``."""
         pass
 
     @property
+    @abstractmethod
     def include_upper_bound(self) -> bool:
         """Return whether ``upper_bound`` is allowed as a value of ``y``."""
         pass
@@ -609,8 +611,11 @@ class TweedieDistribution(ExponentialDispersionModel):
         # validate power and set _upper_bound, _include_upper_bound attrs
         self.power = power
 
+    def __eq__(self, other):  # noqa D
+        return isinstance(other, TweedieDistribution) and (self.power == other.power)
+
     @property
-    def lower_bound(self) -> Union[float, int]:
+    def lower_bound(self) -> float:
         """Return the lowest value of ``y`` allowed."""
         if self.power <= 0:
             return -np.Inf
@@ -893,6 +898,9 @@ class GeneralizedHyperbolicSecant(ExponentialDispersionModel):
     include_lower_bound = False
     include_upper_bound = False
 
+    def __eq__(self, other):  # noqa D
+        return isinstance(other, self.__class__)
+
     def unit_variance(self, mu: np.ndarray) -> np.ndarray:
         """Get the unit-level expected variance.
 
@@ -953,8 +961,8 @@ class BinomialDistribution(ExponentialDispersionModel):
     include_lower_bound = True
     include_upper_bound = True
 
-    def __init__(self):
-        return
+    def __eq__(self, other):  # noqa D
+        return isinstance(other, self.__class__)
 
     def unit_variance(self, mu: np.ndarray) -> np.ndarray:
         """Get the unit-level expected variance.

@@ -1,33 +1,33 @@
 repos:
  - repo: https://github.com/Quantco/pre-commit-mirrors-black
-   rev: 22.3.0
+   rev: 22.10.0
    hooks:
      - id: black-conda
        args:
          - --safe
          - --target-version=py37
  - repo: https://github.com/Quantco/pre-commit-mirrors-flake8
-   rev: v3.9.2
+   rev: 6.0.0
    hooks:
     - id: flake8-conda
       additional_dependencies: [
           -c,
           conda-forge,
-          flake8-bugbear=21.4.3,
-          flake8-builtins=1.5.3,
-          flake8-comprehensions=3.5.0,
+          flake8-bugbear=22.12.6,
+          flake8-builtins=2.1.0,
+          flake8-comprehensions=3.10.1,
           flake8-docstrings=1.6.0,
-          flake8-print=4.0.0,
-          pep8-naming=0.11.1,
+          flake8-print=5.0.0,
+          pep8-naming=0.13.3,
         ]
-      exclude: ^src/glum_benchmarks/orig_sklearn_fork/
+      exclude: (^src/glum_benchmarks/orig_sklearn_fork/|^docs)
  - repo: https://github.com/Quantco/pre-commit-mirrors-isort
-   rev: 5.10.1
+   rev: 5.11.4
    hooks:
     - id: isort-conda
       additional_dependencies: [toml]
  - repo: https://github.com/Quantco/pre-commit-mirrors-mypy
-   rev: "0.942"
+   rev: "0.991"
    hooks:
     - id: mypy-conda
       args:
@@ -37,7 +37,7 @@ repos:
       exclude: ^tests/
       additional_dependencies: [-c, conda-forge, types-setuptools, attrs]
  - repo: https://github.com/Quantco/pre-commit-mirrors-pyupgrade
-   rev: 2.31.1
+   rev: 3.3.1
    hooks:
     - id: pyupgrade-conda
-
+      exclude: ^src/glum_benchmarks/orig_sklearn_fork/

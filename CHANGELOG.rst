@@ -7,13 +7,32 @@
 Changelog
 =========
 
-UNRELEASED
-----------
+2.3.0 - 2023-01-06
+------------------
 
 **Bug fixes:**
 
-- A dataframe with dense and sparse columns was transformed to a dense matrix instead of a split matrix by :meth:`~glum.GeneralizedLinearRegressor._set_up_and_check_fit_args`.
-  Fixed by calling ``tabmat.from_pandas`` on any dataframe.
+- A data frame with dense and sparse columns was transformed to a dense matrix instead of a split matrix by :meth:`~glum.GeneralizedLinearRegressor._set_up_and_check_fit_args`.
+  Fixed by calling ``tabmat.from_pandas`` on any data frame.
+
+**New features:**
+
+- The following classes and functions have been made public:
+  :class:`glum._distribution.BinomialDistribution`,
+  :class:`glum._distribution.ExponentialDispersionModel`,
+  :class:`glum._distribution.GammaDistribution`,
+  :class:`glum._distribution.GeneralizedHyperbolicSecant`,
+  :class:`glum._distribution.InverseGaussianDistribution`,
+  :class:`glum._distribution.NormalDistribution`,
+  :class:`glum._distribution.PoissonDistribution`,
+  :class:`glum._link.IdentityLink`,
+  :class:`glum._link.Link`,
+  :class:`glum._link.LogLink`,
+  :class:`glum._link.TweedieLink`,
+  :func:`glum._glm.get_family` and
+  :func:`glum._glm.get_link`.
+- The distribution and link classes now feature a more lenient equality check instead of the default identity check,
+  so that, e.g., ``TweedieDistribution(1) == TweedieDistribution(1)`` now returns ``True``.
 
 2.2.1 - 2022-11-25
 ------------------

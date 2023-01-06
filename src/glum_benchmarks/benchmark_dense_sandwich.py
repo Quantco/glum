@@ -50,7 +50,7 @@ def _mn_run(m, n, iter, dtype):
         "_dense_sandwichF",
     ]
     for name in to_run:
-        ts, result = _bench(lambda: globals()[name](X, d), iter)
+        ts, result = _bench(lambda: globals()[name](X, d), iter)  # noqa B023
         if name == "numpy_mklC":
             true = result
         elif "numpy_mklC" in to_run:
@@ -116,7 +116,12 @@ def main2():
                         np.min(
                             _bench(
                                 lambda: dense_sandwich(
-                                    X, d, thresh1d, parlevel, kratio, innerblock
+                                    X,  # noqa B023
+                                    d,  # noqa B023
+                                    thresh1d,  # noqa B023
+                                    parlevel,  # noqa B023
+                                    kratio,  # noqa B023
+                                    innerblock,  # noqa B023
                                 ),
                                 50,
                             )[0]

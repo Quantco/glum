@@ -1,6 +1,5 @@
 import warnings
 from abc import ABCMeta, abstractmethod
-from typing import Union
 
 import numpy as np
 from scipy import special
@@ -77,6 +76,9 @@ class Link(metaclass=ABCMeta):
 class IdentityLink(Link):
     """The identity link function ``g(x) = x``."""
 
+    def __eq__(self, other):  # noqa D
+        return isinstance(other, self.__class__)
+
     # unnecessary type hint for consistency with other methods
     def link(self, mu):
         """Return mu (identity link).
@@ -137,6 +139,9 @@ class IdentityLink(Link):
 
 class LogLink(Link):
     """The log link function ``log(x)``."""
+
+    def __eq__(self, other):  # noqa D
+        return isinstance(other, self.__class__)
 
     def link(self, mu):
         """Get the log of ``mu``.
@@ -204,6 +209,9 @@ class LogLink(Link):
 
 class LogitLink(Link):
     """The logit link function ``logit(x)``."""
+
+    def __eq__(self, other):  # noqa D
+        return isinstance(other, self.__class__)
 
     def link(self, mu):
         """Get the logit function of ``mu``.
@@ -303,11 +311,11 @@ def catch_p(fun):
         with np.errstate(invalid="raise"):
             try:
                 result = fun(*args, **kwargs)
-            except FloatingPointError:
+            except FloatingPointError as e:
                 raise ValueError(
                     f"Your linear predictors are not supported for p={args[0].p}. For "
                     + "negative linear predictors, consider using a log link instead."
-                )
+                ) from e
         return result
 
     return _to_return
@@ -316,7 +324,7 @@ def catch_p(fun):
 class TweedieLink(Link):
     """The Tweedie link function ``x^(1-p)`` if ``p≠1`` and ``log(x)`` if ``p=1``."""
 
-    def __new__(cls, p: Union[float, int]):
+    def __new__(cls, p: float):
         """
         Create a new ``TweedieLink`` object.
 
@@ -328,10 +336,13 @@ class TweedieLink(Link):
             return IdentityLink()
         if p == 1:
             return LogLink()
-        return super(TweedieLink, cls).__new__(cls)
+        return super().__new__(cls)
 
     def __init__(self, p):
         self.p = p
+
+    def __eq__(self, other):  # noqa D
+        return isinstance(other, self.__class__) and (self.p == other.p)
 
     def link(self, mu):
         """
