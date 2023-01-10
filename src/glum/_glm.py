@@ -425,7 +425,7 @@ def get_family(
     if family in name_to_dist:
         return name_to_dist[family]
 
-    custom_tweedie = re.search(r"tweedie \((.+)\)", family)
+    custom_tweedie = re.search(r"tweedie\s?\((.+)\)", family)
 
     if custom_tweedie:
         return TweedieDistribution(float(custom_tweedie.group(1)))

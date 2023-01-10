@@ -77,6 +77,11 @@ def test_tweedie_distribution_parsing():
     assert isinstance(dist, TweedieDistribution)
     assert dist.power == 1.25
 
+    dist = get_family("tweedie(1.25)")
+
+    assert isinstance(dist, TweedieDistribution)
+    assert dist.power == 1.25
+
     with pytest.raises(ValueError):
         get_family("tweedie (a)")
 
