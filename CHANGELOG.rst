@@ -7,6 +7,11 @@
 Changelog
 =========
 
+2.4.0 - 2023-XX-XX
+------------------
+
+- :class:`~glum._link.LogitLink` has been made public.
+
 2.3.0 - 2023-01-06
 ------------------
 
@@ -18,19 +23,19 @@ Changelog
 **New features:**
 
 - The following classes and functions have been made public:
-  :class:`glum._distribution.BinomialDistribution`,
-  :class:`glum._distribution.ExponentialDispersionModel`,
-  :class:`glum._distribution.GammaDistribution`,
-  :class:`glum._distribution.GeneralizedHyperbolicSecant`,
-  :class:`glum._distribution.InverseGaussianDistribution`,
-  :class:`glum._distribution.NormalDistribution`,
-  :class:`glum._distribution.PoissonDistribution`,
-  :class:`glum._link.IdentityLink`,
-  :class:`glum._link.Link`,
-  :class:`glum._link.LogLink`,
-  :class:`glum._link.TweedieLink`,
-  :func:`glum._glm.get_family` and
-  :func:`glum._glm.get_link`.
+  :class:`~glum._distribution.BinomialDistribution`,
+  :class:`~glum._distribution.ExponentialDispersionModel`,
+  :class:`~glum._distribution.GammaDistribution`,
+  :class:`~glum._distribution.GeneralizedHyperbolicSecant`,
+  :class:`~glum._distribution.InverseGaussianDistribution`,
+  :class:`~glum._distribution.NormalDistribution`,
+  :class:`~glum._distribution.PoissonDistribution`,
+  :class:`~glum._link.IdentityLink`,
+  :class:`~glum._link.Link`,
+  :class:`~glum._link.LogLink`,
+  :class:`~glum._link.TweedieLink`,
+  :func:`~glum._glm.get_family` and
+  :func:`~glum._glm.get_link`.
 - The distribution and link classes now feature a more lenient equality check instead of the default identity check,
   so that, e.g., ``TweedieDistribution(1) == TweedieDistribution(1)`` now returns ``True``.
 
