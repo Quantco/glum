@@ -10,7 +10,10 @@ Changelog
 2.4.0 - 2023-XX-XX
 ------------------
 
+**Other changes**:
+
 - :class:`~glum._link.LogitLink` has been made public.
+- Apple Silicon wheels are now uploaded to PyPI.
 
 2.3.0 - 2023-01-06
 ------------------

@@ -14,6 +14,14 @@ if sys.platform == "win32":
     allocator_libs = []  # type: ignore
     extra_compile_args = ["/openmp", "/O2"]
     extra_link_args = ["/openmp"]
+elif sys.platform == "darwin":
+    allocator_libs = ["jemalloc"]
+    extra_compile_args = [
+        "-O3",
+        "-ffast-math",
+        "--std=c++17",
+    ]
+    extra_link_args = [""]
 else:
     allocator_libs = ["jemalloc"]
     extra_compile_args = [
