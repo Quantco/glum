@@ -49,9 +49,10 @@ before-build = [
 ]
 
 [tool.cibuildwheel.macos.environment]
-LDFLAGS="-L/usr/local/lib"
-CXX="/usr/local/opt/llvm/bin/clang++"
-CC="/usr/local/opt/llvm/bin/clang"
+LDFLAGS="-Wl,-rpath,$CONDA/envs/build/lib -L$CONDA/envs/build/lib -lomp"
+CFLAGS="-I$CONDA/envs/build/include"
+CXX="/usr/bin/clang++"
+CC="/usr/bin/clang"
 GLM_ARCHITECTURE="default"
 
 [tool.cibuildwheel.windows.environment]
