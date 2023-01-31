@@ -44,8 +44,8 @@ test-requires = ["pytest", "pytest-xdist"]
 environment = "GLM_ARCHITECTURE='default'"
 
 [tool.cibuildwheel.macos]
-before-all = [
-  "brew install llvm libomp",
+before-build = [
+  "bash build_tools/prepare_macos_wheel.sh",
 ]
 
 [tool.cibuildwheel.macos.environment]
