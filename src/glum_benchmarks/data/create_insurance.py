@@ -98,7 +98,7 @@ def get_categorizer(col_name: str, name="cat") -> Tuple[str, Categorizer]:
     """
     Get a dask_ml Categorizer.
 
-    Categorizer only operates on object columns unless you explictily pass the column
+    Categorizer only operates on object columns unless you explicitly pass the column
     name.
     """
     return name, Categorizer(columns=[col_name])

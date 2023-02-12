@@ -296,7 +296,7 @@ def benchmark_params_cli(func: Callable) -> Callable:
     )
     @click.option(
         "--library_name",
-        help="Specify a comma-separated list of libaries to benchmark. Leaving this "
+        help="Specify a comma-separated list of libraries to benchmark. Leaving this "
         "blank will default to running all problems.",
     )
     @click.option(

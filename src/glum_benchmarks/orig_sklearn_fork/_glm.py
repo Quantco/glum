@@ -1302,7 +1302,7 @@ def _cd_solver(
     link : Link
 
     max_iter : int, optional (default=100)
-        Maximum numer of outer (Newton) iterations.
+        Maximum number of outer (Newton) iterations.
 
     max_inner_iter : int, optional (default=1000)
         Maximum number of iterations in each inner loop, i.e. max number of

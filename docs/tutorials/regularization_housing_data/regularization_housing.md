@@ -116,7 +116,7 @@ We can see a clear relationship between postal code and home price. Seattle (981
 
 
 ### 3.1 Feature selection and one hot encoding
-Since we want to focus on geographic data, we drop a number of colums below. We keep a handful of columns so that we can still create a reasonable model. 
+Since we want to focus on geographic data, we drop a number of columns below. We keep a handful of columns so that we can still create a reasonable model. 
 
 We then create a fixed effect for each of the postal code regions. We add the encoded postcode columns in numeric order to help us maintain the proper order of columns while building and training the model. 
 
@@ -167,7 +167,7 @@ $$\begin{pmatrix} \beta_{98022}, \beta_{98045}\end{pmatrix} P \begin{pmatrix} \b
 
 In this example, we would get this result with $P = \begin{pmatrix} 1 & -1 \\ -1 & 1\end{pmatrix}$. 
 
-Since we have 72 postal code regions, it would be rather annoying to construct this matrix by hand. Luckily, there are libaries that exist for this. We use [pysal](http://pysal.org)'s [pysal.lib.weights.Queen](https://pysal.org/libpysal/generated/libpysal.weights.Queen.html) to retrieve a neighbor's matrix from our map data. The construction of the penalty matrix is rather straightfoward once we have this information.
+Since we have 72 postal code regions, it would be rather annoying to construct this matrix by hand. Luckily, there are libraries that exist for this. We use [pysal](http://pysal.org)'s [pysal.lib.weights.Queen](https://pysal.org/libpysal/generated/libpysal.weights.Queen.html) to retrieve a neighbor's matrix from our map data. The construction of the penalty matrix is rather straightforward once we have this information.
 
 We leave the non-geographic features unregularized (all zeros in the $P$ matrix).
 

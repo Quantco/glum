@@ -1811,7 +1811,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             # check_X_y will convert to float32 if we don't do this, which causes
             # precision issues with the new handling of single precision. The new
             # behavior is to give everything the precision of X, but we don't want to
-            # do that if X was intially int64.
+            # do that if X was initially int64.
             X = X.astype(np.float64)  # type: ignore
 
         if isinstance(X, tm.MatrixBase):
