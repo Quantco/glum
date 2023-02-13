@@ -78,7 +78,7 @@ def load_data(
     # TODO: add a threshold for the number of categories needed to make a categorical
     #  matrix
 
-    # Step 4) Convert the matrix to the appopriate storage type.
+    # Step 4) Convert the matrix to the appropriate storage type.
     if storage == "auto":
         dtype = np.float32 if single_precision else np.float64
         X = tm.from_pandas(X_in, dtype, sparse_threshold=0.1, cat_threshold=3)

@@ -90,7 +90,7 @@ with pd.option_context('display.max_rows', 10):
 We start with the first part of our two part GLM - modeling the frequency of claims using a Poisson regression. Below, we give some background on why the Poisson family makes the most sense in this context.
 
 ### 2.1 Why Poisson distributions?
-Poisson distributions are typically used to model the number of events occuring in a fixed period of time when the events occur independently at a constant rate. In our case, we can think of motor insurance claims as the events, and a unit of exposure (i.e. a year) as the fixed period of time.
+Poisson distributions are typically used to model the number of events occurring in a fixed period of time when the events occur independently at a constant rate. In our case, we can think of motor insurance claims as the events, and a unit of exposure (i.e. a year) as the fixed period of time.
 
 To get more technical:
 
@@ -332,7 +332,7 @@ pd.DataFrame({'coefficient': np.concatenate(([s_glm1.intercept_], s_glm1.coef_))
              index=['intercept'] + s_glm1.feature_names_).T
 ```
 
-Again, we measure peformance with the deviance of the distribution. We also compare against the simple arithmetic mean and include the mean absolute error to help understand the actual scale of our results.
+Again, we measure performance with the deviance of the distribution. We also compare against the simple arithmetic mean and include the mean absolute error to help understand the actual scale of our results.
 
 *Note*: a Gamma distribution is equivalent to a Tweedie distribution with power = 2.
 
@@ -441,4 +441,4 @@ print("Total claim amount on test set, observed = {}, predicted = {}".
      )
 ```
 
-In terms of the combined proximity to the true total claim amounts, the frequency severity model performed a bit better than Tweedie model. However, both approaches ultimatley prove to be effective.
+In terms of the combined proximity to the true total claim amounts, the frequency severity model performed a bit better than Tweedie model. However, both approaches ultimately prove to be effective.
