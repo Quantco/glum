@@ -10,6 +10,9 @@ Changelog
 UNRELEASED
 ----------
 
+**Bug fixes:**
+
+- Fixed an issue with :meth:`~glum.ExponentialDispersionModel._score_matrix` which failed when called with a tabmat matrix input. 
 
 2.4.0 - 2023-01-31
 ------------------
