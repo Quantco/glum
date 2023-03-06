@@ -1812,7 +1812,7 @@ def test_sparse_std_errors(regression_data):
         (False, False, True),
     ],
 )
-def test_dataframe_std_errors(regression_data, categorical, split, fit_intercept):
+def test_inputtype_std_errors(regression_data, categorical, split, fit_intercept):
     X, y = regression_data
     X = pd.DataFrame(X)
     if categorical or split:
@@ -1820,14 +1820,22 @@ def test_dataframe_std_errors(regression_data, categorical, split, fit_intercept
         categories = np.arange(4)
         group = rng.choice(categories, size=len(X))
         if categorical:
-            X = pd.DataFrame(pd.Categorical(group, categories=categories))
+            X = tm.CategoricalMatrix(pd.Categorical(group, categories=categories))
         if split:
-            X = X.assign(col_cat=pd.Categorical(group, categories=categories))
+            X = tm.SplitMatrix(
+                [
+                    tm.from_pandas(X),
+                    tm.CategoricalMatrix(pd.Categorical(group, categories=categories)),
+                ]
+            )
     mdl = GeneralizedLinearRegressor(
         alpha=0, family="normal", fit_intercept=fit_intercept
     )
     mdl.fit(X=X, y=y)
-    X_sm = pd.get_dummies(X, dtype=float)
+    if isinstance(X, tm.MatrixBase):
+        X_sm = X.toarray()
+    else:
+        X_sm = X
     if fit_intercept:
         mdl_sm = sm.OLS(endog=y, exog=sm.add_constant(X_sm))
     else:
