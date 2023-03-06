@@ -5,7 +5,13 @@ from typing import Tuple, Union
 import numexpr
 import numpy as np
 from scipy import sparse, special
-from tabmat import CategoricalMatrix, MatrixBase, SplitMatrix, StandardizedMatrix
+from tabmat import (
+    CategoricalMatrix,
+    DenseMatrix,
+    MatrixBase,
+    SplitMatrix,
+    StandardizedMatrix,
+)
 
 from ._functions import (
     binomial_logit_eta_mu_deviance,
@@ -524,8 +530,10 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         ).reshape(-1, 1)
 
         if fit_intercept:
-            if sparse.issparse(X) or isinstance(X, (SplitMatrix, CategoricalMatrix)):
+            if sparse.issparse(X):
                 return sparse.hstack((W, X.multiply(W)))
+            elif isinstance(X, (SplitMatrix, CategoricalMatrix)):
+                return SplitMatrix((DenseMatrix(W), X.multiply(W)))
             else:
                 return np.hstack((W, np.multiply(X, W)))
         else:
