@@ -11,11 +11,9 @@
 from libc.math cimport fabs
 cimport numpy as np
 import numpy as np
-import numpy.linalg as linalg
 from numpy.math cimport INFINITY
 
 cimport cython
-from cpython cimport bool
 from cython cimport floating
 from cython.parallel import prange
 import warnings
