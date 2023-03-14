@@ -23,7 +23,7 @@ elif sys.platform == "darwin":
         "-ffast-math",
         "--std=c++17",
     ]
-    extra_link_args = [""]
+    extra_link_args = ["-fopenmp"]
 else:
     allocator_libs = ["jemalloc"]
     extra_compile_args = [
