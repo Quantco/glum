@@ -1,10 +1,10 @@
 name: CI - macOS
 on:
   push:
-    paths:
-      - '.github/**'
-      - '**/*.pyx'
-      - '**/*.cpp'
+    # paths:
+    #   - '.github/**'
+    #   - '**/*.pyx'
+    #   - '**/*.cpp'
 
 jobs:
   macos:
