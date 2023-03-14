@@ -9,5 +9,5 @@ yq -Y ". + {dependencies: [.dependencies[], \"python=${PYTHON_VERSION}\"] }" env
 mamba env create -f /tmp/environment.yml
 mamba env update -n $(yq -r .name environment.yml) --file environment-benchmark.yml
 conda activate $(yq -r .name environment.yml)
-pip install --no-use-pep517 --no-deps --disable-pip-version-check -e .
+pip install --no-use-pep517 --no-deps --disable-pip-version-check -e . --verbose
 pytest -nauto tests --doctest-modules src/glum/
