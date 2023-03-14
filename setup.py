@@ -1,4 +1,5 @@
 import os
+import platform
 import sys
 
 import numpy as np
@@ -17,11 +18,13 @@ if sys.platform == "win32":
 elif sys.platform == "darwin":
     allocator_libs = ["jemalloc"]
     extra_compile_args = [
+        "-Xpreprocessor",
+        "-fopenmp",
         "-O3",
         "-ffast-math",
         "--std=c++17",
     ]
-    extra_link_args = [""]
+    extra_link_args = ["-lomp"]
 else:
     allocator_libs = ["jemalloc"]
     extra_compile_args = [
@@ -34,7 +37,10 @@ else:
 
 architecture = os.environ.get("GLM_ARCHITECTURE", "native")
 if architecture != "default":
-    extra_compile_args.append("-march=" + architecture)
+    # Don't set "-march=native" on macOS arm64 as this doesn't exist there.
+    # Note that "arm64" already implies macOS. On Linux this is called "aarch64".
+    if not (platform.machine() == "arm64" and architecture == "native"):
+        extra_compile_args.append("-march=" + architecture)
 
 extension_args = dict(
     include_dirs=[np.get_include()],
