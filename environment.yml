@@ -5,7 +5,7 @@ channels:
 dependencies:
   # required for users (note: this is not where you specify new dependencies
   # for the conda packages. please put those `conda.recipe/meta.yaml`!!
-  - libblas>=0=*mkl  # uncomment for m1
+  - libblas>=0=*mkl  # comment for m1
   - numexpr
   - pandas
   - tabmat>=3.1.0
