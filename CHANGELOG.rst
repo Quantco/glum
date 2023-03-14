@@ -14,6 +14,13 @@ UNRELEASED
 
 - Fixed an issue with :meth:`~glum.ExponentialDispersionModel._score_matrix` which failed when called with a tabmat matrix input. 
 
+2.4.1 - 2023-03-14
+------------------
+
+**Other changes**:
+
+- Removes unused scikit-learn cython imports.
+  
 2.4.0 - 2023-01-31
 ------------------
 
