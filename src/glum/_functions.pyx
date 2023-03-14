@@ -3,9 +3,7 @@
 from cython cimport floating
 from cython.parallel import prange
 
-from libc.math cimport M_PI, ceil, exp, floor, fmax, lgamma, log
-
-import numpy as np
+from libc.math cimport M_PI, ceil, exp, floor, lgamma, log
 
 ctypedef fused numeric:
     short

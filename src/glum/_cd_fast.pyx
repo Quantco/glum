@@ -11,20 +11,13 @@
 from libc.math cimport fabs
 cimport numpy as np
 import numpy as np
-import numpy.linalg as linalg
 from numpy.math cimport INFINITY
 
 cimport cython
-from cpython cimport bool
 from cython cimport floating
 from cython.parallel import prange
 import warnings
 from sklearn.exceptions import ConvergenceWarning
-
-from sklearn.utils._cython_blas cimport (_axpy, _dot, _asum, _ger, _gemv, _nrm2,
-                                   _copy, _scal)
-from sklearn.utils._cython_blas cimport RowMajor, ColMajor, Trans, NoTrans
-
 
 from sklearn.utils._random cimport our_rand_r
 
