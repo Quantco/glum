@@ -4,10 +4,9 @@ set -e
 set -x
 
 if [[ "$CIBW_BUILD" == *-macosx_arm64 ]]; then
-    CONDA_CHANNEL="conda-forge/osx-arm64"
+    OPENMP_URL="https://anaconda.org/conda-forge/llvm-openmp/11.1.0/download/osx-arm64/llvm-openmp-11.1.0-hf3c4609_1.tar.bz2"
 else
-    CONDA_CHANNEL="conda-forge/osx-64"
+    OPENMP_URL="https://anaconda.org/conda-forge/llvm-openmp/11.1.0/download/osx-64/llvm-openmp-11.1.0-hda6cdc1_1.tar.bz2"
 fi
 
-conda create -n build -c $CONDA_CHANNEL llvm-openmp
-
+conda create -y -n build $OPENMP_URL

@@ -18,12 +18,13 @@ if sys.platform == "win32":
 elif sys.platform == "darwin":
     allocator_libs = ["jemalloc"]
     extra_compile_args = [
+        "-Xpreprocessor",
         "-fopenmp",
         "-O3",
         "-ffast-math",
         "--std=c++17",
     ]
-    extra_link_args = ["-fopenmp"]
+    extra_link_args = ["-lomp"]
 else:
     allocator_libs = ["jemalloc"]
     extra_compile_args = [

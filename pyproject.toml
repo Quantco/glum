@@ -52,8 +52,8 @@ before-build = [
 LDFLAGS="-Wl,-rpath,$CONDA/envs/build/lib -L$CONDA/envs/build/lib"
 CFLAGS="-I$CONDA/envs/build/include"
 CXXFLAGS="-I$CONDA/envs/build/include"
-CXX="$CONDA/envs/build/bin/clang++"
-CC="$CONDA/envs/build/bin/clang"
+CXX="/usr/bin/clang++"
+CC="/usr/bin/clang"
 GLM_ARCHITECTURE="default"
 
 [tool.cibuildwheel.windows.environment]
