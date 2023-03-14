@@ -5,8 +5,10 @@ on:
       - '.github/**'
       - '**/*.pyx'
       - '**/*.cpp'
+      - 'setup.py'
       - 'environment.yml'
       - 'environment-benchmark.yml'
+      
 jobs:
   windows-ci:
     name: "Win - tests - Python ${{ matrix.PYTHON_VERSION }}"

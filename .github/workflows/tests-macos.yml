@@ -5,6 +5,9 @@ on:
       - '.github/**'
       - '**/*.pyx'
       - '**/*.cpp'
+      - 'setup.py'
+      - 'environment.yml'
+      - 'environment-benchmark.yml'
 
 jobs:
   macos:
