@@ -1,6 +1,3 @@
-{% set build_number = "0" %}
-{% set build_string = "py{}h{}_{}_{}".format(CONDA_PY, PKG_HASH, build_number, GLM_ARCHITECTURE) %}
-
 package:
   name: glum
   version: {{ environ.get('GIT_DESCRIBE_TAG', '').lstrip('v') }}{% if environ.get('GIT_DESCRIBE_NUMBER', 0)|int != 0 %}.post{{ GIT_DESCRIBE_NUMBER }}+{{ GIT_DESCRIBE_HASH }}{% endif %}
@@ -10,11 +7,8 @@ source:
 
 
 build:
-  number: {{ build_number }}
-  string: "{{ build_string }}"
-  track_features:
-    {{ "- glum-{}".format(GLM_ARCHITECTURE) if GLM_ARCHITECTURE != "default" else "" }}
-
+  number: 0
+  script: {{ PYTHON }} -m pip install . -vv
 
 requirements:
   build:
