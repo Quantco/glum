@@ -1,5 +1,4 @@
 import os
-import platform
 import sys
 
 import numpy as np
@@ -34,13 +33,6 @@ else:
         "--std=c++17",
     ]
     extra_link_args = ["-fopenmp"]
-
-architecture = os.environ.get("GLM_ARCHITECTURE", "native")
-if architecture != "default":
-    # Don't set "-march=native" on macOS arm64 as this doesn't exist there.
-    # Note that "arm64" already implies macOS. On Linux this is called "aarch64".
-    if not (platform.machine() == "arm64" and architecture == "native"):
-        extra_compile_args.append("-march=" + architecture)
 
 extension_args = dict(
     include_dirs=[np.get_include()],

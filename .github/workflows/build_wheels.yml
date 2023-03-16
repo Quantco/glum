@@ -29,8 +29,6 @@ jobs:
   build_sdist:
     name: Build source distribution
     runs-on: ubuntu-latest
-    env:
-      GLM_ARCHITECTURE: default
     steps:
       - uses: actions/checkout@v3
 

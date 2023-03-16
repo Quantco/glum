@@ -36,7 +36,6 @@ skip = [
   "*-musllinux_*"
 ]
 test-requires = ["pytest", "pytest-xdist"]
-environment = "GLM_ARCHITECTURE='default'"
 
 [tool.cibuildwheel.macos]
 before-build = [
@@ -49,7 +48,6 @@ CFLAGS="-I$CONDA/envs/build/include"
 CXXFLAGS="-I$CONDA/envs/build/include"
 CXX="/usr/bin/clang++"
 CC="/usr/bin/clang"
-GLM_ARCHITECTURE="default"
 
 [tool.cibuildwheel.windows.environment]
 SETUPTOOLS_USE_DISTUTILS="stdlib"
