@@ -35,7 +35,7 @@ else:
     ]
     extra_link_args = ["-fopenmp"]
 
-architecture = os.environ.get("GLM_ARCHITECTURE", "native")
+architecture = os.environ.get("GLM_ARCHITECTURE", "default")
 if architecture != "default":
     # Don't set "-march=native" on macOS arm64 as this doesn't exist there.
     # Note that "arm64" already implies macOS. On Linux this is called "aarch64".
