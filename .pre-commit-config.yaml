@@ -41,3 +41,9 @@ repos:
    hooks:
     - id: pyupgrade-conda
       exclude: ^src/glum_benchmarks/orig_sklearn_fork/
+ - repo: https://github.com/Quantco/pre-commit-mirrors-cython-lint
+   rev: 0.14.0
+   hooks:
+    - id: cython-lint-conda
+      args: [--no-pycodestyle]
+    - id: double-quote-cython-strings-conda

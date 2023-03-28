@@ -13,7 +13,6 @@ cimport numpy as np
 import numpy as np
 from numpy.math cimport INFINITY
 
-cimport cython
 from cython cimport floating
 from cython.parallel import prange
 import warnings
@@ -55,6 +54,7 @@ cdef inline floating fsign(floating f) nogil:
     else:
         return -1.0
 
+
 def identify_active_rows(
     floating[::1] gradient_rows,
     floating[::1] hessian_rows,
@@ -89,6 +89,7 @@ def identify_active_rows(
 
     return hessian_rows_diff_arr, active_rows_arr
 
+
 def enet_coordinate_descent_gram(int[::1] active_set,
                                  floating[::1] w,
                                  floating[::1] P1,
@@ -111,7 +112,6 @@ def enet_coordinate_descent_gram(int[::1] active_set,
 
     # get the data information into easy vars
     cdef unsigned int n_active_features = active_set.shape[0]
-    cdef unsigned int n_features = Q.shape[0]
 
     cdef floating w_ii
     cdef floating P1_ii
@@ -197,6 +197,7 @@ def enet_coordinate_descent_gram(int[::1] active_set,
 
     return np.asarray(w), norm_min_subgrad, max_min_subgrad, tol, n_iter + 1
 
+
 cdef void cython_norm_min_subgrad(
     int[::1] active_set,
     floating[::1] coef,
@@ -267,6 +268,7 @@ cdef void cython_norm_min_subgrad(
         norm_out[0] += absterm
         if absterm > max_out[0]:
             max_out[0] = absterm
+
 
 def _norm_min_subgrad(
     int[::1] active_set,

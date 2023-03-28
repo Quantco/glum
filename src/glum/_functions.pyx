@@ -20,6 +20,7 @@ cdef fused const_floating1d:
     const float[:]
     const double[:]
 
+
 # NOTE: Here and below, the factor argument is left for last. That's because it
 # will be a single floating point value being passed from Python. In Python,
 # all floating point values are 64-bit. As a result, if it's the first
@@ -38,7 +39,6 @@ def normal_identity_eta_mu_deviance(
 ):
     cdef int n = cur_eta.shape[0]
     cdef int i
-    cdef floating unit_deviance
     cdef floating deviance = 0.0
     for i in prange(n, nogil=True):
         eta_out[i] = cur_eta[i] + factor * X_dot_d[i]
@@ -48,6 +48,7 @@ def normal_identity_eta_mu_deviance(
         # True log likelihood: -1/2 * (y - mu)**2
         deviance += weights[i] * (y[i] - mu_out[i]) ** 2
     return deviance
+
 
 def normal_identity_rowwise_gradient_hessian(
     const_floating1d y,
@@ -64,6 +65,7 @@ def normal_identity_rowwise_gradient_hessian(
         # Note: hessian_rows_out yields -1 times the true hessian to match
         # the default calculation in _distribution.py
         hessian_rows_out[i] = weights[i]
+
 
 def normal_log_likelihood(
     const_floating1d y,
@@ -110,7 +112,6 @@ def poisson_log_eta_mu_deviance(
 ):
     cdef int n = cur_eta.shape[0]
     cdef int i
-    cdef floating unit_deviance
     cdef floating deviance = 0.0
     for i in prange(n, nogil=True):
         eta_out[i] = cur_eta[i] + factor * X_dot_d[i]
@@ -180,7 +181,6 @@ def gamma_log_eta_mu_deviance(
 ):
     cdef int n = cur_eta.shape[0]
     cdef int i
-    cdef floating unit_deviance
     cdef floating deviance = 0.0
     for i in prange(n, nogil=True):
         eta_out[i] = cur_eta[i] + factor * X_dot_d[i]
@@ -252,7 +252,6 @@ def tweedie_log_eta_mu_deviance(
 ):
     cdef int n = cur_eta.shape[0]
     cdef int i
-    cdef floating unit_deviance
     cdef floating deviance = 0.0
     cdef floating mu1mp
     for i in prange(n, nogil=True):
