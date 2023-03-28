@@ -46,3 +46,4 @@ repos:
    hooks:
     - id: cython-lint-conda
       args: [--no-pycodestyle]
+    - id: double-quote-cython-strings-conda
