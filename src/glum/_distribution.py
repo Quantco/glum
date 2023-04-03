@@ -21,7 +21,9 @@ from ._functions import (
     gamma_log_likelihood,
     gamma_log_rowwise_gradient_hessian,
     negative_binomial_deviance,
+    negative_binomial_log_eta_mu_deviance,
     negative_binomial_log_likelihood,
+    negative_binomial_log_rowwise_gradient_hessian,
     normal_deviance,
     normal_identity_eta_mu_deviance,
     normal_identity_rowwise_gradient_hessian,
@@ -1159,7 +1161,7 @@ class NegativeBinomialDistribution(ExponentialDispersionModel):
             raise TypeError(f"theta must be an int or float, input was {theta}")
         if not theta > 0:
             raise ValueError(
-                "theta must be strictly positive number, " "input was {}".format(theta)
+                "theta must be strictly positive number, input was {}".format(theta)
             )
 
         # Prevents upcasting when working with 32-bit data
@@ -1222,7 +1224,44 @@ class NegativeBinomialDistribution(ExponentialDispersionModel):
 
         r = 1.0 / theta
 
-        return 2 * (y * np.log(y / mu) - (y + r) * np.log((y + r) / (mu + r)))
+        return 2 * (special.xlogy(y, y / mu) - (y + r) * np.log((y + r) / (mu + r)))
+
+    def _rowwise_gradient_hessian(
+        self, link, y, sample_weight, eta, mu, gradient_rows, hessian_rows
+    ):
+        if isinstance(link, LogLink):
+            return negative_binomial_log_rowwise_gradient_hessian(
+                y, sample_weight, eta, mu, gradient_rows, hessian_rows, theta=self.theta
+            )
+        return super()._rowwise_gradient_hessian(
+            link, y, sample_weight, eta, mu, gradient_rows, hessian_rows
+        )
+
+    def _eta_mu_deviance(
+        self,
+        link: Link,
+        factor: float,
+        cur_eta: np.ndarray,
+        X_dot_d: np.ndarray,
+        y: np.ndarray,
+        sample_weight: np.ndarray,
+        eta_out: np.ndarray,
+        mu_out: np.ndarray,
+    ):
+        if isinstance(link, LogLink):
+            return negative_binomial_log_eta_mu_deviance(
+                cur_eta,
+                X_dot_d,
+                y,
+                sample_weight,
+                eta_out,
+                mu_out,
+                factor,
+                theta=self.theta,
+            )
+        return super()._eta_mu_deviance(
+            link, factor, cur_eta, X_dot_d, y, sample_weight, eta_out, mu_out
+        )
 
     def log_likelihood(self, y, mu, sample_weight=None, dispersion=1) -> float:
         r"""Compute the log likelihood.

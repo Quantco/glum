@@ -434,16 +434,15 @@ def binomial_logit_rowwise_gradient_hessian(
         gradient_rows_out[i] = weights[i] * (y[i] - mu[i])
         hessian_rows_out[i] = weights[i] * mu[i] * (1 - mu[i])
 
-
 def negative_binomial_log_eta_mu_deviance(
     const_floating1d cur_eta,
     const_floating1d X_dot_d,
     const_floating1d y,
     const_floating1d weights,
-    floating theta,
     floating[:] eta_out,
     floating[:] mu_out,
-    floating factor
+    floating factor,
+    floating theta
 ):
     cdef int n = cur_eta.shape[0]
     cdef int i
@@ -462,9 +461,9 @@ def negative_binomial_log_rowwise_gradient_hessian(
     const_floating1d weights,
     const_floating1d eta,
     const_floating1d mu,
-    floating theta,
     floating[:] gradient_rows_out,
-    floating[:] hessian_rows_out
+    floating[:] hessian_rows_out,
+    floating theta
 ):
     cdef int n = eta.shape[0]
     cdef int i
@@ -507,9 +506,8 @@ def negative_binomial_deviance(
     cdef floating r = 1.0 / theta  # helper
 
     for i in prange(n, nogil=True):
-        D += weights[i] * (
-            y[i] * log(y[i] / mu[i]) -
-            (y[i] + r) * log((y[i] + r) / (mu[i] + r))
-        )
+        D += - weights[i] * (y[i] + r) * log((y[i] + r) / (mu[i] + r))
+        if y[i] > 0:
+            D += weights[i] * y[i] * log(y[i] / mu[i])
 
     return 2 * D
