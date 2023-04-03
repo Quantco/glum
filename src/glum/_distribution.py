@@ -20,6 +20,8 @@ from ._functions import (
     gamma_log_eta_mu_deviance,
     gamma_log_likelihood,
     gamma_log_rowwise_gradient_hessian,
+    negative_binomial_deviance,
+    negative_binomial_log_likelihood,
     normal_deviance,
     normal_identity_eta_mu_deviance,
     normal_identity_rowwise_gradient_hessian,
@@ -1097,6 +1099,183 @@ class BinomialDistribution(ExponentialDispersionModel):
 
         if method == "pearson":
             formula = "((y - mu) ** 2) / (mu * (1 - mu))"
+            if sample_weight is None:
+                return numexpr.evaluate(formula).sum() / (len(y) - ddof)
+            else:
+                formula = f"sample_weight * {formula}"
+                return numexpr.evaluate(formula).sum() / (sample_weight.sum() - ddof)
+
+        return super().dispersion(
+            y, mu, sample_weight=sample_weight, ddof=ddof, method=method
+        )
+
+
+class NegativeBinomialDistribution(ExponentialDispersionModel):
+    r"""A class for the Negative Binomial distribution.
+
+    A Negative Binomial distribution with mean :math:`\mu = \mathrm{E}(Y)` is uniquely
+    defined by its mean-variance relationship
+    :math:`\mathrm{var}(Y) \propto \mu + \theta * \mu^2`.
+
+    Parameters
+    ----------
+    theta : float, optional (default=1.0)
+        The dispersion parameter from `unit_variance`
+        :math:`v(\mu) = \mu + \theta * \mu^2`. For
+        :math:`\theta <= 0`, no distribution exists.
+    """
+
+    upper_bound = np.Inf
+    include_upper_bound = False
+
+    def __init__(self, theta=1.0):
+        # validate power and set _upper_bound, _include_upper_bound attrs
+        self.theta = theta
+
+    def __eq__(self, other):  # noqa D
+        return isinstance(other, NegativeBinomialDistribution) and (
+            self.theta == other.theta
+        )
+
+    @property
+    def lower_bound(self) -> float:
+        """Return the lowest value of ``y`` allowed."""
+        return 0
+
+    @property
+    def include_lower_bound(self) -> bool:
+        """Return whether ``lower_bound`` is allowed as a value of ``y``."""
+        return True
+
+    @property
+    def theta(self) -> float:
+        """Return the Negative Binomial theta parameter."""
+        return self._theta
+
+    @theta.setter
+    def theta(self, theta):
+
+        if not isinstance(theta, (int, float)):
+            raise TypeError(f"theta must be an int or float, input was {theta}")
+        if not theta > 0:
+            raise ValueError(
+                "theta must be strictly positive number, " "input was {}".format(theta)
+            )
+
+        # Prevents upcasting when working with 32-bit data
+        self._theta = np.float32(theta)
+
+    def unit_variance(self, mu: np.ndarray) -> np.ndarray:
+        """Compute the unit variance of a Negative Binomial distribution
+        ``v(mu) = mu + theta * mu^2``.
+
+        Parameters
+        ----------
+        mu : array-like, shape (n_samples,)
+            Predicted mean.
+
+        Returns
+        -------
+        numpy.ndarray, shape (n_samples,)
+        """
+        return mu + self.theta * mu**2
+
+    def unit_variance_derivative(self, mu: np.ndarray) -> np.ndarray:
+        r"""Compute the derivative of the unit variance of a Negative Binomial distribution.
+
+        Equation: :math:`v(\mu) = 1 + 2 \times \theta \times \mu`.
+
+        Parameters
+        ----------
+        mu : array-like, shape (n_samples,)
+            Predicted mean.
+
+        Returns
+        -------
+        numpy.ndarray, shape (n_samples,)
+        """
+        return 1 + 2 * self.theta * mu
+
+    def deviance(self, y, mu, sample_weight=None) -> float:
+        """Compute the deviance.
+
+        Parameters
+        ----------
+        y : array-like, shape (n_samples,)
+            Target values.
+
+        mu : array-like, shape (n_samples,)
+            Predicted mean.
+
+        sample_weight : array-like, shape (n_samples,), optional (default=1)
+            Sample weights.
+        """
+        theta = self.theta
+        y, mu, sample_weight = _as_float_arrays(y, mu, sample_weight)
+        sample_weight = np.ones_like(y) if sample_weight is None else sample_weight
+
+        return negative_binomial_deviance(y, sample_weight, mu, theta=float(theta))
+
+    def unit_deviance(self, y: np.ndarray, mu: np.ndarray) -> np.ndarray:
+        """Get the deviance of each observation."""
+        theta = self.theta
+
+        r = 1.0 / theta
+
+        return 2 * (y * np.log(y / mu) - (y + r) * np.log((y + r) / (mu + r)))
+
+    def log_likelihood(self, y, mu, sample_weight=None, dispersion=1) -> float:
+        r"""Compute the log likelihood.
+
+        Parameters
+        ----------
+        y : array-like, shape (n_samples,)
+            Target values.
+
+        mu : array-like, shape (n_samples,)
+            Predicted mean.
+
+        sample_weight : array-like, shape (n_samples,), optional (default=1)
+            Sample weights.
+
+        dispersion : float, optional (default=1.0)
+            Ignored.
+        """
+        theta = self.theta
+        y, mu, sample_weight = _as_float_arrays(y, mu, sample_weight)
+        sample_weight = np.ones_like(y) if sample_weight is None else sample_weight
+
+        return negative_binomial_log_likelihood(y, sample_weight, mu, float(theta), 1.0)
+
+    def dispersion(self, y, mu, sample_weight=None, ddof=1, method="pearson") -> float:
+        r"""Estimate the dispersion parameter :math:`\phi`.
+
+        Parameters
+        ----------
+        y : array-like, shape (n_samples,)
+            Target values.
+
+        mu : array-like, shape (n_samples,)
+            Predicted mean.
+
+        sample_weight : array-like, shape (n_samples,), optional (default=None)
+            Weights or exposure to which variance is inversely proportional.
+
+        ddof : int, optional (default=1)
+            Degrees of freedom consumed by the model for ``mu``.
+
+        method = {'pearson', 'deviance'}, optional (default='pearson')
+            Whether to base the estimate on the Pearson residuals or the deviance.
+
+        Returns
+        -------
+        float
+        """
+        theta = self.theta  # noqa: F841
+        y, mu, sample_weight = _as_float_arrays(y, mu, sample_weight)
+
+        if method == "pearson":
+            formula = "((y - mu) ** 2) / (mu + theta * mu ** 2)"
             if sample_weight is None:
                 return numexpr.evaluate(formula).sum() / (len(y) - ddof)
             else:

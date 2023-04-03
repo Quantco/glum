@@ -433,3 +433,83 @@ def binomial_logit_rowwise_gradient_hessian(
     for i in prange(n, nogil=True):
         gradient_rows_out[i] = weights[i] * (y[i] - mu[i])
         hessian_rows_out[i] = weights[i] * mu[i] * (1 - mu[i])
+
+
+def negative_binomial_log_eta_mu_deviance(
+    const_floating1d cur_eta,
+    const_floating1d X_dot_d,
+    const_floating1d y,
+    const_floating1d weights,
+    floating theta,
+    floating[:] eta_out,
+    floating[:] mu_out,
+    floating factor
+):
+    cdef int n = cur_eta.shape[0]
+    cdef int i
+    cdef floating deviance = 0.0
+    cdef floating r = 1.0 / theta  # helper
+
+    for i in prange(n, nogil=True):
+        eta_out[i] = cur_eta[i] + factor * X_dot_d[i]
+        mu_out[i] = exp(eta_out[i])
+        # True log likelihood: y * log(y / mu) - (y + r) * log((y + r) / (mu + r))
+        deviance += weights[i] * (-y[i] * eta_out[i] + (y[i] + r) * log(mu_out[i] + r))
+    return 2 * deviance
+
+def negative_binomial_log_rowwise_gradient_hessian(
+    const_floating1d y,
+    const_floating1d weights,
+    const_floating1d eta,
+    const_floating1d mu,
+    floating theta,
+    floating[:] gradient_rows_out,
+    floating[:] hessian_rows_out
+):
+    cdef int n = eta.shape[0]
+    cdef int i
+    for i in prange(n, nogil=True):
+        gradient_rows_out[i] = weights[i] * (y[i] - mu[i]) / (1.0 + theta * mu[i])
+        hessian_rows_out[i] = weights[i] * mu[i]  / (1.0 + theta * mu[i])
+
+def negative_binomial_log_likelihood(
+    const_floating1d y,
+    const_floating1d weights,
+    const_floating1d mu,
+    floating theta,
+    floating dispersion,
+):
+    cdef int i  # loop counter
+
+    cdef int n = y.shape[0]  # loop length
+    cdef floating ll = 0.0  # output
+    cdef floating r = 1.0 / theta  # helper
+
+    for i in prange(n, nogil=True):
+        ll += weights[i] * (
+            y[i] * log(theta * mu[i]) -
+            (y[i] + r) * log(1 + theta * mu[i]) +
+            lgamma(y[i] + r) -
+            lgamma(r) -
+            lgamma(y[i] + 1.0)
+        )
+
+def negative_binomial_deviance(
+    const_floating1d y,
+    const_floating1d weights,
+    const_floating1d mu,
+    floating theta,
+):
+    cdef int i  # loop counter
+
+    cdef int n = y.shape[0]  # loop length
+    cdef floating D = 0.0  # output
+    cdef floating r = 1.0 / theta  # helper
+
+    for i in prange(n, nogil=True):
+        D += weights[i] * (
+            y[i] * log(y[i] / mu[i]) -
+            (y[i] + r) * log((y[i] + r) / (mu[i] + r))
+        )
+
+    return 2 * D

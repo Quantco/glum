@@ -7,6 +7,16 @@
 Changelog
 =========
 
+2.5.0 - unreleased
+------------------
+
+**New feature**
+
+- Added Negative Binomial distribution by setting the ``'family'`` parameter of
+  :class:`~glum.GeneralizedLinearRegressor` and :class:`~glum.GeneralizedLinearRegressorCV`
+  to ``'negative.binomial'``.
+
+
 2.4.1 - 2023-03-14
 ------------------
 

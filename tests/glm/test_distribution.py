@@ -9,6 +9,7 @@ from glum._distribution import (
     GammaDistribution,
     GeneralizedHyperbolicSecant,
     InverseGaussianDistribution,
+    NegativeBinomialDistribution,
     NormalDistribution,
     PoissonDistribution,
     TweedieDistribution,
@@ -27,6 +28,7 @@ from glum._util import _safe_sandwich_dot
         (GammaDistribution(), 0),
         (InverseGaussianDistribution(), 0),
         (TweedieDistribution(power=1.5), 0),
+        (NegativeBinomialDistribution(theta=1.0), 0),
     ],
 )
 def test_lower_bounds(distribution: ExponentialDispersionModel, expected: float):
@@ -42,6 +44,7 @@ def test_lower_bounds(distribution: ExponentialDispersionModel, expected: float)
         (GammaDistribution(), [False, False, True]),
         (InverseGaussianDistribution(), [False, False, True]),
         (TweedieDistribution(power=4.5), [False, False, True]),
+        (NegativeBinomialDistribution(theta=1.0), [False, True, True]),
     ],
 )
 def test_family_bounds(family, expected):
@@ -86,6 +89,37 @@ def test_tweedie_distribution_parsing():
         get_family("tweedie (a)")
 
 
+def test_negative_binomial_distribution_alpha():
+    with pytest.raises(ValueError, match="must be strictly positive number"):
+        NegativeBinomialDistribution(theta=-0.5)
+    with pytest.raises(TypeError, match="must be an int or float"):
+        NegativeBinomialDistribution(theta=1j)
+    with pytest.raises(TypeError, match="must be an int or float"):
+        dist = NegativeBinomialDistribution()
+        dist.theta = 1j
+
+
+def test_negative_binomial_distribution_parsing():
+
+    dist = get_family("negative.binomial")
+
+    assert isinstance(dist, NegativeBinomialDistribution)
+    assert dist.theta == 1.0
+
+    dist = get_family("negative.binomial (1.25)")
+
+    assert isinstance(dist, NegativeBinomialDistribution)
+    assert dist.theta == 1.25
+
+    dist = get_family("negative.binomial(1.25)")
+
+    assert isinstance(dist, NegativeBinomialDistribution)
+    assert dist.theta == 1.25
+
+    with pytest.raises(ValueError):
+        get_family("negative.binomial (a)")
+
+
 def test_equality():
     assert TweedieDistribution(1) == TweedieDistribution(1)
     assert TweedieDistribution(1) == PoissonDistribution()
@@ -94,6 +128,9 @@ def test_equality():
     assert TweedieDistribution(1) != TweedieDistribution(1.5)
     assert TweedieDistribution(1) != BinomialDistribution()
     assert BinomialDistribution() == BinomialDistribution()
+    assert NegativeBinomialDistribution(1) == NegativeBinomialDistribution(1)
+    assert NegativeBinomialDistribution(1) != NegativeBinomialDistribution(1.5)
+    assert NegativeBinomialDistribution(1) != BinomialDistribution()
 
 
 @pytest.mark.parametrize(
@@ -108,6 +145,7 @@ def test_equality():
         (TweedieDistribution(power=1.5), [0.1, 1.5]),
         (TweedieDistribution(power=2.5), [0.1, 1.5]),
         (TweedieDistribution(power=-4), [0.1, 1.5]),
+        (NegativeBinomialDistribution(theta=1.0), [0.1, 1.5]),
         (GeneralizedHyperbolicSecant(), [0.1, 1.5]),
     ],
 )
@@ -129,6 +167,7 @@ def test_deviance_zero(family, chk_values):
         (BinomialDistribution(), LogitLink()),
         (TweedieDistribution(power=1.5), TweedieLink(1.5)),
         (TweedieDistribution(power=2.5), TweedieLink(2.5)),
+        (NegativeBinomialDistribution(theta=1.0), LogLink()),
     ],
     ids=lambda args: args.__class__.__name__,
 )
@@ -186,6 +225,7 @@ def test_gradients(family, link):
         (InverseGaussianDistribution(), LogLink(), False),
         (TweedieDistribution(power=1.5), LogLink(), True),
         (TweedieDistribution(power=4.5), LogLink(), False),
+        (NegativeBinomialDistribution(theta=1.0), LogLink(), False),
     ],
     ids=lambda args: args.__class__.__name__,
 )
