@@ -1125,9 +1125,17 @@ class NegativeBinomialDistribution(ExponentialDispersionModel):
         The dispersion parameter from `unit_variance`
         :math:`v(\mu) = \mu + \theta * \mu^2`. For
         :math:`\theta <= 0`, no distribution exists.
+
+    References
+    ----------
+    For the log-likelihood and deviance:
+        * M. L. Zwilling Negative Binomial Regression, The Mathematica Journal 2013.
+          https://www.mathematica-journal.com/2013/06/27/negative-binomial-regression/
     """
 
+    lower_bound = 0
     upper_bound = np.Inf
+    include_lower_bound = True
     include_upper_bound = False
 
     def __init__(self, theta=1.0):
@@ -1138,16 +1146,6 @@ class NegativeBinomialDistribution(ExponentialDispersionModel):
         return isinstance(other, NegativeBinomialDistribution) and (
             self.theta == other.theta
         )
-
-    @property
-    def lower_bound(self) -> float:
-        """Return the lowest value of ``y`` allowed."""
-        return 0
-
-    @property
-    def include_lower_bound(self) -> bool:
-        """Return whether ``lower_bound`` is allowed as a value of ``y``."""
-        return True
 
     @property
     def theta(self) -> float:

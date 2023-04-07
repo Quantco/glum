@@ -28,7 +28,7 @@ from glum._util import _safe_sandwich_dot
         (GammaDistribution(), 0),
         (InverseGaussianDistribution(), 0),
         (TweedieDistribution(power=1.5), 0),
-        (NegativeBinomialDistribution(theta=1.0), 0),
+        (NegativeBinomialDistribution(theta=1.5), 0),
     ],
 )
 def test_lower_bounds(distribution: ExponentialDispersionModel, expected: float):
