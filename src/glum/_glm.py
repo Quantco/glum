@@ -1878,7 +1878,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             + alpha * l1_ratio * ||P1*w||_1
             + 1/2 * alpha * (1 - l1_ratio) * w*P2*w
 
-    with inverse link function ``h`` and ``s=sample_weight``. 
+    with inverse link function ``h`` and ``s=sample_weight``.
     Note that, for ``alpha=0`` the unregularized GLM is recovered.
     This is not the default behavior (see ``alpha`` parameter description for details).
     Additionally, for ``sample_weight=None``, one has ``s_i=1`` and ``sum(s)=n_samples``.
