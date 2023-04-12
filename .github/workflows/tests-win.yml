@@ -8,6 +8,7 @@ on:
       - 'setup.py'
       - 'environment.yml'
       - 'environment-benchmark.yml'
+  pull_request:
       
 jobs:
   windows-ci:
