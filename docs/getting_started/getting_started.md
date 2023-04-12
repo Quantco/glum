@@ -110,7 +110,7 @@ An optimal level of regularization can be obtained data-adaptively through cross
 
 To fit an unregularized GLM we set `alpha=0`. Note that the default level `alpha=None` results in regularization at the level `alpha=1.0`, which is the default in the sklearn ElasticNet model.
 
-A basic unregularized GLM model object is obtained as
+A basic unregularized GLM object is obtained as
 ```python
 glm = GeneralizedLinearRegressor(family="normal", alpha=0)
 ```
