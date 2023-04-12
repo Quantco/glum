@@ -68,10 +68,11 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
     family : str or ExponentialDispersionModel, optional (default='normal')
         The distributional assumption of the GLM, i.e. the loss function to
         minimize. If a string, one of: ``'binomial'``, ``'gamma'``,
-        ``'gaussian'``, ``'inverse.gaussian'``, ``'normal'``, ``'poisson'`` or
-        ``'tweedie'``. Note that ``'tweedie'`` sets the power of the Tweedie
-        distribution to 1.5; to use another value, specify it in parentheses
-        (e.g., ``'tweedie (1.5)'``).
+        ``'gaussian'``, ``'inverse.gaussian'``, ``'normal'``, ``'poisson'``,
+        ``'tweedie'`` or ``'negative.binomial'``. Note that ``'tweedie'`` sets
+        the power of the Tweedie distribution to 1.5; to use another value,
+        specify it in parentheses (e.g., ``'tweedie (1.5)'``). The same applies
+        for ``'negative.binomial'`` and theta parameter.
 
     link : {'auto', 'identity', 'log', 'logit'} or Link, optional (default='auto')
         The link function of the GLM, i.e. mapping from linear predictor
@@ -79,8 +80,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         depending on the chosen family as follows:
 
         - ``'identity'`` for family ``'normal'``
-        - ``'log'`` for families ``'poisson'``, ``'gamma'`` and
-          ``'inverse.gaussian'``
+        - ``'log'`` for families ``'poisson'``, ``'gamma'``,
+          ``'inverse.gaussian'`` and ``'negative.binomial'``.
         - ``'logit'`` for family ``'binomial'``
 
     solver : {'auto', 'irls-cd', 'irls-ls', 'lbfgs'}, optional (default='auto')

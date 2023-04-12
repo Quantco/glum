@@ -44,6 +44,7 @@ from ._distribution import (
     GammaDistribution,
     GeneralizedHyperbolicSecant,
     InverseGaussianDistribution,
+    NegativeBinomialDistribution,
     NormalDistribution,
     PoissonDistribution,
     TweedieDistribution,
@@ -420,6 +421,7 @@ def get_family(
         "normal": NormalDistribution(),
         "poisson": PoissonDistribution(),
         "tweedie": TweedieDistribution(1.5),
+        "negative.binomial": NegativeBinomialDistribution(1.0),
     }
 
     if family in name_to_dist:
@@ -429,6 +431,11 @@ def get_family(
 
     if custom_tweedie:
         return TweedieDistribution(float(custom_tweedie.group(1)))
+
+    custom_negative_binomial = re.search(r"negative.binomial\s?\((.+)\)", family)
+
+    if custom_negative_binomial:
+        return NegativeBinomialDistribution(float(custom_negative_binomial.group(1)))
 
     raise ValueError(
         "The family must be an instance of class ExponentialDispersionModel or an "
@@ -460,6 +467,8 @@ def get_link(link: Union[str, Link], family: ExponentialDispersionModel) -> Link
             return IdentityLink()
         if isinstance(family, BinomialDistribution):
             return LogitLink()
+        if isinstance(family, NegativeBinomialDistribution):
+            return LogLink()
         raise ValueError(
             "No default link known for the specified distribution family. "
             "Please set link manually, i.e. not to 'auto'. "
@@ -1951,19 +1960,20 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     family : str or ExponentialDispersionModel, optional (default='normal')
         The distributional assumption of the GLM, i.e. the loss function to
         minimize. If a string, one of: ``'binomial'``, ``'gamma'``,
-        ``'gaussian'``, ``'inverse.gaussian'``, ``'normal'``, ``'poisson'`` or
-        ``'tweedie'``. Note that ``'tweedie'`` sets the power of the Tweedie
-        distribution to 1.5; to use another value, specify it in parentheses
-        (e.g., ``'tweedie (1.5)'``).
+        ``'gaussian'``, ``'inverse.gaussian'``, ``'normal'``, ``'poisson'``,
+        ``'tweedie'`` or ``'negative.binomial'``. Note that ``'tweedie'`` sets
+        the power of the Tweedie distribution to 1.5; to use another value,
+        specify it in parentheses (e.g., ``'tweedie (1.5)'``). The same applies
+        for ``'negative.binomial'`` and theta parameter.
 
     link : {'auto', 'identity', 'log', 'logit'} or Link, optional (default='auto')
         The link function of the GLM, i.e. mapping from linear predictor
         (``X * coef``) to expectation (``mu``). Option ``'auto'`` sets the link
         depending on the chosen family as follows:
 
-        - ``'identity'`` for family ``'normal'``/``'gaussian'``
-        - ``'log'`` for families ``'poisson'``, ``'gamma'`` and
-          ``'inverse.gaussian'``
+        - ``'identity'`` for family ``'normal'``
+        - ``'log'`` for families ``'poisson'``, ``'gamma'``,
+          ``'inverse.gaussian'`` and ``'negative.binomial'``.
         - ``'logit'`` for family ``'binomial'``
 
     solver : {'auto', 'irls-cd', 'irls-ls', 'lbfgs', 'trust-constr'}, \
@@ -2563,11 +2573,12 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         # we require that the log_likelihood be defined
         model_err_str = (
             "The computation of the information criteria has only "
-            + "been defined for models with a Binomial likelihood or a Tweedie "
-            + "likelihood with power <= 2."
+            + "been defined for models with a Binomial likelihood, Negative "
+            + "Binomial likelihood or a Tweedie likelihood with power <= 2."
         )
         if not isinstance(
-            self.family_instance, (BinomialDistribution, TweedieDistribution)
+            self.family_instance,
+            (BinomialDistribution, TweedieDistribution, NegativeBinomialDistribution),
         ):
             raise NotImplementedError(model_err_str)
 

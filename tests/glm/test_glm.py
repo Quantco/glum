@@ -27,6 +27,7 @@ from glum._distribution import (
     GammaDistribution,
     GeneralizedHyperbolicSecant,
     InverseGaussianDistribution,
+    NegativeBinomialDistribution,
     NormalDistribution,
     PoissonDistribution,
     TweedieDistribution,
@@ -189,6 +190,7 @@ def test_gradient_tol_setting(estimator, kwargs, solver, gradient_tol):
         ("gamma", GammaDistribution()),
         ("inverse.gaussian", InverseGaussianDistribution()),
         ("binomial", BinomialDistribution()),
+        ("negative.binomial", NegativeBinomialDistribution()),
     ],
 )
 def test_glm_family_argument(f, fam, y, X):
@@ -701,6 +703,7 @@ def test_glm_identity_regression_categorical_data(solver, offset, convert_x_fn):
         InverseGaussianDistribution(),
         TweedieDistribution(power=1.5),
         TweedieDistribution(power=4.5),
+        NegativeBinomialDistribution(theta=1.0),
         GeneralizedHyperbolicSecant(),
     ],
 )
@@ -1338,6 +1341,7 @@ def test_clonable(estimator):
         (LogLink(), TweedieDistribution(4.5), 1e-4),
         (LogLink(), NormalDistribution(), 1e-4),
         (LogLink(), InverseGaussianDistribution(), 1e-4),
+        (LogLink(), NegativeBinomialDistribution(), 1e-2),
         (LogitLink(), BinomialDistribution(), 1e-2),
         (IdentityLink(), GeneralizedHyperbolicSecant(), 1e-1),
     ],
