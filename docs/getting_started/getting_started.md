@@ -105,7 +105,7 @@ preds[0:5]
 ## Regularization
 
 In the example above, the `alpha` and `l1_ratio` parameters specify the level of regularization, i.e. the amount by which fitted model coefficients are biased towards zero.
-The advantage of the regularized model is that one avoids overfitting by controlling the tradeoff between the bias and the vairance of the coefficient estimator.
+The advantage of the regularized model is that one avoids overfitting by controlling the tradeoff between the bias and the variance of the coefficient estimator.
 An optimal level of regularization can be obtained data-adaptively through cross-validation. In the `GeneralizedLinearRegressorCV` example below, we show how this can be done by specifying an `alpha_search` parameter.
 
 To fit an unregularized GLM we set `alpha=0`. Note that the default level `alpha=None` results in regularization at the level `alpha=1.0`, which is the default in the sklearn ElasticNet model.
