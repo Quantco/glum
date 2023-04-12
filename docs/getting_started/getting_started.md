@@ -67,7 +67,7 @@ We'll use `glum.GeneralizedLinearRegressor` to predict the house prices using th
 We set three key parameters:
 
 - `family`: the family parameter specifies the distributional assumption of the GLM and, as a consequence, the loss function to be minimized. Accepted strings are 'normal', 'poisson', 'gamma', 'inverse.gaussian', and 'binomial'. You can also pass in an instantiated `glum` distribution (e.g. `glum.TweedieDistribution(1.5)` )
-- `alpha`: the constant multiplying the penalty term that determines regularization strength. (*Note*: `GeneralizedLinearRegressor` also has an alpha-search option. See the `GeneralizedLinearRegressorCV` example below for details on how alpha-search works).
+- `alpha`: the constant multiplying the penalty term that determines regularization strength.
 - `l1_ratio`: the elastic net mixing parameter (`0 <= l1_ratio <= 1`). For `l1_ratio = 0`, the penalty is the L2 penalty (ridge). ``For l1_ratio = 1``, it is an L1 penalty (lasso).  For ``0 < l1_ratio < 1``, the penalty is a combination of L1 and L2.
 
 To be precise, we will be minimizing the function with respect to the parameters, $\beta$:
@@ -101,6 +101,20 @@ preds = glm.predict(X_test)
 
 preds[0:5]
 ```
+
+## Regularization
+
+In the example above, the `alpha` and `l1_ratio` parameters specify the level of regularization, i.e. the amount by which fitted model coefficients are biased towards zero.
+The advantage of the regularized model is that one avoids overfitting by controlling the tradeoff between the bias and the variance of the coefficient estimator.
+An optimal level of regularization can be obtained data-adaptively through cross-validation. In the `GeneralizedLinearRegressorCV` example below, we show how this can be done by specifying an `alpha_search` parameter.
+
+To fit an unregularized GLM we set `alpha=0`. Note that the default level `alpha=None` results in regularization at the level `alpha=1.0`, which is the default in the scikit-learn's [ElasticNet](https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.ElasticNet.html).
+
+A basic unregularized GLM object is obtained as
+```python
+glm = GeneralizedLinearRegressor(family="normal", alpha=0)
+```
+which we interact with as in the example above.
 
 ## Fitting a GLM with cross validation
 
