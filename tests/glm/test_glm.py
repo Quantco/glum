@@ -1629,7 +1629,7 @@ def test_feature_names(X, feature_names):
         (pd.DataFrame({"x1": np.arange(5)}).to_numpy(), None),
         (
             pd.DataFrame({"x1": pd.Categorical(np.arange(5))}),
-            {"x1": pd.CategoricalDtype(list(range(5)), ordered=False)},
+            {"x1": pd.CategoricalDtype(np.arange(5), ordered=False)},
         ),
     ],
 )
