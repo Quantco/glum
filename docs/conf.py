@@ -10,6 +10,7 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
+import datetime
 import os
 import sys
 
@@ -18,12 +19,12 @@ sys.path.insert(0, os.path.abspath("."))
 # -- Project information -----------------------------------------------------
 
 project = "glum"
-copyright = "(C) 2020-2021 QuantCo Inc."
+copyright = f"2020–{datetime.datetime.now().year}, QuantCo Inc."
 author = "QuantCo Inc."
 
 extensions = [
     "sphinx.ext.napoleon",
-    "altair.sphinxext.altairplot",
+    "sphinxext_altair.altairplot",
     "IPython.sphinxext.ipython_console_highlighting",
     "IPython.sphinxext.ipython_directive",
     "nbsphinx",
