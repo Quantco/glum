@@ -533,6 +533,52 @@ def test_binomial_deviance_dispersion_loglihood(weighted):
     np.testing.assert_approx_equal(ll, -3.365058)
 
 
+@pytest.mark.parametrize("weighted", [False, True])
+def test_negative_binomial_deviance_dispersion_loglihood(weighted):
+
+    # y <- c(0, 1, 0, 1, 0)
+    # glm_model = glm(y~1, family=negative.binomial(theta=1))
+
+    # glm_model$coefficients  # -0.9162907
+    # sum(glm_model$weights * glm_model$residuals^2)/4  # 0.535716
+    # glm_model$deviance  # 2.830597
+    # logLik(glm_model)  # -4.187887 (df=1)
+
+    regressor = GeneralizedLinearRegressor(
+        alpha=0,
+        family="negative.binomial",
+        fit_intercept=False,
+        gradient_tol=1e-8,
+        check_input=False,
+    )
+
+    y = np.array([0, 1, 0, 1, 0])
+
+    if weighted:
+        y, wgts = np.unique(y, return_counts=True)
+    else:
+        wgts = None
+
+    x = np.ones((len(y), 1))
+    mu = regressor.fit(x, y, sample_weight=wgts).predict(x)
+    family = regressor._family_instance
+
+    # R bases dispersion on the deviance for log_likelihood
+    ll = family.log_likelihood(
+        y,
+        mu,
+        sample_weight=wgts,
+        dispersion=family.dispersion(
+            y, mu, sample_weight=wgts, method="deviance", ddof=0
+        ),
+    )
+
+    np.testing.assert_approx_equal(regressor.coef_[0], -0.9162907)
+    np.testing.assert_approx_equal(family.dispersion(y, mu, sample_weight=wgts), 0.53571, significant=5)
+    np.testing.assert_approx_equal(family.deviance(y, mu, sample_weight=wgts), 2.830597)
+    np.testing.assert_approx_equal(ll, -4.187887)
+
+
 @pytest.mark.parametrize("dispersion", [1, 5, 10, 25])
 @pytest.mark.parametrize("power", [1.1, 1.5, 1.9, 1.99])
 def test_tweedie_normalization(dispersion, power):
