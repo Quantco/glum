@@ -574,7 +574,9 @@ def test_negative_binomial_deviance_dispersion_loglihood(weighted):
     )
 
     np.testing.assert_approx_equal(regressor.coef_[0], -0.9162907)
-    np.testing.assert_approx_equal(family.dispersion(y, mu, sample_weight=wgts), 0.53571, significant=5)
+    np.testing.assert_approx_equal(
+        family.dispersion(y, mu, sample_weight=wgts), 0.53571, significant=5
+    )
     np.testing.assert_approx_equal(family.deviance(y, mu, sample_weight=wgts), 2.830597)
     np.testing.assert_approx_equal(ll, -4.187887)
 
