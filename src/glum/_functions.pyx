@@ -493,6 +493,8 @@ def negative_binomial_log_likelihood(
             lgamma(y[i] + 1.0)
         )
 
+    return ll
+
 def negative_binomial_deviance(
     const_floating1d y,
     const_floating1d weights,

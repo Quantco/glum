@@ -7,6 +7,14 @@
 Changelog
 =========
 
+2.5.1 - 2023-05-19
+------------------
+
+**Bug fix**
+
+- We fixed a bug in the computation of :meth:`~glum.distributiion.NegativeBinomialDistribution.log_likelihood`. Previously, this method just returned ``None``.
+  
+
 2.5.0 - 2023-04-28
 ------------------
 
