@@ -12,8 +12,8 @@ Changelog
 
 **Bug fix**
 
-- We fixed a bug in the computation of :meth:`~glum.distributiion.NegativeBinomialDistribution.log_likelihood`. Previously, this method just returned ``None``.
-  
+- We fixed a bug in the computation of :meth:`~glum.distribution.NegativeBinomialDistribution.log_likelihood`. Previously, this method just returned ``None``.
+
 
 2.5.0 - 2023-04-28
 ------------------
@@ -24,18 +24,18 @@ Changelog
   :class:`~glum.GeneralizedLinearRegressor` and :class:`~glum.GeneralizedLinearRegressorCV`
   to ``'negative.binomial'``.
 
-
 2.4.1 - 2023-03-14
 ------------------
 
 **Bug fixes:**
 
-- Fixed an issue with :meth:`~glum.ExponentialDispersionModel._score_matrix` which failed when called with a tabmat matrix input. 
+- Fixed an issue with :meth:`~glum.ExponentialDispersionModel._score_matrix` which failed when called with a tabmat matrix input.
 
 **Other changes**:
 
 - Removes unused scikit-learn cython imports.
-  
+
+
 2.4.0 - 2023-01-31
 ------------------
 
@@ -43,6 +43,7 @@ Changelog
 
 - :class:`~glum._link.LogitLink` has been made public.
 - Apple Silicon wheels are now uploaded to PyPI.
+
 
 2.3.0 - 2023-01-06
 ------------------
@@ -71,12 +72,14 @@ Changelog
 - The distribution and link classes now feature a more lenient equality check instead of the default identity check,
   so that, e.g., ``TweedieDistribution(1) == TweedieDistribution(1)`` now returns ``True``.
 
+
 2.2.1 - 2022-11-25
 ------------------
 
 **Other changes:**
 
 - Fixing pypi upload issue. Version 2.2.0 will not be available through the standard distribution channels.
+
 
 2.2.0 - 2022-11-25
 ------------------
@@ -97,6 +100,7 @@ Changelog
 
 - No more builds for 32-bit systems with python >= 3.8. This is due to scipy not supporting it anymore.
 
+
 2.1.2 - 2022-07-01
 ------------------
 
@@ -104,12 +108,14 @@ Changelog
 
 - Next attempt to build wheel for PyPI without ``--march=native``.
 
+
 2.1.1 - 2022-07-01
 ------------------
 
 **Other changes:**
 
 - We are now building the wheel for PyPI without ``--march=native`` to make it more portable across architectures.
+
 
 2.1.0 - 2022-06-27
 ------------------
@@ -140,6 +146,7 @@ Changelog
 
 - We are now specifying the run time dependencies in ``setup.py``, so that missing dependencies are automatically installed from PyPI when installing ``glum`` via pip.
 
+
 2.0.2 - 2021-11-03
 ------------------
 
@@ -153,12 +160,14 @@ Changelog
 - The CI now builds the wheels and upload to pypi with every new release.
 - Renamed functions checking for qc.matrix compliance to refer to tabmat.
 
+
 2.0.1 - 2021-10-11
 ------------------
 
 **Bug fix:**
 
 - Fixed pyproject.toml. We now support installing through pip and pep517.
+
 
 2.0.0 - 2021-10-08
 ------------------
@@ -201,6 +210,7 @@ Changelog
 - ``glmnet_python`` was removed from the benchmarks suite.
 - The innermost coordinate descent was optimized. This speeds up coordinate descent dominated problems like LASSO by about 1.5-2x. See `here <https://github.com/Quantco/glum/pull/424>`_.
 
+
 1.5.1 - 2021-07-22
 ------------------
 
@@ -223,12 +233,14 @@ Changelog
 * Don't list ``sparse_dot_mkl`` as a runtime requirement from the conda recipe.
 * The minimal ``numpy`` pin should be dependent on the ``numpy`` version in ``host`` and not fixed to ``1.16``.
 
+
 1.4.3 - 2021-06-25
 ------------------
 
 **Bug fix:**
 
 - ``copy_X = False`` will now raise a value error when ``X`` has dtype ``int32`` or ``int64``. Previously, it would only raise for dtype ``int64``.
+
 
 1.4.2 - 2021-06-15
 ------------------
@@ -247,10 +259,12 @@ Changelog
 - Small improvement in documentation for the ``alpha_index`` argument to :meth:`~glum.GeneralizedLinearRegressor.predict`.
 - Pinned pre-commit hooks versions.
 
+
 1.4.1 - 2021-05-01
 ------------------
 
 We now have Windows builds!
+
 
 1.4.0 - 2021-04-13
 ------------------
@@ -263,6 +277,7 @@ We now have Windows builds!
 
 - We removed entry points to functions in ``glum_benchmarks`` from the conda package.
 
+
 1.3.1 - 2021-04-12
 ------------------
 
@@ -270,6 +285,7 @@ We now have Windows builds!
 
 - :func:`glum._distribution.unit_variance_derivative` is
   evaluating a proper numexpr expression again (regression in 1.3.0).
+
 
 1.3.0 - 2021-04-12
 ------------------
@@ -279,15 +295,18 @@ We now have Windows builds!
 - We added a new solver based on ``scipy.optimize.minimize(method='trust-constr')``.
 - We added support for linear inequality constraints of type ``A_ineq.dot(coef_) <= b_ineq``.
 
+
 1.2.0 - 2021-02-04
 ------------------
 
 We removed ``glum_benchmarks`` from the conda package.
 
+
 1.1.1 - 2021-01-11
 ------------------
 
 Maintenance release to get a fresh build for OSX.
+
 
 1.1.0 - 2020-11-23
 ------------------
@@ -296,10 +315,12 @@ Maintenance release to get a fresh build for OSX.
 
 - Direct support for pandas categorical types in ``fit`` and ``predict``. These will be converted into a :class:`CategoricalMatrix`.
 
+
 1.0.1 - 2020-11-12
 ------------------
 
 This is a maintenance release to be compatible with ``tabmat>=1.0.0``.
+
 
 1.0.0 - 2020-11-11
 ------------------
@@ -309,12 +330,14 @@ This is a maintenance release to be compatible with ``tabmat>=1.0.0``.
 - Renamed ``alpha_level`` attribute of :class:`~glum.GeneralizedLinearRegressor` and :class:`~glum.GeneralizedLinearRegressorCV` to ``alpha_index``.
 - Clarified behavior of ``scale_predictors``.
 
+
 0.0.15 - 2020-11-11
 -------------------
 
 **Other:**
 
 - Pin ``tabmat<1.0.0`` as we are expecting a breaking change with version 1.0.0.
+
 
 0.0.14 - 2020-08-06
 -------------------
