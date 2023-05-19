@@ -537,7 +537,7 @@ def test_binomial_deviance_dispersion_loglihood(weighted):
 def test_negative_binomial_deviance_dispersion_loglihood(weighted):
 
     # y <- c(0, 1, 0, 1, 0)
-    # glm_model = glm(y~1, family=negative.binomial(theta=1))
+    # glm_model = glm(y~1, family=MASS::negative.binomial(theta=1))
 
     # glm_model$coefficients  # -0.9162907
     # sum(glm_model$weights * glm_model$residuals^2)/4  # 0.535716
