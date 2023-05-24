@@ -1,3 +1,4 @@
+from . import categorical_util
 from .create_housing import create_housing_raw_data, generate_housing_dataset
 from .create_insurance import (
     create_insurance_raw_data,
@@ -17,4 +18,5 @@ __all__ = [
     "simulate_glm_data",
     "generate_housing_dataset",
     "create_housing_raw_data",
+    "categorical_util",
 ]

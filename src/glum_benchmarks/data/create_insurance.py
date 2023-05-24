@@ -4,12 +4,12 @@ from typing import Any, Callable, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 from dask_ml.compose import make_column_transformer
-from dask_ml.preprocessing import Categorizer, OrdinalEncoder
 from git_root import git_root
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer
 
 from ..util import exposure_and_offset_to_weights
+from .categorical_util import Categorizer, OrdinalEncoder
 
 # taken from https://github.com/lorentzenchr/Tutorial_freMTPL2/blob/master/glm_freMTPL2_example.ipynb  # noqa: B950
 # Modified to generate data sets of different sizes

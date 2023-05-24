@@ -6,7 +6,6 @@ import attr
 import numpy as np
 import pandas as pd
 import tabmat as tm
-from dask_ml.preprocessing import DummyEncoder
 from git_root import git_root
 from joblib import Memory
 from scipy.sparse import csc_matrix
@@ -18,6 +17,7 @@ from .data import (
     generate_real_insurance_dataset,
     generate_wide_insurance_dataset,
 )
+from .data.categorical_util import DummyEncoder
 from .util import cache_location, exposure_and_offset_to_weights, get_tweedie_p
 
 joblib_memory = Memory(cache_location, verbose=0)
