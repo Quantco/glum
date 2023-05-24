@@ -7,6 +7,14 @@
 Changelog
 =========
 
+2.5.2 - 2023-05-24
+------------------
+
+**Other changes:**
+
+- Remove dev dependency on ``dask_ml``.
+
+
 2.5.1 - 2023-05-19
 ------------------
 
