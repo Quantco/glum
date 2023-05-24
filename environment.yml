@@ -15,7 +15,6 @@ dependencies:
 
   # development tools
   - black
-  - dask-ml>=2022.5.27 # used for data creation for the benchmark problems
   - flake8
   - git_root
   - ipdb
