@@ -95,7 +95,7 @@ def create_insurance_raw_data(verbose=False) -> None:
 
 def get_categorizer(col_name: str, name="cat") -> Tuple[str, Categorizer]:
     """
-    Get a dask_ml Categorizer.
+    Get a Categorizer.
 
     Categorizer only operates on object columns unless you explicitly pass the column
     name.

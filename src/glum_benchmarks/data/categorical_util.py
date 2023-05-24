@@ -35,15 +35,13 @@ class Categorizer(BaseEstimator, TransformerMixin):
 
     Notes
     -----
-    This transformer only applies to ``dask.DataFrame`` and
+    This transformer only applies to
     ``pandas.DataFrame``. By default, all object-type columns are converted to
     categoricals. The set of categories will be the values present in the
     column and the categoricals will be unordered. Pass ``dtypes`` to control
     this behavior.
 
     All other columns are included in the transformed output untouched.
-
-    For ``dask.DataFrame``, any unknown categoricals will become known.
 
     Attributes
     ----------
@@ -86,7 +84,7 @@ class Categorizer(BaseEstimator, TransformerMixin):
         # TODO: refactor to check_array
         if not isinstance(X, pd.DataFrame):
             raise TypeError(
-                "Expected a pandas or dask DataFrame, got " "{} instead".format(type(X))
+                "Expected a pandas DataFrame, got " "{} instead".format(type(X))
             )
         return X
 
@@ -97,7 +95,7 @@ class Categorizer(BaseEstimator, TransformerMixin):
 
         Parameters
         ----------
-        X : pandas.DataFrame or dask.DataFrame
+        X : pandas.DataFrame
         y : ignored
 
         Returns
@@ -126,9 +124,6 @@ class Categorizer(BaseEstimator, TransformerMixin):
         for name in columns:
             col = X[name]
             if not is_categorical_dtype(col):
-                # This shouldn't ever be hit on a dask.array, since
-                # the object columns would have been converted to known cats
-                # already
                 col = pd.Series(col, index=X.index).astype("category")
 
             if _HAS_CTD:
@@ -145,12 +140,12 @@ class Categorizer(BaseEstimator, TransformerMixin):
 
         Parameters
         ----------
-        X : pandas.DataFrame or dask.DataFrame
+        X : pandas.DataFrame
         y : ignored
 
         Returns
         -------
-        X_trn : pandas.DataFrame or dask.DataFrame
+        X_trn : pandas.DataFrame
             Same type as the input. The columns in ``self.categories_`` will
             be converted to categorical dtype.
         """
@@ -208,8 +203,7 @@ class DummyEncoder(BaseEstimator, TransformerMixin):
 
     Notes
     -----
-    This transformer only applies to dask and pandas DataFrames. For dask
-    DataFrames, all of your categoricals should be known.
+    This transformer only applies to pandas DataFrames.
 
     The inverse transformation can be used on a dataframe or array.
 
@@ -240,15 +234,6 @@ class DummyEncoder(BaseEstimator, TransformerMixin):
 
     >>> de.categorical_blocks_
     {'B': slice(1, 3, None)}
-
-    >>> de.fit_transform(dd.from_pandas(data, 2))
-    Dask DataFrame Structure:
-                    A    B_a    B_b
-    npartitions=2
-    0              int64  uint8  uint8
-    2                ...    ...    ...
-    3                ...    ...    ...
-    Dask Name: get_dummies, 4 tasks
     """
 
     def __init__(
@@ -264,7 +249,7 @@ class DummyEncoder(BaseEstimator, TransformerMixin):
 
         Parameters
         ----------
-        X : pandas.DataFrame or dask.dataframe.DataFrame
+        X : pandas.DataFrame
         y : ignored
 
         Returns
@@ -338,13 +323,11 @@ class DummyEncoder(BaseEstimator, TransformerMixin):
 
         Parameters
         ----------
-        X : array or dataframe
-            Either the NumPy, dask, or pandas version
+        X : Numpy ndarray or Pandas DataFrame
 
         Returns
         -------
         data : DataFrame
-            Dask array or dataframe will return a Dask DataFrame.
             Numpy array or pandas dataframe will return a pandas DataFrame
         """
         if isinstance(X, np.ndarray):
@@ -408,8 +391,7 @@ class OrdinalEncoder(BaseEstimator, TransformerMixin):
 
     Notes
     -----
-    This transformer only applies to dask and pandas DataFrames. For dask
-    DataFrames, all of your categoricals should be known.
+    This transformer only applies to pandas DataFrames.
 
     The inverse transformation can be used on a dataframe or array.
 
@@ -437,16 +419,6 @@ class OrdinalEncoder(BaseEstimator, TransformerMixin):
 
     >>> enc.dtypes_
     {'B': CategoricalDtype(categories=['a', 'b'], ordered=False)}
-
-    >>> enc.fit_transform(dd.from_pandas(data, 2))
-    Dask DataFrame Structure:
-                       A     B
-    npartitions=2
-    0              int64  int8
-    2                ...   ...
-    3                ...   ...
-    Dask Name: assign, 8 tasks
-
     """
 
     def __init__(self, columns=None):
@@ -459,7 +431,7 @@ class OrdinalEncoder(BaseEstimator, TransformerMixin):
 
         Parameters
         ----------
-        X : pandas.DataFrame or dask.dataframe.DataFrame
+        X : pandas.DataFrame
         y : ignored
 
         Returns
@@ -522,13 +494,11 @@ class OrdinalEncoder(BaseEstimator, TransformerMixin):
 
         Parameters
         ----------
-        X : array or dataframe
-            Either the NumPy, dask, or pandas version
+        X : Numpy ndarray or Pandas DataFrame
 
         Returns
         -------
         data : DataFrame
-            Dask array or dataframe will return a Dask DataFrame.
             Numpy array or pandas dataframe will return a pandas DataFrame
         """
         if isinstance(X, np.ndarray):
@@ -675,13 +645,12 @@ boolean mask array or callable
 
     See Also
     --------
-    dask_ml.compose.make_column_transformer : convenience function for
+    make_column_transformer : convenience function for
         combining the outputs of multiple transformer objects applied to
         column subsets of the original feature space.
 
     Examples
     --------
-    >>> from dask_ml.compose import ColumnTransformer
     >>> from sklearn.preprocessing import Normalizer
     >>> ct = ColumnTransformer(
     ...     [("norm1", Normalizer(norm='l1'), [0, 1]),
