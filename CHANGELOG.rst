@@ -7,7 +7,7 @@
 Changelog
 =========
 
-2.5.2 - 2023-05-24
+2.5.2 - UNRELEASED
 ------------------
 
 **Other changes:**
