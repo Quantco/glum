@@ -52,7 +52,7 @@ def cli_analyze(
     clear_cache()
     display_precision = 4
     np.set_printoptions(precision=display_precision, suppress=True)
-    pd.set_option("precision", display_precision)
+    pd.set_option("display.precision", display_precision)
 
     file_names = _identify_parameter_fnames(output_dir, params)
 

@@ -10,6 +10,10 @@ Changelog
 2.5.2 - UNRELEASED
 ------------------
 
+**Bug fix**
+
+- Fix the ``glm_benchmarks_analyze`` command line tool. See `here <https://github.com/Quantco/glum/issues/642>`_.
+
 **Other changes:**
 
 - Remove dev dependency on ``dask_ml``.
