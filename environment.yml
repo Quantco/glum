@@ -33,20 +33,19 @@ dependencies:
   - cxx-compiler
   - cython
 
+  # required for tests
+  - statsmodels
+
   # documentation dev
-  - altair # used in docs/tutorials/rossman
   - jinja2
   - jupyterlab
   - jupytext
-  - libpysal # used in docs/tutorials/regularization_housing_data
   - make
   - matplotlib-base
   - nbclassic>=0.2.8
   - nbsphinx>=0.8.3
-  - openml # used for downloading datasets in the tutorials.
-  - shapely # used in docs/tutorials/regularization_housing_data
   - sphinx>=3.5.3
   - sphinx_rtd_theme
   - sphinxcontrib-apidoc
   - sphinxext-altair
-  - statsmodels
+

@@ -1,0 +1,10 @@
+name: glum
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - altair # used in docs/tutorials/rossman
+  - openml # used for downloading datasets in the tutorials.
+  - dask-ml>=2022.5.27 # used in tutorials rossman and insurance
+  - shapely # used in docs/tutorials/regularization_housing_data
+  - libpysal # used in docs/tutorials/regularization_housing_data
