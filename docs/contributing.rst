@@ -136,7 +136,7 @@ What follows is a high-level summary of the source code structure. For more deta
 
 * ``_glm.py`` - This is the main entrypoint and implements the core logic of the GLM. Most of the code in this file handles input arguments and prepares the data for the GLM fitting algorithm.
 * ``_glm_cv.py`` - This is the entrypoint for the cross validated GLM implementation. It depends on a lot of the code in ``_glm.py`` and only modifies the sections necessary for running training many models with different regularization parameters.
-* ``_solvers.py`` - This contains the bulk of the IRLS and L-BFGS algorithms for training GLMs. For details on the algorithm, see :doc:`background/background` for more details.
+* ``_solvers.py`` - This contains the bulk of the IRLS and L-BFGS algorithms for training GLMs.
 * ``_cd_fast.pyx`` - This is a Cython implementation of the coordinate descent algorithm used for fitting L1 penalty GLMs. Note the ``.pyx`` extension indicating that it is a Cython source file.
 * ``_distribution.py`` - definitions of the distributions that can be used. Includes Normal, Poisson, Gamma, InverseGaussian, Tweedie, Binomial and GeneralizedHyperbolicSecant distributions. 
 * ``_link.py`` - definitions of the link functions that can be used. Includes identity, log, logit and Tweedie link functions.
