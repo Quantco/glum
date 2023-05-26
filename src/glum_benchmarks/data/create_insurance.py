@@ -94,13 +94,8 @@ def create_insurance_raw_data(verbose=False) -> None:
 
 
 def get_categorizer(col_name: str, name="cat") -> Tuple[str, Categorizer]:
-    """
-    Get a Categorizer.
-
-    Categorizer only operates on object columns unless you explicitly pass the column
-    name.
-    """
-    return name, Categorizer(columns=[col_name])
+    """Get a Categorizer."""
+    return name, Categorizer()
 
 
 def func_returns_df(
