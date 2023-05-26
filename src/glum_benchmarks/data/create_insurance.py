@@ -155,33 +155,14 @@ class OrdinalEncoder(BaseEstimator, TransformerMixin):
         self, X: pd.DataFrame, y: Optional[Union[np.ndarray, pd.Series]] = None
     ) -> "OrdinalEncoder":
         """Determine the categorical columns to be encoded."""
-        self.columns_ = X.columns
         self.categorical_columns_ = X.select_dtypes(include=["category"]).columns
-        self.non_categorical_columns_ = X.columns.drop(self.categorical_columns_)
-
-        if _HAS_CTD:
-            self.dtypes_ = {col: X[col].dtype for col in self.categorical_columns_}
-        else:
-            self.dtypes_ = {
-                col: (X[col].cat.categories, X[col].cat.ordered)
-                for col in self.categorical_columns_
-            }
-
         return self
 
     def transform(
         self, X: pd.DataFrame, y: Optional[Union[np.ndarray, pd.Series]] = None
     ) -> pd.DataFrame:
         """Ordinal encode the categorical columns in X."""
-        check_is_fitted(self, "columns_")
-        if not X.columns.equals(self.columns_):
-            raise ValueError(
-                "Columns of 'X' do not match the training "
-                "columns. Got {!r}, expected {!r}".format(X.columns, self.columns_)
-            )
-        if not isinstance(X, pd.DataFrame):
-            raise TypeError("Unexpected type {}".format(type(X)))
-
+        check_is_fitted(self, "categorical_columns_")
         X = X.copy()
         for col in self.categorical_columns_:
             X[col] = X[col].cat.codes
