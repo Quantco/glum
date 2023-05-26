@@ -2,7 +2,6 @@ import os
 from typing import Any, Callable, Iterable, List, Optional, Tuple, Union
 
 import numpy as np
-import packaging.version
 import pandas as pd
 import sklearn.compose
 from git_root import git_root
@@ -17,9 +16,6 @@ from ..util import exposure_and_offset_to_weights
 
 # taken from https://github.com/lorentzenchr/Tutorial_freMTPL2/blob/master/glm_freMTPL2_example.ipynb  # noqa: B950
 # Modified to generate data sets of different sizes
-
-_PANDAS_VERSION = packaging.version.parse(pd.__version__)
-_HAS_CTD = _PANDAS_VERSION >= packaging.version.parse("0.21.0")
 
 
 def create_insurance_raw_data(verbose=False) -> None:
@@ -114,11 +110,7 @@ class Categorizer(BaseEstimator, TransformerMixin):
             col = X[name]
             if not is_categorical_dtype(col):
                 col = pd.Series(col, index=X.index).astype("category")
-
-            if _HAS_CTD:
-                categories[name] = col.dtype
-            else:
-                categories[name] = (col.cat.categories, col.cat.ordered)
+            categories[name] = col.dtype
 
         self.columns_ = columns
         self.categories_ = categories
@@ -132,13 +124,9 @@ class Categorizer(BaseEstimator, TransformerMixin):
         categories = self.categories_
 
         for k, dtype in categories.items():
-            if _HAS_CTD:
-                if not isinstance(dtype, pd.api.types.CategoricalDtype):
-                    dtype = pd.api.types.CategoricalDtype(*dtype)
-                X[k] = X[k].astype(dtype)
-            else:
-                cat, ordered = dtype
-                X[k] = X[k].astype("category").cat.set_categories(cat, ordered)
+            if not isinstance(dtype, pd.api.types.CategoricalDtype):
+                dtype = pd.api.types.CategoricalDtype(*dtype)
+            X[k] = X[k].astype(dtype)
 
         return X
 
