@@ -17,7 +17,6 @@ from .data import (
     generate_real_insurance_dataset,
     generate_wide_insurance_dataset,
 )
-from .data.categorical_util import DummyEncoder
 from .util import cache_location, exposure_and_offset_to_weights, get_tweedie_p
 
 joblib_memory = Memory(cache_location, verbose=0)
@@ -71,7 +70,7 @@ def load_data(
         if dtype.name == "category":
             if storage == "cat":
                 return tm.CategoricalMatrix(X_in.iloc[:, i])
-            return DummyEncoder().fit_transform(X_in.iloc[:, [i]])
+            return pd.get_dummies(X_in.iloc[:, i], drop_first=False)
         return X_in.iloc[:, [i]]
 
     mat_parts = [transform_col(i, dtype) for i, dtype in enumerate(X_in.dtypes)]

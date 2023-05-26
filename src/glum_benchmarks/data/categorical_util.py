@@ -161,9 +161,6 @@ class DummyEncoder(BaseEstimator, TransformerMixin):
 
     Parameters
     ----------
-    columns : sequence, optional
-        The columns to dummy encode. Must be categorical dtype.
-        Dummy encodes all categorical dtype columns by default.
     drop_first : bool, default False
         Whether to drop the first category in each column.
 
