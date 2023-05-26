@@ -102,65 +102,12 @@ def create_insurance_raw_data(verbose=False) -> None:
 
 
 class Categorizer(BaseEstimator, TransformerMixin):
-    """Transform columns of a DataFrame to categorical dtype.
-
-    This is a useful pre-processing step for dummy, one-hot, or
-    categorical encoding.
-
-    Notes
-    -----
-    This transformer only applies to
-    ``pandas.DataFrame``. All object-type columns are converted to
-    categoricals. The set of categories will be the values present in the
-    column and the categoricals will be unordered.
-
-    All other columns are included in the transformed output untouched.
-
-    Attributes
-    ----------
-    columns_ : pandas.Index
-        The columns that were categorized. Useful when ``categories`` is None,
-        and we detect the categorical and object columns
-
-    categories_ : dict
-        A dictionary mapping column names to dtypes. For pandas>=0.21.0, the
-        values are instances of ``pandas.api.types.CategoricalDtype``. For
-        older pandas, the values are tuples of ``(categories, ordered)``.
-
-    Examples
-    --------
-    >>> df = pd.DataFrame({"A": [1, 2, 3], "B": ['a', 'a', 'b']})
-    >>> ce = Categorizer()
-    >>> ce.fit_transform(df).dtypes
-    A       int64
-    B    category
-    dtype: object
-
-    >>> ce.categories_
-    {'B': CategoricalDtype(categories=['a', 'b'], ordered=False)}
-
-    Using CategoricalDtypes for specifying the categories:
-
-    >>> from pandas.api.types import CategoricalDtype
-    >>> ce = Categorizer(categories={"B": CategoricalDtype(['a', 'b', 'c'])})
-    >>> ce.fit_transform(df).B.dtype
-    CategoricalDtype(categories=['a', 'b', 'c'], ordered=False)
-    """
+    """Transform columns of a DataFrame to categorical dtype."""
 
     def fit(
         self, X: pd.DataFrame, y: Optional[Union[np.ndarray, pd.Series]] = None
     ) -> "Categorizer":
-        """Find the categorical columns.
-
-        Parameters
-        ----------
-        X : pandas.DataFrame
-        y : ignored
-
-        Returns
-        -------
-        self
-        """
+        """Find the categorical columns."""
         columns = X.columns
         categories = {}
         for name in columns:
@@ -180,19 +127,7 @@ class Categorizer(BaseEstimator, TransformerMixin):
     def transform(
         self, X: pd.DataFrame, y: Optional[Union[np.ndarray, pd.Series]] = None
     ) -> pd.DataFrame:
-        """Transform the columns in ``X`` according to ``self.categories_``.
-
-        Parameters
-        ----------
-        X : pandas.DataFrame
-        y : ignored
-
-        Returns
-        -------
-        X_trn : pandas.DataFrame
-            Same type as the input. The columns in ``self.categories_`` will
-            be converted to categorical dtype.
-        """
+        """Transform the columns in ``X`` according to ``self.categories_``."""
         check_is_fitted(self, "categories_")
         categories = self.categories_
 
@@ -214,69 +149,12 @@ def get_categorizer(col_name: str, name="cat") -> Tuple[str, Categorizer]:
 
 
 class OrdinalEncoder(BaseEstimator, TransformerMixin):
-    """Ordinal (integer) encode categorical columns.
-
-    Attributes
-    ----------
-    columns_ : Index
-        The columns in the training data before/after encoding
-
-    categorical_columns_ : Index
-        The categorical columns in the training data
-
-    noncategorical_columns_ : Index
-        The rest of the columns in the training data
-
-    dtypes_ : dict
-        Dictionary mapping column name to either
-
-        * instances of CategoricalDtype (pandas >= 0.21.0)
-        * tuples of (categories, ordered)
-
-    Notes
-    -----
-    This transformer only applies to pandas DataFrames.
-
-    Examples
-    --------
-    >>> data = pd.DataFrame({"A": [1, 2, 3, 4],
-    ...                      "B": pd.Categorical(['a', 'a', 'a', 'b'])})
-    >>> enc = OrdinalEncoder()
-    >>> trn = enc.fit_transform(data)
-    >>> trn
-       A  B
-    0  1  0
-    1  2  0
-    2  3  0
-    3  4  1
-
-    >>> enc.columns_
-    Index(['A', 'B'], dtype='object')
-
-    >>> enc.non_categorical_columns_
-    Index(['A'], dtype='object')
-
-    >>> enc.categorical_columns_
-    Index(['B'], dtype='object')
-
-    >>> enc.dtypes_
-    {'B': CategoricalDtype(categories=['a', 'b'], ordered=False)}
-    """
+    """Ordinal (integer) encode categorical columns."""
 
     def fit(
         self, X: pd.DataFrame, y: Optional[Union[np.ndarray, pd.Series]] = None
     ) -> "OrdinalEncoder":
-        """Determine the categorical columns to be encoded.
-
-        Parameters
-        ----------
-        X : pandas.DataFrame
-        y : ignored
-
-        Returns
-        -------
-        self
-        """
+        """Determine the categorical columns to be encoded."""
         self.columns_ = X.columns
         self.categorical_columns_ = X.select_dtypes(include=["category"]).columns
         self.non_categorical_columns_ = X.columns.drop(self.categorical_columns_)
@@ -294,18 +172,8 @@ class OrdinalEncoder(BaseEstimator, TransformerMixin):
     def transform(
         self, X: pd.DataFrame, y: Optional[Union[np.ndarray, pd.Series]] = None
     ) -> pd.DataFrame:
-        """Ordinal encode the categorical columns in X
-
-        Parameters
-        ----------
-        X : pd.DataFrame
-        y : ignored
-
-        Returns
-        -------
-        transformed : pd.DataFrame
-            Same type as the input
-        """
+        """Ordinal encode the categorical columns in X."""
+        check_is_fitted(self, "columns_")
         if not X.columns.equals(self.columns_):
             raise ValueError(
                 "Columns of 'X' do not match the training "
@@ -344,12 +212,7 @@ class ColumnTransformer(sklearn.compose.ColumnTransformer):
         )
 
     def _hstack(self, Xs: Iterable[Union[pd.Series, pd.DataFrame]]):
-        """
-        Stacks X horizontally.
-
-        Supports input types (X): list of
-            numpy arrays, sparse arrays and DataFrames
-        """
+        """Stacks X horizontally."""
         return pd.concat(Xs, axis="columns")
 
 
