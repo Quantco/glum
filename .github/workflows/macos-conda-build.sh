@@ -2,7 +2,11 @@
 
 set -exo pipefail
 
-mamba install -y conda-build
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+source ${SCRIPT_DIR}/base.sh $*
+conda activate base
+
+mamba install -y conda-build -c conda-forge
 # Don't test cross-compiled result (there is no emulation) and use the latest MacOS SDK.
 if grep -q "osx-arm64" .ci_support/${CONDA_BUILD_YML}.yaml; then
   CONDA_BUILD_ARGS="--no-test"
