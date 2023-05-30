@@ -1,13 +1,16 @@
 import os
-from typing import Any, Callable, List, Optional, Tuple
+from typing import Any, Callable, Iterable, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
-from dask_ml.compose import make_column_transformer
-from dask_ml.preprocessing import Categorizer, OrdinalEncoder
+import sklearn.compose
 from git_root import git_root
+from pandas.api.types import is_categorical_dtype
+from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.compose._column_transformer import _get_transformer_list
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer
+from sklearn.utils.validation import check_is_fitted
 
 from ..util import exposure_and_offset_to_weights
 
@@ -94,14 +97,107 @@ def create_insurance_raw_data(verbose=False) -> None:
     df.to_parquet(out_path)
 
 
-def get_categorizer(col_name: str, name="cat") -> Tuple[str, Categorizer]:
-    """
-    Get a dask_ml Categorizer.
+class Categorizer(BaseEstimator, TransformerMixin):
+    """Transform columns of a DataFrame to categorical dtype."""
 
-    Categorizer only operates on object columns unless you explicitly pass the column
-    name.
+    def fit(
+        self, X: pd.DataFrame, y: Optional[Union[np.ndarray, pd.Series]] = None
+    ) -> "Categorizer":
+        """Find the categorical columns."""
+        columns = X.columns
+        categories = {}
+        for name in columns:
+            col = X[name]
+            if not is_categorical_dtype(col):
+                col = pd.Series(col, index=X.index).astype("category")
+            categories[name] = col.dtype
+
+        self.columns_ = columns
+        self.categories_ = categories
+        return self
+
+    def transform(
+        self, X: pd.DataFrame, y: Optional[Union[np.ndarray, pd.Series]] = None
+    ) -> pd.DataFrame:
+        """Transform the columns in ``X`` according to ``self.categories_``."""
+        check_is_fitted(self, "categories_")
+        categories = self.categories_
+
+        for k, dtype in categories.items():
+            if not isinstance(dtype, pd.api.types.CategoricalDtype):
+                dtype = pd.api.types.CategoricalDtype(*dtype)
+            X[k] = X[k].astype(dtype)
+
+        return X
+
+
+def get_categorizer(col_name: str, name="cat") -> Tuple[str, Categorizer]:
+    """Get a Categorizer."""
+    return name, Categorizer()
+
+
+class OrdinalEncoder(BaseEstimator, TransformerMixin):
+    """Ordinal (integer) encode categorical columns."""
+
+    def fit(
+        self, X: pd.DataFrame, y: Optional[Union[np.ndarray, pd.Series]] = None
+    ) -> "OrdinalEncoder":
+        """Determine the categorical columns to be encoded."""
+        self.categorical_columns_ = X.select_dtypes(include=["category"]).columns
+        return self
+
+    def transform(
+        self, X: pd.DataFrame, y: Optional[Union[np.ndarray, pd.Series]] = None
+    ) -> pd.DataFrame:
+        """Ordinal encode the categorical columns in X."""
+        check_is_fitted(self, "categorical_columns_")
+        X = X.copy()
+        for col in self.categorical_columns_:
+            X[col] = X[col].cat.codes
+        return X
+
+
+class ColumnTransformer(sklearn.compose.ColumnTransformer):
+    """Applies transformers to columns of a pandas DataFrame.
+    Returns a `pandas.DataFrame`, but otherwise behaves like
+    `sklearn.compose.ColumnTransformer`.
+    See the `sklearn.compose.ColumnTransformer` documentation for more information.
     """
-    return name, Categorizer(columns=[col_name])
+
+    def __init__(
+        self,
+        transformers,
+        remainder="drop",
+        sparse_threshold=0.3,
+        n_jobs=1,
+        transformer_weights=None,
+    ):
+        super().__init__(
+            transformers=transformers,
+            remainder=remainder,
+            sparse_threshold=sparse_threshold,
+            n_jobs=n_jobs,
+            transformer_weights=transformer_weights,
+        )
+
+    def _hstack(self, Xs: Iterable[Union[pd.Series, pd.DataFrame]]):
+        """Stacks X horizontally."""
+        return pd.concat(Xs, axis="columns")
+
+
+def make_column_transformer(*transformers, remainder: str = "drop"):  # noqa: D103
+    # This is identical to scikit-learn's. We're just using our
+    # ColumnTransformer instead.
+    transformer_list = _get_transformer_list(transformers)
+    return ColumnTransformer(
+        transformer_list,
+        remainder=remainder,
+    )
+
+
+make_column_transformer.__doc__ = getattr(  # noqa: B009
+    sklearn.compose.make_column_transformer, "__doc__"
+)
 
 
 def func_returns_df(

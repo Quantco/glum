@@ -14,6 +14,10 @@ Changelog
 
 - Fix the ``glm_benchmarks_analyze`` command line tool. See `here <https://github.com/Quantco/glum/issues/642>`_.
 
+**Other changes:**
+
+- Remove dev dependency on ``dask_ml``.
+
 
 2.5.1 - 2023-05-19
 ------------------

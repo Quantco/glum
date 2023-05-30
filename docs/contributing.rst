@@ -48,6 +48,9 @@ We strongly suggest to use ``mamba`` instead of ``conda`` as this provides the s
    # If you want to install the dependencies necessary for benchmarking against other GLM packages:
    mamba env update -n glum --file environment-benchmark.yml
 
+   # If you want to work on the tutorial notebooks:
+   mamba env update -n glum --file environment-tutorial.yml
+
    # Activate the previously created conda environment
    conda activate glum
 
@@ -118,6 +121,9 @@ Alternatively, if you install `entr <http://eradman.com/entrproject/>`_, then yo
    cd docs
    ./dev
 
+.. note::
+   The tutorial notebooks are not executed as part of the documentation build. If you want to modify them, make sure to execute them manually and save the output before committing. Also don't forget to install the extra dependencies for the tutorial notebooks as described above.
+
 If you are a newbie to Sphinx, the links below may help get you up to speed on some of the trickier aspects:
 
 * `An idiot's guide to Sphinx <https://samnicholls.net/2016/06/15/how-to-sphinx-readthedocs/>`_
@@ -136,7 +142,7 @@ What follows is a high-level summary of the source code structure. For more deta
 
 * ``_glm.py`` - This is the main entrypoint and implements the core logic of the GLM. Most of the code in this file handles input arguments and prepares the data for the GLM fitting algorithm.
 * ``_glm_cv.py`` - This is the entrypoint for the cross validated GLM implementation. It depends on a lot of the code in ``_glm.py`` and only modifies the sections necessary for running training many models with different regularization parameters.
-* ``_solvers.py`` - This contains the bulk of the IRLS and L-BFGS algorithms for training GLMs. For details on the algorithm, see :doc:`background/background` for more details.
+* ``_solvers.py`` - This contains the bulk of the IRLS and L-BFGS algorithms for training GLMs.
 * ``_cd_fast.pyx`` - This is a Cython implementation of the coordinate descent algorithm used for fitting L1 penalty GLMs. Note the ``.pyx`` extension indicating that it is a Cython source file.
 * ``_distribution.py`` - definitions of the distributions that can be used. Includes Normal, Poisson, Gamma, InverseGaussian, Tweedie, Binomial and GeneralizedHyperbolicSecant distributions. 
 * ``_link.py`` - definitions of the link functions that can be used. Includes identity, log, logit and Tweedie link functions.

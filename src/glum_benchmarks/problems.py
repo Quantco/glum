@@ -6,7 +6,6 @@ import attr
 import numpy as np
 import pandas as pd
 import tabmat as tm
-from dask_ml.preprocessing import DummyEncoder
 from git_root import git_root
 from joblib import Memory
 from scipy.sparse import csc_matrix
@@ -71,7 +70,7 @@ def load_data(
         if dtype.name == "category":
             if storage == "cat":
                 return tm.CategoricalMatrix(X_in.iloc[:, i])
-            return DummyEncoder().fit_transform(X_in.iloc[:, [i]])
+            return pd.get_dummies(X_in.iloc[:, i], drop_first=False)
         return X_in.iloc[:, [i]]
 
     mat_parts = [transform_col(i, dtype) for i, dtype in enumerate(X_in.dtypes)]
