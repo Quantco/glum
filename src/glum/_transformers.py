@@ -11,11 +11,13 @@ from sklearn.base import BaseEstimator, TransformerMixin
 from ._glm import ArrayLike, VectorLike
 from ._util import _safe_sandwich_dot
 
-CollinearityResults = namedtuple("CollinearityResults", ["keep_idx", "drop_idx"])
+CollinearityResults = namedtuple(
+    "CollinearityResults", ["keep_idx", "drop_idx", "intercept_safe"]
+)
 
 
 def _find_collinear_columns(
-    X: tm.MatrixBase, intercept: bool = False, tol: float = 1e-6
+    X: tm.MatrixBase, fit_intercept: bool = False, tol: float = 1e-6
 ) -> CollinearityResults:
     """Determine the rank of X from the QR decomposition of X^T X.
 
@@ -29,7 +31,7 @@ def _find_collinear_columns(
     CollinearityResults
         The indices of the columns to keep and the columns to drop.
     """
-    gram = _safe_sandwich_dot(X, np.ones(X.shape[0]), intercept=intercept)
+    gram = _safe_sandwich_dot(X, np.ones(X.shape[0]), intercept=fit_intercept)
     R, P = qr(gram, mode="r", pivoting=True)  # type: ignore
 
     permuted_keep_mask = np.abs(np.diag(R)) > tol
@@ -39,7 +41,14 @@ def _find_collinear_columns(
     keep_idx = np.where(keep_mask)[0]
     drop_idx = np.where(~keep_mask)[0]
 
-    return CollinearityResults(keep_idx, drop_idx)
+    intercept_safe = False
+    if fit_intercept:
+        if 0 not in drop_idx:
+            intercept_safe = True
+        keep_idx -= 1
+        drop_idx -= 1
+
+    return CollinearityResults(keep_idx, drop_idx, intercept_safe)
 
 
 class Decollinearizer(TransformerMixin, BaseEstimator):
@@ -53,8 +62,8 @@ class Decollinearizer(TransformerMixin, BaseEstimator):
     and will be dropped in the subsequent model fitting step.
     """
 
-    def __init__(self) -> None:
-        raise NotImplementedError
+    def __init__(self, fit_intercept: bool = True) -> None:
+        self.fit_intercept = fit_intercept
 
     def fit(self, X: ArrayLike, y: Optional[VectorLike] = None) -> "Decollinearizer":
         """Fit the transformer by finding a maximal set of linearly independent columns.
