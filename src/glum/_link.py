@@ -427,7 +427,7 @@ class CloglogLink(Link):
         numpy.ndarray
         """
         mu = _asanyarray(mu)
-        return np.log(-np.log(1.0 - mu))
+        return np.log(-np.log1p(-mu))
 
     def derivative(self, mu):
         """Get the derivative of the cloglog link.
@@ -443,7 +443,7 @@ class CloglogLink(Link):
         array-like
         """
         mu = _asanyarray(mu)
-        return 1.0 / ((mu - 1) * (np.log(1 - mu)))
+        return 1.0 / ((mu - 1) * (np.log1p(-mu)))
 
     def inverse(self, lin_pred):
         """Get the inverse of the cloglog link.
@@ -463,7 +463,7 @@ class CloglogLink(Link):
         array-like
         """
         lin_pred = _asanyarray(lin_pred)
-        inv_cloglog = 1 - np.exp(-np.exp(lin_pred))
+        inv_cloglog = -np.expm1(-np.exp(lin_pred))
         eps50 = 50 * np.finfo(inv_cloglog.dtype).eps
         if np.any(inv_cloglog > 1 - eps50) or np.any(inv_cloglog < eps50):
             warnings.warn(
@@ -493,4 +493,4 @@ class CloglogLink(Link):
         """
         lin_pred = _asanyarray(lin_pred)
         # TODO: check if numerical stability can be improved
-        return np.exp(lin_pred - np.exp(lin_pred)) * (1 - np.exp(lin_pred))
+        return np.exp(np.exp(lin_pred) - lin_pred) * np.expm1(lin_pred)
