@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from glum._link import Link, LogitLink, LogLink, TweedieLink
+from glum._link import CloglogLink, Link, LogitLink, LogLink, TweedieLink
 
 
 @pytest.mark.parametrize("link", Link.__subclasses__())
@@ -19,6 +19,10 @@ def test_link_properties(link):
         # careful for large x, note expit(36) = 1
         # limit max eta to 15
         x = x / 100 * 15
+    if isinstance(link, CloglogLink):
+        # limit max eta to 3
+        # also check negative values as link is not symmetric
+        x = x / 100 * 6 - 3
 
     np.testing.assert_allclose(link.link(link.inverse(x)), x)
     # if f(g(x)) = x, then f'(g(x)) = 1/g'(x)
