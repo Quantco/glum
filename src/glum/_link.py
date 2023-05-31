@@ -405,3 +405,92 @@ class TweedieLink(Link):
         result = _asanyarray(lin_pred) ** ((2 * self.p - 1) / (1 - self.p))
         result *= self.p / (1 - self.p) ** 2
         return result
+
+
+class CloglogLink(Link):
+    """The complementary log-log link function ``log(-log(-p))``."""
+
+    def __eq__(self, other):  # noqa D
+        return isinstance(other, self.__class__)
+
+    def link(self, mu):
+        """Get the logit function of ``mu``.
+
+        See superclass documentation.
+
+        Parameters
+        ----------
+        mu: array-like
+
+        Returns
+        -------
+        numpy.ndarray
+        """
+        mu = _asanyarray(mu)
+        return np.log(-np.log(1.0 - mu))
+
+    def derivative(self, mu):
+        """Get the derivative of the cloglog link.
+
+        See superclass documentation.
+
+        Parameters
+        ----------
+        mu: array-like
+
+        Returns
+        -------
+        array-like
+        """
+        mu = _asanyarray(mu)
+        return 1.0 / ((mu - 1) * (np.log(1 - mu)))
+
+    def inverse(self, lin_pred):
+        """Get the inverse of the cloglog link.
+
+        See superclass documentation.
+
+        Note: since passing a very large value might result in an output of one,
+        this function bounds the output to be between ``[50*eps, 1 - 50*eps]``,
+        where ``eps`` is floating point epsilon.
+
+        Parameters
+        ----------
+        lin_pred: array-like
+
+        Returns
+        -------
+        array-like
+        """
+        lin_pred = _asanyarray(lin_pred)
+        inv_cloglog = 1 - np.exp(-np.exp(lin_pred))
+        eps50 = 50 * np.finfo(inv_cloglog.dtype).eps
+        if np.any(inv_cloglog > 1 - eps50) or np.any(inv_cloglog < eps50):
+            warnings.warn(
+                "Computing sigmoid function gave results too close to 0 or 1. Clipping."
+            )
+            return np.clip(inv_cloglog, eps50, 1 - eps50)
+        return inv_cloglog
+
+    def inverse_derivative(self, lin_pred):
+        """Compute the derivative of the inverse link function ``h'(lin_pred)``.
+
+        Parameters
+        ----------
+        lin_pred : array, shape (n_samples,)
+            Usually the (fitted) linear predictor.
+        """
+        lin_pred = _asanyarray(lin_pred)
+        return np.exp(lin_pred - np.exp(lin_pred))
+
+    def inverse_derivative2(self, lin_pred):
+        """Compute 2nd derivative of the inverse link function ``h''(lin_pred)``.
+
+        Parameters
+        ----------
+        lin_pred : array, shape (n_samples,)
+            Usually the (fitted) linear predictor.
+        """
+        lin_pred = _asanyarray(lin_pred)
+        # TODO: check if numerical stability can be improved
+        return np.exp(lin_pred - np.exp(lin_pred)) * (1 - np.exp(lin_pred))

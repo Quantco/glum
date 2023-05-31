@@ -13,7 +13,7 @@ from ._distribution import (
 )
 from ._glm import GeneralizedLinearRegressor, get_family, get_link
 from ._glm_cv import GeneralizedLinearRegressorCV
-from ._link import IdentityLink, Link, LogitLink, LogLink, TweedieLink
+from ._link import CloglogLink, IdentityLink, Link, LogitLink, LogLink, TweedieLink
 
 try:
     __version__ = pkg_resources.get_distribution(__name__).version
@@ -35,6 +35,7 @@ __all__ = [
     "LogitLink",
     "LogLink",
     "TweedieLink",
+    "CloglogLink",
     "GeneralizedLinearRegressor",
     "GeneralizedLinearRegressorCV",
     "get_family",
