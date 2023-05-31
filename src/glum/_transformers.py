@@ -3,15 +3,20 @@
 from collections import namedtuple
 from typing import Optional
 
+import numpy as np
 import tabmat as tm
+from scipy.linalg import qr
 from sklearn.base import BaseEstimator, TransformerMixin
 
 from ._glm import ArrayLike, VectorLike
+from ._util import _safe_sandwich_dot
 
 CollinearityResults = namedtuple("CollinearityResults", ["keep_idx", "drop_idx"])
 
 
-def _find_collinear_columns(X: tm.MatrixBase) -> CollinearityResults:
+def _find_collinear_columns(
+    X: tm.MatrixBase, intercept: bool = False, tol: float = 1e-6
+) -> CollinearityResults:
     """Determine the rank of X from the QR decomposition of X^T X.
 
     Parameters
@@ -24,7 +29,17 @@ def _find_collinear_columns(X: tm.MatrixBase) -> CollinearityResults:
     CollinearityResults
         The indices of the columns to keep and the columns to drop.
     """
-    raise NotImplementedError
+    gram = _safe_sandwich_dot(X, np.ones(X.shape[0]), intercept=intercept)
+    R, P = qr(gram, mode="r", pivoting=True)  # type: ignore
+
+    permuted_keep_mask = np.abs(np.diag(R)) > tol
+    keep_mask = np.empty_like(permuted_keep_mask)
+    keep_mask[P] = permuted_keep_mask
+
+    keep_idx = np.where(keep_mask)[0]
+    drop_idx = np.where(~keep_mask)[0]
+
+    return CollinearityResults(keep_idx, drop_idx)
 
 
 class Decollinearizer(TransformerMixin, BaseEstimator):
