@@ -139,6 +139,7 @@ class Decollinearizer(TransformerMixin, BaseEstimator):
                 )
 
         self.drop_columns = drop_columns
+        self.keep_columns = X.columns.difference(drop_columns)
         self.replace_categories = replace_categories
         self.intercept_safe = results.intercept_safe
         self.input_type = "pandas"
