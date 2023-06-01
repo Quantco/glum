@@ -13,6 +13,11 @@ conda activate latest
 pip install 'glum==2.5.1'
 python issue_628.py
 
+# test conda build
+mamba create -n orig-conda 'python=3.9.15' glum=2.1.2 numpy=1.23.5 tabmat=3.1.2
+conda activate orig-conda
+python issue_628.py
+
 # reproduce the original issue
 mamba create -n orig 'python=3.9.15' pip
 conda activate orig
