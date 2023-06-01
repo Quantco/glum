@@ -121,12 +121,27 @@ class Decollinearizer(TransformerMixin, BaseEstimator):
 
     def _fit_pandas(self, X: pd.DataFrame) -> None:
         """Fit the transformer on a pandas.DataFrame."""
-        X_tm = tm.from_pandas(X, drop_first=True)
+        X_tm = tm.from_pandas(X, drop_first=True)  # TODO: checks, like in ._glm
         results = _find_collinear_columns(
             X_tm, fit_intercept=self.fit_intercept, tolerance=self.tolerance
         )
         self.column_mapping = _get_column_mapping(X)
-        self.results = results
+        drop_columns = []
+        replace_categories = []
+        for col_idx in results.drop_idx:
+            col_name = self.column_mapping[col_idx].column_name
+            if not self.column_mapping[col_idx].categorical:
+                drop_columns.append(col_name)
+            else:
+                column_map = self.column_mapping[col_idx]
+                replace_categories.append(
+                    (col_name, column_map.category, column_map.base_category)
+                )
+
+        self.drop_columns = drop_columns
+        self.replace_categories = replace_categories
+        self.intercept_safe = results.intercept_safe
+        self.input_type = "pandas"
 
     def transform(self, X: ArrayLike, y: Optional[VectorLike] = None) -> ArrayLike:
         """Transform the data by dropping collinear columns.
@@ -152,20 +167,18 @@ class Decollinearizer(TransformerMixin, BaseEstimator):
 
     def _transform_pandas(self, X: pd.DataFrame) -> pd.DataFrame:
         """Fit the transformer on a pandas.DataFrame."""
-        check_is_fitted(self, ["results", "column_mapping"])
+        check_is_fitted(self, ["input_type"])
+        if self.input_type != "pandas":
+            raise ValueError(  # Should it be a TypeError?
+                "The transformer was fitted on a pandas.DataFrame, "
+                "but is being asked to transform a {}".format(type(X))
+            )
 
-        X = X.copy()
-        cols_to_drop = []
-        for col_idx in self.results.drop_idx:
-            col_name = self.column_mapping[col_idx].column_name
-            if not self.column_mapping[col_idx].categorical:
-                cols_to_drop.append(col_name)
-            else:
-                X.loc[
-                    lambda df: df.loc[:, col_name]  # noqa: B023
-                    == self.column_mapping[col_idx].category,  # noqa: B023
-                    col_name,
-                ] = self.column_mapping[col_idx].base_category
-        for col in X.select_dtypes(include="category").columns:
-            X[col] = X[col].cat.remove_unused_categories()
-        return X.drop(columns=cols_to_drop)
+        X = X.copy().drop(columns=self.drop_columns)
+        for col_name, category, base_category in self.replace_categories:
+            X.loc[
+                lambda df: df.loc[:, col_name] == category,  # noqa: B023
+                col_name,
+            ] = base_category
+
+        return X
