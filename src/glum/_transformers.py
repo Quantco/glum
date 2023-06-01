@@ -143,6 +143,9 @@ def _find_collinear_columns(
         keep_idx -= 1
         drop_idx -= 1
 
+    keep_idx = keep_idx[keep_idx != -1]
+    drop_idx = drop_idx[drop_idx != -1]
+
     return CollinearityResults(keep_idx, drop_idx, intercept_safe)
 
 
@@ -198,8 +201,8 @@ class Decollinearizer(TransformerMixin, BaseEstimator):
         self,
         X: ArrayLike,
         y: Optional[VectorLike] = None,
-        mode: str = "gram",
-        use_tabmat: bool = True,
+        mode: Optional[str] = None,
+        use_tabmat: Optional[bool] = None,
     ) -> "Decollinearizer":
         """Fit the transformer by finding a maximal set of linearly independent columns.
 
@@ -216,7 +219,7 @@ class Decollinearizer(TransformerMixin, BaseEstimator):
         Self
             The fitted transformer.
         """
-        if mode not in ["gram", "direct"]:
+        if mode not in ["gram", "direct", None]:
             raise ValueError(f"Mode must be 'gram' or 'direct', got {mode}")
 
         if isinstance(X, pd.DataFrame):
@@ -229,9 +232,19 @@ class Decollinearizer(TransformerMixin, BaseEstimator):
             )
         return self
 
-    def _fit_pandas(self, X: pd.DataFrame, mode: str, use_tabmat: bool) -> None:
+    def _fit_pandas(
+        self,
+        X: pd.DataFrame,
+        mode: Optional[str] = None,
+        use_tabmat: Optional[bool] = None,
+    ) -> None:
         """Fit the transformer on a pandas.DataFrame."""
         # TODO: make sure that object columns are handled the same in all modes
+        if mode is None:
+            mode = "gram"
+        if use_tabmat is None:
+            use_tabmat = True
+
         results = _find_collinear_columns_pandas(
             X,
             fit_intercept=self.fit_intercept,
@@ -258,8 +271,18 @@ class Decollinearizer(TransformerMixin, BaseEstimator):
         self.intercept_safe = results.intercept_safe
         self.input_type = "pandas"
 
-    def _fit_numpy(self, X: np.ndarray, mode: str, use_tabmat: bool) -> None:
+    def _fit_numpy(
+        self,
+        X: np.ndarray,
+        mode: Optional[str] = None,
+        use_tabmat: Optional[bool] = None,
+    ) -> None:
         """Fit the transformer on a numpy.ndarray."""
+        if mode is None:
+            mode = "direct"
+        if use_tabmat is None:
+            use_tabmat = False
+
         if use_tabmat:
             raise ValueError("use_tabmat=True is not supported for numpy arrays")
         results = _find_collinear_columns_numpy(
@@ -290,7 +313,7 @@ class Decollinearizer(TransformerMixin, BaseEstimator):
         if isinstance(X, pd.DataFrame):
             return self._transform_pandas(X)
         else:
-            raise NotImplementedError
+            return self._transform_numpy(X)
 
     def _transform_pandas(self, X: pd.DataFrame) -> pd.DataFrame:
         """Apply the transformer to a fitted pandas.DataFrame."""

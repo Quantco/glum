@@ -144,6 +144,18 @@ def test_decollinearizer_independent_numeric(df_independent_numeric):
     assert len(decollinearizer.replace_categories) == expectation.num_categories_replace
 
 
+def test_np_decollinearizer_independent_numeric(df_independent_numeric):
+    df_independent, expectation = df_independent_numeric
+    X = df_independent.values
+    decollinearizer = Decollinearizer(fit_intercept=True)
+    X_result = decollinearizer.fit_transform(X)
+    assert decollinearizer.intercept_safe == expectation.intercept_not_collinear
+    assert len(decollinearizer.drop_columns) == expectation.num_cols_to_drop
+    assert len(decollinearizer.keep_columns) == expectation.num_cols_to_keep
+    assert X_result.shape[1] == expectation.num_cols_to_keep
+    assert len(decollinearizer.replace_categories) == expectation.num_categories_replace
+
+
 def test_decollinearizer_dependent_numeric(df_dependent_numeric):
     df, expectation = df_dependent_numeric
     decollinearizer = Decollinearizer(fit_intercept=True)
