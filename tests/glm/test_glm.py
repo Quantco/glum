@@ -424,6 +424,18 @@ def test_glm_warm_start_argument(estimator, warm_start):
         glm.fit(X, y)
 
 
+# https://github.com/Quantco/glum/issues/645
+@pytest.mark.parametrize(
+    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
+)
+def test_glm_warm_start_with_constant_column(estimator):
+    X, y = make_regression()
+    X[:, 0] = 0
+    glm = estimator(warm_start=True)
+    glm.fit(X, y)
+    glm.fit(X, y)
+
+
 @pytest.mark.parametrize(
     "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
 )
