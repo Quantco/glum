@@ -1,6 +1,6 @@
 """Some utilities for transforming data before fitting a model."""
 
-from typing import Hashable, List, NamedTuple, Optional
+from typing import Hashable, List, NamedTuple, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -15,13 +15,107 @@ from ._util import _safe_sandwich_dot
 class CollinearityResults(NamedTuple):
     """Results of collinearity analysis."""
 
-    keep_idx: List[int]
-    drop_idx: List[int]
+    keep_idx: Sequence[int]
+    drop_idx: Sequence[int]
     intercept_safe: bool
 
 
+def _find_collinear_columns_pandas(
+    df: pd.DataFrame,
+    fit_intercept=True,
+    mode: str = "gram",
+    use_tabmat: bool = True,
+    tolerance=1e-6,
+) -> CollinearityResults:
+    """Decompose a pandas.DataFrame into a tabmat.SplitMatrix.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The data to decompose.
+    fit_intercept : bool, optional
+        Whether to fit an intercept, by default True
+    mode : str, optional
+        Either 'gram' or 'qr', by default 'gram'.
+        "gram" runs QR decomposition on X'X
+        "direct" runs QR decomposition directly on X
+    use_tabmat : bool, optional
+        Whether to convert the data to a tabmat.SplitMatrix before decomposition.
+        It is recommended for datasets with high-cardinality categorical columns.
+
+    Returns
+    -------
+    CollinearityResults
+        Information about the columns to keep and the columns to drop.
+    """
+    if mode == "gram":
+        if use_tabmat:
+            X = tm.from_pandas(df, drop_first=True)
+            # TODO: add checks here
+            gram = _safe_sandwich_dot(X, np.ones(X.shape[0]), intercept=fit_intercept)
+        else:
+            X = pd.get_dummies(df, drop_first=True)
+            if fit_intercept:
+                X.insert(0, "Intercept", 1)
+            gram = X.to_numpy().T @ X.to_numpy()
+
+        R, P = qr(gram, mode="r", pivoting=True)  # type: ignore
+
+    elif mode == "direct":
+        if use_tabmat:
+            raise NotImplementedError(
+                "Direct QR decomposition for tabmat matrices not implemented."
+            )
+        else:
+            X = pd.get_dummies(df, drop_first=True)
+            if fit_intercept:
+                X.insert(0, "Intercept", 1)
+            R, P = qr(X.to_numpy(), mode="r", pivoting=True)  # type: ignore
+
+    else:
+        raise ValueError(f"Mode must be 'gram' or 'direct', got {mode}")
+        # Cannot happen
+
+    return _find_collinear_columns(R, P, fit_intercept, tolerance=tolerance)
+
+
+def _find_collinear_columns_numpy(
+    X: np.ndarray, fit_intercept=True, mode="gram", tolerance: float = 1e-6
+) -> CollinearityResults:
+    """Decompose a numpy.ndarray into a tabmat.SplitMatrix.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The data to decompose.
+    fit_intercept : bool, optional
+        Whether to fit an intercept, by default True
+    mode : str, optional
+        Either 'gram' or 'qr', by default 'gram'.
+        "gram" runs QR decomposition on X'X
+        "direct" runs QR decomposition directly on X
+
+    Returns
+    -------
+    CollinearityResults
+        Information about the columns to keep and the columns to drop.
+    """
+    if fit_intercept:
+        X = np.hstack((np.ones((X.shape[0], 1)), X))
+    if mode == "gram":
+        gram = X.T @ X
+        R, P = qr(gram, mode="r", pivoting=True)  # type: ignore
+    elif mode == "direct":
+        R, P = qr(X, mode="r", pivoting=True)  # type: ignore
+    else:
+        raise ValueError(f"Mode must be 'gram' or 'direct', got {mode}")
+        # Cannot happen
+
+    return _find_collinear_columns(R, P, fit_intercept, tolerance=tolerance)
+
+
 def _find_collinear_columns(
-    X: tm.MatrixBase, fit_intercept: bool = False, tolerance: float = 1e-6
+    R: np.ndarray, P: np.ndarray, fit_intercept, tolerance: float = 1e-6
 ) -> CollinearityResults:
     """Determine the rank of X from the QR decomposition of X^T X.
 
@@ -35,9 +129,6 @@ def _find_collinear_columns(
     CollinearityResults
         The indices of the columns to keep and the columns to drop.
     """
-    gram = _safe_sandwich_dot(X, np.ones(X.shape[0]), intercept=fit_intercept)
-    R, P = qr(gram, mode="r", pivoting=True)  # type: ignore
-
     permuted_keep_mask = np.abs(np.diag(R)) > tolerance
     keep_mask = np.empty_like(permuted_keep_mask)
     keep_mask[P] = permuted_keep_mask
@@ -65,7 +156,7 @@ class ColumnMap(NamedTuple):
     base_category: Optional[str] = None
 
 
-def _get_column_mapping(X: pd.DataFrame) -> List[ColumnMap]:
+def _get_column_mapping(X: pd.DataFrame) -> Sequence[ColumnMap]:
     column_mapping = []
     for column_pos, (column_name, dtype) in enumerate(X.dtypes.items()):
         if isinstance(dtype, pd.CategoricalDtype):
@@ -93,11 +184,23 @@ class Decollinearizer(TransformerMixin, BaseEstimator):
     and will be dropped in the subsequent model fitting step.
     """
 
+    drop_columns: Union[Sequence[Hashable], Sequence[int]]
+    keep_columns: Union[Sequence[Hashable], Sequence[int]]
+    intercept_safe: bool
+    input_type: str
+    replace_categories: List[Tuple[Hashable, str, str]]
+
     def __init__(self, fit_intercept: bool = True, tolerance: float = 1e-6) -> None:
         self.fit_intercept = fit_intercept
         self.tolerance = tolerance
 
-    def fit(self, X: ArrayLike, y: Optional[VectorLike] = None) -> "Decollinearizer":
+    def fit(
+        self,
+        X: ArrayLike,
+        y: Optional[VectorLike] = None,
+        mode: str = "gram",
+        use_tabmat: bool = True,
+    ) -> "Decollinearizer":
         """Fit the transformer by finding a maximal set of linearly independent columns.
 
         Parameters
@@ -113,17 +216,28 @@ class Decollinearizer(TransformerMixin, BaseEstimator):
         Self
             The fitted transformer.
         """
+        if mode not in ["gram", "direct"]:
+            raise ValueError(f"Mode must be 'gram' or 'direct', got {mode}")
+
         if isinstance(X, pd.DataFrame):
-            self._fit_pandas(X)
+            self._fit_pandas(X, mode=mode, use_tabmat=use_tabmat)
+        elif isinstance(X, np.ndarray):
+            self._fit_numpy(X, mode=mode, use_tabmat=use_tabmat)
         else:
-            raise NotImplementedError
+            raise ValueError(
+                f"X must be a pandas.DataFrame or a numpy.ndarray, got {type(X)}"
+            )
         return self
 
-    def _fit_pandas(self, X: pd.DataFrame) -> None:
+    def _fit_pandas(self, X: pd.DataFrame, mode: str, use_tabmat: bool) -> None:
         """Fit the transformer on a pandas.DataFrame."""
-        X_tm = tm.from_pandas(X, drop_first=True)  # TODO: checks, like in ._glm
-        results = _find_collinear_columns(
-            X_tm, fit_intercept=self.fit_intercept, tolerance=self.tolerance
+        # TODO: make sure that object columns are handled the same in all modes
+        results = _find_collinear_columns_pandas(
+            X,
+            fit_intercept=self.fit_intercept,
+            mode=mode,
+            use_tabmat=use_tabmat,
+            tolerance=self.tolerance,
         )
         self.column_mapping = _get_column_mapping(X)
         drop_columns = []
@@ -140,9 +254,22 @@ class Decollinearizer(TransformerMixin, BaseEstimator):
 
         self.drop_columns = drop_columns
         self.keep_columns = X.columns.difference(drop_columns)
-        self.replace_categories = replace_categories
+        self.replace_categories = replace_categories  # type: ignore
         self.intercept_safe = results.intercept_safe
         self.input_type = "pandas"
+
+    def _fit_numpy(self, X: np.ndarray, mode: str, use_tabmat: bool) -> None:
+        """Fit the transformer on a numpy.ndarray."""
+        if use_tabmat:
+            raise ValueError("use_tabmat=True is not supported for numpy arrays")
+        results = _find_collinear_columns_numpy(
+            X, fit_intercept=self.fit_intercept, mode=mode, tolerance=self.tolerance
+        )
+        self.drop_columns = results.drop_idx
+        self.keep_columns = results.keep_idx
+        self.intercept_safe = results.intercept_safe
+        self.replace_categories = []
+        self.input_type = "numpy"
 
     def transform(self, X: ArrayLike, y: Optional[VectorLike] = None) -> ArrayLike:
         """Transform the data by dropping collinear columns.
@@ -164,10 +291,9 @@ class Decollinearizer(TransformerMixin, BaseEstimator):
             return self._transform_pandas(X)
         else:
             raise NotImplementedError
-        return self
 
     def _transform_pandas(self, X: pd.DataFrame) -> pd.DataFrame:
-        """Fit the transformer on a pandas.DataFrame."""
+        """Apply the transformer to a fitted pandas.DataFrame."""
         check_is_fitted(self, ["input_type"])
         if self.input_type != "pandas":
             raise ValueError(  # Should it be a TypeError?
@@ -181,5 +307,18 @@ class Decollinearizer(TransformerMixin, BaseEstimator):
                 lambda df: df.loc[:, col_name] == category,  # noqa: B023
                 col_name,
             ] = base_category
+        for column in X.select_dtypes(include="category"):
+            X[column] = X[column].cat.remove_unused_categories()
 
         return X
+
+    def _transform_numpy(self, X: np.ndarray) -> np.ndarray:
+        """Apply the transformer to a fitted numpy.ndarray."""
+        check_is_fitted(self, ["input_type"])
+        if self.input_type != "numpy":
+            raise ValueError(  # Should it be a TypeError?
+                "The transformer was fitted on a numpy.ndarray, "
+                "but is being asked to transform a {}".format(type(X))
+            )
+
+        return np.delete(X, self.drop_columns, axis=1)

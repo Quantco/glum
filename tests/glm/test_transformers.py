@@ -234,7 +234,7 @@ def test_decollinearizer_independent_categorical(df_independent_categorical):
     assert len(df_result.columns) == expectation.num_cols_to_keep
     assert len(decollinearizer.replace_categories) == expectation.num_categories_replace
     assert (
-        len(pd.get_dummies(df, drop_first=True).columns)
+        len(pd.get_dummies(df_result, drop_first=True).columns)
         == expectation.design_matrix_rank_with_intercept - 1
     )
 
@@ -249,6 +249,6 @@ def test_decollinearizer_dependent_categorical(df_dependent_categorical):
     assert len(df_result.columns) == expectation.num_cols_to_keep
     assert len(decollinearizer.replace_categories) == expectation.num_categories_replace
     assert (
-        len(pd.get_dummies(df, drop_first=True).columns)
+        len(pd.get_dummies(df_result, drop_first=True).columns)
         == expectation.design_matrix_rank_with_intercept - 1
     )
