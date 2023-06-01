@@ -1,23 +1,27 @@
 """Some utilities for transforming data before fitting a model."""
 
-from collections import namedtuple
-from typing import Optional
+from typing import Hashable, NamedTuple, Optional
 
 import numpy as np
+import pandas as pd
 import tabmat as tm
 from scipy.linalg import qr
-from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.base import BaseEstimator, TransformerMixin, check_is_fitted
 
 from ._glm import ArrayLike, VectorLike
 from ._util import _safe_sandwich_dot
 
-CollinearityResults = namedtuple(
-    "CollinearityResults", ["keep_idx", "drop_idx", "intercept_safe"]
-)
+
+class CollinearityResults(NamedTuple):
+    """Results of collinearity analysis."""
+
+    keep_idx: list[int]
+    drop_idx: list[int]
+    intercept_safe: bool
 
 
 def _find_collinear_columns(
-    X: tm.MatrixBase, fit_intercept: bool = False, tol: float = 1e-6
+    X: tm.MatrixBase, fit_intercept: bool = False, tolerance: float = 1e-6
 ) -> CollinearityResults:
     """Determine the rank of X from the QR decomposition of X^T X.
 
@@ -34,7 +38,7 @@ def _find_collinear_columns(
     gram = _safe_sandwich_dot(X, np.ones(X.shape[0]), intercept=fit_intercept)
     R, P = qr(gram, mode="r", pivoting=True)  # type: ignore
 
-    permuted_keep_mask = np.abs(np.diag(R)) > tol
+    permuted_keep_mask = np.abs(np.diag(R)) > tolerance
     keep_mask = np.empty_like(permuted_keep_mask)
     keep_mask[P] = permuted_keep_mask
 
@@ -51,6 +55,33 @@ def _find_collinear_columns(
     return CollinearityResults(keep_idx, drop_idx, intercept_safe)
 
 
+class ColumnMap(NamedTuple):
+    """Mapping from DataFrame to design matrix."""
+
+    column_pos: int
+    column_name: Hashable
+    categorical: bool
+    category: Optional[str] = None
+    base_category: Optional[str] = None
+
+
+def _get_column_mapping(X: pd.DataFrame) -> list[ColumnMap]:
+    column_mapping = []
+    for column_pos, (column_name, dtype) in enumerate(X.dtypes.items()):
+        if isinstance(dtype, pd.CategoricalDtype):
+            if len(dtype.categories) > 1:
+                base_category = dtype.categories[0]
+                for category in dtype.categories[1:]:
+                    column_mapping.append(
+                        ColumnMap(
+                            column_pos, column_name, True, category, base_category
+                        )
+                    )
+        else:
+            column_mapping.append(ColumnMap(column_pos, column_name, False))
+    return column_mapping
+
+
 class Decollinearizer(TransformerMixin, BaseEstimator):
     """Drop collinear columns from the design matrix implied by a dataset.
 
@@ -62,8 +93,9 @@ class Decollinearizer(TransformerMixin, BaseEstimator):
     and will be dropped in the subsequent model fitting step.
     """
 
-    def __init__(self, fit_intercept: bool = True) -> None:
+    def __init__(self, fit_intercept: bool = True, tolerance: float = 1e-6) -> None:
         self.fit_intercept = fit_intercept
+        self.tolerance = tolerance
 
     def fit(self, X: ArrayLike, y: Optional[VectorLike] = None) -> "Decollinearizer":
         """Fit the transformer by finding a maximal set of linearly independent columns.
@@ -81,9 +113,22 @@ class Decollinearizer(TransformerMixin, BaseEstimator):
         Self
             The fitted transformer.
         """
-        raise NotImplementedError
+        if isinstance(X, pd.DataFrame):
+            self._fit_pandas(X)
+        else:
+            raise NotImplementedError
+        return self
 
-    def transform(self, X: ArrayLike, y: Optional[VectorLike]) -> ArrayLike:
+    def _fit_pandas(self, X: pd.DataFrame) -> None:
+        """Fit the transformer on a pandas.DataFrame."""
+        X_tm = tm.from_pandas(X, drop_first=True)
+        results = _find_collinear_columns(
+            X_tm, fit_intercept=self.fit_intercept, tolerance=self.tolerance
+        )
+        self.column_mapping = _get_column_mapping(X)
+        self.results = results
+
+    def transform(self, X: ArrayLike, y: Optional[VectorLike] = None) -> ArrayLike:
         """Transform the data by dropping collinear columns.
 
         Parameters
@@ -99,4 +144,26 @@ class Decollinearizer(TransformerMixin, BaseEstimator):
         ArrayLike
             The transformed data, in the same format as the input.
         """
-        raise NotImplementedError
+        if isinstance(X, pd.DataFrame):
+            return self._transform_pandas(X)
+        else:
+            raise NotImplementedError
+        return self
+
+    def _transform_pandas(self, X: pd.DataFrame) -> pd.DataFrame:
+        """Fit the transformer on a pandas.DataFrame."""
+        check_is_fitted(self, ["results", "column_mapping"])
+
+        X = X.copy()
+        cols_to_drop = []
+        for col_idx in self.results.drop_idx:
+            col_name = self.column_mapping[col_idx].column_name
+            if not self.column_mapping[col_idx].categorical:
+                cols_to_drop.append(col_name)
+            else:
+                X.loc[
+                    lambda df: df.loc[:, col_name]  # noqa: B023
+                    == self.column_mapping[col_idx].category,  # noqa: B023
+                    col_name,
+                ] = self.column_mapping[col_idx].base_category
+        return X.drop(columns=cols_to_drop)
