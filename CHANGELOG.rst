@@ -13,7 +13,7 @@ Changelog
 **Bug fix**
 
 - Fix the ``glm_benchmarks_analyze`` command line tool. See `here <https://github.com/Quantco/glum/issues/642>`_.
-- Fixed a bug in :class:`~glum.GeneralizedLinearRegressor` when fit on a data with a constant column and `warm_start=True`. See `here <https://github.com/Quantco/glum/issues/645>`_.
+- Fixed a bug in :class:`~glum.GeneralizedLinearRegressor` when fit on a data set with a constant column and `warm_start=True`. See `here <https://github.com/Quantco/glum/issues/645>`_.
 
 **Other changes:**
 
