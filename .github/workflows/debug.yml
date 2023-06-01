@@ -1,0 +1,27 @@
+name: CI - macOS
+on: [push]
+
+jobs:
+  macos:
+    name: "issue-628"
+    runs-on: macos-latest
+    env:
+      CI: True
+      PYTHON_VERSION: ${{ matrix.PYTHON_VERSION }}
+    strategy:
+      fail-fast: true
+      matrix:
+        PYTHON_VERSION: ['3.10']
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.head_ref }}
+      - uses: conda-incubator/setup-miniconda@3b0f2504dd76ef23b6d31f291f4913fb60ab5ff3
+        with:
+          miniforge-variant: Mambaforge
+          miniforge-version: 4.10.0-0
+          use-mamba: true
+      - name: Run Unit Tests
+        shell: bash -l {0}
+        run: ./.github/workflows/issue_628.sh
