@@ -32,6 +32,6 @@ python issue_628.py
 # pypi build - conda deps - latest
 mamba create -n new-conda-pip 'python=3.9.15'
 conda activate new-conda-pip
-mamba install --deps-only 'glum=2.5.1'
+mamba install --only-deps 'glum=2.5.1'
 pip install 'glum==2.5.1'
 python issue_628.py
