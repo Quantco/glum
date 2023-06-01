@@ -404,7 +404,9 @@ def _standardize_warm_start(
         coef[0] += np.squeeze(col_means).dot(coef[1:])
     else:
         coef[1:] *= col_stds
-        coef[0] += np.squeeze(col_means / col_stds).dot(coef[1:])
+        coef[0] += np.squeeze(col_means * _one_over_var_inf_to_val(col_stds, 1)).dot(
+            coef[1:]
+        )
 
 
 def get_family(
