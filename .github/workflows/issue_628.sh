@@ -4,7 +4,7 @@ SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
 pushd ${SCRIPT_DIR}
 
-set -exo pipefail
+set -eo pipefail
 source ~/.profile
 
 # run with latest
