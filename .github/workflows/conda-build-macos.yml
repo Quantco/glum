@@ -1,9 +1,8 @@
 name: conda-build macOS
 on:
   push:
-    paths:
-      - '.github/**'
-      - 'conda.recipe/**'
+    branches:
+      - main
 jobs:
   macos-conda-build:
     name: "MacOS - conda-build - Python ${{ matrix.CONDA_BUILD_YML }}"

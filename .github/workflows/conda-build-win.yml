@@ -1,9 +1,8 @@
 name: conda-build Windows
 on:
   push:
-    paths:
-      - '.github/**'
-      - 'conda.recipe/**'
+    branches:
+      - main
 jobs:
   windows-conda-build:
     name: "Windows - conda-build - ${{ matrix.CONDA_BUILD_YML }}"

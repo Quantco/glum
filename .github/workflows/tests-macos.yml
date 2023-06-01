@@ -1,13 +1,8 @@
 name: CI - macOS
 on:
   push:
-    paths:
-      - '.github/**'
-      - '**/*.pyx'
-      - '**/*.cpp'
-      - 'setup.py'
-      - 'environment.yml'
-      - 'environment-benchmark.yml'
+    branches:
+      - main
 
 jobs:
   macos:
