@@ -1,6 +1,6 @@
 """Some utilities for transforming data before fitting a model."""
 
-from typing import Hashable, NamedTuple, Optional
+from typing import Hashable, List, NamedTuple, Optional
 
 import numpy as np
 import pandas as pd
@@ -15,8 +15,8 @@ from ._util import _safe_sandwich_dot
 class CollinearityResults(NamedTuple):
     """Results of collinearity analysis."""
 
-    keep_idx: list[int]
-    drop_idx: list[int]
+    keep_idx: List[int]
+    drop_idx: List[int]
     intercept_safe: bool
 
 
@@ -65,7 +65,7 @@ class ColumnMap(NamedTuple):
     base_category: Optional[str] = None
 
 
-def _get_column_mapping(X: pd.DataFrame) -> list[ColumnMap]:
+def _get_column_mapping(X: pd.DataFrame) -> List[ColumnMap]:
     column_mapping = []
     for column_pos, (column_name, dtype) in enumerate(X.dtypes.items()):
         if isinstance(dtype, pd.CategoricalDtype):
