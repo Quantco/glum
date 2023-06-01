@@ -178,7 +178,7 @@ pd.DataFrame({'coefficient': np.concatenate(([f_glm1.intercept_], f_glm1.coef_))
 
 To measure our model's test and train performance, we use the deviance function for the Poisson family. We can get the total deviance function directly from `glum`'s distribution classes and divide it by the sum of our sample weight.
 
-*Note*: a Poisson distribution is equivlane to a Tweedie distribution with power = 1.
+*Note*: a Poisson distribution is equivalent to a Tweedie distribution with power = 1.
 
 ```python
 PoissonDist = TweedieDistribution(1)
