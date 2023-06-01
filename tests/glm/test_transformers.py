@@ -100,7 +100,7 @@ def df_independent_categorical():
     return (
         pd.DataFrame(
             {
-                "a": pd.CategoricalDtype(["a", "b", "b"]),
+                "a": pd.Categorical(["a", "b", "b"]),
                 "b": pd.Categorical(["a", "a", "b"]),
             }
         ),
@@ -109,7 +109,7 @@ def df_independent_categorical():
             num_cols_to_keep=2,
             intercept_not_collinear=True,
             num_categories_replace=0,
-            design_matrix_rank_with_intercept=5,
+            design_matrix_rank_with_intercept=3,
         ),
     )
 
@@ -123,7 +123,13 @@ def df_dependent_categorical():
                 "b": pd.Categorical(["a", "a", "c"]),
             }
         ),
-        [],
+        PandasTestExpectation(
+            num_cols_to_drop=0,
+            num_cols_to_keep=2,
+            intercept_not_collinear=True,
+            num_categories_replace=1,
+            design_matrix_rank_with_intercept=3,
+        ),
     )
 
 
@@ -216,3 +222,33 @@ def test_decollinearizer_wrong_type(df_dependent_numeric):
         decollinearizer.transform(df.to_numpy())
     with pytest.raises((ValueError, NotImplementedError)):
         decollinearizer.transform(tm.from_pandas(df))
+
+
+def test_decollinearizer_independent_categorical(df_independent_categorical):
+    df, expectation = df_independent_categorical
+    decollinearizer = Decollinearizer(fit_intercept=True)
+    df_result = decollinearizer.fit_transform(df)
+    assert decollinearizer.intercept_safe == expectation.intercept_not_collinear
+    assert len(decollinearizer.drop_columns) == expectation.num_cols_to_drop
+    assert len(decollinearizer.keep_columns) == expectation.num_cols_to_keep
+    assert len(df_result.columns) == expectation.num_cols_to_keep
+    assert len(decollinearizer.replace_categories) == expectation.num_categories_replace
+    assert (
+        len(pd.get_dummies(df, drop_first=True).columns)
+        == expectation.design_matrix_rank_with_intercept - 1
+    )
+
+
+def test_decollinearizer_dependent_categorical(df_dependent_categorical):
+    df, expectation = df_dependent_categorical
+    decollinearizer = Decollinearizer(fit_intercept=True)
+    df_result = decollinearizer.fit_transform(df)
+    assert decollinearizer.intercept_safe == expectation.intercept_not_collinear
+    assert len(decollinearizer.drop_columns) == expectation.num_cols_to_drop
+    assert len(decollinearizer.keep_columns) == expectation.num_cols_to_keep
+    assert len(df_result.columns) == expectation.num_cols_to_keep
+    assert len(decollinearizer.replace_categories) == expectation.num_categories_replace
+    assert (
+        len(pd.get_dummies(df, drop_first=True).columns)
+        == expectation.design_matrix_rank_with_intercept - 1
+    )
