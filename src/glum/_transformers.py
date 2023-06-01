@@ -166,4 +166,6 @@ class Decollinearizer(TransformerMixin, BaseEstimator):
                     == self.column_mapping[col_idx].category,  # noqa: B023
                     col_name,
                 ] = self.column_mapping[col_idx].base_category
+        for col in X.select_dtypes(include="category").columns:
+            X[col] = X[col].cat.remove_unused_categories()
         return X.drop(columns=cols_to_drop)
