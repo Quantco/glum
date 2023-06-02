@@ -16,8 +16,8 @@ from ._util import _safe_sandwich_dot
 class CollinearityResults(NamedTuple):
     """Results of collinearity analysis."""
 
-    keep_idx: np.ndarray[int]
-    drop_idx: np.ndarray[int]
+    keep_idx: np.ndarray
+    drop_idx: np.ndarray
 
 
 def _get_gram_matrix_tabmat(X: tm.MatrixBase, fit_intercept: bool = True) -> np.ndarray:
