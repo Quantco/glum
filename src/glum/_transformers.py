@@ -27,7 +27,8 @@ def _find_collinear_columns_pandas(
     use_tabmat: bool = True,
     tolerance=1e-6,
 ) -> CollinearityResults:
-    """Decompose a pandas.DataFrame into a tabmat.SplitMatrix.
+    """Find the collinear columns and categories in a pandas DataFrame.
+    Return all information needed to decollinearize the data.
 
     Parameters
     ----------
@@ -82,7 +83,8 @@ def _find_collinear_columns_pandas(
 def _find_collinear_columns_numpy(
     X: np.ndarray, fit_intercept=True, mode="gram", tolerance: float = 1e-6
 ) -> CollinearityResults:
-    """Decompose a numpy.ndarray into a tabmat.SplitMatrix.
+    """Find the collinear columns in a numpy array.
+    Return all information needed to decollinearize the array.
 
     Parameters
     ----------
