@@ -7,7 +7,7 @@
 Changelog
 =========
 
-2.5.2 - UNRELEASED
+2.5.2 - 2023-06-02
 ------------------
 
 **Bug fix**
@@ -18,6 +18,7 @@ Changelog
 **Other changes:**
 
 - Remove dev dependency on ``dask_ml``.
+- We now pin ``llvm-openmp=11`` when creating the wheel for macOS in line with what scikit-learn does.
 
 
 2.5.1 - 2023-05-19
