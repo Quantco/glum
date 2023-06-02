@@ -130,6 +130,11 @@ def _find_collinear_columns(
         The indices of the columns to keep and the columns to drop.
     """
     permuted_keep_mask = np.abs(np.diag(R)) > tolerance
+    # More columns than rows case:
+    if R.shape[1] > R.shape[0]:
+        permuted_keep_mask = np.concatenate(
+            (permuted_keep_mask, np.zeros(R.shape[1] - R.shape[0], dtype=bool))
+        )
     keep_mask = np.empty_like(permuted_keep_mask)
     keep_mask[P] = permuted_keep_mask
 
