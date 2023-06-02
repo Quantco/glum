@@ -5,7 +5,8 @@ from typing import Hashable, List, NamedTuple, Optional, Sequence, Tuple, Union
 import numpy as np
 import pandas as pd
 import tabmat as tm
-from scipy.linalg import lstsq, qr, solve
+from scipy import sparse
+from scipy.linalg import qr, solve
 from sklearn.base import BaseEstimator, TransformerMixin, check_is_fitted
 
 from ._glm import ArrayLike, VectorLike
@@ -15,192 +16,63 @@ from ._util import _safe_sandwich_dot
 class CollinearityResults(NamedTuple):
     """Results of collinearity analysis."""
 
-    keep_idx: Sequence[int]
-    drop_idx: Sequence[int]
-    intercept_safe: bool
+    keep_idx: np.ndarray[int]
+    drop_idx: np.ndarray[int]
 
 
-def _find_collinear_columns_pandas(
-    df: pd.DataFrame,
-    fit_intercept=True,
-    mode: str = "gram",
-    use_tabmat: bool = True,
-    tolerance=1e-6,
-) -> CollinearityResults:
-    """Find the collinear columns and categories in a pandas DataFrame.
-    Return all information needed to decollinearize the data.
+def _get_gram_matrix_tabmat(X: tm.MatrixBase, fit_intercept: bool = True) -> np.ndarray:
+    return _safe_sandwich_dot(X, np.ones(X.shape[0]), intercept=fit_intercept)
 
-    Parameters
-    ----------
-    df : pd.DataFrame
-        The data to decompose.
-    fit_intercept : bool, optional
-        Whether to fit an intercept, by default True
-    mode : str, optional
-        Either 'gram' or 'qr', by default 'gram'.
-        "gram" runs QR decomposition on X'X
-        "direct" runs QR decomposition directly on X
-    use_tabmat : bool, optional
-        Whether to convert the data to a tabmat.SplitMatrix before decomposition.
-        It is recommended for datasets with high-cardinality categorical columns.
 
-    Returns
-    -------
-    CollinearityResults
-        Information about the columns to keep and the columns to drop.
-    """
-    if mode == "gram":
-        if use_tabmat:
-            X = tm.from_pandas(df, drop_first=True)
-            # TODO: add checks here
-            gram = _safe_sandwich_dot(X, np.ones(X.shape[0]), intercept=fit_intercept)
-        else:
-            X = pd.get_dummies(df, drop_first=True)
-            if fit_intercept:
-                X.insert(0, "Intercept", 1)
-            gram = X.to_numpy().T @ X.to_numpy()
-
-        R, P = qr(gram, mode="r", pivoting=True)  # type: ignore
-
-    elif mode == "direct":
-        if use_tabmat:
-            raise NotImplementedError(
-                "Direct mode for tabmat matrices not implemented."
-            )
-        else:
-            X = pd.get_dummies(df, drop_first=True)
-            if fit_intercept:
-                X.insert(0, "Intercept", 1)
-            R, P = qr(X.to_numpy(), mode="r", pivoting=True)  # type: ignore
-
-    else:
-        raise ValueError(f"Mode must be 'gram' or 'direct', got {mode}")
-        # Cannot happen
-
-    results = _find_collinear_columns(R, P, fit_intercept, tolerance=tolerance)
-
-    if fit_intercept and not results.intercept_safe:
-        if mode == "gram":
-            if use_tabmat:
-                # rowsum in tabmat would be nice here
-                lin_comb = solve(
-                    gram[results.keep_idx, results.keep_idx],
-                    X.transpose_matvec(np.ones(X.shape[0]), cols=results.keep_idx),
-                )
-            else:
-                lin_comb = solve(
-                    gram[results.keep_idx, results.keep_idx],
-                    X[:, results.keep_idx].sum(axis=0),
-                )
-        elif mode == "direct":
-            if use_tabmat:
-                raise NotImplementedError(
-                    "Direct mode for tabmat matrices not implemented."
-                )
-            else:
-                lin_comb = lstsq(
-                    X[:, results.keep_idx],
-                    np.ones(X.shape[0]),
-                )[0]
-
-        drop_instead_of_intercept = results.keep_idx[np.argmax(np.abs(lin_comb))]
-        keep_idx = results.keep_idx[results.keep_idx != drop_instead_of_intercept]
-        drop_insert_idx = np.searchsorted(results.drop_idx, drop_instead_of_intercept)
-        drop_idx = np.insert(
-            results.drop_idx, drop_insert_idx, drop_instead_of_intercept
+def _get_gram_matrix_numpy(X: np.ndarray, fit_intercept: bool = True) -> np.ndarray:
+    gram = X.T @ X
+    if fit_intercept:
+        corner = X.shape[0]
+        sides = X.sum(axis=0, keepdims=True)
+        gram = np.block(
+            [
+                [corner, sides],
+                [sides.T, gram],
+            ]
         )
-        intercept_safe = True
-    else:
-        keep_idx = results.keep_idx
-        drop_idx = results.drop_idx
-        if fit_intercept:
-            intercept_safe = True
-        else:
-            intercept_safe = False
-
-    return CollinearityResults(keep_idx, drop_idx, intercept_safe)
+    return gram
 
 
-def _find_collinear_columns_numpy(
-    X: np.ndarray, fit_intercept=True, mode="gram", tolerance: float = 1e-6
+def _get_gram_matrix_csc(X: sparse.csc_matrix, fit_intercept: bool = True):
+    gram = (X.T @ X).todense()
+    if fit_intercept:
+        corner = X.shape[0]
+        sides = X.sum(axis=0)
+        gram = np.block(
+            [
+                [corner, sides],
+                [sides.T, gram],
+            ]
+        )
+    return gram
+
+
+def _find_collinear_columns_from_gram(
+    gram: np.ndarray, fit_intercept: bool = True, tolerance: float = 1e-6
 ) -> CollinearityResults:
     """Find the collinear columns in a numpy array.
     Return all information needed to decollinearize the array.
 
     Parameters
     ----------
-    df : pd.DataFrame
-        The data to decompose.
+    gram: np.ndarray
+        X.T @ X, where X is the design matrix.
     fit_intercept : bool, optional
-        Whether to fit an intercept, by default True
-    mode : str, optional
-        Either 'gram' or 'qr', by default 'gram'.
-        "gram" runs QR decomposition on X'X
-        "direct" runs QR decomposition directly on X
+        Whether an intercept was added to the design matrix when computing the gram matrix.
+        The intercept is assumed to be the first column.
+    tolerance : float, optional
 
     Returns
     -------
     CollinearityResults
-        Information about the columns to keep and the columns to drop.
+        Information about the columns to keep and the columns to drop
     """
-    if fit_intercept:
-        X = np.hstack((np.ones((X.shape[0], 1)), X))
-    if mode == "gram":
-        gram = X.T @ X
-        R, P = qr(gram, mode="r", pivoting=True)  # type: ignore
-    elif mode == "direct":
-        R, P = qr(X, mode="r", pivoting=True)  # type: ignore
-    else:
-        raise ValueError(f"Mode must be 'gram' or 'direct', got {mode}")
-        # Cannot happen
-
-    results = _find_collinear_columns(R, P, fit_intercept, tolerance=tolerance)
-
-    if fit_intercept and not results.intercept_safe:
-        if mode == "gram":
-            lin_comb = solve(
-                gram[results.keep_idx, results.keep_idx],
-                X[:, results.keep_idx].sum(axis=0),
-            )
-        elif mode == "direct":
-            lin_comb = lstsq(
-                X[:, results.keep_idx],
-                np.ones(X.shape[0]),
-            )[0]
-
-        drop_instead_of_intercept = results.keep_idx[np.argmax(np.abs(lin_comb))]
-        keep_idx = results.keep_idx[results.keep_idx != drop_instead_of_intercept]
-        drop_insert_idx = np.searchsorted(results.drop_idx, drop_instead_of_intercept)
-        drop_idx = np.insert(
-            results.drop_idx, drop_insert_idx, drop_instead_of_intercept
-        )
-        intercept_safe = True
-    else:
-        keep_idx = results.keep_idx
-        drop_idx = results.drop_idx
-        if fit_intercept:
-            intercept_safe = True
-        else:
-            intercept_safe = False
-
-    return CollinearityResults(keep_idx, drop_idx, intercept_safe)
-
-
-def _find_collinear_columns(
-    R: np.ndarray, P: np.ndarray, fit_intercept, tolerance: float = 1e-6
-) -> CollinearityResults:
-    """Determine the rank of X from the QR decomposition of X^T X.
-
-    Parameters
-    ----------
-    X : tm.MatrixBase
-        The design matrix.
-
-    Returns
-    -------
-    CollinearityResults
-        The indices of the columns to keep and the columns to drop.
-    """
+    R, P = qr(gram, mode="r", pivoting=True)  # type: ignore
     permuted_keep_mask = np.abs(np.diag(R)) > tolerance
     # More columns than rows case:
     if R.shape[1] > R.shape[0]:
@@ -213,17 +85,52 @@ def _find_collinear_columns(
     keep_idx = np.where(keep_mask)[0]
     drop_idx = np.where(~keep_mask)[0]
 
-    intercept_safe = False
-    if fit_intercept:
-        if 0 not in drop_idx:
-            intercept_safe = True
-        keep_idx -= 1
-        drop_idx -= 1
+    return CollinearityResults(keep_idx, drop_idx)
 
+
+def _find_intercept_alternative(
+    gram: np.ndarray, X1: np.ndarray, results: CollinearityResults
+) -> CollinearityResults:
+    """Assuming that the intercept is among the columns to drop, find an alternative
+
+    Parameters
+    ----------
+    gram: np.ndarray
+        X.T @ X where X are the independent columns of the design matrix
+    X1: np.ndarray
+        X'.T @ 1 where X are the independent columns of the design matrix
+    keep_idx: Sequence[int]
+        The indices of the kept columns in the original design matrix
+    drop_idx: Sequence[int]
+        The indices of the dropped columns in the original design matrix
+    """
+    keep_idx = results.keep_idx
+    drop_idx = results.drop_idx
+
+    # We know that the restricted gram matrix is non-singular
+    lin_comb_for_intercept = solve(gram, X1)
+    # Find the column that is has a large weight in the linear combination
+    drop_instead_of_intercept = keep_idx[np.argmax(np.abs(lin_comb_for_intercept))]
+    # Update the keep and drop indices
+    keep_idx = keep_idx[keep_idx != drop_instead_of_intercept]
+    drop_insert_idx = np.searchsorted(drop_idx, drop_instead_of_intercept)
+    drop_idx = np.insert(drop_idx, drop_insert_idx, drop_instead_of_intercept)
+
+    return CollinearityResults(keep_idx, drop_idx)
+
+
+def _adjust_column_indices_for_intercept(
+    results: CollinearityResults,
+) -> CollinearityResults:
+    """Adjust the column indices such that index 0 corresponds to the first
+    non-intercept column.
+    """
+    keep_idx = results.keep_idx - 1
+    drop_idx = results.drop_idx - 1
     keep_idx = keep_idx[keep_idx != -1]
     drop_idx = drop_idx[drop_idx != -1]
 
-    return CollinearityResults(keep_idx, drop_idx, intercept_safe)
+    return CollinearityResults(keep_idx, drop_idx)
 
 
 class ColumnMap(NamedTuple):
@@ -278,7 +185,6 @@ class Decollinearizer(TransformerMixin, BaseEstimator):
         self,
         X: ArrayLike,
         y: Optional[VectorLike] = None,
-        mode: Optional[str] = None,
         use_tabmat: Optional[bool] = None,
     ) -> "Decollinearizer":
         """Fit the transformer by finding a maximal set of linearly independent columns.
@@ -296,40 +202,52 @@ class Decollinearizer(TransformerMixin, BaseEstimator):
         Self
             The fitted transformer.
         """
-        if mode not in ["gram", "direct", None]:
-            raise ValueError(f"Mode must be 'gram' or 'direct', got {mode}")
-
         if isinstance(X, pd.DataFrame):
-            self._fit_pandas(X, mode=mode, use_tabmat=use_tabmat)
+            self._fit_pandas(X, use_tabmat=use_tabmat)
         elif isinstance(X, np.ndarray):
-            self._fit_numpy(X, mode=mode, use_tabmat=use_tabmat)
+            self._fit_numpy(X, use_tabmat=use_tabmat)
+        elif isinstance(X, sparse.csc_matrix):
+            self._fit_csc(X, use_tabmat=use_tabmat)
         else:
             raise ValueError(
-                f"X must be a pandas.DataFrame or a numpy.ndarray, got {type(X)}"
+                "X must be a pandas.DataFrame, a numpy.ndarray or a scipy.sparse.csc_matrix."
+                f"Got {type(X)} instead."
             )
         return self
 
     def _fit_pandas(
         self,
-        X: pd.DataFrame,
-        mode: Optional[str] = None,
+        df: pd.DataFrame,
         use_tabmat: Optional[bool] = None,
     ) -> None:
         """Fit the transformer on a pandas.DataFrame."""
-        # TODO: make sure that object columns are handled the same in all modes
-        if mode is None:
-            mode = "gram"
-        if use_tabmat is None:
-            use_tabmat = True
+        if use_tabmat or use_tabmat is None:
+            # TODO: checks before conversion
+            X_tm = tm.from_pandas(df, drop_first=True)
+            gram = _get_gram_matrix_tabmat(X_tm, fit_intercept=self.fit_intercept)
+        else:
+            # TODO: make sure that object columns are handled the same in all modes
+            X_np = pd.get_dummies(df, drop_first=True).to_numpy()
+            gram = _get_gram_matrix_numpy(X_np, fit_intercept=self.fit_intercept)
 
-        results = _find_collinear_columns_pandas(
-            X,
-            fit_intercept=self.fit_intercept,
-            mode=mode,
-            use_tabmat=use_tabmat,
-            tolerance=self.tolerance,
+        results = _find_collinear_columns_from_gram(
+            gram, self.fit_intercept, self.tolerance
         )
-        self.column_mapping = _get_column_mapping(X)
+        if self.fit_intercept and 0 not in results.keep_idx:
+            keep_idx_wo_intercept = results.keep_idx - 1
+            if use_tabmat:
+                X1 = X_tm.matvec(np.ones(df.shape[0]), cols=keep_idx_wo_intercept)
+            else:
+                X1 = X_np[:, keep_idx_wo_intercept].sum(axis=0)
+            results = _find_intercept_alternative(
+                gram[results.keep_idx, results.keep_idx], X1, results
+            )
+
+        if self.fit_intercept:
+            results = _adjust_column_indices_for_intercept(results)
+
+        # Convert design matrix indices to column names and category replacements
+        self.column_mapping = _get_column_mapping(df)
         drop_columns = []
         replace_categories = []
         for col_idx in results.drop_idx:
@@ -343,33 +261,74 @@ class Decollinearizer(TransformerMixin, BaseEstimator):
                 )
 
         self.drop_columns = drop_columns
-        self.keep_columns = X.columns.difference(drop_columns)
+        self.keep_columns = df.columns.difference(drop_columns)
         self.replace_categories = replace_categories  # type: ignore
-        self.intercept_safe = results.intercept_safe
+        self.intercept_safe = self.fit_intercept  # We never drop the intercept
         self.input_type = "pandas"
 
     def _fit_numpy(
         self,
         X: np.ndarray,
-        mode: Optional[str] = None,
         use_tabmat: Optional[bool] = None,
     ) -> None:
         """Fit the transformer on a numpy.ndarray."""
-        if mode is None:
-            mode = "direct"
-        if use_tabmat is None:
-            use_tabmat = False
-
         if use_tabmat:
             raise ValueError("use_tabmat=True is not supported for numpy arrays")
-        results = _find_collinear_columns_numpy(
-            X, fit_intercept=self.fit_intercept, mode=mode, tolerance=self.tolerance
+
+        gram = _get_gram_matrix_numpy(X, fit_intercept=self.fit_intercept)
+        results = _find_collinear_columns_from_gram(
+            gram, self.fit_intercept, self.tolerance
         )
+        if self.fit_intercept and 0 not in results.keep_idx:
+            keep_idx_wo_intercept = results.keep_idx - 1
+            X1 = X[:, keep_idx_wo_intercept].sum(axis=0)
+            results = _find_intercept_alternative(
+                gram[results.keep_idx, results.keep_idx], X1, results
+            )
+
+        if self.fit_intercept:
+            results = _adjust_column_indices_for_intercept(results)
+
         self.drop_columns = results.drop_idx
         self.keep_columns = results.keep_idx
-        self.intercept_safe = results.intercept_safe
+        self.intercept_safe = self.fit_intercept
         self.replace_categories = []
         self.input_type = "numpy"
+
+    def _fit_csc(
+        self,
+        X: sparse.csc_matrix,
+        use_tabmat: Optional[bool] = None,
+    ) -> None:
+        """Fit the transformer on a scipy.sparse.csc_matrix."""
+        if use_tabmat or use_tabmat is None:
+            # TODO: checks before conversion?
+            X_tm = tm.from_csc(X)
+            gram = _get_gram_matrix_tabmat(X_tm, fit_intercept=self.fit_intercept)
+        else:
+            gram = _get_gram_matrix_csc(X, fit_intercept=self.fit_intercept)
+
+        results = _find_collinear_columns_from_gram(
+            gram, self.fit_intercept, self.tolerance
+        )
+        if self.fit_intercept and 0 not in results.keep_idx:
+            keep_idx_wo_intercept = results.keep_idx - 1
+            if use_tabmat:
+                X1 = X_tm.matvec(np.ones(X.shape[0]), cols=keep_idx_wo_intercept)
+            else:
+                X1 = X[:, keep_idx_wo_intercept].sum(axis=0)
+            results = _find_intercept_alternative(
+                gram[results.keep_idx, results.keep_idx], X1, results
+            )
+
+        if self.fit_intercept:
+            results = _adjust_column_indices_for_intercept(results)
+
+        self.drop_columns = results.drop_idx
+        self.keep_columns = results.keep_idx
+        self.replace_categories = []  # type: ignore
+        self.intercept_safe = self.fit_intercept  # We never drop the intercept
+        self.input_type = "csc"
 
     def transform(self, X: ArrayLike, y: Optional[VectorLike] = None) -> ArrayLike:
         """Transform the data by dropping collinear columns.
