@@ -407,3 +407,10 @@ def test_np_decollinearizer_dependent_categorical(df_dependent_categorical):
         == expectation.design_matrix_rank_with_intercept - 1
     )
     assert X_result.shape[1] == expectation.design_matrix_rank_with_intercept - 1
+
+
+def test_intercept_not_dropped():
+    X = pd.DataFrame({"a": [5, 5, 5, 5]}).to_numpy()
+    decollinearizer = Decollinearizer(fit_intercept=True)
+    decollinearizer.fit(X)
+    assert decollinearizer.intercept_safe

@@ -5,7 +5,7 @@ from typing import Hashable, List, NamedTuple, Optional, Sequence, Tuple, Union
 import numpy as np
 import pandas as pd
 import tabmat as tm
-from scipy.linalg import qr
+from scipy.linalg import lstsq, qr, solve
 from sklearn.base import BaseEstimator, TransformerMixin, check_is_fitted
 
 from ._glm import ArrayLike, VectorLike
@@ -65,7 +65,7 @@ def _find_collinear_columns_pandas(
     elif mode == "direct":
         if use_tabmat:
             raise NotImplementedError(
-                "Direct QR decomposition for tabmat matrices not implemented."
+                "Direct mode for tabmat matrices not implemented."
             )
         else:
             X = pd.get_dummies(df, drop_first=True)
@@ -77,7 +77,48 @@ def _find_collinear_columns_pandas(
         raise ValueError(f"Mode must be 'gram' or 'direct', got {mode}")
         # Cannot happen
 
-    return _find_collinear_columns(R, P, fit_intercept, tolerance=tolerance)
+    results = _find_collinear_columns(R, P, fit_intercept, tolerance=tolerance)
+
+    if fit_intercept and not results.intercept_safe:
+        if mode == "gram":
+            if use_tabmat:
+                # rowsum in tabmat would be nice here
+                lin_comb = solve(
+                    gram[results.keep_idx, results.keep_idx],
+                    X.transpose_matvec(np.ones(X.shape[0]), cols=results.keep_idx),
+                )
+            else:
+                lin_comb = solve(
+                    gram[results.keep_idx, results.keep_idx],
+                    X[:, results.keep_idx].sum(axis=0),
+                )
+        elif mode == "direct":
+            if use_tabmat:
+                raise NotImplementedError(
+                    "Direct mode for tabmat matrices not implemented."
+                )
+            else:
+                lin_comb = lstsq(
+                    X[:, results.keep_idx],
+                    np.ones(X.shape[0]),
+                )[0]
+
+        drop_instead_of_intercept = results.keep_idx[np.argmax(np.abs(lin_comb))]
+        keep_idx = results.keep_idx[results.keep_idx != drop_instead_of_intercept]
+        drop_insert_idx = np.searchsorted(results.drop_idx, drop_instead_of_intercept)
+        drop_idx = np.insert(
+            results.drop_idx, drop_insert_idx, drop_instead_of_intercept
+        )
+        intercept_safe = True
+    else:
+        keep_idx = results.keep_idx
+        drop_idx = results.drop_idx
+        if fit_intercept:
+            intercept_safe = True
+        else:
+            intercept_safe = False
+
+    return CollinearityResults(keep_idx, drop_idx, intercept_safe)
 
 
 def _find_collinear_columns_numpy(
@@ -113,7 +154,36 @@ def _find_collinear_columns_numpy(
         raise ValueError(f"Mode must be 'gram' or 'direct', got {mode}")
         # Cannot happen
 
-    return _find_collinear_columns(R, P, fit_intercept, tolerance=tolerance)
+    results = _find_collinear_columns(R, P, fit_intercept, tolerance=tolerance)
+
+    if fit_intercept and not results.intercept_safe:
+        if mode == "gram":
+            lin_comb = solve(
+                gram[results.keep_idx, results.keep_idx],
+                X[:, results.keep_idx].sum(axis=0),
+            )
+        elif mode == "direct":
+            lin_comb = lstsq(
+                X[:, results.keep_idx],
+                np.ones(X.shape[0]),
+            )[0]
+
+        drop_instead_of_intercept = results.keep_idx[np.argmax(np.abs(lin_comb))]
+        keep_idx = results.keep_idx[results.keep_idx != drop_instead_of_intercept]
+        drop_insert_idx = np.searchsorted(results.drop_idx, drop_instead_of_intercept)
+        drop_idx = np.insert(
+            results.drop_idx, drop_insert_idx, drop_instead_of_intercept
+        )
+        intercept_safe = True
+    else:
+        keep_idx = results.keep_idx
+        drop_idx = results.drop_idx
+        if fit_intercept:
+            intercept_safe = True
+        else:
+            intercept_safe = False
+
+    return CollinearityResults(keep_idx, drop_idx, intercept_safe)
 
 
 def _find_collinear_columns(
