@@ -219,14 +219,10 @@ def test_decollinearizer_dependent_on_intercept_numeric(
     decollinearizer = Decollinearizer(fit_intercept=True)
     df_result = decollinearizer.fit_transform(df)
     assert isinstance(df_result, pd.DataFrame)
-    if decollinearizer.intercept_safe:
-        assert len(decollinearizer.drop_columns) == expectation.num_cols_to_drop
-        assert len(decollinearizer.keep_columns) == expectation.num_cols_to_keep
-        assert len(df_result.columns) == expectation.num_cols_to_keep
-    else:
-        assert len(decollinearizer.drop_columns) == expectation.num_cols_to_drop - 1
-        assert len(decollinearizer.keep_columns) == expectation.num_cols_to_keep + 1
-        assert len(df_result.columns) == expectation.num_cols_to_keep + 1
+    assert decollinearizer.intercept_safe
+    assert len(decollinearizer.drop_columns) == expectation.num_cols_to_drop
+    assert len(decollinearizer.keep_columns) == expectation.num_cols_to_keep
+    assert len(df_result.columns) == expectation.num_cols_to_keep
 
 
 def test_np_decollinearizer_dependent_on_intercept_numeric(
@@ -237,14 +233,10 @@ def test_np_decollinearizer_dependent_on_intercept_numeric(
     decollinearizer = Decollinearizer(fit_intercept=True)
     X_result = decollinearizer.fit_transform(X)
     assert isinstance(X_result, np.ndarray)
-    if decollinearizer.intercept_safe:
-        assert len(decollinearizer.drop_columns) == expectation.num_cols_to_drop
-        assert len(decollinearizer.keep_columns) == expectation.num_cols_to_keep
-        assert X_result.shape[1] == expectation.num_cols_to_keep
-    else:
-        assert len(decollinearizer.drop_columns) == expectation.num_cols_to_drop - 1
-        assert len(decollinearizer.keep_columns) == expectation.num_cols_to_keep + 1
-        assert X_result.shape[1] == expectation.num_cols_to_keep + 1
+    assert decollinearizer.intercept_safe
+    assert len(decollinearizer.drop_columns) == expectation.num_cols_to_drop
+    assert len(decollinearizer.keep_columns) == expectation.num_cols_to_keep
+    assert X_result.shape[1] == expectation.num_cols_to_keep
 
 
 def test_decollinearizer_no_intercept_independent(df_dependent_on_intercept_numeric):
