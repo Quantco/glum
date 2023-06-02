@@ -317,8 +317,12 @@ class Decollinearizer(TransformerMixin, BaseEstimator):
         """
         if isinstance(X, pd.DataFrame):
             return self._transform_pandas(X)
-        else:
+        elif isinstance(X, np.ndarray):
             return self._transform_numpy(X)
+        else:
+            raise ValueError(
+                f"X must be a pandas.DataFrame or a numpy.ndarray, got {type(X)}"
+            )
 
     def _transform_pandas(self, X: pd.DataFrame) -> pd.DataFrame:
         """Apply the transformer to a fitted pandas.DataFrame."""
