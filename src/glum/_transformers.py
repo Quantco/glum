@@ -274,6 +274,8 @@ class Decollinearizer(TransformerMixin, BaseEstimator):
         """Fit the transformer on a numpy.ndarray."""
         if use_tabmat:
             raise ValueError("use_tabmat=True is not supported for numpy arrays")
+        if X.dtype != np.float_:
+            raise ValueError("X must be a float array.")
 
         gram = _get_gram_matrix_numpy(X, fit_intercept=self.fit_intercept)
         results = _find_collinear_columns_from_gram(
@@ -301,6 +303,9 @@ class Decollinearizer(TransformerMixin, BaseEstimator):
         use_tabmat: Optional[bool] = None,
     ) -> None:
         """Fit the transformer on a scipy.sparse.csc_matrix."""
+        if X.dtype != np.float_:
+            raise ValueError("X must be a float array.")
+
         if use_tabmat or use_tabmat is None:
             # TODO: checks before conversion?
             X_tm = tm.from_csc(X)
