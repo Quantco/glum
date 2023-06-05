@@ -92,8 +92,32 @@ def simple_test_data(case: str):
                 intercept_collinear=False, design_matrix_rank=2, cols_to_drop=1
             ),
         )
+    elif case == "wider_than_tall":
+        return (
+            pd.DataFrame(
+                {
+                    "a": [1.0, 0.0],
+                    "b": [0.0, 1.0],
+                    "c": [2.0, 3.0],
+                }
+            ),
+            UnitTestExpectation(
+                intercept_collinear=True, design_matrix_rank=2, cols_to_drop=1
+            ),
+        )
     else:
         raise ValueError(f"Invalid case: '{case}'")
+
+
+SIMPLE_TEST_CASES = [
+    "independent_numeric",
+    "dependent_numeric",
+    "dependent_on_combination_numeric",
+    "dependent_on_intercept_numeric",
+    "independent_categorical",
+    "dependent_categorical",
+    "wider_than_tall",
+]
 
 
 def check_expectation_dataframe(
@@ -141,14 +165,7 @@ def check_expectation_array(
 
 @pytest.mark.parametrize(
     "case",
-    [
-        "independent_numeric",
-        "dependent_numeric",
-        "dependent_on_combination_numeric",
-        "dependent_on_intercept_numeric",
-        "independent_categorical",
-        "dependent_categorical",
-    ],
+    SIMPLE_TEST_CASES,
 )
 @pytest.mark.parametrize("fit_intercept", [True, False])
 @pytest.mark.parametrize("use_tabmat", [True, False])
@@ -192,14 +209,7 @@ def test_against_expectation(
 
 @pytest.mark.parametrize(
     "case",
-    [
-        "independent_numeric",
-        "dependent_numeric",
-        "dependent_on_combination_numeric",
-        "dependent_on_intercept_numeric",
-        "independent_categorical",
-        "dependent_categorical",
-    ],
+    SIMPLE_TEST_CASES,
 )
 @pytest.mark.parametrize("fit_intercept", [True, False])
 @pytest.mark.parametrize("format", ["pandas", "csc"])
