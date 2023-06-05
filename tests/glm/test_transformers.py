@@ -248,7 +248,7 @@ def test_same_results_backend(simple_test_data, fit_intercept, format):
         assert (result_tm == result_np).all(axis=None)
     elif format == "csc":
         # No .all() in scipy.sparse.csc_matrix
-        assert (result_tm == result_np).min()
+        assert not (result_tm != result_np).max()
 
 
 @pytest.mark.parametrize(
