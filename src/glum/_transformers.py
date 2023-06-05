@@ -240,7 +240,7 @@ class Decollinearizer(TransformerMixin, BaseEstimator):
             else:
                 X1 = X_np[:, keep_idx_wo_intercept].sum(axis=0)
             results = _find_intercept_alternative(
-                gram[results.keep_idx, results.keep_idx], X1, results
+                gram[np.ix_(results.keep_idx, results.keep_idx)], X1, results
             )
 
         if self.fit_intercept:
@@ -285,7 +285,7 @@ class Decollinearizer(TransformerMixin, BaseEstimator):
             keep_idx_wo_intercept = results.keep_idx - 1
             X1 = X[:, keep_idx_wo_intercept].sum(axis=0)
             results = _find_intercept_alternative(
-                gram[results.keep_idx, results.keep_idx], X1, results
+                gram[np.ix_(results.keep_idx, results.keep_idx)], X1, results
             )
 
         if self.fit_intercept:
@@ -323,7 +323,7 @@ class Decollinearizer(TransformerMixin, BaseEstimator):
             else:
                 X1 = X[:, keep_idx_wo_intercept].sum(axis=0)
             results = _find_intercept_alternative(
-                gram[results.keep_idx, results.keep_idx], X1, results
+                gram[np.ix_(results.keep_idx, results.keep_idx)], X1, results
             )
 
         if self.fit_intercept:
