@@ -164,7 +164,7 @@ def test_against_expectation(
         check_expectation_dataframe(decollinearizer_pd, pd_result, expectation)
 
     else:
-        np_input = pd.get_dummies(df_input, drop_first=fit_intercept).to_numpy()
+        np_input = pd.get_dummies(df_input, drop_first=True).to_numpy(dtype=np.float64)
         if format == "numpy":
             decollinearizer_np = Decollinearizer(fit_intercept=True)
             if not use_tabmat:
