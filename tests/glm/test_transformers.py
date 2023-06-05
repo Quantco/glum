@@ -204,7 +204,7 @@ def test_against_expectation(
 @pytest.mark.parametrize("fit_intercept", [True, False])
 @pytest.mark.parametrize("format", ["pandas", "csc"])
 def test_same_results_backend(simple_test_data, fit_intercept, format):
-    df_input, expectation = simple_test_data
+    df_input, _ = simple_test_data
 
     if format == "pandas":
         decollinearizer_tm = Decollinearizer(fit_intercept=fit_intercept)
@@ -231,6 +231,39 @@ def test_same_results_backend(simple_test_data, fit_intercept, format):
     )
 
     if format == "pandas":
-        assert (result_tm == result_np).all().all()
+        assert (result_tm == result_np).all(axis=None)
     elif format == "csc":
+        # No .all() in scipy.sparse.csc_matrix
         assert (result_tm == result_np).min()
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "independent_numeric",
+        "dependent_numeric",
+        "dependent_on_combination_numeric",
+        "dependent_on_intercept_numeric",
+        "independent_categorical",
+        "dependent_categorical",
+    ],
+)
+@pytest.mark.parametrize("fit_intercept", [True, False])
+def test_same_results_format(simple_test_data, fit_intercept):
+    df_input, _ = simple_test_data
+    decollinearizer_pd = Decollinearizer(fit_intercept=fit_intercept)
+    result_pd = decollinearizer_pd.fit_transform(df_input, use_tabmat=True)
+
+    np_input = pd.get_dummies(df_input, drop_first=True).to_numpy(dtype=np.float64)
+    decollinearizer_np = Decollinearizer(fit_intercept=fit_intercept)
+    result_np = decollinearizer_np.fit_transform(np_input, use_tabmat=False)
+
+    csc_input = sparse.csc_matrix(np_input)
+    decollinearizer_csc = Decollinearizer(fit_intercept=fit_intercept)
+    result_csc = decollinearizer_csc.fit_transform(csc_input, use_tabmat=True)
+
+    result_pd_matrix = pd.get_dummies(result_pd, drop_first=True, dtype=np.float64)
+    result_csc_matrix = result_csc.toarray()
+
+    assert (result_np == result_pd_matrix).all(axis=None)
+    assert (result_np == result_csc_matrix).all(axis=None)
