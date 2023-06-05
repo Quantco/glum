@@ -227,7 +227,7 @@ class Decollinearizer(TransformerMixin, BaseEstimator):
             gram = _get_gram_matrix_tabmat(X_tm, fit_intercept=self.fit_intercept)
         else:
             # TODO: make sure that object columns are handled the same in all modes
-            X_np = pd.get_dummies(df, drop_first=True).to_numpy()
+            X_np = pd.get_dummies(df, drop_first=True).to_numpy(dtype=np.float_)
             gram = _get_gram_matrix_numpy(X_np, fit_intercept=self.fit_intercept)
 
         results = _find_collinear_columns_from_gram(
@@ -350,9 +350,12 @@ class Decollinearizer(TransformerMixin, BaseEstimator):
             return self._transform_pandas(X)
         elif isinstance(X, np.ndarray):
             return self._transform_numpy(X)
+        elif isinstance(X, sparse.csc_matrix):
+            return self._transform_csc(X)
         else:
             raise ValueError(
-                f"X must be a pandas.DataFrame or a numpy.ndarray, got {type(X)}"
+                "X must be a pandas.DataFrame, numpy.ndarray or scipy.sparse.csc_matrix. "
+                f"Got {type(X)}."
             )
 
     def _transform_pandas(self, X: pd.DataFrame) -> pd.DataFrame:
@@ -385,3 +388,16 @@ class Decollinearizer(TransformerMixin, BaseEstimator):
             )
 
         return np.delete(X, self.drop_columns, axis=1)
+
+    def _transform_csc(self, X: np.ndarray) -> np.ndarray:
+        """Apply the transformer to a fitted scipy.sparse.csc_matrix."""
+        check_is_fitted(self, ["input_type"])
+        if self.input_type != "csc":
+            raise ValueError(  # Should it be a TypeError?
+                "The transformer was fitted on a scipy.sparse.csc_matrix, "
+                "but is being asked to transform a {}".format(type(X))
+            )
+
+        col_mask = np.ones(X.shape[1], dtype="bool")
+        col_mask[self.drop_columns] = False
+        return X[:, col_mask]
