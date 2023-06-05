@@ -167,8 +167,10 @@ def check_expectation_array(
     "case",
     SIMPLE_TEST_CASES,
 )
-@pytest.mark.parametrize("fit_intercept", [True, False])
-@pytest.mark.parametrize("use_tabmat", [True, False])
+@pytest.mark.parametrize(
+    "fit_intercept", [True, False], ids=["intercept", "no_intercept"]
+)
+@pytest.mark.parametrize("use_tabmat", [True, False], ids=["tabmat", "no_tabmat"])
 @pytest.mark.parametrize("format", ["pandas", "numpy", "csc"])
 def test_against_expectation(
     simple_test_data, format: str, fit_intercept: bool, use_tabmat: bool
@@ -211,7 +213,9 @@ def test_against_expectation(
     "case",
     SIMPLE_TEST_CASES,
 )
-@pytest.mark.parametrize("fit_intercept", [True, False])
+@pytest.mark.parametrize(
+    "fit_intercept", [True, False], ids=["intercept", "no_intercept"]
+)
 @pytest.mark.parametrize("format", ["pandas", "csc"])
 def test_same_results_backend(simple_test_data, fit_intercept, format):
     df_input, _ = simple_test_data
@@ -249,16 +253,11 @@ def test_same_results_backend(simple_test_data, fit_intercept, format):
 
 @pytest.mark.parametrize(
     "case",
-    [
-        "independent_numeric",
-        "dependent_numeric",
-        "dependent_on_combination_numeric",
-        "dependent_on_intercept_numeric",
-        "independent_categorical",
-        "dependent_categorical",
-    ],
+    SIMPLE_TEST_CASES,
 )
-@pytest.mark.parametrize("fit_intercept", [True, False])
+@pytest.mark.parametrize(
+    "fit_intercept", [True, False], ids=["intercept", "no_intercept"]
+)
 def test_same_results_format(simple_test_data, fit_intercept):
     df_input, _ = simple_test_data
     decollinearizer_pd = Decollinearizer(fit_intercept=fit_intercept)
