@@ -158,8 +158,8 @@ def test_against_expectation(
 ):
     df_input, expectation = simple_test_data
 
-    decollinearizer_pd = Decollinearizer(fit_intercept=fit_intercept)
     if format == "pandas":
+        decollinearizer_pd = Decollinearizer(fit_intercept=fit_intercept)
         pd_result = decollinearizer_pd.fit_transform(df_input, use_tabmat=use_tabmat)
         check_expectation_dataframe(decollinearizer_pd, pd_result, expectation)
 
@@ -188,3 +188,49 @@ def test_against_expectation(
             check_expectation_array(
                 decollinearizer_csc, csc_result, expectation, format
             )
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "independent_numeric",
+        "dependent_numeric",
+        "dependent_on_combination_numeric",
+        "dependent_on_intercept_numeric",
+        "independent_categorical",
+        "dependent_categorical",
+    ],
+)
+@pytest.mark.parametrize("fit_intercept", [True, False])
+@pytest.mark.parametrize("format", ["pandas", "csc"])
+def test_same_results_backend(simple_test_data, fit_intercept, format):
+    df_input, expectation = simple_test_data
+
+    if format == "pandas":
+        decollinearizer_tm = Decollinearizer(fit_intercept=fit_intercept)
+        result_tm = decollinearizer_tm.fit_transform(df_input, use_tabmat=True)
+        decollinearizer_np = Decollinearizer(fit_intercept=fit_intercept)
+        result_np = decollinearizer_np.fit_transform(df_input, use_tabmat=False)
+
+    elif format == "csc":
+        np_input = pd.get_dummies(df_input, drop_first=True).to_numpy(dtype=np.float64)
+        csc_input = sparse.csc_matrix(np_input)
+        decollinearizer_tm = Decollinearizer(fit_intercept=fit_intercept)
+        result_tm = decollinearizer_tm.fit_transform(csc_input, use_tabmat=True)
+        decollinearizer_np = Decollinearizer(fit_intercept=fit_intercept)
+        result_np = decollinearizer_np.fit_transform(csc_input, use_tabmat=False)
+
+    else:
+        raise ValueError("This test is only defined for pandas and csc inputs")
+
+    assert decollinearizer_tm.drop_columns == decollinearizer_np.drop_columns
+    assert decollinearizer_tm.keep_columns == decollinearizer_np.keep_columns
+    assert decollinearizer_tm.intercept_safe == decollinearizer_np.intercept_safe
+    assert (
+        decollinearizer_tm.replace_categories == decollinearizer_np.replace_categories
+    )
+
+    if format == "pandas":
+        assert (result_tm == result_np).all().all()
+    elif format == "csc":
+        assert (result_tm == result_np).min()

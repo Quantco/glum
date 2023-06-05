@@ -260,8 +260,8 @@ class Decollinearizer(TransformerMixin, BaseEstimator):
                     (col_name, column_map.category, column_map.base_category)
                 )
 
-        self.drop_columns = drop_columns
-        self.keep_columns = df.columns.difference(drop_columns)
+        self.drop_columns = list(drop_columns)
+        self.keep_columns = list(df.columns.difference(drop_columns))
         self.replace_categories = replace_categories  # type: ignore
         self.intercept_safe = self.fit_intercept  # We never drop the intercept
         self.input_type = "pandas"
@@ -291,8 +291,8 @@ class Decollinearizer(TransformerMixin, BaseEstimator):
         if self.fit_intercept:
             results = _adjust_column_indices_for_intercept(results)
 
-        self.drop_columns = results.drop_idx
-        self.keep_columns = results.keep_idx
+        self.drop_columns = list(results.drop_idx)
+        self.keep_columns = list(results.keep_idx)
         self.intercept_safe = self.fit_intercept
         self.replace_categories = []
         self.input_type = "numpy"
@@ -329,8 +329,8 @@ class Decollinearizer(TransformerMixin, BaseEstimator):
         if self.fit_intercept:
             results = _adjust_column_indices_for_intercept(results)
 
-        self.drop_columns = results.drop_idx
-        self.keep_columns = results.keep_idx
+        self.drop_columns = list(results.drop_idx)
+        self.keep_columns = list(results.keep_idx)
         self.replace_categories = []  # type: ignore
         self.intercept_safe = self.fit_intercept  # We never drop the intercept
         self.input_type = "csc"
