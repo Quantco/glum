@@ -241,7 +241,7 @@ class Decollinearizer(TransformerMixin, BaseEstimator):
         if self.fit_intercept and 0 not in results.keep_idx:
             keep_idx_wo_intercept = results.keep_idx - 1
             if use_tabmat:
-                X1 = X_tm.matvec(np.ones(df.shape[0]), cols=keep_idx_wo_intercept)
+                X1 = X_tm.matvec(np.ones(X_tm.shape[1]), cols=keep_idx_wo_intercept)
             else:
                 X1 = X_np[:, keep_idx_wo_intercept].sum(axis=0)
             results = _find_intercept_alternative(
@@ -288,7 +288,7 @@ class Decollinearizer(TransformerMixin, BaseEstimator):
         )
         if self.fit_intercept and 0 not in results.keep_idx:
             keep_idx_wo_intercept = results.keep_idx - 1
-            X1 = X[:, keep_idx_wo_intercept].sum(axis=0)
+            X1 = X[:, keep_idx_wo_intercept].sum(axis=1)
             results = _find_intercept_alternative(
                 gram[np.ix_(results.keep_idx, results.keep_idx)], X1, results
             )
@@ -324,9 +324,9 @@ class Decollinearizer(TransformerMixin, BaseEstimator):
         if self.fit_intercept and 0 not in results.keep_idx:
             keep_idx_wo_intercept = results.keep_idx - 1
             if use_tabmat:
-                X1 = X_tm.matvec(np.ones(X.shape[0]), cols=keep_idx_wo_intercept)
+                X1 = X_tm.matvec(np.ones(X_tm.shape[1]), cols=keep_idx_wo_intercept)
             else:
-                X1 = X[:, keep_idx_wo_intercept].sum(axis=0)
+                X1 = X[:, keep_idx_wo_intercept].sum(axis=1)
             results = _find_intercept_alternative(
                 gram[np.ix_(results.keep_idx, results.keep_idx)], X1, results
             )
