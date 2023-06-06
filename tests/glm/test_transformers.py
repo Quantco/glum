@@ -3,10 +3,19 @@ from typing import NamedTuple, Union
 import numpy as np
 import pandas as pd
 import pytest
+import tabmat as tm
 from scipy import sparse
 
 from glum import Decollinearizer
-from glum._transformers import CollinearityResults, _find_intercept_alternative
+from glum._transformers import (
+    CollinearityResults,
+    _adjust_column_indices_for_intercept,
+    _find_collinear_columns_from_gram,
+    _find_intercept_alternative,
+    _get_gram_matrix_csc,
+    _get_gram_matrix_numpy,
+    _get_gram_matrix_tabmat,
+)
 
 
 class UnitTestExpectation(NamedTuple):
@@ -106,6 +115,20 @@ def simple_test_data(case: str):
                 intercept_collinear=True, design_matrix_rank=2, cols_to_drop=1
             ),
         )
+    elif case == "mixed_cat_num":
+        return (
+            pd.DataFrame(
+                {
+                    "a": [1.0, 2.0, 3.0, 4.0, 5.0],
+                    "b": pd.Categorical(["a", "a", "a", "b", "c"]),
+                    "c": [0, 0, 0, 2, 2],
+                    "d": [1.0, 2.0, 4.0, 8.0, 16.0],
+                }
+            ),
+            UnitTestExpectation(
+                intercept_collinear=False, design_matrix_rank=4, cols_to_drop=1
+            ),
+        )
     else:
         raise ValueError(f"Invalid case: '{case}'")
 
@@ -118,6 +141,7 @@ SIMPLE_TEST_CASES = [
     "independent_categorical",
     "dependent_categorical",
     "wider_than_tall",
+    "mixed_cat_num",
 ]
 
 
@@ -314,3 +338,99 @@ def test_find_intercept_alternative(gram, X1, results, valid):
     assert len(new_keep_set & valid_set) == len(valid_set) - 1
     assert len(orig_keep_set & new_keep_set) == len(orig_keep_set) - 1
     assert len(orig_drop_set & new_drop_set) == len(orig_drop_set) - 1
+
+
+def get_gram_matrix_reference(X: np.ndarray, fit_intercept: bool):
+    if fit_intercept:
+        X = np.hstack([np.ones((X.shape[0], 1)), X])
+    return X.T @ X
+
+
+@pytest.fixture
+def random_matrix(m: int, n: int):
+    np.random.seed(42)
+    return np.random.randn(m, n)
+
+
+@pytest.mark.parametrize(
+    "m, n",
+    [
+        (10, 5),
+        (10, 10),
+        (1000, 5),
+        (5, 20),
+    ],
+)
+@pytest.mark.parametrize(
+    "fit_intercept", [True, False], ids=["intercept", "no_intercept"]
+)
+@pytest.mark.parametrize("function", ["tabmat", "numpy", "csc"])
+def test_gram_matrix(random_matrix, function, fit_intercept):
+    X = random_matrix
+    reference_gram = get_gram_matrix_reference(X, fit_intercept)
+    if function == "tabmat":
+        X_tm = tm.SplitMatrix([tm.DenseMatrix(X)])
+        gram = _get_gram_matrix_tabmat(X_tm, fit_intercept)
+    elif function == "numpy":
+        gram = _get_gram_matrix_numpy(X, fit_intercept)
+    elif function == "csc":
+        csc_input = sparse.csc_matrix(X)
+        gram = _get_gram_matrix_csc(csc_input, fit_intercept)
+    assert np.allclose(gram, reference_gram)
+
+
+@pytest.mark.parametrize(
+    "case",
+    SIMPLE_TEST_CASES,
+)
+@pytest.mark.parametrize(
+    "fit_intercept", [True, False], ids=["intercept", "no_intercept"]
+)
+def test_find_collinear_columns_from_gram(simple_test_data, fit_intercept):
+    df_input, expectation = simple_test_data
+    X = pd.get_dummies(df_input, drop_first=True).to_numpy(dtype=np.float64)
+    gram = _get_gram_matrix_numpy(X, fit_intercept)
+    results = _find_collinear_columns_from_gram(gram, fit_intercept)
+
+    if fit_intercept:
+        if not expectation.intercept_collinear:
+            expected_rank = expectation.design_matrix_rank + 1
+            cols_to_drop = expectation.cols_to_drop
+        else:
+            expected_rank = expectation.design_matrix_rank
+            cols_to_drop = expectation.cols_to_drop + 1
+    else:
+        expected_rank = expectation.design_matrix_rank
+        cols_to_drop = expectation.cols_to_drop
+
+    assert len(results.keep_idx) == expected_rank
+    assert len(results.drop_idx) == cols_to_drop
+
+
+@pytest.mark.parametrize(
+    "results",
+    [
+        CollinearityResults(np.array([0]), np.array([1, 2])),
+        CollinearityResults(np.array([0, 1, 4]), np.array([2, 3])),
+        CollinearityResults(np.array([0, 1, 4]), np.array([])),
+    ],
+    ids=["intercept_only", "usual_case", "no_drop"],
+)
+def test_adjust_column_indices(results):
+    new_results = _adjust_column_indices_for_intercept(results)
+    assert (new_results.drop_idx == results.drop_idx - 1).all()
+    keep_idx_wo_intercept = results.keep_idx[results.keep_idx != 0]
+    assert (new_results.keep_idx == keep_idx_wo_intercept - 1).all()
+
+
+@pytest.mark.parametrize(
+    "results",
+    [
+        CollinearityResults(np.array([1, 2]), np.array([0, 3])),
+        CollinearityResults(np.array([1, 2]), np.array([3])),
+    ],
+    ids=["intercept_in_drop", "intercept_not_in_keep"],
+)
+def test_adjust_column_indices_wrong_input(results):
+    with pytest.raises(ValueError):
+        _adjust_column_indices_for_intercept(results)

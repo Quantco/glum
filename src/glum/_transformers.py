@@ -130,10 +130,11 @@ def _adjust_column_indices_for_intercept(
     """Adjust the column indices such that index 0 corresponds to the first
     non-intercept column.
     """
+    if 0 in results.drop_idx or 0 not in results.keep_idx:
+        raise ValueError("The intercept should be among the columns to keep.")
     keep_idx = results.keep_idx - 1
     drop_idx = results.drop_idx - 1
     keep_idx = keep_idx[keep_idx != -1]
-    drop_idx = drop_idx[drop_idx != -1]
 
     return CollinearityResults(keep_idx, drop_idx)
 
