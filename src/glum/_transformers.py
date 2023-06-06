@@ -1,6 +1,6 @@
 """Some utilities for transforming data before fitting a model."""
 
-from typing import Hashable, List, NamedTuple, Optional, Sequence, Tuple, Union
+from typing import Any, Hashable, List, NamedTuple, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -9,8 +9,39 @@ from scipy import sparse
 from scipy.linalg import qr, solve
 from sklearn.base import BaseEstimator, TransformerMixin, check_is_fitted
 
-from ._glm import ArrayLike, VectorLike
-from ._util import _safe_sandwich_dot
+DataLike = Union[np.ndarray, sparse.csc_matrix, pd.DataFrame]
+
+
+def _safe_sandwich_dot(
+    X: Union[tm.MatrixBase, tm.StandardizedMatrix],
+    d: np.ndarray,
+    rows: np.ndarray = None,
+    cols: np.ndarray = None,
+    intercept=False,
+) -> np.ndarray:
+    """
+    Compute sandwich product ``X.T @ diag(d) @ X``.
+
+    With ``intercept=True``, ``X`` is treated as if a column of 1 were appended
+    as first column of ``X``. ``X`` can be sparse; ``d`` must be an ndarray.
+    Always returns an ndarray.
+
+    Source: glum/_util.py
+    """
+    result = X.sandwich(d, rows, cols)
+    if isinstance(result, sparse.dia_matrix):
+        result = result.A
+
+    if intercept:
+        dim = result.shape[0] + 1
+        res_including_intercept = np.empty((dim, dim), dtype=X.dtype)
+        res_including_intercept[0, 0] = d.sum()
+        res_including_intercept[1:, 0] = X.transpose_matvec(d, rows, cols)
+        res_including_intercept[0, 1:] = res_including_intercept[1:, 0]
+        res_including_intercept[1:, 1:] = result
+    else:
+        res_including_intercept = result
+    return res_including_intercept
 
 
 def _safe_get_dummies(
@@ -207,8 +238,8 @@ class Decollinearizer(TransformerMixin, BaseEstimator):
 
     def fit(
         self,
-        X: ArrayLike,
-        y: Optional[VectorLike] = None,
+        X: DataLike,
+        y: Optional[Any] = None,
         use_tabmat: Optional[bool] = None,
     ) -> "Decollinearizer":
         """Fit the transformer by finding a maximal set of linearly independent columns.
@@ -218,7 +249,7 @@ class Decollinearizer(TransformerMixin, BaseEstimator):
         X : ArrayLike
             The data to fit. Can be a pandas.DataFrame
             a tabmat.SplitMatrix, or a numpy.ndarray.
-        y: Optional[VectorLike]
+        y: Optional[Any]
             Ignored. Present for API consistency.
 
         Returns
@@ -359,7 +390,7 @@ class Decollinearizer(TransformerMixin, BaseEstimator):
         self.intercept_safe = self.fit_intercept  # We never drop the intercept
         self.input_type = "csc"
 
-    def transform(self, X: ArrayLike, y: Optional[VectorLike] = None) -> ArrayLike:
+    def transform(self, X: DataLike, y: Optional[Any] = None) -> DataLike:
         """Transform the data by dropping collinear columns.
 
         Parameters
@@ -367,7 +398,7 @@ class Decollinearizer(TransformerMixin, BaseEstimator):
         X : ArrayLike
             The data to transform. Can be a pandas.DataFrame
             a tabmat.SplitMatrix, or a numpy.ndarray.
-        y: Optional[VectorLike]
+        y: Optional[Any]
             Ignored. Present for API consistency.
 
         Returns
