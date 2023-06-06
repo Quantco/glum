@@ -13,6 +13,24 @@ from ._glm import ArrayLike, VectorLike
 from ._util import _safe_sandwich_dot
 
 
+def _safe_get_dummies(
+    data: Union[pd.DataFrame, pd.Series], *args, **kwargs
+) -> pd.DataFrame:
+    """`pd.get_dummies`, but preserve column order of the original dataframe."""
+    if isinstance(data, pd.DataFrame):
+        dtypes_to_encode = ["object", "string", "category"]
+        cols_to_encode = data.select_dtypes(include=dtypes_to_encode).columns
+        new_data_chunks = []
+        for col in data.columns:
+            if col in cols_to_encode:
+                new_data_chunks.append(pd.get_dummies(data[[col]], *args, **kwargs))
+            else:
+                new_data_chunks.append(data[col])
+        return pd.concat(new_data_chunks, axis=1)
+    else:
+        return pd.get_dummies(data, *args, **kwargs)
+
+
 class CollinearityResults(NamedTuple):
     """Results of collinearity analysis."""
 
@@ -233,7 +251,7 @@ class Decollinearizer(TransformerMixin, BaseEstimator):
             gram = _get_gram_matrix_tabmat(X_tm, fit_intercept=self.fit_intercept)
         else:
             # TODO: make sure that object columns are handled the same in all modes
-            X_np = pd.get_dummies(df, drop_first=True).to_numpy(dtype=np.float_)
+            X_np = _safe_get_dummies(df, drop_first=True).to_numpy(dtype=np.float_)
             gram = _get_gram_matrix_numpy(X_np, fit_intercept=self.fit_intercept)
 
         results = _find_collinear_columns_from_gram(
