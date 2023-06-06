@@ -1,4 +1,4 @@
-from typing import NamedTuple, Union
+from typing import List, NamedTuple, Union
 
 import numpy as np
 import pandas as pd
@@ -12,9 +12,11 @@ from glum._transformers import (
     _adjust_column_indices_for_intercept,
     _find_collinear_columns_from_gram,
     _find_intercept_alternative,
+    _get_column_mapping,
     _get_gram_matrix_csc,
     _get_gram_matrix_numpy,
     _get_gram_matrix_tabmat,
+    _safe_get_dummies,
 )
 
 
@@ -163,7 +165,7 @@ def check_expectation_dataframe(
     assert isinstance(df_result, pd.DataFrame)
     assert decollinearizer.intercept_safe == decollinearizer.fit_intercept
     assert num_collinear == cols_to_drop
-    assert len(pd.get_dummies(df_result, drop_first=True).columns) == expected_rank
+    assert len(_safe_get_dummies(df_result, drop_first=True).columns) == expected_rank
 
 
 def check_expectation_array(
@@ -208,7 +210,9 @@ def test_against_expectation(
         check_expectation_dataframe(decollinearizer_pd, pd_result, expectation)
 
     else:
-        np_input = pd.get_dummies(df_input, drop_first=True).to_numpy(dtype=np.float64)
+        np_input = _safe_get_dummies(df_input, drop_first=True).to_numpy(
+            dtype=np.float64
+        )
         if format == "numpy":
             decollinearizer_np = Decollinearizer(fit_intercept=True)
             if not use_tabmat:
@@ -252,7 +256,9 @@ def test_same_results_backend(simple_test_data, fit_intercept, format):
         result_np = decollinearizer_np.fit_transform(df_input, use_tabmat=False)
 
     elif format == "csc":
-        np_input = pd.get_dummies(df_input, drop_first=True).to_numpy(dtype=np.float64)
+        np_input = _safe_get_dummies(df_input, drop_first=True).to_numpy(
+            dtype=np.float64
+        )
         csc_input = sparse.csc_matrix(np_input)
         decollinearizer_tm = Decollinearizer(fit_intercept=fit_intercept)
         result_tm = decollinearizer_tm.fit_transform(csc_input, use_tabmat=True)
@@ -288,7 +294,7 @@ def test_same_results_format(simple_test_data, fit_intercept):
     decollinearizer_pd = Decollinearizer(fit_intercept=fit_intercept)
     result_pd = decollinearizer_pd.fit_transform(df_input, use_tabmat=True)
 
-    np_input = pd.get_dummies(df_input, drop_first=True).to_numpy(dtype=np.float64)
+    np_input = _safe_get_dummies(df_input, drop_first=True).to_numpy(dtype=np.float64)
     decollinearizer_np = Decollinearizer(fit_intercept=fit_intercept)
     result_np = decollinearizer_np.fit_transform(np_input, use_tabmat=False)
 
@@ -296,7 +302,7 @@ def test_same_results_format(simple_test_data, fit_intercept):
     decollinearizer_csc = Decollinearizer(fit_intercept=fit_intercept)
     result_csc = decollinearizer_csc.fit_transform(csc_input, use_tabmat=True)
 
-    result_pd_matrix = pd.get_dummies(result_pd, drop_first=True, dtype=np.float64)
+    result_pd_matrix = _safe_get_dummies(result_pd, drop_first=True, dtype=np.float64)
     result_csc_matrix = result_csc.toarray()
 
     assert (result_np == result_pd_matrix).all(axis=None)
@@ -388,7 +394,7 @@ def test_gram_matrix(random_matrix, function, fit_intercept):
 )
 def test_find_collinear_columns_from_gram(simple_test_data, fit_intercept):
     df_input, expectation = simple_test_data
-    X = pd.get_dummies(df_input, drop_first=True).to_numpy(dtype=np.float64)
+    X = _safe_get_dummies(df_input, drop_first=True).to_numpy(dtype=np.float64)
     gram = _get_gram_matrix_numpy(X, fit_intercept)
     results = _find_collinear_columns_from_gram(gram, fit_intercept)
 
@@ -434,3 +440,82 @@ def test_adjust_column_indices(results):
 def test_adjust_column_indices_wrong_input(results):
     with pytest.raises(ValueError):
         _adjust_column_indices_for_intercept(results)
+
+
+@pytest.mark.parametrize(
+    "df",
+    [
+        pd.DataFrame({"x": pd.Categorical([])}),
+        pd.DataFrame(
+            {
+                "x": [1.0, 2.0, 3.0],
+                "y": pd.Categorical(["a", "b", "c"]),
+                "z": [1.0, 2.0, 3.0],
+            }
+        ),
+        pd.DataFrame(
+            {
+                "x": [1.0, 2.0, 3.0],
+                "y": pd.Categorical(["a", "b", "c"], categories=["a", "b", "c", "d"]),
+                "z": [1.0, 2.0, 3.0],
+            }
+        ),
+    ],
+    ids=["empty", "mixed", "unused_category"],
+)
+def test_get_column_mapping(df: pd.DataFrame):
+    column_mapping = _get_column_mapping(df)
+    df_expanded = _safe_get_dummies(df, drop_first=True)
+    assert len(column_mapping) == df_expanded.shape[1]
+    for expanded_col_pos, (
+        col_pos,
+        col_name,
+        is_categorical,
+        category,
+        base_category,
+    ) in enumerate(column_mapping):
+        assert col_name in df.columns
+        assert df.iloc[:, col_pos].name == col_name
+        assert is_categorical == pd.api.types.is_categorical_dtype(df[col_name])
+        if is_categorical:
+            assert category in df[col_name].cat.categories.tolist()
+            assert base_category == df[col_name].cat.categories.tolist()[0]
+            assert (
+                df_expanded.iloc[:, expanded_col_pos].name == f"{col_name}_{category}"
+            )
+
+
+@pytest.mark.parametrize(
+    "df, expected_columns",
+    [
+        (pd.DataFrame({"x": pd.Categorical([])}), []),
+        (
+            pd.DataFrame(
+                {
+                    "x": [1.0, 2.0, 3.0],
+                    "y": pd.Categorical(["a", "b", "c"]),
+                    "z": [1.0, 2.0, 3.0],
+                },
+            ),
+            ["x", "y_b", "y_c", "z"],
+        ),
+        (
+            pd.DataFrame(
+                {
+                    "x": [1.0, 2.0, 3.0],
+                    "y": pd.Categorical(
+                        ["a", "b", "c"], categories=["a", "b", "c", "d"]
+                    ),
+                    "z": [1.0, 2.0, 3.0],
+                },
+            ),
+            ["x", "y_b", "y_c", "y_d", "z"],
+        ),
+    ],
+    ids=["empty", "mixed", "unused_category"],
+)
+def test_safe_get_dummies(df: pd.DataFrame, expected_columns: List[str]):
+    df_expanded = _safe_get_dummies(df, drop_first=True)
+    df_expanded_pandas = pd.get_dummies(df, drop_first=True)
+    assert len(df_expanded.columns) == len(df_expanded_pandas.columns)
+    assert df_expanded.columns.tolist() == expected_columns
