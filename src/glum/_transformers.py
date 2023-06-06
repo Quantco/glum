@@ -99,10 +99,13 @@ def _find_intercept_alternative(
         X.T @ X where X are the independent columns of the design matrix
     X1: np.ndarray
         X'.T @ 1 where X are the independent columns of the design matrix
-    keep_idx: Sequence[int]
-        The indices of the kept columns in the original design matrix
-    drop_idx: Sequence[int]
-        The indices of the dropped columns in the original design matrix
+    results: CollinearityResults
+        The results of the collinearity analysis
+
+    Returns
+    -------
+    CollinearityResults
+        Alternative collinearity results with the intercept not dropped
     """
     keep_idx = results.keep_idx
     drop_idx = results.drop_idx
@@ -113,6 +116,8 @@ def _find_intercept_alternative(
     drop_instead_of_intercept = keep_idx[np.argmax(np.abs(lin_comb_for_intercept))]
     # Update the keep and drop indices
     keep_idx = keep_idx[keep_idx != drop_instead_of_intercept]
+    keep_idx = np.insert(keep_idx, 0, 0)
+    drop_idx = drop_idx[drop_idx != 0]
     drop_insert_idx = np.searchsorted(drop_idx, drop_instead_of_intercept)
     drop_idx = np.insert(drop_idx, drop_insert_idx, drop_instead_of_intercept)
 

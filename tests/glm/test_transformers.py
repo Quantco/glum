@@ -6,6 +6,7 @@ import pytest
 from scipy import sparse
 
 from glum import Decollinearizer
+from glum._transformers import CollinearityResults, _find_intercept_alternative
 
 
 class UnitTestExpectation(NamedTuple):
@@ -276,3 +277,40 @@ def test_same_results_format(simple_test_data, fit_intercept):
 
     assert (result_np == result_pd_matrix).all(axis=None)
     assert (result_np == result_csc_matrix).all(axis=None)
+
+
+@pytest.mark.parametrize(
+    "gram, X1, results, valid",
+    [
+        (
+            np.array([[2, 3], [3, 5]]),
+            np.array([5, 8]),
+            CollinearityResults(np.array([1, 2]), np.array([0])),
+            [1],
+        ),
+        (
+            np.array([[1, 0, 1], [0, 1, 2], [0, 1, 3]]),
+            np.array([1, 2, 6]),
+            CollinearityResults(np.array([1, 2, 3]), np.array([0])),
+            [1, 2],
+        ),
+        (
+            np.array([[2, 3], [3, 5]]),
+            np.array([5, 8]),
+            CollinearityResults(np.array([3, 5]), np.array([0])),
+            [3, 5],
+        ),
+    ],
+    ids=["one_choice", "multiple_choices", "weird_col_nums"],
+)
+def test_find_intercept_alternative(gram, X1, results, valid):
+    new_results = _find_intercept_alternative(gram, X1, results)
+    orig_keep_set = set(results.keep_idx)
+    orig_drop_set = set(results.drop_idx)
+    new_keep_set = set(new_results.keep_idx)
+    new_drop_set = set(new_results.drop_idx)
+    valid_set = set(valid)
+    assert len(new_drop_set & valid_set) == 1
+    assert len(new_keep_set & valid_set) == len(valid_set) - 1
+    assert len(orig_keep_set & new_keep_set) == len(orig_keep_set) - 1
+    assert len(orig_drop_set & new_drop_set) == len(orig_drop_set) - 1
