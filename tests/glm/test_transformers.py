@@ -20,7 +20,7 @@ from glum._transformers import (
 )
 
 
-class UnitTestExpectation(NamedTuple):
+class DecollinearizerTestExpectation(NamedTuple):
     """Expectation for a Pandas test."""
 
     intercept_collinear: bool
@@ -38,7 +38,7 @@ def simple_test_data(case: str):
                     "b": [0.0, 1.0, 0.0],
                 }
             ),
-            UnitTestExpectation(
+            DecollinearizerTestExpectation(
                 intercept_collinear=False, design_matrix_rank=2, cols_to_drop=0
             ),
         )
@@ -50,7 +50,7 @@ def simple_test_data(case: str):
                     "b": [2.0, 0.0, 0.0],
                 }
             ),
-            UnitTestExpectation(
+            DecollinearizerTestExpectation(
                 intercept_collinear=False, design_matrix_rank=1, cols_to_drop=1
             ),
         )
@@ -63,7 +63,7 @@ def simple_test_data(case: str):
                     "c": [2.0, 2.0, 0.0, 0.0],
                 }
             ),
-            UnitTestExpectation(
+            DecollinearizerTestExpectation(
                 intercept_collinear=False, design_matrix_rank=2, cols_to_drop=1
             ),
         )
@@ -76,7 +76,7 @@ def simple_test_data(case: str):
                     "c": [0.0, 1.0, 0.0, 0.0],
                 }
             ),
-            UnitTestExpectation(
+            DecollinearizerTestExpectation(
                 intercept_collinear=True, design_matrix_rank=3, cols_to_drop=0
             ),
         )
@@ -88,7 +88,7 @@ def simple_test_data(case: str):
                     "b": pd.Categorical(["a", "a", "b"]),
                 }
             ),
-            UnitTestExpectation(
+            DecollinearizerTestExpectation(
                 intercept_collinear=False, design_matrix_rank=2, cols_to_drop=0
             ),
         )
@@ -100,7 +100,7 @@ def simple_test_data(case: str):
                     "b": pd.Categorical(["a", "a", "c"]),
                 }
             ),
-            UnitTestExpectation(
+            DecollinearizerTestExpectation(
                 intercept_collinear=False, design_matrix_rank=2, cols_to_drop=1
             ),
         )
@@ -113,7 +113,7 @@ def simple_test_data(case: str):
                     "c": [2.0, 3.0],
                 }
             ),
-            UnitTestExpectation(
+            DecollinearizerTestExpectation(
                 intercept_collinear=True, design_matrix_rank=2, cols_to_drop=1
             ),
         )
@@ -127,7 +127,7 @@ def simple_test_data(case: str):
                     "d": [1.0, 2.0, 4.0, 8.0, 16.0],
                 }
             ),
-            UnitTestExpectation(
+            DecollinearizerTestExpectation(
                 intercept_collinear=False, design_matrix_rank=4, cols_to_drop=1
             ),
         )
@@ -150,7 +150,7 @@ SIMPLE_TEST_CASES = [
 def check_expectation_dataframe(
     decollinearizer: Decollinearizer,
     df_result: pd.DataFrame,
-    expectation: UnitTestExpectation,
+    expectation: DecollinearizerTestExpectation,
 ):
     num_collinear = len(decollinearizer.drop_columns) + len(
         decollinearizer.replace_categories
@@ -171,7 +171,7 @@ def check_expectation_dataframe(
 def check_expectation_array(
     decollinearizer: Decollinearizer,
     X_result: Union[np.ndarray, sparse.csc_matrix],
-    expectation: UnitTestExpectation,
+    expectation: DecollinearizerTestExpectation,
     format: str,
 ):
     if decollinearizer.fit_intercept and expectation.intercept_collinear:
