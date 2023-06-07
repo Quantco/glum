@@ -50,7 +50,7 @@ from ._distribution import (
     TweedieDistribution,
     guess_intercept,
 )
-from ._link import IdentityLink, Link, LogitLink, LogLink, TweedieLink
+from ._link import CloglogLink, IdentityLink, Link, LogitLink, LogLink, TweedieLink
 from ._solvers import (
     IRLSData,
     _cd_solver,
@@ -482,11 +482,14 @@ def get_link(link: Union[str, Link], family: ExponentialDispersionModel) -> Link
         return LogLink()
     if link == "logit":
         return LogitLink()
+    if link == "cloglog":
+        return CloglogLink()
     if link[:7] == "tweedie":
         return TweedieLink(float(link[7:]))
     raise ValueError(
         "The link must be an instance of class Link or an element of "
-        f"['auto', 'identity', 'log', 'logit', 'tweedie']; got (link={link})."
+        "['auto', 'identity', 'log', 'logit', 'cloglog', 'tweedie']; "
+        f"got (link={link})."
     )
 
 
@@ -1964,10 +1967,10 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         specify it in parentheses (e.g., ``'tweedie (1.5)'``). The same applies
         for ``'negative.binomial'`` and theta parameter.
 
-    link : {'auto', 'identity', 'log', 'logit'} or Link, optional (default='auto')
-        The link function of the GLM, i.e. mapping from linear predictor
-        (``X * coef``) to expectation (``mu``). Option ``'auto'`` sets the link
-        depending on the chosen family as follows:
+    link : {'auto', 'identity', 'log', 'logit', 'cloglog'} or Link, optional
+        (default='auto') The link function of the GLM, i.e. mapping from linear
+        predictor (``X * coef``) to expectation (``mu``). Option ``'auto'`` sets
+        the link depending on the chosen family as follows:
 
         - ``'identity'`` for family ``'normal'``
         - ``'log'`` for families ``'poisson'``, ``'gamma'``,
