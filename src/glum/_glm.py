@@ -1967,8 +1967,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         specify it in parentheses (e.g., ``'tweedie (1.5)'``). The same applies
         for ``'negative.binomial'`` and theta parameter.
 
-    link : {'auto', 'identity', 'log', 'logit', 'cloglog'} or Link, optional
-        (default='auto') The link function of the GLM, i.e. mapping from linear
+    link : {'auto', 'identity', 'log', 'logit', 'cloglog'} or Link, optional (default='auto')
+        The link function of the GLM, i.e. mapping from linear
         predictor (``X * coef``) to expectation (``mu``). Option ``'auto'`` sets
         the link depending on the chosen family as follows:
 
