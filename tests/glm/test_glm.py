@@ -1105,6 +1105,120 @@ def test_poisson_enet():
     assert_allclose(glm.coef_, glmnet_coef, rtol=1e-4)
 
 
+def test_binomial_cloglog_enet():
+    """Test elastic net regression with binomial family and cloglog link.
+
+    Compare to R's glmnet
+    """
+    # library(glmnet)
+    # options(digits=10)
+    # df <- data.frame(a=c(1,2,3,4,5,6), b=c(0,0,0,0,1, 1), y=c(0,0,1,0,1,1))
+    # x <- data.matrix(df[,c("a", "b")])
+    # y <- df$y
+    # fit <- glmnet(
+    #     x=x, y=as.factor(y), lambda=1, alpha=0.5, intercept=TRUE,
+    #     family=binomial(link=cloglog),standardize=FALSE, thresh=1e-10
+    # )
+    # coef(fit)
+    #                        s1
+    # (Intercept) -0.9210348370
+    # a            0.1743465641
+    # b            .
+    glmnet_intercept = -0.9210348370
+    glmnet_coef = [0.1743465641, 0.0]
+    X = np.array([[1, 2, 3, 4, 5, 6], [0, 0, 0, 0, 1, 1]], dtype="float").T
+    y = np.array([0, 0, 1, 0, 1, 1])
+    rng = np.random.RandomState(42)
+    glm = GeneralizedLinearRegressor(
+        alpha=1,
+        l1_ratio=0.5,
+        family="binomial",
+        link="cloglog",
+        solver="irls-cd",
+        gradient_tol=1e-8,
+        selection="random",
+        random_state=rng,
+    )
+    glm.fit(X, y)
+    # Note: we use a quite generous tolerance here, but I think we
+    # might be closer to the truth than glmnet
+    # In the case of unregularized results, we certainly are closer
+    # to both statsmodels and stats::glm than glmnet is.
+    assert_allclose(glm.intercept_, glmnet_intercept, rtol=1e-3)
+    assert_allclose(glm.coef_, glmnet_coef, rtol=1e-3)
+
+    # same for start_params='zero' and selection='cyclic'
+    # with reduced precision
+    glm = GeneralizedLinearRegressor(
+        alpha=1,
+        l1_ratio=0.5,
+        family="binomial",
+        link="cloglog",
+        solver="irls-cd",
+        gradient_tol=1e-8,
+        selection="cyclic",
+    )
+    glm.fit(X, y)
+    assert_allclose(glm.intercept_, glmnet_intercept, rtol=1e-3)
+    assert_allclose(glm.coef_, glmnet_coef, rtol=1e-3)
+
+    # check warm_start, therefore start with different alpha
+    glm = GeneralizedLinearRegressor(
+        alpha=0.005,
+        l1_ratio=0.5,
+        family="binomial",
+        max_iter=300,
+        link="cloglog",
+        solver="irls-cd",
+        gradient_tol=1e-8,
+        selection="cyclic",
+    )
+    glm.fit(X, y)
+    # warm start with original alpha and use of sparse matrices
+    glm.warm_start = True
+    glm.alpha = 1
+    X = sparse.csr_matrix(X)
+    glm.fit(X, y)
+    assert_allclose(glm.intercept_, glmnet_intercept, rtol=1e-3)
+    assert_allclose(glm.coef_, glmnet_coef, rtol=1e-3)
+
+
+@pytest.mark.parametrize("solver", ["irls-cd", "irls-ls"])
+def test_binomial_cloglog_unregularized(solver):
+    """Test unregularized regression with binomial family and cloglog link.
+
+    Compare to statsmodels GLM.
+    """
+    n_samples = 500
+    rng = np.random.RandomState(42)
+    X, y = make_classification(
+        n_samples=n_samples,
+        n_classes=2,
+        n_features=6,
+        n_informative=5,
+        n_redundant=0,
+        n_repeated=0,
+        random_state=rng,
+    )
+    X1 = sm.add_constant(X)
+    sm_glm = sm.GLM(y, X1, family=sm.families.Binomial(sm.families.links.CLogLog()))
+    sm_fit = sm_glm.fit()
+
+    glum_glm = GeneralizedLinearRegressor(
+        alpha=0,
+        family="binomial",
+        link="cloglog",
+        solver=solver,
+        gradient_tol=1e-8,
+        selection="random",
+        random_state=rng,
+    )
+    glum_glm.fit(X, y)
+
+    assert_allclose(glum_glm.intercept_, sm_fit.params[0], rtol=2e-5)
+    assert_allclose(glum_glm.coef_, sm_fit.params[1:], rtol=2e-5)
+
+
 @pytest.mark.parametrize("alpha", [0.01, 0.1, 1, 10])
 def test_binomial_enet(alpha):
     """Test elastic net regression with binomial family and LogitLink.

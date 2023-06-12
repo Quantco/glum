@@ -74,10 +74,10 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         specify it in parentheses (e.g., ``'tweedie (1.5)'``). The same applies
         for ``'negative.binomial'`` and theta parameter.
 
-    link : {'auto', 'identity', 'log', 'logit'} or Link, optional (default='auto')
-        The link function of the GLM, i.e. mapping from linear predictor
-        (``X * coef``) to expectation (``mu``). Option ``'auto'`` sets the link
-        depending on the chosen family as follows:
+    link : {'auto', 'identity', 'log', 'logit', 'cloglog'} or Link, optional (default='auto')
+        The link function of the GLM, i.e. mapping from linear
+        predictor (``X * coef``) to expectation (``mu``). Option ``'auto'`` sets
+        the link depending on the chosen family as follows:
 
         - ``'identity'`` for family ``'normal'``
         - ``'log'`` for families ``'poisson'``, ``'gamma'``,

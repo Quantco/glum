@@ -7,6 +7,13 @@
 Changelog
 =========
 
+2.6.0 - UNRELEASED
+------------------
+
+**New feature**
+
+- Added the complementary log-log (`cloglog`) link function.
+
 2.5.2 - 2023-06-02
 ------------------
 
