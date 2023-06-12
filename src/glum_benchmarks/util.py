@@ -202,7 +202,6 @@ class BenchmarkParams:
         hessian_approx: Optional[float] = None,
         diagnostics_level: Optional[str] = None,
     ):
-
         self.problem_name = problem_name
         self.library_name = library_name
         self.num_rows = num_rows

@@ -653,7 +653,6 @@ class TweedieDistribution(ExponentialDispersionModel):
 
     @power.setter
     def power(self, power):
-
         if not isinstance(power, (int, float)):
             raise TypeError(f"power must be an int or float, input was {power}")
         if (power > 0) and (power < 1):
@@ -1154,7 +1153,6 @@ class NegativeBinomialDistribution(ExponentialDispersionModel):
 
     @theta.setter
     def theta(self, theta):
-
         if not isinstance(theta, (int, float)):
             raise TypeError(f"theta must be an int or float, input was {theta}")
         if not theta > 0:

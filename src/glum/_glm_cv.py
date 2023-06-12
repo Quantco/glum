@@ -467,7 +467,6 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             A_ineq,
             b_ineq,
         ):
-
             x_train, y_train, w_train = (
                 X[train_idx, :],
                 y[train_idx],

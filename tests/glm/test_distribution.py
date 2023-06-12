@@ -69,7 +69,6 @@ def test_tweedie_distribution_power():
 
 
 def test_tweedie_distribution_parsing():
-
     dist = get_family("tweedie")
 
     assert isinstance(dist, TweedieDistribution)
@@ -100,7 +99,6 @@ def test_negative_binomial_distribution_alpha():
 
 
 def test_negative_binomial_distribution_parsing():
-
     dist = get_family("negative.binomial")
 
     assert isinstance(dist, NegativeBinomialDistribution)
@@ -172,7 +170,6 @@ def test_deviance_zero(family, chk_values):
     ids=lambda args: args.__class__.__name__,
 )
 def test_gradients(family, link):
-
     np.random.seed(1001)
 
     nrows = 100
@@ -183,7 +180,6 @@ def test_gradients(family, link):
     sample_weight = np.ones(nrows)
 
     for _ in range(5):
-
         eta, mu, _ = family.eta_mu_deviance(
             link, 1.0, np.zeros(nrows), X.dot(coef), y, sample_weight
         )
@@ -291,7 +287,6 @@ def test_hessian_matrix(family, link, true_hessian):
 
 @pytest.mark.parametrize("weighted", [False, True])
 def test_poisson_deviance_dispersion_loglihood(weighted):
-
     # y <- c(0, 0, 1, 2, 3)
     # glm_model = glm(y ~ 1, family = poisson)
 
@@ -341,7 +336,6 @@ def test_poisson_deviance_dispersion_loglihood(weighted):
 
 @pytest.mark.parametrize("weighted", [False, True])
 def test_gamma_deviance_dispersion_loglihood(weighted):
-
     # y <- c(1, 2, 2, 3, 4)
     # glm_model = glm(y ~ 1, family = Gamma(link = "log"))
 
@@ -390,7 +384,6 @@ def test_gamma_deviance_dispersion_loglihood(weighted):
 @pytest.mark.parametrize("family", ["gaussian", "normal"])
 @pytest.mark.parametrize("weighted", [False, True])
 def test_gaussian_deviance_dispersion_loglihood(family, weighted):
-
     # y <- c(-1, -1, 0, 1, 2)
     # glm_model = glm(y ~ 1, family = gaussian)
 
@@ -436,7 +429,6 @@ def test_gaussian_deviance_dispersion_loglihood(family, weighted):
 
 @pytest.mark.parametrize("weighted", [False, True])
 def test_tweedie_deviance_dispersion_loglihood(weighted):
-
     # library(statmod)  # Tweedie GLMs
     # library(tweedie)  # Tweedie log likelihood
 
@@ -489,7 +481,6 @@ def test_tweedie_deviance_dispersion_loglihood(weighted):
 
 @pytest.mark.parametrize("weighted", [False, True])
 def test_binomial_deviance_dispersion_loglihood(weighted):
-
     # y <- c(0, 1, 0, 1, 0)
     # glm_model = glm(y ~ 1, family = binomial)
 
@@ -535,7 +526,6 @@ def test_binomial_deviance_dispersion_loglihood(weighted):
 
 @pytest.mark.parametrize("weighted", [False, True])
 def test_negative_binomial_deviance_dispersion_loglihood(weighted):
-
     # y <- c(0, 1, 0, 1, 0)
     # glm_model = glm(y~1, family=MASS::negative.binomial(theta=1))
 
@@ -590,7 +580,6 @@ def test_tweedie_normalization(dispersion, power):
         return np.log(sp.special.wright_bessel(-alpha, 0, x)) - np.log(y)
 
     def scipy_based_loglihood(y, mu, power, dispersion):
-
         ll = np.zeros_like(y)
         ix = y > 0
 
