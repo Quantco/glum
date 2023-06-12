@@ -1077,7 +1077,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         A_ineq: Optional[np.ndarray],
         b_ineq: Optional[np.ndarray],
     ) -> np.ndarray:
-
         self.coef_path_ = np.empty((len(alphas), len(coef)), dtype=X.dtype)
 
         for k, alpha in enumerate(alphas):
@@ -1606,7 +1605,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         return 1.0 - dev / dev_null
 
     def _validate_hyperparameters(self) -> None:
-
         if not isinstance(self.fit_intercept, bool):
             raise TypeError(
                 f"The argument fit_intercept must be bool; got {self.fit_intercept}."
@@ -1732,7 +1730,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         Union[str, np.ndarray],
         Union[str, np.ndarray],
     ]:
-
         _dtype = [np.float64, np.float32]
         if solver == "irls-cd":
             _stype = ["csc"]
@@ -1745,7 +1742,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         copy_X = self._should_copy_X()
 
         if isinstance(X, pd.DataFrame):
-
             self.feature_dtypes_ = X.dtypes.to_dict()
 
             if any(X.dtypes == "category"):
@@ -2412,7 +2408,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         if self.check_input:
             # check if P2 is positive semidefinite
             if not isinstance(self.P2, str):  # self.P2 != 'identity'
-
                 if not is_pos_semidef(P2_no_alpha):
                     if P2_no_alpha.ndim == 1 or P2_no_alpha.shape[0] == 1:
                         error = "1d array P2 must not have negative values."
@@ -2703,7 +2698,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         y: ArrayLike,
         sample_weight: Optional[ArrayLike] = None,
     ):
-
         check_is_fitted(self, "coef_")
 
         if not hasattr(self, "_info_criteria"):

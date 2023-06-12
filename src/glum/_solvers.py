@@ -135,7 +135,6 @@ def update_hessian(state, data, active_set):
     first_iteration = not state.hessian_initialized
     reset_iteration = not _is_subset(state.old_active_set, active_set)
     if first_iteration or reset_iteration:
-
         # In the first iteration or in a reset iteration, we need to:
         # 1) use hessian_rows, not the difference
         # 2) use all the rows
@@ -153,7 +152,6 @@ def update_hessian(state, data, active_set):
         state.hessian_initialized = True
         n_active_rows = data.X.shape[0]
     else:
-
         # In an update iteration, we want to:
         # 1) use the difference in hessian_rows from the last iteration
         # 2) filter for active_rows in case data.hessian_approx != 0
@@ -907,7 +905,6 @@ def _trust_constr_solver(
     )
 
     if (A_ineq is not None) and (b_ineq is not None):
-
         if fit_intercept:
             # add one column of 0's from the left
             # the intercept will not be constrained

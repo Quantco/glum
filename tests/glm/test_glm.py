@@ -1440,7 +1440,6 @@ def test_alpha_search(regression_data):
 
 @pytest.mark.parametrize("alpha, alpha_index", [(0.5, 0), (0.75, 1), (None, 1)])
 def test_predict_scalar(regression_data, alpha, alpha_index):
-
     X, y = regression_data
     offset = np.ones_like(y)
 
@@ -1458,7 +1457,6 @@ def test_predict_scalar(regression_data, alpha, alpha_index):
     [([0.5, 0.75], [0, 1]), ([0.75, 0.5], [1, 0]), ([0.5, 0.5], [0, 0])],
 )
 def test_predict_list(regression_data, alpha, alpha_index):
-
     X, y = regression_data
     offset = np.ones_like(y)
 
@@ -1481,7 +1479,6 @@ def test_predict_list(regression_data, alpha, alpha_index):
 
 
 def test_predict_error(regression_data):
-
     X, y = regression_data
 
     estimator = GeneralizedLinearRegressor(alpha=0.5, alpha_search=False).fit(X, y)
@@ -1881,7 +1878,6 @@ def test_inputtype_std_errors(regression_data, categorical, split, fit_intercept
 @pytest.mark.parametrize("offset", [False, True])
 @pytest.mark.parametrize("weighted", [False, True])
 def test_score_method(as_data_frame, offset, weighted):
-
     regressor = GeneralizedLinearRegressor(
         alpha=0,
         family="normal",

@@ -86,7 +86,6 @@ def test_gm_benchmarks(Pn: str, P: Problem, expected_all: dict):
     "--problem_name", default=None, help="Only run and store a specific problem."
 )
 def run_and_store_golden_master(overwrite, problem_name):
-
     try:
         with open(git_root("tests/glm/golden_master/benchmark_gm.json")) as fh:
             gm_dict = json.load(fh)

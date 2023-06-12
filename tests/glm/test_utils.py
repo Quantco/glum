@@ -21,7 +21,6 @@ def df():
 
 
 def test_align_df_categories_numeric(df):
-
     dtypes = {column: np.float64 for column in df}
 
     expected = pd.DataFrame(
@@ -40,7 +39,6 @@ def test_align_df_categories_numeric(df):
 
 
 def test_align_df_categories_categorical(df):
-
     dtypes = {column: pd.CategoricalDtype(["a", "b"]) for column in df}
 
     expected = pd.DataFrame(
@@ -60,7 +58,6 @@ def test_align_df_categories_categorical(df):
 
 
 def test_align_df_categories_excess_columns(df):
-
     dtypes = {"x1": np.float64}
 
     expected = pd.DataFrame(
@@ -79,7 +76,6 @@ def test_align_df_categories_excess_columns(df):
 
 
 def test_align_df_categories_missing_columns(df):
-
     dtypes = {"x0": np.float64}
 
     expected = pd.DataFrame(

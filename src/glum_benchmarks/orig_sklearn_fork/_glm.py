@@ -2632,7 +2632,6 @@ class PoissonRegressor(GeneralizedLinearRegressor):
         check_input=True,
         verbose=0,
     ):
-
         super().__init__(
             alpha=alpha,
             fit_intercept=fit_intercept,

@@ -29,7 +29,6 @@ def tweedie_rv(mu, sigma2=1, p=1.5):
 
 
 def _get_family_rv(family, rand: np.random._generator.Generator):
-
     family_rv = {
         "poisson": rand.poisson,
         "gamma": rand.gamma,
