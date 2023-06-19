@@ -37,7 +37,7 @@ repos:
       exclude: ^tests/
       additional_dependencies: [-c, conda-forge, types-setuptools=67.5, attrs]
  - repo: https://github.com/Quantco/pre-commit-mirrors-pyupgrade
-   rev: 3.6.0
+   rev: 3.7.0
    hooks:
     - id: pyupgrade-conda
       exclude: ^src/glum_benchmarks/orig_sklearn_fork/
