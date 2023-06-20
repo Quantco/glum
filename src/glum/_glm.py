@@ -21,7 +21,7 @@ import sys
 import warnings
 from collections.abc import Iterable
 from itertools import chain
-from typing import Any, Optional, Sequence, Tuple, Union, cast
+from typing import Any, NamedTuple, Optional, Sequence, Tuple, Union, cast
 
 import numpy as np
 import pandas as pd
@@ -81,6 +81,12 @@ ShapedArrayLike = Union[
     sparse.spmatrix,
     VectorLike,
 ]
+
+
+class WaldTestResult(NamedTuple):
+    test_statistic: float
+    p_value: float
+    degrees_of_freedom: int
 
 
 def check_array_tabmat_compliant(mat: ArrayLike, drop_first: int = False, **kwargs):
@@ -1414,6 +1420,101 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             },
             index=names,
         )
+
+    def wald_test_matrix(
+        self,
+        R: np.ndarray,
+        r: np.ndarray,
+        X=None,
+        y=None,
+        mu=None,
+        offset=None,
+        sample_weight=None,
+        dispersion=None,
+        robust=True,
+        clusters: np.ndarray = None,
+        expected_information=False,
+    ) -> WaldTestResult:
+        """Compute the Wald test statistic and p-value for a linear hypotheses.
+
+        The hypothesis tested is ``R @ coef_ = r``. The test statistic follows
+        a chi-squared distribution with ``R.shape[0]`` degrees of freedom.
+
+        Parameters
+        ----------
+        R : np.ndarray
+            The matrix representing the linear combination of coefficients to test.
+        r : np.ndarray
+            The vector representing the values of the linear combination.
+        X : {array-like, sparse matrix}, shape (n_samples, n_features), optional
+            Training data. Can be omitted if a covariance matrix has already
+            been computed.
+        y : array-like, shape (n_samples,), optional
+            Target values. Can be omitted if a covariance matrix has already
+            been computed.
+        mu : array-like, optional, default=None
+            Array with predictions. Estimated if absent.
+        offset : array-like, optional, default=None
+            Array with additive offsets.
+        sample_weight : array-like, shape (n_samples,), optional (default=None)
+            Individual weights for each sample.
+        dispersion : float, optional, default=None
+            The dispersion parameter. Estimated if absent.
+        robust : boolean, optional, default=True
+            Whether to compute robust standard errors instead of normal ones.
+        clusters : array-like, optional, default=None
+            Array with clusters membership. Clustered standard errors are
+            computed if clusters is not None.
+        expected_information : boolean, optional, default=False
+            Whether to use the expected or observed information matrix.
+            Only relevant when computing robust std-errors.
+
+        Returns
+        -------
+        WaldTestResult
+            NamedTuple with test statistic, p-value and degrees of freedom.
+        """
+
+        covariance_matrix = self.covariance_matrix(
+            X=X,
+            y=y,
+            mu=mu,
+            offset=offset,
+            sample_weight=sample_weight,
+            dispersion=dispersion,
+            robust=robust,
+            clusters=clusters,
+            expected_information=expected_information,
+        )
+
+        if self.fit_intercept:
+            beta = np.concatenate([[self.intercept_], self.coef_])
+        else:
+            beta = self.coef_
+
+        if R.shape[0] != r.shape[0]:
+            raise ValueError("R and r must have the same number of rows")
+        if R.shape[1] != beta.shape[0]:
+            raise ValueError("R must have one column for each coefficient")
+        # There is no point in checking that R is full rank. If it is not, then
+        # solve(RVR, Rb_r) will raise an exception.
+
+        beta = beta[:, np.newaxis]
+        r = r[:, np.newaxis]
+        Q = R.shape[0]
+
+        Rb_r = R @ beta - r  # R \beta - r
+        RVR = R @ covariance_matrix @ R.T  # R V R^T
+
+        # We want to calculate Rb_r^T (RVR)^{-1} Rb_r.
+        # We can do it in a more numerically stable way by using `scipy.linalg.solve`:
+        try:
+            test_stat = float(Rb_r.T @ linalg.solve(RVR, Rb_r))
+        except linalg.LinAlgError as err:
+            raise linalg.LinAlgError("The restriction matrix is not full rank") from err
+        p_value = 1 - stats.chi2.cdf(test_stat, Q)
+
+        return WaldTestResult(test_stat, p_value, Q)
 
     def std_errors(
         self,
