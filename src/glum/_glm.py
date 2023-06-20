@@ -219,9 +219,9 @@ def _name_categorical_variables(
         f"{column_name}__{category}" for category in categories[int(drop_first) :]
     ]
     if len(new_names) == 0:
-        raise ValueError(
+        warnings.warn(
             f"Categorical column: {column_name}, contains only one category. "
-            + "This should be dropped from the feature matrix."
+            + "This will be dropped from the feature matrix."
         )
     return new_names
 
