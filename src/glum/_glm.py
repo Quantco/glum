@@ -21,7 +21,7 @@ import sys
 import warnings
 from collections.abc import Iterable
 from itertools import chain
-from typing import Any, NamedTuple, Optional, Sequence, Tuple, Union, cast
+from typing import Any, List, NamedTuple, Optional, Sequence, Tuple, Union, cast
 
 import numpy as np
 import pandas as pd
@@ -1515,6 +1515,93 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         p_value = 1 - stats.chi2.cdf(test_stat, Q)
 
         return WaldTestResult(test_stat, p_value, Q)
+
+    def wald_test_feature_name(
+        self,
+        features: List[str],
+        values: Sequence,
+        X=None,
+        y=None,
+        mu=None,
+        offset=None,
+        sample_weight=None,
+        dispersion=None,
+        robust=True,
+        clusters: np.ndarray = None,
+        expected_information=False,
+    ) -> WaldTestResult:
+        """Compute the Wald test statistic and p-value for a linear hypotheses.
+
+        Perform a Wald test for the hypothesis that the coefficients of the
+        features in ``features`` are equal to the values in ``values``.
+
+        Parameters
+        ----------
+        features: list[str]
+            The list of features to test.
+        values: Sequence
+            The values to which coefficients are compared.
+        X : {array-like, sparse matrix}, shape (n_samples, n_features), optional
+            Training data. Can be omitted if a covariance matrix has already
+            been computed.
+        y : array-like, shape (n_samples,), optional
+            Target values. Can be omitted if a covariance matrix has already
+            been computed.
+        mu : array-like, optional, default=None
+            Array with predictions. Estimated if absent.
+        offset : array-like, optional, default=None
+            Array with additive offsets.
+        sample_weight : array-like, shape (n_samples,), optional (default=None)
+            Individual weights for each sample.
+        dispersion : float, optional, default=None
+            The dispersion parameter. Estimated if absent.
+        robust : boolean, optional, default=True
+            Whether to compute robust standard errors instead of normal ones.
+        clusters : array-like, optional, default=None
+            Array with clusters membership. Clustered standard errors are
+            computed if clusters is not None.
+        expected_information : boolean, optional, default=False
+            Whether to use the expected or observed information matrix.
+            Only relevant when computing robust std-errors.
+
+        Returns
+        -------
+        WaldTestResult
+            NamedTuple with test statistic, p-value and degrees of freedom.
+        """
+
+        if len(features) != len(values):
+            raise ValueError("features and values must have the same length")
+
+        if self.fit_intercept:
+            names = ["intercept"] + list(self.feature_names_)
+            beta = np.concatenate([[self.intercept_], self.coef_])
+        else:
+            names = self.feature_names_
+            beta = self.coef_
+
+        r = np.array(values)
+        R = np.zeros((len(features), len(beta)))
+        for i, feature in enumerate(features):
+            try:
+                j = names.index(feature)
+            except ValueError:
+                raise ValueError(f"feature {feature} is not in the ") from None
+            R[i, j] = 1
+
+        return self.wald_test_matrix(
+            R=R,
+            r=r,
+            X=X,
+            y=y,
+            mu=mu,
+            offset=offset,
+            sample_weight=sample_weight,
+            dispersion=dispersion,
+            robust=robust,
+            clusters=clusters,
+            expected_information=expected_information,
+        )
 
     def std_errors(
         self,
