@@ -1923,6 +1923,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             self.feature_names_ = names
             self.term_names_ = names
 
+        else:
+            # Should never happen
+            raise RuntimeError("X has no shape attribute")
+
 
 class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     """Regression via a Generalized Linear Model (GLM) with penalties.
