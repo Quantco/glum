@@ -1866,6 +1866,54 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         return X, y, sample_weight, offset, weights_sum, P1, P2
 
+    def _get_feature_names(self, X: ArrayLike):
+        self.feature_names_ = []
+        self.column_names_ = []
+
+        if isinstance(X, pd.DataFrame):
+            for column, dtype in zip(X.columns, X.dtypes):
+                if pd.api.types.is_categorical_dtype(dtype):
+                    for name in _name_categorical_variables(
+                        dtype.categories, column, self.drop_first
+                    ):
+                        self.feature_names_.append(name)
+                        self.column_names_.append(column)
+                else:
+                    self.feature_names_.append(column)
+                    self.column_names_.append(column)
+
+        elif isinstance(X, tm.StandardizedMatrix):
+            self._get_feature_names(X.unstandardize())
+
+        elif isinstance(X, tm.SplitMatrix):
+            current_col = 0
+            for mat in X.matrices:
+                if isinstance(mat, tm.CategoricalMatrix):
+                    names = _name_categorical_variables(
+                        mat.cat.categories, f"C_{current_col}", mat.drop_first
+                    )
+                    cols = [f"C_{current_col}"] * len(names)
+                    current_col += 1
+                else:
+                    names = [f"X_{current_col + i}" for i in range(mat.shape[1])]
+                    cols = names
+                    current_col += mat.shape[1]
+                self.feature_names_.extend(names)
+                self.column_names_.extend(cols)
+
+        elif isinstance(X, tm.CategoricalMatrix):
+            names = _name_categorical_variables(X.cat.categories, "C_0", X.drop_first)
+            self.feature_names_ = names
+            self.column_names_ = ["C_0"] * len(names)
+
+        else:
+            if hasattr(X, "shape"):
+                names = [f"X_{i}" for i in range(X.shape[1])]
+            else:
+                names = [f"X_{i}" for i in range(len(X[0]))]
+            self.feature_names_ = names
+            self.column_names_ = names
+
 
 class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     """Regression via a Generalized Linear Model (GLM) with penalties.
@@ -2707,51 +2755,3 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             )
 
         return self._info_criteria[crit]
-
-    def _get_feature_names(self, X: ArrayLike):
-        self.feature_names_ = []
-        self.column_names_ = []
-
-        if isinstance(X, pd.DataFrame):
-            for column, dtype in zip(X.columns, X.dtypes):
-                if pd.api.types.is_categorical_dtype(dtype):
-                    for name in _name_categorical_variables(
-                        dtype.categories, column, self.drop_first
-                    ):
-                        self.feature_names_.append(name)
-                        self.column_names_.append(column)
-                else:
-                    self.feature_names_.append(column)
-                    self.column_names_.append(column)
-
-        elif isinstance(X, tm.StandardizedMatrix):
-            self._get_feature_names(X.unstandardize())
-
-        elif isinstance(X, tm.SplitMatrix):
-            current_col = 0
-            for mat in X.matrices:
-                if isinstance(mat, tm.CategoricalMatrix):
-                    names = _name_categorical_variables(
-                        mat.cat.categories, f"C_{current_col}", mat.drop_first
-                    )
-                    cols = [f"C_{current_col}"] * len(names)
-                    current_col += 1
-                else:
-                    names = [f"X_{current_col + i}" for i in range(mat.shape[1])]
-                    cols = names
-                    current_col += mat.shape[1]
-                self.feature_names_.extend(names)
-                self.column_names_.extend(cols)
-
-        elif isinstance(X, tm.CategoricalMatrix):
-            names = _name_categorical_variables(X.cat.categories, "C_0", X.drop_first)
-            self.feature_names_ = names
-            self.column_names_ = ["C_0"] * len(names)
-
-        else:
-            if hasattr(X, "shape"):
-                names = [f"X_{i}" for i in range(X.shape[1])]
-            else:
-                names = [f"X_{i}" for i in range(len(X[0]))]
-            self.feature_names_ = names
-            self.column_names_ = names
