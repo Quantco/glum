@@ -1724,7 +1724,10 @@ def test_passing_noncontiguous_as_X():
     "X, feature_names",
     [
         (pd.DataFrame({"x1": np.arange(5), "x2": 2}), np.array(["x1", "x2"])),
-        (pd.DataFrame({"x1": np.arange(5), "x2": 2}).to_numpy(), None),
+        (
+            pd.DataFrame({"x1": np.arange(5), "x2": 2}).to_numpy(),
+            np.array(["X_0", "X_1"]),
+        ),
         (
             pd.DataFrame({"x1": pd.Categorical(np.arange(5)), "x2": 2}),
             np.array(["x1__0", "x1__1", "x1__2", "x1__3", "x1__4", "x2"]),
@@ -1737,6 +1740,20 @@ def test_passing_noncontiguous_as_X():
                 }
             ),
             np.array(["x1__0", "x1__1", "x1__2", "x1__3", "x1__4", "x2__2"]),
+        ),
+        (
+            tm.SplitMatrix(
+                [
+                    tm.CategoricalMatrix(
+                        pd.Categorical([1, 2, 3, 2, 1]), drop_first=True
+                    ),
+                    tm.DenseMatrix(np.ones((5, 2))),
+                    tm.CategoricalMatrix(
+                        pd.Categorical([1, 2, 1, 2, 1]), drop_first=False
+                    ),
+                ]
+            ),
+            np.array(["C_0__2", "C_0__3", "X_1", "X_2", "C_3__1", "C_3__2"]),
         ),
     ],
 )
