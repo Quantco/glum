@@ -1863,7 +1863,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         elif isinstance(X, np.ndarray):
             X = tm.DenseMatrix(X)
 
-        if not hasattr(self, "feature_names_") or not hasattr(self, "column_names_"):
+        if not hasattr(self, "feature_names_") or not hasattr(self, "term_names_"):
             self._get_feature_names(X)
 
         return X, y, sample_weight, offset, weights_sum, P1, P2
@@ -1880,7 +1880,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             Input data.
         """
         self.feature_names_ = []
-        self.column_names_ = []
+        self.term_names_ = []
 
         if isinstance(X, pd.DataFrame):
             for column, dtype in zip(X.columns, X.dtypes):
@@ -1889,10 +1889,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                         dtype.categories, column, self.drop_first
                     ):
                         self.feature_names_.append(name)
-                        self.column_names_.append(column)
+                        self.term_names_.append(column)
                 else:
                     self.feature_names_.append(column)
-                    self.column_names_.append(column)
+                    self.term_names_.append(column)
 
         elif isinstance(X, tm.StandardizedMatrix):
             self._get_feature_names(X.unstandardize())
@@ -1911,17 +1911,17 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                     cols = names
                     current_col += mat.shape[1]
                 self.feature_names_.extend(names)
-                self.column_names_.extend(cols)
+                self.term_names_.extend(cols)
 
         elif isinstance(X, tm.CategoricalMatrix):
             names = _name_categorical_variables(X.cat.categories, "C_0", X.drop_first)
             self.feature_names_ = names
-            self.column_names_ = ["C_0"] * len(names)
+            self.term_names_ = ["C_0"] * len(names)
 
         elif hasattr(X, "shape"):
             names = [f"X_{i}" for i in range(X.shape[1])]
             self.feature_names_ = names
-            self.column_names_ = names
+            self.term_names_ = names
 
 
 class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
