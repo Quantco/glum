@@ -1393,6 +1393,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         robust=True,
         clusters: Optional[np.ndarray] = None,
         expected_information=False,
+        skip_checks=False,
     ):
         """Calculate the covariance matrix for generalized linear models.
 
@@ -1420,6 +1421,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         expected_information : boolean, optional, default=False
             Whether to use the expected or observed information matrix.
             Only relevant when computing robust standard errors.
+        skip_checks : boolean, optional, default=False
+            Whether to skip input validation. For internal use only.
 
         Notes
         -----
@@ -1463,49 +1466,60 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         """
 
-        if (X is None or y is None) and (self.covariance_matrix_ is None):
-            raise ValueError(
-                "Either X and y must be provided or the covariance matrix "
-                "must have been previously computed."
+        if self.alpha_search or self.alpha is None or self.alpha > 0:
+            warnings.warn(
+                "Covariance matrix estimation assumes that the model is not "
+                "penalized. You are possibly estimating a penalized model. "
+                "The estimated covariance matrix might be incorrect."
             )
 
-        if X is None and y is None:
-            if (
-                offset is not None
-                or mu is not None
-                or offset is not None
-                or sample_weight is not None
-                or dispersion is not None
-                or robust != self.robust
-                or clusters is not None
-                or expected_information != self.expected_information
-            ):
-                warnings.warn(
-                    "X and y are not provided. Using the stored covariance matrix. "
-                    "All other parameters are ignored."
+        if not skip_checks:
+            if (X is None or y is None) and (self.covariance_matrix_ is None):
+                raise ValueError(
+                    "Either X and y must be provided or the covariance matrix "
+                    "must have been previously computed."
                 )
-            return self.covariance_matrix_
 
-        (
-            X,
-            y,
-            sample_weight,
-            offset,
-            sum_weights,
-            P1,
-            P2,
-        ) = self._set_up_and_check_fit_args(
-            X,
-            y,
-            sample_weight,
-            offset,
-            solver=self.solver,
-            force_all_finite=self.force_all_finite,
-        )
+            if X is None and y is None:
+                if (
+                    offset is not None
+                    or mu is not None
+                    or offset is not None
+                    or sample_weight is not None
+                    or dispersion is not None
+                    or robust != self.robust
+                    or clusters is not None
+                    or expected_information != self.expected_information
+                ):
+                    raise ValueError(
+                        "Cannot reestimate the covariance matrix with different "
+                        "parameters if X and y are not provided."
+                    )
+                return self.covariance_matrix_
 
-        # Here we don't want sample_weight to be normalized to sum up to 1
-        # We want sample_weight to sum up to the number of samples
-        sample_weight = sample_weight * sum_weights
+            (
+                X,
+                y,
+                sample_weight,
+                offset,
+                sum_weights,
+                P1,
+                P2,
+            ) = self._set_up_and_check_fit_args(
+                X,
+                y,
+                sample_weight,
+                offset,
+                solver=self.solver,
+                force_all_finite=self.force_all_finite,
+            )
+
+            # Here we don't want sample_weight to be normalized to sum up to 1
+            # We want sample_weight to sum up to the number of samples
+            sample_weight = sample_weight * sum_weights
+
+        else:
+            sum_weights = sample_weight.sum()
 
         mu = self.predict(X, offset=offset) if mu is None else np.asanyarray(mu)
 
