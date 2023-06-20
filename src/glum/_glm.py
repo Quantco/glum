@@ -718,6 +718,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         b_ineq: Optional[np.ndarray] = None,
         force_all_finite: bool = True,
         drop_first: bool = False,
+        robust: bool = True,
+        expected_information: bool = False,
     ):
         self.l1_ratio = l1_ratio
         self.P1 = P1
@@ -748,6 +750,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self.b_ineq = b_ineq
         self.force_all_finite = force_all_finite
         self.drop_first = drop_first
+        self.robust = robust
+        self.expected_information = expected_information
 
     @property
     def family_instance(self) -> ExponentialDispersionModel:
@@ -1326,8 +1330,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
     def std_errors(
         self,
-        X,
-        y,
+        X=None,
+        y=None,
         mu=None,
         offset=None,
         sample_weight=None,
@@ -1380,24 +1384,26 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
     def covariance_matrix(
         self,
-        X,
-        y,
+        X=None,
+        y=None,
         mu=None,
         offset=None,
         sample_weight=None,
         dispersion=None,
         robust=True,
-        clusters: np.ndarray = None,
+        clusters: Optional[np.ndarray] = None,
         expected_information=False,
     ):
         """Calculate the covariance matrix for generalized linear models.
 
         Parameters
         ----------
-        X : {array-like, sparse matrix}, shape (n_samples, n_features)
-            Training data.
-        y : array-like, shape (n_samples,)
-            Target values.
+        X : {array-like, sparse matrix}, shape (n_samples, n_features), optional
+            Training data. Can be omitted if a covariance matrix has already
+            been computed.
+        y : array-like, shape (n_samples,), optional
+            Target values. Can be omitted if a covariance matrix has already
+            been computed.
         mu : array-like, optional, default=None
             Array with predictions. Estimated if absent.
         offset : array-like, optional, default=None
@@ -1456,6 +1462,30 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
            Cambridge university press
 
         """
+
+        if (X is None or y is None) and (self.covariance_matrix_ is None):
+            raise ValueError(
+                "Either X and y must be provided or the covariance matrix "
+                "must have been previously computed."
+            )
+
+        if X is None and y is None:
+            if (
+                offset is not None
+                or mu is not None
+                or offset is not None
+                or sample_weight is not None
+                or dispersion is not None
+                or robust != self.robust
+                or clusters is not None
+                or expected_information != self.expected_information
+            ):
+                warnings.warn(
+                    "X and y are not provided. Using the stored covariance matrix. "
+                    "All other parameters are ignored."
+                )
+            return self.covariance_matrix_
+
         (
             X,
             y,
@@ -2151,6 +2181,13 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         Set this to True when alpha=0 and solver='auto' to prevent an error due to a singular
         feature matrix.
 
+    robust : bool, optional (default = False)
+        If true, then robust standard errors are computed by default.
+
+    expected_information : bool, optional (default = False)
+        If true, then the expected information matrix is computed by default.
+        Only relevant when computing robust standard errors.
+
     Attributes
     ----------
     coef_ : numpy.array, shape (n_features,)
@@ -2232,6 +2269,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         b_ineq: Optional[np.ndarray] = None,
         force_all_finite: bool = True,
         drop_first: bool = False,
+        robust: bool = True,
+        expected_information: bool = False,
     ):
         self.alphas = alphas
         self.alpha = alpha
@@ -2265,6 +2304,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             b_ineq=b_ineq,
             force_all_finite=force_all_finite,
             drop_first=drop_first,
+            robust=robust,
+            expected_information=expected_information,
         )
 
     def _validate_hyperparameters(self) -> None:
@@ -2311,6 +2352,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         y: ArrayLike,
         sample_weight: Optional[ArrayLike] = None,
         offset: Optional[ArrayLike] = None,
+        estimate_covariance_matrix: bool = False,
+        clusters: Optional[np.ndarray] = None,
         # TODO: take out weights_sum (or use it properly)
         weights_sum: Optional[float] = None,
     ):
@@ -2346,6 +2389,15 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             ``y`` by 3 if the link is linear and will multiply expected ``y`` by
             3 if the link is logarithmic.
 
+        estimate_covariance_matrix : bool, optional (default=False)
+            Whether to estimate the covariance matrix of the parameter estimates.
+            If ``True``, the covariance matrix will be available in the
+            ``covariance_matrix_`` attribute after fitting.
+
+        clusters : array-like, optional, default=None
+            Array with clusters membership. Clustered standard errors are
+            computed if clusters is not None.
+
         weights_sum: float, optional (default=None)
 
         Returns
@@ -2354,6 +2406,14 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         """
 
         self._validate_hyperparameters()
+
+        penalized = self.alpha_search or self.alpha is None or self.alpha > 0
+        if estimate_covariance_matrix and penalized:
+            warnings.warn(
+                "Covariance matrix estimation assumes that the model is not "
+                "penalized. You are possibly estimating a penalized model. "
+                "The estimated covariance matrix might be incorrect."
+            )
 
         # NOTE: This function checks if all the entries in X and y are
         # finite. That can be expensive. But probably worthwhile.
@@ -2540,6 +2600,19 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
                 )
 
         self._tear_down_from_fit()
+
+        if estimate_covariance_matrix:
+            self.covariance_matrix_ = self.covariance_matrix(
+                X=X,
+                y=y,
+                offset=offset,
+                sample_weight=sample_weight,
+                robust=self.robust,
+                clusters=clusters,
+                expected_information=self.expected_information,
+            )
+        else:
+            self.covariance_matrix_ = None
 
         return self
 
