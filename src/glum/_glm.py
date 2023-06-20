@@ -1330,6 +1330,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
     def coef_table(
         self,
+        significance_level=0.05,
         X=None,
         y=None,
         mu=None,
@@ -1346,6 +1347,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         Parameters
         ----------
+        significance_level : float, optional (default=0.05)
+            The significance level for the confidence intervals.
         X : {array-like, sparse matrix}, shape (n_samples, n_features), optional
             Training data. Can be omitted if a covariance matrix has already
             been computed.
@@ -1395,8 +1398,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         )
 
         std_errors = np.sqrt(np.diag(covariance_matrix))
-        ci_lower = beta + stats.norm.ppf(0.025) * std_errors
-        ci_upper = beta + stats.norm.ppf(0.975) * std_errors
+        ci_lower = beta + stats.norm.ppf(significance_level / 2) * std_errors
+        ci_upper = beta + stats.norm.ppf(1 - significance_level / 2) * std_errors
         t_values = beta / std_errors
         p_values = 1.0 - stats.norm.cdf(np.abs(t_values))
 
