@@ -27,7 +27,7 @@ import numpy as np
 import pandas as pd
 import scipy.sparse.linalg as splinalg
 import tabmat as tm
-from scipy import linalg, sparse
+from scipy import linalg, sparse, stats
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.utils import check_array
 from sklearn.utils.validation import (
@@ -1328,6 +1328,90 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         sample_weight = _check_weights(sample_weight, X.shape[0], X.dtype)
         return mu * sample_weight
 
+    def coef_table(
+        self,
+        X=None,
+        y=None,
+        mu=None,
+        offset=None,
+        sample_weight=None,
+        dispersion=None,
+        robust=True,
+        clusters: np.ndarray = None,
+        expected_information=False,
+    ):
+        """Get a table of of the regression coefficeints.
+        Includes coefficient estimates, standard errors, t-values, p-values
+        and confidence intervals.
+
+        Parameters
+        ----------
+        X : {array-like, sparse matrix}, shape (n_samples, n_features), optional
+            Training data. Can be omitted if a covariance matrix has already
+            been computed.
+        y : array-like, shape (n_samples,), optional
+            Target values. Can be omitted if a covariance matrix has already
+            been computed.
+        mu : array-like, optional, default=None
+            Array with predictions. Estimated if absent.
+        offset : array-like, optional, default=None
+            Array with additive offsets.
+        sample_weight : array-like, shape (n_samples,), optional (default=None)
+            Individual weights for each sample.
+        dispersion : float, optional, default=None
+            The dispersion parameter. Estimated if absent.
+        robust : boolean, optional, default=True
+            Whether to compute robust standard errors instead of normal ones.
+        clusters : array-like, optional, default=None
+            Array with clusters membership. Clustered standard errors are
+            computed if clusters is not None.
+        expected_information : boolean, optional, default=False
+            Whether to use the expected or observed information matrix.
+            Only relevant when computing robust std-errors.
+
+        Returns
+        -------
+        pandas.DataFrame
+            A table of the regression results.
+        """
+
+        if self.fit_intercept:
+            names = ["intercept"] + list(self.feature_names_)
+            beta = np.concatenate([[self.intercept_], self.coef_])
+        else:
+            names = self.feature_names_
+            beta = self.coef_
+
+        covariance_matrix = self.covariance_matrix(
+            X=X,
+            y=y,
+            mu=mu,
+            offset=offset,
+            sample_weight=sample_weight,
+            dispersion=dispersion,
+            robust=robust,
+            clusters=clusters,
+            expected_information=expected_information,
+        )
+
+        std_errors = np.sqrt(np.diag(covariance_matrix))
+        ci_lower = beta + stats.norm.ppf(0.025) * std_errors
+        ci_upper = beta + stats.norm.ppf(0.975) * std_errors
+        t_values = beta / std_errors
+        p_values = 1.0 - stats.norm.cdf(np.abs(t_values))
+
+        return pd.DataFrame(
+            {
+                "coef": beta,
+                "se": std_errors,
+                "t_value": t_values,
+                "p_value": p_values,
+                "ci_lower": ci_lower,
+                "ci_upper": ci_upper,
+            },
+            index=names,
+        )
+
     def std_errors(
         self,
         X=None,
@@ -1348,10 +1432,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         Parameters
         ----------
-        X : {array-like, sparse matrix}, shape (n_samples, n_features)
-            Training data.
-        y : array-like, shape (n_samples,)
-            Target values.
+        X : {array-like, sparse matrix}, shape (n_samples, n_features), optional
+            Training data. Can be omitted if a covariance matrix has already
+            been computed.
+        y : array-like, shape (n_samples,), optional
+            Target values. Can be omitted if a covariance matrix has already
+            been computed.
         mu : array-like, optional, default=None
             Array with predictions. Estimated if absent.
         offset : array-like, optional, default=None
