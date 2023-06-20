@@ -1424,7 +1424,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
     def wald_test_matrix(
         self,
         R: np.ndarray,
-        r: np.ndarray,
+        r: Optional[np.ndarray] = None,
         X=None,
         y=None,
         mu=None,
@@ -1444,8 +1444,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         ----------
         R : np.ndarray
             The matrix representing the linear combination of coefficients to test.
-        r : np.ndarray
+        r : np.ndarray, optional, default=None
             The vector representing the values of the linear combination.
+            If None, the test is for whether the linear combinations of the coefficients
+            are zero.
         X : {array-like, sparse matrix}, shape (n_samples, n_features), optional
             Training data. Can be omitted if a covariance matrix has already
             been computed.
@@ -1492,6 +1494,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         else:
             beta = self.coef_
 
+        if r is None:
+            r = np.zeros(R.shape[0])
+
         if R.shape[0] != r.shape[0]:
             raise ValueError("R and r must have the same number of rows")
         if R.shape[1] != beta.shape[0]:
@@ -1519,7 +1524,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
     def wald_test_feature_name(
         self,
         features: List[str],
-        values: Sequence,
+        values: Optional[Sequence] = None,
         X=None,
         y=None,
         mu=None,
@@ -1539,8 +1544,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         ----------
         features: list[str]
             The list of features to test.
-        values: Sequence
-            The values to which coefficients are compared.
+        values: Sequence, optional, default=None
+            The values to which coefficients are compared. If None, the test is
+            for whether the coefficients are zero.
         X : {array-like, sparse matrix}, shape (n_samples, n_features), optional
             Training data. Can be omitted if a covariance matrix has already
             been computed.
@@ -1570,8 +1576,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             NamedTuple with test statistic, p-value and degrees of freedom.
         """
 
-        if len(features) != len(values):
-            raise ValueError("features and values must have the same length")
+        if values is not None:
+            r = np.array(values)
+            if len(features) != len(values):
+                raise ValueError("features and values must have the same length")
+        else:
+            r = None
 
         if self.fit_intercept:
             names = ["intercept"] + list(self.feature_names_)
@@ -1580,7 +1590,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             names = self.feature_names_
             beta = self.coef_
 
-        r = np.array(values)
         R = np.zeros((len(features), len(beta)))
         for i, feature in enumerate(features):
             try:
