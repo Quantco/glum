@@ -86,7 +86,7 @@ ShapedArrayLike = Union[
 class WaldTestResult(NamedTuple):
     test_statistic: float
     p_value: float
-    degrees_of_freedom: int
+    df: int
 
 
 def check_array_tabmat_compliant(mat: ArrayLike, drop_first: int = False, **kwargs):

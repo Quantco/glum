@@ -1988,6 +1988,93 @@ def test_inputtype_std_errors(regression_data, categorical, split, fit_intercept
     np.testing.assert_allclose(ourse, smse, rtol=1e-8)
 
 
+@pytest.mark.parametrize("fit_intercept", [True, False])
+@pytest.mark.parametrize("family", ["poisson", "normal", "binomial"])
+@pytest.mark.parametrize(
+    "R, r",
+    [
+        pytest.param(np.array([[0] * 10 + [1]]), np.array([0]), id="single"),
+        pytest.param(
+            np.array([[1] + [0] * 8 + [1] * 2]), np.array([0]), id="multiple_vars"
+        ),
+        pytest.param(
+            np.array([[0] * 10 + [2], [0] * 9 + [1, 1]]),
+            np.array([0, 0]),
+            id="multiple_constraints",
+        ),
+        pytest.param(np.array([[0] * 10 + [1]]), np.array([2]), id="rhs_not_zero"),
+    ],
+)
+def test_wald_test_matrix(regression_data, family, fit_intercept, R, r):
+    X, y = regression_data
+    if not fit_intercept:
+        R = R[:, 1:]
+
+    if family == "poisson":
+        y = np.round(abs(y))
+        sm_family = sm.families.Poisson()
+        dispersion = 1
+    elif family == "binomial":
+        rng = np.random.default_rng(42)
+        y = rng.choice([0, 1], len(y))
+        sm_family = sm.families.Binomial()
+        dispersion = 1
+    else:
+        sm_family = sm.families.Gaussian()
+        dispersion = None
+
+    mdl = GeneralizedLinearRegressor(
+        alpha=0, family=family, fit_intercept=fit_intercept
+    ).fit(X=X, y=y)
+
+    if fit_intercept:
+        mdl_sm = sm.GLM(endog=y, exog=sm.add_constant(X), family=sm_family)
+    else:
+        mdl_sm = sm.GLM(endog=y, exog=X, family=sm_family)
+
+    # Here, statsmodels does not do a degree of freedom adjustment,
+    # so we manually add it for nonrobust and robust errors
+    corr = len(y) / (len(y) - X.shape[1] - int(fit_intercept))
+
+    # nonrobust
+    # mdl.covariance_matrix_ = mdl_sm.fit(cov_type="nonrobust").cov_params()
+    our_results = mdl.wald_test_matrix(
+        R, r, X=X, y=y, dispersion=dispersion, robust=False
+    )
+    fit_sm = mdl_sm.fit(cov_type="nonrobust")
+    sm_results = fit_sm.wald_test((R, r), cov_p=fit_sm.cov_params() * corr)
+
+    np.testing.assert_allclose(
+        our_results.test_statistic, sm_results.statistic, rtol=1e-3
+    )
+    np.testing.assert_allclose(our_results.p_value, sm_results.pvalue, atol=1e-3)
+    assert our_results.df == sm_results.df_denom
+
+    # robust
+    our_results = mdl.wald_test_matrix(R, r, X=X, y=y, robust=True)
+    fit_sm = mdl_sm.fit(cov_type="HC1")
+    sm_results = fit_sm.wald_test((R, r), cov_p=fit_sm.cov_params() * corr)
+
+    np.testing.assert_allclose(
+        our_results.test_statistic, sm_results.statistic, rtol=1e-3
+    )
+    np.testing.assert_allclose(our_results.p_value, sm_results.pvalue, atol=1e-3)
+    assert our_results.df == sm_results.df_denom
+
+    # clustered
+    rng = np.random.default_rng(42)
+    clu = rng.integers(5, size=len(y))
+    our_results = mdl.wald_test_matrix(R, r, X=X, y=y, clusters=clu)
+    sm_fit = mdl_sm.fit(cov_type="cluster", cov_kwds={"groups": clu})
+    sm_results = sm_fit.wald_test((R, r))
+
+    np.testing.assert_allclose(
+        our_results.test_statistic, sm_results.statistic, rtol=1e-3
+    )
+    np.testing.assert_allclose(our_results.p_value, sm_results.pvalue, atol=1e-3)
+    assert our_results.df == sm_results.df_denom
+
+
 @pytest.mark.parametrize("as_data_frame", [False, True])
 @pytest.mark.parametrize("offset", [False, True])
 @pytest.mark.parametrize("weighted", [False, True])
