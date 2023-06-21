@@ -2075,6 +2075,83 @@ def test_wald_test_matrix(regression_data, family, fit_intercept, R, r):
     assert our_results.df == sm_results.df_denom
 
 
+@pytest.mark.parametrize(
+    "R, r",
+    [
+        pytest.param(np.array([[0] * 8 + [1]]), np.array([0]), id="single"),
+        pytest.param(np.array([[0] * 8 + [1] * 2]), np.array([0]), id="multiple_vars"),
+        pytest.param(
+            np.array([[0] * 9 + [2], [0] * 8 + [1, 1]]),
+            np.array([0, 0]),
+            id="multiple_constraints",
+        ),
+        pytest.param(np.array([[0] * 9 + [1]]), np.array([2]), id="rhs_not_zero"),
+    ],
+)
+def test_wald_test_matrix_fixed_cov(regression_data, R, r):
+    X, y = regression_data
+
+    mdl = GeneralizedLinearRegressor(
+        alpha=0, family="gaussian", fit_intercept=False
+    ).fit(X=X, y=y, estimate_covariance_matrix=True)
+    mdl_sm = sm.GLM(endog=y, exog=X, family=sm.families.Gaussian())
+
+    # Use the same covariance matrix for both so that we can use tighter tolerances
+    our_results = mdl.wald_test_matrix(R, r)
+    fit_sm = mdl_sm.fit()
+    sm_results = fit_sm.wald_test((R, r), cov_p=mdl.covariance_matrix())
+
+    np.testing.assert_allclose(
+        our_results.test_statistic, sm_results.statistic, rtol=1e-8
+    )
+    np.testing.assert_allclose(our_results.p_value, sm_results.pvalue, atol=1e-8)
+    assert our_results.df == sm_results.df_denom
+
+
+@pytest.mark.parametrize(
+    "names, R, r",
+    [
+        pytest.param(["col_9"], np.array([[0] * 10 + [1]]), None, id="single"),
+        pytest.param(
+            ["col_8", "col_9"],
+            np.array([[0] * 9 + [1] + [0], [0] * 10 + [1]]),
+            None,
+            id="multiple",
+        ),
+        pytest.param(
+            ["col_8", "col_9"],
+            np.array([[0] * 9 + [1] + [0], [0] * 10 + [1]]),
+            [1, 2],
+            id="rhs_not_zero",
+        ),
+        pytest.param(
+            ["intercept", "col_9"],
+            np.array([[1] + [0] * 10, [0] * 10 + [1]]),
+            [1, 2],
+            id="intercept",
+        ),
+    ],
+)
+def test_wald_test_feature_name(regression_data, names, R, r):
+    X, y = regression_data
+    X_df = pd.DataFrame(X, columns=[f"col_{i}" for i in range(X.shape[1])])
+
+    mdl = GeneralizedLinearRegressor(
+        alpha=0, family="gaussian", fit_intercept=True
+    ).fit(X=X_df, y=y, estimate_covariance_matrix=True)
+
+    feature_names_results = mdl.wald_test_feature_name(names, r)
+    if r is not None:
+        r = np.array(r)  # wald_test_matrix expects an optional numpy array
+    matrix_results = mdl.wald_test_matrix(R, r)
+
+    np.testing.assert_equal(
+        feature_names_results.test_statistic, matrix_results.test_statistic
+    )
+    np.testing.assert_equal(feature_names_results.p_value, matrix_results.p_value)
+    assert feature_names_results.df == matrix_results.df
+
+
 @pytest.mark.parametrize("as_data_frame", [False, True])
 @pytest.mark.parametrize("offset", [False, True])
 @pytest.mark.parametrize("weighted", [False, True])
