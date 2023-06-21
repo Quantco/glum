@@ -2112,7 +2112,7 @@ def test_wald_test_matrix(regression_data, family, fit_intercept, R, r):
 @pytest.mark.parametrize(
     "R, r",
     [
-        pytest.param(np.array([[0] * 8 + [1]]), np.array([0]), id="single"),
+        pytest.param(np.array([[0] * 9 + [1]]), np.array([0]), id="single"),
         pytest.param(np.array([[0] * 8 + [1] * 2]), np.array([0]), id="multiple_vars"),
         pytest.param(
             np.array([[0] * 9 + [2], [0] * 8 + [1, 1]]),
