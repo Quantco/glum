@@ -1407,7 +1407,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         ci_lower = beta + stats.norm.ppf(significance_level / 2) * std_errors
         ci_upper = beta + stats.norm.ppf(1 - significance_level / 2) * std_errors
         t_values = beta / std_errors
-        p_values = 1.0 - stats.norm.cdf(np.abs(t_values))
+        p_values = 2.0 * (1.0 - stats.norm.cdf(np.abs(t_values)))
 
         return pd.DataFrame(
             {
