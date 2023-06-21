@@ -1989,6 +1989,40 @@ def test_inputtype_std_errors(regression_data, categorical, split, fit_intercept
 
 
 @pytest.mark.parametrize("fit_intercept", [True, False])
+@pytest.mark.parametrize("significance_level", [0.01, 0.05])
+def test_coef_table(regression_data, fit_intercept, significance_level):
+    X, y = regression_data
+    colnames = ["dog", "cat", "bat", "cow", "eel", "fox", "bee", "owl", "pig", "rat"]
+    X_df = pd.DataFrame(X, columns=colnames)
+
+    mdl = GeneralizedLinearRegressor(
+        alpha=0, family="gaussian", fit_intercept=fit_intercept
+    ).fit(X=X_df, y=y)
+
+    if fit_intercept:
+        mdl_sm = sm.GLM(endog=y, exog=sm.add_constant(X), family=sm.families.Gaussian())
+    else:
+        mdl_sm = sm.GLM(endog=y, exog=X, family=sm.families.Gaussian())
+    fit_sm = mdl_sm.fit(cov_type="nonrobust")
+
+    # Make the covariance matrices the same to focus on the coefficient table
+    mdl.covariance_matrix_ = mdl_sm.fit(cov_type="nonrobust").cov_params()
+    our_table = mdl.coef_table()
+
+    if fit_intercept:
+        colnames = ["intercept"] + colnames
+    assert our_table.index.tolist() == colnames
+
+    np.testing.assert_allclose(our_table["coef"], fit_sm.params, rtol=1e-8)
+    np.testing.assert_allclose(our_table["se"], fit_sm.bse, rtol=1e-8)
+    np.testing.assert_allclose(our_table["t_value"], fit_sm.tvalues, rtol=1e-8)
+    np.testing.assert_allclose(our_table["p_value"], fit_sm.pvalues, atol=1e-8)
+    np.testing.assert_allclose(
+        our_table[["ci_lower", "ci_upper"]], fit_sm.conf_int(), rtol=1e-8
+    )
+
+
+@pytest.mark.parametrize("fit_intercept", [True, False])
 @pytest.mark.parametrize("family", ["poisson", "normal", "binomial"])
 @pytest.mark.parametrize(
     "R, r",
