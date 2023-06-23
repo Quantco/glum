@@ -10,10 +10,10 @@ Changelog
 2.6.0 - UNRELEASED
 ------------------
 
-**New feature**
+**New features**
 
 - Added the complementary log-log (`cloglog`) link function.
-- The `feature_names_` attribute is populated for non-pandas input, as well
+- The `feature_names_` attribute is populated for non-pandas input, as well.
 - Added a `term_names_` attribute to the `GeneralizedLinearRegressor` and `GeneralizedLinearRegressorCV` classes. It contains the name of the column in the input data that each coefficient corresponds to.
 
 2.5.2 - 2023-06-02
