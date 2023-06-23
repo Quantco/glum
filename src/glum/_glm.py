@@ -21,7 +21,7 @@ import sys
 import warnings
 from collections.abc import Iterable
 from itertools import chain
-from typing import Any, Optional, Sequence, Tuple, Union, cast
+from typing import Any, List, Optional, Sequence, Tuple, Union, cast
 
 import numpy as np
 import pandas as pd
@@ -1746,7 +1746,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         if isinstance(X, pd.DataFrame):
             self.feature_dtypes_ = X.dtypes.to_dict()
-            self._get_feature_names(X)
+            self.feature_names_, self.term_names_ = self.create_feature_and_term_names(
+                X
+            )
 
             if any(X.dtypes == "category"):
 
@@ -1864,11 +1866,15 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             X = tm.DenseMatrix(X)
 
         if not hasattr(self, "feature_names_") or not hasattr(self, "term_names_"):
-            self._get_feature_names(X)
+            self.feature_names_, self.term_names_ = self.create_feature_and_term_names(
+                X
+            )
 
         return X, y, sample_weight, offset, weights_sum, P1, P2
 
-    def _get_feature_names(self, X: ArrayLike):
+    def create_feature_and_term_names(
+        self, X: ArrayLike
+    ) -> Tuple[List[str], List[str]]:
         """
         Get feature names for the input data.
 
@@ -1878,9 +1884,14 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         ----------
         X : ArrayLike
             Input data.
+
+        Returns
+        -------
+        Tuple[List[str], List[str]]
+            Lists of feature names and term names.
         """
-        self.feature_names_ = []
-        self.term_names_ = []
+        feature_names = []
+        term_names = []
 
         if isinstance(X, pd.DataFrame):
             for column, dtype in zip(X.columns, X.dtypes):
@@ -1888,14 +1899,14 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                     for name in _name_categorical_variables(
                         dtype.categories, column, self.drop_first
                     ):
-                        self.feature_names_.append(name)
-                        self.term_names_.append(column)
+                        feature_names.append(name)
+                        term_names.append(column)
                 else:
-                    self.feature_names_.append(column)
-                    self.term_names_.append(column)
+                    feature_names.append(column)
+                    term_names.append(column)
 
         elif isinstance(X, tm.StandardizedMatrix):
-            self._get_feature_names(X.unstandardize())
+            return self.create_feature_and_term_names(X.unstandardize())
 
         elif isinstance(X, tm.SplitMatrix):
             current_col = 0
@@ -1910,22 +1921,24 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                     names = [f"X_{current_col + i}" for i in range(mat.shape[1])]
                     cols = names
                     current_col += mat.shape[1]
-                self.feature_names_.extend(names)
-                self.term_names_.extend(cols)
+                feature_names.extend(names)
+                term_names.extend(cols)
 
         elif isinstance(X, tm.CategoricalMatrix):
             names = _name_categorical_variables(X.cat.categories, "C_0", X.drop_first)
-            self.feature_names_ = names
-            self.term_names_ = ["C_0"] * len(names)
+            feature_names = names
+            term_names = ["C_0"] * len(names)
 
         elif hasattr(X, "shape"):
             names = [f"X_{i}" for i in range(X.shape[1])]
-            self.feature_names_ = names
-            self.term_names_ = names
+            feature_names = names
+            term_names = names
 
         else:
             # Should never happen
             raise RuntimeError("X has no shape attribute")
+
+        return feature_names, term_names
 
 
 class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
