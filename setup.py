@@ -86,6 +86,7 @@ setup(
         "scikit-learn>=0.23",
         "scipy",
         "tabmat>=3.1.0",
+        "formulaic>=0.4",
     ],
     entry_points=None
     if os.environ.get("CONDA_BUILD")
