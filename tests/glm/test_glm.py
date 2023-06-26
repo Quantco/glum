@@ -10,6 +10,7 @@ import pandas as pd
 import pytest
 import statsmodels.api as sm
 import tabmat as tm
+from formulaic import Formula
 from numpy.testing import assert_allclose
 from scipy import optimize, sparse
 from sklearn.base import clone
@@ -33,7 +34,12 @@ from glum._distribution import (
     TweedieDistribution,
     guess_intercept,
 )
-from glum._glm import GeneralizedLinearRegressor, _unstandardize, is_pos_semidef
+from glum._glm import (
+    GeneralizedLinearRegressor,
+    _parse_formula,
+    _unstandardize,
+    is_pos_semidef,
+)
 from glum._link import IdentityLink, Link, LogitLink, LogLink
 
 GLM_SOLVERS = ["irls-ls", "lbfgs", "irls-cd", "trust-constr"]
@@ -2244,3 +2250,54 @@ def test_store_covariance_matrix_cv(
         ),
         regressor.covariance_matrix(),
     )
+@pytest.mark.parametrize(
+    "input, expected",
+    [
+        pytest.param(
+            "y ~ x1 + x2",
+            (["y"], ["x1", "x2"], True),
+            id="implicit_intercept",
+        ),
+        pytest.param(
+            "y ~ x1 + x2 + 1",
+            (["y"], ["x1", "x2"], True),
+            id="explicit_intercept",
+        ),
+        pytest.param(
+            "y ~ x1 + x2 - 1",
+            (["y"], ["x1", "x2"], False),
+            id="no_intercept",
+        ),
+        pytest.param(
+            "y ~ ",
+            (["y"], [], True),
+            id="empty_rhs",
+        ),
+    ],
+)
+def test_parse_formula(input, expected):
+    lhs_exp, rhs_exp, intercept_exp = expected
+    lhs, rhs, intercept = _parse_formula(input)
+    assert list(lhs) == lhs_exp
+    assert list(rhs) == rhs_exp
+    assert intercept == intercept_exp
+
+    formula = Formula(input)
+    lhs, rhs, intercept = _parse_formula(formula)
+    assert list(lhs) == lhs_exp
+    assert list(rhs) == rhs_exp
+    assert intercept == intercept_exp
+
+
+@pytest.mark.parametrize(
+    "input, error",
+    [
+        pytest.param(" ~ x1 + x2", ValueError, id="no_lhs"),
+        pytest.param("y1 + y2 ~ x1 + x2", ValueError, id="multiple_lhs"),
+        pytest.param("x1 + x2", ValueError, id="one-sided"),
+        pytest.param([["y"], ["x1", "x2"]], TypeError, id="wrong_type"),
+    ],
+)
+def test_parse_formula_invalid(input, error):
+    with pytest.raises(error):
+        _parse_formula(input)
