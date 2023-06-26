@@ -28,6 +28,8 @@ import pandas as pd
 import scipy.sparse as sps
 import scipy.sparse.linalg as splinalg
 import tabmat as tm
+from formulaic import Formula
+from formulaic.parser import DefaultFormulaParser
 from scipy import linalg, sparse
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.utils import check_array
@@ -228,6 +230,53 @@ def _name_categorical_variables(
             + "This should be dropped from the feature matrix."
         )
     return new_names
+
+
+def _parse_formula(formula: Union[str, Formula]) -> Tuple[Formula, Formula, bool]:
+    """
+    Parse and transform  the formula for use in a GeneralizedLinearRegressor.
+
+    The left-hand side and right-hand side of the formula are separated. If an
+    intercept is present, it is removed from the right-hand side, and a boolean
+    flag is returned to indicate whether or not an intercept should be added to
+    the model.
+
+    Parameters
+    ----------
+    formula : str or Formula
+        The formula to parse.
+
+    Returns
+    -------
+    tuple[Formula, Formula, bool]
+        The left-hand side of the formula, the right-hand side of the formula,
+        and a boolean flag indicating whether or not an intercept should be
+        added to the model."""
+    if isinstance(formula, str):
+        parser = DefaultFormulaParser()
+        terms = parser.get_terms(formula)
+    elif isinstance(formula, Formula):
+        terms = formula
+    else:
+        raise TypeError("formula must be a string or Formula object.")
+
+    if not hasattr(terms, "lhs") or not hasattr(terms, "rhs"):
+        raise ValueError(
+            "formula must be a valid formula string of the form 'y ~ x1 + x2 + ...'"
+        )
+
+    lhs_terms = list(terms.lhs)
+    if len(lhs_terms) != 1:
+        raise ValueError("formula must have exactly one term on the left-hand side.")
+
+    rhs_terms = list(terms.rhs)
+    if "1" in rhs_terms:
+        has_intercept = True
+        rhs_terms.remove("1")
+    else:
+        has_intercept = False
+
+    return Formula(lhs_terms), Formula(rhs_terms), has_intercept
 
 
 def check_bounds(
