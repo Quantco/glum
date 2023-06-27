@@ -282,9 +282,32 @@ for p in ax.patches:
             arrowprops=dict(arrowstyle="->"),
         )
 
+# Dark mode version
+ax.set_facecolor((0, 0, 0))
+ax.xaxis.label.set_color("white")
+ax.yaxis.label.set_color("white")
+ax.spines["bottom"].set_color("white")
+ax.spines["left"].set_color("white")
+ax.tick_params(axis="x", colors="white")
+ax.tick_params(axis="y", colors="white")
+
 plt.tight_layout()
+fp = "../_static/headline_benchmark_dark.png"
+plt.savefig(fp, dpi=300, facecolor=(0, 0, 0, 0))
+
+# Light mode version
+ax.set_facecolor((1, 1, 1))
+ax.xaxis.label.set_color("black")
+ax.yaxis.label.set_color("black")
+ax.spines["bottom"].set_color("black")
+ax.spines["left"].set_color("black")
+ax.tick_params(axis="x", colors="black")
+ax.tick_params(axis="y", colors="black")
+
 fp = "../_static/headline_benchmark.png"
-plt.savefig(fp, dpi=300)
+plt.savefig(fp, dpi=300, facecolor=(0, 0, 0, 0))
 fp = "../_static/headline_benchmark.pdf"
 plt.savefig(fp)
 plt.show()
+
+# %%
