@@ -1490,10 +1490,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 method="pearson",
             )
 
-        XTX = X.sandwich(np.ones(X.shape[0]))
-        if sparse.issparse(XTX):
-            XTX = XTX.todense()
-        if np.linalg.cond(XTX) > 1 / sys.float_info.epsilon**2:
+        if (
+            np.linalg.cond(_safe_toarray(X.sandwich(np.ones(X.shape[0]))))
+            > 1 / sys.float_info.epsilon**2
+        ):
             raise np.linalg.LinAlgError(
                 "Matrix is singular. Cannot estimate standard errors."
             )
