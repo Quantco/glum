@@ -213,10 +213,14 @@ def _check_offset(
 
 
 def _name_categorical_variables(
-    categories: Tuple[str], column_name: str, drop_first: bool
+    categories: Tuple[str],
+    column_name: str,
+    drop_first: bool,
+    categorical_format: str = "{name}__{category}",
 ):
     new_names = [
-        f"{column_name}__{category}" for category in categories[int(drop_first) :]
+        categorical_format.format(name=column_name, category=category)
+        for category in categories[int(drop_first) :]
     ]
     if len(new_names) == 0:
         raise ValueError(
@@ -718,6 +722,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         b_ineq: Optional[np.ndarray] = None,
         force_all_finite: bool = True,
         drop_first: bool = False,
+        categorical_format: str = "{name}__{category}",
     ):
         self.l1_ratio = l1_ratio
         self.P1 = P1
@@ -748,6 +753,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self.b_ineq = b_ineq
         self.force_all_finite = force_all_finite
         self.drop_first = drop_first
+        self.categorical_format = categorical_format
 
     @property
     def family_instance(self) -> ExponentialDispersionModel:
@@ -1897,7 +1903,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             for column, dtype in zip(X.columns, X.dtypes):
                 if pd.api.types.is_categorical_dtype(dtype):
                     for name in _name_categorical_variables(
-                        dtype.categories, column, self.drop_first
+                        dtype.categories,
+                        column,
+                        self.drop_first,
+                        categorical_format=self.categorical_format,
                     ):
                         feature_names.append(name)
                         term_names.append(column)
@@ -1913,7 +1922,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             for mat in X.matrices:
                 if isinstance(mat, tm.CategoricalMatrix):
                     names = _name_categorical_variables(
-                        mat.cat.categories, f"C_{current_col}", mat.drop_first
+                        mat.cat.categories,
+                        f"C_{current_col}",
+                        mat.drop_first,
+                        categorical_format=self.categorical_format,
                     )
                     cols = [f"C_{current_col}"] * len(names)
                     current_col += 1
@@ -1925,7 +1937,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 term_names.extend(cols)
 
         elif isinstance(X, tm.CategoricalMatrix):
-            names = _name_categorical_variables(X.cat.categories, "C_0", X.drop_first)
+            names = _name_categorical_variables(
+                X.cat.categories,
+                "C_0",
+                X.drop_first,
+                categorical_format=self.categorical_format,
+            )
             feature_names = names
             term_names = ["C_0"] * len(names)
 
@@ -2297,6 +2314,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         b_ineq: Optional[np.ndarray] = None,
         force_all_finite: bool = True,
         drop_first: bool = False,
+        categorical_format: str = "{name}__{category}",
     ):
         self.alphas = alphas
         self.alpha = alpha
@@ -2330,6 +2348,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             b_ineq=b_ineq,
             force_all_finite=force_all_finite,
             drop_first=drop_first,
+            categorical_format=categorical_format,
         )
 
     def _validate_hyperparameters(self) -> None:

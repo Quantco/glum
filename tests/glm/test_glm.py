@@ -1772,6 +1772,76 @@ def test_feature_names(X, feature_names, term_names):
 
 
 @pytest.mark.parametrize(
+    "X, feature_names, term_names",
+    [
+        (
+            pd.DataFrame({"x1": pd.Categorical(np.arange(5)), "x2": 2}),
+            np.array(
+                [
+                    "<x1>[cat: 0]",
+                    "<x1>[cat: 1]",
+                    "<x1>[cat: 2]",
+                    "<x1>[cat: 3]",
+                    "<x1>[cat: 4]",
+                    "x2",
+                ]
+            ),
+            np.array(["x1", "x1", "x1", "x1", "x1", "x2"]),
+        ),
+        (
+            pd.DataFrame(
+                {
+                    "x1": pd.Categorical(np.arange(5)),
+                    "x2": pd.Categorical([2, 2, 2, 2, 2]),
+                }
+            ),
+            np.array(
+                [
+                    "<x1>[cat: 0]",
+                    "<x1>[cat: 1]",
+                    "<x1>[cat: 2]",
+                    "<x1>[cat: 3]",
+                    "<x1>[cat: 4]",
+                    "<x2>[cat: 2]",
+                ]
+            ),
+            np.array(["x1", "x1", "x1", "x1", "x1", "x2"]),
+        ),
+        (
+            tm.SplitMatrix(
+                [
+                    tm.CategoricalMatrix(
+                        pd.Categorical([1, 2, 3, 2, 1]), drop_first=True
+                    ),
+                    tm.DenseMatrix(np.ones((5, 2))),
+                    tm.CategoricalMatrix(
+                        pd.Categorical([1, 2, 1, 2, 1]), drop_first=False
+                    ),
+                ]
+            ),
+            np.array(
+                [
+                    "<C_0>[cat: 2]",
+                    "<C_0>[cat: 3]",
+                    "X_1",
+                    "X_2",
+                    "<C_3>[cat: 1]",
+                    "<C_3>[cat: 2]",
+                ]
+            ),
+            np.array(["C_0", "C_0", "X_1", "X_2", "C_3", "C_3"]),
+        ),
+    ],
+)
+def test_feature_names_customized(X, feature_names, term_names):
+    model = GeneralizedLinearRegressor(
+        family="poisson", categorical_format="<{name}>[cat: {category}]"
+    ).fit(X, np.arange(5))
+    np.testing.assert_array_equal(model.feature_names_, feature_names)
+    np.testing.assert_array_equal(model.term_names_, term_names)
+
+
+@pytest.mark.parametrize(
     "X, dtypes",
     [
         (pd.DataFrame({"x1": np.arange(5)}, dtype="int64"), {"x1": np.int64}),

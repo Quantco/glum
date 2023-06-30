@@ -308,6 +308,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         cv=None,
         n_jobs: Optional[int] = None,
         drop_first: bool = False,
+        categorical_format: str = "{name}__{category}",
     ):
         self.alphas = alphas
         self.cv = cv
@@ -341,6 +342,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             b_ineq=b_ineq,
             force_all_finite=force_all_finite,
             drop_first=drop_first,
+            categorical_format=categorical_format,
         )
 
     def _validate_hyperparameters(self) -> None:
