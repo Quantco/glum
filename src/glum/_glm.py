@@ -232,7 +232,9 @@ def _name_categorical_variables(
     return new_names
 
 
-def _parse_formula(formula: Union[str, Formula]) -> Tuple[Formula, Formula, bool]:
+def _parse_formula(
+    formula: Union[str, Formula]
+) -> Tuple[Optional[Formula], Formula, bool]:
     """
     Parse and transform  the formula for use in a GeneralizedLinearRegressor.
 
@@ -260,14 +262,14 @@ def _parse_formula(formula: Union[str, Formula]) -> Tuple[Formula, Formula, bool
     else:
         raise TypeError("formula must be a string or Formula object.")
 
-    if not hasattr(terms, "lhs") or not hasattr(terms, "rhs"):
-        raise ValueError(
-            "formula must be a valid formula string of the form 'y ~ x1 + x2 + ...'"
-        )
-
-    lhs_terms = list(terms.lhs)
-    if len(lhs_terms) != 1:
-        raise ValueError("formula must have exactly one term on the left-hand side.")
+    if hasattr(terms, "lhs"):
+        lhs_terms = list(terms.lhs)
+        if len(lhs_terms) != 1:
+            raise ValueError(
+                "formula must have exactly one term on the left-hand side."
+            )
+    else:
+        lhs_terms = None
 
     rhs_terms = list(terms.rhs)
     if "1" in rhs_terms:
@@ -276,7 +278,7 @@ def _parse_formula(formula: Union[str, Formula]) -> Tuple[Formula, Formula, bool
     else:
         has_intercept = False
 
-    return Formula(lhs_terms), Formula(rhs_terms), has_intercept
+    return lhs_terms, rhs_terms, has_intercept
 
 
 def check_bounds(
@@ -767,6 +769,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         drop_first: bool = False,
         robust: bool = True,
         expected_information: bool = False,
+        formula: Optional[Union[str, Formula]] = None,
+        interaction_separator: str = ":",
+        categorical_format: str = "{name}[T.{category}]",
+        intercept_name: str = "Intercept",
     ):
         self.l1_ratio = l1_ratio
         self.P1 = P1
@@ -799,6 +805,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self.drop_first = drop_first
         self.robust = robust
         self.expected_information = expected_information
+        self.formula = formula
+        self.interaction_separator = interaction_separator
+        self.categorical_format = categorical_format
+        self.intercept_name = intercept_name
 
     @property
     def family_instance(self) -> ExponentialDispersionModel:
@@ -1352,7 +1362,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         array, shape (n_samples, n_alphas)
             Predicted values times ``sample_weight``.
         """
-        if isinstance(X, pd.DataFrame) and hasattr(self, "feature_dtypes_"):
+
+        if isinstance(X, pd.DataFrame) and hasattr(self, "X_model_spec_"):
+            X = self.X_model_spec_.get_model_matrix(X)
+        elif isinstance(X, pd.DataFrame) and hasattr(self, "feature_dtypes_"):
             X = _align_df_categories(X, self.feature_dtypes_)
 
         X = check_array_tabmat_compliant(
@@ -1885,6 +1898,38 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         copy_X = self._should_copy_X()
 
         if isinstance(X, pd.DataFrame):
+            if self.formula is not None:
+                lhs_terms, rhs_terms, intercept = _parse_formula(self.formula)
+
+                if lhs_terms is not None:
+                    if y is not None:
+                        raise ValueError(
+                            "`y` is not allowed when using a two-sided formula. "
+                            "Either set `y=None` or use a one-sided formula."
+                        )
+                    y = tm.from_formula(
+                        formula=lhs_terms, data=X, include_intercept=False
+                    )
+
+                    X = tm.from_formula(
+                        formula=rhs_terms,
+                        data=X,
+                        include_intercept=False,
+                        ensure_full_rank=self.drop_first,
+                        categorical_format=self.categorical_format,
+                        interaction_separator=self.interaction_separator,
+                    )
+
+                    self.feature_names_ = list(X.model_spec.column_names)
+                    self.term_names_ = list(
+                        chain.from_iterable(
+                            [term] * len(cols)
+                            for term, _, cols in X.model_spec.structure
+                        )
+                    )
+                    self.y_model_spec_ = y.model_spec
+                    self.X_model_spec_ = X.model_spec
+
             self.feature_dtypes_ = X.dtypes.to_dict()
 
             if any(X.dtypes == "category"):
