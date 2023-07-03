@@ -27,7 +27,7 @@ repos:
     - id: isort-conda
       additional_dependencies: [toml]
  - repo: https://github.com/Quantco/pre-commit-mirrors-mypy
-   rev: "1.4.0"
+   rev: "1.4.1"
    hooks:
     - id: mypy-conda
       args:
