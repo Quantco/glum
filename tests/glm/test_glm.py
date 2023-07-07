@@ -2153,7 +2153,32 @@ def test_store_covariance_matrix_errors(regression_data):
         regressor.covariance_matrix(X, y, store_covariance_matrix=True)
 
     regressor_penalized = GeneralizedLinearRegressor(family="gaussian", alpha=0.1)
-    with pytest.warns(
-        match="Covariance matrix estimation assumes that the model is not penalized"
-    ):
+    with pytest.warns(match="Covariance matrix estimation assumes"):
         regressor_penalized.fit(X, y, store_covariance_matrix=True)
+
+
+def test_store_covariance_matrix_alpha_search(regression_data):
+    X, y = regression_data
+
+    regressor = GeneralizedLinearRegressor(
+        family="gaussian", alpha=[0, 0.1, 0.5], alpha_search=True
+    )
+    with pytest.warns(match="Covariance matrix estimation assumes"):
+        regressor.fit(X, y, store_covariance_matrix=True)
+
+    np.testing.assert_array_equal(
+        regressor.covariance_matrix(X, y), regressor.covariance_matrix()
+    )
+
+
+def test_store_covariance_matrix_cv(regression_data):
+    X, y = regression_data
+
+    regressor = GeneralizedLinearRegressorCV(family="gaussian")
+    with pytest.warns(match="Covariance matrix estimation assumes"):
+        # regressor.alpha_ == 1e-5 > 0
+        regressor.fit(X, y, store_covariance_matrix=True)
+
+    np.testing.assert_array_equal(
+        regressor.covariance_matrix(X, y), regressor.covariance_matrix()
+    )

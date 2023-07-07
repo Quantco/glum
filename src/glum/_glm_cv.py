@@ -365,6 +365,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         y: ArrayLike,
         sample_weight: Optional[ArrayLike] = None,
         offset: Optional[ArrayLike] = None,
+        store_covariance_matrix: bool = False,
+        clusters: Optional[np.ndarray] = None,
     ):
         r"""
         Choose the best model along a 'regularization path' by cross-validation.
@@ -398,6 +400,15 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             Added to linear predictor. An offset of 3 will increase expected
             ``y`` by 3 if the link is linear and will multiply expected ``y`` by
             3 if the link is logarithmic.
+
+        store_covariance_matrix : bool, optional (default=False)
+            Whether to store the covariance matrix of the parameter estimates
+            corresponding to the best best model.
+
+        clusters : array-like, optional, default=None
+            Array with clusters membership. Clustered standard errors are
+            computed if clusters is not None.
+
         """
         self._validate_hyperparameters()
 
@@ -695,5 +706,17 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         self._tear_down_from_fit()
 
         self.covariance_matrix_ = None
+        if store_covariance_matrix:
+            self.covariance_matrix(
+                X=X.unstandardize(),
+                y=y,
+                offset=offset,
+                sample_weight=sample_weight * weights_sum,
+                robust=self.robust,
+                clusters=clusters,
+                expected_information=self.expected_information,
+                store_covariance_matrix=True,
+                skip_checks=True,
+            )
 
         return self

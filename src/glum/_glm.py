@@ -1477,11 +1477,20 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         self.covariance_matrix_: Union[np.ndarray, None]
 
-        if self.alpha_search or self.alpha is None or self.alpha > 0:
+        if (
+            (hasattr(self, "alpha") and self.alpha is None)
+            or (
+                hasattr(self, "alpha")
+                and isinstance(self.alpha, (int, float))
+                and self.alpha > 0
+            )
+            or (hasattr(self, "alpha_") and self.alpha_ > 0)  # glm_cv
+            or (hasattr(self, "_alphas") and self._alphas[-1] > 0)  # alpha_search
+        ):
             warnings.warn(
                 "Covariance matrix estimation assumes that the model is not "
-                "penalized. You are possibly estimating a penalized model. "
-                "The estimated covariance matrix might be incorrect."
+                "penalized. You are estimating a penalized model. The covariance "
+                "matrix will be incorrect."
             )
 
         if not skip_checks:
@@ -2445,14 +2454,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         """
 
         self._validate_hyperparameters()
-
-        penalized = self.alpha_search or self.alpha is None or self.alpha > 0
-        if store_covariance_matrix and penalized:
-            warnings.warn(
-                "Covariance matrix estimation assumes that the model is not "
-                "penalized. You are possibly estimating a penalized model. "
-                "The estimated covariance matrix might be incorrect."
-            )
 
         # NOTE: This function checks if all the entries in X and y are
         # finite. That can be expensive. But probably worthwhile.
