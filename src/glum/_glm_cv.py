@@ -273,6 +273,13 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
 
     deviance_path_: array, shape(n_folds, n_alphas)
         Deviance for the test set on each fold, varying alpha.
+
+    robust : bool, optional (default = False)
+        If true, then robust standard errors are computed by default.
+
+    expected_information : bool, optional (default = False)
+        If true, then the expected information matrix is computed by default.
+        Only relevant when computing robust standard errors.
     """
 
     def __init__(
@@ -308,6 +315,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         cv=None,
         n_jobs: Optional[int] = None,
         drop_first: bool = False,
+        robust: bool = True,
+        expected_information: bool = False,
     ):
         self.alphas = alphas
         self.cv = cv
@@ -341,6 +350,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             b_ineq=b_ineq,
             force_all_finite=force_all_finite,
             drop_first=drop_first,
+            robust=robust,
+            expected_information=expected_information,
         )
 
     def _validate_hyperparameters(self) -> None:

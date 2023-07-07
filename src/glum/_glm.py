@@ -1336,9 +1336,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         offset=None,
         sample_weight=None,
         dispersion=None,
-        robust=True,
+        robust=None,
         clusters: np.ndarray = None,
-        expected_information=False,
+        expected_information=None,
         store_covariance_matrix=False,
     ):
         """Calculate standard errors for generalized linear models.
@@ -1360,14 +1360,16 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             Individual weights for each sample.
         dispersion : float, optional, default=None
             The dispersion parameter. Estimated if absent.
-        robust : boolean, optional, default=True
+        robust : boolean, optional, default=None
             Whether to compute robust standard errors instead of normal ones.
+            If not specified, the model's ``robust`` attribute is used.
         clusters : array-like, optional, default=None
             Array with clusters membership. Clustered standard errors are
             computed if clusters is not None.
-        expected_information : boolean, optional, default=False
+        expected_information : boolean, optional, default=None
             Whether to use the expected or observed information matrix.
             Only relevant when computing robust std-errors.
+            If not specified, the model's ``expected_information`` attribute is used.
         store_covariance_matrix : boolean, optional, default=False
             Whether to store the covariance matrix in the model instance.
             If a covariance matrix has already been stored, it will be overwritten.
@@ -1395,9 +1397,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         offset=None,
         sample_weight=None,
         dispersion=None,
-        robust=True,
+        robust=None,
         clusters: Optional[np.ndarray] = None,
-        expected_information=False,
+        expected_information=None,
         store_covariance_matrix=False,
         skip_checks=False,
     ):
@@ -1419,14 +1421,16 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             Individual weights for each sample.
         dispersion : float, optional, default=None
             The dispersion parameter. Estimated if absent.
-        robust : boolean, optional, default=True
+        robust : boolean, optional, default=None
             Whether to compute robust standard errors instead of normal ones.
+            If not specified, the model's ``robust`` attribute is used.
         clusters : array-like, optional, default=None
             Array with clusters membership. Clustered standard errors are
             computed if clusters is not None.
-        expected_information : boolean, optional, default=False
+        expected_information : boolean, optional, default=None
             Whether to use the expected or observed information matrix.
             Only relevant when computing robust standard errors.
+            If not specified, the model's ``expected_information`` attribute is used.
         store_covariance_matrix : boolean, optional, default=False
             Whether to store the covariance matrix in the model instance.
             If a covariance matrix has already been stored, it will be overwritten.
@@ -1477,6 +1481,16 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         self.covariance_matrix_: Union[np.ndarray, None]
 
+        if robust is None:
+            _robust = self.robust
+        else:
+            _robust = robust
+
+        if expected_information is None:
+            _expected_information = self.expected_information
+        else:
+            _expected_information = expected_information
+
         if (
             (hasattr(self, "alpha") and self.alpha is None)
             or (
@@ -1518,9 +1532,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                     or offset is not None
                     or sample_weight is not None
                     or dispersion is not None
-                    or robust != self.robust
+                    or robust is not None
                     or clusters is not None
-                    or expected_information != self.expected_information
+                    or expected_information is not None
                 ):
                     raise ValueError(
                         "Cannot reestimate the covariance matrix with different "
@@ -1573,8 +1587,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                     "Matrix is singular. Cannot estimate standard errors."
                 )
 
-        if robust or clusters is not None:
-            if expected_information:
+        if _robust or clusters is not None:
+            if _expected_information:
                 oim_fct = self._family_instance._fisher_information
             else:
                 oim_fct = self._family_instance._observed_information
