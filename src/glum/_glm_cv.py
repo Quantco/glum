@@ -694,4 +694,6 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
 
         self._tear_down_from_fit()
 
+        self.covariance_matrix_ = None
+
         return self

@@ -1339,6 +1339,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         robust=True,
         clusters: np.ndarray = None,
         expected_information=False,
+        store_covariance_matrix=False,
     ):
         """Calculate standard errors for generalized linear models.
 
@@ -1367,6 +1368,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         expected_information : boolean, optional, default=False
             Whether to use the expected or observed information matrix.
             Only relevant when computing robust std-errors.
+        store_covariance_matrix : boolean, optional, default=False
+            Whether to store the covariance matrix in the model instance.
+            If a covariance matrix has already been stored, it will be overwritten.
         """
         return np.sqrt(
             self.covariance_matrix(
@@ -1379,6 +1383,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 robust=robust,
                 clusters=clusters,
                 expected_information=expected_information,
+                store_covariance_matrix=store_covariance_matrix,
             ).diagonal()
         )
 
@@ -1393,6 +1398,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         robust=True,
         clusters: Optional[np.ndarray] = None,
         expected_information=False,
+        store_covariance_matrix=False,
         skip_checks=False,
     ):
         """Calculate the covariance matrix for generalized linear models.
@@ -1421,6 +1427,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         expected_information : boolean, optional, default=False
             Whether to use the expected or observed information matrix.
             Only relevant when computing robust standard errors.
+        store_covariance_matrix : boolean, optional, default=False
+            Whether to store the covariance matrix in the model instance.
+            If a covariance matrix has already been stored, it will be overwritten.
         skip_checks : boolean, optional, default=False
             Whether to skip input validation. For internal use only.
 
@@ -1466,6 +1475,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         """
 
+        self.covariance_matrix_: Union[np.ndarray, None]
+
         if self.alpha_search or self.alpha is None or self.alpha > 0:
             warnings.warn(
                 "Covariance matrix estimation assumes that the model is not "
@@ -1474,10 +1485,21 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             )
 
         if not skip_checks:
-            if (X is None or y is None) and (self.covariance_matrix_ is None):
+            if (X is None or y is None) and self.covariance_matrix_ is None:
                 raise ValueError(
                     "Either X and y must be provided or the covariance matrix "
                     "must have been previously computed."
+                )
+
+            if (X is None or y is None) and store_covariance_matrix:
+                raise ValueError(
+                    "X and y must be provided if 'store_covariance_matrix' is True."
+                )
+
+            if store_covariance_matrix and self.covariance_matrix_ is not None:
+                warnings.warn(
+                    "A covariance matrix has already been computed. "
+                    "It will be overwritten."
                 )
 
             if X is None and y is None:
@@ -1597,6 +1619,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             vcov *= sum_weights / (
                 sum_weights - self.n_features_in_ - int(self.fit_intercept)
             )
+
+        if store_covariance_matrix:
+            self.covariance_matrix_ = vcov
 
         return vcov
 
@@ -2366,7 +2391,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         y: ArrayLike,
         sample_weight: Optional[ArrayLike] = None,
         offset: Optional[ArrayLike] = None,
-        estimate_covariance_matrix: bool = False,
+        store_covariance_matrix: bool = False,
         clusters: Optional[np.ndarray] = None,
         # TODO: take out weights_sum (or use it properly)
         weights_sum: Optional[float] = None,
@@ -2403,9 +2428,9 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             ``y`` by 3 if the link is linear and will multiply expected ``y`` by
             3 if the link is logarithmic.
 
-        estimate_covariance_matrix : bool, optional (default=False)
-            Whether to estimate the covariance matrix of the parameter estimates.
-            If ``True``, the covariance matrix will be available in the
+        store_covariance_matrix : bool, optional (default=False)
+            Whether to estimate and store the covariance matrix of the parameter
+            estimates. If ``True``, the covariance matrix will be available in the
             ``covariance_matrix_`` attribute after fitting.
 
         clusters : array-like, optional, default=None
@@ -2422,7 +2447,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         self._validate_hyperparameters()
 
         penalized = self.alpha_search or self.alpha is None or self.alpha > 0
-        if estimate_covariance_matrix and penalized:
+        if store_covariance_matrix and penalized:
             warnings.warn(
                 "Covariance matrix estimation assumes that the model is not "
                 "penalized. You are possibly estimating a penalized model. "
@@ -2615,18 +2640,19 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
 
         self._tear_down_from_fit()
 
-        if estimate_covariance_matrix:
-            self.covariance_matrix_ = self.covariance_matrix(
-                X=X,
+        self.covariance_matrix_ = None
+        if store_covariance_matrix:
+            self.covariance_matrix(
+                X=X.unstandardize(),
                 y=y,
                 offset=offset,
-                sample_weight=sample_weight,
+                sample_weight=sample_weight * weights_sum,
                 robust=self.robust,
                 clusters=clusters,
                 expected_information=self.expected_information,
+                store_covariance_matrix=True,
+                skip_checks=True,
             )
-        else:
-            self.covariance_matrix_ = None
 
         return self
 

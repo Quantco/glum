@@ -2113,3 +2113,47 @@ def test_P1_P2_with_drop_first():
     regressor.fit(X, y)
     regressor = GeneralizedLinearRegressor(alpha=0.1, l1_ratio=0.5, P1=P_1, P2=P_2)
     regressor.fit(X, y)
+
+
+def test_store_covariance_matrix(regression_data):
+    X, y = regression_data
+    regressor = GeneralizedLinearRegressor(family="gaussian", alpha=0)
+    regressor.fit(X, y, store_covariance_matrix=True)
+
+    np.testing.assert_array_equal(
+        regressor.covariance_matrix(X, y), regressor.covariance_matrix()
+    )
+
+    np.testing.assert_array_equal(regressor.std_errors(X, y), regressor.std_errors())
+
+
+def test_store_covariance_matrix_errors(regression_data):
+    X, y = regression_data
+
+    regressor = GeneralizedLinearRegressor(family="gaussian", alpha=0)
+    regressor.fit(X, y, store_covariance_matrix=False)
+
+    with pytest.raises(ValueError, match="Either X and y must be provided"):
+        regressor.covariance_matrix()
+
+    with pytest.raises(ValueError, match="Either X and y must be provided"):
+        regressor.covariance_matrix(X=X)
+
+    with pytest.raises(ValueError, match="Either X and y must be provided"):
+        regressor.covariance_matrix(y=y)
+
+    regressor.covariance_matrix(X, y, store_covariance_matrix=True)
+
+    with pytest.raises(
+        ValueError, match="Cannot reestimate the covariance matrix with different"
+    ):
+        regressor.covariance_matrix(robust=False)
+
+    with pytest.warns(match="A covariance matrix has already been computed."):
+        regressor.covariance_matrix(X, y, store_covariance_matrix=True)
+
+    regressor_penalized = GeneralizedLinearRegressor(family="gaussian", alpha=0.1)
+    with pytest.warns(
+        match="Covariance matrix estimation assumes that the model is not penalized"
+    ):
+        regressor_penalized.fit(X, y, store_covariance_matrix=True)
