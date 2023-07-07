@@ -13,6 +13,7 @@ Changelog
 **New feature**
 
 - Added the complementary log-log (`cloglog`) link function.
+- Added the option to store the covariance matrix after estimating it. In this case, the covariance matrix does not have to be recomputed when calling inference methods.
 
 2.5.2 - 2023-06-02
 ------------------
