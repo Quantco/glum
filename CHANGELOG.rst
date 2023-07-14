@@ -14,6 +14,10 @@ Changelog
 
 - Added the complementary log-log (`cloglog`) link function.
 
+**Other changes:**
+
+- When computing the covariance matrix, check for ill-conditionedness for all types of input. Furthermore, do it in a more efficient way.
+
 2.5.2 - 2023-06-02
 ------------------
 

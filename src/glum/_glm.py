@@ -1490,13 +1490,13 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 method="pearson",
             )
 
-        if not (
-            sparse.issparse(X) or isinstance(X, (tm.SplitMatrix, tm.CategoricalMatrix))
+        if (
+            np.linalg.cond(_safe_toarray(X.sandwich(np.ones(X.shape[0]))))
+            > 1 / sys.float_info.epsilon**2
         ):
-            if np.linalg.cond(X) > 1 / sys.float_info.epsilon:
-                raise np.linalg.LinAlgError(
-                    "Matrix is singular. Cannot estimate standard errors."
-                )
+            raise np.linalg.LinAlgError(
+                "Matrix is singular. Cannot estimate standard errors."
+            )
 
         if robust or clusters is not None:
             if expected_information:
