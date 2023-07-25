@@ -234,7 +234,7 @@ def test_hessian_matrix(family, link, true_hessian):
     dispersion = 0.5
     rng = np.random.RandomState(42)
     X = tm.DenseMatrix(rng.randn(10, 5))
-    lin_pred = np.dot(X, coef)
+    lin_pred = X.matvec(coef)
     mu = link.inverse(lin_pred)
     sample_weight = rng.randn(10) ** 2 + 1
     _, hessian_rows = family.rowwise_gradient_hessian(
@@ -257,7 +257,7 @@ def test_hessian_matrix(family, link, true_hessian):
     for i in range(coef.shape[0]):
 
         def f(coef):
-            this_eta = X.dot(coef)
+            this_eta = X.matvec(coef)
             this_mu = link.inverse(this_eta)
             yv = mu
             if true_hessian:

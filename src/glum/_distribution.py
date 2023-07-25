@@ -9,6 +9,7 @@ from tabmat import (
     CategoricalMatrix,
     DenseMatrix,
     MatrixBase,
+    SparseMatrix,
     SplitMatrix,
     StandardizedMatrix,
 )
@@ -534,17 +535,14 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         ).reshape(-1, 1)
 
         if fit_intercept:
-            if sparse.issparse(X):
-                return sparse.hstack((W, X.multiply(W)))
+            if isinstance(X, SparseMatrix):
+                return SparseMatrix(sparse.hstack((W, X.multiply(W).array_csc)))
             elif isinstance(X, (SplitMatrix, CategoricalMatrix)):
                 return SplitMatrix((DenseMatrix(W), X.multiply(W)))
             else:
-                return np.hstack((W, np.multiply(X, W)))
+                return DenseMatrix(np.hstack((W, X.multiply(W)._array)))
         else:
-            if sparse.issparse(X) or isinstance(X, (SplitMatrix, CategoricalMatrix)):
-                return X.multiply(W)
-            else:
-                return np.multiply(X, W)
+            return X.multiply(W)
 
     def dispersion(self, y, mu, sample_weight=None, ddof=1, method="pearson") -> float:
         r"""Estimate the dispersion parameter :math:`\phi`.

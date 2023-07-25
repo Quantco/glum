@@ -110,7 +110,10 @@ def check_array_tabmat_compliant(mat: ArrayLike, drop_first: int = False, **kwar
         )
 
     original_type = type(mat)
-    res = check_array(mat, **kwargs)
+    if isinstance(mat, (tm.DenseMatrix, tm.SparseMatrix)):
+        res = check_array(mat._array, **kwargs)
+    else:
+        res = check_array(mat, **kwargs)
 
     if res is not mat and original_type in (tm.DenseMatrix, tm.SparseMatrix):
         res = original_type(res)  # type: ignore
@@ -664,19 +667,17 @@ def is_pos_semidef(p: Union[sparse.spmatrix, np.ndarray]) -> Union[bool, np.bool
     return np.all(eigenvalues >= epsneg)
 
 
-def _group_sum(groups: np.ndarray, data: np.ndarray):
+def _group_sum(groups: np.ndarray, data: tm.MatrixBase):
     """Sum over groups."""
     ngroups = len(np.unique(groups))
     out = np.empty((ngroups, data.shape[1]))
-    if sparse.issparse(data) or isinstance(
-        data, (tm.SplitMatrix, tm.CategoricalMatrix)
-    ):
+    if isinstance(data, (tm.SparseMatrix, tm.SplitMatrix, tm.CategoricalMatrix)):
         eye_n = np.eye(ngroups)[:, groups]
         for i in range(data.shape[1]):
             out[:, i] = (eye_n @ data.getcol(i)).ravel()
     else:
         for i in range(data.shape[1]):
-            out[:, i] = np.bincount(groups, weights=data[:, i])
+            out[:, i] = np.bincount(groups, weights=data[:, i]._array.squeeze())
     return out
 
 
@@ -1530,10 +1531,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                     / (sum_weights - self.n_features_in_ - int(self.fit_intercept))
                 )
             else:
-                if isinstance(gradient, tm.SplitMatrix):
-                    inner_part = gradient.sandwich(np.ones_like(y))
-                else:
-                    inner_part = gradient.T @ gradient
+                inner_part = gradient.sandwich(np.ones_like(y))
                 correction = sum_weights / (
                     sum_weights - self.n_features_in_ - int(self.fit_intercept)
                 )
