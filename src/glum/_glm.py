@@ -111,7 +111,7 @@ def check_array_tabmat_compliant(mat: ArrayLike, drop_first: int = False, **kwar
 
     original_type = type(mat)
     if isinstance(mat, (tm.DenseMatrix, tm.SparseMatrix)):
-        res = check_array(mat._array, **kwargs)
+        res = check_array(mat.toarray(), **kwargs)
     else:
         res = check_array(mat, **kwargs)
 
@@ -671,13 +671,13 @@ def _group_sum(groups: np.ndarray, data: tm.MatrixBase):
     """Sum over groups."""
     ngroups = len(np.unique(groups))
     out = np.empty((ngroups, data.shape[1]))
-    if isinstance(data, (tm.SparseMatrix, tm.SplitMatrix, tm.CategoricalMatrix)):
+    if isinstance(data, tm.DenseMatrix):
+        for i in range(data.shape[1]):
+            out[:, i] = np.bincount(groups, weights=data.getcol(i).toarray().squeeze())
+    else:
         eye_n = np.eye(ngroups)[:, groups]
         for i in range(data.shape[1]):
             out[:, i] = (eye_n @ data.getcol(i)).ravel()
-    else:
-        for i in range(data.shape[1]):
-            out[:, i] = np.bincount(groups, weights=data[:, i]._array.squeeze())
     return out
 
 
@@ -1866,10 +1866,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         #######################################################################
         # 2b. convert to wrapper matrix types
         #######################################################################
-        if sparse.issparse(X) and not isinstance(X, tm.SparseMatrix):
-            X = tm.SparseMatrix(X)
-        elif isinstance(X, np.ndarray):
-            X = tm.DenseMatrix(X)
+        X = tm.as_tabmat(X)
 
         return X, y, sample_weight, offset, weights_sum, P1, P2
 

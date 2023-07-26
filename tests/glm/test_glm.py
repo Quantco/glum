@@ -1402,7 +1402,7 @@ def test_standardize(use_sparse, scale_predictors):
         assert _arrays_share_data(X.mat.indptr, M.indptr)
     else:
         # Check that the underlying data pointer is the same
-        assert _arrays_share_data(X.mat._array, M._array)
+        assert _arrays_share_data(X.mat.toarray(), M.toarray())
     np.testing.assert_almost_equal(col_means, col_mults)
 
     # After standardization, all the columns will have the same values.

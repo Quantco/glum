@@ -4,15 +4,8 @@ from typing import Tuple, Union
 
 import numexpr
 import numpy as np
-from scipy import sparse, special
-from tabmat import (
-    CategoricalMatrix,
-    DenseMatrix,
-    MatrixBase,
-    SparseMatrix,
-    SplitMatrix,
-    StandardizedMatrix,
-)
+from scipy import special
+from tabmat import MatrixBase, StandardizedMatrix, hstack
 
 from ._functions import (
     binomial_logit_eta_mu_deviance,
@@ -533,16 +526,11 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
             * link.inverse_derivative(linpred)
             * (y - mu)
         ).reshape(-1, 1)
-
+        XW = X.multiply(W)
         if fit_intercept:
-            if isinstance(X, SparseMatrix):
-                return SparseMatrix(sparse.hstack((W, X.multiply(W).array_csc)))
-            elif isinstance(X, (SplitMatrix, CategoricalMatrix)):
-                return SplitMatrix((DenseMatrix(W), X.multiply(W)))
-            else:
-                return DenseMatrix(np.hstack((W, X.multiply(W)._array)))
+            return hstack((W, XW))
         else:
-            return X.multiply(W)
+            return XW
 
     def dispersion(self, y, mu, sample_weight=None, ddof=1, method="pearson") -> float:
         r"""Estimate the dispersion parameter :math:`\phi`.
