@@ -25,6 +25,7 @@ from typing import Any, Optional, Sequence, Tuple, Union, cast
 
 import numpy as np
 import pandas as pd
+import scipy.sparse as sps
 import scipy.sparse.linalg as splinalg
 import tabmat as tm
 from scipy import linalg, sparse
@@ -111,7 +112,7 @@ def check_array_tabmat_compliant(mat: ArrayLike, drop_first: int = False, **kwar
 
     original_type = type(mat)
     if isinstance(mat, (tm.DenseMatrix, tm.SparseMatrix)):
-        res = check_array(mat.toarray(), **kwargs)
+        res = check_array(mat.unpack(), **kwargs)
     else:
         res = check_array(mat, **kwargs)
 
@@ -671,13 +672,9 @@ def _group_sum(groups: np.ndarray, data: tm.MatrixBase):
     """Sum over groups."""
     ngroups = len(np.unique(groups))
     out = np.empty((ngroups, data.shape[1]))
-    if isinstance(data, tm.DenseMatrix):
-        for i in range(data.shape[1]):
-            out[:, i] = np.bincount(groups, weights=data.getcol(i).toarray().squeeze())
-    else:
-        eye_n = np.eye(ngroups)[:, groups]
-        for i in range(data.shape[1]):
-            out[:, i] = (eye_n @ data.getcol(i)).ravel()
+    eye_n = sps.eye(ngroups, format="csc")[:, groups]
+    for i in range(data.shape[1]):
+        out[:, i] = _safe_toarray(eye_n @ data.getcol(i).unpack()).ravel()
     return out
 
 
