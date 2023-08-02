@@ -1527,7 +1527,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
     def wald_test_feature_name(
         self,
-        features: List[str],
+        features: Union[str, List[str]],
         values: Optional[Sequence] = None,
         X=None,
         y=None,
@@ -1546,8 +1546,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         Parameters
         ----------
-        features: list[str]
-            The list of features to test.
+        features: Union[str, list[str]]
+            The name of a feature or a list of features to test.
         values: Sequence, optional, default=None
             The values to which coefficients are compared. If None, the test is
             for whether the coefficients are zero.
@@ -1582,6 +1582,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             NamedTuple with test statistic, p-value and degrees of freedom.
         """
 
+        if isinstance(features, str):
+            features = [features]
+
         if values is not None:
             r = np.array(values)
             if len(features) != len(values):
@@ -1601,8 +1604,117 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             try:
                 j = names.index(feature)
             except ValueError:
-                raise ValueError(f"feature {feature} is not in the ") from None
+                raise ValueError(f"feature {feature} is not in the model") from None
             R[i, j] = 1
+
+        return self.wald_test_matrix(
+            R=R,
+            r=r,
+            X=X,
+            y=y,
+            mu=mu,
+            offset=offset,
+            sample_weight=sample_weight,
+            dispersion=dispersion,
+            robust=robust,
+            clusters=clusters,
+            expected_information=expected_information,
+        )
+
+    def wald_test_term_name(
+        self,
+        terms: Union[str, List[str]],
+        values: Optional[Sequence] = None,
+        X=None,
+        y=None,
+        mu=None,
+        offset=None,
+        sample_weight=None,
+        dispersion=None,
+        robust=None,
+        clusters: np.ndarray = None,
+        expected_information=None,
+    ) -> WaldTestResult:
+        """Compute the Wald test statistic and p-value for a linear hypotheses.
+
+        Perform a Wald test for the hypothesis that the coefficients of the
+        features in ``features`` are equal to the values in ``values``.
+
+        Parameters
+        ----------
+        terms: Union[str, list[str]]
+            The list of terms to test. In the case of a model based on a formula,
+            a term is one of the expressions separated by ``+`` signs. Otherwise,
+            a term is one column in the input data. In the case of categorical
+            variables, it translates to possibly multiple features.
+        values: Sequence, optional, default=None
+            The values to which coefficients are compared. If None, the test is
+            for whether the coefficients are zero.
+        X : {array-like, sparse matrix}, shape (n_samples, n_features), optional
+            Training data. Can be omitted if a covariance matrix has already
+            been computed.
+        y : array-like, shape (n_samples,), optional
+            Target values. Can be omitted if a covariance matrix has already
+            been computed.
+        mu : array-like, optional, default=None
+            Array with predictions. Estimated if absent.
+        offset : array-like, optional, default=None
+            Array with additive offsets.
+        sample_weight : array-like, shape (n_samples,), optional (default=None)
+            Individual weights for each sample.
+        dispersion : float, optional, default=None
+            The dispersion parameter. Estimated if absent.
+        robust : boolean, optional, default=None
+            Whether to compute robust standard errors instead of normal ones.
+            If not specified, the model's ``robust`` attribute is used.
+        clusters : array-like, optional, default=None
+            Array with clusters membership. Clustered standard errors are
+            computed if clusters is not None.
+        expected_information : boolean, optional, default=None
+            Whether to use the expected or observed information matrix.
+            Only relevant when computing robust std-errors.
+            If not specified, the model's ``expected_information`` attribute is used.
+
+        Returns
+        -------
+        WaldTestResult
+            NamedTuple with test statistic, p-value and degrees of freedom.
+        """
+
+        if isinstance(terms, str):
+            terms = [terms]
+
+        if values is not None:
+            rhs = True
+            if len(terms) != len(values):
+                raise ValueError("terms and values must have the same length")
+        else:
+            rhs = False
+            values = [None] * len(terms)
+
+        if self.fit_intercept:
+            names = np.array(["intercept"] + list(self.term_names))
+            beta = np.concatenate([[self.intercept_], self.coef_])
+        else:
+            names = np.array(self.feature_names_)
+            beta = self.coef_
+
+        R_list = []
+        r_list = []
+        for term, value in zip(terms, values):
+            R_indices, *_ = np.where(names == term)
+            num_restrictions = len(R_indices)
+            if num_restrictions == 0:
+                raise ValueError(f"term {term} is not in the model")
+            R_current = np.zeros((num_restrictions, len(beta)), dtype=np.float64)
+            R_current[np.arange(num_restrictions), R_indices] = 1.0
+            R_list.append(R_current)
+
+            if rhs:
+                r_list.append(np.full(num_restrictions, fill_value=value))
+
+        R = np.vstack(R_list)
+        r = np.concatenate(r_list) if rhs else None
 
         return self.wald_test_matrix(
             R=R,
