@@ -1343,9 +1343,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         offset=None,
         sample_weight=None,
         dispersion=None,
-        robust=True,
+        robust=None,
         clusters: np.ndarray = None,
-        expected_information=False,
+        expected_information=None,
     ):
         """Get a table of of the regression coefficeints.
         Includes coefficient estimates, standard errors, t-values, p-values
@@ -1369,14 +1369,16 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             Individual weights for each sample.
         dispersion : float, optional, default=None
             The dispersion parameter. Estimated if absent.
-        robust : boolean, optional, default=True
+        robust : boolean, optional, default=None
             Whether to compute robust standard errors instead of normal ones.
+            If not specified, the model's ``robust`` attribute is used.
         clusters : array-like, optional, default=None
             Array with clusters membership. Clustered standard errors are
             computed if clusters is not None.
-        expected_information : boolean, optional, default=False
+        expected_information : boolean, optional, default=None
             Whether to use the expected or observed information matrix.
             Only relevant when computing robust std-errors.
+            If not specified, the model's ``expected_information`` attribute is used.
 
         Returns
         -------
@@ -1431,9 +1433,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         offset=None,
         sample_weight=None,
         dispersion=None,
-        robust=True,
+        robust=None,
         clusters: np.ndarray = None,
-        expected_information=False,
+        expected_information=None,
     ) -> WaldTestResult:
         """Compute the Wald test statistic and p-value for a linear hypotheses.
 
@@ -1462,14 +1464,16 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             Individual weights for each sample.
         dispersion : float, optional, default=None
             The dispersion parameter. Estimated if absent.
-        robust : boolean, optional, default=True
+        robust : boolean, optional, default=None
             Whether to compute robust standard errors instead of normal ones.
+            If not specified, the model's ``robust`` attribute is used.
         clusters : array-like, optional, default=None
             Array with clusters membership. Clustered standard errors are
             computed if clusters is not None.
-        expected_information : boolean, optional, default=False
+        expected_information : boolean, optional, default=None
             Whether to use the expected or observed information matrix.
             Only relevant when computing robust std-errors.
+            If not specified, the model's ``expected_information`` attribute is used.
 
         Returns
         -------
@@ -1531,9 +1535,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         offset=None,
         sample_weight=None,
         dispersion=None,
-        robust=True,
+        robust=None,
         clusters: np.ndarray = None,
-        expected_information=False,
+        expected_information=None,
     ) -> WaldTestResult:
         """Compute the Wald test statistic and p-value for a linear hypotheses.
 
@@ -1561,14 +1565,16 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             Individual weights for each sample.
         dispersion : float, optional, default=None
             The dispersion parameter. Estimated if absent.
-        robust : boolean, optional, default=True
+        robust : boolean, optional, default=None
             Whether to compute robust standard errors instead of normal ones.
+            If not specified, the model's ``robust`` attribute is used.
         clusters : array-like, optional, default=None
             Array with clusters membership. Clustered standard errors are
             computed if clusters is not None.
-        expected_information : boolean, optional, default=False
+        expected_information : boolean, optional, default=None
             Whether to use the expected or observed information matrix.
             Only relevant when computing robust std-errors.
+            If not specified, the model's ``expected_information`` attribute is used.
 
         Returns
         -------

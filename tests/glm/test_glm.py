@@ -2127,7 +2127,7 @@ def test_wald_test_matrix_fixed_cov(regression_data, R, r):
 
     mdl = GeneralizedLinearRegressor(
         alpha=0, family="gaussian", fit_intercept=False
-    ).fit(X=X, y=y, estimate_covariance_matrix=True)
+    ).fit(X=X, y=y, store_covariance_matrix=True)
     mdl_sm = sm.GLM(endog=y, exog=X, family=sm.families.Gaussian())
 
     # Use the same covariance matrix for both so that we can use tighter tolerances
@@ -2172,7 +2172,7 @@ def test_wald_test_feature_name(regression_data, names, R, r):
 
     mdl = GeneralizedLinearRegressor(
         alpha=0, family="gaussian", fit_intercept=True
-    ).fit(X=X_df, y=y, estimate_covariance_matrix=True)
+    ).fit(X=X_df, y=y, store_covariance_matrix=True)
 
     feature_names_results = mdl.wald_test_feature_name(names, r)
     if r is not None:
