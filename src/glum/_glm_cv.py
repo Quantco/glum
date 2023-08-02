@@ -2,6 +2,7 @@ import copy
 from typing import Optional, Union
 
 import numpy as np
+from formulaic import Formula
 from joblib import Parallel, delayed
 from sklearn.model_selection._split import check_cv
 
@@ -244,6 +245,19 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
     drop_first : bool, optional (default = False)
         If ``True``, drop the first column when encoding categorical variables.
 
+    formula: str
+        A formula accepted by formulaic. It can either be a one-sided formula, in
+        which case ``y`` must be specified in ``fit``, or a two-sided formula, in
+        which case ``y`` must be ``None``.
+
+    interaction_separator: str, default ":"
+        The separator between the names of interacted variables.
+
+    categorical_format: str, default "{name}[T.{category}]"
+        The format string used to generate the names of categorical variables.
+        Has to include the placeholders ``{name}`` and ``{category}``.
+        Only used if ``formula`` is not ``None``.
+
     Attributes
     ----------
     alpha_: float
@@ -317,6 +331,9 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         drop_first: bool = False,
         robust: bool = True,
         expected_information: bool = False,
+        formula: Optional[Union[str, Formula]] = None,
+        interaction_separator: str = ":",
+        categorical_format: str = "{name}[T.{category}]",
     ):
         self.alphas = alphas
         self.cv = cv
@@ -352,6 +369,9 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             drop_first=drop_first,
             robust=robust,
             expected_information=expected_information,
+            formula=formula,
+            interaction_separator=interaction_separator,
+            categorical_format=categorical_format,
         )
 
     def _validate_hyperparameters(self) -> None:

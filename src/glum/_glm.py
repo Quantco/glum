@@ -770,7 +770,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         formula: Optional[Union[str, Formula]] = None,
         interaction_separator: str = ":",
         categorical_format: str = "{name}[T.{category}]",
-        intercept_name: str = "Intercept",
     ):
         self.l1_ratio = l1_ratio
         self.P1 = P1
@@ -806,7 +805,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self.formula = formula
         self.interaction_separator = interaction_separator
         self.categorical_format = categorical_format
-        self.intercept_name = intercept_name
 
     @property
     def family_instance(self) -> ExponentialDispersionModel:
@@ -2355,6 +2353,18 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     expected_information : bool, optional (default = False)
         If true, then the expected information matrix is computed by default.
         Only relevant when computing robust standard errors.
+    formula: str
+        A formula accepted by formulaic. It can either be a one-sided formula, in
+        which case ``y`` must be specified in ``fit``, or a two-sided formula, in
+        which case ``y`` must be ``None``.
+
+    interaction_separator: str, default ":"
+        The separator between the names of interacted variables.
+
+    categorical_format: str, default "{name}[T.{category}]"
+        The format string used to generate the names of categorical variables.
+        Has to include the placeholders ``{name}`` and ``{category}``.
+        Only used if ``formula`` is not ``None``.
 
     Attributes
     ----------
@@ -2442,7 +2452,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         formula: Optional[Union[str, Formula]] = None,
         interaction_separator: str = ":",
         categorical_format: str = "{name}[T.{category}]",
-        intercept_name: str = "Intercept",
     ):
         self.alphas = alphas
         self.alpha = alpha
@@ -2481,7 +2490,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             formula=formula,
             interaction_separator=interaction_separator,
             categorical_format=categorical_format,
-            intercept_name=intercept_name,
         )
 
     def _validate_hyperparameters(self) -> None:
