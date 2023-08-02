@@ -1906,7 +1906,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                             "Either set `y=None` or use a one-sided formula."
                         )
                     y = tm.from_formula(
-                        formula=lhs, data=X, include_intercept=False
+                        formula=lhs,
+                        data=X,
+                        include_intercept=False,
+                        context=2,
                     ).A.squeeze()
 
                 X = tm.from_formula(
@@ -1917,6 +1920,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                     categorical_format=self.categorical_format,
                     interaction_separator=self.interaction_separator,
                     add_column_for_intercept=False,
+                    context=2,  # where fit/str_errors/etc. is called from
                 )
 
                 intercept = "1" in X.model_spec.terms

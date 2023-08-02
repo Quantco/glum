@@ -2450,3 +2450,21 @@ def test_formula_against_smf(get_mixed_data, formula):
     model_smf = smf.glm(formula, data, family=sm.families.Gaussian()).fit()
 
     np.testing.assert_almost_equal(beta_formula, model_smf.params)
+
+
+def test_formula_context(get_mixed_data):
+    data = get_mixed_data
+    x_context = np.arange(len(data), dtype=float)  # noqa: F841
+    formula = "y ~ x1 + x2 + x_context"
+    model_formula = GeneralizedLinearRegressor(
+        family="normal", drop_first=True, formula=formula, alpha=0.0
+    ).fit(data)
+
+    if model_formula.fit_intercept:
+        beta_formula = np.concatenate([[model_formula.intercept_], model_formula.coef_])
+    else:
+        beta_formula = model_formula.coef_
+
+    model_smf = smf.glm(formula, data, family=sm.families.Gaussian()).fit()
+
+    np.testing.assert_almost_equal(beta_formula, model_smf.params)
