@@ -2468,3 +2468,30 @@ def test_formula_context(get_mixed_data):
     model_smf = smf.glm(formula, data, family=sm.families.Gaussian()).fit()
 
     np.testing.assert_almost_equal(beta_formula, model_smf.params)
+
+
+@pytest.mark.parametrize(
+    "formula",
+    [
+        pytest.param("y ~ x1 + x2", id="implicit_no_intercept"),
+        pytest.param("y ~ x1 + x2 + 1", id="intercept"),
+        pytest.param("y ~ x1 + x2 - 1", id="no_intercept"),
+        pytest.param("y ~ c1", id="categorical"),
+        pytest.param("y ~ c1 + 1", id="categorical_intercept"),
+        pytest.param("y ~ c1 * c2", id="interaction"),
+    ],
+)
+def test_formula_predict(get_mixed_data, formula):
+    data = get_mixed_data
+    data_unseen = data.copy()
+    data_unseen.loc[data_unseen["c1"] == "b", "c1"] = "c"
+    model_formula = GeneralizedLinearRegressor(
+        family="normal", drop_first=True, formula=formula, alpha=0.0
+    ).fit(data)
+
+    model_smf = smf.glm(formula, data, family=sm.families.Gaussian()).fit()
+
+    yhat_formula = model_formula.predict(data_unseen)
+    yhat_smf = model_smf.predict(data_unseen)
+
+    np.testing.assert_almost_equal(yhat_formula, yhat_smf)

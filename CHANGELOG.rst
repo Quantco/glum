@@ -14,6 +14,7 @@ Changelog
 
 - Added the complementary log-log (`cloglog`) link function.
 - Added the option to store the covariance matrix after estimating it. In this case, the covariance matrix does not have to be recomputed when calling inference methods.
+- Added a formula interface for specifying models.
 
 **Bug fix**
 
@@ -22,6 +23,7 @@ Changelog
 **Other changes:**
 
 - When computing the covariance matrix, check for ill-conditionedness for all types of input. Furthermore, do it in a more efficient way.
+- Added the option to specify models using Wilkinson-formulas.
 
 2.5.2 - 2023-06-02
 ------------------

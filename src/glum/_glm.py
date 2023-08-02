@@ -1905,12 +1905,16 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                             "`y` is not allowed when using a two-sided formula. "
                             "Either set `y=None` or use a one-sided formula."
                         )
+
                     y = tm.from_formula(
                         formula=lhs,
                         data=X,
                         include_intercept=False,
                         context=2,
-                    ).A.squeeze()
+                    )
+
+                    self.y_model_spec_ = y.model_spec
+                    y = y.A.ravel()
 
                 X = tm.from_formula(
                     formula=rhs,
@@ -1931,19 +1935,17 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                     )
                     self.fit_intercept = intercept
 
+                self.X_model_spec_ = X.model_spec
+
                 self.feature_names_ = list(X.model_spec.column_names)
                 self.term_names_ = list(
                     chain.from_iterable(
                         [term] * len(cols) for term, _, cols in X.model_spec.structure
                     )
                 )
-                self.X_model_spec_ = X.model_spec
 
             else:
-                # TODO: expand categorical penalties with formulas
-
-                if y is None:
-                    raise ValueError("y cannot be None when not using a formula.")
+                # Maybe TODO: expand categorical penalties with formulas
 
                 self.feature_dtypes_ = X.dtypes.to_dict()
 
@@ -2001,6 +2003,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 else:
                     self.feature_names_ = X.columns
                     X = tm.from_pandas(X)
+
+        if y is None:
+            raise ValueError("y cannot be None when not using a two-sided formula.")
 
         if not self._is_contiguous(X):
             if self.copy_X is not None and not self.copy_X:
