@@ -5,6 +5,7 @@ import copy
 import warnings
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+import formulaic
 import numpy as np
 import pandas as pd
 import pytest
@@ -2292,12 +2293,133 @@ def test_parse_formula(input, expected):
 @pytest.mark.parametrize(
     "input, error",
     [
-        pytest.param(" ~ x1 + x2", ValueError, id="no_lhs"),
         pytest.param("y1 + y2 ~ x1 + x2", ValueError, id="multiple_lhs"),
-        pytest.param("x1 + x2", ValueError, id="one-sided"),
         pytest.param([["y"], ["x1", "x2"]], TypeError, id="wrong_type"),
     ],
 )
 def test_parse_formula_invalid(input, error):
     with pytest.raises(error):
         _parse_formula(input)
+
+
+@pytest.fixture
+def get_mixed_data():
+    nrow = 10
+    return pd.DataFrame(
+        {
+            "y": np.random.rand(nrow),
+            "x1": np.random.rand(nrow),
+            "x2": np.random.rand(nrow),
+            "c1": np.random.choice(["a", "b", "c"], nrow),
+            "c2": np.random.choice(["d", "e"], nrow),
+        }
+    )
+
+
+@pytest.mark.parametrize(
+    "formula",
+    [
+        pytest.param("y ~ x1 + x2", id="implicit_no_intercept"),
+        pytest.param("y ~ x1 + x2 + 1", id="intercept"),
+        pytest.param("y ~ x1 + x2 - 1", id="no_intercept"),
+        pytest.param("y ~ c1", id="categorical"),
+        pytest.param("y ~ c1 + 1", id="categorical_intercept"),
+        pytest.param("y ~ x1 * c1 * c2", id="interaction"),
+    ],
+)
+@pytest.mark.parametrize(
+    "drop_first", [True, False], ids=["drop_first", "no_drop_first"]
+)
+def test_formula(get_mixed_data, formula, drop_first):
+    data = get_mixed_data
+    _, _, intercept = _parse_formula(formula)
+    y_pd, X_pd = formulaic.model_matrix(
+        formula + " - 1", data, ensure_full_rank=drop_first
+    )
+    y_pd = y_pd.iloc[:, 0]
+
+    model_pandas = GeneralizedLinearRegressor(
+        family="normal", drop_first=drop_first, fit_intercept=intercept
+    ).fit(X_pd, y_pd)
+    model_formula = GeneralizedLinearRegressor(
+        family="normal", drop_first=drop_first, formula=formula
+    ).fit(data)
+
+    np.testing.assert_almost_equal(model_pandas.coef_, model_formula.coef_)
+    np.testing.assert_array_equal(
+        model_pandas.feature_names_, model_formula.feature_names_
+    )
+
+
+@pytest.mark.parametrize(
+    "formula, feature_names, term_names",
+    [
+        pytest.param("y ~ x1 + x2", ["x1", "x2"], ["x1", "x2"], id="numeric"),
+        pytest.param(
+            "y ~ c1", ["c1[T.a]", "c1[T.b]", "c1[T.c]"], 3 * ["c1"], id="categorical"
+        ),
+        pytest.param(
+            "y ~ x1 : c1",
+            ["x1:c1[T.a]", "x1:c1[T.b]", "x1:c1[T.c]"],
+            3 * ["x1:c1"],
+            id="interaction",
+        ),
+        pytest.param(
+            "y ~ poly(x1, 3)",
+            ["poly(x1, 3)[1]", "poly(x1, 3)[2]", "poly(x1, 3)[3]"],
+            3 * ["poly(x1, 3)"],
+            id="function",
+        ),
+    ],
+)
+def test_formula_names_formulaic_style(
+    get_mixed_data, formula, feature_names, term_names
+):
+    data = get_mixed_data
+    model_formula = GeneralizedLinearRegressor(
+        family="normal",
+        drop_first=False,
+        formula=formula,
+        categorical_format="{name}[T.{category}]",
+        interaction_separator=":",
+    ).fit(data)
+
+    np.testing.assert_array_equal(model_formula.feature_names_, feature_names)
+    np.testing.assert_array_equal(model_formula.term_names_, term_names)
+
+
+@pytest.mark.parametrize(
+    "formula, feature_names, term_names",
+    [
+        pytest.param("y ~ x1 + x2", ["x1", "x2"], ["x1", "x2"], id="numeric"),
+        pytest.param(
+            "y ~ c1", ["c1__a", "c1__b", "c1__c"], 3 * ["c1"], id="categorical"
+        ),
+        pytest.param(
+            "y ~ x1 : c1",
+            ["x1__x__c1__a", "x1__x__c1__b", "x1__x__c1__c"],
+            3 * ["x1:c1"],
+            id="interaction",
+        ),
+        pytest.param(
+            "y ~ poly(x1, 3)",
+            ["poly(x1, 3)[1]", "poly(x1, 3)[2]", "poly(x1, 3)[3]"],
+            3 * ["poly(x1, 3)"],
+            id="function",
+        ),
+    ],
+)
+def test_formula_names_old_glum_style(
+    get_mixed_data, formula, feature_names, term_names
+):
+    data = get_mixed_data
+    model_formula = GeneralizedLinearRegressor(
+        family="normal",
+        drop_first=False,
+        formula=formula,
+        categorical_format="{name}__{category}",
+        interaction_separator="__x__",
+    ).fit(data)
+
+    np.testing.assert_array_equal(model_formula.feature_names_, feature_names)
+    np.testing.assert_array_equal(model_formula.term_names_, term_names)

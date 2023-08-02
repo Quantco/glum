@@ -233,7 +233,7 @@ def _name_categorical_variables(
 
 
 def _parse_formula(
-    formula: Union[str, Formula]
+    formula: Union[str, Formula], include_intercept: bool = True
 ) -> Tuple[Optional[Formula], Formula, bool]:
     """
     Parse and transform  the formula for use in a GeneralizedLinearRegressor.
@@ -247,6 +247,9 @@ def _parse_formula(
     ----------
     formula : str or Formula
         The formula to parse.
+    include_intercept: bool, default True
+        Whether to include an intercept column if the formula does not
+        include (``+ 1``) or exclude (``+ 0`` or ``- 1``) it explicitly.
 
     Returns
     -------
@@ -255,7 +258,7 @@ def _parse_formula(
         and a boolean flag indicating whether or not an intercept should be
         added to the model."""
     if isinstance(formula, str):
-        parser = DefaultFormulaParser()
+        parser = DefaultFormulaParser(include_intercept=include_intercept)
         terms = parser.get_terms(formula)
     elif isinstance(formula, Formula):
         terms = formula
@@ -1899,7 +1902,16 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         if isinstance(X, pd.DataFrame):
             if self.formula is not None:
-                lhs_terms, rhs_terms, intercept = _parse_formula(self.formula)
+                lhs_terms, rhs_terms, intercept = _parse_formula(
+                    self.formula, include_intercept=self.fit_intercept
+                )
+
+                if intercept != self.fit_intercept:
+                    warnings.warn(
+                        f"The formula explicitly sets the intercept to {intercept}, "
+                        f"overriding fit_intercept={self.fit_intercept}."
+                    )
+                    self.fit_intercept = intercept
 
                 if lhs_terms is not None:
                     if y is not None:
@@ -1909,80 +1921,87 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                         )
                     y = tm.from_formula(
                         formula=lhs_terms, data=X, include_intercept=False
-                    )
+                    ).A.squeeze()
 
-                    X = tm.from_formula(
-                        formula=rhs_terms,
-                        data=X,
-                        include_intercept=False,
-                        ensure_full_rank=self.drop_first,
-                        categorical_format=self.categorical_format,
-                        interaction_separator=self.interaction_separator,
-                    )
-
-                    self.feature_names_ = list(X.model_spec.column_names)
-                    self.term_names_ = list(
-                        chain.from_iterable(
-                            [term] * len(cols)
-                            for term, _, cols in X.model_spec.structure
-                        )
-                    )
-                    self.y_model_spec_ = y.model_spec
-                    self.X_model_spec_ = X.model_spec
-
-            self.feature_dtypes_ = X.dtypes.to_dict()
-
-            if any(X.dtypes == "category"):
-                self.feature_names_ = list(
-                    chain.from_iterable(
-                        _name_categorical_variables(
-                            dtype.categories, column, self.drop_first
-                        )
-                        if pd.api.types.is_categorical_dtype(dtype)
-                        else [column]
-                        for column, dtype in zip(X.columns, X.dtypes)
-                    )
+                X = tm.from_formula(
+                    formula=rhs_terms,
+                    data=X,
+                    include_intercept=False,
+                    ensure_full_rank=self.drop_first,
+                    categorical_format=self.categorical_format,
+                    interaction_separator=self.interaction_separator,
                 )
 
-                def _expand_categorical_penalties(penalty, X, drop_first):
-                    """
-                    If P1 or P2 has the same shape as X before expanding the
-                    categoricals, we assume that the penalty at the location of
-                    the categorical is the same for all levels.
-                    """
-                    if isinstance(penalty, str):
-                        return penalty
-                    if not sparse.issparse(penalty):
-                        penalty = np.asanyarray(penalty)
+                self.feature_names_ = list(X.model_spec.column_names)
+                self.term_names_ = list(
+                    chain.from_iterable(
+                        [term] * len(cols) for term, _, cols in X.model_spec.structure
+                    )
+                )
+                self.X_model_spec_ = X.model_spec
 
-                    if penalty.shape[0] == X.shape[1]:
-                        if penalty.ndim == 2:
-                            raise ValueError(
-                                "When the penalty is two dimensional, it has "
-                                "to have the same length as the number of "
-                                "columns of X, after the categoricals "
-                                "have been expanded."
+            else:
+                # TODO: expand categorical penalties with formulas
+
+                if y is None:
+                    raise ValueError("y cannot be None when not using a formula.")
+
+                self.feature_dtypes_ = X.dtypes.to_dict()
+
+                if any(X.dtypes == "category"):
+                    self.feature_names_ = list(
+                        chain.from_iterable(
+                            _name_categorical_variables(
+                                dtype.categories, column, self.drop_first
                             )
-                        return np.array(
-                            list(
-                                chain.from_iterable(
-                                    [elmt for _ in dtype.categories[int(drop_first) :]]
-                                    if pd.api.types.is_categorical_dtype(dtype)
-                                    else [elmt]
-                                    for elmt, dtype in zip(penalty, X.dtypes)
+                            if pd.api.types.is_categorical_dtype(dtype)
+                            else [column]
+                            for column, dtype in zip(X.columns, X.dtypes)
+                        )
+                    )
+
+                    def _expand_categorical_penalties(penalty, X, drop_first):
+                        """
+                        If P1 or P2 has the same shape as X before expanding the
+                        categoricals, we assume that the penalty at the location of
+                        the categorical is the same for all levels.
+                        """
+                        if isinstance(penalty, str):
+                            return penalty
+                        if not sparse.issparse(penalty):
+                            penalty = np.asanyarray(penalty)
+
+                        if penalty.shape[0] == X.shape[1]:
+                            if penalty.ndim == 2:
+                                raise ValueError(
+                                    "When the penalty is two dimensional, it has "
+                                    "to have the same length as the number of "
+                                    "columns of X, after the categoricals "
+                                    "have been expanded."
+                                )
+                            return np.array(
+                                list(
+                                    chain.from_iterable(
+                                        [
+                                            elmt
+                                            for _ in dtype.categories[int(drop_first) :]
+                                        ]
+                                        if pd.api.types.is_categorical_dtype(dtype)
+                                        else [elmt]
+                                        for elmt, dtype in zip(penalty, X.dtypes)
+                                    )
                                 )
                             )
-                        )
-                    else:
-                        return penalty
+                        else:
+                            return penalty
 
-                P1 = _expand_categorical_penalties(self.P1, X, self.drop_first)
-                P2 = _expand_categorical_penalties(self.P2, X, self.drop_first)
+                    P1 = _expand_categorical_penalties(self.P1, X, self.drop_first)
+                    P2 = _expand_categorical_penalties(self.P2, X, self.drop_first)
 
-                X = tm.from_pandas(X, drop_first=self.drop_first)
-            else:
-                self.feature_names_ = X.columns
-                X = tm.from_pandas(X)
+                    X = tm.from_pandas(X, drop_first=self.drop_first)
+                else:
+                    self.feature_names_ = X.columns
+                    X = tm.from_pandas(X)
 
         if not self._is_contiguous(X):
             if self.copy_X is not None and not self.copy_X:
@@ -2423,6 +2442,10 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         drop_first: bool = False,
         robust: bool = True,
         expected_information: bool = False,
+        formula: Optional[Union[str, Formula]] = None,
+        interaction_separator: str = ":",
+        categorical_format: str = "{name}[T.{category}]",
+        intercept_name: str = "Intercept",
     ):
         self.alphas = alphas
         self.alpha = alpha
@@ -2458,6 +2481,10 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             drop_first=drop_first,
             robust=robust,
             expected_information=expected_information,
+            formula=formula,
+            interaction_separator=interaction_separator,
+            categorical_format=categorical_format,
+            intercept_name=intercept_name,
         )
 
     def _validate_hyperparameters(self) -> None:
@@ -2501,7 +2528,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     def fit(
         self,
         X: ArrayLike,
-        y: ArrayLike,
+        y: Optional[ArrayLike] = None,
         sample_weight: Optional[ArrayLike] = None,
         offset: Optional[ArrayLike] = None,
         store_covariance_matrix: bool = False,
