@@ -271,10 +271,10 @@ def _parse_formula(
             raise ValueError(
                 "formula must have exactly one term on the left-hand side."
             )
+        rhs_terms = terms.rhs
     else:
         lhs_terms = None
-
-    rhs_terms = terms.rhs
+        rhs_terms = terms
 
     return lhs_terms, rhs_terms
 
