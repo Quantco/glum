@@ -14,6 +14,8 @@ Changelog
 
 - Added the complementary log-log (`cloglog`) link function.
 - Added the option to store the covariance matrix after estimating it. In this case, the covariance matrix does not have to be recomputed when calling inference methods.
+- Add methods for performing Wald tests based on a restriction matrix, feature names or term names
+- Add a method for creating a coefficient table with confidence intervals and p-values
 
 2.5.2 - 2023-06-02
 ------------------
