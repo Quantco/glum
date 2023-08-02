@@ -234,7 +234,7 @@ def _name_categorical_variables(
 
 def _parse_formula(
     formula: Union[str, Formula], include_intercept: bool = True
-) -> Tuple[Optional[Formula], Formula, bool]:
+) -> Tuple[Optional[Formula], Formula]:
     """
     Parse and transform  the formula for use in a GeneralizedLinearRegressor.
 
@@ -253,7 +253,7 @@ def _parse_formula(
 
     Returns
     -------
-    tuple[Formula, Formula, bool]
+    tuple[Formula, Formula]
         The left-hand side of the formula, the right-hand side of the formula,
         and a boolean flag indicating whether or not an intercept should be
         added to the model."""
@@ -266,7 +266,7 @@ def _parse_formula(
         raise TypeError("formula must be a string or Formula object.")
 
     if hasattr(terms, "lhs"):
-        lhs_terms = list(terms.lhs)
+        lhs_terms = terms.lhs
         if len(lhs_terms) != 1:
             raise ValueError(
                 "formula must have exactly one term on the left-hand side."
@@ -274,14 +274,9 @@ def _parse_formula(
     else:
         lhs_terms = None
 
-    rhs_terms = list(terms.rhs)
-    if "1" in rhs_terms:
-        has_intercept = True
-        rhs_terms.remove("1")
-    else:
-        has_intercept = False
+    rhs_terms = terms.rhs
 
-    return lhs_terms, rhs_terms, has_intercept
+    return lhs_terms, rhs_terms
 
 
 def check_bounds(
@@ -1902,35 +1897,37 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         if isinstance(X, pd.DataFrame):
             if self.formula is not None:
-                lhs_terms, rhs_terms, intercept = _parse_formula(
+                lhs, rhs = _parse_formula(
                     self.formula, include_intercept=self.fit_intercept
                 )
 
-                if intercept != self.fit_intercept:
-                    warnings.warn(
-                        f"The formula explicitly sets the intercept to {intercept}, "
-                        f"overriding fit_intercept={self.fit_intercept}."
-                    )
-                    self.fit_intercept = intercept
-
-                if lhs_terms is not None:
+                if lhs is not None:
                     if y is not None:
                         raise ValueError(
                             "`y` is not allowed when using a two-sided formula. "
                             "Either set `y=None` or use a one-sided formula."
                         )
                     y = tm.from_formula(
-                        formula=lhs_terms, data=X, include_intercept=False
+                        formula=lhs, data=X, include_intercept=False
                     ).A.squeeze()
 
                 X = tm.from_formula(
-                    formula=rhs_terms,
+                    formula=rhs,
                     data=X,
                     include_intercept=False,
                     ensure_full_rank=self.drop_first,
                     categorical_format=self.categorical_format,
                     interaction_separator=self.interaction_separator,
+                    add_column_for_intercept=False,
                 )
+
+                intercept = "1" in X.model_spec.terms
+                if intercept != self.fit_intercept:
+                    warnings.warn(
+                        f"The formula explicitly sets the intercept to {intercept}, "
+                        f"overriding fit_intercept={self.fit_intercept}."
+                    )
+                    self.fit_intercept = intercept
 
                 self.feature_names_ = list(X.model_spec.column_names)
                 self.term_names_ = list(

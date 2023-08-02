@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 import pytest
 import statsmodels.api as sm
+import statsmodels.formula.api as smf
 import tabmat as tm
 from formulaic import Formula
 from numpy.testing import assert_allclose
@@ -2256,38 +2257,36 @@ def test_store_covariance_matrix_cv(
     [
         pytest.param(
             "y ~ x1 + x2",
-            (["y"], ["x1", "x2"], True),
+            (["y"], ["1", "x1", "x2"]),
             id="implicit_intercept",
         ),
         pytest.param(
             "y ~ x1 + x2 + 1",
-            (["y"], ["x1", "x2"], True),
+            (["y"], ["1", "x1", "x2"]),
             id="explicit_intercept",
         ),
         pytest.param(
             "y ~ x1 + x2 - 1",
-            (["y"], ["x1", "x2"], False),
+            (["y"], ["x1", "x2"]),
             id="no_intercept",
         ),
         pytest.param(
             "y ~ ",
-            (["y"], [], True),
+            (["y"], ["1"]),
             id="empty_rhs",
         ),
     ],
 )
 def test_parse_formula(input, expected):
-    lhs_exp, rhs_exp, intercept_exp = expected
-    lhs, rhs, intercept = _parse_formula(input)
+    lhs_exp, rhs_exp = expected
+    lhs, rhs = _parse_formula(input)
     assert list(lhs) == lhs_exp
     assert list(rhs) == rhs_exp
-    assert intercept == intercept_exp
 
     formula = Formula(input)
-    lhs, rhs, intercept = _parse_formula(formula)
+    lhs, rhs = _parse_formula(formula)
     assert list(lhs) == lhs_exp
     assert list(rhs) == rhs_exp
-    assert intercept == intercept_exp
 
 
 @pytest.mark.parametrize(
@@ -2305,6 +2304,7 @@ def test_parse_formula_invalid(input, error):
 @pytest.fixture
 def get_mixed_data():
     nrow = 10
+    np.random.seed(0)
     return pd.DataFrame(
         {
             "y": np.random.rand(nrow),
@@ -2332,18 +2332,18 @@ def get_mixed_data():
 )
 def test_formula(get_mixed_data, formula, drop_first):
     data = get_mixed_data
-    _, _, intercept = _parse_formula(formula)
     y_pd, X_pd = formulaic.model_matrix(
         formula + " - 1", data, ensure_full_rank=drop_first
     )
     y_pd = y_pd.iloc[:, 0]
-
-    model_pandas = GeneralizedLinearRegressor(
-        family="normal", drop_first=drop_first, fit_intercept=intercept
-    ).fit(X_pd, y_pd)
     model_formula = GeneralizedLinearRegressor(
-        family="normal", drop_first=drop_first, formula=formula
+        family="normal", drop_first=drop_first, formula=formula, fit_intercept=False
     ).fit(data)
+
+    has_intercept = "1" in model_formula.X_model_spec_.terms
+    model_pandas = GeneralizedLinearRegressor(
+        family="normal", drop_first=drop_first, fit_intercept=has_intercept
+    ).fit(X_pd, y_pd)
 
     np.testing.assert_almost_equal(model_pandas.coef_, model_formula.coef_)
     np.testing.assert_array_equal(
@@ -2423,3 +2423,30 @@ def test_formula_names_old_glum_style(
 
     np.testing.assert_array_equal(model_formula.feature_names_, feature_names)
     np.testing.assert_array_equal(model_formula.term_names_, term_names)
+
+
+@pytest.mark.parametrize(
+    "formula",
+    [
+        pytest.param("y ~ x1 + x2", id="implicit_no_intercept"),
+        pytest.param("y ~ x1 + x2 + 1", id="intercept"),
+        pytest.param("y ~ x1 + x2 - 1", id="no_intercept"),
+        pytest.param("y ~ c1", id="categorical"),
+        pytest.param("y ~ c1 + 1", id="categorical_intercept"),
+        pytest.param("y ~ c1 * c2", id="interaction"),
+    ],
+)
+def test_formula_against_smf(get_mixed_data, formula):
+    data = get_mixed_data
+    model_formula = GeneralizedLinearRegressor(
+        family="normal", drop_first=True, formula=formula, alpha=0.0
+    ).fit(data)
+
+    if model_formula.fit_intercept:
+        beta_formula = np.concatenate([[model_formula.intercept_], model_formula.coef_])
+    else:
+        beta_formula = model_formula.coef_
+
+    model_smf = smf.glm(formula, data, family=sm.families.Gaussian()).fit()
+
+    np.testing.assert_almost_equal(beta_formula, model_smf.params)
