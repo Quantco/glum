@@ -14,6 +14,10 @@ Changelog
 
 - Added the complementary log-log (`cloglog`) link function.
 
+**Bug fix**
+
+- Fixed :meth:`~glum.GeneralizedLinearRegressorBase.covariance_matrix` mutating feature names when called with a data frame. See `here <https://github.com/Quantco/glum/issues/669>`_.
+
 **Other changes:**
 
 - When computing the covariance matrix, check for ill-conditionedness for all types of input. Furthermore, do it in a more efficient way.
