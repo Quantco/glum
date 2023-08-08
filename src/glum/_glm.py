@@ -1347,13 +1347,14 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         clusters: np.ndarray = None,
         expected_information=None,
     ):
-        """Get a table of of the regression coefficeints.
+        """Get a table of of the regression coefficients.
+
         Includes coefficient estimates, standard errors, t-values, p-values
         and confidence intervals.
 
         Parameters
         ----------
-        significance_level : float, optional (default=0.05)
+        significance_level : float, optional, default=0.05
             The significance level for the confidence intervals.
         X : {array-like, sparse matrix}, shape (n_samples, n_features), optional
             Training data. Can be omitted if a covariance matrix has already
@@ -1437,7 +1438,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         clusters: np.ndarray = None,
         expected_information=None,
     ) -> WaldTestResult:
-        """Compute the Wald test statistic and p-value for a linear hypotheses.
+        """Compute the Wald test statistic and p-value for a linear hypothesis.
 
         The hypothesis tested is ``R @ coef_ = r``. The test statistic follows
         a chi-squared distribution with ``R.shape[0]`` degrees of freedom.
@@ -1445,7 +1446,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         Parameters
         ----------
         R : np.ndarray
-            The matrix representing the linear combination of coefficients to test.
+            The restriction matrix representing the linear combination of coefficients
+            to test.
         r : np.ndarray, optional, default=None
             The vector representing the values of the linear combination.
             If None, the test is for whether the linear combinations of the coefficients
@@ -1478,7 +1480,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         Returns
         -------
         WaldTestResult
-            NamedTuple with test statistic, p-value and degrees of freedom.
+            NamedTuple with test statistic, p-value, and degrees of freedom.
         """
 
         covariance_matrix = self.covariance_matrix(
@@ -1539,7 +1541,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         clusters: np.ndarray = None,
         expected_information=None,
     ) -> WaldTestResult:
-        """Compute the Wald test statistic and p-value for a linear hypotheses.
+        """Compute the Wald test statistic and p-value for a linear hypothesis.
 
         Perform a Wald test for the hypothesis that the coefficients of the
         features in ``features`` are equal to the values in ``values``.
@@ -1579,7 +1581,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         Returns
         -------
         WaldTestResult
-            NamedTuple with test statistic, p-value and degrees of freedom.
+            NamedTuple with test statistic, p-value, and degrees of freedom.
         """
 
         if isinstance(features, str):
