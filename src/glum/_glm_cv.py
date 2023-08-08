@@ -273,6 +273,13 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
 
     deviance_path_: array, shape(n_folds, n_alphas)
         Deviance for the test set on each fold, varying alpha.
+
+    robust : bool, optional (default = False)
+        If true, then robust standard errors are computed by default.
+
+    expected_information : bool, optional (default = False)
+        If true, then the expected information matrix is computed by default.
+        Only relevant when computing robust standard errors.
     """
 
     def __init__(
@@ -308,6 +315,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         cv=None,
         n_jobs: Optional[int] = None,
         drop_first: bool = False,
+        robust: bool = True,
+        expected_information: bool = False,
     ):
         self.alphas = alphas
         self.cv = cv
@@ -341,6 +350,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             b_ineq=b_ineq,
             force_all_finite=force_all_finite,
             drop_first=drop_first,
+            robust=robust,
+            expected_information=expected_information,
         )
 
     def _validate_hyperparameters(self) -> None:
@@ -365,6 +376,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         y: ArrayLike,
         sample_weight: Optional[ArrayLike] = None,
         offset: Optional[ArrayLike] = None,
+        store_covariance_matrix: bool = False,
+        clusters: Optional[np.ndarray] = None,
     ):
         r"""
         Choose the best model along a 'regularization path' by cross-validation.
@@ -398,6 +411,15 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             Added to linear predictor. An offset of 3 will increase expected
             ``y`` by 3 if the link is linear and will multiply expected ``y`` by
             3 if the link is logarithmic.
+
+        store_covariance_matrix : bool, optional (default=False)
+            Whether to store the covariance matrix of the parameter estimates
+            corresponding to the best best model.
+
+        clusters : array-like, optional, default=None
+            Array with clusters membership. Clustered standard errors are
+            computed if clusters is not None.
+
         """
         self._validate_hyperparameters()
 
@@ -693,5 +715,19 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             self.intercept_, self.coef_ = _unstandardize(col_means, col_stds, 0.0, coef)
 
         self._tear_down_from_fit()
+
+        self.covariance_matrix_ = None
+        if store_covariance_matrix:
+            self.covariance_matrix(
+                X=X.unstandardize(),
+                y=y,
+                offset=offset,
+                sample_weight=sample_weight * weights_sum,
+                robust=self.robust,
+                clusters=clusters,
+                expected_information=self.expected_information,
+                store_covariance_matrix=True,
+                skip_checks=True,
+            )
 
         return self

@@ -2113,3 +2113,134 @@ def test_P1_P2_with_drop_first():
     regressor.fit(X, y)
     regressor = GeneralizedLinearRegressor(alpha=0.1, l1_ratio=0.5, P1=P_1, P2=P_2)
     regressor.fit(X, y)
+
+
+@pytest.mark.parametrize("clustered", [True, False], ids=["clustered", "nonclustered"])
+@pytest.mark.parametrize("expected_information", [True, False], ids=["opg", "oim"])
+@pytest.mark.parametrize("robust", [True, False], ids=["robust", "nonrobust"])
+def test_store_covariance_matrix(
+    regression_data, robust, expected_information, clustered
+):
+    X, y = regression_data
+
+    if clustered:
+        rng = np.random.default_rng(42)
+        clu = rng.integers(5, size=len(y))
+    else:
+        clu = None
+
+    regressor = GeneralizedLinearRegressor(
+        family="gaussian",
+        alpha=0,
+        robust=robust,
+        expected_information=expected_information,
+    )
+    regressor.fit(X, y, store_covariance_matrix=True, clusters=clu)
+
+    np.testing.assert_array_almost_equal(
+        regressor.covariance_matrix(
+            X, y, robust=robust, expected_information=expected_information, clusters=clu
+        ),
+        regressor.covariance_matrix(),
+    )
+
+    np.testing.assert_array_almost_equal(
+        regressor.std_errors(
+            X, y, robust=robust, expected_information=expected_information, clusters=clu
+        ),
+        regressor.std_errors(),
+    )
+
+
+def test_store_covariance_matrix_errors(regression_data):
+    X, y = regression_data
+
+    regressor = GeneralizedLinearRegressor(family="gaussian", alpha=0)
+    regressor.fit(X, y, store_covariance_matrix=False)
+
+    with pytest.raises(ValueError, match="Either X and y must be provided"):
+        regressor.covariance_matrix()
+
+    with pytest.raises(ValueError, match="Either X and y must be provided"):
+        regressor.covariance_matrix(X=X)
+
+    with pytest.raises(ValueError, match="Either X and y must be provided"):
+        regressor.covariance_matrix(y=y)
+
+    regressor.covariance_matrix(X, y, store_covariance_matrix=True)
+
+    with pytest.raises(
+        ValueError, match="Cannot reestimate the covariance matrix with different"
+    ):
+        regressor.covariance_matrix(robust=False)
+
+    with pytest.warns(match="A covariance matrix has already been computed."):
+        regressor.covariance_matrix(X, y, store_covariance_matrix=True)
+
+    regressor_penalized = GeneralizedLinearRegressor(family="gaussian", alpha=0.1)
+    with pytest.warns(match="Covariance matrix estimation assumes"):
+        regressor_penalized.fit(X, y, store_covariance_matrix=True)
+
+
+@pytest.mark.parametrize("clustered", [True, False], ids=["clustered", "nonclustered"])
+@pytest.mark.parametrize("expected_information", [True, False], ids=["opg", "oim"])
+@pytest.mark.parametrize("robust", [True, False], ids=["robust", "nonrobust"])
+def test_store_covariance_matrix_alpha_search(
+    regression_data, robust, expected_information, clustered
+):
+    X, y = regression_data
+
+    if clustered:
+        rng = np.random.default_rng(42)
+        clu = rng.integers(5, size=len(y))
+    else:
+        clu = None
+
+    regressor = GeneralizedLinearRegressor(
+        family="gaussian",
+        alpha=[0, 0.1, 0.5],
+        alpha_search=True,
+        robust=robust,
+        expected_information=expected_information,
+    )
+    with pytest.warns(match="Covariance matrix estimation assumes"):
+        regressor.fit(X, y, store_covariance_matrix=True, clusters=clu)
+
+    np.testing.assert_array_almost_equal(
+        regressor.covariance_matrix(
+            X, y, robust=robust, expected_information=expected_information, clusters=clu
+        ),
+        regressor.covariance_matrix(),
+    )
+
+
+@pytest.mark.parametrize("clustered", [True, False], ids=["clustered", "nonclustered"])
+@pytest.mark.parametrize("expected_information", [True, False], ids=["opg", "oim"])
+@pytest.mark.parametrize("robust", [True, False], ids=["robust", "nonrobust"])
+def test_store_covariance_matrix_cv(
+    regression_data, robust, expected_information, clustered
+):
+    X, y = regression_data
+
+    if clustered:
+        rng = np.random.default_rng(42)
+        clu = rng.integers(5, size=len(y))
+    else:
+        clu = None
+
+    regressor = GeneralizedLinearRegressorCV(
+        family="gaussian",
+        n_alphas=5,
+        robust=robust,
+        expected_information=expected_information,
+    )
+    with pytest.warns(match="Covariance matrix estimation assumes"):
+        # regressor.alpha_ == 1e-5 > 0
+        regressor.fit(X, y, store_covariance_matrix=True, clusters=clu)
+
+    np.testing.assert_array_almost_equal(
+        regressor.covariance_matrix(
+            X, y, robust=robust, expected_information=expected_information, clusters=clu
+        ),
+        regressor.covariance_matrix(),
+    )
