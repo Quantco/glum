@@ -2076,7 +2076,9 @@ def test_wald_test_matrix(regression_data, family, fit_intercept, R, r):
         R, r, X=X, y=y, dispersion=dispersion, robust=False
     )
     fit_sm = mdl_sm.fit(cov_type="nonrobust")
-    sm_results = fit_sm.wald_test((R, r), cov_p=fit_sm.cov_params() * corr)
+    sm_results = fit_sm.wald_test(
+        (R, r), cov_p=fit_sm.cov_params() * corr, scalar=False
+    )
 
     np.testing.assert_allclose(
         our_results.test_statistic, sm_results.statistic, rtol=1e-3
@@ -2087,7 +2089,9 @@ def test_wald_test_matrix(regression_data, family, fit_intercept, R, r):
     # robust
     our_results = mdl.wald_test_matrix(R, r, X=X, y=y, robust=True)
     fit_sm = mdl_sm.fit(cov_type="HC1")
-    sm_results = fit_sm.wald_test((R, r), cov_p=fit_sm.cov_params() * corr)
+    sm_results = fit_sm.wald_test(
+        (R, r), cov_p=fit_sm.cov_params() * corr, scalar=False
+    )
 
     np.testing.assert_allclose(
         our_results.test_statistic, sm_results.statistic, rtol=1e-3
@@ -2100,7 +2104,7 @@ def test_wald_test_matrix(regression_data, family, fit_intercept, R, r):
     clu = rng.integers(5, size=len(y))
     our_results = mdl.wald_test_matrix(R, r, X=X, y=y, clusters=clu)
     sm_fit = mdl_sm.fit(cov_type="cluster", cov_kwds={"groups": clu})
-    sm_results = sm_fit.wald_test((R, r))
+    sm_results = sm_fit.wald_test((R, r), scalar=False)
 
     np.testing.assert_allclose(
         our_results.test_statistic, sm_results.statistic, rtol=1e-3
@@ -2133,7 +2137,7 @@ def test_wald_test_matrix_fixed_cov(regression_data, R, r):
     # Use the same covariance matrix for both so that we can use tighter tolerances
     our_results = mdl.wald_test_matrix(R, r)
     fit_sm = mdl_sm.fit()
-    sm_results = fit_sm.wald_test((R, r), cov_p=mdl.covariance_matrix())
+    sm_results = fit_sm.wald_test((R, r), cov_p=mdl.covariance_matrix(), scalar=False)
 
     np.testing.assert_allclose(
         our_results.test_statistic, sm_results.statistic, rtol=1e-8
@@ -2403,12 +2407,14 @@ def test_store_covariance_matrix_alpha_search(
     )
     with pytest.warns(match="Covariance matrix estimation assumes"):
         regressor.fit(X, y, store_covariance_matrix=True, clusters=clu)
+        new_covariance_matrix = regressor.covariance_matrix(
+            X, y, robust=robust, expected_information=expected_information, clusters=clu
+        )
+        stored_covariance_matrix = regressor.covariance_matrix()
 
     np.testing.assert_array_almost_equal(
-        regressor.covariance_matrix(
-            X, y, robust=robust, expected_information=expected_information, clusters=clu
-        ),
-        regressor.covariance_matrix(),
+        new_covariance_matrix,
+        stored_covariance_matrix,
     )
 
 
@@ -2435,10 +2441,12 @@ def test_store_covariance_matrix_cv(
     with pytest.warns(match="Covariance matrix estimation assumes"):
         # regressor.alpha_ == 1e-5 > 0
         regressor.fit(X, y, store_covariance_matrix=True, clusters=clu)
+        new_covariance_matrix = regressor.covariance_matrix(
+            X, y, robust=robust, expected_information=expected_information, clusters=clu
+        )
+        stored_covariance_matrix = regressor.covariance_matrix()
 
     np.testing.assert_array_almost_equal(
-        regressor.covariance_matrix(
-            X, y, robust=robust, expected_information=expected_information, clusters=clu
-        ),
-        regressor.covariance_matrix(),
+        new_covariance_matrix,
+        stored_covariance_matrix,
     )
