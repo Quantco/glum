@@ -1882,7 +1882,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
            Cambridge university press
 
         """
-
         self.covariance_matrix_: Union[np.ndarray, None]
 
         if robust is None:
@@ -1946,29 +1945,34 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                     )
                 return self.covariance_matrix_
 
-            (
+            if isinstance(X, pd.DataFrame) and hasattr(self, "feature_dtypes_"):
+                X = _align_df_categories(X, self.feature_dtypes_)
+
+            X, y = check_X_y_tabmat_compliant(
                 X,
                 y,
-                sample_weight,
-                offset,
-                sum_weights,
-                P1,
-                P2,
-            ) = self._set_up_and_check_fit_args(
-                X,
-                y,
-                sample_weight,
-                offset,
-                solver=self.solver,
-                force_all_finite=self.force_all_finite,
+                accept_sparse=["csr", "csc", "coo"],
+                dtype="numeric",
+                copy=self._should_copy_X(),
+                ensure_2d=True,
+                allow_nd=False,
+                drop_first=self.drop_first,
             )
 
-            # Here we don't want sample_weight to be normalized to sum up to 1
-            # We want sample_weight to sum up to the number of samples
-            sample_weight = sample_weight * sum_weights
+            if isinstance(X, np.ndarray):
+                X = tm.DenseMatrix(X)
+            if sparse.issparse(X) and not isinstance(X, tm.SparseMatrix):
+                X = tm.SparseMatrix(X)
 
-        else:
-            sum_weights = sample_weight.sum()
+            sample_weight = _check_weights(
+                sample_weight,
+                y.shape[0],
+                X.dtype,
+                force_all_finite=self.force_all_finite,
+            )
+            offset = _check_offset(offset, y.shape[0], X.dtype)
+
+        sum_weights = np.sum(sample_weight)
 
         mu = self.predict(X, offset=offset) if mu is None else np.asanyarray(mu)
 
@@ -1983,13 +1987,13 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 method="pearson",
             )
 
-        if not (
-            sparse.issparse(X) or isinstance(X, (tm.SplitMatrix, tm.CategoricalMatrix))
+        if (
+            np.linalg.cond(_safe_toarray(X.sandwich(np.ones(X.shape[0]))))
+            > 1 / sys.float_info.epsilon**2
         ):
-            if np.linalg.cond(X) > 1 / sys.float_info.epsilon:
-                raise np.linalg.LinAlgError(
-                    "Matrix is singular. Cannot estimate standard errors."
-                )
+            raise np.linalg.LinAlgError(
+                "Matrix is singular. Cannot estimate standard errors."
+            )
 
         if _robust or clusters is not None:
             if _expected_information:

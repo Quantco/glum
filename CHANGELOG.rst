@@ -10,12 +10,20 @@ Changelog
 2.6.0 - UNRELEASED
 ------------------
 
-**New feature**
+**New features**
 
 - Added the complementary log-log (`cloglog`) link function.
 - Added the option to store the covariance matrix after estimating it. In this case, the covariance matrix does not have to be recomputed when calling inference methods.
 - Add methods for performing Wald tests based on a restriction matrix, feature names or term names
 - Add a method for creating a coefficient table with confidence intervals and p-values
+
+**Bug fix**
+
+- Fixed :meth:`~glum.GeneralizedLinearRegressorBase.covariance_matrix` mutating feature names when called with a data frame. See `here <https://github.com/Quantco/glum/issues/669>`_.
+
+**Other changes:**
+
+- When computing the covariance matrix, check for ill-conditionedness for all types of input. Furthermore, do it in a more efficient way.
 
 2.5.2 - 2023-06-02
 ------------------

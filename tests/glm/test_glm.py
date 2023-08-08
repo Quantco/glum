@@ -2403,14 +2403,14 @@ def test_store_covariance_matrix(
     )
     regressor.fit(X, y, store_covariance_matrix=True, clusters=clu)
 
-    np.testing.assert_array_equal(
+    np.testing.assert_array_almost_equal(
         regressor.covariance_matrix(
             X, y, robust=robust, expected_information=expected_information, clusters=clu
         ),
         regressor.covariance_matrix(),
     )
 
-    np.testing.assert_array_equal(
+    np.testing.assert_array_almost_equal(
         regressor.std_errors(
             X, y, robust=robust, expected_information=expected_information, clusters=clu
         ),
@@ -2472,7 +2472,7 @@ def test_store_covariance_matrix_alpha_search(
     with pytest.warns(match="Covariance matrix estimation assumes"):
         regressor.fit(X, y, store_covariance_matrix=True, clusters=clu)
 
-    np.testing.assert_array_equal(
+    np.testing.assert_array_almost_equal(
         regressor.covariance_matrix(
             X, y, robust=robust, expected_information=expected_information, clusters=clu
         ),
@@ -2504,7 +2504,7 @@ def test_store_covariance_matrix_cv(
         # regressor.alpha_ == 1e-5 > 0
         regressor.fit(X, y, store_covariance_matrix=True, clusters=clu)
 
-    np.testing.assert_array_equal(
+    np.testing.assert_array_almost_equal(
         regressor.covariance_matrix(
             X, y, robust=robust, expected_information=expected_information, clusters=clu
         ),

@@ -1,4 +1,4 @@
-import pkg_resources
+import importlib.metadata
 
 from ._distribution import (
     BinomialDistribution,
@@ -16,7 +16,7 @@ from ._glm_cv import GeneralizedLinearRegressorCV
 from ._link import CloglogLink, IdentityLink, Link, LogitLink, LogLink, TweedieLink
 
 try:
-    __version__ = pkg_resources.get_distribution(__name__).version
+    __version__ = importlib.metadata.distribution(__name__).version
 except Exception:
     __version__ = "unknown"
 
