@@ -718,6 +718,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         b_ineq: Optional[np.ndarray] = None,
         force_all_finite: bool = True,
         drop_first: bool = False,
+        robust: bool = True,
+        expected_information: bool = False,
     ):
         self.l1_ratio = l1_ratio
         self.P1 = P1
@@ -748,6 +750,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self.b_ineq = b_ineq
         self.force_all_finite = force_all_finite
         self.drop_first = drop_first
+        self.robust = robust
+        self.expected_information = expected_information
 
     @property
     def family_instance(self) -> ExponentialDispersionModel:
@@ -1326,15 +1330,16 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
     def std_errors(
         self,
-        X,
-        y,
+        X=None,
+        y=None,
         mu=None,
         offset=None,
         sample_weight=None,
         dispersion=None,
-        robust=True,
+        robust=None,
         clusters: np.ndarray = None,
-        expected_information=False,
+        expected_information=None,
+        store_covariance_matrix=False,
     ):
         """Calculate standard errors for generalized linear models.
 
@@ -1355,14 +1360,19 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             Individual weights for each sample.
         dispersion : float, optional, default=None
             The dispersion parameter. Estimated if absent.
-        robust : boolean, optional, default=True
+        robust : boolean, optional, default=None
             Whether to compute robust standard errors instead of normal ones.
+            If not specified, the model's ``robust`` attribute is used.
         clusters : array-like, optional, default=None
             Array with clusters membership. Clustered standard errors are
             computed if clusters is not None.
-        expected_information : boolean, optional, default=False
+        expected_information : boolean, optional, default=None
             Whether to use the expected or observed information matrix.
             Only relevant when computing robust std-errors.
+            If not specified, the model's ``expected_information`` attribute is used.
+        store_covariance_matrix : boolean, optional, default=False
+            Whether to store the covariance matrix in the model instance.
+            If a covariance matrix has already been stored, it will be overwritten.
         """
         return np.sqrt(
             self.covariance_matrix(
@@ -1375,29 +1385,34 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 robust=robust,
                 clusters=clusters,
                 expected_information=expected_information,
+                store_covariance_matrix=store_covariance_matrix,
             ).diagonal()
         )
 
     def covariance_matrix(
         self,
-        X,
-        y,
+        X=None,
+        y=None,
         mu=None,
         offset=None,
         sample_weight=None,
         dispersion=None,
-        robust=True,
-        clusters: np.ndarray = None,
-        expected_information=False,
+        robust=None,
+        clusters: Optional[np.ndarray] = None,
+        expected_information=None,
+        store_covariance_matrix=False,
+        skip_checks=False,
     ):
         """Calculate the covariance matrix for generalized linear models.
 
         Parameters
         ----------
-        X : {array-like, sparse matrix}, shape (n_samples, n_features)
-            Training data.
-        y : array-like, shape (n_samples,)
-            Target values.
+        X : {array-like, sparse matrix}, shape (n_samples, n_features), optional
+            Training data. Can be omitted if a covariance matrix has already
+            been computed.
+        y : array-like, shape (n_samples,), optional
+            Target values. Can be omitted if a covariance matrix has already
+            been computed.
         mu : array-like, optional, default=None
             Array with predictions. Estimated if absent.
         offset : array-like, optional, default=None
@@ -1406,14 +1421,21 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             Individual weights for each sample.
         dispersion : float, optional, default=None
             The dispersion parameter. Estimated if absent.
-        robust : boolean, optional, default=True
+        robust : boolean, optional, default=None
             Whether to compute robust standard errors instead of normal ones.
+            If not specified, the model's ``robust`` attribute is used.
         clusters : array-like, optional, default=None
             Array with clusters membership. Clustered standard errors are
             computed if clusters is not None.
-        expected_information : boolean, optional, default=False
+        expected_information : boolean, optional, default=None
             Whether to use the expected or observed information matrix.
             Only relevant when computing robust standard errors.
+            If not specified, the model's ``expected_information`` attribute is used.
+        store_covariance_matrix : boolean, optional, default=False
+            Whether to store the covariance matrix in the model instance.
+            If a covariance matrix has already been stored, it will be overwritten.
+        skip_checks : boolean, optional, default=False
+            Whether to skip input validation. For internal use only.
 
         Notes
         -----
@@ -1456,29 +1478,95 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
            Cambridge university press
 
         """
+        self.covariance_matrix_: Union[np.ndarray, None]
 
-        if isinstance(X, pd.DataFrame) and hasattr(self, "feature_dtypes_"):
-            X = _align_df_categories(X, self.feature_dtypes_)
+        if robust is None:
+            _robust = self.robust
+        else:
+            _robust = robust
 
-        X, y = check_X_y_tabmat_compliant(
-            X,
-            y,
-            accept_sparse=["csr", "csc", "coo"],
-            dtype="numeric",
-            copy=self._should_copy_X(),
-            ensure_2d=True,
-            allow_nd=False,
-            drop_first=self.drop_first,
-        )
+        if expected_information is None:
+            _expected_information = self.expected_information
+        else:
+            _expected_information = expected_information
 
-        if isinstance(X, np.ndarray):
-            X = tm.DenseMatrix(X)
-        if sparse.issparse(X) and not isinstance(X, tm.SparseMatrix):
-            X = tm.SparseMatrix(X)
+        if (
+            (hasattr(self, "alpha") and self.alpha is None)
+            or (
+                hasattr(self, "alpha")
+                and isinstance(self.alpha, (int, float))
+                and self.alpha > 0
+            )
+            or (hasattr(self, "alpha_") and self.alpha_ > 0)  # glm_cv
+            or (hasattr(self, "_alphas") and self._alphas[-1] > 0)  # alpha_search
+        ):
+            warnings.warn(
+                "Covariance matrix estimation assumes that the model is not "
+                "penalized. You are estimating a penalized model. The covariance "
+                "matrix will be incorrect."
+            )
 
-        sample_weight = _check_weights(
-            sample_weight, y.shape[0], X.dtype, force_all_finite=self.force_all_finite
-        )
+        if not skip_checks:
+            if (X is None or y is None) and self.covariance_matrix_ is None:
+                raise ValueError(
+                    "Either X and y must be provided or the covariance matrix "
+                    "must have been previously computed."
+                )
+
+            if (X is None or y is None) and store_covariance_matrix:
+                raise ValueError(
+                    "X and y must be provided if 'store_covariance_matrix' is True."
+                )
+
+            if store_covariance_matrix and self.covariance_matrix_ is not None:
+                warnings.warn(
+                    "A covariance matrix has already been computed. "
+                    "It will be overwritten."
+                )
+
+            if X is None and y is None:
+                if (
+                    offset is not None
+                    or mu is not None
+                    or offset is not None
+                    or sample_weight is not None
+                    or dispersion is not None
+                    or robust is not None
+                    or clusters is not None
+                    or expected_information is not None
+                ):
+                    raise ValueError(
+                        "Cannot reestimate the covariance matrix with different "
+                        "parameters if X and y are not provided."
+                    )
+                return self.covariance_matrix_
+
+            if isinstance(X, pd.DataFrame) and hasattr(self, "feature_dtypes_"):
+                X = _align_df_categories(X, self.feature_dtypes_)
+
+            X, y = check_X_y_tabmat_compliant(
+                X,
+                y,
+                accept_sparse=["csr", "csc", "coo"],
+                dtype="numeric",
+                copy=self._should_copy_X(),
+                ensure_2d=True,
+                allow_nd=False,
+                drop_first=self.drop_first,
+            )
+
+            if isinstance(X, np.ndarray):
+                X = tm.DenseMatrix(X)
+            if sparse.issparse(X) and not isinstance(X, tm.SparseMatrix):
+                X = tm.SparseMatrix(X)
+
+            sample_weight = _check_weights(
+                sample_weight,
+                y.shape[0],
+                X.dtype,
+                force_all_finite=self.force_all_finite,
+            )
+
         sum_weights = np.sum(sample_weight)
         offset = _check_offset(offset, y.shape[0], X.dtype)
 
@@ -1503,8 +1591,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 "Matrix is singular. Cannot estimate standard errors."
             )
 
-        if robust or clusters is not None:
-            if expected_information:
+        if _robust or clusters is not None:
+            if _expected_information:
                 oim_fct = self._family_instance._fisher_information
             else:
                 oim_fct = self._family_instance._observed_information
@@ -1558,6 +1646,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             vcov *= sum_weights / (
                 sum_weights - self.n_features_in_ - int(self.fit_intercept)
             )
+
+        if store_covariance_matrix:
+            self.covariance_matrix_ = vcov
 
         return vcov
 
@@ -2156,6 +2247,13 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         Set this to True when alpha=0 and solver='auto' to prevent an error due to a singular
         feature matrix.
 
+    robust : bool, optional (default = False)
+        If true, then robust standard errors are computed by default.
+
+    expected_information : bool, optional (default = False)
+        If true, then the expected information matrix is computed by default.
+        Only relevant when computing robust standard errors.
+
     Attributes
     ----------
     coef_ : numpy.array, shape (n_features,)
@@ -2237,6 +2335,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         b_ineq: Optional[np.ndarray] = None,
         force_all_finite: bool = True,
         drop_first: bool = False,
+        robust: bool = True,
+        expected_information: bool = False,
     ):
         self.alphas = alphas
         self.alpha = alpha
@@ -2270,6 +2370,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             b_ineq=b_ineq,
             force_all_finite=force_all_finite,
             drop_first=drop_first,
+            robust=robust,
+            expected_information=expected_information,
         )
 
     def _validate_hyperparameters(self) -> None:
@@ -2316,6 +2418,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         y: ArrayLike,
         sample_weight: Optional[ArrayLike] = None,
         offset: Optional[ArrayLike] = None,
+        store_covariance_matrix: bool = False,
+        clusters: Optional[np.ndarray] = None,
         # TODO: take out weights_sum (or use it properly)
         weights_sum: Optional[float] = None,
     ):
@@ -2350,6 +2454,15 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             Added to linear predictor. An offset of 3 will increase expected
             ``y`` by 3 if the link is linear and will multiply expected ``y`` by
             3 if the link is logarithmic.
+
+        store_covariance_matrix : bool, optional (default=False)
+            Whether to estimate and store the covariance matrix of the parameter
+            estimates. If ``True``, the covariance matrix will be available in the
+            ``covariance_matrix_`` attribute after fitting.
+
+        clusters : array-like, optional, default=None
+            Array with clusters membership. Clustered standard errors are
+            computed if clusters is not None.
 
         weights_sum: float, optional (default=None)
 
@@ -2545,6 +2658,20 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
                 )
 
         self._tear_down_from_fit()
+
+        self.covariance_matrix_ = None
+        if store_covariance_matrix:
+            self.covariance_matrix(
+                X=X.unstandardize(),
+                y=y,
+                offset=offset,
+                sample_weight=sample_weight * weights_sum,
+                robust=self.robust,
+                clusters=clusters,
+                expected_information=self.expected_information,
+                store_covariance_matrix=True,
+                skip_checks=True,
+            )
 
         return self
 
