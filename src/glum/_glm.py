@@ -1366,7 +1366,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             Array with predictions. Estimated if absent.
         offset : array-like, optional, default=None
             Array with additive offsets.
-        sample_weight : array-like, shape (n_samples,), optional (default=None)
+        sample_weight : array-like, shape (n_samples,), optional, default=None
             Individual weights for each sample.
         dispersion : float, optional, default=None
             The dispersion parameter. Estimated if absent.
@@ -1462,7 +1462,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             Array with predictions. Estimated if absent.
         offset : array-like, optional, default=None
             Array with additive offsets.
-        sample_weight : array-like, shape (n_samples,), optional (default=None)
+        sample_weight : array-like, shape (n_samples,), optional, default=None
             Individual weights for each sample.
         dispersion : float, optional, default=None
             The dispersion parameter. Estimated if absent.
@@ -1563,7 +1563,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             Array with predictions. Estimated if absent.
         offset : array-like, optional, default=None
             Array with additive offsets.
-        sample_weight : array-like, shape (n_samples,), optional (default=None)
+        sample_weight : array-like, shape (n_samples,), optional, default=None
             Individual weights for each sample.
         dispersion : float, optional, default=None
             The dispersion parameter. Estimated if absent.
@@ -1653,7 +1653,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             Array with predictions. Estimated if absent.
         offset : array-like, optional, default=None
             Array with additive offsets.
-        sample_weight : array-like, shape (n_samples,), optional (default=None)
+        sample_weight : array-like, shape (n_samples,), optional, default=None
             Individual weights for each sample.
         dispersion : float, optional, default=None
             The dispersion parameter. Estimated if absent.
@@ -1714,7 +1714,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             Array with predictions. Estimated if absent.
         offset : array-like, optional, default=None
             Array with additive offsets.
-        sample_weight : array-like, shape (n_samples,), optional (default=None)
+        sample_weight : array-like, shape (n_samples,), optional, default=None
             Individual weights for each sample.
         dispersion : float, optional, default=None
             The dispersion parameter. Estimated if absent.
