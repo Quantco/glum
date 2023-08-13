@@ -60,7 +60,7 @@ jobs:
         with:
           user: __token__
           password: ${{ secrets.GH_TESTPYPI_UPLOAD }}
-          repository_url: https://test.pypi.org/legacy/
+          repository-url: https://test.pypi.org/legacy/
 
   upload_pypi:
     needs: [build_wheels, build_sdist, upload_testpypi]

@@ -29,6 +29,15 @@ jobs:
           environment-name: build
           create-args: boa
       - name: Build conda package
-        shell: bash -l {0}
-        run: ./.github/workflows/macos-conda-build.sh
-
+        shell: bash -eluo pipefail {0}
+        run: |
+          # Don't test cross-compiled result (there is no emulation) and use the latest MacOS SDK.
+          if grep -q "osx-arm64" ".ci_support/${{ matrix.CONDA_BUILD_YML }}.yaml"; then
+            CONDA_BUILD_ARGS="--no-test"
+            export CONDA_BUILD_SYSROOT=$(xcrun --sdk macosx --show-sdk-path)
+            cat <<EOF >> .ci_support/${CONDA_BUILD_YML}.yaml
+          CONDA_BUILD_SYSROOT:
+          - "${CONDA_BUILD_SYSROOT}"
+          EOF
+          fi
+          conda-mambabuild -m ".ci_support/${{ matrix.CONDA_BUILD_YML }}.yaml" conda.recipe

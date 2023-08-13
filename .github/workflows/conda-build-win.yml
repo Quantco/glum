@@ -28,4 +28,4 @@ jobs:
           create-args: powershell
       - name: Build conda package
         shell: powershell
-        run: conda-mambabuild -m .ci_support/${{ matrix.CONDA_BUILD_YML}}.yaml conda.recipe
+        run: conda-mambabuild -m ".ci_support/${{ matrix.CONDA_BUILD_YML}}.yaml" conda.recipe
