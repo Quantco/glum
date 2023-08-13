@@ -43,7 +43,9 @@ jobs:
           fi
       - name: Build conda package
         shell: bash -el {0}
+        env:
+          CONDA_BUILD_ARGS: ${{ steps.conda-args.outputs.conda-build-args }}
         run: >-
           conda-mambabuild
           -m ".ci_support/${{ matrix.CONDA_BUILD_YML }}.yaml"
-          ${{ steps.conda-args.outputs.conda-build-args }}conda.recipe
+          conda.recipe
