@@ -40,19 +40,19 @@ jobs:
 
           PRE_WHEELS="https://pypi.anaconda.org/scipy-wheels-nightly/simple"
           echo "Installing Numpy nightly"
-          micromamba uninstall -y --force numpy
+          micromamba remove -y numpy
           pip install --pre --no-deps --only-binary :all: --upgrade --timeout=60 -i $PRE_WHEELS numpy
           echo "Installing Pandas nightly"
-          micromamba uninstall -y --force pandas
+          micromamba remove -y pandas
           pip install --pre --no-deps --only-binary :all: --upgrade --timeout=60 -i $PRE_WHEELS pandas
           echo "Install scikit-learn nightly"
-          micromamba uninstall -y --force scikit-learn
+          micromamba remove -y scikit-learn
           pip install --pre --no-deps --only-binary :all: --upgrade --timeout=60 -i $PRE_WHEELS scikit-learn
           echo "Installing Scipy nightly"
-          micromamba uninstall -y --force scipy
+          micromamba remove -y scipy
           pip install --pre --no-deps --only-binary :all: --upgrade --timeout=60 -i $PRE_WHEELS scipy
           echo "Install tabmat nightly"
-          micromamba uninstall -y --force tabmat
+          micromamba remove -y tabmat
           pip install git+https://github.com/Quantco/tabmat
       - name: Install repository
         shell: bash -el {0}
