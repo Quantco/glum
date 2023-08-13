@@ -26,4 +26,5 @@ jobs:
           environment-name: build
           create-args: boa
       - name: Build conda package
+        shell: bash -el {0}
         run: conda-mambabuild -m ".ci_support/${{ matrix.CONDA_BUILD_YML }}.yaml" conda.recipe
