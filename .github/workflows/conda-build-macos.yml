@@ -35,9 +35,9 @@ jobs:
             echo "conda-build-args=--no-test " >> "$GITHUB_OUTPUT"
             export CONDA_BUILD_SYSROOT="$(xcrun --sdk macosx --show-sdk-path)"
             cat <<EOF >> ".ci_support/${{ matrix.CONDA_BUILD_YML }}.yaml"
-            CONDA_BUILD_SYSROOT:
-              - "${CONDA_BUILD_SYSROOT}"
-            EOF
+          CONDA_BUILD_SYSROOT:
+            - "${CONDA_BUILD_SYSROOT}"
+          EOF
           else
             echo "conda-build-args=" >> "$GITHUB_OUTPUT"
           fi
