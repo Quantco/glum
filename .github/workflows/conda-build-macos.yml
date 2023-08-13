@@ -10,7 +10,6 @@ jobs:
     runs-on: macos-latest
     env:
       CI: True
-      CONDA_BUILD_YML: ${{ matrix.CONDA_BUILD_YML }}
     strategy:
       fail-fast: false
       matrix:
@@ -28,16 +27,23 @@ jobs:
         with:
           environment-name: build
           create-args: boa
-      - name: Patch osx-arm64 conda-build
-        if: contains(matrix.CONDA_BUILD_YML, 'osx_arm64')
+      - name: Set conda build configuration
+        id: conda-args
         # Don't test cross-compiled result (there is no emulation) and use the latest MacOS SDK.
         run: |
-          CONDA_BUILD_ARGS="--no-test"
-          export CONDA_BUILD_SYSROOT="$(xcrun --sdk macosx --show-sdk-path)"
-          cat <<EOF >> ".ci_support/${{ matrix.CONDA_BUILD_YML }}.yaml"
-          CONDA_BUILD_SYSROOT:
-            - "${CONDA_BUILD_SYSROOT}"
-          EOF
+          if [[ "${{ matrix.CONDA_BUILD_YML }}" == osx_arm64* ]]; then
+            echo "conda-build-args=--no-test " >> "$GITHUB_OUTPUT"
+            export CONDA_BUILD_SYSROOT="$(xcrun --sdk macosx --show-sdk-path)"
+            cat <<EOF >> ".ci_support/${{ matrix.CONDA_BUILD_YML }}.yaml"
+            CONDA_BUILD_SYSROOT:
+              - "${CONDA_BUILD_SYSROOT}"
+            EOF
+          else
+            echo "conda-build-args=" >> "$GITHUB_OUTPUT"
+          fi
       - name: Build conda package
         shell: bash -el {0}
-        run: conda-mambabuild -m ".ci_support/${{ matrix.CONDA_BUILD_YML }}.yaml" conda.recipe
+        run: >-
+          conda-mambabuild
+          -m ".ci_support/${{ matrix.CONDA_BUILD_YML }}.yaml"
+          ${{ steps.conda-args.outputs.conda-build-args }}conda.recipe
