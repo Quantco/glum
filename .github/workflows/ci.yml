@@ -24,7 +24,7 @@ jobs:
 
   unit-tests:
     name: Tests - ${{ matrix.os }} - Py${{ matrix.python-version }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     env:
       CI: True
     strategy:
