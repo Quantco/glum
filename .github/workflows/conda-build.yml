@@ -49,6 +49,7 @@ jobs:
             - "${CONDA_BUILD_SYSROOT}"
           EOF
       - name: Build conda package (unix)
+        if: matrix.os != 'windows-latest'
         shell: bash -el {0}
         env:
           CONDA_BUILD_ARGS: ${{ matrix.conda-build-args }}
@@ -57,6 +58,7 @@ jobs:
           -m ".ci_support/${{ matrix.CONDA_BUILD_YML }}.yaml"
           conda.recipe
       - name: Build conda package (windows)
+        if: matrix.os == 'windows-latest'
         shell: cmd /C CALL {0}
         env:
           CONDA_BUILD_ARGS: ${{ matrix.conda-build-args }}
