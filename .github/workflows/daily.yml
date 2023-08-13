@@ -70,6 +70,7 @@ jobs:
           cp README.md ../temp
           cd ../temp
           python -m doctest -v README.md
+      # TODO: Uncomment
       # - name: Issue on failure
       #   uses: actions/github-script@v6
       #   if: ${{ failure() }}
