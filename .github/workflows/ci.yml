@@ -22,15 +22,21 @@ jobs:
       - name: Run pre-commit checks
         uses: pre-commit/action@v3.0.0
 
-  linux:
-    name: Linux - tests - Py${{ matrix.PYTHON_VERSION }}
+  unit-tests:
+    name: Tests - ${{ matrix.os }} - Py${{ matrix.python-version }}
     runs-on: ubuntu-latest
     env:
       CI: True
     strategy:
       fail-fast: true
       matrix:
-        PYTHON_VERSION: ['3.8', '3.9', '3.10']
+        include:
+          - { os: ubuntu-latest, python-version: '3.8' }
+          - { os: ubuntu-latest, python-version: '3.9' }
+          - { os: ubuntu-latest, python-version: '3.10' }
+          - { os: ubuntu-latest, python-version: '3.11' }
+          - { os: macos-latest, python-version: '3.10' }
+          - { os: windows-latest, python-version: '3.10' }
     steps:
       - name: Checkout branch
         uses: actions/checkout@v3
@@ -38,14 +44,30 @@ jobs:
         uses: mamba-org/setup-micromamba@875557da4ee020f18df03b8910a42203fbf02da1
         with:
           environment-file: environment.yml
-          create-args: python=${{ matrix.PYTHON_VERSION }}
-      - name: Install repository
+          init-shell: ${{ matrix.os == 'windows-latest' && 'powershell' || 'bash' }}
+          cache-environment: true
+          create-args: >- # h2o-py and openjdk from environment-benchmark.yml
+            python=${{ matrix.python-version }}
+            h2o-py
+            openjdk
+      - name: Install repository (unix)
+        if: matrix.os != 'windows-latest'
         shell: bash -el {0}
         run: pip install --no-use-pep517 --no-deps --disable-pip-version-check -e .
-      - name: Run pytest
+      - name: Install repository (windows)
+        if: matrix.os == 'windows-latest'
+        shell: powershell
+        run: pip install --no-use-pep517 --no-deps --disable-pip-version-check -e .
+      - name: Run pytest (unix)
+        if: matrix.os != 'windows-latest'
         shell: bash -el {0}
-        run: pytest -nauto tests --doctest-modules src/glum/
+        run: pytest -nauto tests --doctest-modules src/glum
+      - name: Run pytest (windows)
+        if: matrix.os == 'windows-latest'
+        shell: powershell
+        run: pytest -nauto tests --doctest-modules src/glum
       - name: Run doctest
+        if: matrix.os != 'windows-latest'
         shell: bash -el {0}
         # Check that the readme example will work by running via doctest.
         # We run outside the repo to make the test a bit more similar to
