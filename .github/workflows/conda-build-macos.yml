@@ -33,8 +33,8 @@ jobs:
         # Don't test cross-compiled result (there is no emulation) and use the latest MacOS SDK.
         run: |
           CONDA_BUILD_ARGS="--no-test"
-          export CONDA_BUILD_SYSROOT=$(xcrun --sdk macosx --show-sdk-path)
-          cat <<EOF >> .ci_support/${CONDA_BUILD_YML}.yaml
+          export CONDA_BUILD_SYSROOT="$(xcrun --sdk macosx --show-sdk-path)"
+          cat <<EOF >> ".ci_support/${{ matrix.CONDA_BUILD_YML }}.yaml"
           CONDA_BUILD_SYSROOT:
             - "${CONDA_BUILD_SYSROOT}"
           EOF
