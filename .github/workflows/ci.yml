@@ -57,7 +57,7 @@ jobs:
       - name: Install repository (windows)
         if: matrix.os == 'windows-latest'
         shell: powershell
-        run: python -m pip install --no-use-pep517 --no-deps --disable-pip-version-check -vv -e .
+        run: pip install --no-use-pep517 --no-deps --disable-pip-version-check -e .
       - name: Run pytest (unix)
         if: matrix.os != 'windows-latest'
         shell: bash -el {0}
