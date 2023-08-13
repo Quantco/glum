@@ -17,18 +17,8 @@ jobs:
       matrix:
         include:
           - PYTHON_VERSION: '3.10'
-            PANDAS_VERSION: 'nightly'
-            NUMPY_VERSION: 'nightly'
-            SCIKIT_VERSION: 'nightly'
-            SCIPY_VERSION: 'nightly'
-            TABMAT_VERSION: 'nightly'
             NOTE: 'Nightly Builds' # run once with nightlies
           - PYTHON_VERSION: '3.10'
-            PANDAS_VERSION: ''
-            NUMPY_VERSION: ''
-            SCIKIT_VERSION: ''
-            SCIPY_VERSION: ''
-            TABMAT_VERSION: ''
             NOTE: 'Default Builds' # run once with normal dependencies
     steps:
       - name: Checkout branch
@@ -41,14 +31,8 @@ jobs:
             h2o-py
             openjdk
       - name: Install nightlies
-        if: ${{ matrix.NOTE }} == 'Nightly Builds'
+        if: matrix.NOTE == 'Nightly Builds'
         shell: bash -el {0}
-        env:
-          TABMAT_VERSION: ${{ matrix.TABMAT_VERSION }}
-          PANDAS_VERSION: ${{ matrix.PANDAS_VERSION }}
-          NUMPY_VERSION: ${{ matrix.NUMPY_VERSION }}
-          SCIKIT_VERSION: ${{ matrix.SCIKIT_VERSION }}
-          SCIPY_VERSION: ${{ matrix.SCIPY_VERSION }}
         run: |
           # needed for tabmat
           echo "Install compilation dependencies"
