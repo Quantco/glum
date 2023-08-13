@@ -25,8 +25,8 @@ jobs:
           - { conda_build_yml: linux_64_numpy1.23python3.11.____cpython,  os: ubuntu-latest,  conda-build-args: '' }
           - { conda_build_yml: osx_64_numpy1.20python3.9.____cpython,     os: macos-latest,   conda-build-args: '' }
           - { conda_build_yml: osx_64_numpy1.23python3.11.____cpython,    os: macos-latest,   conda-build-args: '' }
-          - { conda_build_yml: osx_arm64_numpy1.20python3.8.____cpython,  os: macos-latest,   conda-build-args: --no-test }
-          - { conda_build_yml: osx_arm64_numpy1.21python3.10.____cpython, os: macos-latest,   conda-build-args: --no-test }
+          - { conda_build_yml: osx_arm64_numpy1.20python3.8.____cpython,  os: macos-latest,   conda-build-args: ' --no-test' }
+          - { conda_build_yml: osx_arm64_numpy1.21python3.10.____cpython, os: macos-latest,   conda-build-args: ' --no-test' }
           - { conda_build_yml: win_64_numpy1.20python3.8.____cpython,     os: windows-latest, conda-build-args: '' }
           - { conda_build_yml: win_64_numpy1.23python3.11.____cpython,    os: windows-latest, conda-build-args: '' }
     steps:
@@ -51,18 +51,14 @@ jobs:
       - name: Build conda package (unix)
         if: matrix.os != 'windows-latest'
         shell: bash -el {0}
-        env:
-          CONDA_BUILD_ARGS: ${{ matrix.conda-build-args }}
         run: >-
           conda-mambabuild
-          -m ".ci_support/${{ matrix.CONDA_BUILD_YML }}.yaml"
+          -m ".ci_support/${{ matrix.CONDA_BUILD_YML }}.yaml"${{ matrix.conda-build-args }}
           conda.recipe
       - name: Build conda package (windows)
         if: matrix.os == 'windows-latest'
         shell: cmd /C CALL {0}
-        env:
-          CONDA_BUILD_ARGS: ${{ matrix.conda-build-args }}
         run: >-
           conda-mambabuild
-          -m ".ci_support/${{ matrix.CONDA_BUILD_YML }}.yaml"
+          -m ".ci_support/${{ matrix.conda_build_yml }}.yaml"${{ matrix.conda-build-args }}
           conda.recipe
