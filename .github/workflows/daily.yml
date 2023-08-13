@@ -5,7 +5,6 @@ on:
   push:
     paths:
     - '.github/workflows/daily.yml'
-    - '.github/workflows/test.sh'
 
 jobs:
   linux-daily-unittests:
@@ -32,40 +31,80 @@ jobs:
             TABMAT_VERSION: ''
             NOTE: 'Default Builds' # run once with normal dependencies
     steps:
-      - name: Pull image
-        run: docker pull condaforge/mambaforge:latest
       - name: Checkout branch
         uses: actions/checkout@v3
+      - uses: mamba-org/setup-micromamba@875557da4ee020f18df03b8910a42203fbf02da1
         with:
-          ref: ${{ github.head_ref }}
-      - name: Run CI inside of container
-        uses: ./.github/actions/unittests
-        with:
-          python_version: ${{ matrix.PYTHON_VERSION }}
-          pandas_version: ${{ matrix.PANDAS_VERSION }}
-          numpy_version: ${{ matrix.NUMPY_VERSION }}
-          scikit_version: ${{ matrix.SCIKIT_VERSION }}
-          scipy_version: ${{ matrix.SCIPY_VERSION }}
-          tabmat_version: ${{ matrix.TABMAT_VERSION }}
-      - name: Issue on failure
-        uses: actions/github-script@v6
-        if: ${{ failure() }}
-        with:
-          script: |
-            github.rest.issues.listForRepo({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              state: "open",
-              labels: "[bot] Daily run"
-            }).then((issues) => {
-              if (issues.data.length === 0){
-                github.rest.issues.create({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  title: "Daily run failure: Unit tests",
-                  body: "The daily unit tests failed. See https://github.com/Quantco/glum/actions/runs/${{ github.run_id }} for details.",
-                  assignees: ["MarcAntoineSchmidtQC"],
-                  labels: ["[bot] Daily run"]
-                })
-              }
-            });
+          environment-file: environment.yml
+          create-args: >- # h2o-py and openjdk from environment-benchmark.yml
+            python=${{ matrix.PYTHON_VERSION }}
+            h2o-py
+            openjdk
+      - name: Install nightlies
+        if: ${{ matrix.NOTE }} == 'Nightly Builds'
+        shell: bash -el {0}
+        env:
+          TABMAT_VERSION: ${{ matrix.TABMAT_VERSION }}
+          PANDAS_VERSION: ${{ matrix.PANDAS_VERSION }}
+          NUMPY_VERSION: ${{ matrix.NUMPY_VERSION }}
+          SCIKIT_VERSION: ${{ matrix.SCIKIT_VERSION }}
+          SCIPY_VERSION: ${{ matrix.SCIPY_VERSION }}
+        run: |
+          # needed for tabmat
+          echo "Install compilation dependencies"
+          micromamba install -y c-compiler cxx-compiler cython jemalloc-local libgomp mako xsimd
+
+          PRE_WHEELS="https://pypi.anaconda.org/scipy-wheels-nightly/simple"
+          echo "Installing Numpy nightly"
+          micromamba uninstall -y --force numpy
+          pip install --pre --no-deps --only-binary :all: --upgrade --timeout=60 -i $PRE_WHEELS numpy
+          echo "Installing Pandas nightly"
+          micromamba uninstall -y --force pandas
+          pip install --pre --no-deps --only-binary :all: --upgrade --timeout=60 -i $PRE_WHEELS pandas
+          echo "Install scikit-learn nightly"
+          micromamba uninstall -y --force scikit-learn
+          pip install --pre --no-deps --only-binary :all: --upgrade --timeout=60 -i $PRE_WHEELS scikit-learn
+          echo "Installing Scipy nightly"
+          micromamba uninstall -y --force scipy
+          pip install --pre --no-deps --only-binary :all: --upgrade --timeout=60 -i $PRE_WHEELS scipy
+          echo "Install tabmat nightly"
+          micromamba uninstall -y --force tabmat
+          pip install git+https://github.com/Quantco/tabmat
+      - name: Install repository
+        shell: bash -el {0}
+        run: pip install --no-use-pep517 --no-deps --disable-pip-version-check -e .
+      - name: Run pytest
+        shell: bash -el {0}
+        run: pytest -nauto tests --doctest-modules src/glum/
+      - name: Run doctest
+        shell: bash -el {0}
+        # Check that the readme example will work by running via doctest.
+        # We run outside the repo to make the test a bit more similar to
+        # a user running after installing with conda.
+        run: |
+          mkdir ../temp
+          cp README.md ../temp
+          cd ../temp
+          python -m doctest -v README.md
+      # - name: Issue on failure
+      #   uses: actions/github-script@v6
+      #   if: ${{ failure() }}
+      #   with:
+      #     script: |
+      #       github.rest.issues.listForRepo({
+      #         owner: context.repo.owner,
+      #         repo: context.repo.repo,
+      #         state: "open",
+      #         labels: "[bot] Daily run"
+      #       }).then((issues) => {
+      #         if (issues.data.length === 0){
+      #           github.rest.issues.create({
+      #             owner: context.repo.owner,
+      #             repo: context.repo.repo,
+      #             title: "Daily run failure: Unit tests",
+      #             body: "The daily unit tests failed. See https://github.com/Quantco/glum/actions/runs/${{ github.run_id }} for details.",
+      #             assignees: ["MarcAntoineSchmidtQC"],
+      #             labels: ["[bot] Daily run"]
+      #           })
+      #         }
+      #       });

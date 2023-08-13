@@ -2,11 +2,6 @@
 
 set -exo pipefail
 
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-source ${SCRIPT_DIR}/base.sh "$PYTHON_VERSION"
-
-mamba install -y yq
-
 cat environment.yml > /tmp/environment.yml
 
 # pin version of some libraries, if specified
@@ -25,8 +20,8 @@ done
 cat /tmp/environment.yml
 
 mamba env create -f /tmp/environment.yml
-mamba env update -n $(yq -r .name environment.yml) --file environment-benchmark.yml
-conda activate $(yq -r .name environment.yml)
+mamba env update -n "$(yq -r .name environment.yml)" --file environment-benchmark.yml
+conda activate "$(yq -r .name environment.yml)"
 
 # This needs to be done before any 'uninstall --force'
 if [[ "$TABMAT_VERSION" == "nightly" ]]; then
