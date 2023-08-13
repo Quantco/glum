@@ -26,6 +26,9 @@ jobs:
         with:
           init-shell: cmd.exe
           create-args: boa
+      - name: DEBUG
+        shell: cmd /C CALL {0}
+        run: micromamba info
       - name: Build conda package
-        shell: cmd /C call {0}
+        shell: cmd /C CALL {0}
         run: conda-mambabuild -m ".ci_support/${{ matrix.CONDA_BUILD_YML}}.yaml" conda.recipe
