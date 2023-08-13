@@ -63,25 +63,25 @@ jobs:
           cp README.md ../temp
           cd ../temp
           python -m doctest -v README.md
-      # - name: Issue on failure
-      #   uses: actions/github-script@v6
-      #   if: ${{ failure() }}
-      #   with:
-      #     script: |
-      #       github.rest.issues.listForRepo({
-      #         owner: context.repo.owner,
-      #         repo: context.repo.repo,
-      #         state: "open",
-      #         labels: "[bot] Daily run"
-      #       }).then((issues) => {
-      #         if (issues.data.length === 0){
-      #           github.rest.issues.create({
-      #             owner: context.repo.owner,
-      #             repo: context.repo.repo,
-      #             title: "Daily run failure: Unit tests",
-      #             body: "The daily unit tests failed. See https://github.com/Quantco/glum/actions/runs/${{ github.run_id }} for details.",
-      #             assignees: ["MarcAntoineSchmidtQC"],
-      #             labels: ["[bot] Daily run"]
-      #           })
-      #         }
-      #       });
+      - name: Issue on failure
+        uses: actions/github-script@v6
+        if: ${{ failure() }}
+        with:
+          script: |
+            github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open",
+              labels: "[bot] Daily run"
+            }).then((issues) => {
+              if (issues.data.length === 0){
+                github.rest.issues.create({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  title: "Daily run failure: Unit tests",
+                  body: "The daily unit tests failed. See https://github.com/Quantco/glum/actions/runs/${{ github.run_id }} for details.",
+                  assignees: ["MarcAntoineSchmidtQC"],
+                  labels: ["[bot] Daily run"]
+                })
+              }
+            });
