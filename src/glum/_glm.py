@@ -1621,7 +1621,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                     / (sum_weights - self.n_features_in_ - int(self.fit_intercept))
                 )
             else:
-                inner_part = gradient.sandwich(np.ones_like(y))
+                inner_part = gradient.sandwich(np.ones_like(y, dtype=X.dtype))
                 correction = sum_weights / (
                     sum_weights - self.n_features_in_ - int(self.fit_intercept)
                 )
