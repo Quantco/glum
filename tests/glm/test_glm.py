@@ -1738,6 +1738,26 @@ def test_passing_noncontiguous_as_X():
             ),
             np.array(["x1__0", "x1__1", "x1__2", "x1__3", "x1__4", "x2__2"]),
         ),
+        (
+            tm.SplitMatrix(
+                [
+                    tm.CategoricalMatrix(
+                        np.arange(5), column_name_format="{name}__{category}"
+                    ),
+                    tm.DenseMatrix(np.ones((5, 1))),
+                ]
+            ),
+            np.array(
+                [
+                    "_col_0-4__0",
+                    "_col_0-4__1",
+                    "_col_0-4__2",
+                    "_col_0-4__3",
+                    "_col_0-4__4",
+                    "_col_5",
+                ]
+            ),
+        ),
     ],
 )
 def test_feature_names_underscores(X, feature_names):
@@ -1764,6 +1784,26 @@ def test_feature_names_underscores(X, feature_names):
                 }
             ),
             np.array(["x1[0]", "x1[1]", "x1[2]", "x1[3]", "x1[4]", "x2[2]"]),
+        ),
+        (
+            tm.SplitMatrix(
+                [
+                    tm.CategoricalMatrix(
+                        np.arange(5), column_name_format="{name}[{category}]"
+                    ),
+                    tm.DenseMatrix(np.ones((5, 1))),
+                ]
+            ),
+            np.array(
+                [
+                    "_col_0-4[0]",
+                    "_col_0-4[1]",
+                    "_col_0-4[2]",
+                    "_col_0-4[3]",
+                    "_col_0-4[4]",
+                    "_col_5",
+                ]
+            ),
         ),
     ],
 )
@@ -1792,12 +1832,25 @@ def test_feature_names_brackets(X, feature_names):
             ),
             np.array(["x1", "x1", "x1", "x1", "x1", "x2"]),
         ),
+        (
+            tm.SplitMatrix(
+                [tm.CategoricalMatrix(np.arange(5)), tm.DenseMatrix(np.ones((5, 1)))]
+            ),
+            np.array(
+                [
+                    "_col_0-4",
+                    "_col_0-4",
+                    "_col_0-4",
+                    "_col_0-4",
+                    "_col_0-4",
+                    "_col_5",
+                ]
+            ),
+        ),
     ],
 )
 def test_term_names(X, term_names):
-    model = GeneralizedLinearRegressor(
-        family="poisson", categorical_format="{name}__{category}"
-    ).fit(X, np.arange(5))
+    model = GeneralizedLinearRegressor(family="poisson").fit(X, np.arange(5))
     np.testing.assert_array_equal(getattr(model, "term_names_", None), term_names)
 
 
