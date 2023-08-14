@@ -28,7 +28,7 @@ import pandas as pd
 import scipy.sparse as sps
 import scipy.sparse.linalg as splinalg
 import tabmat as tm
-from formulaic import Formula
+from formulaic import Formula, FormulaSpec
 from formulaic.parser import DefaultFormulaParser
 from scipy import linalg, sparse
 from sklearn.base import BaseEstimator, RegressorMixin
@@ -233,7 +233,7 @@ def _name_categorical_variables(
 
 
 def _parse_formula(
-    formula: Union[str, Formula], include_intercept: bool = True
+    formula: FormulaSpec, include_intercept: bool = True
 ) -> Tuple[Optional[Formula], Formula]:
     """
     Parse and transform  the formula for use in a GeneralizedLinearRegressor.
@@ -245,7 +245,7 @@ def _parse_formula(
 
     Parameters
     ----------
-    formula : str or Formula
+    formula : FormulaSpec
         The formula to parse.
     include_intercept: bool, default True
         Whether to include an intercept column if the formula does not
@@ -767,7 +767,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         drop_first: bool = False,
         robust: bool = True,
         expected_information: bool = False,
-        formula: Optional[Union[str, Formula]] = None,
+        formula: Optional[FormulaSpec] = None,
         interaction_separator: str = ":",
         categorical_format: str = "{name}[T.{category}]",
     ):
@@ -2362,7 +2362,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     expected_information : bool, optional (default = False)
         If true, then the expected information matrix is computed by default.
         Only relevant when computing robust standard errors.
-    formula: str
+    formula : FormulaSpec
         A formula accepted by formulaic. It can either be a one-sided formula, in
         which case ``y`` must be specified in ``fit``, or a two-sided formula, in
         which case ``y`` must be ``None``.
@@ -2458,7 +2458,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         drop_first: bool = False,
         robust: bool = True,
         expected_information: bool = False,
-        formula: Optional[Union[str, Formula]] = None,
+        formula: Optional[FormulaSpec] = None,
         interaction_separator: str = ":",
         categorical_format: str = "{name}[T.{category}]",
     ):

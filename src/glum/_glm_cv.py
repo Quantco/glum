@@ -2,7 +2,7 @@ import copy
 from typing import Optional, Union
 
 import numpy as np
-from formulaic import Formula
+from formulaic import FormulaSpec
 from joblib import Parallel, delayed
 from sklearn.model_selection._split import check_cv
 
@@ -245,7 +245,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
     drop_first : bool, optional (default = False)
         If ``True``, drop the first column when encoding categorical variables.
 
-    formula: str
+    formula : FormulaSpec
         A formula accepted by formulaic. It can either be a one-sided formula, in
         which case ``y`` must be specified in ``fit``, or a two-sided formula, in
         which case ``y`` must be ``None``.
@@ -331,7 +331,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         drop_first: bool = False,
         robust: bool = True,
         expected_information: bool = False,
-        formula: Optional[Union[str, Formula]] = None,
+        formula: Optional[FormulaSpec] = None,
         interaction_separator: str = ":",
         categorical_format: str = "{name}[T.{category}]",
     ):
