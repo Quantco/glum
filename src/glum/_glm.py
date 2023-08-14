@@ -1970,8 +1970,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         #######################################################################
         X = tm.as_tabmat(X)
 
-        self.feature_names_ = X.column_names
-        self.term_names_ = X.term_names
+        self.feature_names_ = X.get_names(type="column", missing_prefix="_col_")
+        self.term_names_ = X.get_names(type="term", missing_prefix="_col_")
 
         return X, y, sample_weight, offset, weights_sum, P1, P2
 
