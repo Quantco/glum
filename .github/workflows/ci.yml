@@ -46,10 +46,8 @@ jobs:
           environment-file: environment.yml
           init-shell: ${{ matrix.os == 'windows-latest' && 'powershell' || 'bash' }}
           cache-environment: true
-          create-args: >- # h2o-py and openjdk from environment-benchmark.yml
+          create-args: >-
             python=${{ matrix.python-version }}
-            h2o-py
-            openjdk
       - name: Install repository (unix)
         if: matrix.os != 'windows-latest'
         shell: bash -el {0}
@@ -61,11 +59,11 @@ jobs:
       - name: Run pytest (unix)
         if: matrix.os != 'windows-latest'
         shell: bash -el {0}
-        run: pytest -nauto tests --doctest-modules src/glum
+        run: pytest -nauto tests/glm --doctest-modules src/glum
       - name: Run pytest (windows)
         if: matrix.os == 'windows-latest'
         shell: powershell
-        run: pytest -nauto tests --doctest-modules src/glum
+        run: pytest -nauto .\tests\glm --doctest-modules .\src\glum
       - name: Run doctest
         if: matrix.os != 'windows-latest'
         shell: bash -el {0}
