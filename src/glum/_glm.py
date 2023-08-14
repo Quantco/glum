@@ -87,8 +87,8 @@ ShapedArrayLike = Union[
 def check_array_tabmat_compliant(mat: ArrayLike, drop_first: int = False, **kwargs):
     to_copy = kwargs.get("copy", False)
 
-    if isinstance(mat, pd.DataFrame) and any(mat.dtypes == "category"):
-        mat = tm.from_pandas(mat, drop_first=drop_first)
+    if isinstance(mat, pd.DataFrame):
+        raise RuntimeError("DataFrames should have been converted by this point.")
 
     if isinstance(mat, tm.SplitMatrix):
         kwargs.update({"ensure_min_features": 0})
@@ -117,7 +117,9 @@ def check_array_tabmat_compliant(mat: ArrayLike, drop_first: int = False, **kwar
         res = check_array(mat, **kwargs)
 
     if res is not mat and original_type in (tm.DenseMatrix, tm.SparseMatrix):
-        res = original_type(res)  # type: ignore
+        res = original_type(
+            res, column_names=mat.column_names, term_names=mat.term_names  # type: ignore
+        )
 
     return res
 
@@ -718,6 +720,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         drop_first: bool = False,
         robust: bool = True,
         expected_information: bool = False,
+        categorical_format: str = "{name}[{category}]",
     ):
         self.l1_ratio = l1_ratio
         self.P1 = P1
@@ -750,6 +753,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self.drop_first = drop_first
         self.robust = robust
         self.expected_information = expected_information
+        self.categorical_format = categorical_format
 
     @property
     def family_instance(self) -> ExponentialDispersionModel:
@@ -1303,8 +1307,15 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         array, shape (n_samples, n_alphas)
             Predicted values times ``sample_weight``.
         """
-        if isinstance(X, pd.DataFrame) and hasattr(self, "feature_dtypes_"):
-            X = _align_df_categories(X, self.feature_dtypes_)
+        if isinstance(X, pd.DataFrame):
+            if hasattr(self, "feature_dtypes_"):
+                X = _align_df_categories(X, self.feature_dtypes_)
+
+            X = tm.from_pandas(
+                X,
+                drop_first=self.drop_first,
+                categorical_format=self.categorical_format,
+            )
 
         X = check_array_tabmat_compliant(
             X,
@@ -1539,8 +1550,15 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                     )
                 return self.covariance_matrix_
 
-            if isinstance(X, pd.DataFrame) and hasattr(self, "feature_dtypes_"):
-                X = _align_df_categories(X, self.feature_dtypes_)
+            if isinstance(X, pd.DataFrame):
+                if hasattr(self, "feature_dtypes_"):
+                    X = _align_df_categories(X, self.feature_dtypes_)
+
+                X = tm.from_pandas(
+                    X,
+                    drop_first=self.drop_first,
+                    categorical_format=self.categorical_format,
+                )
 
             X, y = check_X_y_tabmat_compliant(
                 X,
@@ -1839,16 +1857,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             self.feature_dtypes_ = X.dtypes.to_dict()
 
             if any(X.dtypes == "category"):
-                self.feature_names_ = list(
-                    chain.from_iterable(
-                        _name_categorical_variables(
-                            dtype.categories, column, self.drop_first
-                        )
-                        if pd.api.types.is_categorical_dtype(dtype)
-                        else [column]
-                        for column, dtype in zip(X.columns, X.dtypes)
-                    )
-                )
 
                 def _expand_categorical_penalties(penalty, X, drop_first):
                     """
@@ -1885,10 +1893,11 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 P1 = _expand_categorical_penalties(self.P1, X, self.drop_first)
                 P2 = _expand_categorical_penalties(self.P2, X, self.drop_first)
 
-                X = tm.from_pandas(X, drop_first=self.drop_first)
-            else:
-                self.feature_names_ = X.columns
-                X = tm.from_pandas(X)
+            X = tm.from_pandas(
+                X,
+                drop_first=self.drop_first,
+                categorical_format=self.categorical_format,
+            )
 
         if not self._is_contiguous(X):
             if self.copy_X is not None and not self.copy_X:
@@ -1960,6 +1969,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         # 2b. convert to wrapper matrix types
         #######################################################################
         X = tm.as_tabmat(X)
+
+        self.feature_names_ = X.column_names
+        self.term_names_ = X.term_names
 
         return X, y, sample_weight, offset, weights_sum, P1, P2
 
@@ -2329,6 +2341,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         drop_first: bool = False,
         robust: bool = True,
         expected_information: bool = False,
+        categorical_format: str = "{name}[{category}]",
     ):
         self.alphas = alphas
         self.alpha = alpha
@@ -2364,6 +2377,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             drop_first=drop_first,
             robust=robust,
             expected_information=expected_information,
+            categorical_format=categorical_format,
         )
 
     def _validate_hyperparameters(self) -> None:

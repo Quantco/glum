@@ -317,6 +317,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         drop_first: bool = False,
         robust: bool = True,
         expected_information: bool = False,
+        categorical_format: str = "{name}[{category}]",
     ):
         self.alphas = alphas
         self.cv = cv
@@ -352,6 +353,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             drop_first=drop_first,
             robust=robust,
             expected_information=expected_information,
+            categorical_format=categorical_format,
         )
 
     def _validate_hyperparameters(self) -> None:
