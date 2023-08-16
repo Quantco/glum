@@ -827,6 +827,19 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         return coef
 
+    def _convert_from_pandas(self, df: pd.DataFrame) -> tm.MatrixBase:
+        """Convert a pandas data frame to a tabmat matrix."""
+        if hasattr(self, "feature_dtypes_"):
+            df = _align_df_categories(df, self.feature_dtypes_)
+
+        X = tm.from_pandas(
+            df,
+            drop_first=self.drop_first,
+            categorical_format=self.categorical_format,
+        )
+
+        return X
+
     def _set_up_for_fit(self, y: np.ndarray) -> None:
         #######################################################################
         # 1. input validation                                                 #
@@ -1238,14 +1251,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             alpha_index = [self._find_alpha_index(a) for a in alpha]  # type: ignore
 
         if isinstance(X, pd.DataFrame):
-            if hasattr(self, "feature_dtypes_"):
-                X = _align_df_categories(X, self.feature_dtypes_)
-
-            X = tm.from_pandas(
-                X,
-                drop_first=self.drop_first,
-                categorical_format=self.categorical_format,
-            )
+            X = self._convert_from_pandas(X)
 
         X = check_array_tabmat_compliant(
             X,
@@ -1317,6 +1323,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         array, shape (n_samples, n_alphas)
             Predicted values times ``sample_weight``.
         """
+        if isinstance(X, pd.DataFrame):
+            X = self._convert_from_pandas(X)
+
         eta = self.linear_predictor(
             X, offset=offset, alpha_index=alpha_index, alpha=alpha
         )
@@ -1542,14 +1551,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 return self.covariance_matrix_
 
             if isinstance(X, pd.DataFrame):
-                if hasattr(self, "feature_dtypes_"):
-                    X = _align_df_categories(X, self.feature_dtypes_)
-
-                X = tm.from_pandas(
-                    X,
-                    drop_first=self.drop_first,
-                    categorical_format=self.categorical_format,
-                )
+                X = self._convert_from_pandas(X)
 
             X, y = check_X_y_tabmat_compliant(
                 X,
