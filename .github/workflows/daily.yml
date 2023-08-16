@@ -44,7 +44,7 @@ jobs:
           done
           echo Install tabmat nightly
           micromamba remove -y --force tabmat
-          pip install git+https://github.com/Quantco/tabmat
+          pip install git+https://github.com/Quantco/tabmat@tabmat-v4
       - name: Install repository
         shell: bash -el {0}
         run: pip install --no-use-pep517 --no-deps --disable-pip-version-check -e .
