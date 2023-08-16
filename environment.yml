@@ -1,5 +1,6 @@
 name: glum
 channels:
+  - conda-forge/label/tabmat_dev
   - conda-forge
   - nodefaults
 dependencies:
@@ -8,7 +9,7 @@ dependencies:
   - libblas>=0=*mkl  # comment this line out for macOS arm64
   - numexpr
   - pandas>=0.21
-  - tabmat>=3.1.0
+  - tabmat>=4.0.0a
   - scikit-learn>=0.23
   - scipy
   - tqdm

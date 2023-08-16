@@ -1,0 +1,64 @@
+name: conda-build
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/**'
+      - 'conda.recipe/**'
+
+jobs:
+  conda-build:
+    name: ${{ matrix.conda_build_yml }}
+    runs-on: ${{ matrix.os }}
+    env:
+      CI: True
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { conda_build_yml: linux_64_numpy1.20python3.8.____cpython,   os: ubuntu-latest,  conda-build-args: ' -c conda-forge/label/tabmat_dev -c conda-forge' }
+          - { conda_build_yml: linux_64_numpy1.20python3.9.____cpython,   os: ubuntu-latest,  conda-build-args: ' -c conda-forge/label/tabmat_dev -c conda-forge' }
+          - { conda_build_yml: linux_64_numpy1.23python3.11.____cpython,  os: ubuntu-latest,  conda-build-args: ' -c conda-forge/label/tabmat_dev -c conda-forge' }
+          - { conda_build_yml: osx_64_numpy1.20python3.9.____cpython,     os: macos-latest,   conda-build-args: ' -c conda-forge/label/tabmat_dev -c conda-forge' }
+          - { conda_build_yml: osx_64_numpy1.23python3.11.____cpython,    os: macos-latest,   conda-build-args: ' -c conda-forge/label/tabmat_dev -c conda-forge' }
+          - { conda_build_yml: osx_arm64_numpy1.20python3.8.____cpython,  os: macos-latest,   conda-build-args: ' -c conda-forge/label/tabmat_dev -c conda-forge --no-test' }
+          - { conda_build_yml: osx_arm64_numpy1.21python3.10.____cpython, os: macos-latest,   conda-build-args: ' -c conda-forge/label/tabmat_dev -c conda-forge --no-test' }
+          - { conda_build_yml: win_64_numpy1.20python3.8.____cpython,     os: windows-latest, conda-build-args: ' -c conda-forge/label/tabmat_dev -c conda-forge' }
+          - { conda_build_yml: win_64_numpy1.23python3.11.____cpython,    os: windows-latest, conda-build-args: ' -c conda-forge/label/tabmat_dev -c conda-forge' }
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v3
+      - name: Fetch full git history
+        run: git fetch --prune --unshallow
+      - uses: mamba-org/setup-micromamba@875557da4ee020f18df03b8910a42203fbf02da1
+        with:
+          init-shell: ${{ matrix.os == 'windows-latest' && 'cmd.exe' || 'bash' }}
+          environment-name: build
+          create-args: boa
+      - name: Patch conda build configuration
+        # use the latest macOS SDK when cross-compiling for arm64
+        if: startsWith(matrix.conda_build_yml, 'osx_arm64')
+        run: |
+          CONDA_BUILD_SYSROOT="$(xcrun --sdk macosx --show-sdk-path)"
+          cat <<EOF >> ".ci_support/${{ matrix.CONDA_BUILD_YML }}.yaml"
+          CONDA_BUILD_SYSROOT:
+            - "${CONDA_BUILD_SYSROOT}"
+          EOF
+      - name: Build conda package (unix)
+        if: matrix.os != 'windows-latest'
+        shell: bash -el {0}
+        run: >-
+          conda-mambabuild
+          -m ".ci_support/${{ matrix.CONDA_BUILD_YML }}.yaml"${{ matrix.conda-build-args }}
+          conda.recipe
+      - name: Build conda package (windows)
+        if: matrix.os == 'windows-latest'
+        shell: cmd /C CALL {0}
+        run: >-
+          conda-mambabuild
+          -m ".ci_support/${{ matrix.conda_build_yml }}.yaml"${{ matrix.conda-build-args }}
+          conda.recipe
