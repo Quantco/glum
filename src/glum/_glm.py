@@ -1237,6 +1237,16 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         elif alpha is not None:
             alpha_index = [self._find_alpha_index(a) for a in alpha]  # type: ignore
 
+        if isinstance(X, pd.DataFrame):
+            if hasattr(self, "feature_dtypes_"):
+                X = _align_df_categories(X, self.feature_dtypes_)
+
+            X = tm.from_pandas(
+                X,
+                drop_first=self.drop_first,
+                categorical_format=self.categorical_format,
+            )
+
         X = check_array_tabmat_compliant(
             X,
             accept_sparse=["csr", "csc", "coo"],
@@ -1307,25 +1317,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         array, shape (n_samples, n_alphas)
             Predicted values times ``sample_weight``.
         """
-        if isinstance(X, pd.DataFrame):
-            if hasattr(self, "feature_dtypes_"):
-                X = _align_df_categories(X, self.feature_dtypes_)
-
-            X = tm.from_pandas(
-                X,
-                drop_first=self.drop_first,
-                categorical_format=self.categorical_format,
-            )
-
-        X = check_array_tabmat_compliant(
-            X,
-            accept_sparse=["csr", "csc", "coo"],
-            dtype="numeric",
-            copy=self._should_copy_X(),
-            ensure_2d=True,
-            allow_nd=False,
-            drop_first=self.drop_first,
-        )
         eta = self.linear_predictor(
             X, offset=offset, alpha_index=alpha_index, alpha=alpha
         )
