@@ -833,7 +833,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
     def _convert_from_pandas(self, df: pd.DataFrame) -> tm.MatrixBase:
         """Convert a pandas data frame to a tabmat matrix."""
-
         if hasattr(self, "feature_dtypes_"):
             df = _align_df_categories(df, self.feature_dtypes_)
             if self.cat_missing_method == "convert":
