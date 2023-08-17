@@ -60,7 +60,7 @@ from ._solvers import (
     _least_squares_solver,
     _trust_constr_solver,
 )
-from ._util import _align_df_categories, _safe_toarray
+from ._util import _add_missing_categories, _align_df_categories, _safe_toarray
 
 _float_itemsize_to_dtype = {8: np.float64, 4: np.float32, 2: np.float16}
 
@@ -833,13 +833,23 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
     def _convert_from_pandas(self, df: pd.DataFrame) -> tm.MatrixBase:
         """Convert a pandas data frame to a tabmat matrix."""
+
         if hasattr(self, "feature_dtypes_"):
             df = _align_df_categories(df, self.feature_dtypes_)
+            if self.cat_missing_method == "convert":
+                df = _add_missing_categories(
+                    df=df,
+                    dtypes=self.feature_dtypes_,
+                    feature_names=self.feature_names_,
+                    cat_missing_name=self.cat_missing_name,
+                    categorical_format=self.categorical_format,
+                )
 
         X = tm.from_pandas(
             df,
             drop_first=self.drop_first,
             categorical_format=self.categorical_format,
+            cat_missing_method=self.cat_missing_method,
         )
 
         return X

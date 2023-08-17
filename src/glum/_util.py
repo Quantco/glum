@@ -1,5 +1,5 @@
 import logging
-from typing import Union
+from typing import Sequence, Union
 
 import numpy as np
 import pandas as pd
@@ -46,6 +46,40 @@ def _align_df_categories(df, dtypes) -> pd.DataFrame:
             changed_dtypes[column] = df[column].cat.set_categories(
                 dtypes[column].categories
             )
+
+    if changed_dtypes:
+        df = df.assign(**changed_dtypes)
+
+    return df
+
+
+def _add_missing_categories(
+    df,
+    dtypes,
+    feature_names: Sequence[str],
+    categorical_format: str,
+    cat_missing_name: str,
+) -> pd.DataFrame:
+    if not isinstance(df, pd.DataFrame):
+        raise TypeError(f"Expected `pandas.DataFrame'; got {type(df)}.")
+
+    changed_dtypes = {}
+
+    categorical_dtypes = [
+        column
+        for column, dtype in dtypes.items()
+        if pd.api.types.is_categorical_dtype(dtype) and (column in df)
+    ]
+
+    for column in categorical_dtypes:
+        if (
+            categorical_format.format(name=column, category=cat_missing_name)
+            in feature_names
+        ):
+            _logger.info(f"Adding missing category {cat_missing_name} to {column}.")
+            changed_dtypes[column] = df[column].cat.add_categories(cat_missing_name)
+            if df[column].isnull().any():
+                changed_dtypes[column] = changed_dtypes[column].fillna(cat_missing_name)
 
     if changed_dtypes:
         df = df.assign(**changed_dtypes)

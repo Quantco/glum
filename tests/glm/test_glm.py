@@ -2358,13 +2358,13 @@ def test_store_covariance_matrix_cv(
 def test_cat_missing(cat_missing_method):
     X = pd.DataFrame(
         {
-            "cat_1": pd.Categorical([1, 2, 1, 2, 1]),
+            "cat_1": pd.Categorical([1, 2, pd.NA, 2, 1]),
             "cat_2": pd.Categorical([1, 2, pd.NA, 1, 2]),
         }
     )
     X_unseen = pd.DataFrame(
         {
-            "cat_1": pd.Categorical([1, 1]),
+            "cat_1": pd.Categorical([1, pd.NA]),
             "cat_2": pd.Categorical([1, 2]),
         }
     )
@@ -2385,6 +2385,7 @@ def test_cat_missing(cat_missing_method):
         feature_names = ["cat_1[1]", "cat_1[2]", "cat_2[1]", "cat_2[2]"]
 
         if cat_missing_method == "convert":
+            feature_names.insert(2, "cat_1[(MISSING)]")
             feature_names.append("cat_2[(MISSING)]")
 
         np.testing.assert_array_equal(model.feature_names_, feature_names)
