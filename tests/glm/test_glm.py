@@ -2352,3 +2352,42 @@ def test_store_covariance_matrix_cv(
         ),
         regressor.covariance_matrix(),
     )
+
+
+@pytest.mark.parametrize("cat_missing_method", ["fail", "zero", "convert"])
+def test_cat_missing(cat_missing_method):
+    X = pd.DataFrame(
+        {
+            "cat_1": pd.Categorical([1, 2, 1, 2, 1]),
+            "cat_2": pd.Categorical([1, 2, pd.NA, 1, 2]),
+        }
+    )
+    X_unseen = pd.DataFrame(
+        {
+            "cat_1": pd.Categorical([1, 1]),
+            "cat_2": pd.Categorical([1, 2]),
+        }
+    )
+    y = np.array([1, 2, 3, 4, 5])
+
+    model = GeneralizedLinearRegressor(
+        family="normal",
+        cat_missing_method=cat_missing_method,
+        drop_first=False,
+        fit_intercept=False,
+    )
+
+    if cat_missing_method == "fail":
+        with pytest.raises(ValueError):
+            model.fit(X, y)
+    else:
+        model.fit(X, y)
+        feature_names = ["cat_1[1]", "cat_1[2]", "cat_2[1]", "cat_2[2]"]
+
+        if cat_missing_method == "convert":
+            feature_names.append("cat_2[(MISSING)]")
+
+        np.testing.assert_array_equal(model.feature_names_, feature_names)
+        assert len(model.coef_) == len(feature_names)
+
+        model.predict(X_unseen)
