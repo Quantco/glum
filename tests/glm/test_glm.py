@@ -2238,10 +2238,11 @@ def test_wald_test_feature_name(regression_data, names, R, r):
 )
 def test_wald_test_feature_name_public(regression_data, names, r):
     X, y = regression_data
+    X_df = pd.DataFrame(X, columns=[f"col_{i}" for i in range(X.shape[1])])
 
     mdl = GeneralizedLinearRegressor(
         alpha=0, family="gaussian", fit_intercept=True
-    ).fit(X=X, y=y, store_covariance_matrix=True)
+    ).fit(X=X_df, y=y, store_covariance_matrix=True)
 
     assert mdl._wald_test_feature_name(names, r) == mdl.wald_test(features=names, r=r)
 
