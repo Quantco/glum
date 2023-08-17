@@ -2199,7 +2199,6 @@ def test_drop_first_allows_alpha_equals_0():
         regressor.fit(X, y)
 
 
-@pytest.mark.xfail
 def test_dropping_distinct_categorical_column():
     y = np.random.normal(size=10)
     X = pd.DataFrame(data={"cat": pd.Categorical(np.ones(10)), "num": np.ones(10)})
