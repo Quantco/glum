@@ -721,6 +721,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         robust: bool = True,
         expected_information: bool = False,
         categorical_format: str = "{name}[{category}]",
+        cat_missing_method: str = "fail",
+        cat_missing_name: str = "(MISSING)",
     ):
         self.l1_ratio = l1_ratio
         self.P1 = P1
@@ -754,6 +756,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self.robust = robust
         self.expected_information = expected_information
         self.categorical_format = categorical_format
+        self.cat_missing_method = cat_missing_method
+        self.cat_missing_name = cat_missing_name
 
     @property
     def family_instance(self) -> ExponentialDispersionModel:
@@ -1890,6 +1894,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 X,
                 drop_first=self.drop_first,
                 categorical_format=self.categorical_format,
+                cat_missing_method=self.cat_missing_method,
+                cat_missing_name=self.cat_missing_name,
             )
 
         if not self._is_contiguous(X):
@@ -2251,11 +2257,22 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         If true, then the expected information matrix is computed by default.
         Only relevant when computing robust standard errors.
 
-    categorical_features : str, optional (default = "{name}[{category}]")
+    categorical_format : str, optional (default = "{name}[{category}]")
         Format string for categorical features. The format string should
         contain the placeholder ``{name}`` for the feature name and
         ``{category}`` for the category name. Only used if ``X`` is a pandas
         DataFrame.
+
+    cat_missing_method: str {'fail'|'zero'|'convert'}, default 'fail'
+        How to handle missing values in categorical columns. Only used if ``X``
+        is a pandas data frame.
+        - if 'fail', raise an error if there are missing values
+        - if 'zero', missing values will represent all-zero indicator columns.
+        - if 'convert', missing values will be converted to the ``cat_missing_name``
+          category.
+    cat_missing_name: str, default '(MISSING)'
+        Name of the category to which missing values will be converted if
+        ``cat_missing_method='convert'``.  Only used if ``X`` is a pandas data frame.
 
     Attributes
     ----------
@@ -2341,6 +2358,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         robust: bool = True,
         expected_information: bool = False,
         categorical_format: str = "{name}[{category}]",
+        cat_missing_method: str = "fail",
+        cat_missing_name: str = "(MISSING)",
     ):
         self.alphas = alphas
         self.alpha = alpha
@@ -2377,6 +2396,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             robust=robust,
             expected_information=expected_information,
             categorical_format=categorical_format,
+            cat_missing_method=cat_missing_method,
+            cat_missing_name=cat_missing_name,
         )
 
     def _validate_hyperparameters(self) -> None:
