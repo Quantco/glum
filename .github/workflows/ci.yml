@@ -22,6 +22,24 @@ jobs:
       - name: Run pre-commit checks
         uses: pre-commit/action@v3.0.0
 
+  conda-comply-action:
+    name: Verify Software License Compliance
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v3.5.2
+      - name: Set up micromamba
+        uses: mamba-org/setup-micromamba@d05808540d968a55ca33c798e0661fb98f533c73
+        with:
+          environment-file: environment.yml
+          cache-environment: true
+          create-args: >-
+            python=3.11
+      - name: Test Compliance
+        uses: quantco/conda-comply-action@main
+        with:
+          secret_conda_comply_pat: ${{ secrets.FQ_GH_TOKEN }}
+        
   unit-tests:
     name: Tests - ${{ matrix.os }} - Py${{ matrix.python-version }}
     runs-on: ${{ matrix.os }}
