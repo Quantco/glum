@@ -1424,7 +1424,113 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             index=names,
         )
 
-    def wald_test_matrix(
+    def wald_test(
+        self,
+        R: Optional[np.ndarray] = None,
+        features: Optional[Union[str, list[str]]] = None,
+        r: Optional[Sequence] = None,
+        X=None,
+        y=None,
+        mu=None,
+        offset=None,
+        sample_weight=None,
+        dispersion=None,
+        robust=None,
+        clusters: np.ndarray = None,
+        expected_information=None,
+    ) -> WaldTestResult:
+        """Compute the Wald test statistic and p-value for a linear hypothesis.
+
+        The left hand side of the hypothesis may be specified in the following ways:
+
+        - ``R``: The restriction matrix representing the linear combination of
+          coefficients to test.
+        - ``features``: The name of a feature or a list of features to test.
+
+        The right hand side of the tested hypothesis is specified by ``r``.
+
+        Parameters
+        ----------
+        R : np.ndarray, optional, default=None
+            The restriction matrix representing the linear combination of coefficients
+            to test.
+        features : Union[str, list[str]], optional, default=None
+            The name of a feature or a list of features to test.
+        r : np.ndarray, optional, default=None
+            The vector representing the values of the linear combination.
+            If None, the test is for whether the linear combinations of the coefficients
+            are zero.
+        X : {array-like, sparse matrix}, shape (n_samples, n_features), optional
+            Training data. Can be omitted if a covariance matrix has already
+            been computed.
+        y : array-like, shape (n_samples,), optional
+            Target values. Can be omitted if a covariance matrix has already
+            been computed.
+        mu : array-like, optional, default=None
+            Array with predictions. Estimated if absent.
+        offset : array-like, optional, default=None
+            Array with additive offsets.
+        sample_weight : array-like, shape (n_samples,), optional, default=None
+            Individual weights for each sample.
+        dispersion : float, optional, default=None
+            The dispersion parameter. Estimated if absent.
+        robust : boolean, optional, default=None
+            Whether to compute robust standard errors instead of normal ones.
+            If not specified, the model's ``robust`` attribute is used.
+        clusters : array-like, optional, default=None
+            Array with clusters membership. Clustered standard errors are
+            computed if clusters is not None.
+        expected_information : boolean, optional, default=None
+            Whether to use the expected or observed information matrix.
+            Only relevant when computing robust std-errors.
+            If not specified, the model's ``expected_information`` attribute is used.
+
+        Returns
+        -------
+        WaldTestResult
+            NamedTuple with test statistic, p-value, and degrees of freedom.
+        """
+
+        num_lhs_specs = sum([R is not None, features is not None])
+        if num_lhs_specs != 1:
+            raise ValueError(
+                "Exactly one of R or features must be specified. "
+                f"Received {num_lhs_specs} specifications."
+            )
+
+        if R is not None:
+            return self._wald_test_matrix(
+                R=R,
+                r=r,
+                X=X,
+                y=y,
+                mu=mu,
+                offset=offset,
+                sample_weight=sample_weight,
+                dispersion=dispersion,
+                robust=robust,
+                clusters=clusters,
+                expected_information=expected_information,
+            )
+
+        if features is not None:
+            return self._wald_test_feature_name(
+                features=features,
+                values=r,
+                X=X,
+                y=y,
+                mu=mu,
+                offset=offset,
+                sample_weight=sample_weight,
+                dispersion=dispersion,
+                robust=robust,
+                clusters=clusters,
+                expected_information=expected_information,
+            )
+
+        raise RuntimeError("This should never happen")
+
+    def _wald_test_matrix(
         self,
         R: np.ndarray,
         r: Optional[np.ndarray] = None,
@@ -1527,7 +1633,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         return WaldTestResult(test_stat, p_value, Q)
 
-    def wald_test_feature_name(
+    def _wald_test_feature_name(
         self,
         features: Union[str, List[str]],
         values: Optional[Sequence] = None,
@@ -1609,7 +1715,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 raise ValueError(f"feature {feature} is not in the model") from None
             R[i, j] = 1
 
-        return self.wald_test_matrix(
+        return self._wald_test_matrix(
             R=R,
             r=r,
             X=X,

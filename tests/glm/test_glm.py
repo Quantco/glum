@@ -2072,7 +2072,7 @@ def test_wald_test_matrix(regression_data, family, fit_intercept, R, r):
 
     # nonrobust
     # mdl.covariance_matrix_ = mdl_sm.fit(cov_type="nonrobust").cov_params()
-    our_results = mdl.wald_test_matrix(
+    our_results = mdl._wald_test_matrix(
         R, r, X=X, y=y, dispersion=dispersion, robust=False
     )
     fit_sm = mdl_sm.fit(cov_type="nonrobust")
@@ -2087,7 +2087,7 @@ def test_wald_test_matrix(regression_data, family, fit_intercept, R, r):
     assert our_results.df == sm_results.df_denom
 
     # robust
-    our_results = mdl.wald_test_matrix(R, r, X=X, y=y, robust=True)
+    our_results = mdl._wald_test_matrix(R, r, X=X, y=y, robust=True)
     fit_sm = mdl_sm.fit(cov_type="HC1")
     sm_results = fit_sm.wald_test(
         (R, r), cov_p=fit_sm.cov_params() * corr, scalar=False
@@ -2102,7 +2102,7 @@ def test_wald_test_matrix(regression_data, family, fit_intercept, R, r):
     # clustered
     rng = np.random.default_rng(42)
     clu = rng.integers(5, size=len(y))
-    our_results = mdl.wald_test_matrix(R, r, X=X, y=y, clusters=clu)
+    our_results = mdl._wald_test_matrix(R, r, X=X, y=y, clusters=clu)
     sm_fit = mdl_sm.fit(cov_type="cluster", cov_kwds={"groups": clu})
     sm_results = sm_fit.wald_test((R, r), scalar=False)
 
@@ -2111,6 +2111,31 @@ def test_wald_test_matrix(regression_data, family, fit_intercept, R, r):
     )
     np.testing.assert_allclose(our_results.p_value, sm_results.pvalue, atol=1e-3)
     assert our_results.df == sm_results.df_denom
+
+
+@pytest.mark.parametrize(
+    "R, r",
+    [
+        pytest.param(np.array([[0] * 10 + [1]]), np.array([0]), id="single"),
+        pytest.param(
+            np.array([[1] + [0] * 8 + [1] * 2]), np.array([0]), id="multiple_vars"
+        ),
+        pytest.param(
+            np.array([[0] * 10 + [2], [0] * 9 + [1, 1]]),
+            np.array([0, 0]),
+            id="multiple_constraints",
+        ),
+        pytest.param(np.array([[0] * 10 + [1]]), np.array([2]), id="rhs_not_zero"),
+    ],
+)
+def test_wald_test_matrix_public(regression_data, R, r):
+    X, y = regression_data
+
+    mdl = GeneralizedLinearRegressor(
+        alpha=0, family="gaussian", fit_intercept=True
+    ).fit(X=X, y=y, store_covariance_matrix=True)
+
+    assert mdl._wald_test_matrix(R, r) == mdl.wald_test(R=R, r=r)
 
 
 @pytest.mark.parametrize(
@@ -2135,7 +2160,7 @@ def test_wald_test_matrix_fixed_cov(regression_data, R, r):
     mdl_sm = sm.GLM(endog=y, exog=X, family=sm.families.Gaussian())
 
     # Use the same covariance matrix for both so that we can use tighter tolerances
-    our_results = mdl.wald_test_matrix(R, r)
+    our_results = mdl._wald_test_matrix(R, r)
     fit_sm = mdl_sm.fit()
     sm_results = fit_sm.wald_test((R, r), cov_p=mdl.covariance_matrix(), scalar=False)
 
@@ -2178,16 +2203,59 @@ def test_wald_test_feature_name(regression_data, names, R, r):
         alpha=0, family="gaussian", fit_intercept=True
     ).fit(X=X_df, y=y, store_covariance_matrix=True)
 
-    feature_names_results = mdl.wald_test_feature_name(names, r)
+    feature_names_results = mdl._wald_test_feature_name(names, r)
     if r is not None:
         r = np.array(r)  # wald_test_matrix expects an optional numpy array
-    matrix_results = mdl.wald_test_matrix(R, r)
+    matrix_results = mdl._wald_test_matrix(R, r)
 
     np.testing.assert_equal(
         feature_names_results.test_statistic, matrix_results.test_statistic
     )
     np.testing.assert_equal(feature_names_results.p_value, matrix_results.p_value)
     assert feature_names_results.df == matrix_results.df
+
+
+@pytest.mark.parametrize(
+    "names, r",
+    [
+        pytest.param(["col_9"], None, id="single"),
+        pytest.param(
+            ["col_8", "col_9"],
+            None,
+            id="multiple",
+        ),
+        pytest.param(
+            ["col_8", "col_9"],
+            [1, 2],
+            id="rhs_not_zero",
+        ),
+        pytest.param(
+            ["intercept", "col_9"],
+            [1, 2],
+            id="intercept",
+        ),
+    ],
+)
+def test_wald_test_feature_name_public(regression_data, names, r):
+    X, y = regression_data
+
+    mdl = GeneralizedLinearRegressor(
+        alpha=0, family="gaussian", fit_intercept=True
+    ).fit(X=X, y=y, store_covariance_matrix=True)
+
+    assert mdl._wald_test_feature_name(names, r) == mdl.wald_test(features=names, r=r)
+
+
+def test_wald_test_raise_on_wrong_input(regression_data):
+    X, y = regression_data
+    mdl = GeneralizedLinearRegressor(alpha=0, family="gaussian", fit_intercept=True)
+    mdl.fit(X=X, y=y)
+
+    with pytest.raises(ValueError):
+        mdl.wald_test(R=np.array([[0] * 10 + [1]]), features=["col_9"], r=[1, 2])
+
+    with pytest.raises(ValueError):
+        mdl.wald_test(r=[1, 2])
 
 
 @pytest.mark.parametrize("as_data_frame", [False, True])
