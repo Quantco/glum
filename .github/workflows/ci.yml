@@ -45,7 +45,7 @@ jobs:
         with:
           environment-file: environment.yml
           init-shell: ${{ matrix.os == 'windows-latest' && 'powershell' || 'bash' }}
-          cache-environment: false
+          cache-environment: true
           create-args: >-
             python=${{ matrix.python-version }}
       - name: Install repository (unix)
