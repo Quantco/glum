@@ -1427,7 +1427,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
     def wald_test(
         self,
         R: Optional[np.ndarray] = None,
-        features: Optional[Union[str, list[str]]] = None,
+        features: Optional[Union[str, List[str]]] = None,
         r: Optional[Sequence] = None,
         X=None,
         y=None,
