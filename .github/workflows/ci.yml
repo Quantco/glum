@@ -38,7 +38,7 @@ jobs:
       - name: Test Compliance
         uses: quantco/conda-comply-action@main
         with:
-          secret_conda_comply_pat: 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
+          secret_conda_comply_pat: ${{ secrets.FQ_GH_TOKEN }}
         
   unit-tests:
     name: Tests - ${{ matrix.os }} - Py${{ matrix.python-version }}
