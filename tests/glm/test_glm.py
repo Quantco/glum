@@ -2268,6 +2268,50 @@ def test_store_covariance_matrix(
     )
 
 
+@pytest.mark.parametrize(
+    "formula", ["y ~ col_1 + col_2", "col_1 + col_2"], ids=["two-sided", "one-sided"]
+)
+def test_store_covariance_matrix_formula(regression_data, formula):
+    X, y = regression_data
+    df = pd.DataFrame(X, columns=[f"col_{i}" for i in range(X.shape[1])])
+
+    if "~" in formula:
+        df["y"] = y
+        y = None
+
+    regressor = GeneralizedLinearRegressor(
+        formula=formula,
+        family="gaussian",
+        alpha=0,
+    )
+    regressor.fit(df, y, store_covariance_matrix=True)
+
+    np.testing.assert_array_almost_equal(
+        regressor.covariance_matrix(df, y),
+        regressor.covariance_matrix(),
+    )
+
+    np.testing.assert_array_almost_equal(
+        regressor.std_errors(df, y),
+        regressor.std_errors(),
+    )
+
+
+def test_store_covariance_matrix_formula_errors(regression_data):
+    X, y = regression_data
+    df = pd.DataFrame(X, columns=[f"col_{i}" for i in range(X.shape[1])])
+    formula = "col_1 + col_2"
+
+    regressor = GeneralizedLinearRegressor(
+        formula=formula,
+        family="gaussian",
+        alpha=0,
+    )
+    regressor.fit(df, y)
+    with pytest.raises(ValueError, match="Either X and y must be provided"):
+        regressor.covariance_matrix(df)
+
+
 def test_store_covariance_matrix_errors(regression_data):
     X, y = regression_data
 

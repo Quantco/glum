@@ -1572,14 +1572,18 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 "matrix will be incorrect."
             )
 
+        cannot_estimate_cov = X is None or (
+            y is None and not hasattr(self, "y_model_spec_")
+        )
+
         if not skip_checks:
-            if (X is None or y is None) and self.covariance_matrix_ is None:
+            if cannot_estimate_cov and self.covariance_matrix_ is None:
                 raise ValueError(
                     "Either X and y must be provided or the covariance matrix "
                     "must have been previously computed."
                 )
 
-            if (X is None or y is None) and store_covariance_matrix:
+            if cannot_estimate_cov and store_covariance_matrix:
                 raise ValueError(
                     "X and y must be provided if 'store_covariance_matrix' is True."
                 )
@@ -1606,6 +1610,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                         "parameters if X and y are not provided."
                     )
                 return self.covariance_matrix_
+
+            if hasattr(self, "y_model_spec_"):
+                y = self.y_model_spec_.get_model_matrix(X).A.ravel()
+                # This has to go first because X is modified in the next line
 
             if isinstance(X, pd.DataFrame):
                 X = self._convert_from_pandas(X)
