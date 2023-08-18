@@ -294,6 +294,12 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
     expected_information : bool, optional (default = False)
         If true, then the expected information matrix is computed by default.
         Only relevant when computing robust standard errors.
+
+    categorical_features : str, optional (default = "{name}[{category}]")
+        Format string for categorical features. The format string should
+        contain the placeholder ``{name}`` for the feature name and
+        ``{category}`` for the category name. Only used if ``X`` is a pandas
+        DataFrame.
     """
 
     def __init__(
@@ -333,7 +339,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         expected_information: bool = False,
         formula: Optional[FormulaSpec] = None,
         interaction_separator: str = ":",
-        categorical_format: str = "{name}[T.{category}]",
+        categorical_format: str = "{name}[{category}]",
     ):
         self.alphas = alphas
         self.cv = cv

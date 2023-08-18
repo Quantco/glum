@@ -1732,7 +1732,7 @@ def test_passing_noncontiguous_as_X():
     "X, feature_names",
     [
         (pd.DataFrame({"x1": np.arange(5), "x2": 2}), np.array(["x1", "x2"])),
-        (pd.DataFrame({"x1": np.arange(5), "x2": 2}).to_numpy(), None),
+        (pd.DataFrame({"x1": np.arange(5), "x2": 2}).to_numpy(), ["_col_0", "_col_1"]),
         (
             pd.DataFrame({"x1": pd.Categorical(np.arange(5)), "x2": 2}),
             np.array(["x1__0", "x1__1", "x1__2", "x1__3", "x1__4", "x2"]),
@@ -1746,11 +1746,120 @@ def test_passing_noncontiguous_as_X():
             ),
             np.array(["x1__0", "x1__1", "x1__2", "x1__3", "x1__4", "x2__2"]),
         ),
+        (
+            tm.SplitMatrix(
+                [
+                    tm.CategoricalMatrix(
+                        np.arange(5), column_name_format="{name}__{category}"
+                    ),
+                    tm.DenseMatrix(np.ones((5, 1))),
+                ]
+            ),
+            np.array(
+                [
+                    "_col_0-4__0",
+                    "_col_0-4__1",
+                    "_col_0-4__2",
+                    "_col_0-4__3",
+                    "_col_0-4__4",
+                    "_col_5",
+                ]
+            ),
+        ),
     ],
 )
-def test_feature_names(X, feature_names):
-    model = GeneralizedLinearRegressor(family="poisson").fit(X, np.arange(5))
+def test_feature_names_underscores(X, feature_names):
+    model = GeneralizedLinearRegressor(
+        family="poisson", categorical_format="{name}__{category}"
+    ).fit(X, np.arange(5))
     np.testing.assert_array_equal(getattr(model, "feature_names_", None), feature_names)
+
+
+@pytest.mark.parametrize(
+    "X, feature_names",
+    [
+        (pd.DataFrame({"x1": np.arange(5), "x2": 2}), np.array(["x1", "x2"])),
+        (pd.DataFrame({"x1": np.arange(5), "x2": 2}).to_numpy(), ["_col_0", "_col_1"]),
+        (
+            pd.DataFrame({"x1": pd.Categorical(np.arange(5)), "x2": 2}),
+            np.array(["x1[0]", "x1[1]", "x1[2]", "x1[3]", "x1[4]", "x2"]),
+        ),
+        (
+            pd.DataFrame(
+                {
+                    "x1": pd.Categorical(np.arange(5)),
+                    "x2": pd.Categorical([2, 2, 2, 2, 2]),
+                }
+            ),
+            np.array(["x1[0]", "x1[1]", "x1[2]", "x1[3]", "x1[4]", "x2[2]"]),
+        ),
+        (
+            tm.SplitMatrix(
+                [
+                    tm.CategoricalMatrix(
+                        np.arange(5), column_name_format="{name}[{category}]"
+                    ),
+                    tm.DenseMatrix(np.ones((5, 1))),
+                ]
+            ),
+            np.array(
+                [
+                    "_col_0-4[0]",
+                    "_col_0-4[1]",
+                    "_col_0-4[2]",
+                    "_col_0-4[3]",
+                    "_col_0-4[4]",
+                    "_col_5",
+                ]
+            ),
+        ),
+    ],
+)
+def test_feature_names_brackets(X, feature_names):
+    model = GeneralizedLinearRegressor(
+        family="poisson", categorical_format="{name}[{category}]"
+    ).fit(X, np.arange(5))
+    np.testing.assert_array_equal(getattr(model, "feature_names_", None), feature_names)
+
+
+@pytest.mark.parametrize(
+    "X, term_names",
+    [
+        (pd.DataFrame({"x1": np.arange(5), "x2": 2}), np.array(["x1", "x2"])),
+        (pd.DataFrame({"x1": np.arange(5), "x2": 2}).to_numpy(), ["_col_0", "_col_1"]),
+        (
+            pd.DataFrame({"x1": pd.Categorical(np.arange(5)), "x2": 2}),
+            np.array(["x1", "x1", "x1", "x1", "x1", "x2"]),
+        ),
+        (
+            pd.DataFrame(
+                {
+                    "x1": pd.Categorical(np.arange(5)),
+                    "x2": pd.Categorical([2, 2, 2, 2, 2]),
+                }
+            ),
+            np.array(["x1", "x1", "x1", "x1", "x1", "x2"]),
+        ),
+        (
+            tm.SplitMatrix(
+                [tm.CategoricalMatrix(np.arange(5)), tm.DenseMatrix(np.ones((5, 1)))]
+            ),
+            np.array(
+                [
+                    "_col_0-4",
+                    "_col_0-4",
+                    "_col_0-4",
+                    "_col_0-4",
+                    "_col_0-4",
+                    "_col_5",
+                ]
+            ),
+        ),
+    ],
+)
+def test_term_names(X, term_names):
+    model = GeneralizedLinearRegressor(family="poisson").fit(X, np.arange(5))
+    np.testing.assert_array_equal(getattr(model, "term_names_", None), term_names)
 
 
 @pytest.mark.parametrize(
@@ -2098,15 +2207,14 @@ def test_drop_first_allows_alpha_equals_0():
         regressor.fit(X, y)
 
 
-def test_error_on_distinct_categorical_column():
+def test_dropping_distinct_categorical_column():
     y = np.random.normal(size=10)
-    X = pd.DataFrame(data={"cat": pd.Categorical(np.ones(10))})
+    X = pd.DataFrame(data={"cat": pd.Categorical(np.ones(10)), "num": np.ones(10)})
     regressor = GeneralizedLinearRegressor(alpha=0, drop_first=True)
-    with pytest.raises(ValueError):
-        regressor.fit(X, y)
-
-    regressor = GeneralizedLinearRegressor(alpha=0)
     regressor.fit(X, y)
+    assert regressor.coef_.shape == (1,)
+    assert regressor.feature_names_ == ["num"]
+    assert regressor.term_names_ == ["num"]
 
 
 def test_P1_P2_with_drop_first():
@@ -2252,6 +2360,8 @@ def test_store_covariance_matrix_cv(
         ),
         regressor.covariance_matrix(),
     )
+
+
 @pytest.mark.parametrize(
     "input, expected",
     [
@@ -2337,12 +2447,19 @@ def test_formula(get_mixed_data, formula, drop_first):
     )
     y_pd = y_pd.iloc[:, 0]
     model_formula = GeneralizedLinearRegressor(
-        family="normal", drop_first=drop_first, formula=formula, fit_intercept=False
+        family="normal",
+        drop_first=drop_first,
+        formula=formula,
+        fit_intercept=False,
+        categorical_format="{name}[T.{category}]",
     ).fit(data)
 
     has_intercept = "1" in model_formula.X_model_spec_.terms
     model_pandas = GeneralizedLinearRegressor(
-        family="normal", drop_first=drop_first, fit_intercept=has_intercept
+        family="normal",
+        drop_first=drop_first,
+        fit_intercept=has_intercept,
+        categorical_format="{name}[T.{category}]",
     ).fit(X_pd, y_pd)
 
     np.testing.assert_almost_equal(model_pandas.coef_, model_formula.coef_)

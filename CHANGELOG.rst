@@ -15,6 +15,8 @@ Changelog
 - Added the complementary log-log (`cloglog`) link function.
 - Added the option to store the covariance matrix after estimating it. In this case, the covariance matrix does not have to be recomputed when calling inference methods.
 - Added a formula interface for specifying models.
+- Improved feature name handling. Feature names are now created for non-pandas input matrices, too. Furthermore, the format of categorical features can be specified by the user.
+- Term names are now stored in the model's attributes. This is useful for categorical features, where they refer to the whole variable, not just single levels.
 
 **Bug fix**
 
