@@ -39,6 +39,7 @@ jobs:
           init-shell: ${{ matrix.os == 'windows-latest' && 'cmd.exe' || 'bash' }}
           environment-name: build
           create-args: boa
+          micromamba-version: '1.3.1-0'
       - name: Patch conda build configuration
         # use the latest macOS SDK when cross-compiling for arm64
         if: startsWith(matrix.conda_build_yml, 'osx_arm64')
