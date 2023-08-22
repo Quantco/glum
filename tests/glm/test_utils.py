@@ -145,3 +145,33 @@ def test_add_missing_categories(df_na):
         ),
         expected,
     )
+
+
+def test_raise_on_existing_missing(df_na):
+    categorical_format = "{name}[{category}]"
+    cat_missing_name = "(M)"
+    dtypes = df_na.dtypes
+    feature_names = [
+        "num",
+        "num[(M)]",
+        "cat[a]",
+        "cat[b]",
+        "cat[(M)]",
+        "cat_na[a]",
+        "cat_na[(M)]",
+        "cat2[a]",
+        "cat2[b]",
+    ]
+
+    df = df_na
+    df["cat_na"] = df["cat_na"].cat.add_categories("(M)")
+    df.loc[df.cat_na.isna(), "cat_na"] = "(M)"
+
+    with pytest.raises(ValueError):
+        _add_missing_categories(
+            df=df,
+            dtypes=dtypes,
+            feature_names=feature_names,
+            categorical_format=categorical_format,
+            cat_missing_name=cat_missing_name,
+        )

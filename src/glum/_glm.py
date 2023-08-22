@@ -2266,20 +2266,20 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         If true, then the expected information matrix is computed by default.
         Only relevant when computing robust standard errors.
 
-    categorical_format : str, optional (default = "{name}[{category}]")
+    categorical_format : str, optional, default='{name}[{category}]'
         Format string for categorical features. The format string should
         contain the placeholder ``{name}`` for the feature name and
         ``{category}`` for the category name. Only used if ``X`` is a pandas
         DataFrame.
 
-    cat_missing_method: str {'fail'|'zero'|'convert'}, default 'fail'
+    cat_missing_method: str {'fail'|'zero'|'convert'}, default='fail'
         How to handle missing values in categorical columns. Only used if ``X``
         is a pandas data frame.
         - if 'fail', raise an error if there are missing values
         - if 'zero', missing values will represent all-zero indicator columns.
         - if 'convert', missing values will be converted to the ``cat_missing_name``
           category.
-    cat_missing_name: str, default '(MISSING)'
+    cat_missing_name: str, default='(MISSING)'
         Name of the category to which missing values will be converted if
         ``cat_missing_method='convert'``.  Only used if ``X`` is a pandas data frame.
 

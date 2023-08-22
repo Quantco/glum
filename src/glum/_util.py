@@ -76,6 +76,10 @@ def _add_missing_categories(
             categorical_format.format(name=column, category=cat_missing_name)
             in feature_names
         ):
+            if cat_missing_name in df[column].cat.categories:
+                raise ValueError(
+                    f"Missing category {cat_missing_name} already exists in {column}."
+                )
             _logger.info(f"Adding missing category {cat_missing_name} to {column}.")
             changed_dtypes[column] = df[column].cat.add_categories(cat_missing_name)
             if df[column].isnull().any():
