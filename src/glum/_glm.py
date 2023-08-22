@@ -1336,7 +1336,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
     def coef_table(
         self,
-        significance_level=0.05,
+        confidence_level=0.95,
         X=None,
         y=None,
         mu=None,
@@ -1354,8 +1354,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         Parameters
         ----------
-        significance_level : float, optional, default=0.05
-            The significance level for the confidence intervals.
+        confidence_level : float, optional, default=0.95
+            The confidence level for the confidence intervals.
         X : {array-like, sparse matrix}, shape (n_samples, n_features), optional
             Training data. Can be omitted if a covariance matrix has already
             been computed.
@@ -1374,11 +1374,11 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             Whether to compute robust standard errors instead of normal ones.
             If not specified, the model's ``robust`` attribute is used.
         clusters : array-like, optional, default=None
-            Array with clusters membership. Clustered standard errors are
+            Array with cluster membership. Clustered standard errors are
             computed if clusters is not None.
         expected_information : boolean, optional, default=None
             Whether to use the expected or observed information matrix.
-            Only relevant when computing robust std-errors.
+            Only relevant when computing robust standard errors.
             If not specified, the model's ``expected_information`` attribute is used.
 
         Returns
@@ -1405,6 +1405,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             clusters=clusters,
             expected_information=expected_information,
         )
+
+        significance_level = 1 - confidence_level
 
         std_errors = np.sqrt(np.diag(covariance_matrix))
         ci_lower = beta + stats.norm.ppf(significance_level / 2) * std_errors
@@ -1478,11 +1480,11 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             Whether to compute robust standard errors instead of normal ones.
             If not specified, the model's ``robust`` attribute is used.
         clusters : array-like, optional, default=None
-            Array with clusters membership. Clustered standard errors are
+            Array with cluster membership. Clustered standard errors are
             computed if clusters is not None.
         expected_information : boolean, optional, default=None
             Whether to use the expected or observed information matrix.
-            Only relevant when computing robust std-errors.
+            Only relevant when computing robust standard errors.
             If not specified, the model's ``expected_information`` attribute is used.
 
         Returns
@@ -1514,7 +1516,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             )
 
         if features is not None:
-            return self._wald_test_feature_name(
+            return self._wald_test_feature_names(
                 features=features,
                 values=r,
                 X=X,
@@ -1546,8 +1548,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
     ) -> WaldTestResult:
         """Compute the Wald test statistic and p-value for a linear hypothesis.
 
-        The hypothesis tested is ``R @ coef_ = r``. The test statistic follows
-        a chi-squared distribution with ``R.shape[0]`` degrees of freedom.
+        The hypothesis tested is ``R @ coef_ = r``. Under the null hypothesis,
+        the test statistic follows a chi-squared distribution with ``R.shape[0]``
+        degrees of freedom.
 
         Parameters
         ----------
@@ -1576,11 +1579,11 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             Whether to compute robust standard errors instead of normal ones.
             If not specified, the model's ``robust`` attribute is used.
         clusters : array-like, optional, default=None
-            Array with clusters membership. Clustered standard errors are
+            Array with cluster membership. Clustered standard errors are
             computed if clusters is not None.
         expected_information : boolean, optional, default=None
             Whether to use the expected or observed information matrix.
-            Only relevant when computing robust std-errors.
+            Only relevant when computing robust standard errors.
             If not specified, the model's ``expected_information`` attribute is used.
 
         Returns
@@ -1633,7 +1636,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         return WaldTestResult(test_stat, p_value, Q)
 
-    def _wald_test_feature_name(
+    def _wald_test_feature_names(
         self,
         features: Union[str, List[str]],
         values: Optional[Sequence] = None,
@@ -1677,11 +1680,11 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             Whether to compute robust standard errors instead of normal ones.
             If not specified, the model's ``robust`` attribute is used.
         clusters : array-like, optional, default=None
-            Array with clusters membership. Clustered standard errors are
+            Array with cluster membership. Clustered standard errors are
             computed if clusters is not None.
         expected_information : boolean, optional, default=None
             Whether to use the expected or observed information matrix.
-            Only relevant when computing robust std-errors.
+            Only relevant when computing robust standard errors.
             If not specified, the model's ``expected_information`` attribute is used.
 
         Returns
@@ -1767,11 +1770,11 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             Whether to compute robust standard errors instead of normal ones.
             If not specified, the model's ``robust`` attribute is used.
         clusters : array-like, optional, default=None
-            Array with clusters membership. Clustered standard errors are
+            Array with cluster membership. Clustered standard errors are
             computed if clusters is not None.
         expected_information : boolean, optional, default=None
             Whether to use the expected or observed information matrix.
-            Only relevant when computing robust std-errors.
+            Only relevant when computing robust standard errors.
             If not specified, the model's ``expected_information`` attribute is used.
         store_covariance_matrix : boolean, optional, default=False
             Whether to store the covariance matrix in the model instance.
@@ -1828,7 +1831,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             Whether to compute robust standard errors instead of normal ones.
             If not specified, the model's ``robust`` attribute is used.
         clusters : array-like, optional, default=None
-            Array with clusters membership. Clustered standard errors are
+            Array with cluster membership. Clustered standard errors are
             computed if clusters is not None.
         expected_information : boolean, optional, default=None
             Whether to use the expected or observed information matrix.
@@ -2864,7 +2867,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             ``covariance_matrix_`` attribute after fitting.
 
         clusters : array-like, optional, default=None
-            Array with clusters membership. Clustered standard errors are
+            Array with cluster membership. Clustered standard errors are
             computed if clusters is not None.
 
         weights_sum: float, optional (default=None)

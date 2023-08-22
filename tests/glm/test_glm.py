@@ -2195,7 +2195,7 @@ def test_wald_test_matrix_fixed_cov(regression_data, R, r):
         ),
     ],
 )
-def test_wald_test_feature_name(regression_data, names, R, r):
+def test_wald_test_feature_names(regression_data, names, R, r):
     X, y = regression_data
     X_df = pd.DataFrame(X, columns=[f"col_{i}" for i in range(X.shape[1])])
 
@@ -2203,7 +2203,7 @@ def test_wald_test_feature_name(regression_data, names, R, r):
         alpha=0, family="gaussian", fit_intercept=True
     ).fit(X=X_df, y=y, store_covariance_matrix=True)
 
-    feature_names_results = mdl._wald_test_feature_name(names, r)
+    feature_names_results = mdl._wald_test_feature_names(names, r)
     if r is not None:
         r = np.array(r)  # wald_test_matrix expects an optional numpy array
     matrix_results = mdl._wald_test_matrix(R, r)
@@ -2236,7 +2236,7 @@ def test_wald_test_feature_name(regression_data, names, R, r):
         ),
     ],
 )
-def test_wald_test_feature_name_public(regression_data, names, r):
+def test_wald_test_feature_names_public(regression_data, names, r):
     X, y = regression_data
     X_df = pd.DataFrame(X, columns=[f"col_{i}" for i in range(X.shape[1])])
 
@@ -2244,7 +2244,7 @@ def test_wald_test_feature_name_public(regression_data, names, r):
         alpha=0, family="gaussian", fit_intercept=True
     ).fit(X=X_df, y=y, store_covariance_matrix=True)
 
-    assert mdl._wald_test_feature_name(names, r) == mdl.wald_test(features=names, r=r)
+    assert mdl._wald_test_feature_names(names, r) == mdl.wald_test(features=names, r=r)
 
 
 def test_wald_test_raise_on_wrong_input(regression_data):
