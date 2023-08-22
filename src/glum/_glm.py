@@ -256,9 +256,7 @@ def _parse_formula(
     Returns
     -------
     tuple[Formula, Formula]
-        The left-hand side of the formula, the right-hand side of the formula,
-        and a boolean flag indicating whether or not an intercept should be
-        added to the model."""
+        The left-hand side and right-hand sides of the formula."""
     if isinstance(formula, str):
         parser = DefaultFormulaParser(include_intercept=include_intercept)
         terms = parser.get_terms(formula)
@@ -1942,7 +1940,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                     categorical_format=self.categorical_format,
                     interaction_separator=self.interaction_separator,
                     add_column_for_intercept=False,
-                    context=2,  # where fit/str_errors/etc. is called from
+                    context=2,  # where fit/std_errors/etc. is called from
                 )
 
                 intercept = "1" in X.model_spec.terms
@@ -2365,8 +2363,10 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
 
     drop_first : bool, optional (default = False)
         If ``True``, drop the first column when encoding categorical variables.
-        Set this to True when alpha=0 and solver='auto' to prevent an error due to a singular
-        feature matrix.
+        Set this to True when alpha=0 and solver='auto' to prevent an error due to a
+        singular feature matrix. In the case of using a formula with interactions,
+        setting this argument to ``True`` ensures structural full-rankness (it is
+        equivalent to ``ensure_full_rank`` in formulaic and tabmat).
 
     robust : bool, optional (default = False)
         If true, then robust standard errors are computed by default.
