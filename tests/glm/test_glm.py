@@ -2430,6 +2430,150 @@ def test_wald_test_term_names(regression_data, names, R, r, r_feat):
     assert term_names_results.df == matrix_results.df
 
 
+@pytest.mark.parametrize(
+    "names, R, r, r_feat",
+    [
+        pytest.param(["col_1"], np.array([[0, 1] + 5 * [0]]), None, None, id="single"),
+        pytest.param(
+            ["col_1", "col_2"],
+            np.array([[0, 1, 0] + 4 * [0], [0, 0, 1] + 4 * [0]]),
+            None,
+            None,
+            id="multiple",
+        ),
+        pytest.param(
+            ["term_3"],
+            np.hstack(
+                (
+                    np.zeros((4, 3)),
+                    np.eye(4),
+                )
+            ),
+            None,
+            None,
+            id="multifeature",
+        ),
+        pytest.param(
+            ["term_3"],
+            np.hstack(
+                (
+                    np.zeros((4, 3)),
+                    np.eye(4),
+                )
+            ),
+            [1],
+            [1] * 4,
+            id="rhs_not_zero",
+        ),
+        pytest.param(
+            ["intercept", "col_1"],
+            np.array([[1, 0] + 5 * [0], [0, 1] + 5 * [0]]),
+            [1, 2],
+            [1, 2],
+            id="intercept",
+        ),
+    ],
+)
+def test_wald_test_term_names_public(regression_data, names, R, r, r_feat):
+    X, y = regression_data
+    X_df = pd.DataFrame(X, columns=[f"col_{i}" for i in range(X.shape[1])])
+    X_df = X_df[["col_1", "col_2"]].assign(term_3=pd.cut(X_df["col_3"], bins=5))
+
+    mdl = GeneralizedLinearRegressor(
+        alpha=0, family="gaussian", fit_intercept=True, drop_first=True
+    ).fit(X=X_df, y=y, store_covariance_matrix=True)
+
+    term_names_results = mdl.wald_test(terms=names, r=r)
+
+    if r is not None:
+        r_feat = np.array(r_feat)  # wald_test_matrix expects an optional numpy array
+    matrix_results = mdl._wald_test_matrix(R, r_feat)
+
+    np.testing.assert_equal(
+        term_names_results.test_statistic, matrix_results.test_statistic
+    )
+    np.testing.assert_equal(term_names_results.p_value, matrix_results.p_value)
+    assert term_names_results.df == matrix_results.df
+
+
+@pytest.mark.parametrize(
+    "formula, R, r_feat",
+    [
+        pytest.param("col_0 = 0", np.array([[0, 1] + 9 * [0]]), None, id="single"),
+        pytest.param(
+            "col_0 = 0, col_1 = 0",
+            np.array([[0, 1, 0] + 8 * [0], [0, 0, 1] + 8 * [0]]),
+            None,
+            id="multiple",
+        ),
+        pytest.param(
+            "intercept = 1, col_0 = 2",
+            np.array([[1, 0] + 9 * [0], [0, 1] + 9 * [0]]),
+            [1, 2],
+            id="intercept",
+        ),
+    ],
+)
+def test_wald_test_formula(regression_data, formula, R, r_feat):
+    X, y = regression_data
+    X_df = pd.DataFrame(X, columns=[f"col_{i}" for i in range(X.shape[1])])
+
+    mdl = GeneralizedLinearRegressor(
+        alpha=0, family="gaussian", fit_intercept=True, drop_first=True
+    ).fit(X=X_df, y=y, store_covariance_matrix=True)
+
+    term_names_results = mdl._wald_test_formula(formula)
+
+    if r_feat is not None:
+        r_feat = np.array(r_feat)  # wald_test_matrix expects an optional numpy array
+    matrix_results = mdl._wald_test_matrix(R, r_feat)
+
+    np.testing.assert_equal(
+        term_names_results.test_statistic, matrix_results.test_statistic
+    )
+    np.testing.assert_equal(term_names_results.p_value, matrix_results.p_value)
+    assert term_names_results.df == matrix_results.df
+
+
+@pytest.mark.parametrize(
+    "formula, R, r_feat",
+    [
+        pytest.param("col_0 = 0", np.array([[0, 1] + 9 * [0]]), None, id="single"),
+        pytest.param(
+            "col_0 = 0, col_1 = 0",
+            np.array([[0, 1, 0] + 8 * [0], [0, 0, 1] + 8 * [0]]),
+            None,
+            id="multiple",
+        ),
+        pytest.param(
+            "intercept = 1, col_0 = 2",
+            np.array([[1, 0] + 9 * [0], [0, 1] + 9 * [0]]),
+            [1, 2],
+            id="intercept",
+        ),
+    ],
+)
+def test_wald_test_formula_public(regression_data, formula, R, r_feat):
+    X, y = regression_data
+    X_df = pd.DataFrame(X, columns=[f"col_{i}" for i in range(X.shape[1])])
+
+    mdl = GeneralizedLinearRegressor(
+        alpha=0, family="gaussian", fit_intercept=True, drop_first=True
+    ).fit(X=X_df, y=y, store_covariance_matrix=True)
+
+    term_names_results = mdl.wald_test(formula=formula)
+
+    if r_feat is not None:
+        r_feat = np.array(r_feat)  # wald_test_matrix expects an optional numpy array
+    matrix_results = mdl._wald_test_matrix(R, r_feat)
+
+    np.testing.assert_equal(
+        term_names_results.test_statistic, matrix_results.test_statistic
+    )
+    np.testing.assert_equal(term_names_results.p_value, matrix_results.p_value)
+    assert term_names_results.df == matrix_results.df
+
+
 def test_wald_test_raise_on_wrong_input(regression_data):
     X, y = regression_data
     mdl = GeneralizedLinearRegressor(alpha=0, family="gaussian", fit_intercept=True)
