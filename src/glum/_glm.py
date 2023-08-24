@@ -21,7 +21,7 @@ import sys
 import warnings
 from collections.abc import Iterable
 from itertools import chain
-from typing import Any, Optional, Sequence, Tuple, Union, cast
+from typing import Any, List, NamedTuple, Optional, Sequence, Tuple, Union, cast
 
 import numpy as np
 import pandas as pd
@@ -30,7 +30,7 @@ import scipy.sparse.linalg as splinalg
 import tabmat as tm
 from formulaic import Formula, FormulaSpec
 from formulaic.parser import DefaultFormulaParser
-from scipy import linalg, sparse
+from scipy import linalg, sparse, stats
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.utils import check_array
 from sklearn.utils.validation import (
@@ -84,6 +84,12 @@ ShapedArrayLike = Union[
     sparse.spmatrix,
     VectorLike,
 ]
+
+
+class WaldTestResult(NamedTuple):
+    test_statistic: float
+    p_value: float
+    df: int
 
 
 def check_array_tabmat_compliant(mat: ArrayLike, drop_first: int = False, **kwargs):
@@ -1392,6 +1398,404 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         sample_weight = _check_weights(sample_weight, X.shape[0], X.dtype)
         return mu * sample_weight
 
+    def coef_table(
+        self,
+        confidence_level=0.95,
+        X=None,
+        y=None,
+        mu=None,
+        offset=None,
+        sample_weight=None,
+        dispersion=None,
+        robust=None,
+        clusters: np.ndarray = None,
+        expected_information=None,
+    ):
+        """Get a table of of the regression coefficients.
+
+        Includes coefficient estimates, standard errors, t-values, p-values
+        and confidence intervals.
+
+        Parameters
+        ----------
+        confidence_level : float, optional, default=0.95
+            The confidence level for the confidence intervals.
+        X : {array-like, sparse matrix}, shape (n_samples, n_features), optional
+            Training data. Can be omitted if a covariance matrix has already
+            been computed.
+        y : array-like, shape (n_samples,), optional
+            Target values. Can be omitted if a covariance matrix has already
+            been computed.
+        mu : array-like, optional, default=None
+            Array with predictions. Estimated if absent.
+        offset : array-like, optional, default=None
+            Array with additive offsets.
+        sample_weight : array-like, shape (n_samples,), optional, default=None
+            Individual weights for each sample.
+        dispersion : float, optional, default=None
+            The dispersion parameter. Estimated if absent.
+        robust : boolean, optional, default=None
+            Whether to compute robust standard errors instead of normal ones.
+            If not specified, the model's ``robust`` attribute is used.
+        clusters : array-like, optional, default=None
+            Array with cluster membership. Clustered standard errors are
+            computed if clusters is not None.
+        expected_information : boolean, optional, default=None
+            Whether to use the expected or observed information matrix.
+            Only relevant when computing robust standard errors.
+            If not specified, the model's ``expected_information`` attribute is used.
+
+        Returns
+        -------
+        pandas.DataFrame
+            A table of the regression results.
+        """
+
+        if self.fit_intercept:
+            names = ["intercept"] + list(self.feature_names_)
+            beta = np.concatenate([[self.intercept_], self.coef_])
+        else:
+            names = self.feature_names_
+            beta = self.coef_
+
+        covariance_matrix = self.covariance_matrix(
+            X=X,
+            y=y,
+            mu=mu,
+            offset=offset,
+            sample_weight=sample_weight,
+            dispersion=dispersion,
+            robust=robust,
+            clusters=clusters,
+            expected_information=expected_information,
+        )
+
+        significance_level = 1 - confidence_level
+
+        std_errors = np.sqrt(np.diag(covariance_matrix))
+        ci_lower = beta + stats.norm.ppf(significance_level / 2) * std_errors
+        ci_upper = beta + stats.norm.ppf(1 - significance_level / 2) * std_errors
+        t_values = beta / std_errors
+        p_values = 2.0 * (1.0 - stats.norm.cdf(np.abs(t_values)))
+
+        return pd.DataFrame(
+            {
+                "coef": beta,
+                "se": std_errors,
+                "t_value": t_values,
+                "p_value": p_values,
+                "ci_lower": ci_lower,
+                "ci_upper": ci_upper,
+            },
+            index=names,
+        )
+
+    def wald_test(
+        self,
+        R: Optional[np.ndarray] = None,
+        features: Optional[Union[str, List[str]]] = None,
+        r: Optional[Sequence] = None,
+        X=None,
+        y=None,
+        mu=None,
+        offset=None,
+        sample_weight=None,
+        dispersion=None,
+        robust=None,
+        clusters: np.ndarray = None,
+        expected_information=None,
+    ) -> WaldTestResult:
+        """Compute the Wald test statistic and p-value for a linear hypothesis.
+
+        The left hand side of the hypothesis may be specified in the following ways:
+
+        - ``R``: The restriction matrix representing the linear combination of
+          coefficients to test.
+        - ``features``: The name of a feature or a list of features to test.
+
+        The right hand side of the tested hypothesis is specified by ``r``.
+
+        Parameters
+        ----------
+        R : np.ndarray, optional, default=None
+            The restriction matrix representing the linear combination of coefficients
+            to test.
+        features : Union[str, list[str]], optional, default=None
+            The name of a feature or a list of features to test.
+        r : np.ndarray, optional, default=None
+            The vector representing the values of the linear combination.
+            If None, the test is for whether the linear combinations of the coefficients
+            are zero.
+        X : {array-like, sparse matrix}, shape (n_samples, n_features), optional
+            Training data. Can be omitted if a covariance matrix has already
+            been computed.
+        y : array-like, shape (n_samples,), optional
+            Target values. Can be omitted if a covariance matrix has already
+            been computed.
+        mu : array-like, optional, default=None
+            Array with predictions. Estimated if absent.
+        offset : array-like, optional, default=None
+            Array with additive offsets.
+        sample_weight : array-like, shape (n_samples,), optional, default=None
+            Individual weights for each sample.
+        dispersion : float, optional, default=None
+            The dispersion parameter. Estimated if absent.
+        robust : boolean, optional, default=None
+            Whether to compute robust standard errors instead of normal ones.
+            If not specified, the model's ``robust`` attribute is used.
+        clusters : array-like, optional, default=None
+            Array with cluster membership. Clustered standard errors are
+            computed if clusters is not None.
+        expected_information : boolean, optional, default=None
+            Whether to use the expected or observed information matrix.
+            Only relevant when computing robust standard errors.
+            If not specified, the model's ``expected_information`` attribute is used.
+
+        Returns
+        -------
+        WaldTestResult
+            NamedTuple with test statistic, p-value, and degrees of freedom.
+        """
+
+        num_lhs_specs = sum([R is not None, features is not None])
+        if num_lhs_specs != 1:
+            raise ValueError(
+                "Exactly one of R or features must be specified. "
+                f"Received {num_lhs_specs} specifications."
+            )
+
+        if R is not None:
+            return self._wald_test_matrix(
+                R=R,
+                r=r,
+                X=X,
+                y=y,
+                mu=mu,
+                offset=offset,
+                sample_weight=sample_weight,
+                dispersion=dispersion,
+                robust=robust,
+                clusters=clusters,
+                expected_information=expected_information,
+            )
+
+        if features is not None:
+            return self._wald_test_feature_names(
+                features=features,
+                values=r,
+                X=X,
+                y=y,
+                mu=mu,
+                offset=offset,
+                sample_weight=sample_weight,
+                dispersion=dispersion,
+                robust=robust,
+                clusters=clusters,
+                expected_information=expected_information,
+            )
+
+        raise RuntimeError("This should never happen")
+
+    def _wald_test_matrix(
+        self,
+        R: np.ndarray,
+        r: Optional[np.ndarray] = None,
+        X=None,
+        y=None,
+        mu=None,
+        offset=None,
+        sample_weight=None,
+        dispersion=None,
+        robust=None,
+        clusters: np.ndarray = None,
+        expected_information=None,
+    ) -> WaldTestResult:
+        """Compute the Wald test statistic and p-value for a linear hypothesis.
+
+        The hypothesis tested is ``R @ coef_ = r``. Under the null hypothesis,
+        the test statistic follows a chi-squared distribution with ``R.shape[0]``
+        degrees of freedom.
+
+        Parameters
+        ----------
+        R : np.ndarray
+            The restriction matrix representing the linear combination of coefficients
+            to test.
+        r : np.ndarray, optional, default=None
+            The vector representing the values of the linear combination.
+            If None, the test is for whether the linear combinations of the coefficients
+            are zero.
+        X : {array-like, sparse matrix}, shape (n_samples, n_features), optional
+            Training data. Can be omitted if a covariance matrix has already
+            been computed.
+        y : array-like, shape (n_samples,), optional
+            Target values. Can be omitted if a covariance matrix has already
+            been computed.
+        mu : array-like, optional, default=None
+            Array with predictions. Estimated if absent.
+        offset : array-like, optional, default=None
+            Array with additive offsets.
+        sample_weight : array-like, shape (n_samples,), optional, default=None
+            Individual weights for each sample.
+        dispersion : float, optional, default=None
+            The dispersion parameter. Estimated if absent.
+        robust : boolean, optional, default=None
+            Whether to compute robust standard errors instead of normal ones.
+            If not specified, the model's ``robust`` attribute is used.
+        clusters : array-like, optional, default=None
+            Array with cluster membership. Clustered standard errors are
+            computed if clusters is not None.
+        expected_information : boolean, optional, default=None
+            Whether to use the expected or observed information matrix.
+            Only relevant when computing robust standard errors.
+            If not specified, the model's ``expected_information`` attribute is used.
+
+        Returns
+        -------
+        WaldTestResult
+            NamedTuple with test statistic, p-value, and degrees of freedom.
+        """
+
+        covariance_matrix = self.covariance_matrix(
+            X=X,
+            y=y,
+            mu=mu,
+            offset=offset,
+            sample_weight=sample_weight,
+            dispersion=dispersion,
+            robust=robust,
+            clusters=clusters,
+            expected_information=expected_information,
+        )
+
+        if self.fit_intercept:
+            beta = np.concatenate([[self.intercept_], self.coef_])
+        else:
+            beta = self.coef_
+
+        if r is None:
+            r = np.zeros(R.shape[0])
+
+        if R.shape[0] != r.shape[0]:
+            raise ValueError("R and r must have the same number of rows")
+        if R.shape[1] != beta.shape[0]:
+            raise ValueError("R must have one column for each coefficient")
+        # There is no point in checking that R is full rank. If it is not, then
+        # solve(RVR, Rb_r) will raise an exception.
+
+        beta = beta[:, np.newaxis]
+        r = r[:, np.newaxis]
+        Q = R.shape[0]
+
+        Rb_r = R @ beta - r  # R \beta - r
+        RVR = R @ covariance_matrix @ R.T  # R V R^T
+
+        # We want to calculate Rb_r^T (RVR)^{-1} Rb_r.
+        # We can do it in a more numerically stable way by using `scipy.linalg.solve`:
+        try:
+            test_stat = float(Rb_r.T @ linalg.solve(RVR, Rb_r))
+        except linalg.LinAlgError as err:
+            raise linalg.LinAlgError("The restriction matrix is not full rank") from err
+        p_value = 1 - stats.chi2.cdf(test_stat, Q)
+
+        return WaldTestResult(test_stat, p_value, Q)
+
+    def _wald_test_feature_names(
+        self,
+        features: Union[str, List[str]],
+        values: Optional[Sequence] = None,
+        X=None,
+        y=None,
+        mu=None,
+        offset=None,
+        sample_weight=None,
+        dispersion=None,
+        robust=None,
+        clusters: np.ndarray = None,
+        expected_information=None,
+    ) -> WaldTestResult:
+        """Compute the Wald test statistic and p-value for a linear hypothesis.
+
+        Perform a Wald test for the hypothesis that the coefficients of the
+        features in ``features`` are equal to the values in ``values``.
+
+        Parameters
+        ----------
+        features: Union[str, list[str]]
+            The name of a feature or a list of features to test.
+        values: Sequence, optional, default=None
+            The values to which coefficients are compared. If None, the test is
+            for whether the coefficients are zero.
+        X : {array-like, sparse matrix}, shape (n_samples, n_features), optional
+            Training data. Can be omitted if a covariance matrix has already
+            been computed.
+        y : array-like, shape (n_samples,), optional
+            Target values. Can be omitted if a covariance matrix has already
+            been computed.
+        mu : array-like, optional, default=None
+            Array with predictions. Estimated if absent.
+        offset : array-like, optional, default=None
+            Array with additive offsets.
+        sample_weight : array-like, shape (n_samples,), optional, default=None
+            Individual weights for each sample.
+        dispersion : float, optional, default=None
+            The dispersion parameter. Estimated if absent.
+        robust : boolean, optional, default=None
+            Whether to compute robust standard errors instead of normal ones.
+            If not specified, the model's ``robust`` attribute is used.
+        clusters : array-like, optional, default=None
+            Array with cluster membership. Clustered standard errors are
+            computed if clusters is not None.
+        expected_information : boolean, optional, default=None
+            Whether to use the expected or observed information matrix.
+            Only relevant when computing robust standard errors.
+            If not specified, the model's ``expected_information`` attribute is used.
+
+        Returns
+        -------
+        WaldTestResult
+            NamedTuple with test statistic, p-value, and degrees of freedom.
+        """
+
+        if isinstance(features, str):
+            features = [features]
+
+        if values is not None:
+            r = np.array(values)
+            if len(features) != len(values):
+                raise ValueError("features and values must have the same length")
+        else:
+            r = None
+
+        if self.fit_intercept:
+            names = ["intercept"] + list(self.feature_names_)
+            beta = np.concatenate([[self.intercept_], self.coef_])
+        else:
+            names = self.feature_names_
+            beta = self.coef_
+
+        R = np.zeros((len(features), len(beta)))
+        for i, feature in enumerate(features):
+            try:
+                j = names.index(feature)
+            except ValueError:
+                raise ValueError(f"feature {feature} is not in the model") from None
+            R[i, j] = 1
+
+        return self._wald_test_matrix(
+            R=R,
+            r=r,
+            X=X,
+            y=y,
+            mu=mu,
+            offset=offset,
+            sample_weight=sample_weight,
+            dispersion=dispersion,
+            robust=robust,
+            clusters=clusters,
+            expected_information=expected_information,
+        )
+
     def std_errors(
         self,
         X=None,
@@ -1412,15 +1816,17 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         Parameters
         ----------
-        X : {array-like, sparse matrix}, shape (n_samples, n_features)
-            Training data.
-        y : array-like, shape (n_samples,)
-            Target values.
+        X : {array-like, sparse matrix}, shape (n_samples, n_features), optional
+            Training data. Can be omitted if a covariance matrix has already
+            been computed.
+        y : array-like, shape (n_samples,), optional
+            Target values. Can be omitted if a covariance matrix has already
+            been computed.
         mu : array-like, optional, default=None
             Array with predictions. Estimated if absent.
         offset : array-like, optional, default=None
             Array with additive offsets.
-        sample_weight : array-like, shape (n_samples,), optional (default=None)
+        sample_weight : array-like, shape (n_samples,), optional, default=None
             Individual weights for each sample.
         dispersion : float, optional, default=None
             The dispersion parameter. Estimated if absent.
@@ -1428,11 +1834,11 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             Whether to compute robust standard errors instead of normal ones.
             If not specified, the model's ``robust`` attribute is used.
         clusters : array-like, optional, default=None
-            Array with clusters membership. Clustered standard errors are
+            Array with cluster membership. Clustered standard errors are
             computed if clusters is not None.
         expected_information : boolean, optional, default=None
             Whether to use the expected or observed information matrix.
-            Only relevant when computing robust std-errors.
+            Only relevant when computing robust standard errors.
             If not specified, the model's ``expected_information`` attribute is used.
         store_covariance_matrix : boolean, optional, default=False
             Whether to store the covariance matrix in the model instance.
@@ -1481,7 +1887,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             Array with predictions. Estimated if absent.
         offset : array-like, optional, default=None
             Array with additive offsets.
-        sample_weight : array-like, shape (n_samples,), optional (default=None)
+        sample_weight : array-like, shape (n_samples,), optional, default=None
             Individual weights for each sample.
         dispersion : float, optional, default=None
             The dispersion parameter. Estimated if absent.
@@ -1489,7 +1895,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             Whether to compute robust standard errors instead of normal ones.
             If not specified, the model's ``robust`` attribute is used.
         clusters : array-like, optional, default=None
-            Array with clusters membership. Clustered standard errors are
+            Array with cluster membership. Clustered standard errors are
             computed if clusters is not None.
         expected_information : boolean, optional, default=None
             Whether to use the expected or observed information matrix.
@@ -1638,9 +2044,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 X.dtype,
                 force_all_finite=self.force_all_finite,
             )
+            offset = _check_offset(offset, y.shape[0], X.dtype)
 
         sum_weights = np.sum(sample_weight)
-        offset = _check_offset(offset, y.shape[0], X.dtype)
 
         mu = self.predict(X, offset=offset) if mu is None else np.asanyarray(mu)
 
@@ -2606,7 +3012,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             ``covariance_matrix_`` attribute after fitting.
 
         clusters : array-like, optional, default=None
-            Array with clusters membership. Clustered standard errors are
+            Array with cluster membership. Clustered standard errors are
             computed if clusters is not None.
 
         weights_sum: float, optional (default=None)

@@ -447,7 +447,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             corresponding to the best best model.
 
         clusters : array-like, optional, default=None
-            Array with clusters membership. Clustered standard errors are
+            Array with cluster membership. Clustered standard errors are
             computed if clusters is not None.
 
         """
