@@ -14,6 +14,7 @@ Changelog
 
 - Improved feature name handling. Feature names are now created for non-pandas input matrices, too. Furthermore, the format of categorical features can be specified by the user.
 - Term names are now stored in the model's attributes. This is useful for categorical features, where they refer to the whole variable, not just single levels.
+- Added more options for treating missing values in categorical columns. They can either raise a `ValueError` (`"fail"`), be treated as all-zero indicators (`"zero"`) or represented as a new category (`"convert"`).
 
 2.6.0 - UNRELEASED
 ------------------
