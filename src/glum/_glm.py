@@ -1575,7 +1575,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         )
         if num_lhs_specs != 1:
             raise ValueError(
-                "Exactly one of R, features and terms must be specified. "
+                "Exactly one of R, features terms or formula must be specified. "
                 f"Received {num_lhs_specs} specifications."
             )
 
