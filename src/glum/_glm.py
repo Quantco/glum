@@ -1515,8 +1515,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         - ``R``: The restriction matrix representing the linear combination of
           coefficients to test.
         - ``features``: The name of a feature or a list of features to test.
+        - ``terms``: The name of a term or a list of terms to test.
+        - ``formula``: A formula string specifying the hypothesis to test.
 
-        The right hand side of the tested hypothesis is specified by ``r``.
+        The right hand side of the tested hypothesis is specified by ``r``. In the
+        case of a ``terms``-based test, the null hypothesis is that each coefficient
+        relating to a term is equal to the corresponding value in ``r``.
 
         Parameters
         ----------
@@ -1526,10 +1530,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         features : Union[str, list[str]], optional, default=None
             The name of a feature or a list of features to test.
         terms : Union[str, list[str]], optional, default=None
-            The name of a term or a list of terms to test.  In the case of a model based
-            on a formula, a term is one of the expressions separated by ``+`` signs.
-            Otherwise, a term is one column in the input data. In the case of
-            categorical variables, it translates to possibly multiple features.
+            The name of a term or a list of terms to test. It can cover one or more
+            coefficients. In the case of a model based on a formula, a term is one
+            of the expressions separated by ``+`` signs. Otherwise, a term is one column
+            in the input data. As categorical variables need not be one-hot encoded in
+            glum, in their case, the hypothesis to be tested is that the coefficients
+            for all of their levels are equal to ``r``.
         r : np.ndarray, optional, default=None
             The vector representing the values of the linear combination.
             If None, the test is for whether the linear combinations of the coefficients
@@ -1940,10 +1946,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         Parameters
         ----------
         terms : Union[str, list[str]]
-            The name of a term or a list of terms to test.  In the case of a model based
-            on a formula, a term is one of the expressions separated by ``+`` signs.
-            Otherwise, a term is one column in the input data. In the case of
-            categorical variables, it translates to possibly multiple features.
+            The name of a term or a list of terms to test. It can cover one or more
+            coefficients. In the case of a model based on a formula, a term is one
+            of the expressions separated by ``+`` signs. Otherwise, a term is one column
+            in the input data. As categorical variables need not be one-hot encoded in
+            glum, in their case, the hypothesis to be tested is that the coefficients
+            for all of their levels are equal to ``r``.
         values: Sequence, optional, default=None
             The values to which coefficients are compared. If None, the test is
             for whether the coefficients are zero.
