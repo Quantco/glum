@@ -2546,6 +2546,12 @@ def test_wald_test_formula(regression_data, formula, R, r_feat):
             id="multiple",
         ),
         pytest.param(
+            "col_0 + col_1 = 2 * col_2 - 1",
+            np.array([[0, 1, 1, -2] + 7 * [0]]),
+            [-1],
+            id="combination",
+        ),
+        pytest.param(
             "intercept = 1, col_0 = 2",
             np.array([[1, 0] + 9 * [0], [0, 1] + 9 * [0]]),
             [1, 2],
