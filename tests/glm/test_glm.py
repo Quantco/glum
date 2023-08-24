@@ -2097,6 +2097,277 @@ def test_inputtype_std_errors(regression_data, categorical, split, fit_intercept
     np.testing.assert_allclose(ourse, smse, rtol=1e-8)
 
 
+@pytest.mark.parametrize("fit_intercept", [True, False])
+@pytest.mark.parametrize("significance_level", [0.01, 0.05])
+def test_coef_table(regression_data, fit_intercept, significance_level):
+    X, y = regression_data
+    colnames = ["dog", "cat", "bat", "cow", "eel", "fox", "bee", "owl", "pig", "rat"]
+    X_df = pd.DataFrame(X, columns=colnames)
+
+    mdl = GeneralizedLinearRegressor(
+        alpha=0, family="gaussian", fit_intercept=fit_intercept
+    ).fit(X=X_df, y=y)
+
+    if fit_intercept:
+        mdl_sm = sm.GLM(endog=y, exog=sm.add_constant(X), family=sm.families.Gaussian())
+    else:
+        mdl_sm = sm.GLM(endog=y, exog=X, family=sm.families.Gaussian())
+    fit_sm = mdl_sm.fit(cov_type="nonrobust")
+
+    # Make the covariance matrices the same to focus on the coefficient table
+    mdl.covariance_matrix_ = mdl_sm.fit(cov_type="nonrobust").cov_params()
+    our_table = mdl.coef_table()
+
+    if fit_intercept:
+        colnames = ["intercept"] + colnames
+    assert our_table.index.tolist() == colnames
+
+    np.testing.assert_allclose(our_table["coef"], fit_sm.params, rtol=1e-8)
+    np.testing.assert_allclose(our_table["se"], fit_sm.bse, rtol=1e-8)
+    np.testing.assert_allclose(our_table["t_value"], fit_sm.tvalues, rtol=1e-8)
+    np.testing.assert_allclose(our_table["p_value"], fit_sm.pvalues, atol=1e-8)
+    np.testing.assert_allclose(
+        our_table[["ci_lower", "ci_upper"]], fit_sm.conf_int(), rtol=1e-8
+    )
+
+
+@pytest.mark.parametrize("fit_intercept", [True, False])
+@pytest.mark.parametrize("family", ["poisson", "normal", "binomial"])
+@pytest.mark.parametrize(
+    "R, r",
+    [
+        pytest.param(np.array([[0] * 10 + [1]]), np.array([0]), id="single"),
+        pytest.param(
+            np.array([[1] + [0] * 8 + [1] * 2]), np.array([0]), id="multiple_vars"
+        ),
+        pytest.param(
+            np.array([[0] * 10 + [2], [0] * 9 + [1, 1]]),
+            np.array([0, 0]),
+            id="multiple_constraints",
+        ),
+        pytest.param(np.array([[0] * 10 + [1]]), np.array([2]), id="rhs_not_zero"),
+    ],
+)
+def test_wald_test_matrix(regression_data, family, fit_intercept, R, r):
+    X, y = regression_data
+    if not fit_intercept:
+        R = R[:, 1:]
+
+    if family == "poisson":
+        y = np.round(abs(y))
+        sm_family = sm.families.Poisson()
+        dispersion = 1
+    elif family == "binomial":
+        rng = np.random.default_rng(42)
+        y = rng.choice([0, 1], len(y))
+        sm_family = sm.families.Binomial()
+        dispersion = 1
+    else:
+        sm_family = sm.families.Gaussian()
+        dispersion = None
+
+    mdl = GeneralizedLinearRegressor(
+        alpha=0, family=family, fit_intercept=fit_intercept
+    ).fit(X=X, y=y)
+
+    if fit_intercept:
+        mdl_sm = sm.GLM(endog=y, exog=sm.add_constant(X), family=sm_family)
+    else:
+        mdl_sm = sm.GLM(endog=y, exog=X, family=sm_family)
+
+    # Here, statsmodels does not do a degree of freedom adjustment,
+    # so we manually add it for nonrobust and robust errors
+    corr = len(y) / (len(y) - X.shape[1] - int(fit_intercept))
+
+    # nonrobust
+    # mdl.covariance_matrix_ = mdl_sm.fit(cov_type="nonrobust").cov_params()
+    our_results = mdl._wald_test_matrix(
+        R, r, X=X, y=y, dispersion=dispersion, robust=False
+    )
+    fit_sm = mdl_sm.fit(cov_type="nonrobust")
+    sm_results = fit_sm.wald_test(
+        (R, r), cov_p=fit_sm.cov_params() * corr, scalar=False
+    )
+
+    np.testing.assert_allclose(
+        our_results.test_statistic, sm_results.statistic, rtol=1e-3
+    )
+    np.testing.assert_allclose(our_results.p_value, sm_results.pvalue, atol=1e-3)
+    assert our_results.df == sm_results.df_denom
+
+    # robust
+    our_results = mdl._wald_test_matrix(R, r, X=X, y=y, robust=True)
+    fit_sm = mdl_sm.fit(cov_type="HC1")
+    sm_results = fit_sm.wald_test(
+        (R, r), cov_p=fit_sm.cov_params() * corr, scalar=False
+    )
+
+    np.testing.assert_allclose(
+        our_results.test_statistic, sm_results.statistic, rtol=1e-3
+    )
+    np.testing.assert_allclose(our_results.p_value, sm_results.pvalue, atol=1e-3)
+    assert our_results.df == sm_results.df_denom
+
+    # clustered
+    rng = np.random.default_rng(42)
+    clu = rng.integers(5, size=len(y))
+    our_results = mdl._wald_test_matrix(R, r, X=X, y=y, clusters=clu)
+    sm_fit = mdl_sm.fit(cov_type="cluster", cov_kwds={"groups": clu})
+    sm_results = sm_fit.wald_test((R, r), scalar=False)
+
+    np.testing.assert_allclose(
+        our_results.test_statistic, sm_results.statistic, rtol=1e-3
+    )
+    np.testing.assert_allclose(our_results.p_value, sm_results.pvalue, atol=1e-3)
+    assert our_results.df == sm_results.df_denom
+
+
+@pytest.mark.parametrize(
+    "R, r",
+    [
+        pytest.param(np.array([[0] * 10 + [1]]), np.array([0]), id="single"),
+        pytest.param(
+            np.array([[1] + [0] * 8 + [1] * 2]), np.array([0]), id="multiple_vars"
+        ),
+        pytest.param(
+            np.array([[0] * 10 + [2], [0] * 9 + [1, 1]]),
+            np.array([0, 0]),
+            id="multiple_constraints",
+        ),
+        pytest.param(np.array([[0] * 10 + [1]]), np.array([2]), id="rhs_not_zero"),
+    ],
+)
+def test_wald_test_matrix_public(regression_data, R, r):
+    X, y = regression_data
+
+    mdl = GeneralizedLinearRegressor(
+        alpha=0, family="gaussian", fit_intercept=True
+    ).fit(X=X, y=y, store_covariance_matrix=True)
+
+    assert mdl._wald_test_matrix(R, r) == mdl.wald_test(R=R, r=r)
+
+
+@pytest.mark.parametrize(
+    "R, r",
+    [
+        pytest.param(np.array([[0] * 9 + [1]]), np.array([0]), id="single"),
+        pytest.param(np.array([[0] * 8 + [1] * 2]), np.array([0]), id="multiple_vars"),
+        pytest.param(
+            np.array([[0] * 9 + [2], [0] * 8 + [1, 1]]),
+            np.array([0, 0]),
+            id="multiple_constraints",
+        ),
+        pytest.param(np.array([[0] * 9 + [1]]), np.array([2]), id="rhs_not_zero"),
+    ],
+)
+def test_wald_test_matrix_fixed_cov(regression_data, R, r):
+    X, y = regression_data
+
+    mdl = GeneralizedLinearRegressor(
+        alpha=0, family="gaussian", fit_intercept=False
+    ).fit(X=X, y=y, store_covariance_matrix=True)
+    mdl_sm = sm.GLM(endog=y, exog=X, family=sm.families.Gaussian())
+
+    # Use the same covariance matrix for both so that we can use tighter tolerances
+    our_results = mdl._wald_test_matrix(R, r)
+    fit_sm = mdl_sm.fit()
+    sm_results = fit_sm.wald_test((R, r), cov_p=mdl.covariance_matrix(), scalar=False)
+
+    np.testing.assert_allclose(
+        our_results.test_statistic, sm_results.statistic, rtol=1e-8
+    )
+    np.testing.assert_allclose(our_results.p_value, sm_results.pvalue, atol=1e-8)
+    assert our_results.df == sm_results.df_denom
+
+
+@pytest.mark.parametrize(
+    "names, R, r",
+    [
+        pytest.param(["col_9"], np.array([[0] * 10 + [1]]), None, id="single"),
+        pytest.param(
+            ["col_8", "col_9"],
+            np.array([[0] * 9 + [1] + [0], [0] * 10 + [1]]),
+            None,
+            id="multiple",
+        ),
+        pytest.param(
+            ["col_8", "col_9"],
+            np.array([[0] * 9 + [1] + [0], [0] * 10 + [1]]),
+            [1, 2],
+            id="rhs_not_zero",
+        ),
+        pytest.param(
+            ["intercept", "col_9"],
+            np.array([[1] + [0] * 10, [0] * 10 + [1]]),
+            [1, 2],
+            id="intercept",
+        ),
+    ],
+)
+def test_wald_test_feature_names(regression_data, names, R, r):
+    X, y = regression_data
+    X_df = pd.DataFrame(X, columns=[f"col_{i}" for i in range(X.shape[1])])
+
+    mdl = GeneralizedLinearRegressor(
+        alpha=0, family="gaussian", fit_intercept=True
+    ).fit(X=X_df, y=y, store_covariance_matrix=True)
+
+    feature_names_results = mdl._wald_test_feature_names(names, r)
+    if r is not None:
+        r = np.array(r)  # wald_test_matrix expects an optional numpy array
+    matrix_results = mdl._wald_test_matrix(R, r)
+
+    np.testing.assert_equal(
+        feature_names_results.test_statistic, matrix_results.test_statistic
+    )
+    np.testing.assert_equal(feature_names_results.p_value, matrix_results.p_value)
+    assert feature_names_results.df == matrix_results.df
+
+
+@pytest.mark.parametrize(
+    "names, r",
+    [
+        pytest.param(["col_9"], None, id="single"),
+        pytest.param(
+            ["col_8", "col_9"],
+            None,
+            id="multiple",
+        ),
+        pytest.param(
+            ["col_8", "col_9"],
+            [1, 2],
+            id="rhs_not_zero",
+        ),
+        pytest.param(
+            ["intercept", "col_9"],
+            [1, 2],
+            id="intercept",
+        ),
+    ],
+)
+def test_wald_test_feature_names_public(regression_data, names, r):
+    X, y = regression_data
+    X_df = pd.DataFrame(X, columns=[f"col_{i}" for i in range(X.shape[1])])
+
+    mdl = GeneralizedLinearRegressor(
+        alpha=0, family="gaussian", fit_intercept=True
+    ).fit(X=X_df, y=y, store_covariance_matrix=True)
+
+    assert mdl._wald_test_feature_names(names, r) == mdl.wald_test(features=names, r=r)
+
+
+def test_wald_test_raise_on_wrong_input(regression_data):
+    X, y = regression_data
+    mdl = GeneralizedLinearRegressor(alpha=0, family="gaussian", fit_intercept=True)
+    mdl.fit(X=X, y=y)
+
+    with pytest.raises(ValueError):
+        mdl.wald_test(R=np.array([[0] * 10 + [1]]), features=["col_9"], r=[1, 2])
+
+    with pytest.raises(ValueError):
+        mdl.wald_test(r=[1, 2])
+
+
 @pytest.mark.parametrize("as_data_frame", [False, True])
 @pytest.mark.parametrize("offset", [False, True])
 @pytest.mark.parametrize("weighted", [False, True])
@@ -2313,12 +2584,14 @@ def test_store_covariance_matrix_alpha_search(
     )
     with pytest.warns(match="Covariance matrix estimation assumes"):
         regressor.fit(X, y, store_covariance_matrix=True, clusters=clu)
+        new_covariance_matrix = regressor.covariance_matrix(
+            X, y, robust=robust, expected_information=expected_information, clusters=clu
+        )
+        stored_covariance_matrix = regressor.covariance_matrix()
 
     np.testing.assert_array_almost_equal(
-        regressor.covariance_matrix(
-            X, y, robust=robust, expected_information=expected_information, clusters=clu
-        ),
-        regressor.covariance_matrix(),
+        new_covariance_matrix,
+        stored_covariance_matrix,
     )
 
 
@@ -2345,10 +2618,12 @@ def test_store_covariance_matrix_cv(
     with pytest.warns(match="Covariance matrix estimation assumes"):
         # regressor.alpha_ == 1e-5 > 0
         regressor.fit(X, y, store_covariance_matrix=True, clusters=clu)
+        new_covariance_matrix = regressor.covariance_matrix(
+            X, y, robust=robust, expected_information=expected_information, clusters=clu
+        )
+        stored_covariance_matrix = regressor.covariance_matrix()
 
     np.testing.assert_array_almost_equal(
-        regressor.covariance_matrix(
-            X, y, robust=robust, expected_information=expected_information, clusters=clu
-        ),
-        regressor.covariance_matrix(),
+        new_covariance_matrix,
+        stored_covariance_matrix,
     )
