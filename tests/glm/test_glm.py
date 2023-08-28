@@ -3147,3 +3147,43 @@ def test_formula_predict(get_mixed_data, formula):
     yhat_smf = model_smf.predict(data_unseen)
 
     np.testing.assert_almost_equal(yhat_formula, yhat_smf)
+
+
+@pytest.mark.parametrize("cat_missing_method", ["fail", "zero", "convert"])
+def test_cat_missing(cat_missing_method):
+    X = pd.DataFrame(
+        {
+            "cat_1": pd.Categorical([1, 2, pd.NA, 2, 1]),
+            "cat_2": pd.Categorical([1, 2, pd.NA, 1, 2]),
+        }
+    )
+    X_unseen = pd.DataFrame(
+        {
+            "cat_1": pd.Categorical([1, pd.NA]),
+            "cat_2": pd.Categorical([1, 2]),
+        }
+    )
+    y = np.array([1, 2, 3, 4, 5])
+
+    model = GeneralizedLinearRegressor(
+        family="normal",
+        cat_missing_method=cat_missing_method,
+        drop_first=False,
+        fit_intercept=False,
+    )
+
+    if cat_missing_method == "fail":
+        with pytest.raises(ValueError):
+            model.fit(X, y)
+    else:
+        model.fit(X, y)
+        feature_names = ["cat_1[1]", "cat_1[2]", "cat_2[1]", "cat_2[2]"]
+
+        if cat_missing_method == "convert":
+            feature_names.insert(2, "cat_1[(MISSING)]")
+            feature_names.append("cat_2[(MISSING)]")
+
+        np.testing.assert_array_equal(model.feature_names_, feature_names)
+        assert len(model.coef_) == len(feature_names)
+
+        model.predict(X_unseen)
