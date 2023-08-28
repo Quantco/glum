@@ -28,6 +28,8 @@ import pandas as pd
 import scipy.sparse as sps
 import scipy.sparse.linalg as splinalg
 import tabmat as tm
+from formulaic import Formula, FormulaSpec
+from formulaic.parser import DefaultFormulaParser
 from scipy import linalg, sparse, stats
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.utils import check_array
@@ -236,6 +238,51 @@ def _name_categorical_variables(
             + "This should be dropped from the feature matrix."
         )
     return new_names
+
+
+def _parse_formula(
+    formula: FormulaSpec, include_intercept: bool = True
+) -> Tuple[Optional[Formula], Formula]:
+    """
+    Parse and transform  the formula for use in a GeneralizedLinearRegressor.
+
+    The left-hand side and right-hand side of the formula are separated. If an
+    intercept is present, it is removed from the right-hand side, and a boolean
+    flag is returned to indicate whether or not an intercept should be added to
+    the model.
+
+    Parameters
+    ----------
+    formula : FormulaSpec
+        The formula to parse.
+    include_intercept: bool, default True
+        Whether to include an intercept column if the formula does not
+        include (``+ 1``) or exclude (``+ 0`` or ``- 1``) it explicitly.
+
+    Returns
+    -------
+    tuple[Formula, Formula]
+        The left-hand side and right-hand sides of the formula."""
+    if isinstance(formula, str):
+        parser = DefaultFormulaParser(include_intercept=include_intercept)
+        terms = parser.get_terms(formula)
+    elif isinstance(formula, Formula):
+        terms = formula
+    else:
+        raise TypeError("formula must be a string or Formula object.")
+
+    if hasattr(terms, "lhs"):
+        lhs_terms = terms.lhs
+        if len(lhs_terms) != 1:
+            raise ValueError(
+                "formula must have exactly one term on the left-hand side."
+            )
+        rhs_terms = terms.rhs
+    else:
+        lhs_terms = None
+        rhs_terms = terms
+
+    return lhs_terms, rhs_terms
 
 
 def check_bounds(
@@ -726,6 +773,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         drop_first: bool = False,
         robust: bool = True,
         expected_information: bool = False,
+        formula: Optional[FormulaSpec] = None,
+        interaction_separator: str = ":",
         categorical_format: str = "{name}[{category}]",
     ):
         self.l1_ratio = l1_ratio
@@ -759,6 +808,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self.drop_first = drop_first
         self.robust = robust
         self.expected_information = expected_information
+        self.formula = formula
+        self.interaction_separator = interaction_separator
         self.categorical_format = categorical_format
 
     @property
@@ -835,6 +886,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
     def _convert_from_pandas(self, df: pd.DataFrame) -> tm.MatrixBase:
         """Convert a pandas data frame to a tabmat matrix."""
+
+        if hasattr(self, "X_model_spec_"):
+            return self.X_model_spec_.get_model_matrix(df)
+
         if hasattr(self, "feature_dtypes_"):
             df = _align_df_categories(df, self.feature_dtypes_)
 
@@ -1921,14 +1976,18 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 "matrix will be incorrect."
             )
 
+        cannot_estimate_cov = X is None or (
+            y is None and not hasattr(self, "y_model_spec_")
+        )
+
         if not skip_checks:
-            if (X is None or y is None) and self.covariance_matrix_ is None:
+            if cannot_estimate_cov and self.covariance_matrix_ is None:
                 raise ValueError(
                     "Either X and y must be provided or the covariance matrix "
                     "must have been previously computed."
                 )
 
-            if (X is None or y is None) and store_covariance_matrix:
+            if cannot_estimate_cov and store_covariance_matrix:
                 raise ValueError(
                     "X and y must be provided if 'store_covariance_matrix' is True."
                 )
@@ -1955,6 +2014,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                         "parameters if X and y are not provided."
                     )
                 return self.covariance_matrix_
+
+            if hasattr(self, "y_model_spec_"):
+                y = self.y_model_spec_.get_model_matrix(X).A.ravel()
+                # This has to go first because X is modified in the next line
 
             if isinstance(X, pd.DataFrame):
                 X = self._convert_from_pandas(X)
@@ -2253,50 +2316,109 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         copy_X = self._should_copy_X()
 
         if isinstance(X, pd.DataFrame):
-            self.feature_dtypes_ = X.dtypes.to_dict()
+            if self.formula is not None:
+                lhs, rhs = _parse_formula(
+                    self.formula, include_intercept=self.fit_intercept
+                )
 
-            if any(X.dtypes == "category"):
+                if lhs is not None:
+                    if y is not None:
+                        raise ValueError(
+                            "`y` is not allowed when using a two-sided formula. "
+                            "Either set `y=None` or use a one-sided formula."
+                        )
 
-                def _expand_categorical_penalties(penalty, X, drop_first):
-                    """
-                    If P1 or P2 has the same shape as X before expanding the
-                    categoricals, we assume that the penalty at the location of
-                    the categorical is the same for all levels.
-                    """
-                    if isinstance(penalty, str):
-                        return penalty
-                    if not sparse.issparse(penalty):
-                        penalty = np.asanyarray(penalty)
+                    y = tm.from_formula(
+                        formula=lhs,
+                        data=X,
+                        include_intercept=False,
+                        context=2,
+                    )
 
-                    if penalty.shape[0] == X.shape[1]:
-                        if penalty.ndim == 2:
-                            raise ValueError(
-                                "When the penalty is two dimensional, it has "
-                                "to have the same length as the number of "
-                                "columns of X, after the categoricals "
-                                "have been expanded."
-                            )
-                        return np.array(
-                            list(
-                                chain.from_iterable(
-                                    [elmt for _ in dtype.categories[int(drop_first) :]]
-                                    if pd.api.types.is_categorical_dtype(dtype)
-                                    else [elmt]
-                                    for elmt, dtype in zip(penalty, X.dtypes)
+                    self.y_model_spec_ = y.model_spec
+                    y = y.A.ravel()
+
+                X = tm.from_formula(
+                    formula=rhs,
+                    data=X,
+                    include_intercept=False,
+                    ensure_full_rank=self.drop_first,
+                    categorical_format=self.categorical_format,
+                    interaction_separator=self.interaction_separator,
+                    add_column_for_intercept=False,
+                    context=2,  # where fit/std_errors/etc. is called from
+                )
+
+                intercept = "1" in X.model_spec.terms
+                if intercept != self.fit_intercept:
+                    warnings.warn(
+                        f"The formula explicitly sets the intercept to {intercept}, "
+                        f"overriding fit_intercept={self.fit_intercept}."
+                    )
+                    self.fit_intercept = intercept
+
+                self.X_model_spec_ = X.model_spec
+
+                self.feature_names_ = list(X.model_spec.column_names)
+                self.term_names_ = list(
+                    chain.from_iterable(
+                        [term] * len(cols) for term, _, cols in X.model_spec.structure
+                    )
+                )
+
+            else:
+                # Maybe TODO: expand categorical penalties with formulas
+
+                self.feature_dtypes_ = X.dtypes.to_dict()
+
+                if any(X.dtypes == "category"):
+
+                    def _expand_categorical_penalties(penalty, X, drop_first):
+                        """
+                        If P1 or P2 has the same shape as X before expanding the
+                        categoricals, we assume that the penalty at the location of
+                        the categorical is the same for all levels.
+                        """
+                        if isinstance(penalty, str):
+                            return penalty
+                        if not sparse.issparse(penalty):
+                            penalty = np.asanyarray(penalty)
+
+                        if penalty.shape[0] == X.shape[1]:
+                            if penalty.ndim == 2:
+                                raise ValueError(
+                                    "When the penalty is two dimensional, it has "
+                                    "to have the same length as the number of "
+                                    "columns of X, after the categoricals "
+                                    "have been expanded."
+                                )
+                            return np.array(
+                                list(
+                                    chain.from_iterable(
+                                        [
+                                            elmt
+                                            for _ in dtype.categories[int(drop_first) :]
+                                        ]
+                                        if pd.api.types.is_categorical_dtype(dtype)
+                                        else [elmt]
+                                        for elmt, dtype in zip(penalty, X.dtypes)
+                                    )
                                 )
                             )
-                        )
-                    else:
-                        return penalty
+                        else:
+                            return penalty
 
-                P1 = _expand_categorical_penalties(self.P1, X, self.drop_first)
-                P2 = _expand_categorical_penalties(self.P2, X, self.drop_first)
+                    P1 = _expand_categorical_penalties(self.P1, X, self.drop_first)
+                    P2 = _expand_categorical_penalties(self.P2, X, self.drop_first)
 
-            X = tm.from_pandas(
-                X,
-                drop_first=self.drop_first,
-                categorical_format=self.categorical_format,
-            )
+                X = tm.from_pandas(
+                    X,
+                    drop_first=self.drop_first,
+                    categorical_format=self.categorical_format,
+                )
+
+        if y is None:
+            raise ValueError("y cannot be None when not using a two-sided formula.")
 
         if not self._is_contiguous(X):
             if self.copy_X is not None and not self.copy_X:
@@ -2647,8 +2769,10 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
 
     drop_first : bool, optional (default = False)
         If ``True``, drop the first column when encoding categorical variables.
-        Set this to True when alpha=0 and solver='auto' to prevent an error due to a singular
-        feature matrix.
+        Set this to True when alpha=0 and solver='auto' to prevent an error due to a
+        singular feature matrix. In the case of using a formula with interactions,
+        setting this argument to ``True`` ensures structural full-rankness (it is
+        equivalent to ``ensure_full_rank`` in formulaic and tabmat).
 
     robust : bool, optional (default = False)
         If true, then robust standard errors are computed by default.
@@ -2656,6 +2780,18 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     expected_information : bool, optional (default = False)
         If true, then the expected information matrix is computed by default.
         Only relevant when computing robust standard errors.
+    formula : FormulaSpec
+        A formula accepted by formulaic. It can either be a one-sided formula, in
+        which case ``y`` must be specified in ``fit``, or a two-sided formula, in
+        which case ``y`` must be ``None``.
+
+    interaction_separator: str, default ":"
+        The separator between the names of interacted variables.
+
+    categorical_format: str, default "{name}[T.{category}]"
+        The format string used to generate the names of categorical variables.
+        Has to include the placeholders ``{name}`` and ``{category}``.
+        Only used if ``formula`` is not ``None``.
 
     categorical_features : str, optional (default = "{name}[{category}]")
         Format string for categorical features. The format string should
@@ -2746,6 +2882,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         drop_first: bool = False,
         robust: bool = True,
         expected_information: bool = False,
+        formula: Optional[FormulaSpec] = None,
+        interaction_separator: str = ":",
         categorical_format: str = "{name}[{category}]",
     ):
         self.alphas = alphas
@@ -2782,6 +2920,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             drop_first=drop_first,
             robust=robust,
             expected_information=expected_information,
+            formula=formula,
+            interaction_separator=interaction_separator,
             categorical_format=categorical_format,
         )
 
@@ -2826,7 +2966,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     def fit(
         self,
         X: ArrayLike,
-        y: ArrayLike,
+        y: Optional[ArrayLike] = None,
         sample_weight: Optional[ArrayLike] = None,
         offset: Optional[ArrayLike] = None,
         store_covariance_matrix: bool = False,
