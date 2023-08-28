@@ -30,6 +30,7 @@ import scipy.sparse.linalg as splinalg
 import tabmat as tm
 from formulaic import Formula, FormulaSpec
 from formulaic.parser import DefaultFormulaParser
+from formulaic.utils.constraints import LinearConstraintParser
 from scipy import linalg, sparse, stats
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.utils import check_array
@@ -1494,6 +1495,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self,
         R: Optional[np.ndarray] = None,
         features: Optional[Union[str, List[str]]] = None,
+        terms: Optional[Union[str, List[str]]] = None,
+        formula: Optional[str] = None,
         r: Optional[Sequence] = None,
         X=None,
         y=None,
@@ -1512,8 +1515,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         - ``R``: The restriction matrix representing the linear combination of
           coefficients to test.
         - ``features``: The name of a feature or a list of features to test.
+        - ``terms``: The name of a term or a list of terms to test.
+        - ``formula``: A formula string specifying the hypothesis to test.
 
-        The right hand side of the tested hypothesis is specified by ``r``.
+        The right hand side of the tested hypothesis is specified by ``r``. In the
+        case of a ``terms``-based test, the null hypothesis is that each coefficient
+        relating to a term is equal to the corresponding value in ``r``.
 
         Parameters
         ----------
@@ -1522,6 +1529,13 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             to test.
         features : Union[str, list[str]], optional, default=None
             The name of a feature or a list of features to test.
+        terms : Union[str, list[str]], optional, default=None
+            The name of a term or a list of terms to test. It can cover one or more
+            coefficients. In the case of a model based on a formula, a term is one
+            of the expressions separated by ``+`` signs. Otherwise, a term is one column
+            in the input data. As categorical variables need not be one-hot encoded in
+            glum, in their case, the hypothesis to be tested is that the coefficients
+            for all of their levels are equal to ``r``.
         r : np.ndarray, optional, default=None
             The vector representing the values of the linear combination.
             If None, the test is for whether the linear combinations of the coefficients
@@ -1557,10 +1571,17 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             NamedTuple with test statistic, p-value, and degrees of freedom.
         """
 
-        num_lhs_specs = sum([R is not None, features is not None])
+        num_lhs_specs = sum(
+            [
+                R is not None,
+                features is not None,
+                terms is not None,
+                formula is not None,
+            ]
+        )
         if num_lhs_specs != 1:
             raise ValueError(
-                "Exactly one of R or features must be specified. "
+                "Exactly one of R, features terms or formula must be specified. "
                 f"Received {num_lhs_specs} specifications."
             )
 
@@ -1583,6 +1604,37 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             return self._wald_test_feature_names(
                 features=features,
                 values=r,
+                X=X,
+                y=y,
+                mu=mu,
+                offset=offset,
+                sample_weight=sample_weight,
+                dispersion=dispersion,
+                robust=robust,
+                clusters=clusters,
+                expected_information=expected_information,
+            )
+
+        if terms is not None:
+            return self._wald_test_term_names(
+                terms=terms,
+                values=r,
+                X=X,
+                y=y,
+                mu=mu,
+                offset=offset,
+                sample_weight=sample_weight,
+                dispersion=dispersion,
+                robust=robust,
+                clusters=clusters,
+                expected_information=expected_information,
+            )
+
+        if formula is not None:
+            if r is not None:
+                raise ValueError("Cannot specify both formula and r")
+            return self._wald_test_formula(
+                formula=formula,
                 X=X,
                 y=y,
                 mu=mu,
@@ -1781,6 +1833,193 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             except ValueError:
                 raise ValueError(f"feature {feature} is not in the model") from None
             R[i, j] = 1
+
+        return self._wald_test_matrix(
+            R=R,
+            r=r,
+            X=X,
+            y=y,
+            mu=mu,
+            offset=offset,
+            sample_weight=sample_weight,
+            dispersion=dispersion,
+            robust=robust,
+            clusters=clusters,
+            expected_information=expected_information,
+        )
+
+    def _wald_test_formula(
+        self,
+        formula: str,
+        X=None,
+        y=None,
+        mu=None,
+        offset=None,
+        sample_weight=None,
+        dispersion=None,
+        robust=None,
+        clusters: np.ndarray = None,
+        expected_information=None,
+    ) -> WaldTestResult:
+        """Compute the Wald test statistic and p-value for a linear hypothesis.
+
+        Perform a Wald test for the hypothesis described in ``formula``.
+
+        Parameters
+        ----------
+        formula: str
+            A formula string describing the linear restrictions. For more information,
+            see `meth:ModelSpec.get_linear_constraints` in ``formulaic``.
+        X : {array-like, sparse matrix}, shape (n_samples, n_features), optional
+            Training data. Can be omitted if a covariance matrix has already
+            been computed.
+        y : array-like, shape (n_samples,), optional
+            Target values. Can be omitted if a covariance matrix has already
+            been computed.
+        mu : array-like, optional, default=None
+            Array with predictions. Estimated if absent.
+        offset : array-like, optional, default=None
+            Array with additive offsets.
+        sample_weight : array-like, shape (n_samples,), optional, default=None
+            Individual weights for each sample.
+        dispersion : float, optional, default=None
+            The dispersion parameter. Estimated if absent.
+        robust : boolean, optional, default=None
+            Whether to compute robust standard errors instead of normal ones.
+            If not specified, the model's ``robust`` attribute is used.
+        clusters : array-like, optional, default=None
+            Array with cluster membership. Clustered standard errors are
+            computed if clusters is not None.
+        expected_information : boolean, optional, default=None
+            Whether to use the expected or observed information matrix.
+            Only relevant when computing robust standard errors.
+            If not specified, the model's ``expected_information`` attribute is used.
+
+        Returns
+        -------
+        WaldTestResult
+            NamedTuple with test statistic, p-value, and degrees of freedom.
+        """
+
+        if self.fit_intercept:
+            names = ["intercept"] + list(self.feature_names_)
+        else:
+            names = self.feature_names_
+
+        parser = LinearConstraintParser(names)
+
+        R, r = parser.get_matrix(formula)
+
+        return self._wald_test_matrix(
+            R=R,
+            r=r,
+            X=X,
+            y=y,
+            mu=mu,
+            offset=offset,
+            sample_weight=sample_weight,
+            dispersion=dispersion,
+            robust=robust,
+            clusters=clusters,
+            expected_information=expected_information,
+        )
+
+    def _wald_test_term_names(
+        self,
+        terms: Union[str, List[str]],
+        values: Optional[Sequence] = None,
+        X=None,
+        y=None,
+        mu=None,
+        offset=None,
+        sample_weight=None,
+        dispersion=None,
+        robust=None,
+        clusters: np.ndarray = None,
+        expected_information=None,
+    ) -> WaldTestResult:
+        """Compute the Wald test statistic and p-value for a linear hypotheses.
+
+        Perform a Wald test for the hypothesis that the coefficients of the
+        features in ``terms`` are equal to the values in ``terms``.
+
+        Parameters
+        ----------
+        terms : Union[str, list[str]]
+            The name of a term or a list of terms to test. It can cover one or more
+            coefficients. In the case of a model based on a formula, a term is one
+            of the expressions separated by ``+`` signs. Otherwise, a term is one column
+            in the input data. As categorical variables need not be one-hot encoded in
+            glum, in their case, the hypothesis to be tested is that the coefficients
+            for all of their levels are equal to ``r``.
+        values: Sequence, optional, default=None
+            The values to which coefficients are compared. If None, the test is
+            for whether the coefficients are zero.
+        X : {array-like, sparse matrix}, shape (n_samples, n_features), optional
+            Training data. Can be omitted if a covariance matrix has already
+            been computed.
+        y : array-like, shape (n_samples,), optional
+            Target values. Can be omitted if a covariance matrix has already
+            been computed.
+        mu : array-like, optional, default=None
+            Array with predictions. Estimated if absent.
+        offset : array-like, optional, default=None
+            Array with additive offsets.
+        sample_weight : array-like, shape (n_samples,), optional (default=None)
+            Individual weights for each sample.
+        dispersion : float, optional, default=None
+            The dispersion parameter. Estimated if absent.
+        robust : boolean, optional, default=None
+            Whether to compute robust standard errors instead of normal ones.
+            If not specified, the model's ``robust`` attribute is used.
+        clusters : array-like, optional, default=None
+            Array with clusters membership. Clustered standard errors are
+            computed if clusters is not None.
+        expected_information : boolean, optional, default=None
+            Whether to use the expected or observed information matrix.
+            Only relevant when computing robust std-errors.
+            If not specified, the model's ``expected_information`` attribute is used.
+
+        Returns
+        -------
+        WaldTestResult
+            NamedTuple with test statistic, p-value and degrees of freedom.
+        """
+
+        if isinstance(terms, str):
+            terms = [terms]
+
+        if values is not None:
+            rhs = True
+            if len(terms) != len(values):
+                raise ValueError("terms and values must have the same length")
+        else:
+            rhs = False
+            values = [None] * len(terms)
+
+        if self.fit_intercept:
+            names = np.array(["intercept"] + list(self.term_names_))
+            beta = np.concatenate([[self.intercept_], self.coef_])
+        else:
+            names = np.array(self.feature_names_)
+            beta = self.coef_
+
+        R_list = []
+        r_list = []
+        for term, value in zip(terms, values):
+            R_indices, *_ = np.where(names == term)
+            num_restrictions = len(R_indices)
+            if num_restrictions == 0:
+                raise ValueError(f"term {term} is not in the model")
+            R_current = np.zeros((num_restrictions, len(beta)), dtype=np.float64)
+            R_current[np.arange(num_restrictions), R_indices] = 1.0
+            R_list.append(R_current)
+
+            if rhs:
+                r_list.append(np.full(num_restrictions, fill_value=value))
+
+        R = np.vstack(R_list)
+        r = np.concatenate(r_list) if rhs else None
 
         return self._wald_test_matrix(
             R=R,
