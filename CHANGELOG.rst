@@ -33,7 +33,6 @@ Changelog
 **Other changes:**
 
 - When computing the covariance matrix, check for ill-conditionedness for all types of input. Furthermore, do it in a more efficient way.
-- Added the option to specify models using Wilkinson-formulas.
 
 2.5.2 - 2023-06-02
 ------------------
