@@ -1,8 +1,9 @@
 import copy
-from typing import Optional, Union
+from typing import Any, Mapping, Optional, Union
 
 import numpy as np
 from formulaic import FormulaSpec
+from formulaic.utils.context import capture_context
 from joblib import Parallel, delayed
 from sklearn.model_selection._split import check_cv
 
@@ -423,6 +424,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         offset: Optional[ArrayLike] = None,
         store_covariance_matrix: bool = False,
         clusters: Optional[np.ndarray] = None,
+        context: Optional[Union[int, Mapping[str, Any]]] = None,
     ):
         r"""
         Choose the best model along a 'regularization path' by cross-validation.
@@ -468,6 +470,10 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         """
         self._validate_hyperparameters()
 
+        captured_context = capture_context(
+            context + 1 if isinstance(context, int) else context
+        )
+
         (
             X,
             y,
@@ -483,6 +489,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             offset,
             solver=self.solver,
             force_all_finite=self.force_all_finite,
+            context=captured_context,
         )
 
         #########

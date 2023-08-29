@@ -21,7 +21,17 @@ import sys
 import warnings
 from collections.abc import Iterable
 from itertools import chain
-from typing import Any, List, NamedTuple, Optional, Sequence, Tuple, Union, cast
+from typing import (
+    Any,
+    List,
+    Mapping,
+    NamedTuple,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+    cast,
+)
 
 import numpy as np
 import pandas as pd
@@ -31,6 +41,7 @@ import tabmat as tm
 from formulaic import Formula, FormulaSpec
 from formulaic.parser import DefaultFormulaParser
 from formulaic.utils.constraints import LinearConstraintParser
+from formulaic.utils.context import capture_context
 from scipy import linalg, sparse, stats
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.utils import check_array
@@ -225,20 +236,6 @@ def _check_offset(
         raise ValueError("Offsets must have the same length as y.")
 
     return offset
-
-
-def _name_categorical_variables(
-    categories: Tuple[str], column_name: str, drop_first: bool
-):
-    new_names = [
-        f"{column_name}__{category}" for category in categories[int(drop_first) :]
-    ]
-    if len(new_names) == 0:
-        raise ValueError(
-            f"Categorical column: {column_name}, contains only one category. "
-            + "This should be dropped from the feature matrix."
-        )
-    return new_names
 
 
 def _parse_formula(
@@ -889,11 +886,13 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         return coef
 
-    def _convert_from_pandas(self, df: pd.DataFrame) -> tm.MatrixBase:
+    def _convert_from_pandas(
+        self, df: pd.DataFrame, context: Optional[Mapping[str, Any]] = None
+    ) -> tm.MatrixBase:
         """Convert a pandas data frame to a tabmat matrix."""
 
         if hasattr(self, "X_model_spec_"):
-            return self.X_model_spec_.get_model_matrix(df)
+            return self.X_model_spec_.get_model_matrix(df, context=context)
 
         if hasattr(self, "feature_dtypes_"):
             df = _align_df_categories(df, self.feature_dtypes_)
@@ -1287,6 +1286,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         offset: Optional[ArrayLike] = None,
         alpha_index: Optional[Union[int, Sequence[int]]] = None,
         alpha: Optional[Union[float, Sequence[float]]] = None,
+        context: Optional[Union[int, Mapping[str, Any]]] = 0,
     ):
         """Compute the linear predictor, ``X * coef_ + intercept_``.
 
@@ -1311,6 +1311,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             Sets the alpha(s) to use in case ``alpha_search`` is ``True``.
             Incompatible with ``alpha_index`` (see above).
 
+        context : Optional[Union[int, Mapping[str, Any]]], default=0
+            The context to use for evaluating the formula. If an integer, the
+            context is taken from the stack frame of the caller at the given
+            depth. If a dict, it is used as the context directly.
         Returns
         -------
         array, shape (n_samples, n_alphas)
@@ -1326,7 +1330,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             alpha_index = [self._find_alpha_index(a) for a in alpha]  # type: ignore
 
         if isinstance(X, pd.DataFrame):
-            X = self._convert_from_pandas(X)
+            captured_context = capture_context(
+                context + 1 if isinstance(context, int) else context
+            )
+            X = self._convert_from_pandas(X, context=captured_context)
 
         X = check_array_tabmat_compliant(
             X,
@@ -1366,6 +1373,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         offset: Optional[ArrayLike] = None,
         alpha_index: Optional[Union[int, Sequence[int]]] = None,
         alpha: Optional[Union[float, Sequence[float]]] = None,
+        context: Optional[Union[int, Mapping[str, Any]]] = 0,
     ):
         """Predict using GLM with feature matrix ``X``.
 
@@ -1393,13 +1401,20 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             Sets the alpha(s) to use in case ``alpha_search`` is ``True``.
             Incompatible with ``alpha_index`` (see above).
 
+        context : Optional[Union[int, Mapping[str, Any]]], default=0
+            The context to use for evaluating the formula. If an integer, the
+            context is taken from the stack frame of the caller at the given
+            depth. If a dict, it is used as the context directly.
         Returns
         -------
         array, shape (n_samples, n_alphas)
             Predicted values times ``sample_weight``.
         """
         if isinstance(X, pd.DataFrame):
-            X = self._convert_from_pandas(X)
+            captured_context = capture_context(
+                context + 1 if isinstance(context, int) else context
+            )
+            X = self._convert_from_pandas(X, context=captured_context)
 
         eta = self.linear_predictor(
             X, offset=offset, alpha_index=alpha_index, alpha=alpha
@@ -1424,6 +1439,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         robust=None,
         clusters: np.ndarray = None,
         expected_information=None,
+        context: Optional[Union[int, Mapping[str, Any]]] = 0,
     ):
         """Get a table of of the regression coefficients.
 
@@ -1458,7 +1474,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             Whether to use the expected or observed information matrix.
             Only relevant when computing robust standard errors.
             If not specified, the model's ``expected_information`` attribute is used.
-
+        context : Optional[Union[int, Mapping[str, Any]]], default=0
+            The context to use for evaluating the formula. If an integer, the
+            context is taken from the stack frame of the caller at the given
+            depth. If a dict, it is used as the context directly.
         Returns
         -------
         pandas.DataFrame
@@ -1472,6 +1491,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             names = self.feature_names_
             beta = self.coef_
 
+        captured_context = capture_context(
+            context + 1 if isinstance(context, int) else context
+        )
+
         covariance_matrix = self.covariance_matrix(
             X=X,
             y=y,
@@ -1482,6 +1505,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             robust=robust,
             clusters=clusters,
             expected_information=expected_information,
+            context=captured_context,
         )
 
         significance_level = 1 - confidence_level
@@ -1520,6 +1544,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         robust=None,
         clusters: np.ndarray = None,
         expected_information=None,
+        context: Optional[Union[int, Mapping[str, Any]]] = 0,
     ) -> WaldTestResult:
         """Compute the Wald test statistic and p-value for a linear hypothesis.
 
@@ -1577,7 +1602,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             Whether to use the expected or observed information matrix.
             Only relevant when computing robust standard errors.
             If not specified, the model's ``expected_information`` attribute is used.
-
+        context : Optional[Union[int, Mapping[str, Any]]], default=0
+            The context to use for evaluating the formula. If an integer, the
+            context is taken from the stack frame of the caller at the given
+            depth. If a dict, it is used as the context directly.
         Returns
         -------
         WaldTestResult
@@ -1598,6 +1626,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 f"Received {num_lhs_specs} specifications."
             )
 
+        captured_context = capture_context(
+            context + 1 if isinstance(context, int) else context
+        )
+
         if R is not None:
             return self._wald_test_matrix(
                 R=R,
@@ -1611,6 +1643,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 robust=robust,
                 clusters=clusters,
                 expected_information=expected_information,
+                context=captured_context,
             )
 
         if features is not None:
@@ -1626,6 +1659,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 robust=robust,
                 clusters=clusters,
                 expected_information=expected_information,
+                context=captured_context,
             )
 
         if terms is not None:
@@ -1641,6 +1675,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 robust=robust,
                 clusters=clusters,
                 expected_information=expected_information,
+                context=captured_context,
             )
 
         if formula is not None:
@@ -1657,6 +1692,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 robust=robust,
                 clusters=clusters,
                 expected_information=expected_information,
+                context=captured_context,
             )
 
         raise RuntimeError("This should never happen")
@@ -1674,6 +1710,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         robust=None,
         clusters: np.ndarray = None,
         expected_information=None,
+        context: Optional[Mapping[str, Any]] = None,
     ) -> WaldTestResult:
         """Compute the Wald test statistic and p-value for a linear hypothesis.
 
@@ -1714,7 +1751,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             Whether to use the expected or observed information matrix.
             Only relevant when computing robust standard errors.
             If not specified, the model's ``expected_information`` attribute is used.
-
+        context : Optional[Mapping[str, Any]], default=None
+            The context to use for evaluating the formula.
         Returns
         -------
         WaldTestResult
@@ -1731,6 +1769,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             robust=robust,
             clusters=clusters,
             expected_information=expected_information,
+            context=context,
         )
 
         if self.fit_intercept:
@@ -1778,6 +1817,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         robust=None,
         clusters: np.ndarray = None,
         expected_information=None,
+        context: Optional[Mapping[str, Any]] = None,
     ) -> WaldTestResult:
         """Compute the Wald test statistic and p-value for a linear hypothesis.
 
@@ -1815,7 +1855,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             Whether to use the expected or observed information matrix.
             Only relevant when computing robust standard errors.
             If not specified, the model's ``expected_information`` attribute is used.
-
+        context : Optional[Mapping[str, Any]], default=None
+            The context to use for evaluating the formula.
         Returns
         -------
         WaldTestResult
@@ -1859,6 +1900,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             robust=robust,
             clusters=clusters,
             expected_information=expected_information,
+            context=context,
         )
 
     def _wald_test_formula(
@@ -1873,6 +1915,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         robust=None,
         clusters: np.ndarray = None,
         expected_information=None,
+        context: Optional[Mapping[str, Any]] = None,
     ) -> WaldTestResult:
         """Compute the Wald test statistic and p-value for a linear hypothesis.
 
@@ -1907,7 +1950,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             Whether to use the expected or observed information matrix.
             Only relevant when computing robust standard errors.
             If not specified, the model's ``expected_information`` attribute is used.
-
+        context : Optional[Mapping[str, Any]], default=None
+            The context to use for evaluating the formula.
         Returns
         -------
         WaldTestResult
@@ -1935,6 +1979,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             robust=robust,
             clusters=clusters,
             expected_information=expected_information,
+            context=context,
         )
 
     def _wald_test_term_names(
@@ -1950,6 +1995,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         robust=None,
         clusters: np.ndarray = None,
         expected_information=None,
+        context: Optional[Mapping[str, Any]] = None,
     ) -> WaldTestResult:
         """Compute the Wald test statistic and p-value for a linear hypotheses.
 
@@ -1992,7 +2038,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             Whether to use the expected or observed information matrix.
             Only relevant when computing robust std-errors.
             If not specified, the model's ``expected_information`` attribute is used.
-
+        context : Optional[Mapping[str, Any]], default=None
+            The context to use for evaluating the formula.
         Returns
         -------
         WaldTestResult
@@ -2046,6 +2093,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             robust=robust,
             clusters=clusters,
             expected_information=expected_information,
+            context=context,
         )
 
     def std_errors(
@@ -2060,6 +2108,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         clusters: np.ndarray = None,
         expected_information=None,
         store_covariance_matrix=False,
+        context: Optional[Union[int, Mapping[str, Any]]] = 0,
     ):
         """Calculate standard errors for generalized linear models.
 
@@ -2095,7 +2144,14 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         store_covariance_matrix : boolean, optional, default=False
             Whether to store the covariance matrix in the model instance.
             If a covariance matrix has already been stored, it will be overwritten.
-        """
+        context : Optional[Union[int, Mapping[str, Any]]], default=0
+            The context to use for evaluating the formula. If an integer, the
+            context is taken from the stack frame of the caller at the given
+            depth. If a dict, it is used as the context directly."""
+        captured_context = capture_context(
+            context + 1 if isinstance(context, int) else context
+        )
+
         return np.sqrt(
             self.covariance_matrix(
                 X=X,
@@ -2108,6 +2164,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 clusters=clusters,
                 expected_information=expected_information,
                 store_covariance_matrix=store_covariance_matrix,
+                context=captured_context,
             ).diagonal()
         )
 
@@ -2124,6 +2181,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         expected_information=None,
         store_covariance_matrix=False,
         skip_checks=False,
+        context: Optional[Union[int, Mapping[str, Any]]] = 0,
     ):
         """Calculate the covariance matrix for generalized linear models.
 
@@ -2158,7 +2216,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             If a covariance matrix has already been stored, it will be overwritten.
         skip_checks : boolean, optional, default=False
             Whether to skip input validation. For internal use only.
-
+        context : Optional[Union[int, Mapping[str, Any]]], default=0
+            The context to use for evaluating the formula. If an integer, the
+            context is taken from the stack frame of the caller at the given
+            depth. If a dict, it is used as the context directly.
         Notes
         -----
         We support three types of covariance matrices:
@@ -2201,6 +2262,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         """
         self.covariance_matrix_: Union[np.ndarray, None]
+
+        captured_context = capture_context(
+            context + 1 if isinstance(context, int) else context
+        )
 
         if robust is None:
             _robust = self.robust
@@ -2272,7 +2337,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 # This has to go first because X is modified in the next line
 
             if isinstance(X, pd.DataFrame):
-                X = self._convert_from_pandas(X)
+                X = self._convert_from_pandas(X, context=captured_context)
 
             X, y = check_X_y_tabmat_compliant(
                 X,
@@ -2388,6 +2453,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         y: ShapedArrayLike,
         sample_weight: Optional[ArrayLike] = None,
         offset: Optional[ArrayLike] = None,
+        context: Optional[Union[int, Mapping[str, Any]]] = 0,
     ):
         """Compute :math:`D^2`, the percentage of deviance explained.
 
@@ -2414,6 +2480,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         offset : array-like, shape (n_samples,), optional (default=None)
 
+        context : Optional[Union[int, Mapping[str, Any]]], default=0
+            The context to use for evaluating the formula. If an integer, the
+            context is taken from the stack frame of the caller at the given
+            depth. If a dict, it is used as the context directly.
         Returns
         -------
         float
@@ -2422,8 +2492,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         # Note, default score defined in RegressorMixin is R^2 score.
         # TODO: make D^2 a score function in module metrics (and thereby get
         #       input validation and so on)
+        captured_context = capture_context(
+            context + 1 if isinstance(context, int) else context
+        )
+
         sample_weight = _check_weights(sample_weight, y.shape[0], y.dtype)
-        mu = self.predict(X, offset=offset)
+        mu = self.predict(X, offset=offset, context=captured_context)
         family = get_family(self.family)
         dev = family.deviance(y, mu, sample_weight=sample_weight)
         y_mean = np.average(y, weights=sample_weight)
@@ -2547,6 +2621,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         offset: Optional[VectorLike],
         solver: str,
         force_all_finite,
+        context: Optional[Mapping[str, Any]] = None,
     ) -> Tuple[
         tm.MatrixBase,
         np.ndarray,
@@ -2584,7 +2659,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                         formula=lhs,
                         data=X,
                         include_intercept=False,
-                        context=2,
+                        context=context,
                     )
 
                     self.y_model_spec_ = y.model_spec
@@ -2598,7 +2673,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                     categorical_format=self.categorical_format,
                     interaction_separator=self.interaction_separator,
                     add_column_for_intercept=False,
-                    context=2,  # where fit/std_errors/etc. is called from
+                    context=context,
                 )
 
                 intercept = "1" in X.model_spec.terms
@@ -3242,6 +3317,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         clusters: Optional[np.ndarray] = None,
         # TODO: take out weights_sum (or use it properly)
         weights_sum: Optional[float] = None,
+        context: Optional[Union[int, Mapping[str, Any]]] = 0,
     ):
         """Fit a Generalized Linear Model.
 
@@ -3284,6 +3360,11 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             Array with cluster membership. Clustered standard errors are
             computed if clusters is not None.
 
+        context : Optional[Union[int, Mapping[str, Any]]], default=0
+            The context to use for evaluating the formula. If an integer, the
+            context is taken from the stack frame of the caller at the given
+            depth. If a dict, it is used as the context directly.
+
         weights_sum: float, optional (default=None)
 
         Returns
@@ -3292,6 +3373,10 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         """
 
         self._validate_hyperparameters()
+
+        captured_context = capture_context(
+            context + 1 if isinstance(context, int) else context
+        )
 
         # NOTE: This function checks if all the entries in X and y are
         # finite. That can be expensive. But probably worthwhile.
@@ -3310,6 +3395,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             offset,
             solver=self.solver,
             force_all_finite=self.force_all_finite,
+            context=captured_context,
         )
         assert isinstance(X, tm.MatrixBase)
         assert isinstance(y, np.ndarray)
@@ -3500,6 +3586,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         X: ShapedArrayLike,
         y: ShapedArrayLike,
         sample_weight: Optional[ArrayLike] = None,
+        context: Optional[Mapping[str, Any]] = None,
     ):
         """
         Computes and stores the model's degrees of freedom, the 'aic', 'aicc'
@@ -3552,7 +3639,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
                 + "criteria"
             )
 
-        mu = self.predict(X)
+        mu = self.predict(X, context=context)
         ll = self.family_instance.log_likelihood(y, mu, sample_weight=sample_weight)
 
         aic = -2 * ll + 2 * k_params
@@ -3567,7 +3654,11 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         return True
 
     def aic(
-        self, X: ArrayLike, y: ArrayLike, sample_weight: Optional[ArrayLike] = None
+        self,
+        X: ArrayLike,
+        y: ArrayLike,
+        sample_weight: Optional[ArrayLike] = None,
+        context: Optional[Union[int, Mapping[str, Any]]] = 0,
     ):
         """
         Akaike's information criteria. Computed as:
@@ -3587,11 +3678,25 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
 
         sample_weight : array-like, shape (n_samples,), optional (default=None)
              Same data as used in 'fit'
+
+        context : Optional[Union[int, Mapping[str, Any]]], default=0
+            The context to use for evaluating the formula. If an integer, the
+            context is taken from the stack frame of the caller at the given
+            depth. If a dict, it is used as the context directly.
         """
-        return self._get_info_criteria("aic", X, y, sample_weight)
+        captured_context = capture_context(
+            context + 1 if isinstance(context, int) else context
+        )
+        return self._get_info_criteria(
+            "aic", X, y, sample_weight, context=captured_context
+        )
 
     def aicc(
-        self, X: ArrayLike, y: ArrayLike, sample_weight: Optional[ArrayLike] = None
+        self,
+        X: ArrayLike,
+        y: ArrayLike,
+        sample_weight: Optional[ArrayLike] = None,
+        context: Optional[Union[int, Mapping[str, Any]]] = 0,
     ):
         """
         Second-order Akaike's information criteria (or small sample AIC).
@@ -3613,8 +3718,18 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
 
         sample_weight : array-like, shape (n_samples,), optional (default=None)
              Same data as used in 'fit'
+
+        context : Optional[Union[int, Mapping[str, Any]]], default=0
+            The context to use for evaluating the formula. If an integer, the
+            context is taken from the stack frame of the caller at the given
+            depth. If a dict, it is used as the context directly.
         """
-        aicc = self._get_info_criteria("aicc", X, y, sample_weight)
+        captured_context = capture_context(
+            context + 1 if isinstance(context, int) else context
+        )
+        aicc = self._get_info_criteria(
+            "aicc", X, y, sample_weight, context=captured_context
+        )
         if not aicc:
             raise ValueError(
                 "Model degrees of freedom should be more than training datapoints."
@@ -3622,7 +3737,11 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         return aicc
 
     def bic(
-        self, X: ArrayLike, y: ArrayLike, sample_weight: Optional[ArrayLike] = None
+        self,
+        X: ArrayLike,
+        y: ArrayLike,
+        sample_weight: Optional[ArrayLike] = None,
+        context: Optional[Union[int, Mapping[str, Any]]] = 0,
     ):
         """
         Bayesian information criterion. Computed as:
@@ -3643,8 +3762,17 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
 
         sample_weight : array-like, shape (n_samples,), optional (default=None)
              Same data as used in 'fit'
-        """
-        return self._get_info_criteria("bic", X, y, sample_weight)
+
+        context : Optional[Union[int, Mapping[str, Any]]], default=0
+            The context to use for evaluating the formula. If an integer, the
+            context is taken from the stack frame of the caller at the given
+            depth. If a dict, it is used as the context directly."""
+        captured_context = capture_context(
+            context + 1 if isinstance(context, int) else context
+        )
+        return self._get_info_criteria(
+            "bic", X, y, sample_weight, context=captured_context
+        )
 
     def _get_info_criteria(
         self,
@@ -3652,11 +3780,12 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         X: ArrayLike,
         y: ArrayLike,
         sample_weight: Optional[ArrayLike] = None,
+        context: Optional[Mapping[str, Any]] = None,
     ):
         check_is_fitted(self, "coef_")
 
         if not hasattr(self, "_info_criteria"):
-            self._compute_information_criteria(X, y, sample_weight)
+            self._compute_information_criteria(X, y, sample_weight, context=context)
 
         if (
             self.alpha is None or (self.alpha is not None and self.alpha > 0)
