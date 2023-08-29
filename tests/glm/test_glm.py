@@ -3120,6 +3120,7 @@ def test_formula_context(get_mixed_data):
     model_smf = smf.glm(formula, data, family=sm.families.Gaussian()).fit()
 
     np.testing.assert_almost_equal(beta_formula, model_smf.params)
+    np.testing.assert_almost_equal(model_formula.predict(data), model_smf.predict(data))
 
 
 @pytest.mark.parametrize(
