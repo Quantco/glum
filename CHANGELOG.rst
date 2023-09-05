@@ -7,7 +7,7 @@
 Changelog
 =========
 
-2.6.0 - UNRELEASED
+2.6.0 - 2023-09-05
 ------------------
 
 **New features**
@@ -25,6 +25,7 @@ Changelog
 
 - When computing the covariance matrix, check for ill-conditionedness for all types of input. Furthermore, do it in a more efficient way.
 - Pin `tabmat<4.0.0` (the new release will bring breaking changes).
+
 
 2.5.2 - 2023-06-02
 ------------------
