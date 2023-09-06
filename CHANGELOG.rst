@@ -23,7 +23,7 @@ Changelog
 
 **Other changes:**
 
-- When computing the covariance matrix, check whether the design matrix is ill-conditioned all types of input. Furthermore, do it in a more efficient way.
+- When computing the covariance matrix, check whether the design matrix is ill-conditioned for all types of input. Furthermore, do it in a more efficient way.
 - Pin ``tabmat<4.0.0`` (the new release will bring breaking changes).
 
 
