@@ -1,6 +1,6 @@
 import os
 import warnings
-from typing import Dict, Optional, Union
+from typing import Optional, Union
 
 import h2o
 import numpy as np

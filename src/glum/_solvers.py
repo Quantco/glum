@@ -1,7 +1,7 @@
 import functools
 import time
 import warnings
-from typing import List, Optional, Tuple, Union
+from typing import Optional, Union
 
 import numpy as np
 from scipy import linalg, sparse

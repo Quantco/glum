@@ -1,6 +1,6 @@
 from abc import ABCMeta, abstractmethod
 from functools import partial
-from typing import Tuple, Union
+from typing import Union
 
 import numexpr
 import numpy as np

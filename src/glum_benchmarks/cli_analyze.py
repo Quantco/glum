@@ -1,6 +1,6 @@
 import os
 import pickle
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 import click
 import numpy as np

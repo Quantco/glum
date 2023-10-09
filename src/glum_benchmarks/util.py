@@ -3,7 +3,7 @@ import os
 import shutil
 import time
 from functools import reduce
-from typing import Callable, Dict, Optional, Tuple, Union
+from typing import Callable, Optional, Union
 
 import click
 import numpy as np

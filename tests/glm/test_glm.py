@@ -3,7 +3,7 @@
 # License: BSD 3 clause
 import copy
 import warnings
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -1273,9 +1273,7 @@ def test_binomial_enet(alpha):
         {"solver": "irls-cd", "selection": "cyclic"},
         {"solver": "irls-cd", "selection": "random"},
     ],
-    ids=lambda params: ", ".join(
-        f"{key}={val}" for key, val in params.items()
-    ),
+    ids=lambda params: ", ".join(f"{key}={val}" for key, val in params.items()),
 )
 @pytest.mark.parametrize("use_offset", [False, True])
 def test_solver_equivalence(params, use_offset, regression_data):
@@ -1313,9 +1311,7 @@ def test_solver_equivalence(params, use_offset, regression_data):
         {"solver": "irls-cd", "selection": "cyclic", "rtol": 2e-5},
         {"solver": "irls-cd", "selection": "random", "rtol": 6e-5},
     ],
-    ids=lambda params: ", ".join(
-        f"{key}={val}" for key, val in params.items()
-    ),
+    ids=lambda params: ", ".join(f"{key}={val}" for key, val in params.items()),
 )
 @pytest.mark.parametrize("use_offset", [False, True])
 def test_solver_equivalence_cv(params, use_offset):

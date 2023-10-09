@@ -19,10 +19,9 @@ import copy
 import re
 import sys
 import warnings
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from itertools import chain
-from typing import Any, List, NamedTuple, Optional, Tuple, Union, cast
-from collections.abc import Sequence
+from typing import Any, NamedTuple, Optional, Union, cast
 
 import numpy as np
 import pandas as pd
