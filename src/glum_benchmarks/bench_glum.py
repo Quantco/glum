@@ -19,7 +19,7 @@ def _build_and_fit(model_args, fit_args, cv: bool):
 
 
 def glum_bench(
-    dat: Dict[str, Union[np.ndarray, sps.spmatrix]],
+    dat: dict[str, Union[np.ndarray, sps.spmatrix]],
     distribution: str,
     alpha: float,
     l1_ratio: float,

@@ -44,7 +44,7 @@ class MemoryPoller:
         self.stop_polling = False
         self.max_memory = 0
         self.initial_memory = _get_memory_usage()
-        self.memory_usage: List[int] = [self.initial_memory]
+        self.memory_usage: list[int] = [self.initial_memory]
         self.t = Thread(target=self._poll_max_memory_usage)
         self.t.start()
         return self

@@ -94,7 +94,7 @@ def _read_housing_data(
 
 def generate_housing_dataset(
     num_rows=None, noise=None, distribution="poisson"
-) -> Tuple[pd.DataFrame, np.ndarray, np.ndarray]:
+) -> tuple[pd.DataFrame, np.ndarray, np.ndarray]:
     """Generate the openml house_sales housing dataset."""
     df = _read_housing_data(num_rows, noise, distribution)
 

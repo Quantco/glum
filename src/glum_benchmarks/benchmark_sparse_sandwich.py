@@ -15,7 +15,7 @@ from .problems import (
 )
 
 
-def _load(which: str, n_rows: int) -> Tuple[Any, np.ndarray]:
+def _load(which: str, n_rows: int) -> tuple[Any, np.ndarray]:
     if which == "narrow":
         x = sps.csc_matrix(load_data(generate_narrow_insurance_dataset, n_rows)["X"])
     else:
@@ -47,7 +47,7 @@ def _run_one_problem_all_methods(x, d, include_naive, dtype) -> pd.DataFrame:
     d = d.astype(dtype)
     x.XT = x.T.tocsc()
     x.X_dense = np.asfortranarray(x.toarray())
-    funcs: Dict[str, Callable[[Any, np.ndarray], Any]] = {
+    funcs: dict[str, Callable[[Any, np.ndarray], Any]] = {
         "sparse_sandwich": _fast_sandwich,
         "dense_sandwich": _dense_sandwich,
     }
@@ -60,7 +60,7 @@ def _run_one_problem_all_methods(x, d, include_naive, dtype) -> pd.DataFrame:
     if include_naive:
         funcs["naive"] = _naive_sandwich
 
-    info: Dict[str, Any] = {}
+    info: dict[str, Any] = {}
     for name, func in funcs.items():
         ts = []
         for _ in range(7):

@@ -61,7 +61,7 @@ def get_sklearn_family(distribution):
 
 
 def get_obj_val(
-    dat: Dict[str, Union[np.ndarray, sps.spmatrix, tm.MatrixBase, pd.DataFrame]],
+    dat: dict[str, Union[np.ndarray, sps.spmatrix, tm.MatrixBase, pd.DataFrame]],
     distribution: str,
     alpha: float,
     l1_ratio: float,
@@ -136,7 +136,7 @@ def exposure_and_offset_to_weights(
     exposure: np.ndarray = None,
     sample_weight: np.ndarray = None,
     offset: np.ndarray = None,
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray]:
     """
     Adjust outcomes and weights for exposure and offsets.
 

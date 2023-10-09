@@ -1,5 +1,6 @@
 import os
-from typing import Any, Callable, Iterable, List, Optional, Tuple, Union
+from typing import Any, Callable, List, Optional, Tuple, Union
+from collections.abc import Iterable
 
 import numpy as np
 import pandas as pd
@@ -131,7 +132,7 @@ class Categorizer(BaseEstimator, TransformerMixin):
         return X
 
 
-def get_categorizer(col_name: str, name="cat") -> Tuple[str, Categorizer]:
+def get_categorizer(col_name: str, name="cat") -> tuple[str, Categorizer]:
     """Get a Categorizer."""
     return name, Categorizer()
 
@@ -215,7 +216,7 @@ def func_returns_df(
     return lambda x: x.assign(**{x.columns[0]: fn(x)})
 
 
-def gen_col_trans() -> Tuple[Any, List[str]]:
+def gen_col_trans() -> tuple[Any, list[str]]:
     """Generate a ColumnTransformer and list of names.
 
     The transformer corresponds to the GLM of the case study paper.
@@ -441,7 +442,7 @@ def _read_insurance_data(
 
 def generate_narrow_insurance_dataset(
     num_rows=None, noise=None, distribution="poisson"
-) -> Tuple[pd.DataFrame, np.ndarray, np.ndarray]:
+) -> tuple[pd.DataFrame, np.ndarray, np.ndarray]:
     """Generate the tutorial data set from the sklearn fork and save it to disk."""
     df = _read_insurance_data(num_rows, noise, distribution)
 
@@ -453,7 +454,7 @@ def generate_narrow_insurance_dataset(
 
 def generate_real_insurance_dataset(
     num_rows=None, noise=None, distribution="poisson"
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Load real insurance data set."""
     df = pd.read_parquet(git_root("data", "outcomes.parquet"))
     X = pd.read_parquet(git_root("data", "X.parquet"))
@@ -485,7 +486,7 @@ def generate_real_insurance_dataset(
 
 def generate_wide_insurance_dataset(
     num_rows=None, noise=None, distribution="poisson"
-) -> Tuple[pd.DataFrame, np.ndarray, np.ndarray]:
+) -> tuple[pd.DataFrame, np.ndarray, np.ndarray]:
     """Generate a version of the tutorial data set with many features."""
     df = _read_insurance_data(num_rows, noise, distribution)
     cat_cols = [
@@ -521,7 +522,7 @@ def generate_wide_insurance_dataset(
 
 def generate_intermediate_insurance_dataset(
     num_rows=None, noise=None, distribution="poisson"
-) -> Tuple[pd.DataFrame, np.ndarray, np.ndarray]:
+) -> tuple[pd.DataFrame, np.ndarray, np.ndarray]:
     """Generate the tutorial data set from the sklearn fork and save it to disk."""
     df = _read_insurance_data(num_rows, noise, distribution)
     df["BonusMalusClipped"] = df["BonusMalus"].clip(50, 100)

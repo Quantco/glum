@@ -19,7 +19,7 @@ def _build_and_fit(model_args, fit_args):
 
 
 def orig_sklearn_fork_bench(
-    dat: Dict[str, Union[np.ndarray, sps.spmatrix]],
+    dat: dict[str, Union[np.ndarray, sps.spmatrix]],
     distribution: str,
     alpha: float,
     l1_ratio: float,
@@ -48,7 +48,7 @@ def orig_sklearn_fork_bench(
     """
     if cv:
         raise ValueError("original sklearn fork does not support cross-validation")
-    result: Dict[str, Any] = {}
+    result: dict[str, Any] = {}
 
     X = dat["X"]
 

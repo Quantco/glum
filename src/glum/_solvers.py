@@ -233,7 +233,7 @@ def build_hessian_delta(
     return delta
 
 
-def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[List]]:
+def _irls_solver(inner_solver, coef, data) -> tuple[np.ndarray, int, int, list[list]]:
     """
     Solve GLM with L1 and L2 penalty by IRLS.
 
@@ -424,7 +424,7 @@ class IRLSData:
         gradient_tol: Optional[float] = 1e-4,
         step_size_tol: Optional[float] = 1e-4,
         hessian_approx: float = 0.0,
-        fixed_inner_tol: Optional[Tuple] = None,
+        fixed_inner_tol: Optional[tuple] = None,
         selection="cyclic",
         random_state=None,
         offset: Optional[np.ndarray] = None,
@@ -480,7 +480,7 @@ class IRLSData:
 
 def _setup_bounds(
     bounds: Optional[np.ndarray], dtype
-) -> Tuple[bool, Optional[np.ndarray]]:
+) -> tuple[bool, Optional[np.ndarray]]:
     _out_bounds = bounds
     if _out_bounds is None:
         _out_bounds = np.array([], dtype=dtype)
@@ -579,7 +579,7 @@ class IRLSState:
 
 def check_convergence(
     state: IRLSState, data: IRLSData
-) -> Tuple[bool, float, float, float]:
+) -> tuple[bool, float, float, float]:
     """Calculate parameters needed to determine whether we have converged."""
     # stopping criterion for outer loop is a mix of a subgradient tolerance
     # and a step size tolerance
@@ -676,7 +676,7 @@ def eta_mu_objective(
 @timeit("quadratic_update_runtime")
 def update_quadratic(
     state: IRLSState, data: IRLSData, coef_P2
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Update the quadratic approximation."""
     gradient_rows, hessian_rows = data.family.rowwise_gradient_hessian(
         data.link,

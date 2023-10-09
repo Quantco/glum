@@ -25,7 +25,7 @@ def _hstack_sparse_or_dense(to_stack):
 
 
 def h2o_bench(
-    dat: Dict[str, Union[np.ndarray, sps.spmatrix]],
+    dat: dict[str, Union[np.ndarray, sps.spmatrix]],
     distribution: str,
     alpha: float,
     l1_ratio: float,
@@ -52,7 +52,7 @@ def h2o_bench(
     -------
     dict of data about this run
     """
-    result: Dict = {}
+    result: dict = {}
 
     if not isinstance(dat["X"], (np.ndarray, sps.spmatrix, pd.DataFrame)):
         warnings.warn(

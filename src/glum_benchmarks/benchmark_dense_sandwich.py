@@ -18,7 +18,7 @@ def _numpy_mklF(X, d):
     return x_d.T @ x_d
 
 
-def _bench(f: Callable, iter: int) -> Tuple[List[float], Any]:
+def _bench(f: Callable, iter: int) -> tuple[list[float], Any]:
     ts = []
     for _ in range(iter):
         start = time.time()
@@ -42,7 +42,7 @@ def _mn_run(m, n, iter, dtype):
 
     X.append(np.asfortranarray(X[0]))
 
-    out: Dict[str, Any] = {"name": [], "runtime": []}
+    out: dict[str, Any] = {"name": [], "runtime": []}
     to_run = [
         "numpy_mklC",
         # "numpy_mklF",

@@ -53,7 +53,7 @@ def _to_r_obj(X, R_name):
 
 
 def r_glmnet_bench(
-    dat: Dict[str, Union[sps.spmatrix, np.ndarray]],
+    dat: dict[str, Union[sps.spmatrix, np.ndarray]],
     distribution: str,
     alpha: float,
     l1_ratio: float,
@@ -61,7 +61,7 @@ def r_glmnet_bench(
     cv: bool,
     reg_multiplier: Optional[float] = None,
     **kwargs,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Run glmnet benchmark in R then port the results back to Python.
 
@@ -80,7 +80,7 @@ def r_glmnet_bench(
     -------
     Dict storing info about this model run.
     """
-    result: Dict = {}
+    result: dict = {}
 
     _setup_r_glmnet()
 
