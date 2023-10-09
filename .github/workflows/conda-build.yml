@@ -20,14 +20,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { conda_build_yml: linux_64_numpy1.20python3.8.____cpython,   os: ubuntu-latest,  conda-build-args: '' }
           - { conda_build_yml: linux_64_numpy1.20python3.9.____cpython,   os: ubuntu-latest,  conda-build-args: '' }
           - { conda_build_yml: linux_64_numpy1.23python3.11.____cpython,  os: ubuntu-latest,  conda-build-args: '' }
           - { conda_build_yml: osx_64_numpy1.20python3.9.____cpython,     os: macos-latest,   conda-build-args: '' }
           - { conda_build_yml: osx_64_numpy1.23python3.11.____cpython,    os: macos-latest,   conda-build-args: '' }
-          - { conda_build_yml: osx_arm64_numpy1.20python3.8.____cpython,  os: macos-latest,   conda-build-args: ' --no-test' }
           - { conda_build_yml: osx_arm64_numpy1.21python3.10.____cpython, os: macos-latest,   conda-build-args: ' --no-test' }
-          - { conda_build_yml: win_64_numpy1.20python3.8.____cpython,     os: windows-latest, conda-build-args: '' }
+          - { conda_build_yml: win_64_numpy1.20python3.9.____cpython,     os: windows-latest, conda-build-args: '' }
           - { conda_build_yml: win_64_numpy1.23python3.11.____cpython,    os: windows-latest, conda-build-args: '' }
     steps:
       - name: Checkout branch

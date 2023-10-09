@@ -78,6 +78,7 @@ setup(
         if os.environ.get("CONDA_BUILD")
         else ["glum", "glum_benchmarks"],
     ),
+    python_requires=">=3.9",
     install_requires=[
         "joblib",
         "numexpr",
