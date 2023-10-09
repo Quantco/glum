@@ -19,6 +19,7 @@ repos:
           flake8-docstrings=1.6.0,
           flake8-print=5.0.0,
           pep8-naming=0.13.3,
+          python<3.12,
         ]
       exclude: (^src/glum_benchmarks/orig_sklearn_fork/|^docs)
  - repo: https://github.com/Quantco/pre-commit-mirrors-isort
