@@ -1,6 +1,6 @@
 import os
 import pickle
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional
 
 import click
 
@@ -173,7 +173,7 @@ def execute_problem_library(
     return result, params.regularization_strength
 
 
-def get_all_libraries() -> Dict[str, Any]:
+def get_all_libraries() -> dict[str, Any]:
     """
     Get the names of all available libraries and the functions to benchmark them.
 
@@ -200,7 +200,7 @@ def get_all_libraries() -> Dict[str, Any]:
 
 def get_limited_problems_libraries(
     problem_names: Optional[str], library_names: Optional[str]
-) -> Tuple[Dict, Dict]:
+) -> tuple[dict, dict]:
     """
     Get only the problems and libraries specified by problem_names and library_names.
 
@@ -223,7 +223,7 @@ def get_limited_problems_libraries(
     return get_limited_problems(problem_names), libraries
 
 
-def get_limited_problems(problem_names: Optional[str]) -> Dict[str, Problem]:
+def get_limited_problems(problem_names: Optional[str]) -> dict[str, Problem]:
     """
     Get the names of problems and problems specified by problem_names.
 
@@ -245,7 +245,7 @@ def get_limited_problems(problem_names: Optional[str]) -> Dict[str, Problem]:
     return problems
 
 
-def _get_comma_sep_names(xs: str) -> List[str]:
+def _get_comma_sep_names(xs: str) -> list[str]:
     return [x.strip() for x in xs.split(",")]
 
 

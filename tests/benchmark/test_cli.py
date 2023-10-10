@@ -1,7 +1,7 @@
 import os
 import tempfile
 import warnings
-from typing import Any, Dict, List
+from typing import Any
 
 import click
 import pytest
@@ -19,7 +19,7 @@ from glum_benchmarks.util import BenchmarkParams, benchmark_params_cli, defaults
         (["--num_rows", "1000", "--cv", "True"], {"num_rows": 1000, "cv": True}),
     ],
 )
-def test_make_params(cli_options: List[str], expected_params: Dict[str, Any]):
+def test_make_params(cli_options: list[str], expected_params: dict[str, Any]):
     """
     Test that the basic command line interface runs and that the benchmark_params_cli \
     decorator works.

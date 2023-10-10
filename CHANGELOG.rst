@@ -7,6 +7,13 @@
 Changelog
 =========
 
+2.7.0 - 2023-10-xx
+------------------
+
+**Other changes:**
+
+- Require Python>=3.9 in line with `NEP 29 <https://numpy.org/neps/nep-0029-deprecation_policy.html#support-table>`_
+
 2.6.0 - 2023-09-05
 ------------------
 

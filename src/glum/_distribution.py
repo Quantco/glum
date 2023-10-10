@@ -1,6 +1,6 @@
 from abc import ABCMeta, abstractmethod
 from functools import partial
-from typing import Tuple, Union
+from typing import Union
 
 import numexpr
 import numpy as np
@@ -318,7 +318,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         sample_weight: np.ndarray,
         link: Link,
         offset: np.ndarray = None,
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray]:
         """Compute ``mu`` and the derivative of the deviance \
             with respect to coefficients."""
         lin_pred = _safe_lin_pred(X, coef, offset)
@@ -1157,7 +1157,7 @@ class NegativeBinomialDistribution(ExponentialDispersionModel):
             raise TypeError(f"theta must be an int or float, input was {theta}")
         if not theta > 0:
             raise ValueError(
-                "theta must be strictly positive number, input was {}".format(theta)
+                f"theta must be strictly positive number, input was {theta}"
             )
 
         # Prevents upcasting when working with 32-bit data
