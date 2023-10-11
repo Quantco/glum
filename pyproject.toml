@@ -34,9 +34,9 @@ skip = [
   "*-manylinux_i686",
   "pp*", 
   "*-musllinux_*",
-  "cp36*"
-  "cp37*"
-  "cp38*"
+  "cp36*",
+  "cp37*",
+  "cp38*",
 ]
 test-requires = ["pytest", "pytest-xdist"]
 
