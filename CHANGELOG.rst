@@ -10,7 +10,7 @@ Changelog
 3.0.0 - UNRELEASED
 ------------------
 
-**New features**
+**New features:**
 
 - Added a formula interface for specifying models.
 - Improved feature name handling. Feature names are now created for non-pandas input matrices, too. Furthermore, the format of categorical features can be specified by the user.
@@ -18,23 +18,31 @@ Changelog
 - Added more options for treating missing values in categorical columns. They can either raise a `ValueError` (`"fail"`), be treated as all-zero indicators (`"zero"`) or represented as a new category (`"convert"`).
 - `meth:GeneralizedLinearRegressor.wald_test` can now perform tests based on a formula string and term names.
 
-2.6.0 - UNRELEASED
+2.7.0 - UNRELEASED
 ------------------
 
-**New features**
+**Other changes:**
 
-- Added the complementary log-log (`cloglog`) link function.
+- Require Python>=3.9 in line with `NEP 29 <https://numpy.org/neps/nep-0029-deprecation_policy.html#support-table>`_
+
+2.6.0 - 2023-09-05
+------------------
+
+**New features:**
+
+- Added the complementary log-log (``cloglog``) link function.
 - Added the option to store the covariance matrix after estimating it. In this case, the covariance matrix does not have to be recomputed when calling inference methods.
 - Added methods for performing Wald tests based on a restriction matrix, feature names or term names.
 - Added a method for creating a coefficient table with confidence intervals and p-values.
 
-**Bug fix**
+**Bug fix:**
 
 - Fixed :meth:`~glum.GeneralizedLinearRegressorBase.covariance_matrix` mutating feature names when called with a data frame. See `here <https://github.com/Quantco/glum/issues/669>`_.
 
 **Other changes:**
 
-- When computing the covariance matrix, check for ill-conditionedness for all types of input. Furthermore, do it in a more efficient way.
+- When computing the covariance matrix, check whether the design matrix is ill-conditioned for all types of input. Furthermore, do it in a more efficient way.
+- Pin ``tabmat<4.0.0`` (the new release will bring breaking changes).
 - Added the option to specify models using Wilkinson-formulas.
 
 2.5.2 - 2023-06-02
@@ -54,7 +62,7 @@ Changelog
 2.5.1 - 2023-05-19
 ------------------
 
-**Bug fix**
+**Bug fix:**
 
 - We fixed a bug in the computation of :meth:`~glum.distribution.NegativeBinomialDistribution.log_likelihood`. Previously, this method just returned ``None``.
 
@@ -62,7 +70,7 @@ Changelog
 2.5.0 - 2023-04-28
 ------------------
 
-**New feature**
+**New feature:**
 
 - Added Negative Binomial distribution by setting the ``'family'`` parameter of
   :class:`~glum.GeneralizedLinearRegressor` and :class:`~glum.GeneralizedLinearRegressorCV`

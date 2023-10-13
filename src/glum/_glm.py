@@ -19,19 +19,9 @@ import copy
 import re
 import sys
 import warnings
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping, Sequence
 from itertools import chain
-from typing import (
-    Any,
-    List,
-    Mapping,
-    NamedTuple,
-    Optional,
-    Sequence,
-    Tuple,
-    Union,
-    cast,
-)
+from typing import Any, NamedTuple, Optional, Union, cast
 
 import numpy as np
 import pandas as pd
@@ -146,7 +136,7 @@ def check_array_tabmat_compliant(mat: ArrayLike, drop_first: int = False, **kwar
 
 def check_X_y_tabmat_compliant(
     X: ArrayLike, y: Union[VectorLike, sparse.spmatrix], **kwargs
-) -> Tuple[Union[tm.MatrixBase, sparse.spmatrix, np.ndarray], np.ndarray]:
+) -> tuple[Union[tm.MatrixBase, sparse.spmatrix, np.ndarray], np.ndarray]:
     """
     See the documentation for :func:`sklearn.utils.check_X_y`. This function
     behaves identically for inputs that are not from the Matrix package and
@@ -240,7 +230,7 @@ def _check_offset(
 
 def _parse_formula(
     formula: FormulaSpec, include_intercept: bool = True
-) -> Tuple[Optional[Formula], Formula]:
+) -> tuple[Optional[Formula], Formula]:
     """
     Parse and transform  the formula for use in a GeneralizedLinearRegressor.
 
@@ -315,7 +305,7 @@ def check_inequality_constraints(
     b_ineq: Optional[np.ndarray],
     n_features: int,
     dtype,
-) -> Tuple[Union[None, np.ndarray], Union[None, np.ndarray]]:
+) -> tuple[Union[None, np.ndarray], Union[None, np.ndarray]]:
     """Check that the inequality constraints are well-defined."""
     if A_ineq is None or b_ineq is None:
         return None, None
@@ -355,7 +345,7 @@ def _standardize(
     A_ineq: Optional[np.ndarray],
     P1: Union[np.ndarray, sparse.spmatrix],
     P2: Union[np.ndarray, sparse.spmatrix],
-) -> Tuple[
+) -> tuple[
     tm.StandardizedMatrix,
     np.ndarray,
     Optional[np.ndarray],
@@ -429,7 +419,7 @@ def _unstandardize(
     col_stds: Optional[np.ndarray],
     intercept: Union[float, np.ndarray],
     coef: np.ndarray,
-) -> Tuple[Union[float, np.ndarray], np.ndarray]:
+) -> tuple[Union[float, np.ndarray], np.ndarray]:
     if col_stds is None:
         intercept -= np.squeeze(np.squeeze(col_means).dot(np.atleast_1d(coef).T))
     else:
@@ -1531,8 +1521,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
     def wald_test(
         self,
         R: Optional[np.ndarray] = None,
-        features: Optional[Union[str, List[str]]] = None,
-        terms: Optional[Union[str, List[str]]] = None,
+        features: Optional[Union[str, list[str]]] = None,
+        terms: Optional[Union[str, list[str]]] = None,
         formula: Optional[str] = None,
         r: Optional[Sequence] = None,
         X=None,
@@ -1806,7 +1796,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
     def _wald_test_feature_names(
         self,
-        features: Union[str, List[str]],
+        features: Union[str, list[str]],
         values: Optional[Sequence] = None,
         X=None,
         y=None,
@@ -1984,7 +1974,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
     def _wald_test_term_names(
         self,
-        terms: Union[str, List[str]],
+        terms: Union[str, list[str]],
         values: Optional[Sequence] = None,
         X=None,
         y=None,
@@ -2622,7 +2612,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         solver: str,
         force_all_finite,
         context: Optional[Mapping[str, Any]] = None,
-    ) -> Tuple[
+    ) -> tuple[
         tm.MatrixBase,
         np.ndarray,
         np.ndarray,

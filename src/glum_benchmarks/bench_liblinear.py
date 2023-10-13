@@ -1,5 +1,5 @@
 import warnings
-from typing import Any, Dict, Optional, Union
+from typing import Any, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -14,7 +14,7 @@ def _build_and_fit(model_args, train_args):
 
 
 def liblinear_bench(
-    dat: Dict[str, Union[sps.spmatrix, np.ndarray]],
+    dat: dict[str, Union[sps.spmatrix, np.ndarray]],
     distribution: str,
     alpha: float,
     l1_ratio: float,
@@ -22,7 +22,7 @@ def liblinear_bench(
     cv: bool,
     reg_multiplier: Optional[float] = None,
     **kwargs,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Run the benchmark for sklearn.linear_model.LogisticRegression.
 
@@ -42,7 +42,7 @@ def liblinear_bench(
     dict
 
     """
-    result: Dict = {}
+    result: dict = {}
 
     X = dat["X"]
     if not isinstance(X, (np.ndarray, sps.spmatrix, pd.DataFrame)):

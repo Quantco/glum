@@ -3,7 +3,7 @@
 # License: BSD 3 clause
 import copy
 import warnings
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Optional, Union
 
 import formulaic
 import numpy as np
@@ -54,7 +54,7 @@ estimators = [
 
 def get_small_x_y(
     estimator: Union[GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray]:
     if isinstance(estimator, GeneralizedLinearRegressor):
         n_rows = 1
     else:
@@ -563,7 +563,7 @@ def test_glm_identity_regression(solver, fit_intercept, offset, convert_x_fn):
 @pytest.mark.parametrize("full_report", [False, True])
 @pytest.mark.parametrize("custom_columns", [None, ["objective_fct"]])
 def test_get_diagnostics(
-    solver, fit_intercept: bool, full_report: bool, custom_columns: Optional[List[str]]
+    solver, fit_intercept: bool, full_report: bool, custom_columns: Optional[list[str]]
 ):
     """Test GLM regression with identity link on a simple dataset."""
     X, y = get_small_x_y(GeneralizedLinearRegressor)
@@ -619,7 +619,7 @@ def test_get_diagnostics(
 @pytest.mark.parametrize("full_report", [False, True])
 @pytest.mark.parametrize("custom_columns", [None, ["objective_fct"]])
 def test_report_diagnostics(
-    solver, fit_intercept: bool, full_report: bool, custom_columns: Optional[List[str]]
+    solver, fit_intercept: bool, full_report: bool, custom_columns: Optional[list[str]]
 ):
     """Test GLM regression with identity link on a simple dataset."""
     X, y = get_small_x_y(GeneralizedLinearRegressor)
@@ -788,7 +788,7 @@ def test_normal_ridge_comparison(n_samples, n_features, solver, use_offset):
         offset = None
 
     if n_samples > n_features:
-        ridge_params: Dict[str, Any] = {"solver": "svd"}
+        ridge_params: dict[str, Any] = {"solver": "svd"}
     else:
         ridge_params = {"solver": "sag", "max_iter": 10000, "tol": 1e-9}
 
@@ -1281,9 +1281,7 @@ def test_binomial_enet(alpha):
         {"solver": "irls-cd", "selection": "cyclic"},
         {"solver": "irls-cd", "selection": "random"},
     ],
-    ids=lambda params: ", ".join(
-        "{}={}".format(key, val) for key, val in params.items()
-    ),
+    ids=lambda params: ", ".join(f"{key}={val}" for key, val in params.items()),
 )
 @pytest.mark.parametrize("use_offset", [False, True])
 def test_solver_equivalence(params, use_offset, regression_data):
@@ -1321,9 +1319,7 @@ def test_solver_equivalence(params, use_offset, regression_data):
         {"solver": "irls-cd", "selection": "cyclic", "rtol": 2e-5},
         {"solver": "irls-cd", "selection": "random", "rtol": 6e-5},
     ],
-    ids=lambda params: ", ".join(
-        "{}={}".format(key, val) for key, val in params.items()
-    ),
+    ids=lambda params: ", ".join(f"{key}={val}" for key, val in params.items()),
 )
 @pytest.mark.parametrize("use_offset", [False, True])
 def test_solver_equivalence_cv(params, use_offset):
