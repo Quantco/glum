@@ -52,8 +52,6 @@ CXXFLAGS="-I$CONDA/envs/build/include"
 CXX="/usr/bin/clang++"
 CC="/usr/bin/clang"
 
-[tool.cibuildwheel.windows.environment]
-SETUPTOOLS_USE_DISTUTILS="stdlib"
 
 [tool.pytest.ini_options]
 # Filters are standard python warning filters as described here:
