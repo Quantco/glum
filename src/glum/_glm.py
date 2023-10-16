@@ -2255,7 +2255,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                         _name_categorical_variables(
                             dtype.categories, column, self.drop_first
                         )
-                        if pd.api.types.is_categorical_dtype(dtype)
+                        if isinstance(dtype, pd.CategoricalDtype)
                         else [column]
                         for column, dtype in zip(X.columns, X.dtypes)
                     )
