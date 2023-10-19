@@ -1358,7 +1358,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             The confidence level for the confidence intervals.
         X : {array-like, sparse matrix}, shape (n_samples, n_features), optional
             Training data. Can be omitted if a covariance matrix has already
-            been computed.
+            been computed or if standard errors, etc. are not desired.
         y : array-like, shape (n_samples,), optional
             Target values. Can be omitted if a covariance matrix has already
             been computed.
@@ -1386,13 +1386,15 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         pandas.DataFrame
             A table of the regression results.
         """
-
         if self.fit_intercept:
             names = ["intercept"] + list(self.feature_names_)
             beta = np.concatenate([[self.intercept_], self.coef_])
         else:
             names = self.feature_names_
             beta = self.coef_
+
+        if (X is None) and not hasattr(self, "covariance_matrix_"):
+            return pd.Series(beta, index=names, name="coef")
 
         covariance_matrix = self.covariance_matrix(
             X=X,
