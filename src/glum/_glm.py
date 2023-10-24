@@ -1248,7 +1248,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             copy=True,
             ensure_2d=True,
             allow_nd=False,
-            drop_first=self.drop_first,
+            drop_first=getattr(self, "drop_first", False),
         )
 
         if alpha_index is None:
@@ -1321,7 +1321,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             copy=self._should_copy_X(),
             ensure_2d=True,
             allow_nd=False,
-            drop_first=self.drop_first,
+            drop_first=getattr(self, "drop_first", False),
         )
         eta = self.linear_predictor(
             X, offset=offset, alpha_index=alpha_index, alpha=alpha
@@ -1889,12 +1889,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self.covariance_matrix_: Union[np.ndarray, None]
 
         if robust is None:
-            _robust = self.robust
+            _robust = getattr(self, "robust", True)
         else:
             _robust = robust
 
         if expected_information is None:
-            _expected_information = self.expected_information
+            _expected_information = getattr(self, "expected_information", False)
         else:
             _expected_information = expected_information
 
@@ -1960,7 +1960,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 copy=self._should_copy_X(),
                 ensure_2d=True,
                 allow_nd=False,
-                drop_first=self.drop_first,
+                drop_first=getattr(self, "drop_first", False),
             )
 
             if isinstance(X, np.ndarray):
@@ -2255,7 +2255,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 self.feature_names_ = list(
                     chain.from_iterable(
                         _name_categorical_variables(
-                            dtype.categories, column, self.drop_first
+                            dtype.categories, column, getattr(self, "drop_first", False)
                         )
                         if isinstance(dtype, pd.CategoricalDtype)
                         else [column]
@@ -2295,10 +2295,14 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                     else:
                         return penalty
 
-                P1 = _expand_categorical_penalties(self.P1, X, self.drop_first)
-                P2 = _expand_categorical_penalties(self.P2, X, self.drop_first)
+                P1 = _expand_categorical_penalties(
+                    self.P1, X, getattr(self, "drop_first", False)
+                )
+                P2 = _expand_categorical_penalties(
+                    self.P2, X, getattr(self, "drop_first", False)
+                )
 
-                X = tm.from_pandas(X, drop_first=self.drop_first)
+                X = tm.from_pandas(X, drop_first=getattr(self, "drop_first", False))
             else:
                 self.feature_names_ = X.columns
                 X = tm.from_pandas(X)
@@ -2336,7 +2340,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 dtype=_dtype,
                 copy=copy_X,
                 force_all_finite=force_all_finite,
-                drop_first=self.drop_first,
+                drop_first=getattr(self, "drop_first", False),
             )
             self._check_n_features(X, reset=True)
         else:
@@ -3074,9 +3078,9 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
                 y=y,
                 offset=offset,
                 sample_weight=sample_weight * weights_sum,
-                robust=self.robust,
+                robust=getattr(self, "robust", True),
                 clusters=clusters,
-                expected_information=self.expected_information,
+                expected_information=getattr(self, "expected_information", False),
                 store_covariance_matrix=True,
                 skip_checks=True,
             )
