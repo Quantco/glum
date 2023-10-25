@@ -36,7 +36,7 @@ jobs:
           echo "Install compilation dependencies"
           micromamba install -y c-compiler cxx-compiler cython jemalloc-local libgomp mako xsimd
 
-          PRE_WHEELS="https://pypi.anaconda.org/scipy-wheels-nightly/simple"
+          PRE_WHEELS="https://pypi.anaconda.org/scientific-python-nightly-wheels/simple/"
           for pkg in numpy pandas scikit-learn scipy; do
             echo "Installing $pkg nightly"
             micromamba remove -y --force $pkg
