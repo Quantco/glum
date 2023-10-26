@@ -19,6 +19,7 @@ def load_transform():
     5. We fix ``'ClaimNb'`` as the claim number with claim amount greater zero.
     6. ``'VehPower'``, ``'VehAge'``, and ``'DrivAge'`` are clipped and/or digitized into bins so
        they can be used as categoricals later on.
+    7. All categorical columns are set to categorical dtypes.
     """
     # load the datasets
     # first row (=column names) uses "", all other rows use ''
@@ -53,11 +54,24 @@ def load_transform():
     df["ClaimNb"] = df["ClaimNb"].clip(upper=4)
     df["Exposure"] = df["Exposure"].clip(upper=1)
 
-    # Clip and/or digitize predictors into bins
+    # clip and/or digitize predictors into bins
     df["VehPower"] = np.minimum(df["VehPower"], 9)
     df["VehAge"] = np.digitize(
         np.where(df["VehAge"] == 10, 9, df["VehAge"]), bins=[1, 10]
     )
     df["DrivAge"] = np.digitize(df["DrivAge"], bins=[21, 26, 31, 41, 51, 71])
+
+    # set categorical dtypes
+    categoricals = [
+        "VehBrand",
+        "VehGas",
+        "Region",
+        "Area",
+        "DrivAge",
+        "VehAge",
+        "VehPower",
+    ]
+    for cat_col in categoricals:
+        df[cat_col] = df[cat_col].astype("category")
 
     return df
