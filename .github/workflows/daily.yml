@@ -34,7 +34,7 @@ jobs:
         run: |
           # needed for tabmat
           echo "Install compilation dependencies"
-          micromamba install -y c-compiler cxx-compiler 'cython!=3.0.4' jemalloc-local libgomp mako xsimd
+          micromamba install -y c-compiler cxx-compiler 'cython!=3.0.3,!=3.0.4' jemalloc-local libgomp mako xsimd
 
           PRE_WHEELS="https://pypi.anaconda.org/scientific-python-nightly-wheels/simple/"
           for pkg in numpy pandas scikit-learn scipy; do
