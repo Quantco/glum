@@ -929,7 +929,11 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                     warnings.warn("`min_alpha` is set. Ignoring `min_alpha_ratio`.")
                 min_alpha = self.min_alpha
             return np.logspace(
-                np.log(max_alpha), np.log(min_alpha), self.n_alphas, base=np.e
+                np.log(max_alpha),
+                np.log(min_alpha),
+                self.n_alphas,
+                base=np.e,
+                dtype=X.dtype,
             )
 
         if np.all(P1_no_alpha == 0):
@@ -1631,7 +1635,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         # We want to calculate Rb_r^T (RVR)^{-1} Rb_r.
         # We can do it in a more numerically stable way by using `scipy.linalg.solve`:
         try:
-            test_stat = float(Rb_r.T @ linalg.solve(RVR, Rb_r))
+            test_stat = (Rb_r.T @ linalg.solve(RVR, Rb_r))[0]
         except linalg.LinAlgError as err:
             raise linalg.LinAlgError("The restriction matrix is not full rank") from err
         p_value = 1 - stats.chi2.cdf(test_stat, Q)
@@ -2286,7 +2290,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                             list(
                                 chain.from_iterable(
                                     [elmt for _ in dtype.categories[int(drop_first) :]]
-                                    if pd.api.types.is_categorical_dtype(dtype)
+                                    if isinstance(dtype, pd.CategoricalDtype)
                                     else [elmt]
                                     for elmt, dtype in zip(penalty, X.dtypes)
                                 )

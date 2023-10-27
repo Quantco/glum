@@ -454,7 +454,9 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         if self.alphas is None:
             alphas = [self._get_alpha_path(l1, X, y, sample_weight) for l1 in l1_ratio]
         else:
-            alphas = np.tile(np.sort(self.alphas)[::-1], (len(l1_ratio), 1))
+            alphas = np.tile(
+                np.sort(self.alphas)[::-1], (len(l1_ratio), 1), dtype=X.dtype
+            )
 
         if len(l1_ratio) == 1:
             self.alphas_ = alphas[0]
