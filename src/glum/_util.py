@@ -38,7 +38,7 @@ def _align_df_categories(df, dtypes) -> pd.DataFrame:
     ]
 
     for column in categorical_dtypes:
-        if not isinstance(dtypes[column], pd.CategoricalDtype):
+        if not isinstance(df[column].dtype, pd.CategoricalDtype):
             _logger.info(f"Casting {column} to categorical.")
             changed_dtypes[column] = df[column].astype(dtypes[column])
         elif list(df[column].cat.categories) != list(dtypes[column].categories):
