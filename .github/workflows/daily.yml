@@ -43,6 +43,9 @@ jobs:
             micromamba remove -y --force $pkg
             pip install --pre --no-deps --only-binary :all: --upgrade --timeout=60 -i $PRE_WHEELS $pkg
           done
+          echo Install pyarrow nightly
+          micromamba remove -y --force pyarrow
+          micromamba install -y -c arrow-nightlies pyarrow
           echo Install tabmat nightly
           micromamba remove -y --force tabmat
           pip install --no-use-pep517 --no-deps git+https://github.com/Quantco/tabmat
