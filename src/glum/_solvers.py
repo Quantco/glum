@@ -916,7 +916,7 @@ def _trust_constr_solver(
         # we express constraints in the form A theta <= b
         constraints = LinearConstraint(
             A=A_ineq_,
-            lb=-np.Inf,
+            lb=-np.inf,
             ub=b_ineq,
         )
     else:
