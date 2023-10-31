@@ -2,6 +2,7 @@ name: Daily runs
 on:
   schedule:
     - cron: '0 5 * * *'
+  workflow_dispatch:
   push:
     paths:
     - '.github/workflows/daily.yml'
@@ -34,17 +35,20 @@ jobs:
         run: |
           # needed for tabmat
           echo "Install compilation dependencies"
-          micromamba install -y c-compiler cxx-compiler cython jemalloc-local libgomp mako xsimd
+          micromamba install -y c-compiler cxx-compiler 'cython!=3.0.4' jemalloc-local libgomp mako xsimd
 
-          PRE_WHEELS="https://pypi.anaconda.org/scipy-wheels-nightly/simple"
+          PRE_WHEELS="https://pypi.anaconda.org/scientific-python-nightly-wheels/simple/"
           for pkg in numpy pandas scikit-learn scipy; do
             echo "Installing $pkg nightly"
             micromamba remove -y --force $pkg
             pip install --pre --no-deps --only-binary :all: --upgrade --timeout=60 -i $PRE_WHEELS $pkg
           done
+          echo Install pyarrow nightly
+          micromamba remove -y --force pyarrow
+          pip install --extra-index-url https://pypi.fury.io/arrow-nightlies/ --prefer-binary --pre --no-deps pyarrow
           echo Install tabmat nightly
           micromamba remove -y --force tabmat
-          pip install git+https://github.com/Quantco/tabmat
+          pip install --no-use-pep517 --no-deps git+https://github.com/Quantco/tabmat
       - name: Install repository
         shell: bash -el {0}
         run: pip install --no-use-pep517 --no-deps --disable-pip-version-check -e .
