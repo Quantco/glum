@@ -7,7 +7,6 @@
 # License: BSD 3 clause
 #         Substantial modifications by Ben Thompson <t.ben.thompson@gmail.com>
 #
-# cython: boundscheck=False, wraparound=False, cdivision=True
 from libc.math cimport fabs
 cimport numpy as np
 import numpy as np

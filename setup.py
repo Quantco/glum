@@ -95,6 +95,18 @@ setup(
         glm_benchmarks_run = glum_benchmarks.cli_run:cli_run
         glm_benchmarks_analyze = glum_benchmarks.cli_analyze:cli_analyze
     """,
-    ext_modules=cythonize(ext_modules, annotate=False),
+    ext_modules=cythonize(
+        ext_modules,
+        annotate=False,
+        compiler_directives={
+            "language_level": "3",
+            "boundscheck": False,
+            "wraparound": False,
+            "initializedcheck": False,
+            "nonecheck": False,
+            "cdivision": True,
+            "legacy_implicit_noexcept": True,
+        },
+    ),
     zip_safe=False,
 )

@@ -1,5 +1,3 @@
-# cython: boundscheck=False, wraparound=False, cdivision=True
-
 from cython cimport floating
 from cython.parallel import prange
 
