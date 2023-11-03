@@ -7,8 +7,12 @@
 Changelog
 =========
 
-2.7.0 - 2023-10-xx
-------------------
+Unreleased
+----------
+
+**Bug fix:**
+
+- Added cython compiler directive legacy_implicit_noexcept = True to fix performance regression with cython 3.
 
 **Other changes:**
 
