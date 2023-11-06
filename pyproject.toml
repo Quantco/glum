@@ -8,25 +8,27 @@ requires = [
   'scikit-learn',
 ]
 
-[tool.black]
-exclude = '''
-/(
-    \.eggs
-  | \.git
-  | \.venv
-  | build
-  | dist
-)/
-'''
+[tool.ruff]
+extend-exclude = ["src/glum_benchmarks/orig_sklearn_fork"]
+force-exclude = true
+ignore = ["E731", "N802", "N803", "N806"]
+line-length = 88
+select = [
+  # pyflakes
+  "F",
+  # pycodestyle
+  "E", "W",
+  # isort
+  "I",
+  # pep8-naming
+  "N",
+  # pyupgrade
+  "UP",
+]
+target-version = "py39"
 
-[tool.isort]
-multi_line_output = 3
-include_trailing_comma = true
-ensure_newline_before_comments = true
-line_length = 88
-known_first_party = "glum"
-skip_glob = '\.eggs/*,\.git/*,\.venv/*,build/*,dist/*'
-default_section = 'THIRDPARTY'
+[tool.ruff.isort]
+known-first-party = ["glum"]
 
 [tool.cibuildwheel]
 skip = [

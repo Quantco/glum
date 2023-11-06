@@ -8,17 +8,21 @@ def load_transform():
     Summary of transformations:
 
     1. We cut the number of claims to a maximum of 4, as is done in the case study paper
-       (Case-study authors suspect a data error. See section 1 of their paper for details).
+       (Case-study authors suspect a data error. See section 1 of their paper for
+       details).
     2. We cut the exposure to a maximum of 1, as is done in the case study paper
-       (Case-study authors suspect a data error. See section 1 of their paper for details).
-    3. We define ``'ClaimAmountCut'`` as the the claim amount cut at 100'000 per single claim
-       (before aggregation per policy). Reason: For large claims, extreme value theory
-       might apply. 100'000 is the 0.9984 quantile, any claims larger account for 25% of
-       the overall claim amount. This is a well known phenomenon for third-party liability.
-    4. We aggregate the total claim amounts per policy ID and join them to ``freMTPL2freq``.
+       (Case-study authors suspect a data error. See section 1 of their paper for
+       details).
+    3. We define ``'ClaimAmountCut'`` as the the claim amount cut at 100'000 per single
+       claim (before aggregation per policy). Reason: For large claims, extreme value
+       theory might apply. 100'000 is the 0.9984 quantile, any claims larger account
+       for 25% of the overall claim amount. This is a well known phenomenon for
+       third-party liability.
+    4. We aggregate the total claim amounts per policy ID and join them to
+       ``freMTPL2freq``.
     5. We fix ``'ClaimNb'`` as the claim number with claim amount greater zero.
-    6. ``'VehPower'``, ``'VehAge'``, and ``'DrivAge'`` are clipped and/or digitized into bins so
-       they can be used as categoricals later on.
+    6. ``'VehPower'``, ``'VehAge'``, and ``'DrivAge'`` are clipped and/or digitized
+       into bins so they can be used as categoricals later on.
     """
     # load the datasets
     # first row (=column names) uses "", all other rows use ''

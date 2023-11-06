@@ -956,9 +956,7 @@ class GeneralizedHyperbolicSecant(ExponentialDispersionModel):
         -------
         array-like
         """
-        return 2 * y * (np.arctan(y) - np.arctan(mu)) + np.log(
-            (1 + mu**2) / (1 + y**2)
-        )
+        return 2 * y * (np.arctan(y) - np.arctan(mu)) + np.log((1 + mu**2) / (1 + y**2))
 
 
 class BinomialDistribution(ExponentialDispersionModel):
@@ -1179,7 +1177,8 @@ class NegativeBinomialDistribution(ExponentialDispersionModel):
         return mu + self.theta * mu**2
 
     def unit_variance_derivative(self, mu: np.ndarray) -> np.ndarray:
-        r"""Compute the derivative of the unit variance of a Negative Binomial distribution.
+        r"""Compute the derivative of the unit variance of a Negative Binomial
+        distribution.
 
         Equation: :math:`v(\mu) = 1 + 2 \times \theta \times \mu`.
 

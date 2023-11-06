@@ -6,7 +6,6 @@ from typing import Any
 import click
 import pytest
 from click.testing import CliRunner
-
 from glum_benchmarks.cli_analyze import _identify_parameter_fnames
 from glum_benchmarks.cli_run import cli_run
 from glum_benchmarks.util import BenchmarkParams, benchmark_params_cli, defaults
@@ -79,7 +78,7 @@ def test_correct_problems_run():
         if not result.exit_code == 0:
             problem_name_str = " ".join(args)
             raise ValueError(
-                f"""Failed on problem {problem_name_str} with output: \n {result.output}"""
+                f"Failed on problem {problem_name_str} with output: \n {result.output}"
             )
         problems_run = os.listdir(d)
 

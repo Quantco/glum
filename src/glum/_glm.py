@@ -5,7 +5,8 @@ Modified from code submitted as a PR to sklearn:
 https://github.com/scikit-learn/scikit-learn/pull/9405
 
 Original attribution from:
-https://github.com/scikit-learn/scikit-learn/pull/9405/files#diff-38e412190dc50455611b75cfcf2d002713dcf6d537a78b9a22cc6b1c164390d1 # noqa: B950
+https://github.com/scikit-learn/scikit-learn/pull/9405/files#diff-38e412190dc504556\
+11b75cfcf2d002713dcf6d537a78b9a22cc6b1c164390d1
 '''
 Author: Christian Lorentzen <lorentzen.ch@googlemail.com>
 some parts and tricks stolen from other sklearn files.
@@ -1874,10 +1875,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         correction of :math:`\\frac{N}{N-p}`.
 
         The clustered covariance matrix uses a similar approach to the robust (HC-1)
-        covariance matrix. However, instead of using :math:`\\mathbf{G}^{T}(\\hat{\\theta}
-        \\mathbf{G}(\\hat{\\theta})` directly, we first sum over all the groups first.
-        The finite-sample correction is affected as well, becoming :math:`\\frac{M}{M-1}
-        \\frac{N}{N-p}` where :math:`M` is the number of groups.
+        covariance matrix. However, instead of using :math:`\\mathbf{G}^{T}(
+        \\hat{\\theta}\\mathbf{G}(\\hat{\\theta})` directly, we first sum over all the
+        groups first. The finite-sample correction is affected as well, becoming
+        :math:`\\frac{M}{M-1} \\frac{N}{N-p}` where :math:`M` is the number of groups.
 
         References
         ----------
@@ -2081,7 +2082,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         the deviance. Note that those two are equal for ``family='normal'``.
 
         :math:`D^2` is defined as
-        :math:`D^2 = 1 - \\frac{D(y_{\\mathrm{true}}, y_{\\mathrm{pred}})}{D_{\\mathrm{null}}}`,
+        :math:`D^2 = 1 - \\frac{D(y_{\\mathrm{true}}, y_{\\mathrm{pred}})}{D_
+        {\\mathrm{null}}}`,
         :math:`D_{\\mathrm{null}}` is the null deviance, i.e. the deviance of a
         model with intercept alone. The best possible score is one and it can be
         negative.
@@ -2403,8 +2405,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     with inverse link function ``h`` and ``s=sample_weight``.
     Note that, for ``alpha=0`` the unregularized GLM is recovered.
     This is not the default behavior (see ``alpha`` parameter description for details).
-    Additionally, for ``sample_weight=None``, one has ``s_i=1`` and ``sum(s)=n_samples``.
-    For ``P1=P2='identity'``, the penalty is the elastic net::
+    Additionally, for ``sample_weight=None``, one has ``s_i=1`` and
+    ``sum(s)=n_samples``. For ``P1=P2='identity'``, the penalty is the elastic net::
 
             alpha * l1_ratio * ||w||_1 + 1/2 * alpha * (1 - l1_ratio) * ||w||_2^2.
 
@@ -2479,7 +2481,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         specify it in parentheses (e.g., ``'tweedie (1.5)'``). The same applies
         for ``'negative.binomial'`` and theta parameter.
 
-    link : {'auto', 'identity', 'log', 'logit', 'cloglog'} or Link, optional (default='auto')
+    link : {'auto', 'identity', 'log', 'logit', 'cloglog'} or Link, optional
+    (default='auto')
         The link function of the GLM, i.e. mapping from linear
         predictor (``X * coef``) to expectation (``mu``). Option ``'auto'`` sets
         the link depending on the chosen family as follows:
@@ -2660,8 +2663,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
 
     drop_first : bool, optional (default = False)
         If ``True``, drop the first column when encoding categorical variables.
-        Set this to True when alpha=0 and solver='auto' to prevent an error due to a singular
-        feature matrix.
+        Set this to True when alpha=0 and solver='auto' to prevent an error due to a
+        singular feature matrix.
 
     robust : bool, optional (default = False)
         If true, then robust standard errors are computed by default.
@@ -2812,7 +2815,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             ):
                 raise ValueError(
                     "Penalty term must be a non-negative number;"
-                    " got (alpha={})".format(self.alpha)
+                    f" got (alpha={self.alpha})"
                 )
 
         if (
@@ -2824,7 +2827,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         ):
             raise ValueError(
                 "l1_ratio must be a number in interval [0, 1];"
-                " got (l1_ratio={})".format(self.l1_ratio)
+                f" got (l1_ratio={self.l1_ratio})"
             )
         super()._validate_hyperparameters()
 
@@ -3043,11 +3046,9 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
                 _alpha = self.alpha
             if _alpha > 0 and self.l1_ratio > 0 and self._solver != "irls-cd":
                 raise ValueError(
-                    "The chosen solver (solver={}) can't deal "
+                    f"The chosen solver (solver={self._solver}) can't deal "
                     "with L1 penalties, which are included with "
-                    "(alpha={}) and (l1_ratio={}).".format(
-                        self._solver, _alpha, self.l1_ratio
-                    )
+                    f"(alpha={_alpha}) and (l1_ratio={self.l1_ratio})."
                 )
             coef = self._solve(
                 X=X,
@@ -3130,7 +3131,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         ):
             raise NotImplementedError(model_err_str)
 
-        # the log_likelihood has not been implemented for the InverseGaussianDistribution
+        # the log_likelihood has not been implemented for the
+        # InverseGaussianDistribution
         if (
             isinstance(self.family_instance, TweedieDistribution)
             and self.family_instance.power > 2
