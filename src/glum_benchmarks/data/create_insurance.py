@@ -6,7 +6,6 @@ import numpy as np
 import pandas as pd
 import sklearn.compose
 from git_root import git_root
-from pandas.api.types import is_categorical_dtype
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.compose._column_transformer import _get_transformer_list
 from sklearn.pipeline import Pipeline
@@ -109,7 +108,7 @@ class Categorizer(BaseEstimator, TransformerMixin):
         categories = {}
         for name in columns:
             col = X[name]
-            if not is_categorical_dtype(col):
+            if str(col.dtype) != "category":  # type: ignore
                 col = pd.Series(col, index=X.index).astype("category")
             categories[name] = col.dtype
 
