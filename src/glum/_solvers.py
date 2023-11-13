@@ -758,7 +758,7 @@ def line_search(state: IRLSState, data: IRLSData, d: np.ndarray):
     """
     # line search parameters
     (beta, sigma) = (0.5, 0.0001)
-    eps = 16 * np.finfo(state.obj_val.dtype).eps
+    eps = 16 * np.finfo(state.obj_val.dtype).eps  # type: ignore
 
     # line search by sequence beta^k, k=0, 1, ..
     # F(w + lambda d) - F(w) <= lambda * bound
