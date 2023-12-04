@@ -1,6 +1,6 @@
 repos:
  - repo: https://github.com/Quantco/pre-commit-mirrors-black
-   rev: 23.10.1
+   rev: 23.11.0
    hooks:
      - id: black-conda
        args:
@@ -28,7 +28,7 @@ repos:
     - id: isort-conda
       additional_dependencies: [toml]
  - repo: https://github.com/Quantco/pre-commit-mirrors-mypy
-   rev: "1.6.1"
+   rev: "1.7.1"
    hooks:
     - id: mypy-conda
       args:
@@ -44,7 +44,7 @@ repos:
       exclude: ^src/glum_benchmarks/orig_sklearn_fork/
       args: [--py39-plus]
  - repo: https://github.com/Quantco/pre-commit-mirrors-cython-lint
-   rev: 0.15.0
+   rev: 0.16.0
    hooks:
     - id: cython-lint-conda
       args: [--no-pycodestyle]
