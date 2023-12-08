@@ -1424,7 +1424,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             )
             X = self._convert_from_pandas(X, context=captured_context)
 
-
         X = check_array_tabmat_compliant(
             X,
             accept_sparse=["csr", "csc", "coo"],
@@ -2719,11 +2718,13 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 self.feature_dtypes_ = X.dtypes.to_dict()
 
                 if any(X.dtypes == "category"):
-                    
+
                     self.feature_names_ = list(
                         chain.from_iterable(
                             _name_categorical_variables(
-                                dtype.categories, column, getattr(self, "drop_first", False)
+                                dtype.categories,
+                                column,
+                                getattr(self, "drop_first", False),
                             )
                             if isinstance(dtype, pd.CategoricalDtype)
                             else [column]
