@@ -2718,7 +2718,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 self.feature_dtypes_ = X.dtypes.to_dict()
 
                 if any(X.dtypes == "category"):
-
                     self.feature_names_ = list(
                         chain.from_iterable(
                             _name_categorical_variables(
