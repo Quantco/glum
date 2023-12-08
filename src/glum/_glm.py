@@ -2662,7 +2662,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         copy_X = self._should_copy_X()
 
         if isinstance(X, pd.DataFrame):
-            if self.formula is not None:
+            if hasattr(self, "formula") and self.formula is not None:
                 lhs, rhs = _parse_formula(
                     self.formula, include_intercept=self.fit_intercept
                 )
