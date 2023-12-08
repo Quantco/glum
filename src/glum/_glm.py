@@ -1410,8 +1410,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             )
             X = self._convert_from_pandas(X, context=captured_context)
 
-<<<<<<< HEAD
-=======
+
         X = check_array_tabmat_compliant(
             X,
             accept_sparse=["csr", "csc", "coo"],
@@ -1421,7 +1420,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             allow_nd=False,
             drop_first=getattr(self, "drop_first", False),
         )
->>>>>>> main
+
         eta = self.linear_predictor(
             X, offset=offset, alpha_index=alpha_index, alpha=alpha
         )
