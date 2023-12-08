@@ -852,12 +852,12 @@ def test_poisson_ridge(solver, tol, scale_predictors, use_sparse):
     # true_beta = model["beta"][:, 0]
     # print(true_intercept, true_beta)
 
-    X_dense = np.array([[-2, -1, 1, 2], [0, 0, 1, 1]], dtype=np.float_).T
+    X_dense = np.array([[-2, -1, 1, 2], [0, 0, 1, 1]], dtype=np.float64).T
     if use_sparse:
         X = sparse.csc_matrix(X_dense)
     else:
         X = X_dense
-    y = np.array([0, 1, 1, 2], dtype=np.float_)
+    y = np.array([0, 1, 1, 2], dtype=np.float64)
     model_args = dict(
         alpha=1,
         l1_ratio=0,
@@ -899,8 +899,8 @@ def test_poisson_ridge(solver, tol, scale_predictors, use_sparse):
 
 @pytest.mark.parametrize("scale_predictors", [True, False])
 def test_poisson_ridge_bounded(scale_predictors):
-    X = np.array([[-1, 1, 1, 2], [0, 0, 1, 1]], dtype=np.float_).T
-    y = np.array([0, 1, 1, 2], dtype=np.float_)
+    X = np.array([[-1, 1, 1, 2], [0, 0, 1, 1]], dtype=np.float64).T
+    y = np.array([0, 1, 1, 2], dtype=np.float64)
     lb = np.array([-0.1, -0.1])
     ub = np.array([0.1, 0.1])
 
@@ -938,8 +938,8 @@ def test_poisson_ridge_bounded(scale_predictors):
 
 @pytest.mark.parametrize("scale_predictors", [True, False])
 def test_poisson_ridge_ineq_constrained(scale_predictors):
-    X = np.array([[-1, 1, 1, 2], [0, 0, 1, 1]], dtype=np.float_).T
-    y = np.array([0, 1, 1, 2], dtype=np.float_)
+    X = np.array([[-1, 1, 1, 2], [0, 0, 1, 1]], dtype=np.float64).T
+    y = np.array([0, 1, 1, 2], dtype=np.float64)
     A_ineq = np.array([[1, 0], [0, 1], [-1, 0], [0, -1]])
     b_ineq = 0.1 * np.ones(shape=(4))
 
@@ -1480,7 +1480,7 @@ def test_clonable(estimator):
 def test_get_best_intercept(
     link: Link, distribution: ExponentialDispersionModel, tol: float, offset
 ):
-    y = np.array([1, 1, 1, 2], dtype=np.float_)
+    y = np.array([1, 1, 1, 2], dtype=np.float64)
     if isinstance(distribution, BinomialDistribution):
         y -= 1
 
@@ -2194,7 +2194,7 @@ def test_wald_test_matrix(regression_data, family, fit_intercept, R, r):
     )
 
     np.testing.assert_allclose(
-        our_results.test_statistic, sm_results.statistic, rtol=1e-3
+        our_results.test_statistic, sm_results.statistic[0], rtol=1e-3
     )
     np.testing.assert_allclose(our_results.p_value, sm_results.pvalue, atol=1e-3)
     assert our_results.df == sm_results.df_denom
@@ -2207,7 +2207,7 @@ def test_wald_test_matrix(regression_data, family, fit_intercept, R, r):
     )
 
     np.testing.assert_allclose(
-        our_results.test_statistic, sm_results.statistic, rtol=1e-3
+        our_results.test_statistic, sm_results.statistic[0], rtol=1e-3
     )
     np.testing.assert_allclose(our_results.p_value, sm_results.pvalue, atol=1e-3)
     assert our_results.df == sm_results.df_denom
@@ -2220,7 +2220,7 @@ def test_wald_test_matrix(regression_data, family, fit_intercept, R, r):
     sm_results = sm_fit.wald_test((R, r), scalar=False)
 
     np.testing.assert_allclose(
-        our_results.test_statistic, sm_results.statistic, rtol=1e-3
+        our_results.test_statistic, sm_results.statistic[0], rtol=1e-3
     )
     np.testing.assert_allclose(our_results.p_value, sm_results.pvalue, atol=1e-3)
     assert our_results.df == sm_results.df_denom
@@ -2278,7 +2278,7 @@ def test_wald_test_matrix_fixed_cov(regression_data, R, r):
     sm_results = fit_sm.wald_test((R, r), cov_p=mdl.covariance_matrix(), scalar=False)
 
     np.testing.assert_allclose(
-        our_results.test_statistic, sm_results.statistic, rtol=1e-8
+        our_results.test_statistic, sm_results.statistic[0], rtol=1e-8
     )
     np.testing.assert_allclose(our_results.p_value, sm_results.pvalue, atol=1e-8)
     assert our_results.df == sm_results.df_denom

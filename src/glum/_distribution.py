@@ -602,7 +602,7 @@ class TweedieDistribution(ExponentialDispersionModel):
         :math:`0 < \mathrm{power} < 1`, no distribution exists.
     """
 
-    upper_bound = np.Inf
+    upper_bound = np.inf
     include_upper_bound = False
 
     def __init__(self, power=0):
@@ -616,7 +616,7 @@ class TweedieDistribution(ExponentialDispersionModel):
     def lower_bound(self) -> float:
         """Return the lowest value of ``y`` allowed."""
         if self.power <= 0:
-            return -np.Inf
+            return -np.inf
         if self.power >= 1:
             return 0
         raise ValueError
@@ -890,8 +890,8 @@ class GeneralizedHyperbolicSecant(ExponentialDispersionModel):
     The GHS distribution is for targets ``y`` in ``(-∞, +∞)``.
     """
 
-    lower_bound = -np.Inf
-    upper_bound = np.Inf
+    lower_bound = -np.inf
+    upper_bound = np.inf
     include_lower_bound = False
     include_upper_bound = False
 
@@ -1119,7 +1119,7 @@ class NegativeBinomialDistribution(ExponentialDispersionModel):
     """
 
     lower_bound = 0
-    upper_bound = np.Inf
+    upper_bound = np.inf
     include_lower_bound = True
     include_upper_bound = False
 

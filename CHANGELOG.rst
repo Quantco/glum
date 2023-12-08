@@ -21,9 +21,15 @@ Changelog
 2.7.0 - UNRELEASED
 ------------------
 
+**Bug fix:**
+
+- Added cython compiler directive legacy_implicit_noexcept = True to fix performance regression with cython 3.
+
 **Other changes:**
 
 - Require Python>=3.9 in line with `NEP 29 <https://numpy.org/neps/nep-0029-deprecation_policy.html#support-table>`_
+- Build and test with Python 3.12 in CI.
+- Added line search stopping criterion for tiny loss improvements based on gradient information.
 
 2.6.0 - 2023-09-05
 ------------------

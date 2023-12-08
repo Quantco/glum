@@ -21,18 +21,18 @@ jobs:
       matrix:
         include:
           - { conda_build_yml: linux_64_python3.9.____cpython,   os: ubuntu-latest,  conda-build-args: ' -c conda-forge/label/tabmat_dev -c conda-forge' }
-          - { conda_build_yml: linux_64_python3.11.____cpython,  os: ubuntu-latest,  conda-build-args: ' -c conda-forge/label/tabmat_dev -c conda-forge' }
+          - { conda_build_yml: linux_64_python3.12.____cpython,  os: ubuntu-latest,  conda-build-args: ' -c conda-forge/label/tabmat_dev -c conda-forge' }
           - { conda_build_yml: osx_64_python3.9.____cpython,     os: macos-latest,   conda-build-args: ' -c conda-forge/label/tabmat_dev -c conda-forge' }
-          - { conda_build_yml: osx_64_python3.11.____cpython,    os: macos-latest,   conda-build-args: ' -c conda-forge/label/tabmat_dev -c conda-forge' }
+          - { conda_build_yml: osx_64_python3.12.____cpython,    os: macos-latest,   conda-build-args: ' -c conda-forge/label/tabmat_dev -c conda-forge' }
           - { conda_build_yml: osx_arm64_python3.10.____cpython, os: macos-latest,   conda-build-args: ' -c conda-forge/label/tabmat_dev -c conda-forge --no-test' }
           - { conda_build_yml: win_64_python3.9.____cpython,     os: windows-latest, conda-build-args: ' -c conda-forge/label/tabmat_dev -c conda-forge' }
-          - { conda_build_yml: win_64_python3.11.____cpython,    os: windows-latest, conda-build-args: ' -c conda-forge/label/tabmat_dev -c conda-forge' }
+          - { conda_build_yml: win_64_python3.12.____cpython,    os: windows-latest, conda-build-args: ' -c conda-forge/label/tabmat_dev -c conda-forge' }
     steps:
       - name: Checkout branch
         uses: actions/checkout@v4
       - name: Fetch full git history
         run: git fetch --prune --unshallow
-      - uses: mamba-org/setup-micromamba@2b72821d5ad7f6da3c003a3684ce341bf187b46f
+      - uses: mamba-org/setup-micromamba@db1df3ba9e07ea86f759e98b575c002747e9e757
         with:
           init-shell: ${{ matrix.os == 'windows-latest' && 'cmd.exe' || 'bash' }}
           environment-name: build

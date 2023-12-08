@@ -1,5 +1,3 @@
-# cython: boundscheck=False, wraparound=False, cdivision=True
-
 from cython cimport floating
 from cython.parallel import prange
 
@@ -335,6 +333,7 @@ cdef floating _tweedie_unit_loglikelihood(floating y, floating mu, floating powe
         return (theta * y - kappa) / dispersion + normalization
 
 cdef floating _tweedie_normalization(floating y, floating power, floating dispersion) nogil:
+    # This implementation follows https://doi.org/10.1007/s11222-005-4070-y.
 
     cdef int j, j_lower, j_upper
 

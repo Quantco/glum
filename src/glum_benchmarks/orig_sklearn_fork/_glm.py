@@ -757,15 +757,15 @@ class TweedieDistribution(ExponentialDispersionModel):
         if not isinstance(power, numbers.Real):
             raise TypeError("power must be a real number, input was {}".format(power))
 
-        self._upper_bound = np.Inf
+        self._upper_bound = np.inf
         self._include_upper_bound = False
         if power < 0:
             # Extreme Stable
-            self._lower_bound = -np.Inf
+            self._lower_bound = -np.inf
             self._include_lower_bound = False
         elif power == 0:
             # NormalDistribution
-            self._lower_bound = -np.Inf
+            self._lower_bound = -np.inf
             self._include_lower_bound = False
         elif (power > 0) and (power < 1):
             raise ValueError("For 0<power<1, no distribution exists.")
@@ -877,8 +877,8 @@ class GeneralizedHyperbolicSecant(ExponentialDispersionModel):
     """
 
     def __init__(self):
-        self._lower_bound = -np.Inf
-        self._upper_bound = np.Inf
+        self._lower_bound = -np.inf
+        self._upper_bound = np.inf
         self._include_lower_bound = False
         self._include_upper_bound = False
 

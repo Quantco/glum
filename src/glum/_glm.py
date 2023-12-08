@@ -1002,7 +1002,11 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                     warnings.warn("`min_alpha` is set. Ignoring `min_alpha_ratio`.")
                 min_alpha = self.min_alpha
             return np.logspace(
-                np.log(max_alpha), np.log(min_alpha), self.n_alphas, base=np.e
+                np.log(max_alpha),
+                np.log(min_alpha),
+                self.n_alphas,
+                base=np.e,
+                dtype=X.dtype,
             )
 
         if np.all(P1_no_alpha == 0):
@@ -1332,7 +1336,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             copy=True,
             ensure_2d=True,
             allow_nd=False,
-            drop_first=self.drop_first,
+            drop_first=getattr(self, "drop_first", False),
         )
 
         if alpha_index is None:
@@ -1406,6 +1410,18 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             )
             X = self._convert_from_pandas(X, context=captured_context)
 
+<<<<<<< HEAD
+=======
+        X = check_array_tabmat_compliant(
+            X,
+            accept_sparse=["csr", "csc", "coo"],
+            dtype="numeric",
+            copy=self._should_copy_X(),
+            ensure_2d=True,
+            allow_nd=False,
+            drop_first=getattr(self, "drop_first", False),
+        )
+>>>>>>> main
         eta = self.linear_predictor(
             X, offset=offset, alpha_index=alpha_index, alpha=alpha
         )
@@ -1442,7 +1458,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             The confidence level for the confidence intervals.
         X : {array-like, sparse matrix}, shape (n_samples, n_features), optional
             Training data. Can be omitted if a covariance matrix has already
-            been computed.
+            been computed or if standard errors, etc. are not desired.
         y : array-like, shape (n_samples,), optional
             Target values. Can be omitted if a covariance matrix has already
             been computed.
@@ -1473,7 +1489,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         pandas.DataFrame
             A table of the regression results.
         """
-
         if self.fit_intercept:
             names = ["intercept"] + list(self.feature_names_)
             beta = np.concatenate([[self.intercept_], self.coef_])
@@ -1484,6 +1499,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         captured_context = capture_context(
             context + 1 if isinstance(context, int) else context
         )
+        if (X is None) and not hasattr(self, "covariance_matrix_"):
+            return pd.Series(beta, index=names, name="coef")
 
         covariance_matrix = self.covariance_matrix(
             X=X,
@@ -1787,7 +1804,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         # We want to calculate Rb_r^T (RVR)^{-1} Rb_r.
         # We can do it in a more numerically stable way by using `scipy.linalg.solve`:
         try:
-            test_stat = float(Rb_r.T @ linalg.solve(RVR, Rb_r))
+            test_stat = (Rb_r.T @ linalg.solve(RVR, Rb_r))[0]
         except linalg.LinAlgError as err:
             raise linalg.LinAlgError("The restriction matrix is not full rank") from err
         p_value = 1 - stats.chi2.cdf(test_stat, Q)
@@ -2258,12 +2275,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         )
 
         if robust is None:
-            _robust = self.robust
+            _robust = getattr(self, "robust", True)
         else:
             _robust = robust
 
         if expected_information is None:
-            _expected_information = self.expected_information
+            _expected_information = getattr(self, "expected_information", False)
         else:
             _expected_information = expected_information
 
@@ -2337,7 +2354,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 copy=self._should_copy_X(),
                 ensure_2d=True,
                 allow_nd=False,
-                drop_first=self.drop_first,
+                drop_first=getattr(self, "drop_first", False),
             )
 
             if isinstance(X, np.ndarray):
@@ -2680,6 +2697,16 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 self.term_names_ = list(
                     chain.from_iterable(
                         [term] * len(cols) for term, _, cols in X.model_spec.structure
+
+            if any(X.dtypes == "category"):
+                self.feature_names_ = list(
+                    chain.from_iterable(
+                        _name_categorical_variables(
+                            dtype.categories, column, getattr(self, "drop_first", False)
+                        )
+                        if isinstance(dtype, pd.CategoricalDtype)
+                        else [column]
+                        for column, dtype in zip(X.columns, X.dtypes)
                     )
                 )
 
@@ -2772,7 +2799,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 dtype=_dtype,
                 copy=copy_X,
                 force_all_finite=force_all_finite,
-                drop_first=self.drop_first,
+                drop_first=getattr(self, "drop_first", False),
             )
             self._check_n_features(X, reset=True)
         else:
@@ -3562,9 +3589,9 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
                 y=y,
                 offset=offset,
                 sample_weight=sample_weight * weights_sum,
-                robust=self.robust,
+                robust=getattr(self, "robust", True),
                 clusters=clusters,
-                expected_information=self.expected_information,
+                expected_information=getattr(self, "expected_information", False),
                 store_covariance_matrix=True,
                 skip_checks=True,
             )

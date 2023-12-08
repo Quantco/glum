@@ -42,30 +42,35 @@ jobs:
           path: dist/*.tar.gz
 
   upload_testpypi:
+    if: github.event_name == 'release' && github.event.action == 'published'
     needs: [build_wheels, build_sdist]
     runs-on: ubuntu-latest
-    if: github.event_name == 'release' && github.event.action == 'published'
+    environment: 
+      name: test_release
+      url: https://test.pypi.org/p/glum
+    permissions:
+      id-token: write
     steps:
       - uses: actions/download-artifact@v3
         with:
           name: artifact
           path: dist
-      - uses: pypa/gh-action-pypi-publish@v1.8.10
+      - uses: pypa/gh-action-pypi-publish@v1.8.11
         with:
-          user: __token__
-          password: ${{ secrets.GH_TESTPYPI_UPLOAD }}
           repository-url: https://test.pypi.org/legacy/
 
   upload_pypi:
+    if: github.event_name == 'release' && github.event.action == 'published'
     needs: [build_wheels, build_sdist, upload_testpypi]
     runs-on: ubuntu-latest
-    if: github.event_name == 'release' && github.event.action == 'published'
+    environment: 
+      name: release
+      url: https://pypi.org/p/glum
+    permissions:
+      id-token: write
     steps:
       - uses: actions/download-artifact@v3
         with:
           name: artifact
           path: dist
-      - uses: pypa/gh-action-pypi-publish@v1.8.10
-        with:
-          user: __token__
-          password: ${{ secrets.GH_PYPI_UPLOAD }}
+      - uses: pypa/gh-action-pypi-publish@v1.8.11
