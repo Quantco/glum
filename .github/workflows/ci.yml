@@ -12,7 +12,7 @@ jobs:
       - name: Checkout branch
         uses: actions/checkout@v4
       - name: Set up micromamba
-        uses: mamba-org/setup-micromamba@db1df3ba9e07ea86f759e98b575c002747e9e757
+        uses: mamba-org/setup-micromamba@8752438cc2755ab7d0de2a8d70b694f5586baae8
       - name: Add micromamba to GITHUB_PATH
         run: echo "${HOME}/micromamba-bin" >> "$GITHUB_PATH"
       - name: Install Python 3.11
@@ -41,7 +41,7 @@ jobs:
       - name: Checkout branch
         uses: actions/checkout@v4
       - name: Set up conda env
-        uses: mamba-org/setup-micromamba@db1df3ba9e07ea86f759e98b575c002747e9e757
+        uses: mamba-org/setup-micromamba@8752438cc2755ab7d0de2a8d70b694f5586baae8
         with:
           environment-file: environment.yml
           init-shell: ${{ matrix.os == 'windows-latest' && 'powershell' || 'bash' }}
