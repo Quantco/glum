@@ -46,6 +46,9 @@ jobs:
           echo Install pyarrow nightly
           micromamba remove -y --force pyarrow
           pip install --extra-index-url https://pypi.fury.io/arrow-nightlies/ --prefer-binary --pre --no-deps pyarrow
+          echo Install numexpr latest version
+          micromamba remove -y --force numexpr
+          pip install --prefer-binary --pre --no-deps numexpr
           echo Install tabmat nightly
           micromamba remove -y --force tabmat
           pip install --no-use-pep517 --no-deps git+https://github.com/Quantco/tabmat
