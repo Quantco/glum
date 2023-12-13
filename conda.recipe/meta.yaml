@@ -30,7 +30,7 @@ requirements:
   run:
     - python
     - joblib
-    - numexpr
+    - numexpr >=2.8
     - {{ pin_compatible('numpy') }}
     - pandas
     - scikit-learn >=0.23
