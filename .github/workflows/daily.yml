@@ -38,17 +38,13 @@ jobs:
           micromamba install -y c-compiler cxx-compiler 'cython!=3.0.4' jemalloc-local libgomp mako xsimd
 
           PRE_WHEELS="https://pypi.anaconda.org/scientific-python-nightly-wheels/simple/"
-          for pkg in numpy pandas scikit-learn scipy; do
-            echo "Installing $pkg nightly"
-            micromamba remove -y --force $pkg
-            pip install --pre --no-deps --only-binary :all: --upgrade --timeout=60 -i $PRE_WHEELS $pkg
-          done
-          echo Install pyarrow nightly
-          micromamba remove -y --force pyarrow
-          pip install --extra-index-url https://pypi.fury.io/arrow-nightlies/ --prefer-binary --pre --no-deps pyarrow
+          echo Install nightly packages
+          micromamba remove -y --force numpy pandas scikit-learn scipy pyarrow statsmodels
+          pip install --pre --no-deps --only-binary :all: --upgrade --timeout=60 -i $PRE_WHEELS --extra-index-url https://pypi.fury.io/arrow-nightlies/ numpy pandas scikit-learn scipy pyarrow statsmodels
           echo Install tabmat nightly
           micromamba remove -y --force tabmat
           pip install --no-use-pep517 --no-deps git+https://github.com/Quantco/tabmat
+          micromamba list
       - name: Install repository
         shell: bash -el {0}
         run: pip install --no-use-pep517 --no-deps --disable-pip-version-check -e .
