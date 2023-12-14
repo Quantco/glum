@@ -81,7 +81,7 @@ setup(
     python_requires=">=3.9",
     install_requires=[
         "joblib",
-        "numexpr>=2.8",
+        # "numexpr>=2.8",
         "numpy",
         "pandas",
         "scikit-learn>=0.23",

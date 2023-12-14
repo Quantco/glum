@@ -2,7 +2,10 @@ from abc import ABCMeta, abstractmethod
 from functools import partial
 from typing import Union
 
-import numexpr
+try:
+    from numexpr import evaluate
+except ImportError:
+    evaluate = eval
 import numpy as np
 from scipy import sparse, special
 from tabmat import (
@@ -674,7 +677,7 @@ class TweedieDistribution(ExponentialDispersionModel):
         numpy.ndarray, shape (n_samples,)
         """
         p = self.power  # noqa: F841
-        return numexpr.evaluate("mu ** p")
+        return evaluate("mu ** p")
 
     def unit_variance_derivative(self, mu: np.ndarray) -> np.ndarray:
         r"""Compute the derivative of the unit variance of a Tweedie distribution.
@@ -691,7 +694,7 @@ class TweedieDistribution(ExponentialDispersionModel):
         numpy.ndarray, shape (n_samples,)
         """
         p = self.power  # noqa: F841
-        return numexpr.evaluate("p * mu ** (p - 1)")
+        return evaluate("p * mu ** (p - 1)")
 
     def deviance(self, y, mu, sample_weight=None) -> float:
         """Compute the deviance.
@@ -860,10 +863,10 @@ class TweedieDistribution(ExponentialDispersionModel):
         if method == "pearson":
             formula = "((y - mu) ** 2) / (mu ** p)"
             if sample_weight is None:
-                return numexpr.evaluate(formula).sum() / (len(y) - ddof)
+                return evaluate(formula).sum() / (len(y) - ddof)
             else:
                 formula = f"sample_weight * {formula}"
-                return numexpr.evaluate(formula).sum() / (sample_weight.sum() - ddof)
+                return evaluate(formula).sum() / (sample_weight.sum() - ddof)
 
         return super().dispersion(
             y, mu, sample_weight=sample_weight, ddof=ddof, method=method
@@ -1101,10 +1104,10 @@ class BinomialDistribution(ExponentialDispersionModel):
         if method == "pearson":
             formula = "((y - mu) ** 2) / (mu * (1 - mu))"
             if sample_weight is None:
-                return numexpr.evaluate(formula).sum() / (len(y) - ddof)
+                return evaluate(formula).sum() / (len(y) - ddof)
             else:
                 formula = f"sample_weight * {formula}"
-                return numexpr.evaluate(formula).sum() / (sample_weight.sum() - ddof)
+                return evaluate(formula).sum() / (sample_weight.sum() - ddof)
 
         return super().dispersion(
             y, mu, sample_weight=sample_weight, ddof=ddof, method=method
@@ -1312,10 +1315,10 @@ class NegativeBinomialDistribution(ExponentialDispersionModel):
         if method == "pearson":
             formula = "((y - mu) ** 2) / (mu + theta * mu ** 2)"
             if sample_weight is None:
-                return numexpr.evaluate(formula).sum() / (len(y) - ddof)
+                return evaluate(formula).sum() / (len(y) - ddof)
             else:
                 formula = f"sample_weight * {formula}"
-                return numexpr.evaluate(formula).sum() / (sample_weight.sum() - ddof)
+                return evaluate(formula).sum() / (sample_weight.sum() - ddof)
 
         return super().dispersion(
             y, mu, sample_weight=sample_weight, ddof=ddof, method=method
