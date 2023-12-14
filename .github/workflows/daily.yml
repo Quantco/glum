@@ -39,8 +39,8 @@ jobs:
 
           PRE_WHEELS="https://pypi.anaconda.org/scientific-python-nightly-wheels/simple/"
           echo Install nightly packages
-          micromamba remove -y --force numpy pandas scikit-learn scipy pyarrow statsmodels
-          pip install --pre --no-deps --only-binary :all: --upgrade --timeout=60 -i $PRE_WHEELS --extra-index-url https://pypi.fury.io/arrow-nightlies/ numpy pandas scikit-learn scipy pyarrow statsmodels
+          micromamba remove -y --force numpy pandas scikit-learn scipy statsmodels
+          pip install --pre --no-deps --only-binary :all: --upgrade --timeout=60 -i $PRE_WHEELS --extra-index-url https://pypi.fury.io/arrow-nightlies/ numpy pandas scikit-learn scipy statsmodels
           echo Install tabmat nightly
           micromamba remove -y --force tabmat
           pip install --no-use-pep517 --no-deps git+https://github.com/Quantco/tabmat
