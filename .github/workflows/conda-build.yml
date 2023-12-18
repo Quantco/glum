@@ -32,7 +32,7 @@ jobs:
         uses: actions/checkout@v4
       - name: Fetch full git history
         run: git fetch --prune --unshallow
-      - uses: mamba-org/setup-micromamba@8752438cc2755ab7d0de2a8d70b694f5586baae8
+      - uses: mamba-org/setup-micromamba@e820223f89c8720d6c740ca154a7adf32fcd278a
         with:
           init-shell: ${{ matrix.os == 'windows-latest' && 'cmd.exe' || 'bash' }}
           environment-name: build
