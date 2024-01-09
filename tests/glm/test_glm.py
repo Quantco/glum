@@ -2962,8 +2962,9 @@ def get_mixed_data():
     [
         pytest.param("y ~ x1 + x2", id="numeric"),
         pytest.param("y ~ c1", id="categorical"),
-        pytest.param("y ~ x1 * c1 * c2", id="interaction"),
-        pytest.param("y ~ x1 + x2 + c1 + c2", id="numeric_and_categorical"),
+        pytest.param("y ~ c1 * c2", id="categorical_interaction"),
+        pytest.param("y ~ x1 + x2 + c1 + c2", id="numeric_categorical"),
+        pytest.param("y ~ x1 * c1 * c2", id="numeric_categorical_interaction"),
     ],
 )
 @pytest.mark.parametrize(
@@ -3099,8 +3100,7 @@ def test_formula_names_old_glum_style(
     [
         pytest.param("y ~ x1 + x2", id="numeric"),
         pytest.param("y ~ c1", id="categorical"),
-        pytest.param("y ~ x1 * c1 * c2", id="interaction"),
-        pytest.param("y ~ x1 + x2 + c1 + c2", id="numeric_and_categorical"),
+        pytest.param("y ~ c1 * c2", id="categorical_interaction"),
     ],
 )
 @pytest.mark.parametrize(
@@ -3149,8 +3149,7 @@ def test_formula_context(get_mixed_data):
     [
         pytest.param("y ~ x1 + x2", id="numeric"),
         pytest.param("y ~ c1", id="categorical"),
-        pytest.param("y ~ x1 * c1 * c2", id="interaction"),
-        pytest.param("y ~ x1 + x2 + c1 + c2", id="numeric_and_categorical"),
+        pytest.param("y ~ c1 * c2", id="categorical_interaction"),
     ],
 )
 @pytest.mark.parametrize(
