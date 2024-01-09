@@ -2969,8 +2969,10 @@ def get_mixed_data():
 @pytest.mark.parametrize(
     "drop_first", [True, False], ids=["drop_first", "no_drop_first"]
 )
-@pytest.mark.parametrize("intercept", [True, False], ids=["intercept", "no_intercept"])
-def test_formula(get_mixed_data, formula, drop_first, intercept):
+@pytest.mark.parametrize(
+    "fit_intercept", [True, False], ids=["intercept", "no_intercept"]
+)
+def test_formula(get_mixed_data, formula, drop_first, fit_intercept):
     """Model with formula and model with externally constructed model matrix should match."""
     data = get_mixed_data
 
@@ -2978,11 +2980,11 @@ def test_formula(get_mixed_data, formula, drop_first, intercept):
         family="normal",
         drop_first=drop_first,
         formula=formula,
-        fit_intercept=intercept,
+        fit_intercept=fit_intercept,
         categorical_format="{name}[T.{category}]",
     ).fit(data)
 
-    if intercept:
+    if fit_intercept:
         # full rank check must consider presence of intercept
         y_ext, X_ext = formulaic.model_matrix(
             formula, data, ensure_full_rank=drop_first
@@ -2997,7 +2999,7 @@ def test_formula(get_mixed_data, formula, drop_first, intercept):
     model_ext = GeneralizedLinearRegressor(
         family="normal",
         drop_first=drop_first,
-        fit_intercept=intercept,
+        fit_intercept=fit_intercept,
         categorical_format="{name}[T.{category}]",
     ).fit(X_ext, y_ext)
 
@@ -3010,9 +3012,7 @@ def test_formula(get_mixed_data, formula, drop_first, intercept):
 def test_formula_explicit_intercept(get_mixed_data):
     data = get_mixed_data
 
-    with pytest.raises(
-        ValueError, match="The formula sets the intercept to False"
-    ):
+    with pytest.raises(ValueError, match="The formula sets the intercept to False"):
         GeneralizedLinearRegressor(
             family="normal",
             formula="y ~ x1 - 1",
@@ -3097,21 +3097,26 @@ def test_formula_names_old_glum_style(
 @pytest.mark.parametrize(
     "formula",
     [
-        pytest.param("y ~ x1 + x2", id="implicit_no_intercept"),
-        pytest.param("y ~ x1 + x2 + 1", id="intercept"),
-        pytest.param("y ~ x1 + x2 - 1", id="no_intercept"),
+        pytest.param("y ~ x1 + x2", id="numeric"),
         pytest.param("y ~ c1", id="categorical"),
-        pytest.param("y ~ c1 + 1", id="categorical_intercept"),
-        pytest.param("y ~ c1 * c2", id="interaction"),
+        pytest.param("y ~ x1 * c1 * c2", id="interaction"),
+        pytest.param("y ~ x1 + x2 + c1 + c2", id="numeric_and_categorical"),
     ],
 )
-def test_formula_against_smf(get_mixed_data, formula):
+@pytest.mark.parametrize(
+    "fit_intercept", [True, False], ids=["intercept", "no_intercept"]
+)
+def test_formula_against_smf(get_mixed_data, formula, fit_intercept):
     data = get_mixed_data
     model_formula = GeneralizedLinearRegressor(
-        family="normal", drop_first=True, formula=formula, alpha=0.0
+        family="normal",
+        drop_first=True,
+        formula=formula,
+        alpha=0.0,
+        fit_intercept=fit_intercept,
     ).fit(data)
 
-    if model_formula.fit_intercept:
+    if fit_intercept:
         beta_formula = np.concatenate([[model_formula.intercept_], model_formula.coef_])
     else:
         beta_formula = model_formula.coef_
@@ -3126,40 +3131,45 @@ def test_formula_context(get_mixed_data):
     x_context = np.arange(len(data), dtype=float)  # noqa: F841
     formula = "y ~ x1 + x2 + x_context"
     model_formula = GeneralizedLinearRegressor(
-        family="normal", drop_first=True, formula=formula, alpha=0.0
+        family="normal",
+        drop_first=True,
+        formula=formula,
+        alpha=0.0,
+        fit_intercept=False,
     ).fit(data)
-
-    if model_formula.fit_intercept:
-        beta_formula = np.concatenate([[model_formula.intercept_], model_formula.coef_])
-    else:
-        beta_formula = model_formula.coef_
 
     model_smf = smf.glm(formula, data, family=sm.families.Gaussian()).fit()
 
-    np.testing.assert_almost_equal(beta_formula, model_smf.params)
+    np.testing.assert_almost_equal(model_formula.coef_, model_smf.params)
     np.testing.assert_almost_equal(model_formula.predict(data), model_smf.predict(data))
 
 
 @pytest.mark.parametrize(
     "formula",
     [
-        pytest.param("y ~ x1 + x2", id="implicit_no_intercept"),
-        pytest.param("y ~ x1 + x2 + 1", id="intercept"),
-        pytest.param("y ~ x1 + x2 - 1", id="no_intercept"),
+        pytest.param("y ~ x1 + x2", id="numeric"),
         pytest.param("y ~ c1", id="categorical"),
-        pytest.param("y ~ c1 + 1", id="categorical_intercept"),
-        pytest.param("y ~ c1 * c2", id="interaction"),
+        pytest.param("y ~ x1 * c1 * c2", id="interaction"),
+        pytest.param("y ~ x1 + x2 + c1 + c2", id="numeric_and_categorical"),
     ],
 )
-def test_formula_predict(get_mixed_data, formula):
+@pytest.mark.parametrize(
+    "fit_intercept", [True, False], ids=["intercept", "no_intercept"]
+)
+def test_formula_predict(get_mixed_data, formula, fit_intercept):
     data = get_mixed_data
     data_unseen = data.copy()
     data_unseen.loc[data_unseen["c1"] == "b", "c1"] = "c"
     model_formula = GeneralizedLinearRegressor(
-        family="normal", drop_first=True, formula=formula, alpha=0.0
+        family="normal",
+        drop_first=True,
+        formula=formula,
+        alpha=0.0,
+        fit_intercept=fit_intercept,
     ).fit(data)
 
-    model_smf = smf.glm(formula, data, family=sm.families.Gaussian()).fit()
+    formula_smf = formula + "- 1" if not fit_intercept else formula
+    model_smf = smf.glm(formula_smf, data, family=sm.families.Gaussian()).fit()
 
     yhat_formula = model_formula.predict(data_unseen)
     yhat_smf = model_smf.predict(data_unseen)

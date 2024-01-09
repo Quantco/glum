@@ -2675,7 +2675,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 if intercept != self.fit_intercept:
                     raise ValueError(
                         f"The formula sets the intercept to {intercept}, "
-                        f"contradicting fit_intercept={self.fit_intercept}."
+                        f"contradicting fit_intercept={self.fit_intercept}. "
                         "You should use fit_intercept to specify the intercept."
                     )
 
