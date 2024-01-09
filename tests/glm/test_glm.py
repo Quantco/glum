@@ -3121,7 +3121,8 @@ def test_formula_against_smf(get_mixed_data, formula, fit_intercept):
     else:
         beta_formula = model_formula.coef_
 
-    model_smf = smf.glm(formula, data, family=sm.families.Gaussian()).fit()
+    formula_smf = formula + "- 1" if not fit_intercept else formula
+    model_smf = smf.glm(formula_smf, data, family=sm.families.Gaussian()).fit()
 
     np.testing.assert_almost_equal(beta_formula, model_smf.params)
 
