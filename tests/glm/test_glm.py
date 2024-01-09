@@ -3011,7 +3011,7 @@ def test_formula_explicit_intercept(get_mixed_data):
     data = get_mixed_data
 
     with pytest.raises(
-        ValueError, match="The formula explicitly sets the intercept to False"
+        ValueError, match="The formula sets the intercept to False"
     ):
         GeneralizedLinearRegressor(
             family="normal",
