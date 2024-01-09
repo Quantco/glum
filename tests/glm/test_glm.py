@@ -2967,7 +2967,7 @@ def get_mixed_data():
         pytest.param("y ~ c1 + 1", id="categorical_intercept"),
         pytest.param("y ~ x1 * c1 * c2", id="interaction"),
         pytest.param("y ~ x1 + x2 + c1 + c2", id="numeric_and_categorical"),
-        pytest.param("y ~ x1 + x2 + c1 + c2 + 1", id="numeric_and_categorical"),
+        pytest.param("y ~ x1 + x2 + c1 + c2 + 1", id="numeric_and_categorical_intercept"),
     ],
 )
 @pytest.mark.parametrize(
