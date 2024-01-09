@@ -2957,7 +2957,6 @@ def get_mixed_data():
     )
 
 
-@pytest.mark.skip(reason="Test is not correct")
 @pytest.mark.parametrize(
     "formula",
     [
@@ -2967,17 +2966,17 @@ def get_mixed_data():
         pytest.param("y ~ c1", id="categorical"),
         pytest.param("y ~ c1 + 1", id="categorical_intercept"),
         pytest.param("y ~ x1 * c1 * c2", id="interaction"),
+        pytest.param("y ~ x1 + x2 + c1 + c2", id="numeric_and_categorical"),
+        pytest.param("y ~ x1 + x2 + c1 + c2 + 1", id="numeric_and_categorical"),
     ],
 )
 @pytest.mark.parametrize(
     "drop_first", [True, False], ids=["drop_first", "no_drop_first"]
 )
 def test_formula(get_mixed_data, formula, drop_first):
+    """Model with formula and model with externally constructed model matrix should match."""
     data = get_mixed_data
-    y_pd, X_pd = formulaic.model_matrix(
-        formula + " - 1", data, ensure_full_rank=drop_first
-    )
-    y_pd = y_pd.iloc[:, 0]
+
     model_formula = GeneralizedLinearRegressor(
         family="normal",
         drop_first=drop_first,
@@ -2985,18 +2984,29 @@ def test_formula(get_mixed_data, formula, drop_first):
         fit_intercept=False,
         categorical_format="{name}[T.{category}]",
     ).fit(data)
-
     has_intercept = "1" in model_formula.X_model_spec_.terms
-    model_pandas = GeneralizedLinearRegressor(
+
+    if has_intercept:
+        # full rank check must consider presence of intercept
+        y_ext, X_ext = formulaic.model_matrix(
+            formula, data, ensure_full_rank=drop_first
+        )
+        X_ext = X_ext.drop(columns="Intercept")
+    else:
+        y_ext, X_ext = formulaic.model_matrix(
+            formula + "-1", data, ensure_full_rank=drop_first
+        )
+    y_ext = y_ext.iloc[:, 0]
+    model_ext = GeneralizedLinearRegressor(
         family="normal",
         drop_first=drop_first,
         fit_intercept=has_intercept,
         categorical_format="{name}[T.{category}]",
-    ).fit(X_pd, y_pd)
+    ).fit(X_ext, y_ext)
 
-    np.testing.assert_almost_equal(model_pandas.coef_, model_formula.coef_)
+    np.testing.assert_almost_equal(model_ext.coef_, model_formula.coef_)
     np.testing.assert_array_equal(
-        model_pandas.feature_names_, model_formula.feature_names_
+        model_ext.feature_names_, model_formula.feature_names_
     )
 
 
