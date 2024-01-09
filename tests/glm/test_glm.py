@@ -3136,12 +3136,15 @@ def test_formula_context(get_mixed_data):
         drop_first=True,
         formula=formula,
         alpha=0.0,
-        fit_intercept=False,
+        fit_intercept=True,
     ).fit(data)
 
     model_smf = smf.glm(formula, data, family=sm.families.Gaussian()).fit()
 
-    np.testing.assert_almost_equal(model_formula.coef_, model_smf.params)
+    np.testing.assert_almost_equal(
+        np.concatenate([[model_formula.intercept_], model_formula.coef_]),
+        model_smf.params,
+    )
     np.testing.assert_almost_equal(model_formula.predict(data), model_smf.predict(data))
 
 
