@@ -3130,7 +3130,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         - if 'zero', missing values will represent all-zero indicator columns.
         - if 'convert', missing values will be converted to the ``cat_missing_name``
           category.
-          
+
     cat_missing_name: str, default='(MISSING)'
         Name of the category to which missing values will be converted if
         ``cat_missing_method='convert'``.  Only used if ``X`` is a pandas data frame.
