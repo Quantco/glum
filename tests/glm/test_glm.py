@@ -3186,7 +3186,7 @@ def test_cat_missing(cat_missing_method, unseen_missing):
     )
 
     if cat_missing_method == "fail" and not unseen_missing:
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Categorical data can't have missing values"):
             model.fit(X, y)
     else:
         model.fit(X, y)
@@ -3199,4 +3199,8 @@ def test_cat_missing(cat_missing_method, unseen_missing):
         np.testing.assert_array_equal(model.feature_names_, feature_names)
         assert len(model.coef_) == len(feature_names)
 
-        model.predict(X_unseen)
+        if cat_missing_method == "fail" and unseen_missing:
+            with pytest.raises(ValueError, match="Categorical data can't have missing values"):
+                model.predict(X_unseen)
+        else:
+            model.predict(X_unseen)
