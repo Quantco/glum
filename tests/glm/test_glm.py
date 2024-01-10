@@ -2967,7 +2967,9 @@ def get_mixed_data():
         pytest.param("y ~ c1 + 1", id="categorical_intercept"),
         pytest.param("y ~ x1 * c1 * c2", id="interaction"),
         pytest.param("y ~ x1 + x2 + c1 + c2", id="numeric_and_categorical"),
-        pytest.param("y ~ x1 + x2 + c1 + c2 + 1", id="numeric_and_categorical_intercept"),
+        pytest.param(
+            "y ~ x1 + x2 + c1 + c2 + 1", id="numeric_and_categorical_intercept"
+        ),
     ],
 )
 @pytest.mark.parametrize(
@@ -3158,20 +3160,23 @@ def test_formula_predict(get_mixed_data, formula):
 
 
 @pytest.mark.parametrize("cat_missing_method", ["fail", "zero", "convert"])
-def test_cat_missing(cat_missing_method):
+@pytest.mark.parametrize("unseen_missing", [False, True])
+def test_cat_missing(cat_missing_method, unseen_missing):
     X = pd.DataFrame(
         {
             "cat_1": pd.Categorical([1, 2, pd.NA, 2, 1]),
             "cat_2": pd.Categorical([1, 2, pd.NA, 1, 2]),
         }
     )
+    if unseen_missing:
+        X = X.dropna()
     X_unseen = pd.DataFrame(
         {
             "cat_1": pd.Categorical([1, pd.NA]),
             "cat_2": pd.Categorical([1, 2]),
         }
     )
-    y = np.array([1, 2, 3, 4, 5])
+    y = np.array(X.index)
 
     model = GeneralizedLinearRegressor(
         family="normal",
@@ -3180,14 +3185,14 @@ def test_cat_missing(cat_missing_method):
         fit_intercept=False,
     )
 
-    if cat_missing_method == "fail":
+    if cat_missing_method == "fail" and not unseen_missing:
         with pytest.raises(ValueError):
             model.fit(X, y)
     else:
         model.fit(X, y)
         feature_names = ["cat_1[1]", "cat_1[2]", "cat_2[1]", "cat_2[2]"]
 
-        if cat_missing_method == "convert":
+        if cat_missing_method == "convert" and not unseen_missing:
             feature_names.insert(2, "cat_1[(MISSING)]")
             feature_names.append("cat_2[(MISSING)]")
 

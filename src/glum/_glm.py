@@ -880,9 +880,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self, df: pd.DataFrame, context: Optional[Mapping[str, Any]] = None
     ) -> tm.MatrixBase:
         """Convert a pandas data frame to a tabmat matrix."""
-
         if hasattr(self, "X_model_spec_"):
             return self.X_model_spec_.get_model_matrix(df, context=context)
+
+        cat_missing_method = self.cat_missing_method
 
         if hasattr(self, "feature_dtypes_"):
             df = _align_df_categories(df, self.feature_dtypes_)
@@ -894,12 +895,14 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                     cat_missing_name=self.cat_missing_name,
                     categorical_format=self.categorical_format,
                 )
+                # drop categories that were not seen in training
+                cat_missing_method = "drop"
 
         X = tm.from_pandas(
             df,
             drop_first=self.drop_first,
             categorical_format=self.categorical_format,
-            cat_missing_method=self.cat_missing_method,
+            cat_missing_method=cat_missing_method,
         )
 
         return X
