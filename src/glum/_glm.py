@@ -896,7 +896,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                     categorical_format=self.categorical_format,
                 )
                 # drop categories that were not seen in training
-                cat_missing_method = "drop"
+                cat_missing_method = "zero"
 
         X = tm.from_pandas(
             df,
