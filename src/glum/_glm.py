@@ -883,7 +883,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         if hasattr(self, "X_model_spec_"):
             return self.X_model_spec_.get_model_matrix(df, context=context)
 
-        cat_missing_method_after_cat_check = self.cat_missing_method
+        cat_missing_method_after_alignment = self.cat_missing_method
 
         if hasattr(self, "feature_dtypes_"):
             df = _align_df_categories(df, self.feature_dtypes_)
@@ -896,13 +896,13 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                     categorical_format=self.categorical_format,
                 )
                 # drop categories that were not seen in training
-                cat_missing_method_after_cat_check = "zero"
+                cat_missing_method_after_alignment = "zero"
 
         X = tm.from_pandas(
             df,
             drop_first=self.drop_first,
             categorical_format=self.categorical_format,
-            cat_missing_method=cat_missing_method_after_cat_check,
+            cat_missing_method=cat_missing_method_after_alignment,
         )
 
         return X
