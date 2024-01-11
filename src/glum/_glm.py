@@ -2669,6 +2669,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                     include_intercept=False,
                     ensure_full_rank=self.drop_first,
                     categorical_format=self.categorical_format,
+                    cat_missing_method=self.cat_missing_method,
                     interaction_separator=self.interaction_separator,
                     add_column_for_intercept=False,
                     context=context,

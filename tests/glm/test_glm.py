@@ -3166,6 +3166,60 @@ def test_cat_missing(cat_missing_method, unseen_missing):
         {
             "cat_1": pd.Categorical([1, 2, pd.NA, 2, 1]),
             "cat_2": pd.Categorical([1, 2, pd.NA, 1, 2]),
+            "x1": [1, 2, 3, 4, 5],
+        }
+    )
+    if unseen_missing:
+        X = X.dropna()
+    X_unseen = pd.DataFrame(
+        {
+            "cat_1": pd.Categorical([1, pd.NA]),
+            "cat_2": pd.Categorical([1, 2]),
+            "x1": [1, 2],
+        }
+    )
+    y = np.array(X.index)
+
+    model = GeneralizedLinearRegressor(
+        family="normal",
+        cat_missing_method=cat_missing_method,
+        drop_first=False,
+        fit_intercept=False,
+    )
+
+    if cat_missing_method == "fail" and not unseen_missing:
+        with pytest.raises(
+            ValueError, match="Categorical data can't have missing values"
+        ):
+            model.fit(X, y)
+    else:
+        model.fit(X, y)
+        feature_names = ["cat_1[1]", "cat_1[2]", "cat_2[1]", "cat_2[2]"]
+
+        if cat_missing_method == "convert" and not unseen_missing:
+            feature_names.insert(2, "cat_1[(MISSING)]")
+            feature_names.append("cat_2[(MISSING)]")
+
+        np.testing.assert_array_equal(model.feature_names_, feature_names)
+        assert len(model.coef_) == len(feature_names)
+
+        if cat_missing_method == "fail" and unseen_missing:
+            with pytest.raises(
+                ValueError, match="Categorical data can't have missing values"
+            ):
+                model.predict(X_unseen)
+        else:
+            model.predict(X_unseen)
+
+
+@pytest.mark.parametrize("cat_missing_method", ["zero", "convert"])
+@pytest.mark.parametrize("unseen_missing", [False, True])
+@pytest.mark.parametrize("formula", [None, "cat_1 + cat_2"])
+def test_cat_missing_formula(cat_missing_method, unseen_missing, formula):
+    X = pd.DataFrame(
+        {
+            "cat_1": pd.Categorical([1, 2, pd.NA, 2, 1]),
+            "cat_2": pd.Categorical([1, 2, pd.NA, 1, 2]),
         }
     )
     if unseen_missing:
@@ -3182,6 +3236,7 @@ def test_cat_missing(cat_missing_method, unseen_missing):
         family="normal",
         cat_missing_method=cat_missing_method,
         drop_first=False,
+        formula=formula,
         fit_intercept=False,
     )
 
