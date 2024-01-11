@@ -2644,7 +2644,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             if hasattr(self, "formula") and self.formula is not None:
                 if self.cat_missing_method == "convert":
                     raise NotImplementedError(
-                        "Conversion of missing categoricals with a formula is currently not supported."
+                        "cat_missing_method == 'convert' with a formula "
+                        "is not allowed."
                     )
 
                 lhs, rhs = _parse_formula(
