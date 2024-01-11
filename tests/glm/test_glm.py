@@ -2102,8 +2102,8 @@ def test_inputtype_std_errors(regression_data, categorical, split, fit_intercept
 
 
 @pytest.mark.parametrize("fit_intercept", [True, False])
-@pytest.mark.parametrize("significance_level", [0.01, 0.05])
-def test_coef_table(regression_data, fit_intercept, significance_level):
+@pytest.mark.parametrize("confidence_level", [0.95, 0.99])
+def test_coef_table(regression_data, fit_intercept, confidence_level):
     X, y = regression_data
     colnames = ["dog", "cat", "bat", "cow", "eel", "fox", "bee", "owl", "pig", "rat"]
     X_df = pd.DataFrame(X, columns=colnames)
@@ -2120,7 +2120,7 @@ def test_coef_table(regression_data, fit_intercept, significance_level):
 
     # Make the covariance matrices the same to focus on the coefficient table
     mdl.covariance_matrix_ = mdl_sm.fit(cov_type="nonrobust").cov_params()
-    our_table = mdl.coef_table()
+    our_table = mdl.coef_table(confidence_level=confidence_level)
 
     if fit_intercept:
         colnames = ["intercept"] + colnames
@@ -2131,7 +2131,9 @@ def test_coef_table(regression_data, fit_intercept, significance_level):
     np.testing.assert_allclose(our_table["t_value"], fit_sm.tvalues, rtol=1e-8)
     np.testing.assert_allclose(our_table["p_value"], fit_sm.pvalues, atol=1e-8)
     np.testing.assert_allclose(
-        our_table[["ci_lower", "ci_upper"]], fit_sm.conf_int(), rtol=1e-8
+        our_table[["ci_lower", "ci_upper"]],
+        fit_sm.conf_int(alpha=1 - confidence_level),
+        rtol=1e-8,
     )
 
 
@@ -2967,7 +2969,9 @@ def get_mixed_data():
         pytest.param("y ~ c1 + 1", id="categorical_intercept"),
         pytest.param("y ~ x1 * c1 * c2", id="interaction"),
         pytest.param("y ~ x1 + x2 + c1 + c2", id="numeric_and_categorical"),
-        pytest.param("y ~ x1 + x2 + c1 + c2 + 1", id="numeric_and_categorical_intercept"),
+        pytest.param(
+            "y ~ x1 + x2 + c1 + c2 + 1", id="numeric_and_categorical_intercept"
+        ),
     ],
 )
 @pytest.mark.parametrize(
