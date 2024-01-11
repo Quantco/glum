@@ -3186,7 +3186,12 @@ def test_cat_missing(cat_missing_method, unseen_missing, formula):
         formula=formula,
         fit_intercept=False,
     )
-
+    if cat_missing_method == "convert" and formula:
+        with pytest.raises(
+            NotImplementedError,
+            match="Conversion of missing categoricals with a formula",
+        ):
+            model.fit(X, y)
     if cat_missing_method == "fail" and not unseen_missing:
         with pytest.raises(
             ValueError, match="Categorical data can't have missing values"
