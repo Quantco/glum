@@ -3189,7 +3189,7 @@ def test_cat_missing(cat_missing_method, unseen_missing, formula):
     if cat_missing_method == "convert" and formula:
         with pytest.raises(NotImplementedError):
             model.fit(X, y)
-    if cat_missing_method == "fail" and not unseen_missing:
+    elif cat_missing_method == "fail" and not unseen_missing:
         with pytest.raises(ValueError):
             model.fit(X, y)
     else:
