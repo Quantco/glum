@@ -80,7 +80,7 @@ n_iter
 4            0.443498
 5            0.443497
 >>>
->>> # You can also use formulas, thanks to formulaic.
+>>> # Models can also be built with formulas from formulaic.
 >>> model_formula = GeneralizedLinearRegressor(
     family='binomial',
     l1_ratio=1.0,
