@@ -82,11 +82,11 @@ n_iter
 >>>
 >>> # Models can also be built with formulas from formulaic.
 >>> model_formula = GeneralizedLinearRegressor(
-    family='binomial',
-    l1_ratio=1.0,
-    alpha=0.001,
-    formula="np.log(bedrooms + 1) + bs(sqft_living, 3) + C(waterfront)"
-)
+...     family='binomial',
+...     l1_ratio=1.0,
+...     alpha=0.001,
+...     formula="np.log(bedrooms + 1) + bs(sqft_living, 3) + C(waterfront)"
+... )
 >>> _ = model_formula.fit(X=house_data.data, y=y)
 
 ```
