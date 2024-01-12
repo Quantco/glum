@@ -68,7 +68,7 @@ Why did we choose the name `glum`? We wanted a name that had the letters GLM and
 >>>
 >>> _ = model.fit(X=X, y=y)
 >>>
->>> # .report_diagnostics shows details about the steps taken by the iterative solver
+>>> # .report_diagnostics shows details about the steps taken by the iterative solver.
 >>> diags = model.get_formatted_diagnostics(full_report=True)
 >>> diags[['objective_fct']]
         objective_fct
@@ -79,6 +79,15 @@ n_iter
 3            0.443681
 4            0.443498
 5            0.443497
+>>>
+>>> # You can also use formulas, thanks to formulaic.
+>>> model_formula = GeneralizedLinearRegressor(
+    family='binomial',
+    l1_ratio=1.0,
+    alpha=0.001,
+    formula="np.log(bedrooms + 1) + bs(sqft_living, 3) + C(waterfront)"
+)
+>>> _ = model_formula.fit(X=house_data.data, y=y)
 
 ```
 
