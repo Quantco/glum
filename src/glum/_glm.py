@@ -244,8 +244,7 @@ def _parse_formula(
     formula : FormulaSpec
         The formula to parse.
     include_intercept: bool, default True
-        Whether to include an intercept column if the formula does not
-        include (``+ 1``) or exclude (``+ 0`` or ``- 1``) it explicitly.
+        Whether to include an intercept column.
 
     Returns
     -------
@@ -2673,11 +2672,11 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
                 intercept = "1" in X.model_spec.terms
                 if intercept != self.fit_intercept:
-                    warnings.warn(
-                        f"The formula explicitly sets the intercept to {intercept}, "
-                        f"overriding fit_intercept={self.fit_intercept}."
+                    raise ValueError(
+                        f"The formula sets the intercept to {intercept}, "
+                        f"contradicting fit_intercept={self.fit_intercept}. "
+                        "You should use fit_intercept to specify the intercept."
                     )
-                    self.fit_intercept = intercept
 
                 self.X_model_spec_ = X.model_spec
 
@@ -3104,6 +3103,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     expected_information : bool, optional (default = False)
         If true, then the expected information matrix is computed by default.
         Only relevant when computing robust standard errors.
+
     formula : FormulaSpec
         A formula accepted by formulaic. It can either be a one-sided formula, in
         which case ``y`` must be specified in ``fit``, or a two-sided formula, in
@@ -3130,6 +3130,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         - if 'zero', missing values will represent all-zero indicator columns.
         - if 'convert', missing values will be converted to the ``cat_missing_name``
           category.
+
     cat_missing_name: str, default='(MISSING)'
         Name of the category to which missing values will be converted if
         ``cat_missing_method='convert'``.  Only used if ``X`` is a pandas data frame.
