@@ -1311,6 +1311,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             The context to use for evaluating the formula. If an integer, the
             context is taken from the stack frame of the caller at the given
             depth. If a dict, it is used as the context directly.
+
         Returns
         -------
         array, shape (n_samples, n_alphas)
@@ -1401,6 +1402,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             The context to use for evaluating the formula. If an integer, the
             context is taken from the stack frame of the caller at the given
             depth. If a dict, it is used as the context directly.
+
         Returns
         -------
         array, shape (n_samples, n_alphas)
@@ -1474,6 +1476,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             The context to use for evaluating the formula. If an integer, the
             context is taken from the stack frame of the caller at the given
             depth. If a dict, it is used as the context directly.
+
         Returns
         -------
         pandas.DataFrame
@@ -1603,6 +1606,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             The context to use for evaluating the formula. If an integer, the
             context is taken from the stack frame of the caller at the given
             depth. If a dict, it is used as the context directly.
+
         Returns
         -------
         WaldTestResult
@@ -1750,6 +1754,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             If not specified, the model's ``expected_information`` attribute is used.
         context : Optional[Mapping[str, Any]], default=None
             The context to use for evaluating the formula.
+
         Returns
         -------
         WaldTestResult
@@ -1854,6 +1859,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             If not specified, the model's ``expected_information`` attribute is used.
         context : Optional[Mapping[str, Any]], default=None
             The context to use for evaluating the formula.
+
         Returns
         -------
         WaldTestResult
@@ -1949,6 +1955,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             If not specified, the model's ``expected_information`` attribute is used.
         context : Optional[Mapping[str, Any]], default=None
             The context to use for evaluating the formula.
+
         Returns
         -------
         WaldTestResult
@@ -2037,6 +2044,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             If not specified, the model's ``expected_information`` attribute is used.
         context : Optional[Mapping[str, Any]], default=None
             The context to use for evaluating the formula.
+
         Returns
         -------
         WaldTestResult
@@ -2481,6 +2489,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             The context to use for evaluating the formula. If an integer, the
             context is taken from the stack frame of the caller at the given
             depth. If a dict, it is used as the context directly.
+
         Returns
         -------
         float
