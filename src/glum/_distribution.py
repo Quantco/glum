@@ -1355,7 +1355,7 @@ def guess_intercept(
             second = np.log((mu ** (2 - p)).dot(sample_weight))
         return first - second
     elif isinstance(link, LogitLink):
-        log_odds = np.log(avg_y) - np.log(np.average(1 - y, weights=sample_weight))
+        log_odds = np.log(avg_y) - np.log(1 - avg_y)
         if eta is None:
             return log_odds
         avg_eta = eta if np.isscalar(eta) else np.average(eta, weights=sample_weight)
