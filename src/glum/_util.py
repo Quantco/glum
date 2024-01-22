@@ -47,6 +47,14 @@ def _align_df_categories(df, dtypes) -> pd.DataFrame:
             changed_dtypes[column] = df[column].cat.set_categories(
                 dtypes[column].categories
             )
+        else:
+            continue
+
+        unseen_categories = set(df[column].unique()) - set(dtypes[column].categories)
+        if unseen_categories:
+            raise ValueError(
+                f"Column {column} contains unseen categories: {unseen_categories}."
+            )
 
     if changed_dtypes:
         df = df.assign(**changed_dtypes)
