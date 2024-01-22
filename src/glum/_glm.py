@@ -894,8 +894,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                     cat_missing_name=self.cat_missing_name,
                     categorical_format=self.categorical_format,
                 )
-                # drop categories that were not seen in training
-                cat_missing_method_after_alignment = "zero"
+                # there should be no missing categories after this
+                cat_missing_method_after_alignment = "fail"
 
         X = tm.from_pandas(
             df,
@@ -2650,11 +2650,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         if isinstance(X, pd.DataFrame):
             if hasattr(self, "formula") and self.formula is not None:
-                if self.cat_missing_method == "convert":
-                    raise NotImplementedError(
-                        "cat_missing_method == 'convert' with a formula "
-                        "is not allowed."
-                    )
 
                 lhs, rhs = _parse_formula(
                     self.formula, include_intercept=self.fit_intercept
