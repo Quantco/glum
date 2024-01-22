@@ -3131,11 +3131,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     interaction_separator: str, default ":"
         The separator between the names of interacted variables.
 
-    categorical_format: str, default "{name}[T.{category}]"
-        The format string used to generate the names of categorical variables.
-        Has to include the placeholders ``{name}`` and ``{category}``.
-        Only used if ``formula`` is not ``None``.
-
     categorical_format : str, optional, default='{name}[{category}]'
         Format string for categorical features. The format string should
         contain the placeholder ``{name}`` for the feature name and
