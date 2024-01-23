@@ -3209,11 +3209,8 @@ def test_cat_missing(cat_missing_method, unseen_missing, formula):
         formula=formula,
         fit_intercept=False,
     )
-    if cat_missing_method == "convert" and formula:
-        with pytest.raises(NotImplementedError):
-            model.fit(X, y)
-    elif cat_missing_method == "fail" and not unseen_missing:
-        with pytest.raises(ValueError):
+    if cat_missing_method == "fail" and not unseen_missing:
+        with pytest.raises(ValueError, match="Categorical data can't have missing values"):
             model.fit(X, y)
     else:
         model.fit(X, y)
@@ -3227,7 +3224,10 @@ def test_cat_missing(cat_missing_method, unseen_missing, formula):
         assert len(model.coef_) == len(feature_names)
 
         if cat_missing_method == "fail" and unseen_missing:
-            with pytest.raises(ValueError):
+            with pytest.raises(ValueError, match="Categorical data can't have missing values"):
+                model.predict(X_unseen)
+        elif cat_missing_method == "convert" and unseen_missing:
+            with pytest.raises(ValueError, match="contains unseen categories"):
                 model.predict(X_unseen)
         else:
             model.predict(X_unseen)
