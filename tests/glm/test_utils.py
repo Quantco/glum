@@ -16,12 +16,15 @@ def df():
             "x5": ["a", "b"],
             "x6": pd.Categorical(["a", "b"]),
             "x7": pd.Categorical(["a", "b"], categories=["b", "a"]),
+            "x8": pd.Categorical(["a", pd.NA], categories=["b", "a"]),
         }
     )
 
 
 def test_align_df_categories_numeric(df):
     dtypes = {column: np.float64 for column in df}
+    has_missing_category = {column: False for column in df}
+    missing_method = "fail"
 
     expected = pd.DataFrame(
         {
@@ -32,33 +35,41 @@ def test_align_df_categories_numeric(df):
             "x5": ["a", "b"],
             "x6": pd.Categorical(["a", "b"]),
             "x7": pd.Categorical(["a", "b"], categories=["b", "a"]),
+            "x8": pd.Categorical(["a", pd.NA], categories=["b", "a"]),
         }
     )
 
-    pd.testing.assert_frame_equal(_align_df_categories(df, dtypes), expected)
+    pd.testing.assert_frame_equal(
+        _align_df_categories(df, dtypes, has_missing_category, missing_method), expected
+    )
 
 
 def test_align_df_categories_categorical(df):
+    df = df[["x5", "x6", "x7", "x8"]]
     dtypes = {column: pd.CategoricalDtype(["a", "b"]) for column in df}
+    has_missing_category = {column: False for column in df}
+    missing_method = "fail"
 
     expected = pd.DataFrame(
         {
-            "x1": [np.nan, np.nan],
-            "x2": [np.nan, np.nan],
-            "x3": [np.nan, np.nan],
-            "x4": [np.nan, np.nan],
             "x5": pd.Categorical(["a", "b"]),
             "x6": pd.Categorical(["a", "b"]),
             "x7": pd.Categorical(["a", "b"]),
+            "x8": pd.Categorical(["a", pd.NA], categories=["b", "a"]),
         },
         dtype=pd.CategoricalDtype(["a", "b"]),
     )
 
-    pd.testing.assert_frame_equal(_align_df_categories(df, dtypes), expected)
+    pd.testing.assert_frame_equal(
+        _align_df_categories(df, dtypes, has_missing_category, missing_method),
+        expected,
+    )
 
 
 def test_align_df_categories_excess_columns(df):
     dtypes = {"x1": np.float64}
+    has_missing_category = {column: False for column in df}
+    missing_method = "fail"
 
     expected = pd.DataFrame(
         {
@@ -69,14 +80,19 @@ def test_align_df_categories_excess_columns(df):
             "x5": ["a", "b"],
             "x6": pd.Categorical(["a", "b"]),
             "x7": pd.Categorical(["a", "b"], categories=["b", "a"]),
+            "x8": pd.Categorical(["a", pd.NA], categories=["b", "a"]),
         }
     )
 
-    pd.testing.assert_frame_equal(_align_df_categories(df, dtypes), expected)
+    pd.testing.assert_frame_equal(
+        _align_df_categories(df, dtypes, has_missing_category, missing_method), expected
+    )
 
 
 def test_align_df_categories_missing_columns(df):
     dtypes = {"x0": np.float64}
+    has_missing_category = {column: False for column in df}
+    missing_method = "fail"
 
     expected = pd.DataFrame(
         {
@@ -87,15 +103,69 @@ def test_align_df_categories_missing_columns(df):
             "x5": ["a", "b"],
             "x6": pd.Categorical(["a", "b"]),
             "x7": pd.Categorical(["a", "b"], categories=["b", "a"]),
+            "x8": pd.Categorical(["a", pd.NA], categories=["b", "a"]),
         }
     )
 
-    pd.testing.assert_frame_equal(_align_df_categories(df, dtypes), expected)
+    pd.testing.assert_frame_equal(
+        _align_df_categories(df, dtypes, has_missing_category, missing_method), expected
+    )
+
+
+@pytest.mark.parametrize("has_missings", [False, True])
+def test_align_df_categories_convert(df, has_missings):
+    df = df[["x5", "x6", "x7", "x8"]]
+    dtypes = {column: pd.CategoricalDtype(["a", "b"]) for column in df}
+    has_missing_category = {column: has_missings for column in df}
+    missing_method = "convert"
+
+    expected = pd.DataFrame(
+        {
+            "x5": pd.Categorical(["a", "b"]),
+            "x6": pd.Categorical(["a", "b"]),
+            "x7": pd.Categorical(["a", "b"]),
+            "x8": pd.Categorical(["a", pd.NA], categories=["b", "a"]),
+        },
+        dtype=pd.CategoricalDtype(["a", "b"]),
+    )
+
+    if has_missings:
+        pd.testing.assert_frame_equal(
+            _align_df_categories(
+                df[["x5", "x6", "x7", "x8"]],
+                dtypes,
+                has_missing_category,
+                missing_method,
+            ),
+            expected,
+        )
+    else:
+        with pytest.raises(ValueError, match="contains unseen categories"):
+            _align_df_categories(
+                df[["x5", "x6", "x7", "x8"]],
+                dtypes,
+                has_missing_category,
+                missing_method,
+            )
+
+
+def test_align_df_categories_raise_on_unseen(df):
+    dtypes = {column: pd.CategoricalDtype(["a", "b"]) for column in df}
+    has_missing_category = {column: False for column in df}
+    missing_method = "fail"
+
+    with pytest.raises(ValueError, match="contains unseen categories"):
+        _align_df_categories(
+            df,
+            dtypes,
+            has_missing_category,
+            missing_method,
+        )
 
 
 def test_align_df_categories_not_df():
     with pytest.raises(TypeError):
-        _align_df_categories(np.array([[0], [1]]), {"x0": np.float64})
+        _align_df_categories(np.array([[0], [1]]), {"x0": np.float64}, {}, "fail")
 
 
 @pytest.fixture()
