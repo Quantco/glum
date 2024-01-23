@@ -885,7 +885,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         cat_missing_method_after_alignment = self.cat_missing_method
 
         if hasattr(self, "feature_dtypes_"):
-            df = _align_df_categories(df, self.feature_dtypes_)
+            df = _align_df_categories(
+                df,
+                self.feature_dtypes_,
+                self.has_missing_category_,
+                self.cat_missing_method,
+            )
             if self.cat_missing_method == "convert":
                 df = _add_missing_categories(
                     df=df,
@@ -2650,7 +2655,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         if isinstance(X, pd.DataFrame):
             if hasattr(self, "formula") and self.formula is not None:
-
                 lhs, rhs = _parse_formula(
                     self.formula, include_intercept=self.fit_intercept
                 )
@@ -2705,6 +2709,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 # Maybe TODO: expand categorical penalties with formulas
 
                 self.feature_dtypes_ = X.dtypes.to_dict()
+                self.has_missing_category_ = {
+                    col: (self.cat_missing_method == "convert") and X[col].isna().any()
+                    for col in self.feature_dtypes_.keys()
+                }
 
                 if any(X.dtypes == "category"):
 

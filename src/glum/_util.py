@@ -15,7 +15,9 @@ def _asanyarray(x, **kwargs):
     return x if pd.api.types.is_scalar(x) else np.asanyarray(x, **kwargs)
 
 
-def _align_df_categories(df, dtypes) -> pd.DataFrame:
+def _align_df_categories(
+    df, dtypes, has_missing_category, cat_missing_method
+) -> pd.DataFrame:
     """Align data types for prediction.
 
     This function checks that categorical columns have same categories in the
@@ -26,6 +28,8 @@ def _align_df_categories(df, dtypes) -> pd.DataFrame:
     ----------
     df : pandas.DataFrame
     dtypes : Dict[str, Union[str, type, pandas.core.dtypes.base.ExtensionDtype]]
+    has_missing_category : Dict[str, bool]
+    missing_method : str
     """
     if not isinstance(df, pd.DataFrame):
         raise TypeError(f"Expected `pandas.DataFrame'; got {type(df)}.")
@@ -50,7 +54,15 @@ def _align_df_categories(df, dtypes) -> pd.DataFrame:
         else:
             continue
 
-        unseen_categories = set(df[column].unique()) - set(dtypes[column].categories)
+        if cat_missing_method == "convert" and not has_missing_category[column]:
+            unseen_categories = set(df[column].unique()) - set(
+                dtypes[column].categories
+            )
+        else:
+            unseen_categories = set(df[column].dropna().unique()) - set(
+                dtypes[column].categories
+            )
+
         if unseen_categories:
             raise ValueError(
                 f"Column {column} contains unseen categories: {unseen_categories}."
