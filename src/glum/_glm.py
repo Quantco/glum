@@ -2717,7 +2717,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
                 if any(X.dtypes == "category"):
 
-                    def _expand_categorical_penalties(penalty, X, drop_first):
+                    def _expand_categorical_penalties(
+                        penalty, X, drop_first, has_missing_category
+                    ):
                         """
                         If P1 or P2 has the same shape as X before expanding the
                         categoricals, we assume that the penalty at the location of
@@ -2741,19 +2743,29 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                                     chain.from_iterable(
                                         [
                                             elmt
-                                            for _ in dtype.categories[int(drop_first) :]
+                                            for _ in range(
+                                                len(dtype.categories)
+                                                + has_missing_category[col]
+                                                - drop_first
+                                            )
                                         ]
                                         if pd.api.types.is_categorical_dtype(dtype)
                                         else [elmt]
-                                        for elmt, dtype in zip(penalty, X.dtypes)
+                                        for elmt, (col, dtype) in zip(
+                                            penalty, X.dtypes.items()
+                                        )
                                     )
                                 )
                             )
                         else:
                             return penalty
 
-                    P1 = _expand_categorical_penalties(self.P1, X, self.drop_first)
-                    P2 = _expand_categorical_penalties(self.P2, X, self.drop_first)
+                    P1 = _expand_categorical_penalties(
+                        self.P1, X, self.drop_first, self.has_missing_category_
+                    )
+                    P2 = _expand_categorical_penalties(
+                        self.P2, X, self.drop_first, self.has_missing_category_
+                    )
 
                 X = tm.from_pandas(
                     X,
