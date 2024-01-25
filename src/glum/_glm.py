@@ -2711,7 +2711,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 self.feature_dtypes_ = X.dtypes.to_dict()
                 self.has_missing_category_ = {
                     col: (self.cat_missing_method == "convert") and X[col].isna().any()
-                    for col in self.feature_dtypes_.keys()
+                    for col, dtype in self.feature_dtypes_.items()
+                    if isinstance(dtype, pd.CategoricalDtype)
                 }
 
                 if any(X.dtypes == "category"):
