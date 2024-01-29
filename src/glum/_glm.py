@@ -232,12 +232,12 @@ def _parse_formula(
     formula: FormulaSpec, include_intercept: bool = True
 ) -> tuple[Optional[Formula], Formula]:
     """
-    Parse and transform  the formula for use in a GeneralizedLinearRegressor.
+    Parse and transform the formula for use in a GeneralizedLinearRegressor.
 
     The left-hand side and right-hand side of the formula are separated. If an
-    intercept is present, it is removed from the right-hand side, and a boolean
-    flag is returned to indicate whether or not an intercept should be added to
-    the model.
+    intercept is present, it wil be removed from the right-hand side, and a
+    boolean flag to indicate whether or not an intercept should be added to
+    the model will be returned.
 
     Parameters
     ----------
@@ -1315,7 +1315,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         context : Optional[Union[int, Mapping[str, Any]]], default=0
             The context to use for evaluating the formula. If an integer, the
             context is taken from the stack frame of the caller at the given
-            depth. If a dict, it is used as the context directly.
+            depth. If a dict, it is directly used as the context.
 
         Returns
         -------
@@ -1406,7 +1406,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         context : Optional[Union[int, Mapping[str, Any]]], default=0
             The context to use for evaluating the formula. If an integer, the
             context is taken from the stack frame of the caller at the given
-            depth. If a dict, it is used as the context directly.
+            depth. If a dict, it is directly used as the context.
 
         Returns
         -------
@@ -1480,7 +1480,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         context : Optional[Union[int, Mapping[str, Any]]], default=0
             The context to use for evaluating the formula. If an integer, the
             context is taken from the stack frame of the caller at the given
-            depth. If a dict, it is used as the context directly.
+            depth. If a dict, it is directly used as the context.
 
         Returns
         -------
@@ -1563,7 +1563,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         The right hand side of the tested hypothesis is specified by ``r``. In the
         case of a ``terms``-based test, the null hypothesis is that each coefficient
-        relating to a term is equal to the corresponding value in ``r``.
+        relating to a term equals the corresponding value in ``r``.
 
         Parameters
         ----------
@@ -1578,7 +1578,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             of the expressions separated by ``+`` signs. Otherwise, a term is one column
             in the input data. As categorical variables need not be one-hot encoded in
             glum, in their case, the hypothesis to be tested is that the coefficients
-            for all of their levels are equal to ``r``.
+            of all categories are equal to ``r``.
         r : np.ndarray, optional, default=None
             The vector representing the values of the linear combination.
             If None, the test is for whether the linear combinations of the coefficients
@@ -1610,7 +1610,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         context : Optional[Union[int, Mapping[str, Any]]], default=0
             The context to use for evaluating the formula. If an integer, the
             context is taken from the stack frame of the caller at the given
-            depth. If a dict, it is used as the context directly.
+            depth. If a dict, it is directly used as the context.
 
         Returns
         -------
@@ -2019,7 +2019,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             of the expressions separated by ``+`` signs. Otherwise, a term is one column
             in the input data. As categorical variables need not be one-hot encoded in
             glum, in their case, the hypothesis to be tested is that the coefficients
-            for all of their levels are equal to ``r``.
+            of all categories are equal to ``r``.
         values: Sequence, optional, default=None
             The values to which coefficients are compared. If None, the test is
             for whether the coefficients are zero.
@@ -2157,7 +2157,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         context : Optional[Union[int, Mapping[str, Any]]], default=0
             The context to use for evaluating the formula. If an integer, the
             context is taken from the stack frame of the caller at the given
-            depth. If a dict, it is used as the context directly."""
+            depth. If a dict, it is directly used as the context.
+        """
         captured_context = capture_context(
             context + 1 if isinstance(context, int) else context
         )
@@ -2200,36 +2201,48 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         X : {array-like, sparse matrix}, shape (n_samples, n_features), optional
             Training data. Can be omitted if a covariance matrix has already
             been computed.
+
         y : array-like, shape (n_samples,), optional
             Target values. Can be omitted if a covariance matrix has already
             been computed.
+
         mu : array-like, optional, default=None
             Array with predictions. Estimated if absent.
         offset : array-like, optional, default=None
             Array with additive offsets.
+
         sample_weight : array-like, shape (n_samples,), optional, default=None
             Individual weights for each sample.
+
         dispersion : float, optional, default=None
             The dispersion parameter. Estimated if absent.
+
         robust : boolean, optional, default=None
+
             Whether to compute robust standard errors instead of normal ones.
             If not specified, the model's ``robust`` attribute is used.
         clusters : array-like, optional, default=None
+
             Array with cluster membership. Clustered standard errors are
             computed if clusters is not None.
+
         expected_information : boolean, optional, default=None
             Whether to use the expected or observed information matrix.
             Only relevant when computing robust standard errors.
+
             If not specified, the model's ``expected_information`` attribute is used.
         store_covariance_matrix : boolean, optional, default=False
             Whether to store the covariance matrix in the model instance.
             If a covariance matrix has already been stored, it will be overwritten.
+
         skip_checks : boolean, optional, default=False
             Whether to skip input validation. For internal use only.
+
         context : Optional[Union[int, Mapping[str, Any]]], default=0
             The context to use for evaluating the formula. If an integer, the
             context is taken from the stack frame of the caller at the given
-            depth. If a dict, it is used as the context directly.
+            depth. If a dict, it is directly used as the context.
+
         Notes
         -----
         We support three types of covariance matrices:
@@ -2493,7 +2506,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         context : Optional[Union[int, Mapping[str, Any]]], default=0
             The context to use for evaluating the formula. If an integer, the
             context is taken from the stack frame of the caller at the given
-            depth. If a dict, it is used as the context directly.
+            depth. If a dict, it is directly used as the context.
 
         Returns
         -------
@@ -3389,7 +3402,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         context : Optional[Union[int, Mapping[str, Any]]], default=0
             The context to use for evaluating the formula. If an integer, the
             context is taken from the stack frame of the caller at the given
-            depth. If a dict, it is used as the context directly.
+            depth. If a dict, it is directly used as the context.
 
         weights_sum: float, optional (default=None)
 
@@ -3708,7 +3721,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         context : Optional[Union[int, Mapping[str, Any]]], default=0
             The context to use for evaluating the formula. If an integer, the
             context is taken from the stack frame of the caller at the given
-            depth. If a dict, it is used as the context directly.
+            depth. If a dict, it is directly used as the context.
         """
         captured_context = capture_context(
             context + 1 if isinstance(context, int) else context
@@ -3748,7 +3761,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         context : Optional[Union[int, Mapping[str, Any]]], default=0
             The context to use for evaluating the formula. If an integer, the
             context is taken from the stack frame of the caller at the given
-            depth. If a dict, it is used as the context directly.
+            depth. If a dict, it is directly used as the context.
         """
         captured_context = capture_context(
             context + 1 if isinstance(context, int) else context
@@ -3792,7 +3805,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         context : Optional[Union[int, Mapping[str, Any]]], default=0
             The context to use for evaluating the formula. If an integer, the
             context is taken from the stack frame of the caller at the given
-            depth. If a dict, it is used as the context directly."""
+            depth. If a dict, it is directly used as the context.
+        """
         captured_context = capture_context(
             context + 1 if isinstance(context, int) else context
         )
