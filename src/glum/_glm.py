@@ -235,7 +235,7 @@ def _parse_formula(
     Parse and transform the formula for use in a GeneralizedLinearRegressor.
 
     The left-hand side and right-hand side of the formula are separated. If an
-    intercept is present, it wil be removed from the right-hand side, and a
+    intercept is present, it will be removed from the right-hand side, and a
     boolean flag to indicate whether or not an intercept should be added to
     the model will be returned.
 
@@ -249,7 +249,8 @@ def _parse_formula(
     Returns
     -------
     tuple[Formula, Formula]
-        The left-hand side and right-hand sides of the formula."""
+        The left-hand side and right-hand sides of the formula.
+    """
     if isinstance(formula, str):
         parser = DefaultFormulaParser(include_intercept=include_intercept)
         terms = parser.get_terms(formula)
@@ -2208,6 +2209,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         mu : array-like, optional, default=None
             Array with predictions. Estimated if absent.
+
         offset : array-like, optional, default=None
             Array with additive offsets.
 
@@ -2218,19 +2220,18 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             The dispersion parameter. Estimated if absent.
 
         robust : boolean, optional, default=None
-
             Whether to compute robust standard errors instead of normal ones.
             If not specified, the model's ``robust`` attribute is used.
-        clusters : array-like, optional, default=None
 
+        clusters : array-like, optional, default=None
             Array with cluster membership. Clustered standard errors are
             computed if clusters is not None.
 
         expected_information : boolean, optional, default=None
             Whether to use the expected or observed information matrix.
             Only relevant when computing robust standard errors.
-
             If not specified, the model's ``expected_information`` attribute is used.
+
         store_covariance_matrix : boolean, optional, default=False
             Whether to store the covariance matrix in the model instance.
             If a covariance matrix has already been stored, it will be overwritten.
