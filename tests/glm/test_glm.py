@@ -53,7 +53,7 @@ estimators = [
 
 
 def get_small_x_y(
-    estimator: Union[GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
+    estimator: Union[GeneralizedLinearRegressor, GeneralizedLinearRegressorCV],
 ) -> tuple[np.ndarray, np.ndarray]:
     if isinstance(estimator, GeneralizedLinearRegressor):
         n_rows = 1
@@ -360,6 +360,43 @@ def test_P1_P2_expansion_with_categoricals():
     )
     mdl2.fit(X, y)
     np.testing.assert_allclose(mdl1.coef_, mdl2.coef_)
+
+
+def test_P1_P2_expansion_with_categoricals_missings():
+    rng = np.random.default_rng(42)
+    X = pd.DataFrame(
+        data={
+            "dense": np.linspace(0, 10, 60),
+            "cat": pd.Categorical(rng.integers(5, size=60)).remove_categories(0),
+        }
+    )
+    y = rng.normal(size=60)
+
+    mdl1 = GeneralizedLinearRegressor(
+        l1_ratio=0.01,
+        P1=[1, 2, 2, 2, 2, 2],
+        P2=[2, 1, 1, 1, 1, 1],
+        cat_missing_method="convert",
+    )
+    mdl1.fit(X, y)
+
+    mdl2 = GeneralizedLinearRegressor(
+        l1_ratio=0.01,
+        P1=[1, 2],
+        P2=[2, 1],
+        cat_missing_method="convert",
+    )
+    mdl2.fit(X, y)
+    np.testing.assert_allclose(mdl1.coef_, mdl2.coef_)
+
+    mdl3 = GeneralizedLinearRegressor(
+        l1_ratio=0.01,
+        P1=[1, 2],
+        P2=sparse.diags([2, 1, 1, 1, 1, 1]),
+        cat_missing_method="convert",
+    )
+    mdl3.fit(X, y)
+    np.testing.assert_allclose(mdl1.coef_, mdl3.coef_)
 
 
 @pytest.mark.parametrize(
