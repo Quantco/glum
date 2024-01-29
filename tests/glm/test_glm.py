@@ -53,7 +53,7 @@ estimators = [
 
 
 def get_small_x_y(
-    estimator: Union[GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
+    estimator: Union[GeneralizedLinearRegressor, GeneralizedLinearRegressorCV],
 ) -> tuple[np.ndarray, np.ndarray]:
     if isinstance(estimator, GeneralizedLinearRegressor):
         n_rows = 1
@@ -360,6 +360,43 @@ def test_P1_P2_expansion_with_categoricals():
     )
     mdl2.fit(X, y)
     np.testing.assert_allclose(mdl1.coef_, mdl2.coef_)
+
+
+def test_P1_P2_expansion_with_categoricals_missings():
+    rng = np.random.default_rng(42)
+    X = pd.DataFrame(
+        data={
+            "dense": np.linspace(0, 10, 60),
+            "cat": pd.Categorical(rng.integers(5, size=60)).remove_categories(0),
+        }
+    )
+    y = rng.normal(size=60)
+
+    mdl1 = GeneralizedLinearRegressor(
+        l1_ratio=0.01,
+        P1=[1, 2, 2, 2, 2, 2],
+        P2=[2, 1, 1, 1, 1, 1],
+        cat_missing_method="convert",
+    )
+    mdl1.fit(X, y)
+
+    mdl2 = GeneralizedLinearRegressor(
+        l1_ratio=0.01,
+        P1=[1, 2],
+        P2=[2, 1],
+        cat_missing_method="convert",
+    )
+    mdl2.fit(X, y)
+    np.testing.assert_allclose(mdl1.coef_, mdl2.coef_)
+
+    mdl3 = GeneralizedLinearRegressor(
+        l1_ratio=0.01,
+        P1=[1, 2],
+        P2=sparse.diags([2, 1, 1, 1, 1, 1]),
+        cat_missing_method="convert",
+    )
+    mdl3.fit(X, y)
+    np.testing.assert_allclose(mdl1.coef_, mdl3.coef_)
 
 
 @pytest.mark.parametrize(
@@ -3183,40 +3220,55 @@ def test_formula_predict(get_mixed_data, formula, fit_intercept):
 
 
 @pytest.mark.parametrize("cat_missing_method", ["fail", "zero", "convert"])
-def test_cat_missing(cat_missing_method):
+@pytest.mark.parametrize("unseen_missing", [False, True])
+@pytest.mark.parametrize("formula", [None, "cat_1 + cat_2"])
+def test_cat_missing(cat_missing_method, unseen_missing, formula):
     X = pd.DataFrame(
         {
             "cat_1": pd.Categorical([1, 2, pd.NA, 2, 1]),
             "cat_2": pd.Categorical([1, 2, pd.NA, 1, 2]),
         }
     )
+    if unseen_missing:
+        X = X.dropna()
     X_unseen = pd.DataFrame(
         {
             "cat_1": pd.Categorical([1, pd.NA]),
             "cat_2": pd.Categorical([1, 2]),
         }
     )
-    y = np.array([1, 2, 3, 4, 5])
+    y = np.array(X.index)
 
     model = GeneralizedLinearRegressor(
         family="normal",
         cat_missing_method=cat_missing_method,
         drop_first=False,
+        formula=formula,
         fit_intercept=False,
     )
-
-    if cat_missing_method == "fail":
-        with pytest.raises(ValueError):
+    if cat_missing_method == "fail" and not unseen_missing:
+        with pytest.raises(
+            ValueError, match="Categorical data can't have missing values"
+        ):
             model.fit(X, y)
     else:
         model.fit(X, y)
         feature_names = ["cat_1[1]", "cat_1[2]", "cat_2[1]", "cat_2[2]"]
 
-        if cat_missing_method == "convert":
+        if cat_missing_method == "convert" and not unseen_missing:
             feature_names.insert(2, "cat_1[(MISSING)]")
             feature_names.append("cat_2[(MISSING)]")
 
         np.testing.assert_array_equal(model.feature_names_, feature_names)
         assert len(model.coef_) == len(feature_names)
 
-        model.predict(X_unseen)
+        if cat_missing_method == "fail" and unseen_missing:
+            with pytest.raises(
+                ValueError, match="Categorical data can't have missing values"
+            ):
+                model.predict(X_unseen)
+        elif cat_missing_method == "convert" and unseen_missing:
+            with pytest.raises(ValueError, match="contains unseen categories"):
+                model.predict(X_unseen)
+        else:
+            model.predict(X_unseen)

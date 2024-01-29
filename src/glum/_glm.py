@@ -879,12 +879,18 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self, df: pd.DataFrame, context: Optional[Mapping[str, Any]] = None
     ) -> tm.MatrixBase:
         """Convert a pandas data frame to a tabmat matrix."""
-
         if hasattr(self, "X_model_spec_"):
             return self.X_model_spec_.get_model_matrix(df, context=context)
 
+        cat_missing_method_after_alignment = self.cat_missing_method
+
         if hasattr(self, "feature_dtypes_"):
-            df = _align_df_categories(df, self.feature_dtypes_)
+            df = _align_df_categories(
+                df,
+                self.feature_dtypes_,
+                self.has_missing_category_,
+                self.cat_missing_method,
+            )
             if self.cat_missing_method == "convert":
                 df = _add_missing_categories(
                     df=df,
@@ -893,12 +899,14 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                     cat_missing_name=self.cat_missing_name,
                     categorical_format=self.categorical_format,
                 )
+                # there should be no missing categories after this
+                cat_missing_method_after_alignment = "fail"
 
         X = tm.from_pandas(
             df,
             drop_first=self.drop_first,
             categorical_format=self.categorical_format,
-            cat_missing_method=self.cat_missing_method,
+            cat_missing_method=cat_missing_method_after_alignment,
         )
 
         return X
@@ -2674,6 +2682,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                     include_intercept=False,
                     ensure_full_rank=self.drop_first,
                     categorical_format=self.categorical_format,
+                    cat_missing_method=self.cat_missing_method,
                     interaction_separator=self.interaction_separator,
                     add_column_for_intercept=False,
                     context=context,
@@ -2700,10 +2709,17 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 # Maybe TODO: expand categorical penalties with formulas
 
                 self.feature_dtypes_ = X.dtypes.to_dict()
+                self.has_missing_category_ = {
+                    col: (self.cat_missing_method == "convert") and X[col].isna().any()
+                    for col, dtype in self.feature_dtypes_.items()
+                    if isinstance(dtype, pd.CategoricalDtype)
+                }
 
                 if any(X.dtypes == "category"):
 
-                    def _expand_categorical_penalties(penalty, X, drop_first):
+                    def _expand_categorical_penalties(
+                        penalty, X, drop_first, has_missing_category
+                    ):
                         """
                         If P1 or P2 has the same shape as X before expanding the
                         categoricals, we assume that the penalty at the location of
@@ -2727,19 +2743,29 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                                     chain.from_iterable(
                                         [
                                             elmt
-                                            for _ in dtype.categories[int(drop_first) :]
+                                            for _ in range(
+                                                len(dtype.categories)
+                                                + has_missing_category[col]
+                                                - drop_first
+                                            )
                                         ]
                                         if pd.api.types.is_categorical_dtype(dtype)
                                         else [elmt]
-                                        for elmt, dtype in zip(penalty, X.dtypes)
+                                        for elmt, (col, dtype) in zip(
+                                            penalty, X.dtypes.items()
+                                        )
                                     )
                                 )
                             )
                         else:
                             return penalty
 
-                    P1 = _expand_categorical_penalties(self.P1, X, self.drop_first)
-                    P2 = _expand_categorical_penalties(self.P2, X, self.drop_first)
+                    P1 = _expand_categorical_penalties(
+                        self.P1, X, self.drop_first, self.has_missing_category_
+                    )
+                    P2 = _expand_categorical_penalties(
+                        self.P2, X, self.drop_first, self.has_missing_category_
+                    )
 
                 X = tm.from_pandas(
                     X,
