@@ -896,10 +896,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 ),
                 getattr(self, "cat_missing_method", "fail"),
             )
-            if (
-                hasattr(self, "categorical_format")
-                and self.cat_missing_method == "convert"
-            ):
+            if getattr(self, "cat_missing_method", "fail"):
                 df = _add_missing_categories(
                     df=df,
                     dtypes=self.feature_dtypes_,
