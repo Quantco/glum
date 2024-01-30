@@ -906,7 +906,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         X = tm.from_pandas(
             df,
             drop_first=self.drop_first,
-            categorical_format=getattr(  # categorical format prior to v3
+            categorical_format=getattr(  # convention prior to v3
                 self, "categorical_format", "{name}__{category}"
             ),
             cat_missing_method=cat_missing_method_after_alignment,
@@ -2787,7 +2787,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 X = tm.from_pandas(
                     X,
                     drop_first=self.drop_first,
-                    categorical_format=getattr(
+                    categorical_format=getattr(  # convention prior to v3
                         self, "categorical_format", "{name}__{category}"
                     ),
                     cat_missing_method=getattr(self, "cat_missing_method", "fail"),
