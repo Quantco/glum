@@ -883,16 +883,23 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         if hasattr(self, "X_model_spec_"):
             return self.X_model_spec_.get_model_matrix(df, context=context)
 
-        cat_missing_method_after_alignment = self.cat_missing_method
+        cat_missing_method_after_alignment = getattr(self, "cat_missing_method", "fail")
 
         if hasattr(self, "feature_dtypes_"):
             df = _align_df_categories(
                 df,
                 self.feature_dtypes_,
-                self.has_missing_category_,
-                self.cat_missing_method,
+                getattr(
+                    self,
+                    "has_missing_category_",
+                    {f: False for f in self.feature_dtypes_.keys()},
+                ),
+                getattr(self, "cat_missing_method", "fail"),
             )
-            if self.cat_missing_method == "convert":
+            if (
+                hasattr(self, "categorical_format")
+                and self.cat_missing_method == "convert"
+            ):
                 df = _add_missing_categories(
                     df=df,
                     dtypes=self.feature_dtypes_,
@@ -906,7 +913,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         X = tm.from_pandas(
             df,
             drop_first=self.drop_first,
-            categorical_format=self.categorical_format,
+            # prior to v3, categorical format used underscore
+            categorical_format=getattr(
+                self, "categorical_format", "{name}__{category}"
+            ),
             cat_missing_method=cat_missing_method_after_alignment,
         )
 
@@ -2724,7 +2734,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
                 self.feature_dtypes_ = X.dtypes.to_dict()
                 self.has_missing_category_ = {
-                    col: (self.cat_missing_method == "convert") and X[col].isna().any()
+                    col: (getattr(self, "cat_missing_method", "fail") == "convert")
+                    and X[col].isna().any()
                     for col, dtype in self.feature_dtypes_.items()
                     if isinstance(dtype, pd.CategoricalDtype)
                 }
@@ -2784,9 +2795,11 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 X = tm.from_pandas(
                     X,
                     drop_first=self.drop_first,
-                    categorical_format=self.categorical_format,
-                    cat_missing_method=self.cat_missing_method,
-                    cat_missing_name=self.cat_missing_name,
+                    categorical_format=getattr(
+                        self, "categorical_format", "{name}__{category}"
+                    ),
+                    cat_missing_method=getattr(self, "cat_missing_method", "fail"),
+                    cat_missing_name=getattr(self, "cat_missing_name", "(MISSING)"),
                 )
 
         if y is None:
