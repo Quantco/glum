@@ -889,11 +889,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             df = _align_df_categories(
                 df,
                 self.feature_dtypes_,
-                getattr(
-                    self,
-                    "has_missing_category_",
-                    {f: False for f in self.feature_dtypes_.keys()},
-                ),
+                getattr(self, "has_missing_category_", {}),
                 getattr(self, "cat_missing_method", "fail"),
             )
             if getattr(self, "cat_missing_method", "fail") == "convert":
