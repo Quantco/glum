@@ -430,7 +430,10 @@ def test_glm_fit_intercept_argument(estimator, fit_intercept):
 )
 def test_glm_solver_argument(estimator, solver, l1_ratio, y, X):
     """Test GLM for invalid solver argument."""
-    glm = estimator(solver=solver, l1_ratio=l1_ratio, alpha=1.0)
+    kwargs = {"solver": solver, "l1_ratio": l1_ratio}
+    if estimator == GeneralizedLinearRegressor:
+        kwargs["alpha"] = 1.0
+    glm = estimator(**kwargs)
     with pytest.raises(ValueError):
         glm.fit(X, y)
 
