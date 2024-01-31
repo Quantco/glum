@@ -3146,9 +3146,9 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     drop_first : bool, optional (default = False)
         If ``True``, drop the first column when encoding categorical variables.
         Set this to True when ``alpha=0`` and ``solver='auto'`` to prevent an error
-        due to a singular feature matrix. In the case of using a formula with 
-        interactions, setting this argument to ``True`` ensures structural 
-        full-rankness (it is equivalent to ``ensure_full_rank`` in formulaic and 
+        due to a singular feature matrix. In the case of using a formula with
+        interactions, setting this argument to ``True`` ensures structural
+        full-rankness (it is equivalent to ``ensure_full_rank`` in formulaic and
         tabmat).
 
     robust : bool, optional (default = False)
