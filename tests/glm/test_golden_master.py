@@ -296,7 +296,6 @@ def test_gm_cv(distribution, data_all, expected_all):
         "alphas": [0.1, 0.05, 0.01],
         "l1_ratio": [0.2, 0.5, 0.9],
         "cv": 3,
-        "alpha": 1.0,
     }
     model = fit_model(
         data=data,
