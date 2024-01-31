@@ -215,13 +215,13 @@ def test_gm_storage(distribution, data_all_storage, expected_all):
     model = fit_model(
         data=data,
         family=distribution,
-        model_parameters={},
+        model_parameters={"alpha": 1.0},
         use_weights=False,
         use_offset=False,
         cv=False,
     )
 
-    run_name = "default"
+    run_name = "regularization"
     expected = expected_all[distribution][run_name]
 
     assert_gm_allclose(model, expected)
@@ -234,7 +234,7 @@ def test_gm_custom_link(family_link, use_weights, use_offset, data_all, expected
     """Currently only testing log-linear model."""
     distribution, link = family_link
     data = data_all[distribution]
-    model_parameters = {"link": link}
+    model_parameters = {"link": link, "alpha": 1.0}
     model = fit_model(
         data=data,
         family=distribution,
@@ -265,9 +265,7 @@ def test_gm_approx_hessian(
     distribution, use_weights, use_offset, data_all, expected_all
 ):
     data = data_all[distribution]
-    model_parameters = {
-        "hessian_approx": 0.1,
-    }
+    model_parameters = {"hessian_approx": 0.1, "alpha": 1.0}
     model = fit_model(
         data=data,
         family=distribution,
@@ -277,7 +275,7 @@ def test_gm_approx_hessian(
         cv=False,
     )
 
-    run_name = "default"
+    run_name = "regularization"
     if use_weights:
         run_name = f"{run_name}_weights"
     if use_offset:
@@ -298,6 +296,7 @@ def test_gm_cv(distribution, data_all, expected_all):
         "alphas": [0.1, 0.05, 0.01],
         "l1_ratio": [0.2, 0.5, 0.9],
         "cv": 3,
+        "alpha": 1.0,
     }
     model = fit_model(
         data=data,
@@ -453,7 +452,7 @@ if __name__ == "__main__":
             for use_offset in [True, False]:
                 gm_dict = run_and_store_golden_master(
                     distribution=dist,
-                    model_parameters={"link": link},
+                    model_parameters={"link": link, "alpha": 1.0},
                     run_name=f"custom-{dist}-{link}",
                     use_weights=use_weights,
                     use_offset=use_offset,
