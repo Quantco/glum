@@ -430,7 +430,7 @@ def test_glm_fit_intercept_argument(estimator, fit_intercept):
 )
 def test_glm_solver_argument(estimator, solver, l1_ratio, y, X):
     """Test GLM for invalid solver argument."""
-    glm = estimator(solver=solver, l1_ratio=l1_ratio)
+    glm = estimator(solver=solver, l1_ratio=l1_ratio, alpha=1.0)
     with pytest.raises(ValueError):
         glm.fit(X, y)
 
@@ -479,7 +479,10 @@ def test_glm_warm_start_argument(estimator, warm_start):
 def test_glm_warm_start_with_constant_column(estimator):
     X, y = make_regression()
     X[:, 0] = 0
-    glm = estimator(warm_start=True)
+    kwargs = {"warm_start": True}
+    if estimator == GeneralizedLinearRegressor:
+        kwargs["alpha"] = 1.0
+    glm = estimator(**kwargs)
     glm.fit(X, y)
     glm.fit(X, y)
 
@@ -1310,11 +1313,11 @@ def test_binomial_enet(alpha):
 @pytest.mark.parametrize(
     "params",
     [
-        {"solver": "irls-ls"},
-        {"solver": "lbfgs"},
-        {"solver": "trust-constr"},
-        {"solver": "irls-cd", "selection": "cyclic"},
-        {"solver": "irls-cd", "selection": "random"},
+        {"solver": "irls-ls", "alpha": 1.0},
+        {"solver": "lbfgs", "alpha": 1.0},
+        {"solver": "trust-constr", "alpha": 1.0},
+        {"solver": "irls-cd", "selection": "cyclic", "alpha": 1.0},
+        {"solver": "irls-cd", "selection": "random", "alpha": 1.0},
     ],
     ids=lambda params: ", ".join(f"{key}={val}" for key, val in params.items()),
 )
@@ -1326,7 +1329,7 @@ def test_solver_equivalence(params, use_offset, regression_data):
         offset = np.random.random(len(y))
     else:
         offset = None
-    est_ref = GeneralizedLinearRegressor(random_state=2)
+    est_ref = GeneralizedLinearRegressor(random_state=2, alpha=1.0)
     est_ref.fit(X, y, offset=offset)
 
     est_2 = GeneralizedLinearRegressor(**params)
@@ -1801,7 +1804,7 @@ def test_passing_noncontiguous_as_X():
 )
 def test_feature_names_underscores(X, feature_names):
     model = GeneralizedLinearRegressor(
-        family="poisson", categorical_format="{name}__{category}"
+        family="poisson", categorical_format="{name}__{category}", alpha=1.0
     ).fit(X, np.arange(5))
     np.testing.assert_array_equal(getattr(model, "feature_names_", None), feature_names)
 
@@ -1848,7 +1851,7 @@ def test_feature_names_underscores(X, feature_names):
 )
 def test_feature_names_brackets(X, feature_names):
     model = GeneralizedLinearRegressor(
-        family="poisson", categorical_format="{name}[{category}]"
+        family="poisson", categorical_format="{name}[{category}]", alpha=1.0
     ).fit(X, np.arange(5))
     np.testing.assert_array_equal(getattr(model, "feature_names_", None), feature_names)
 
@@ -1889,7 +1892,7 @@ def test_feature_names_brackets(X, feature_names):
     ],
 )
 def test_term_names(X, term_names):
-    model = GeneralizedLinearRegressor(family="poisson").fit(X, np.arange(5))
+    model = GeneralizedLinearRegressor(family="poisson", alpha=1.0).fit(X, np.arange(5))
     np.testing.assert_array_equal(getattr(model, "term_names_", None), term_names)
 
 
@@ -1905,7 +1908,7 @@ def test_term_names(X, term_names):
     ],
 )
 def test_feature_dtypes(X, dtypes):
-    model = GeneralizedLinearRegressor(family="poisson").fit(X, np.arange(5))
+    model = GeneralizedLinearRegressor(family="poisson", alpha=1.0).fit(X, np.arange(5))
     np.testing.assert_array_equal(getattr(model, "feature_dtypes_", None), dtypes)
 
 
@@ -1928,12 +1931,12 @@ def test_categorical_types(k, n):
 
     # use categorical types
     X_cat = pd.DataFrame({"group": pd.Categorical(group, categories=categories)})
-    model_cat = GeneralizedLinearRegressor(family="poisson").fit(X_cat, y)
+    model_cat = GeneralizedLinearRegressor(family="poisson", alpha=1.0).fit(X_cat, y)
     pred_cat = model_cat.predict(X_cat)
 
     # use one-hot encoding
     X_oh = pd.get_dummies(X_cat, dtype=float)
-    model_oh = GeneralizedLinearRegressor(family="poisson").fit(X_oh, y)
+    model_oh = GeneralizedLinearRegressor(family="poisson", alpha=1.0).fit(X_oh, y)
     pred_oh = model_oh.predict(X_oh)
 
     # check predictions
@@ -3014,6 +3017,7 @@ def test_formula(get_mixed_data, formula, drop_first, fit_intercept):
         formula=formula,
         fit_intercept=fit_intercept,
         categorical_format="{name}[T.{category}]",
+        alpha=1.0,
     ).fit(data)
 
     if fit_intercept:
@@ -3033,6 +3037,7 @@ def test_formula(get_mixed_data, formula, drop_first, fit_intercept):
         drop_first=drop_first,
         fit_intercept=fit_intercept,
         categorical_format="{name}[T.{category}]",
+        alpha=1.0,
     ).fit(X_ext, y_ext)
 
     np.testing.assert_almost_equal(model_ext.coef_, model_formula.coef_)
@@ -3083,6 +3088,7 @@ def test_formula_names_formulaic_style(
         formula=formula,
         categorical_format="{name}[T.{category}]",
         interaction_separator=":",
+        alpha=1.0,
     ).fit(data)
 
     np.testing.assert_array_equal(model_formula.feature_names_, feature_names)
@@ -3120,6 +3126,7 @@ def test_formula_names_old_glum_style(
         formula=formula,
         categorical_format="{name}__{category}",
         interaction_separator="__x__",
+        alpha=1.0,
     ).fit(data)
 
     np.testing.assert_array_equal(model_formula.feature_names_, feature_names)
@@ -3234,6 +3241,7 @@ def test_cat_missing(cat_missing_method, unseen_missing, formula):
         drop_first=False,
         formula=formula,
         fit_intercept=False,
+        alpha=1.0,
     )
     if cat_missing_method == "fail" and not unseen_missing:
         with pytest.raises(
