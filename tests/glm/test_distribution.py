@@ -296,7 +296,6 @@ def test_poisson_deviance_dispersion_loglihood(weighted):
     # logLik(glm_model)  # -7.390977 (df=1)
 
     regressor = GeneralizedLinearRegressor(
-        alpha=0,
         family="poisson",
         fit_intercept=False,
         gradient_tol=1e-8,
@@ -345,7 +344,6 @@ def test_gamma_deviance_dispersion_loglihood(weighted):
     # logLik(glm_model)  # -7.057068 (df=2)
 
     regressor = GeneralizedLinearRegressor(
-        alpha=0,
         family="gamma",
         fit_intercept=False,
         gradient_tol=1e-8,
@@ -393,7 +391,6 @@ def test_gaussian_deviance_dispersion_loglihood(family, weighted):
     # logLik(glm_model)  # -7.863404 (df=2)
 
     regressor = GeneralizedLinearRegressor(
-        alpha=0,
         family=family,
         fit_intercept=False,
         gradient_tol=1e-8,
@@ -441,7 +438,6 @@ def test_tweedie_deviance_dispersion_loglihood(weighted):
     # logLiktweedie(glm_model)  # -8.35485
 
     regressor = GeneralizedLinearRegressor(
-        alpha=0,
         family=TweedieDistribution(1.5),
         fit_intercept=False,
         gradient_tol=1e-8,
@@ -490,7 +486,6 @@ def test_binomial_deviance_dispersion_loglihood(weighted):
     # logLik(glm_model)  # -3.365058 (df=1)
 
     regressor = GeneralizedLinearRegressor(
-        alpha=0,
         family="binomial",
         fit_intercept=False,
         gradient_tol=1e-8,
@@ -535,7 +530,6 @@ def test_negative_binomial_deviance_dispersion_loglihood(weighted):
     # logLik(glm_model)  # -4.187887 (df=1)
 
     regressor = GeneralizedLinearRegressor(
-        alpha=0,
         family="negative.binomial",
         fit_intercept=False,
         gradient_tol=1e-8,
