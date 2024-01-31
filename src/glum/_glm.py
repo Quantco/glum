@@ -940,7 +940,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             elif (self.lower_bounds is None) and (self.upper_bounds is None):
                 if np.all(np.asarray(self.l1_ratio) == 0):
                     self._solver = "irls-ls"
-                elif getattr(self, "alpha", 0) == 0 and not self.alpha_search:
+                elif getattr(self, "alpha", 1) == 0 and not self.alpha_search:
                     self._solver = "irls-ls"
                 else:
                     self._solver = "irls-cd"
