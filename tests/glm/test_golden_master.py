@@ -100,6 +100,7 @@ def expected_all():
 
 
 gm_model_parameters = {
+    # TODO add an unregularized case
     "regularization": {"alpha": 1.0},  # regularization with alpha = 1
     "half-regularization": {"alpha": 0.5},  # regularization with alpha = 0
     "elastic-net": {"l1_ratio": 0.5, "alpha": 1.0},  # elastic-net
