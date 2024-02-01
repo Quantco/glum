@@ -100,25 +100,33 @@ def expected_all():
 
 
 gm_model_parameters = {
-    "default": {},  # default params
-    "half-regularization": {"alpha": 0.5},  # regularization (other than alpha = 1)
-    "elastic-net": {"l1_ratio": 0.5},  # elastic-net
-    "lasso": {"l1_ratio": 1},  # lasso
+    # TODO add an unregularized case
+    "regularization": {"alpha": 1.0},  # default prior to v3
+    "half-regularization": {"alpha": 0.5},  # regularization with alpha = 0.5
+    "elastic-net": {"l1_ratio": 0.5, "alpha": 1.0},  # elastic-net
+    "lasso": {"l1_ratio": 1, "alpha": 1.0},  # lasso
     "variable_p1": {
         "l1_ratio": 1,
         "P1": np.arange(30) / 10,
+        "alpha": 1.0,
     },  # lasso with variable penalty
     "variable_p2": {
         "l1_ratio": 0,
         "P2": _make_P2(),
+        "alpha": 1.0,
     },  # ridge with Tikhonov regularization
     "variable_p1_p2": {
         "l1_ratio": 0.5,
         "P1": np.arange(30) / 10,
         "P2": _make_P2(),
+        "alpha": 1.0,
     },  # elastic net with P1 and P2 variable penalty
-    "fit_intercept": {"fit_intercept": False},  # do not fit the intercept
-    "bounds": {"lower_bounds": np.full(30, 0), "upper_bounds": np.full(30, 0.4)},
+    "fit_intercept": {"fit_intercept": False, "alpha": 1.0},  # do not fit the intercept
+    "bounds": {
+        "lower_bounds": np.full(30, 0),
+        "upper_bounds": np.full(30, 0.4),
+        "alpha": 1.0,
+    },
 }
 
 
@@ -207,13 +215,13 @@ def test_gm_storage(distribution, data_all_storage, expected_all):
     model = fit_model(
         data=data,
         family=distribution,
-        model_parameters={},
+        model_parameters={"alpha": 1.0},
         use_weights=False,
         use_offset=False,
         cv=False,
     )
 
-    run_name = "default"
+    run_name = "regularization"
     expected = expected_all[distribution][run_name]
 
     assert_gm_allclose(model, expected)
@@ -226,7 +234,7 @@ def test_gm_custom_link(family_link, use_weights, use_offset, data_all, expected
     """Currently only testing log-linear model."""
     distribution, link = family_link
     data = data_all[distribution]
-    model_parameters = {"link": link}
+    model_parameters = {"link": link, "alpha": 1.0}
     model = fit_model(
         data=data,
         family=distribution,
@@ -257,9 +265,7 @@ def test_gm_approx_hessian(
     distribution, use_weights, use_offset, data_all, expected_all
 ):
     data = data_all[distribution]
-    model_parameters = {
-        "hessian_approx": 0.1,
-    }
+    model_parameters = {"hessian_approx": 0.1, "alpha": 1.0}
     model = fit_model(
         data=data,
         family=distribution,
@@ -269,7 +275,7 @@ def test_gm_approx_hessian(
         cv=False,
     )
 
-    run_name = "default"
+    run_name = "regularization"
     if use_weights:
         run_name = f"{run_name}_weights"
     if use_offset:
@@ -445,7 +451,7 @@ if __name__ == "__main__":
             for use_offset in [True, False]:
                 gm_dict = run_and_store_golden_master(
                     distribution=dist,
-                    model_parameters={"link": link},
+                    model_parameters={"link": link, "alpha": 1.0},
                     run_name=f"custom-{dist}-{link}",
                     use_weights=use_weights,
                     use_offset=use_offset,

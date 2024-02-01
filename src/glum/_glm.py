@@ -2304,8 +2304,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             _expected_information = expected_information
 
         if (
-            (hasattr(self, "alpha") and self.alpha is None)
-            or (
+            (
                 hasattr(self, "alpha")
                 and isinstance(self.alpha, (int, float))
                 and self.alpha > 0
@@ -2914,11 +2913,11 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     alpha : {float, array-like}, optional (default=None)
         Constant that multiplies the penalty terms and thus determines the
         regularization strength. If ``alpha_search`` is ``False`` (the default),
-        then ``alpha`` must be a scalar or None (equivalent to ``alpha=1.0``).
+        then ``alpha`` must be a scalar or None (equivalent to ``alpha=0``).
         If ``alpha_search`` is ``True``, then ``alpha`` must be an iterable or
         ``None``. See ``alpha_search`` to find how the regularization path is
         set if ``alpha`` is ``None``. See the notes for the exact mathematical
-        meaning of this parameter. ``alpha = 0`` is equivalent to unpenalized
+        meaning of this parameter. ``alpha=0`` is equivalent to unpenalized
         GLMs. In this case, the design matrix ``X`` must have full column rank
         (no collinearities).
 
@@ -3146,10 +3145,11 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
 
     drop_first : bool, optional (default = False)
         If ``True``, drop the first column when encoding categorical variables.
-        Set this to True when alpha=0 and solver='auto' to prevent an error due to a
-        singular feature matrix. In the case of using a formula with interactions,
-        setting this argument to ``True`` ensures structural full-rankness (it is
-        equivalent to ``ensure_full_rank`` in formulaic and tabmat).
+        Set this to True when ``alpha=0`` and ``solver='auto'`` to prevent an error
+        due to a singular feature matrix. In the case of using a formula with
+        interactions, setting this argument to ``True`` ensures structural
+        full-rankness (it is equivalent to ``ensure_full_rank`` in formulaic and
+        tabmat).
 
     robust : bool, optional (default = False)
         If true, then robust standard errors are computed by default.
@@ -3573,7 +3573,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
                 self.coef_ = self.coef_path_[-1]
         else:
             if self.alpha is None:
-                _alpha = 1.0
+                _alpha = 0.0
             else:
                 _alpha = self.alpha
             if _alpha > 0 and self.l1_ratio > 0 and self._solver != "irls-cd":

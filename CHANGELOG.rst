@@ -10,6 +10,10 @@ Changelog
 3.0.0 - UNRELEASED
 ------------------
 
+**Breaking change:**
+
+- :class:`~glum.GeneralizedLinearRegressor`'s default value for `alpha` is now `0`, i.e. no regularization.
+
 **New features:**
 
 - Added a formula interface for specifying models.
