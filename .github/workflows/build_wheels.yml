@@ -53,7 +53,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: testpypi_artifact
+          name: artifact_testpypi
           path: dist
       - uses: pypa/gh-action-pypi-publish@v1.8.11
         with:
@@ -71,6 +71,8 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: pypi_artifact
+          name: artifact_pypi
           path: dist
+          pattern: artifact_*
+          merge-multiple: true
       - uses: pypa/gh-action-pypi-publish@v1.8.11
