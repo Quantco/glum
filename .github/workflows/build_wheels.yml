@@ -23,7 +23,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           path: ./wheelhouse/*.whl
-          name: wheels
+          name: wheels-${{ matrix.os }}
 
   build_sdist:
     name: Build source distribution
