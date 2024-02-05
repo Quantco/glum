@@ -2258,11 +2258,15 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             if any(X.dtypes == "category"):
                 self.feature_names_ = list(
                     chain.from_iterable(
-                        _name_categorical_variables(
-                            dtype.categories, column, getattr(self, "drop_first", False)
+                        (
+                            _name_categorical_variables(
+                                dtype.categories,
+                                column,
+                                getattr(self, "drop_first", False),
+                            )
+                            if isinstance(dtype, pd.CategoricalDtype)
+                            else [column]
                         )
-                        if isinstance(dtype, pd.CategoricalDtype)
-                        else [column]
                         for column, dtype in zip(X.columns, X.dtypes)
                     )
                 )
@@ -2289,9 +2293,14 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                         return np.array(
                             list(
                                 chain.from_iterable(
-                                    [elmt for _ in dtype.categories[int(drop_first) :]]
-                                    if isinstance(dtype, pd.CategoricalDtype)
-                                    else [elmt]
+                                    (
+                                        [
+                                            elmt
+                                            for _ in dtype.categories[int(drop_first) :]
+                                        ]
+                                        if isinstance(dtype, pd.CategoricalDtype)
+                                        else [elmt]
+                                    )
                                     for elmt, dtype in zip(penalty, X.dtypes)
                                 )
                             )

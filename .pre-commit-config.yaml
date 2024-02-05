@@ -1,13 +1,13 @@
 repos:
  - repo: https://github.com/Quantco/pre-commit-mirrors-black
-   rev: 23.12.1
+   rev: 24.1.1
    hooks:
      - id: black-conda
        args:
          - --safe
          - --target-version=py39
  - repo: https://github.com/Quantco/pre-commit-mirrors-flake8
-   rev: 6.1.0
+   rev: 7.0.0
    hooks:
     - id: flake8-conda
       additional_dependencies: [

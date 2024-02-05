@@ -84,9 +84,11 @@ def cli_run(
             result, regularization_strength_ = execute_problem_library(
                 new_params,
                 iterations,
-                defaults["diagnostics_level"]
-                if params.diagnostics_level is None
-                else params.diagnostics_level,  # type: ignore
+                (
+                    defaults["diagnostics_level"]
+                    if params.diagnostics_level is None
+                    else params.diagnostics_level
+                ),  # type: ignore
             )
             _save_benchmark_results(
                 output_dir,

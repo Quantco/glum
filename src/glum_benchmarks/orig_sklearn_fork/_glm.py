@@ -889,9 +889,7 @@ class GeneralizedHyperbolicSecant(ExponentialDispersionModel):
         return 2 * mu
 
     def unit_deviance(self, y, mu):
-        return 2 * y * (np.arctan(y) - np.arctan(mu)) + np.log(
-            (1 + mu**2) / (1 + y**2)
-        )
+        return 2 * y * (np.arctan(y) - np.arctan(mu)) + np.log((1 + mu**2) / (1 + y**2))
 
 
 class BinomialDistribution(ExponentialDispersionModel):
