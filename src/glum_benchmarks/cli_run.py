@@ -81,12 +81,14 @@ def cli_run(
         for Ln in libraries.keys():
             click.echo(f"running problem={Pn} library={Ln}")
             new_params = params.update_params(problem_name=Pn, library_name=Ln)
-            result, regularization_strength_ = execute_problem_library(
+            result, _ = execute_problem_library(
                 new_params,
                 iterations,
-                defaults["diagnostics_level"]
-                if params.diagnostics_level is None
-                else params.diagnostics_level,  # type: ignore
+                (
+                    defaults["diagnostics_level"]  # type: ignore
+                    if params.diagnostics_level is None  # type: ignore
+                    else params.diagnostics_level  # type: ignore
+                ),
             )
             _save_benchmark_results(
                 output_dir,
