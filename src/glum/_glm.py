@@ -2759,16 +2759,18 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                             return np.array(
                                 list(
                                     chain.from_iterable(
-                                        [
-                                            elmt
-                                            for _ in range(
-                                                len(dtype.categories)
-                                                + has_missing_category[col]
-                                                - drop_first
-                                            )
-                                        ]
-                                        if pd.api.types.is_categorical_dtype(dtype)
-                                        else [elmt]
+                                        (
+                                            [
+                                                elmt
+                                                for _ in range(
+                                                    len(dtype.categories)
+                                                    + has_missing_category[col]
+                                                    - drop_first
+                                                )
+                                            ]
+                                            if pd.api.types.is_categorical_dtype(dtype)
+                                            else [elmt]
+                                        )
                                         for elmt, (col, dtype) in zip(
                                             penalty, X.dtypes.items()
                                         )
