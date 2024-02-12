@@ -323,8 +323,7 @@ class TweedieLink(Link):
     """The Tweedie link function ``x^(1-p)`` if ``p≠1`` and ``log(x)`` if ``p=1``."""
 
     def __new__(cls, p: float):
-        """
-        Create a new ``TweedieLink`` object.
+        """Create a new ``TweedieLink`` object.
 
         Parameters
         ----------
@@ -343,8 +342,7 @@ class TweedieLink(Link):
         return isinstance(other, self.__class__) and (self.p == other.p)
 
     def link(self, mu):
-        """
-        Get the Tweedie canonical link.
+        """Get the Tweedie canonical link.
 
         See superclass documentation.
 
@@ -355,8 +353,7 @@ class TweedieLink(Link):
         return _asanyarray(mu) ** (1 - self.p)
 
     def derivative(self, mu):
-        """
-        Get the derivative of the Tweedie link.
+        """Get the derivative of the Tweedie link.
 
         See superclass documentation.
 
@@ -368,8 +365,7 @@ class TweedieLink(Link):
 
     @catch_p
     def inverse(self, lin_pred):
-        """
-        Get the inverse of the Tweedie link.
+        """Get the inverse of the Tweedie link.
 
         See superclass documentation.
 
