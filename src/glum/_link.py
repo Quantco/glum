@@ -79,7 +79,6 @@ class IdentityLink(Link):
     def __eq__(self, other):  # noqa D
         return isinstance(other, self.__class__)
 
-    # unnecessary type hint for consistency with other methods
     def link(self, mu):
         """Return mu (identity link).
 
@@ -102,7 +101,6 @@ class IdentityLink(Link):
         """
         return 1.0 if np.isscalar(mu) else np.ones_like(mu)
 
-    # unnecessary type hint for consistency with other methods
     def inverse(self, lin_pred):
         """Compute the inverse link function ``h(lin_pred)``.
 
@@ -156,7 +154,7 @@ class LogLink(Link):
         -------
         numpy.ndarray
         """
-        return np.log(mu)
+        return np.log(_asanyarray(mu))
 
     def derivative(self, mu):
         """Get the derivative of the log link, one over ``mu``.
@@ -169,7 +167,7 @@ class LogLink(Link):
         -------
         numpy.ndarray
         """
-        return 1 / mu
+        return 1 / _asanyarray(mu)
 
     def inverse(self, lin_pred):
         """Get the inverse of the log link, the exponential function.
@@ -184,7 +182,7 @@ class LogLink(Link):
         -------
         numpy.ndarray
         """
-        return np.exp(lin_pred)
+        return np.exp(_asanyarray(lin_pred))
 
     def inverse_derivative(self, lin_pred):
         """Compute the derivative of the inverse link function ``h'(lin_pred)``.
@@ -194,17 +192,17 @@ class LogLink(Link):
         lin_pred : array-like, shape (n_samples,)
             Usually the (fitted) linear predictor.
         """
-        return np.exp(lin_pred)
+        return np.exp(_asanyarray(lin_pred))
 
     def inverse_derivative2(self, lin_pred):
-        """Compute 2nd derivative of the inverse link function ``h''(lin_pred)``.
+        """Compute second derivative of the inverse link function ``h''(lin_pred)``.
 
         Parameters
         ----------
         lin_pred : array-like, shape (n_samples,)
             Usually the (fitted) linear predictor.
         """
-        return np.exp(lin_pred)
+        return np.exp(_asanyarray(lin_pred))
 
 
 class LogitLink(Link):
@@ -282,7 +280,7 @@ class LogitLink(Link):
         return ep * (1.0 - ep)
 
     def inverse_derivative2(self, lin_pred):
-        """Compute 2nd derivative of the inverse link function ``h''(lin_pred)``.
+        """Compute second derivative of the inverse link function ``h''(lin_pred)``.
 
         Parameters
         ----------
@@ -394,7 +392,7 @@ class TweedieLink(Link):
 
     @catch_p
     def inverse_derivative2(self, lin_pred):
-        """Compute secondnd derivative of the inverse Tweedie link function \
+        """Compute second derivative of the inverse Tweedie link function \
             ``h''(lin_pred)``.
 
         Parameters
@@ -484,7 +482,7 @@ class CloglogLink(Link):
         return np.exp(lin_pred - np.exp(lin_pred))
 
     def inverse_derivative2(self, lin_pred):
-        """Compute 2nd derivative of the inverse link function ``h''(lin_pred)``.
+        """Compute second derivative of the inverse link function ``h''(lin_pred)``.
 
         Parameters
         ----------
