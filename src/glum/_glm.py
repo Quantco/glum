@@ -728,8 +728,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         expected_information: bool = False,
     ):
         warnings.warn(
-            "Arguments to :class:`GeneralizedLinearRegressorBase`, :class:`GeneralizedLinearRegressor` "
-            "and :class:`GeneralizedLinearRegressorCV` will become keyword-only in 3.0.0.",
+            "Arguments to :class:`GeneralizedLinearRegressorBase`, "
+            ":class:`GeneralizedLinearRegressor` and "
+            ":class:`GeneralizedLinearRegressorCV` "
+            "will become keyword-only in 3.0.0.",
             FutureWarning,
         )
         self.l1_ratio = l1_ratio
@@ -1169,7 +1171,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             Print only the specified columns.
         """
         warnings.warn(
-            "Arguments to `get_formatted_diagnostics` will become keyword-only in 3.0.0.",
+            "Arguments to `get_formatted_diagnostics` will become "
+            "keyword-only in 3.0.0.",
             FutureWarning,
         )
         if not hasattr(self, "diagnostics_"):
@@ -1250,7 +1253,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             The linear predictor.
         """
         warnings.warn(
-            "Arguments to `linear_predictor` other than `X` and `offset` will become keyword-only in 3.0.0.",
+            "Arguments to `linear_predictor` other than `X` and `offset` "
+            "will become keyword-only in 3.0.0.",
             FutureWarning,
         )
         check_is_fitted(self, "coef_")
@@ -1333,7 +1337,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             Predicted values times ``sample_weight``.
         """
         warnings.warn(
-            "Arguments to `predict` other than `X`, ``sample_weight`, and `offset` will become keyword-only in 3.0.0.",
+            "Arguments to `predict` other than `X`, ``sample_weight`, and `offset` "
+            "will become keyword-only in 3.0.0.",
             FutureWarning,
         )
         if isinstance(X, pd.DataFrame) and hasattr(self, "feature_dtypes_"):
@@ -1412,8 +1417,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             A table of the regression results.
         """
         warnings.warn(
-            "Arguments to `coef_table` other than `X`, `y`, `sample_weight`, and `offset` "
-            "will become keyword-only in 3.0.0.",
+            "Arguments to `coef_table` other than `X`, `y`, `sample_weight`, "
+            "and `offset` will become keyword-only in 3.0.0.",
             FutureWarning,
         )
         if self.fit_intercept:
@@ -1525,8 +1530,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             NamedTuple with test statistic, p-value, and degrees of freedom.
         """
         warnings.warn(
-            "Arguments to `coef_table` other than `X`, `y`, `sample_weight`, and `offset` "
-            "will become keyword-only in 3.0.0.",
+            "Arguments to `coef_table` other than `X`, `y`, `sample_weight`, "
+            "and `offset` will become keyword-only in 3.0.0.",
             FutureWarning,
         )
 
@@ -1922,8 +1927,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         """
         warnings.warn(
-            "Arguments to `covaria ce_matrix` other than `X`, `y`, `sample_weight`, and `offset` "
-            "will become keyword-only in 3.0.0.",
+            "Arguments to `covariance_matrix` other than `X`, `y`, `sample_weight`, "
+            "and `offset` will become keyword-only in 3.0.0.",
             FutureWarning,
         )
         self.covariance_matrix_: Union[np.ndarray, None]
