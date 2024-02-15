@@ -2317,7 +2317,6 @@ def test_information_criteria_raises_correct_warnings_and_errors(regression_data
 
     # test no warnings are raised for L1 regularisation
     with warnings.catch_warnings():
-        warnings.simplefilter(action="ignore", category=FutureWarning)
         warnings.simplefilter("error")
         regressor = GeneralizedLinearRegressor(family="normal", l1_ratio=1.0)
         regressor.fit(X, y)
