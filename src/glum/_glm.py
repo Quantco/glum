@@ -728,7 +728,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         expected_information: bool = False,
     ):
         warnings.warn(
-            "Arguments to :class:`GeneralizedLinearRegressorBase`, :class:`GeneralizedLinearRegressor` ",
+            "Arguments to :class:`GeneralizedLinearRegressorBase`, :class:`GeneralizedLinearRegressor` "
             "and :class:`GeneralizedLinearRegressorCV` will become keyword-only in 3.0.0.",
             FutureWarning,
         )
