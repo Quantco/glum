@@ -19,6 +19,7 @@ Unreleased
 - Require Python>=3.9 in line with `NEP 29 <https://numpy.org/neps/nep-0029-deprecation_policy.html#support-table>`_
 - Build and test with Python 3.12 in CI.
 - Added line search stopping criterion for tiny loss improvements based on gradient information.
+- Added warnings about breaking changes in future versions.
 
 2.6.0 - 2023-09-05
 ------------------

@@ -727,6 +727,11 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         robust: bool = True,
         expected_information: bool = False,
     ):
+        warnings.warn(
+            "Arguments to :class:`GeneralizedLinearRegressorBase`, :class:`GeneralizedLinearRegressor` ",
+            "and :class:`GeneralizedLinearRegressorCV` will become keyword-only in 3.0.0.",
+            FutureWarning,
+        )
         self.l1_ratio = l1_ratio
         self.P1 = P1
         self.P2 = P2
@@ -1133,6 +1138,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         custom_columns : iterable, optional (default=None)
             Print only the specified columns.
         """
+        warnings.warn(
+            "Arguments to `report_diagnostics` will become keyword-only in 3.0.0.",
+            FutureWarning,
+        )
         diagnostics = self.get_formatted_diagnostics(full_report, custom_columns)
         if isinstance(diagnostics, str):
             print(diagnostics)
@@ -1159,6 +1168,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         custom_columns : iterable, optional (default=None)
             Print only the specified columns.
         """
+        warnings.warn(
+            "Arguments to `get_formatted_diagnostics` will become keyword-only in 3.0.0.",
+            FutureWarning,
+        )
         if not hasattr(self, "diagnostics_"):
             to_print = "Model has not been fit, so no diagnostics exist."
             return to_print
@@ -1236,6 +1249,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         array, shape (n_samples, n_alphas)
             The linear predictor.
         """
+        warnings.warn(
+            "Arguments to `linear_predictor` other than `X` and `offset` will become keyword-only in 3.0.0.",
+            FutureWarning,
+        )
         check_is_fitted(self, "coef_")
 
         if (alpha is not None) and (alpha_index is not None):
@@ -1315,6 +1332,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         array, shape (n_samples, n_alphas)
             Predicted values times ``sample_weight``.
         """
+        warnings.warn(
+            "Arguments to `predict` other than `X`, ``sample_weight`, and `offset` will become keyword-only in 3.0.0.",
+            FutureWarning,
+        )
         if isinstance(X, pd.DataFrame) and hasattr(self, "feature_dtypes_"):
             X = _align_df_categories(X, self.feature_dtypes_)
 
@@ -1390,6 +1411,11 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         pandas.DataFrame
             A table of the regression results.
         """
+        warnings.warn(
+            "Arguments to `coef_table` other than `X`, `y`, `sample_weight`, and `offset` "
+            "will become keyword-only in 3.0.0.",
+            FutureWarning,
+        )
         if self.fit_intercept:
             names = ["intercept"] + list(self.feature_names_)
             beta = np.concatenate([[self.intercept_], self.coef_])
@@ -1498,6 +1524,11 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         WaldTestResult
             NamedTuple with test statistic, p-value, and degrees of freedom.
         """
+        warnings.warn(
+            "Arguments to `coef_table` other than `X`, `y`, `sample_weight`, and `offset` "
+            "will become keyword-only in 3.0.0.",
+            FutureWarning,
+        )
 
         num_lhs_specs = sum([R is not None, features is not None])
         if num_lhs_specs != 1:
@@ -1890,6 +1921,11 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
            Cambridge university press
 
         """
+        warnings.warn(
+            "Arguments to `covaria ce_matrix` other than `X`, `y`, `sample_weight`, and `offset` "
+            "will become keyword-only in 3.0.0.",
+            FutureWarning,
+        )
         self.covariance_matrix_: Union[np.ndarray, None]
 
         if robust is None:
@@ -2763,6 +2799,9 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         robust: bool = True,
         expected_information: bool = False,
     ):
+        warnings.warn(
+            "The default value of `alpha` will become `0` in 3.0.0.", FutureWarning
+        )
         self.alphas = alphas
         self.alpha = alpha
         super().__init__(
@@ -2895,6 +2934,11 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         -------
         self
         """
+        warnings.warn(
+            "Arguments to `fit` other than `X`, `y`, `sample_weight`, and `offset` "
+            "will become keyword-only in 3.0.0.",
+            FutureWarning,
+        )
 
         self._validate_hyperparameters()
 
