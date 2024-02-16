@@ -18,7 +18,7 @@ from ._glm import (
     setup_p2,
 )
 from ._link import Link, LogLink
-from ._util import _safe_lin_pred
+from ._util import _positional_args_deprecated, _safe_lin_pred
 
 
 class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
@@ -282,6 +282,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         Only relevant when computing robust standard errors.
     """
 
+    @_positional_args_deprecated()
     def __init__(
         self,
         l1_ratio=0,
@@ -370,6 +371,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             )
         super()._validate_hyperparameters()
 
+    @_positional_args_deprecated(("X", "y", "sample_weight", "offset"))
     def fit(
         self,
         X: ArrayLike,

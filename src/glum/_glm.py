@@ -59,7 +59,7 @@ from ._solvers import (
     _least_squares_solver,
     _trust_constr_solver,
 )
-from ._util import _align_df_categories, _safe_toarray
+from ._util import _align_df_categories, _positional_args_deprecated, _safe_toarray
 
 _float_itemsize_to_dtype = {8: np.float64, 4: np.float32, 2: np.float16}
 
@@ -727,13 +727,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         robust: bool = True,
         expected_information: bool = False,
     ):
-        warnings.warn(
-            "Arguments to :class:`GeneralizedLinearRegressorBase`, "
-            ":class:`GeneralizedLinearRegressor` and "
-            ":class:`GeneralizedLinearRegressorCV` "
-            "will become keyword-only in 3.0.0.",
-            FutureWarning,
-        )
         self.l1_ratio = l1_ratio
         self.P1 = P1
         self.P2 = P2
@@ -1125,6 +1118,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         return self.coef_path_
 
+    @_positional_args_deprecated()
     def report_diagnostics(
         self, full_report: bool = False, custom_columns: Optional[Iterable] = None
     ) -> None:
@@ -1140,10 +1134,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         custom_columns : iterable, optional (default=None)
             Print only the specified columns.
         """
-        warnings.warn(
-            "Arguments to `report_diagnostics` will become keyword-only in 3.0.0.",
-            FutureWarning,
-        )
         diagnostics = self.get_formatted_diagnostics(full_report, custom_columns)
         if isinstance(diagnostics, str):
             print(diagnostics)
@@ -1155,6 +1145,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         with pd.option_context("display.max_rows", None, "display.max_columns", None):
             print(diagnostics)
 
+    @_positional_args_deprecated()
     def get_formatted_diagnostics(
         self, full_report: bool = False, custom_columns: Optional[Iterable] = None
     ) -> Union[str, pd.DataFrame]:
@@ -1170,11 +1161,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         custom_columns : iterable, optional (default=None)
             Print only the specified columns.
         """
-        warnings.warn(
-            "Arguments to `get_formatted_diagnostics` will become "
-            "keyword-only in 3.0.0.",
-            FutureWarning,
-        )
         if not hasattr(self, "diagnostics_"):
             to_print = "Model has not been fit, so no diagnostics exist."
             return to_print
@@ -1217,6 +1203,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             f"{self._alphas}. Consider specifying the index directly via 'alpha_index'."
         )
 
+    @_positional_args_deprecated(("X", "offset"))
     def linear_predictor(
         self,
         X: ArrayLike,
@@ -1252,11 +1239,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         array, shape (n_samples, n_alphas)
             The linear predictor.
         """
-        warnings.warn(
-            "Arguments to `linear_predictor` other than `X` and `offset` "
-            "will become keyword-only in 3.0.0.",
-            FutureWarning,
-        )
         check_is_fitted(self, "coef_")
 
         if (alpha is not None) and (alpha_index is not None):
@@ -1297,6 +1279,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         return xb
 
+    @_positional_args_deprecated(unchanged_args=("X", "sample_weight", "offset"))
     def predict(
         self,
         X: ShapedArrayLike,
@@ -1336,11 +1319,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         array, shape (n_samples, n_alphas)
             Predicted values times ``sample_weight``.
         """
-        warnings.warn(
-            "Arguments to `predict` other than `X`, ``sample_weight`, and `offset` "
-            "will become keyword-only in 3.0.0.",
-            FutureWarning,
-        )
         if isinstance(X, pd.DataFrame) and hasattr(self, "feature_dtypes_"):
             X = _align_df_categories(X, self.feature_dtypes_)
 
@@ -1364,6 +1342,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         sample_weight = _check_weights(sample_weight, X.shape[0], X.dtype)
         return mu * sample_weight
 
+    @_positional_args_deprecated(("X", "y", "sample_weight", "offset"), 0)
     def coef_table(
         self,
         confidence_level=0.95,
@@ -1416,11 +1395,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         pandas.DataFrame
             A table of the regression results.
         """
-        warnings.warn(
-            "Arguments to `coef_table` other than `X`, `y`, `sample_weight`, "
-            "and `offset` will become keyword-only in 3.0.0.",
-            FutureWarning,
-        )
         if self.fit_intercept:
             names = ["intercept"] + list(self.feature_names_)
             beta = np.concatenate([[self.intercept_], self.coef_])
@@ -1463,6 +1437,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             index=names,
         )
 
+    @_positional_args_deprecated(("X", "y", "sample_weight", "offset"), 0)
     def wald_test(
         self,
         R: Optional[np.ndarray] = None,
@@ -1529,11 +1504,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         WaldTestResult
             NamedTuple with test statistic, p-value, and degrees of freedom.
         """
-        warnings.warn(
-            "Arguments to `coef_table` other than `X`, `y`, `sample_weight`, "
-            "and `offset` will become keyword-only in 3.0.0.",
-            FutureWarning,
-        )
 
         num_lhs_specs = sum([R is not None, features is not None])
         if num_lhs_specs != 1:
@@ -1774,6 +1744,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             expected_information=expected_information,
         )
 
+    @_positional_args_deprecated(("X", "y", "sample_weight", "offset"), 2)
     def std_errors(
         self,
         X=None,
@@ -1837,6 +1808,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             ).diagonal()
         )
 
+    @_positional_args_deprecated(("X", "y", "sample_weight", "offset"), 2)
     def covariance_matrix(
         self,
         X=None,
@@ -1926,11 +1898,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
            Cambridge university press
 
         """
-        warnings.warn(
-            "Arguments to `covariance_matrix` other than `X`, `y`, `sample_weight`, "
-            "and `offset` will become keyword-only in 3.0.0.",
-            FutureWarning,
-        )
         self.covariance_matrix_: Union[np.ndarray, None]
 
         if robust is None:
@@ -2768,6 +2735,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
           https://www.csie.ntu.edu.tw/~cjlin/papers/l1_glmnet/long-glmnet.pdf
     """
 
+    @_positional_args_deprecated()
     def __init__(
         self,
         alpha=None,
@@ -2804,9 +2772,10 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         robust: bool = True,
         expected_information: bool = False,
     ):
-        warnings.warn(
-            "The default value of `alpha` will become `0` in 3.0.0.", FutureWarning
-        )
+        if alpha is None:
+            warnings.warn(
+                "The default value of `alpha` will become `0` in 3.0.0.", FutureWarning
+            )
         self.alphas = alphas
         self.alpha = alpha
         super().__init__(
@@ -2881,6 +2850,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             )
         super()._validate_hyperparameters()
 
+    @_positional_args_deprecated(("X", "y", "sample_weight", "offset"))
     def fit(
         self,
         X: ArrayLike,
@@ -2939,11 +2909,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         -------
         self
         """
-        warnings.warn(
-            "Arguments to `fit` other than `X`, `y`, `sample_weight`, and `offset` "
-            "will become keyword-only in 3.0.0.",
-            FutureWarning,
-        )
 
         self._validate_hyperparameters()
 
