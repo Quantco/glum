@@ -59,7 +59,7 @@ from ._solvers import (
     _least_squares_solver,
     _trust_constr_solver,
 )
-from ._util import _align_df_categories, _safe_toarray
+from ._util import _align_df_categories, _positional_args_deprecated, _safe_toarray
 
 _float_itemsize_to_dtype = {8: np.float64, 4: np.float32, 2: np.float16}
 
@@ -1118,6 +1118,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         return self.coef_path_
 
+    @_positional_args_deprecated()
     def report_diagnostics(
         self, full_report: bool = False, custom_columns: Optional[Iterable] = None
     ) -> None:
@@ -1144,6 +1145,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         with pd.option_context("display.max_rows", None, "display.max_columns", None):
             print(diagnostics)
 
+    @_positional_args_deprecated()
     def get_formatted_diagnostics(
         self, full_report: bool = False, custom_columns: Optional[Iterable] = None
     ) -> Union[str, pd.DataFrame]:
@@ -1201,6 +1203,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             f"{self._alphas}. Consider specifying the index directly via 'alpha_index'."
         )
 
+    @_positional_args_deprecated(("X", "offset"))
     def linear_predictor(
         self,
         X: ArrayLike,
@@ -1276,6 +1279,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         return xb
 
+    @_positional_args_deprecated(unchanged_args=("X", "sample_weight", "offset"))
     def predict(
         self,
         X: ShapedArrayLike,
@@ -1338,6 +1342,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         sample_weight = _check_weights(sample_weight, X.shape[0], X.dtype)
         return mu * sample_weight
 
+    @_positional_args_deprecated(("X", "y", "sample_weight", "offset"), 0)
     def coef_table(
         self,
         confidence_level=0.95,
@@ -1432,6 +1437,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             index=names,
         )
 
+    @_positional_args_deprecated(("X", "y", "sample_weight", "offset"), 0)
     def wald_test(
         self,
         R: Optional[np.ndarray] = None,
@@ -1738,6 +1744,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             expected_information=expected_information,
         )
 
+    @_positional_args_deprecated(("X", "y", "sample_weight", "offset"), 2)
     def std_errors(
         self,
         X=None,
@@ -1801,6 +1808,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             ).diagonal()
         )
 
+    @_positional_args_deprecated(("X", "y", "sample_weight", "offset"), 2)
     def covariance_matrix(
         self,
         X=None,
@@ -2727,6 +2735,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
           https://www.csie.ntu.edu.tw/~cjlin/papers/l1_glmnet/long-glmnet.pdf
     """
 
+    @_positional_args_deprecated()
     def __init__(
         self,
         alpha=None,
@@ -2763,6 +2772,10 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         robust: bool = True,
         expected_information: bool = False,
     ):
+        if alpha is None:
+            warnings.warn(
+                "The default value of `alpha` will become `0` in 3.0.0.", FutureWarning
+            )
         self.alphas = alphas
         self.alpha = alpha
         super().__init__(
@@ -2837,6 +2850,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             )
         super()._validate_hyperparameters()
 
+    @_positional_args_deprecated(("X", "y", "sample_weight", "offset"))
     def fit(
         self,
         X: ArrayLike,

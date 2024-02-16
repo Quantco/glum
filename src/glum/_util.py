@@ -1,4 +1,6 @@
 import logging
+import warnings
+from functools import wraps
 from typing import Union
 
 import numpy as np
@@ -106,3 +108,38 @@ def _safe_toarray(X) -> np.ndarray:
         return X.toarray()
     else:
         return np.asarray(X)
+
+
+def _positional_args_deprecated(unchanged_args=(), unchanged_args_number=None):
+    """
+    Raise a FutureWarning if more than `unchanged_args_number` positional
+    arguments are passed.
+    """
+    if unchanged_args_number is None:
+        unchanged_args_number = len(unchanged_args)
+
+    def decorator(func):
+        first_part = "Arguments" if unchanged_args else "All arguments"
+        exceptions = (
+            " other than " + ", ".join(f"`{arg}`" for arg in unchanged_args)
+            if unchanged_args
+            else ""
+        )
+
+        msg = (
+            f"{first_part} to `{func.__qualname__}`{exceptions} "
+            "will become keyword-only in 3.0.0."
+        )
+
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            if len(args) > unchanged_args_number + 1:  # +1 for self
+                warnings.warn(
+                    msg,
+                    FutureWarning,
+                )
+            return func(*args, **kwargs)
+
+        return wrapper
+
+    return decorator
