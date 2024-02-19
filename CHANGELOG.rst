@@ -7,8 +7,8 @@
 Changelog
 =========
 
-Unreleased
-----------
+2.7.0 - 2024-02-19
+------------------
 
 **Bug fix:**
 
@@ -20,6 +20,7 @@ Unreleased
 - Build and test with Python 3.12 in CI.
 - Added line search stopping criterion for tiny loss improvements based on gradient information.
 - Added warnings about breaking changes in future versions.
+
 
 2.6.0 - 2023-09-05
 ------------------
