@@ -24,6 +24,7 @@ Changelog
 - Added more options for treating missing values in categorical columns. They can either raise a `ValueError` (`"fail"`), be treated as all-zero indicators (`"zero"`) or represented as a new category (`"convert"`).
 - `meth:GeneralizedLinearRegressor.wald_test` can now perform tests based on a formula string and term names.
 
+
 2.7.0 - UNRELEASED
 ------------------
 
@@ -36,6 +37,7 @@ Changelog
 - Require Python>=3.9 in line with `NEP 29 <https://numpy.org/neps/nep-0029-deprecation_policy.html#support-table>`_
 - Build and test with Python 3.12 in CI.
 - Added line search stopping criterion for tiny loss improvements based on gradient information.
+
 
 2.6.0 - 2023-09-05
 ------------------
@@ -55,7 +57,7 @@ Changelog
 
 - When computing the covariance matrix, check whether the design matrix is ill-conditioned for all types of input. Furthermore, do it in a more efficient way.
 - Pin ``tabmat<4.0.0`` (the new release will bring breaking changes).
-- Added the option to specify models using Wilkinson-formulas.
+
 
 2.5.2 - 2023-06-02
 ------------------
@@ -87,6 +89,7 @@ Changelog
 - Added Negative Binomial distribution by setting the ``'family'`` parameter of
   :class:`~glum.GeneralizedLinearRegressor` and :class:`~glum.GeneralizedLinearRegressorCV`
   to ``'negative.binomial'``.
+
 
 2.4.1 - 2023-03-14
 ------------------
