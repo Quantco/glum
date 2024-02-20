@@ -24,7 +24,7 @@ Changelog
 - Added more options for treating missing values in categorical columns. They can either raise a `ValueError` (`"fail"`), be treated as all-zero indicators (`"zero"`) or represented as a new category (`"convert"`).
 - `meth:GeneralizedLinearRegressor.wald_test` can now perform tests based on a formula string and term names.
 
-2.7.0 - UNRELEASED
+2.7.0 - 2024-02-19
 ------------------
 
 **Bug fix:**
@@ -33,9 +33,11 @@ Changelog
 
 **Other changes:**
 
-- Require Python>=3.9 in line with `NEP 29 <https://numpy.org/neps/nep-0029-deprecation_policy.html#support-table>`_
+- Require Python>=3.9 in line with `NEP 29 <https://numpy.org/neps/nep-0029-deprecation_policy.html#support-table>`.
 - Build and test with Python 3.12 in CI.
 - Added line search stopping criterion for tiny loss improvements based on gradient information.
+- Added warnings about breaking changes in future versions.
+
 
 2.6.0 - 2023-09-05
 ------------------

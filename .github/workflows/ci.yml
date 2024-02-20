@@ -20,7 +20,7 @@ jobs:
         with:
           python-version: "3.11"
       - name: Run pre-commit checks
-        uses: pre-commit/action@v3.0.0
+        uses: pre-commit/action@v3.0.1
 
   unit-tests:
     name: Tests - ${{ matrix.os }} - Py${{ matrix.python-version }}
