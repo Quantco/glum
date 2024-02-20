@@ -181,7 +181,7 @@ class ColumnTransformer(sklearn.compose.ColumnTransformer):
         )
 
     def _hstack(
-        self, Xs: Iterable[Union[pd.Series, pd.DataFrame]], *, n_samples: int = None
+        self, Xs: Iterable[Union[pd.Series, pd.DataFrame]], *, n_samples=None
     ):
         """Stacks X horizontally."""
         _ = n_samples  # for compatibility
