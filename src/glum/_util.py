@@ -1,6 +1,6 @@
 import logging
-from collections.abc import Sequence
 import warnings
+from collections.abc import Sequence
 from functools import wraps
 from typing import Union
 
