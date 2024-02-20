@@ -10,8 +10,10 @@ Changelog
 3.0.0 - UNRELEASED
 ------------------
 
-**Breaking change:**
+**Breaking changes:**
 
+- All arguments to :class:`~glum.GeneralizedLinearRegressorBase`, :class:`~glum.GeneralizedLinearRegressor`, and :class:`GeneralizedLinearRegressorCV` are now keyword-only.
+- All arguments to public methods of :class:`~glum.GeneralizedLinearRegressorBase`, :class:`~glum.GeneralizedLinearRegressor` or :class:`GeneralizedLinearRegressorCV` except `X`, `y`, `sample_weight`, and `offset` are now keyword-only.
 - :class:`~glum.GeneralizedLinearRegressor`'s default value for `alpha` is now `0`, i.e. no regularization.
 
 **New features:**

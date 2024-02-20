@@ -730,6 +730,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
     def __init__(
         self,
+        *,
         l1_ratio: float = 0,
         P1="identity",
         P2: Union[str, np.ndarray, sparse.spmatrix] = "identity",
@@ -1204,7 +1205,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         return self.coef_path_
 
     def report_diagnostics(
-        self, full_report: bool = False, custom_columns: Optional[Iterable] = None
+        self, *, full_report: bool = False, custom_columns: Optional[Iterable] = None
     ) -> None:
         """Print diagnostics to ``stdout``.
 
@@ -1218,7 +1219,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         custom_columns : iterable, optional (default=None)
             Print only the specified columns.
         """
-        diagnostics = self.get_formatted_diagnostics(full_report, custom_columns)
+        diagnostics = self.get_formatted_diagnostics(
+            full_report=full_report, custom_columns=custom_columns
+        )
         if isinstance(diagnostics, str):
             print(diagnostics)
             return
@@ -1230,9 +1233,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             print(diagnostics)
 
     def get_formatted_diagnostics(
-        self, full_report: bool = False, custom_columns: Optional[Iterable] = None
+        self, *, full_report: bool = False, custom_columns: Optional[Iterable] = None
     ) -> Union[str, pd.DataFrame]:
-        """Get formatted diagnostics; can be printed with _report_diagnostics.
+        """Get formatted diagnostics which can be printed with report_diagnostics.
 
         Parameters
         ----------
@@ -1290,6 +1293,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self,
         X: ArrayLike,
         offset: Optional[ArrayLike] = None,
+        *,
         alpha_index: Optional[Union[int, Sequence[int]]] = None,
         alpha: Optional[Union[float, Sequence[float]]] = None,
         context: Optional[Union[int, Mapping[str, Any]]] = 0,
@@ -1378,6 +1382,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         X: ShapedArrayLike,
         sample_weight: Optional[ArrayLike] = None,
         offset: Optional[ArrayLike] = None,
+        *,
         alpha_index: Optional[Union[int, Sequence[int]]] = None,
         alpha: Optional[Union[float, Sequence[float]]] = None,
         context: Optional[Union[int, Mapping[str, Any]]] = 0,
@@ -1437,12 +1442,13 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
     def coef_table(
         self,
-        confidence_level=0.95,
         X=None,
         y=None,
-        mu=None,
-        offset=None,
         sample_weight=None,
+        offset=None,
+        *,
+        confidence_level=0.95,
+        mu=None,
         dispersion=None,
         robust=None,
         clusters: np.ndarray = None,
@@ -1540,16 +1546,17 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
     def wald_test(
         self,
+        X=None,
+        y=None,
+        sample_weight=None,
+        offset=None,
+        *,
         R: Optional[np.ndarray] = None,
         features: Optional[Union[str, list[str]]] = None,
         terms: Optional[Union[str, list[str]]] = None,
         formula: Optional[str] = None,
         r: Optional[Sequence] = None,
-        X=None,
-        y=None,
         mu=None,
-        offset=None,
-        sample_weight=None,
         dispersion=None,
         robust=None,
         clusters: np.ndarray = None,
@@ -1572,6 +1579,16 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         Parameters
         ----------
+        X : {array-like, sparse matrix}, shape (n_samples, n_features), optional
+            Training data. Can be omitted if a covariance matrix has already
+            been computed.
+        y : array-like, shape (n_samples,), optional
+            Target values. Can be omitted if a covariance matrix has already
+            been computed.
+        sample_weight : array-like, shape (n_samples,), optional, default=None
+            Individual weights for each sample.
+        offset : array-like, optional, default=None
+            Array with additive offsets.
         R : np.ndarray, optional, default=None
             The restriction matrix representing the linear combination of coefficients
             to test.
@@ -1588,18 +1605,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             The vector representing the values of the linear combination.
             If None, the test is for whether the linear combinations of the coefficients
             are zero.
-        X : {array-like, sparse matrix}, shape (n_samples, n_features), optional
-            Training data. Can be omitted if a covariance matrix has already
-            been computed.
-        y : array-like, shape (n_samples,), optional
-            Target values. Can be omitted if a covariance matrix has already
-            been computed.
         mu : array-like, optional, default=None
             Array with predictions. Estimated if absent.
-        offset : array-like, optional, default=None
-            Array with additive offsets.
-        sample_weight : array-like, shape (n_samples,), optional, default=None
-            Individual weights for each sample.
         dispersion : float, optional, default=None
             The dispersion parameter. Estimated if absent.
         robust : boolean, optional, default=None
@@ -1647,9 +1654,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 r=r,
                 X=X,
                 y=y,
-                mu=mu,
-                offset=offset,
                 sample_weight=sample_weight,
+                offset=offset,
+                mu=mu,
                 dispersion=dispersion,
                 robust=robust,
                 clusters=clusters,
@@ -1663,9 +1670,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 values=r,
                 X=X,
                 y=y,
-                mu=mu,
-                offset=offset,
                 sample_weight=sample_weight,
+                offset=offset,
+                mu=mu,
                 dispersion=dispersion,
                 robust=robust,
                 clusters=clusters,
@@ -1679,9 +1686,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 values=r,
                 X=X,
                 y=y,
-                mu=mu,
-                offset=offset,
                 sample_weight=sample_weight,
+                offset=offset,
+                mu=mu,
                 dispersion=dispersion,
                 robust=robust,
                 clusters=clusters,
@@ -1696,9 +1703,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 formula=formula,
                 X=X,
                 y=y,
-                mu=mu,
-                offset=offset,
                 sample_weight=sample_weight,
+                offset=offset,
+                mu=mu,
                 dispersion=dispersion,
                 robust=robust,
                 clusters=clusters,
@@ -1714,9 +1721,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         r: Optional[np.ndarray] = None,
         X=None,
         y=None,
-        mu=None,
-        offset=None,
         sample_weight=None,
+        offset=None,
+        mu=None,
         dispersion=None,
         robust=None,
         clusters: np.ndarray = None,
@@ -1744,12 +1751,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         y : array-like, shape (n_samples,), optional
             Target values. Can be omitted if a covariance matrix has already
             been computed.
-        mu : array-like, optional, default=None
-            Array with predictions. Estimated if absent.
-        offset : array-like, optional, default=None
-            Array with additive offsets.
         sample_weight : array-like, shape (n_samples,), optional, default=None
             Individual weights for each sample.
+        offset : array-like, optional, default=None
+            Array with additive offsets.
+        mu : array-like, optional, default=None
+            Array with predictions. Estimated if absent.
         dispersion : float, optional, default=None
             The dispersion parameter. Estimated if absent.
         robust : boolean, optional, default=None
@@ -1774,9 +1781,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         covariance_matrix = self.covariance_matrix(
             X=X,
             y=y,
-            mu=mu,
-            offset=offset,
             sample_weight=sample_weight,
+            offset=offset,
+            mu=mu,
             dispersion=dispersion,
             robust=robust,
             clusters=clusters,
@@ -1822,9 +1829,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         values: Optional[Sequence] = None,
         X=None,
         y=None,
-        mu=None,
-        offset=None,
         sample_weight=None,
+        offset=None,
+        mu=None,
         dispersion=None,
         robust=None,
         clusters: np.ndarray = None,
@@ -1849,12 +1856,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         y : array-like, shape (n_samples,), optional
             Target values. Can be omitted if a covariance matrix has already
             been computed.
-        mu : array-like, optional, default=None
-            Array with predictions. Estimated if absent.
-        offset : array-like, optional, default=None
-            Array with additive offsets.
         sample_weight : array-like, shape (n_samples,), optional, default=None
             Individual weights for each sample.
+        offset : array-like, optional, default=None
+            Array with additive offsets.
+        mu : array-like, optional, default=None
+            Array with predictions. Estimated if absent.
         dispersion : float, optional, default=None
             The dispersion parameter. Estimated if absent.
         robust : boolean, optional, default=None
@@ -1906,9 +1913,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             r=r,
             X=X,
             y=y,
-            mu=mu,
-            offset=offset,
             sample_weight=sample_weight,
+            offset=offset,
+            mu=mu,
             dispersion=dispersion,
             robust=robust,
             clusters=clusters,
@@ -1921,9 +1928,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         formula: str,
         X=None,
         y=None,
-        mu=None,
-        offset=None,
         sample_weight=None,
+        offset=None,
+        mu=None,
         dispersion=None,
         robust=None,
         clusters: np.ndarray = None,
@@ -1945,12 +1952,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         y : array-like, shape (n_samples,), optional
             Target values. Can be omitted if a covariance matrix has already
             been computed.
-        mu : array-like, optional, default=None
-            Array with predictions. Estimated if absent.
-        offset : array-like, optional, default=None
-            Array with additive offsets.
         sample_weight : array-like, shape (n_samples,), optional, default=None
             Individual weights for each sample.
+        offset : array-like, optional, default=None
+            Array with additive offsets.
+        mu : array-like, optional, default=None
+            Array with predictions. Estimated if absent.
         dispersion : float, optional, default=None
             The dispersion parameter. Estimated if absent.
         robust : boolean, optional, default=None
@@ -1986,9 +1993,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             r=r,
             X=X,
             y=y,
-            mu=mu,
-            offset=offset,
             sample_weight=sample_weight,
+            offset=offset,
+            mu=mu,
             dispersion=dispersion,
             robust=robust,
             clusters=clusters,
@@ -2002,9 +2009,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         values: Optional[Sequence] = None,
         X=None,
         y=None,
-        mu=None,
-        offset=None,
         sample_weight=None,
+        offset=None,
+        mu=None,
         dispersion=None,
         robust=None,
         clusters: np.ndarray = None,
@@ -2034,12 +2041,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         y : array-like, shape (n_samples,), optional
             Target values. Can be omitted if a covariance matrix has already
             been computed.
-        mu : array-like, optional, default=None
-            Array with predictions. Estimated if absent.
-        offset : array-like, optional, default=None
-            Array with additive offsets.
         sample_weight : array-like, shape (n_samples,), optional (default=None)
             Individual weights for each sample.
+        offset : array-like, optional, default=None
+            Array with additive offsets.
+        mu : array-like, optional, default=None
+            Array with predictions. Estimated if absent.
         dispersion : float, optional, default=None
             The dispersion parameter. Estimated if absent.
         robust : boolean, optional, default=None
@@ -2101,9 +2108,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             r=r,
             X=X,
             y=y,
-            mu=mu,
-            offset=offset,
             sample_weight=sample_weight,
+            offset=offset,
+            mu=mu,
             dispersion=dispersion,
             robust=robust,
             clusters=clusters,
@@ -2115,9 +2122,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self,
         X=None,
         y=None,
-        mu=None,
-        offset=None,
         sample_weight=None,
+        offset=None,
+        *,
+        mu=None,
         dispersion=None,
         robust=None,
         clusters: np.ndarray = None,
@@ -2138,12 +2146,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         y : array-like, shape (n_samples,), optional
             Target values. Can be omitted if a covariance matrix has already
             been computed.
-        mu : array-like, optional, default=None
-            Array with predictions. Estimated if absent.
-        offset : array-like, optional, default=None
-            Array with additive offsets.
         sample_weight : array-like, shape (n_samples,), optional, default=None
             Individual weights for each sample.
+        offset : array-like, optional, default=None
+            Array with additive offsets.
+        mu : array-like, optional, default=None
+            Array with predictions. Estimated if absent.
         dispersion : float, optional, default=None
             The dispersion parameter. Estimated if absent.
         robust : boolean, optional, default=None
@@ -2172,9 +2180,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             self.covariance_matrix(
                 X=X,
                 y=y,
-                mu=mu,
-                offset=offset,
                 sample_weight=sample_weight,
+                offset=offset,
+                mu=mu,
                 dispersion=dispersion,
                 robust=robust,
                 clusters=clusters,
@@ -2188,9 +2196,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self,
         X=None,
         y=None,
-        mu=None,
-        offset=None,
         sample_weight=None,
+        offset=None,
+        *,
+        mu=None,
         dispersion=None,
         robust=None,
         clusters: Optional[np.ndarray] = None,
@@ -2480,6 +2489,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         y: ShapedArrayLike,
         sample_weight: Optional[ArrayLike] = None,
         offset: Optional[ArrayLike] = None,
+        *,
         context: Optional[Union[int, Mapping[str, Any]]] = 0,
     ):
         """Compute :math:`D^2`, the percentage of deviance explained.
@@ -3238,6 +3248,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
 
     def __init__(
         self,
+        *,
         alpha=None,
         l1_ratio=0,
         P1="identity",
@@ -3362,6 +3373,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         y: Optional[ArrayLike] = None,
         sample_weight: Optional[ArrayLike] = None,
         offset: Optional[ArrayLike] = None,
+        *,
         store_covariance_matrix: bool = False,
         clusters: Optional[np.ndarray] = None,
         # TODO: take out weights_sum (or use it properly)
@@ -3707,6 +3719,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         X: ArrayLike,
         y: ArrayLike,
         sample_weight: Optional[ArrayLike] = None,
+        *,
         context: Optional[Union[int, Mapping[str, Any]]] = 0,
     ):
         """
@@ -3745,6 +3758,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         X: ArrayLike,
         y: ArrayLike,
         sample_weight: Optional[ArrayLike] = None,
+        *,
         context: Optional[Union[int, Mapping[str, Any]]] = 0,
     ):
         """
@@ -3790,6 +3804,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         X: ArrayLike,
         y: ArrayLike,
         sample_weight: Optional[ArrayLike] = None,
+        *,
         context: Optional[Union[int, Mapping[str, Any]]] = 0,
     ):
         """

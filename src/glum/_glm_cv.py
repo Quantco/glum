@@ -322,6 +322,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
 
     def __init__(
         self,
+        *,
         l1_ratio=0,
         P1="identity",
         P2="identity",
@@ -424,6 +425,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         y: ArrayLike,
         sample_weight: Optional[ArrayLike] = None,
         offset: Optional[ArrayLike] = None,
+        *,
         store_covariance_matrix: bool = False,
         clusters: Optional[np.ndarray] = None,
         context: Optional[Union[int, Mapping[str, Any]]] = None,
@@ -531,7 +533,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         else:
             _stype = ["csc", "csr"]
 
-        def fit_path(
+        def _fit_path(
             self,
             train_idx,
             test_idx,
@@ -665,7 +667,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             return intercept_path_, coef_path_, deviance_path_
 
         jobs = (
-            delayed(fit_path)(
+            delayed(_fit_path)(
                 self,
                 train_idx=train_idx,
                 test_idx=test_idx,
