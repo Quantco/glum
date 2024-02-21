@@ -35,7 +35,7 @@ def test_link_properties(link):
 
 def test_equality():
     assert TweedieLink(1.5) == TweedieLink(1.5)
-    assert TweedieLink(1) == LogLink()
+    assert TweedieLink(1) != LogLink()
     assert LogLink() == LogLink()
     assert TweedieLink(1.5) != TweedieLink(2.5)
     assert TweedieLink(1.5) != LogitLink()
