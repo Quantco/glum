@@ -502,7 +502,8 @@ def get_link(link: Union[str, Link], family: ExponentialDispersionModel) -> Link
     """
     if isinstance(link, Link):
         return link
-    if link == "auto":
+
+    if (link is None) or (link == "auto"):
         if tweedie_representation := family.to_tweedie():
             if tweedie_representation.power <= 0:
                 return IdentityLink()
@@ -518,16 +519,20 @@ def get_link(link: Union[str, Link], family: ExponentialDispersionModel) -> Link
             "Please set link manually, i.e. not to 'auto'. "
             f"Got (link='auto', family={family.__class__.__name__})."
         )
-    if link == "identity":
-        return IdentityLink()
-    if link == "log":
-        return LogLink()
-    if link == "logit":
-        return LogitLink()
-    if link == "cloglog":
-        return CloglogLink()
-    if link[:7] == "tweedie":
-        return TweedieLink(float(link[7:]))
+
+    mapping = {
+        "cloglog": CloglogLink(),
+        "identity": IdentityLink(),
+        "log": LogLink(),
+        "logit": LogitLink(),
+        "tweedie": TweedieLink(1.5),
+    }
+
+    if link in mapping:
+        return mapping[link]
+    if custom_tweedie := re.search(r"tweedie\s?\((.+)\)", link):
+        return TweedieLink(float(custom_tweedie.group(1)))
+
     raise ValueError(
         "The link must be an instance of class Link or an element of "
         "['auto', 'identity', 'log', 'logit', 'cloglog', 'tweedie']; "
