@@ -56,9 +56,9 @@ def test_family_bounds(family, expected):
 def test_tweedie_distribution_power():
     with pytest.raises(ValueError, match="no distribution exists"):
         TweedieDistribution(power=0.5)
-    with pytest.raises(TypeError, match="must be an int or float"):
+    with pytest.raises(TypeError, match="must be numeric"):
         TweedieDistribution(power=1j)
-    with pytest.raises(TypeError, match="must be an int or float"):
+    with pytest.raises(TypeError, match="must be numeric"):
         dist = TweedieDistribution()
         dist.power = 1j
 
@@ -89,11 +89,11 @@ def test_tweedie_distribution_parsing():
 
 
 def test_negative_binomial_distribution_alpha():
-    with pytest.raises(ValueError, match="must be strictly positive number"):
+    with pytest.raises(ValueError, match="must be strictly positive"):
         NegativeBinomialDistribution(theta=-0.5)
-    with pytest.raises(TypeError, match="must be an int or float"):
+    with pytest.raises(TypeError, match="must be numeric"):
         NegativeBinomialDistribution(theta=1j)
-    with pytest.raises(TypeError, match="must be an int or float"):
+    with pytest.raises(TypeError, match="must be numeric"):
         dist = NegativeBinomialDistribution()
         dist.theta = 1j
 
@@ -120,8 +120,11 @@ def test_negative_binomial_distribution_parsing():
 
 def test_equality():
     assert TweedieDistribution(1) == TweedieDistribution(1)
-    assert TweedieDistribution(1) == PoissonDistribution()
-    assert TweedieDistribution(2) == GammaDistribution()
+    assert TweedieDistribution(0) != NormalDistribution()
+    assert TweedieDistribution(1) != PoissonDistribution()
+    assert TweedieDistribution(2) != GammaDistribution()
+    assert GammaDistribution() == GammaDistribution()
+    assert NormalDistribution() == NormalDistribution()
     assert PoissonDistribution() == PoissonDistribution()
     assert TweedieDistribution(1) != TweedieDistribution(1.5)
     assert TweedieDistribution(1) != BinomialDistribution()

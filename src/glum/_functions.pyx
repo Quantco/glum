@@ -41,9 +41,6 @@ def normal_identity_eta_mu_deviance(
     for i in prange(n, nogil=True):
         eta_out[i] = cur_eta[i] + factor * X_dot_d[i]
         mu_out[i] = eta_out[i]
-        # Note: deviance is equal to -2 times the true log likelihood to match
-        # the default calculation using unit_deviance in _distribution.py
-        # True log likelihood: -1/2 * (y - mu)**2
         deviance += weights[i] * (y[i] - mu_out[i]) ** 2
     return deviance
 
@@ -114,7 +111,6 @@ def poisson_log_eta_mu_deviance(
     for i in prange(n, nogil=True):
         eta_out[i] = cur_eta[i] + factor * X_dot_d[i]
         mu_out[i] = exp(eta_out[i])
-        # True log likelihood: y * eta - mu - lgamma(1 + y)
         deviance += weights[i] * (y[i] * eta_out[i] - mu_out[i])
     return -2 * deviance
 
@@ -183,7 +179,6 @@ def gamma_log_eta_mu_deviance(
     for i in prange(n, nogil=True):
         eta_out[i] = cur_eta[i] + factor * X_dot_d[i]
         mu_out[i] = exp(eta_out[i])
-        # True log likelihood: -(y / mu + eta)
         deviance += weights[i] * (y[i] / mu_out[i] + eta_out[i])
     return 2 * deviance
 
@@ -237,6 +232,92 @@ def gamma_deviance(
         D += weights[i] * (log(mu[i]) - log(y[i]) + y[i] / mu[i] - 1)
 
     return 2 * D
+
+def inv_gaussian_log_eta_mu_deviance(
+    const_floating1d cur_eta,
+    const_floating1d X_dot_d,
+    const_floating1d y,
+    const_floating1d weights,
+    floating[:] eta_out,
+    floating[:] mu_out,
+    floating factor
+):
+    cdef int n = cur_eta.shape[0]
+    cdef int i  # loop counter
+    cdef floating sq_err  # helper
+    cdef floating deviance = 0.0  # output
+
+    for i in prange(n, nogil=True):
+
+        eta_out[i] = cur_eta[i] + factor * X_dot_d[i]
+        mu_out[i] = exp(eta_out[i])
+
+        sq_err = (y[i] / mu_out[i] - 1) ** 2
+
+        deviance += weights[i] * sq_err / y[i]
+
+    return deviance
+
+def inv_gaussian_log_rowwise_gradient_hessian(
+    const_floating1d y,
+    const_floating1d weights,
+    const_floating1d eta,
+    const_floating1d mu,
+    floating[:] gradient_rows_out,
+    floating[:] hessian_rows_out
+):
+    cdef int n = eta.shape[0]
+    cdef int i  # loop counter
+
+    cdef floating inv_mu, inv_mu2
+
+    for i in prange(n, nogil=True):
+
+        inv_mu = 1 / mu[i]
+        inv_mu2 = inv_mu ** 2
+
+        gradient_rows_out[i] = 2 * weights[i] * (inv_mu - y[i] * inv_mu2)
+        hessian_rows_out[i] = 2 * weights[i] * (2 * y[i] * inv_mu2 - inv_mu)
+
+def inv_gaussian_log_likelihood(
+    const_floating1d y,
+    const_floating1d weights,
+    const_floating1d mu,
+    floating dispersion,
+):
+    cdef int n = y.shape[0]  # loop length
+    cdef int i  # loop counter
+    cdef floating sum_weights  # helper
+    cdef floating ll = 0.0  # output
+
+    cdef floating sq_err  # helper
+    cdef floating inv_dispersion = 1 / (2 * dispersion)  # helper
+
+    for i in prange(n, nogil=True):
+
+        sq_err = (y[i] / mu[i] - 1) ** 2
+
+        ll -= weights[i] * (inv_dispersion * sq_err / y[i] + log(y[i]) * 3 / 2)
+        sum_weights -= weights[i]
+
+    return ll + sum_weights * log(inv_dispersion / M_PI)
+
+def inv_gaussian_deviance(
+    const_floating1d y,
+    const_floating1d weights,
+    const_floating1d mu,
+    floating dispersion,
+):
+    cdef int i  # loop counter
+    cdef int n = y.shape[0]  # loop length
+    cdef floating sq_err  # helper
+    cdef floating D = 0.0  # output
+
+    for i in prange(n, nogil=True):
+        sq_err = (y[i] / mu[i] - 1) ** 2
+        D += weights[i] * sq_err / y[i]
+
+    return D
 
 def tweedie_log_eta_mu_deviance(
     const_floating1d cur_eta,
@@ -451,7 +532,6 @@ def negative_binomial_log_eta_mu_deviance(
     for i in prange(n, nogil=True):
         eta_out[i] = cur_eta[i] + factor * X_dot_d[i]
         mu_out[i] = exp(eta_out[i])
-        # True log likelihood: y * log(y / mu) - (y + r) * log((y + r) / (mu + r))
         deviance += weights[i] * (-y[i] * eta_out[i] + (y[i] + r) * log(mu_out[i] + r))
     return 2 * deviance
 
