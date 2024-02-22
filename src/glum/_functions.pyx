@@ -277,7 +277,7 @@ def inv_gaussian_log_rowwise_gradient_hessian(
         inv_mu2 = inv_mu ** 2
 
         gradient_rows_out[i] = 2 * weights[i] * (inv_mu - y[i] * inv_mu2)
-        hessian_rows_out[i] = 2 * weights[i] * (2 * y[i] * inv_mu2 - inv_mu)
+        hessian_rows_out[i] = 2 * weights[i] * (inv_mu - 2 * y[i] * inv_mu2)
 
 def inv_gaussian_log_likelihood(
     const_floating1d y,
