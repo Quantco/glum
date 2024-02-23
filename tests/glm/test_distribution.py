@@ -119,19 +119,24 @@ def test_negative_binomial_distribution_parsing():
 
 
 def test_equality():
-    assert TweedieDistribution(1) == TweedieDistribution(1)
-    assert TweedieDistribution(0) != NormalDistribution()
-    assert TweedieDistribution(1) != PoissonDistribution()
-    assert TweedieDistribution(2) != GammaDistribution()
+    assert BinomialDistribution() == BinomialDistribution()
     assert GammaDistribution() == GammaDistribution()
+    assert NegativeBinomialDistribution(1) != BinomialDistribution()
+    assert NegativeBinomialDistribution(1) != NegativeBinomialDistribution(1.5)
+    assert NegativeBinomialDistribution(1) == NegativeBinomialDistribution(1)
     assert NormalDistribution() == NormalDistribution()
     assert PoissonDistribution() == PoissonDistribution()
-    assert TweedieDistribution(1) != TweedieDistribution(1.5)
+    assert TweedieDistribution(0) != NormalDistribution()
+    assert TweedieDistribution(0) == NormalDistribution().to_tweedie()
     assert TweedieDistribution(1) != BinomialDistribution()
-    assert BinomialDistribution() == BinomialDistribution()
-    assert NegativeBinomialDistribution(1) == NegativeBinomialDistribution(1)
-    assert NegativeBinomialDistribution(1) != NegativeBinomialDistribution(1.5)
-    assert NegativeBinomialDistribution(1) != BinomialDistribution()
+    assert TweedieDistribution(1) != PoissonDistribution()
+    assert TweedieDistribution(1) == PoissonDistribution().to_tweedie()
+    assert TweedieDistribution(1) != TweedieDistribution(1.5)
+    assert TweedieDistribution(1) == TweedieDistribution(1)
+    assert TweedieDistribution(2) != GammaDistribution()
+    assert TweedieDistribution(2) == GammaDistribution().to_tweedie()
+    assert TweedieDistribution(3) != InverseGaussianDistribution()
+    assert TweedieDistribution(3) == InverseGaussianDistribution().to_tweedie()
 
 
 @pytest.mark.parametrize(

@@ -99,10 +99,12 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
 
         return lb_op(x, self.lower_bound) & ub_op(x, self.upper_bound)
 
-    def to_tweedie(self):
+    def to_tweedie(self, safe=True):
         """Return the Tweedie representation of a distribution if it exists."""
         if hasattr(self, "__tweedie_repr__"):
             return self.__tweedie_repr__()
+        if safe:
+            raise ValueError("This distribution has no Tweedie representation.")
         return None
 
     @abstractmethod

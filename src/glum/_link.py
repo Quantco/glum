@@ -71,10 +71,12 @@ class Link(metaclass=ABCMeta):
         """
         pass
 
-    def to_tweedie(self):
+    def to_tweedie(self, safe=True):
         """Return the Tweedie representation of a link function if it exists."""
         if hasattr(self, "__tweedie_repr__"):
             return self.__tweedie_repr__()
+        if safe:
+            raise ValueError("This link function has no Tweedie representation.")
         return None
 
 
@@ -87,8 +89,9 @@ def catch_p(fun) -> Callable:
                 result = fun(*args, **kwargs)
             except FloatingPointError as e:
                 raise ValueError(
-                    f"Your linear predictors are not supported for p={args[0].p}. For "
-                    + "negative linear predictors, consider using a log link instead."
+                    "Your linear predictors are not supported for power "
+                    f"{args[0].power}. For negative linear predictors, consider using "
+                    "a log link instead."
                 ) from e
         return result
 
@@ -144,7 +147,6 @@ class TweedieLink(Link):
             return lin_pred
         if self.power == 1:
             return np.exp(lin_pred)
-
         return lin_pred ** (1 / (1 - self.power))
 
     @catch_p

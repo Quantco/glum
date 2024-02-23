@@ -504,7 +504,7 @@ def get_link(link: Union[str, Link], family: ExponentialDispersionModel) -> Link
         return link
 
     if (link is None) or (link == "auto"):
-        if tweedie_representation := family.to_tweedie():
+        if tweedie_representation := family.to_tweedie(safe=False):
             if tweedie_representation.power <= 0:
                 return IdentityLink()
             return LogLink()
