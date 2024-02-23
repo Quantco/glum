@@ -177,7 +177,7 @@ class IdentityLink(Link):
     def __eq__(self, other):  # noqa D
         return isinstance(other, self.__class__)
 
-    def __tweedie__repr__(self):  # noqa D
+    def __tweedie_repr__(self):  # noqa D
         return TweedieLink(0)
 
     def link(self, mu):  # noqa D
@@ -202,7 +202,7 @@ class LogLink(Link):
     def __eq__(self, other):  # noqa D
         return isinstance(other, self.__class__)
 
-    def __tweedie__repr__(self):  # noqa D
+    def __tweedie_repr__(self):  # noqa D
         return TweedieLink(1)
 
     def link(self, mu):  # noqa D
