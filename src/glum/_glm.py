@@ -3673,7 +3673,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             raise NotImplementedError(
                 "The family instance does not define a `log_likelihood` method, so "
                 "information criteria cannot be computed. Compatible families include "
-                "the binomial, negative binomial and Tweedie (power<2 or power=3)."
+                "the binomial, negative binomial and Tweedie (power<=2 or power=3)."
             )
 
         ddof = np.sum(np.abs(self.coef_) > np.finfo(self.coef_.dtype).eps)
