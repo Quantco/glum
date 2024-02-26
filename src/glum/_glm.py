@@ -494,23 +494,19 @@ def get_family(
 
 def get_link(link: Union[str, Link], family: ExponentialDispersionModel) -> Link:
     """
-    For the Tweedie distribution, this code follows actuarial best practices regarding
-    link functions. Note that these links are sometimes not canonical:
-        - identity for normal (``p=0``);
+    For the Tweedie distribution, this code follows actuarial best practices
+    regarding link functions. Note that these links are sometimes not canonical:
+        - identity for normal (``p = 0``);
         - no convention for ``p < 0``, so let's leave it as identity;
         - log otherwise.
     """
     if isinstance(link, Link):
         return link
-    if link == "auto":
-        if isinstance(family, TweedieDistribution):
-            if family.power <= 0:
+
+    if (link is None) or (link == "auto"):
+        if tweedie_representation := family.to_tweedie(safe=False):
+            if tweedie_representation.power <= 0:
                 return IdentityLink()
-            if family.power < 1:
-                raise ValueError(
-                    "For 0 < p < 1, no Tweedie distribution exists. "
-                    "Please choose a different distribution."
-                )
             return LogLink()
         if isinstance(family, GeneralizedHyperbolicSecant):
             return IdentityLink()
@@ -523,16 +519,20 @@ def get_link(link: Union[str, Link], family: ExponentialDispersionModel) -> Link
             "Please set link manually, i.e. not to 'auto'. "
             f"Got (link='auto', family={family.__class__.__name__})."
         )
-    if link == "identity":
-        return IdentityLink()
-    if link == "log":
-        return LogLink()
-    if link == "logit":
-        return LogitLink()
-    if link == "cloglog":
-        return CloglogLink()
-    if link[:7] == "tweedie":
-        return TweedieLink(float(link[7:]))
+
+    mapping = {
+        "cloglog": CloglogLink(),
+        "identity": IdentityLink(),
+        "log": LogLink(),
+        "logit": LogitLink(),
+        "tweedie": TweedieLink(1.5),
+    }
+
+    if link in mapping:
+        return mapping[link]
+    if custom_tweedie := re.search(r"tweedie\s?\((.+)\)", link):
+        return TweedieLink(float(custom_tweedie.group(1)))
+
     raise ValueError(
         "The link must be an instance of class Link or an element of "
         "['auto', 'identity', 'log', 'logit', 'cloglog', 'tweedie']; "
@@ -3669,25 +3669,12 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         [3] Park, M.Y., 2006. Generalized linear models with regularization;
         Stanford Universty.
         """
-
-        # we require that the log_likelihood be defined
-        model_err_str = (
-            "The computation of the information criteria has only "
-            + "been defined for models with a Binomial likelihood, Negative "
-            + "Binomial likelihood or a Tweedie likelihood with power <= 2."
-        )
-        if not isinstance(
-            self.family_instance,
-            (BinomialDistribution, TweedieDistribution, NegativeBinomialDistribution),
-        ):
-            raise NotImplementedError(model_err_str)
-
-        # the log_likelihood has not been implemented for the InverseGaussianDistribution
-        if (
-            isinstance(self.family_instance, TweedieDistribution)
-            and self.family_instance.power > 2
-        ):
-            raise NotImplementedError(model_err_str)
+        if not hasattr(self.family_instance, "log_likelihood"):
+            raise NotImplementedError(
+                "The family instance does not define a `log_likelihood` method, so "
+                "information criteria cannot be computed. Compatible families include "
+                "the binomial, negative binomial and Tweedie (power<=2 or power=3)."
+            )
 
         ddof = np.sum(np.abs(self.coef_) > np.finfo(self.coef_.dtype).eps)
         k_params = ddof + self.fit_intercept
@@ -3695,9 +3682,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
 
         if nobs != self._num_obs:
             raise ValueError(
-                "The same dataset that was used for training should "
-                + "also be used for the computation of information "
-                + "criteria"
+                "The same dataset that was used for training should also be used for "
+                "the computation of information criteria."
             )
 
         mu = self.predict(X, context=context)
@@ -3705,6 +3691,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
 
         aic = -2 * ll + 2 * k_params
         bic = -2 * ll + np.log(nobs) * k_params
+
         if nobs > k_params + 1:
             aicc = aic + 2 * k_params * (k_params + 1) / (nobs - k_params - 1)
         else:
