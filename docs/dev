@@ -1,6 +1,6 @@
 #!/bin/bash
 # Running this script will rebuild the documentation every time you change one
-# of the sources. 
+# of the sources.
 
 # In Firefox, install the Live Reload extension and set up a rule for:
 # Host URL: http://localhost:8000/*

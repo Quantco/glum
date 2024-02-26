@@ -31,6 +31,23 @@ extensions = [
     "sphinx.ext.mathjax",
 ]
 
+autodoc_default_options = {
+    "exclude-members": (
+        "set_fit_request, "
+        "set_fit_predict_request, "
+        "set_fit_transform_request, "
+        "set_partial_fit_request, "
+        "set_predict_request, "
+        "set_predict_proba_request, "
+        "set_predict_log_proba_request, "
+        "set_decision_function_request, "
+        "set_score_request, "
+        "set_split_request, "
+        "set_transform_request, "
+        "set_inverse_transform_request"
+    )
+}
+
 autodoc_typehints = "description"
 
 templates_path = ["_templates"]
