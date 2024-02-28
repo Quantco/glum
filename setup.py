@@ -74,9 +74,9 @@ setup(
     package_dir={"": "src"},
     packages=find_packages(
         where="src",
-        include=["glum"]
-        if os.environ.get("CONDA_BUILD")
-        else ["glum", "glum_benchmarks"],
+        include=(
+            ["glum"] if os.environ.get("CONDA_BUILD") else ["glum", "glum_benchmarks"]
+        ),
     ),
     python_requires=">=3.9",
     install_requires=[
@@ -88,13 +88,15 @@ setup(
         "scipy",
         "tabmat>=3.1.0,<4.0.0",
     ],
-    entry_points=None
-    if os.environ.get("CONDA_BUILD")
-    else """
+    entry_points=(
+        None
+        if os.environ.get("CONDA_BUILD")
+        else """
         [console_scripts]
         glm_benchmarks_run = glum_benchmarks.cli_run:cli_run
         glm_benchmarks_analyze = glum_benchmarks.cli_analyze:cli_analyze
-    """,
+    """
+    ),
     ext_modules=cythonize(
         ext_modules,
         annotate=False,
