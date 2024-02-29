@@ -38,7 +38,7 @@ jobs:
           micromamba install -y c-compiler cxx-compiler 'cython!=3.0.4' jemalloc-local libgomp mako xsimd
 
           PRE_WHEELS="https://pypi.anaconda.org/scientific-python-nightly-wheels/simple/"
-          for pkg in numpy pandas scikit-learn scipy; do
+          for pkg in pandas scikit-learn scipy; do
             echo "Installing $pkg nightly"
             micromamba remove -y --force $pkg
             pip install --pre --no-deps --only-binary :all: --upgrade --timeout=60 -i $PRE_WHEELS $pkg
