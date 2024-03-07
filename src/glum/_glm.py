@@ -3127,10 +3127,12 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         set ``verbose`` to any positive number for verbosity.
 
     scale_predictors: bool, optional (default=False)
-        If ``True``, estimate a scaled model where all predictors have a
-        standard deviation of 1. This can result in better estimates if
-        predictors are on very different scales (for example, centimeters and
-        kilometers).
+        If ``True``, scale all predictors to have standard standard deviation one.
+        This can result in better estimates if predictors are on different scales
+        (for example, centimeters and kilometers). Should be set to ``True`` if
+        ``alpha > 0`` and if you want coefficients to be penalized equally.
+
+        Reported coefficient estimates are always at the original scale.
 
         Advanced developer note: Internally, predictors are always rescaled for
         computational reasons, but this only affects results if
@@ -3222,10 +3224,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     The parameters :math:`w` (``coef_`` and ``intercept_``) are estimated by
     minimizing the deviance plus penalty term, which is equivalent to
     (penalized) maximum likelihood estimation.
-
-    For ``alpha > 0``, the feature matrix ``X`` should be standardized in order
-    to penalize features equally strong. Call
-    :class:`sklearn.preprocessing.StandardScaler` before calling ``fit``.
 
     If the target ``y`` is a ratio, appropriate sample weights ``s`` should be
     provided. As an example, consider Poisson distributed counts ``z``
