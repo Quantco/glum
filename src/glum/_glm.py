@@ -3128,9 +3128,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
 
     scale_predictors: bool, optional (default=False)
         If ``True``, scale all predictors to have standard deviation one.
-        This can result in better estimates if predictors are on different scales
-        (for example, centimeters and kilometers). Should be set to ``True`` if
-        ``alpha > 0`` and if you want coefficients to be penalized equally.
+        Should be set to ``True`` if ``alpha > 0`` and if you want coefficients
+        to be penalized equally.
 
         Reported coefficient estimates are always at the original scale.
 
