@@ -3127,7 +3127,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         set ``verbose`` to any positive number for verbosity.
 
     scale_predictors: bool, optional (default=False)
-        If ``True``, scale all predictors to have standard standard deviation one.
+        If ``True``, scale all predictors to have standard deviation one.
         This can result in better estimates if predictors are on different scales
         (for example, centimeters and kilometers). Should be set to ``True`` if
         ``alpha > 0`` and if you want coefficients to be penalized equally.
