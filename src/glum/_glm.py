@@ -451,7 +451,9 @@ def get_family(
     )
 
 
-def get_link(link: Union[str, Link], family: ExponentialDispersionModel) -> Link:
+def get_link(
+    link: Optional[Union[str, Link]], family: ExponentialDispersionModel
+) -> Link:
     """
     For the Tweedie distribution, this code follows actuarial best practices regarding
     link functions. Note that these links are sometimes not canonical:
@@ -461,7 +463,7 @@ def get_link(link: Union[str, Link], family: ExponentialDispersionModel) -> Link
     """
     if isinstance(link, Link):
         return link
-    if link == "auto":
+    if (link is None) or (link == "auto"):
         if isinstance(family, TweedieDistribution):
             if family.power <= 0:
                 return IdentityLink()
@@ -500,12 +502,13 @@ def get_link(link: Union[str, Link], family: ExponentialDispersionModel) -> Link
 
 
 def setup_p1(
-    P1: Union[str, np.ndarray],
+    P1: Optional[Union[str, np.ndarray]],
     X: Union[tm.MatrixBase, tm.StandardizedMatrix],
-    _dtype,
+    dtype,
     alpha: float,
     l1_ratio: float,
 ) -> np.ndarray:
+
     if not isinstance(X, (tm.MatrixBase, tm.StandardizedMatrix)):
         raise TypeError
 
@@ -514,11 +517,13 @@ def setup_p1(
     if isinstance(P1, str):
         if P1 != "identity":
             raise ValueError(f"P1 must be either 'identity' or an array; got {P1}.")
-        P1 = np.ones(n_features, dtype=_dtype)
+        P1 = np.ones(n_features, dtype=dtype)
+    elif P1 is None:
+        P1 = np.ones(n_features, dtype=dtype)
     else:
         P1 = np.atleast_1d(P1)
         try:
-            P1 = P1.astype(_dtype, casting="safe", copy=False)
+            P1 = P1.astype(dtype, casting="safe", copy=False)
         except TypeError as e:
             raise TypeError(
                 "The given P1 cannot be converted to a numeric array; "
@@ -533,37 +538,41 @@ def setup_p1(
 
     # P1 and P2 are now for sure copies
     P1 = alpha * l1_ratio * P1
-    return cast(np.ndarray, P1).astype(_dtype)
+    return cast(np.ndarray, P1).astype(dtype)
 
 
 def setup_p2(
-    P2: Union[str, np.ndarray, sparse.spmatrix],
+    P2: Optional[Union[str, np.ndarray, sparse.spmatrix]],
     X: Union[tm.MatrixBase, tm.StandardizedMatrix],
-    _stype,
-    _dtype,
+    stype,
+    dtype,
     alpha: float,
     l1_ratio: float,
 ) -> Union[np.ndarray, sparse.spmatrix]:
+
     if not isinstance(X, (tm.MatrixBase, tm.StandardizedMatrix)):
         raise TypeError
 
     n_features = X.shape[1]
 
+    def _setup_sparse_p2(P2):
+        return (sparse.dia_matrix((P2, 0), shape=(n_features, n_features))).tocsc()
+
     if isinstance(P2, str):
         if P2 != "identity":
             raise ValueError(f"P2 must be either 'identity' or an array. Got {P2}.")
         if sparse.issparse(X):  # if X is sparse, make P2 sparse, too
-            P2 = (
-                sparse.dia_matrix(
-                    (np.ones(n_features, dtype=_dtype), 0),
-                    shape=(n_features, n_features),
-                )
-            ).tocsc()
+            P2 = _setup_sparse_p2(np.ones(n_features, dtype=dtype))
         else:
-            P2 = np.ones(n_features, dtype=_dtype)
+            P2 = np.ones(n_features, dtype=dtype)
+    elif P2 is None:
+        if sparse.issparse(X):  # if X is sparse, make P2 sparse, too
+            P2 = _setup_sparse_p2(np.ones(n_features, dtype=dtype))
+        else:
+            P2 = np.ones(n_features, dtype=dtype)
     else:
         P2 = check_array(
-            P2, copy=True, accept_sparse=_stype, dtype=_dtype, ensure_2d=False
+            P2, copy=True, accept_sparse=stype, dtype=dtype, ensure_2d=False
         )
         P2 = cast(np.ndarray, P2)
         if P2.ndim == 1:
@@ -575,9 +584,7 @@ def setup_p2(
                     f"got (P2.shape={P2.shape})."
                 )
             if sparse.issparse(X):
-                P2 = (
-                    sparse.dia_matrix((P2, 0), shape=(n_features, n_features))
-                ).tocsc()
+                P2 = _setup_sparse_p2(P2)
         elif P2.ndim == 2 and P2.shape[0] == P2.shape[1] and P2.shape[0] == n_features:
             if sparse.issparse(X):
                 P2 = sparse.csc_matrix(P2)
@@ -604,7 +611,7 @@ def setup_p2(
 
 
 def initialize_start_params(
-    start_params: Optional[np.ndarray], n_cols: int, fit_intercept: bool, _dtype
+    start_params: Optional[np.ndarray], n_cols: int, fit_intercept: bool, dtype
 ) -> Optional[np.ndarray]:
     if start_params is None:
         return None
@@ -614,7 +621,7 @@ def initialize_start_params(
         accept_sparse=False,
         force_all_finite=True,
         ensure_2d=False,
-        dtype=_dtype,
+        dtype=dtype,
         copy=True,
     )
 
@@ -696,12 +703,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
     def __init__(
         self,
         l1_ratio: float = 0,
-        P1="identity",
-        P2: Union[str, np.ndarray, sparse.spmatrix] = "identity",
+        P1: Optional[Union[str, np.ndarray]] = "identity",
+        P2: Optional[Union[str, np.ndarray, sparse.spmatrix]] = "identity",
         fit_intercept=True,
         family: Union[str, ExponentialDispersionModel] = "normal",
-        link: Union[str, Link] = "auto",
-        solver="auto",
+        link: Optional[Union[str, Link]] = "auto",
+        solver: Optional[str] = "auto",
         max_iter=100,
         gradient_tol: Optional[float] = None,
         step_size_tol: Optional[float] = None,
@@ -851,7 +858,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         # computation of information criteria
         self._num_obs: int = y.shape[0]
 
-        if self.solver == "auto":
+        if (self.solver is None) or (self.solver == "auto"):
             if (self.A_ineq is not None) and (self.b_ineq is not None):
                 self._solver = "trust-constr"
             elif (self.lower_bounds is None) and (self.upper_bounds is None):
@@ -2137,7 +2144,14 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 https://github.com/scikit-learn/scikit-learn/pull/9405.
                 """
             )
-        if self.solver not in ["auto", "irls-ls", "lbfgs", "irls-cd", "trust-constr"]:
+        if self.solver not in {
+            None,
+            "auto",
+            "irls-ls",
+            "lbfgs",
+            "irls-cd",
+            "trust-constr",
+        }:
             raise ValueError(
                 "GeneralizedLinearRegressor supports only solvers"
                 " 'auto', 'irls-ls', 'lbfgs', 'irls-cd' and 'trust-constr'; "
@@ -2168,7 +2182,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             raise TypeError(
                 f"The argument warm_start must be bool; got {self.warm_start}."
             )
-        if self.selection not in ["cyclic", "random"]:
+        if self.selection not in {"cyclic", "random"}:
             raise ValueError(
                 "The argument selection must be 'cyclic' or 'random'; "
                 f"got {self.selection}."
@@ -2186,14 +2200,14 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 "scale_predictors=True is not supported when fit_intercept=False."
             )
         if ((self.lower_bounds is not None) or (self.upper_bounds is not None)) and (
-            self.solver not in ["irls-cd", "auto"]
+            self.solver not in {None, "auto", "irls-cd"}
         ):
             raise ValueError(
                 "Only the 'cd' solver is supported when bounds are set; "
                 f"got {self.solver}."
             )
         if ((self.A_ineq is not None) or (self.b_ineq is not None)) and (
-            self.solver not in ["trust-constr", "auto"]
+            self.solver not in {None, "auto", "trust-constr"}
         ):
             raise ValueError(
                 "Only the 'trust-constr' solver supports inequality constraints; "
@@ -2238,7 +2252,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         y: ArrayLike,
         sample_weight: Optional[VectorLike],
         offset: Optional[VectorLike],
-        solver: str,
+        solver: Optional[str],
         force_all_finite,
     ) -> tuple[
         tm.MatrixBase,
@@ -2249,11 +2263,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         Union[str, np.ndarray],
         Union[str, np.ndarray],
     ]:
-        _dtype = [np.float64, np.float32]
-        if solver == "irls-cd":
-            _stype = ["csc"]
-        else:
-            _stype = ["csc", "csr"]
+        dtype = [np.float64, np.float32]
+        stype = ["csc"] if solver == "irls-cd" else ["csc", "csr"]
 
         P1 = self.P1
         P2 = self.P2
@@ -2357,8 +2368,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             X, y = check_X_y_tabmat_compliant(
                 X,
                 y,
-                accept_sparse=_stype,
-                dtype=_dtype,
+                accept_sparse=stype,
+                dtype=dtype,
                 copy=copy_X,
                 force_all_finite=force_all_finite,
                 drop_first=getattr(self, "drop_first", False),
@@ -2369,8 +2380,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 X,
                 y,
                 ensure_2d=True,
-                accept_sparse=_stype,
-                dtype=_dtype,
+                accept_sparse=stype,
+                dtype=dtype,
                 copy=copy_X,
                 force_all_finite=force_all_finite,
             )
@@ -2740,12 +2751,12 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         self,
         alpha=None,
         l1_ratio=0,
-        P1="identity",
-        P2="identity",
+        P1: Optional[Union[str, np.ndarray]] = "identity",
+        P2: Optional[Union[str, np.ndarray, sparse.spmatrix]] = "identity",
         fit_intercept=True,
         family: Union[str, ExponentialDispersionModel] = "normal",
-        link: Union[str, Link] = "auto",
-        solver="auto",
+        link: Optional[Union[str, Link]] = "auto",
+        solver: Optional[str] = "auto",
         max_iter=100,
         gradient_tol: Optional[float] = None,
         step_size_tol: Optional[float] = None,
@@ -2935,16 +2946,11 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
 
         self._set_up_for_fit(y)
 
-        _dtype = [np.float64, np.float32]
-        if self._solver == "irls-cd":
-            _stype = ["csc"]
-        else:
-            _stype = ["csc", "csr"]
-
         # 1.3 arguments to take special care ##################################
         # P1, P2, start_params
+        stype = ["csc"] if self._solver == "irls-cd" else ["csc", "csr"]
         P1_no_alpha = setup_p1(P1, X, X.dtype, 1, self.l1_ratio)
-        P2_no_alpha = setup_p2(P2, X, _stype, X.dtype, 1, self.l1_ratio)
+        P2_no_alpha = setup_p2(P2, X, stype, X.dtype, 1, self.l1_ratio)
 
         lower_bounds = check_bounds(self.lower_bounds, X.shape[1], X.dtype)
         upper_bounds = check_bounds(self.upper_bounds, X.shape[1], X.dtype)
@@ -2961,7 +2967,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             self.start_params,
             n_cols=X.shape[1],
             fit_intercept=self.fit_intercept,
-            _dtype=_dtype,
+            dtype=[np.float64, np.float32],
         )
 
         # 1.4 additional validations ##########################################

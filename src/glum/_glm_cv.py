@@ -290,8 +290,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         P2="identity",
         fit_intercept=True,
         family: Union[str, ExponentialDispersionModel] = "normal",
-        link: Union[str, Link] = "auto",
-        solver="auto",
+        link: Optional[Union[str, Link]] = "auto",
+        solver: Optional[str] = "auto",
         max_iter=100,
         gradient_tol: Optional[float] = None,
         step_size_tol: Optional[float] = None,
@@ -525,12 +525,11 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             ):
                 assert isinstance(self._link_instance, LogLink)
 
-            _dtype = [np.float64, np.float32]
             start_params = initialize_start_params(
                 self.start_params,
                 n_cols=X.shape[1],
                 fit_intercept=self.fit_intercept,
-                _dtype=_dtype,
+                dtype=[np.float64, np.float32],
             )
 
             P1_no_alpha = setup_p1(P1, X, X.dtype, 1, l1)
@@ -690,7 +689,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             self.start_params,
             n_cols=X.shape[1],
             fit_intercept=self.fit_intercept,
-            _dtype=X.dtype,
+            dtype=X.dtype,
         )
 
         coef = self._get_start_coef(
