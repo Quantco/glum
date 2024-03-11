@@ -2144,14 +2144,14 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 https://github.com/scikit-learn/scikit-learn/pull/9405.
                 """
             )
-        if self.solver not in {
+        if self.solver not in [
             None,
             "auto",
             "irls-ls",
             "lbfgs",
             "irls-cd",
             "trust-constr",
-        }:
+        ]:
             raise ValueError(
                 "GeneralizedLinearRegressor supports only solvers"
                 " 'auto', 'irls-ls', 'lbfgs', 'irls-cd' and 'trust-constr'; "
@@ -2182,7 +2182,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             raise TypeError(
                 f"The argument warm_start must be bool; got {self.warm_start}."
             )
-        if self.selection not in {"cyclic", "random"}:
+        if self.selection not in ["cyclic", "random"]:
             raise ValueError(
                 "The argument selection must be 'cyclic' or 'random'; "
                 f"got {self.selection}."
@@ -2200,14 +2200,14 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 "scale_predictors=True is not supported when fit_intercept=False."
             )
         if ((self.lower_bounds is not None) or (self.upper_bounds is not None)) and (
-            self.solver not in {None, "auto", "irls-cd"}
+            self.solver not in [None, "auto", "irls-cd"]
         ):
             raise ValueError(
                 "Only the 'cd' solver is supported when bounds are set; "
                 f"got {self.solver}."
             )
         if ((self.A_ineq is not None) or (self.b_ineq is not None)) and (
-            self.solver not in {None, "auto", "trust-constr"}
+            self.solver not in [None, "auto", "trust-constr"]
         ):
             raise ValueError(
                 "Only the 'trust-constr' solver supports inequality constraints; "
