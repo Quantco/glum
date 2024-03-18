@@ -77,20 +77,19 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
     link : {'auto', 'identity', 'log', 'logit', 'cloglog'}, Link or None, \
             optional (default='auto')
         The link function of the GLM, i.e. mapping from linear
-        predictor (``X * coef``) to expectation (``mu``). Options ``'auto'``
-        or ``None`` set the link depending on the chosen family as follows:
+        predictor (``X * coef``) to expectation (``mu``). Option ``'auto'`` sets
+        the link depending on the chosen family as follows:
 
         - ``'identity'`` for family ``'normal'``
         - ``'log'`` for families ``'poisson'``, ``'gamma'``,
           ``'inverse.gaussian'`` and ``'negative.binomial'``.
         - ``'logit'`` for family ``'binomial'``
 
-    solver : {'auto', 'irls-cd', 'irls-ls', 'lbfgs', 'trust-constr'} or None, \
+    solver : {'auto', 'irls-cd', 'irls-ls', 'lbfgs', 'trust-constr'}, \
             optional (default='auto')
         Algorithm to use in the optimization problem:
 
-        - ``None`` or ``'auto'``: ``'irls-ls'`` if ``l1_ratio`` is zero and
-          ``'irls-cd'`` otherwise.
+        - ``'auto'``: ``'irls-ls'`` if ``l1_ratio`` is zero and ``'irls-cd'`` otherwise.
         - ``'irls-cd'``: Iteratively reweighted least squares with a coordinate
           descent inner solver. This can deal with L1 as well as L2 penalties.
           Note that in order to avoid unnecessary memory duplication of X in the
@@ -292,8 +291,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         P2="identity",
         fit_intercept=True,
         family: Union[str, ExponentialDispersionModel] = "normal",
-        link: Optional[Union[str, Link]] = "auto",
-        solver: Optional[str] = "auto",
+        link: Union[str, Link] = "auto",
+        solver: str = "auto",
         max_iter=100,
         gradient_tol: Optional[float] = None,
         step_size_tol: Optional[float] = None,

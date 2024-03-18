@@ -451,9 +451,7 @@ def get_family(
     )
 
 
-def get_link(
-    link: Optional[Union[str, Link]], family: ExponentialDispersionModel
-) -> Link:
+def get_link(link: Union[str, Link], family: ExponentialDispersionModel) -> Link:
     """
     For the Tweedie distribution, this code follows actuarial best practices regarding
     link functions. Note that these links are sometimes not canonical:
@@ -463,7 +461,7 @@ def get_link(
     """
     if isinstance(link, Link):
         return link
-    if (link is None) or (link == "auto"):
+    if link == "auto":
         if isinstance(family, TweedieDistribution):
             if family.power <= 0:
                 return IdentityLink()
@@ -707,8 +705,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         P2: Optional[Union[str, np.ndarray, sparse.spmatrix]] = "identity",
         fit_intercept=True,
         family: Union[str, ExponentialDispersionModel] = "normal",
-        link: Optional[Union[str, Link]] = "auto",
-        solver: Optional[str] = "auto",
+        link: Union[str, Link] = "auto",
+        solver: str = "auto",
         max_iter=100,
         gradient_tol: Optional[float] = None,
         step_size_tol: Optional[float] = None,
@@ -858,7 +856,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         # computation of information criteria
         self._num_obs: int = y.shape[0]
 
-        if (self.solver is None) or (self.solver == "auto"):
+        if self.solver == "auto":
             if (self.A_ineq is not None) and (self.b_ineq is not None):
                 self._solver = "trust-constr"
             elif (self.lower_bounds is None) and (self.upper_bounds is None):
@@ -2144,14 +2142,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 https://github.com/scikit-learn/scikit-learn/pull/9405.
                 """
             )
-        if self.solver not in [
-            None,
-            "auto",
-            "irls-ls",
-            "lbfgs",
-            "irls-cd",
-            "trust-constr",
-        ]:
+        if self.solver not in ["auto", "irls-ls", "lbfgs", "irls-cd", "trust-constr"]:
             raise ValueError(
                 "GeneralizedLinearRegressor supports only solvers"
                 " 'auto', 'irls-ls', 'lbfgs', 'irls-cd' and 'trust-constr'; "
@@ -2200,7 +2191,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 "scale_predictors=True is not supported when fit_intercept=False."
             )
         if ((self.lower_bounds is not None) or (self.upper_bounds is not None)) and (
-            self.solver not in [None, "auto", "irls-cd"]
+            self.solver not in ["auto", "irls-cd"]
         ):
             raise ValueError(
                 "Only the 'cd' solver is supported when bounds are set; "
@@ -2252,7 +2243,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         y: ArrayLike,
         sample_weight: Optional[VectorLike],
         offset: Optional[VectorLike],
-        solver: Optional[str],
+        solver: str,
         force_all_finite,
     ) -> tuple[
         tm.MatrixBase,
@@ -2507,23 +2498,22 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         specify it in parentheses (e.g., ``'tweedie (1.5)'``). The same applies
         for ``'negative.binomial'`` and theta parameter.
 
-    link : {'auto', 'identity', 'log', 'logit', 'cloglog'}, Link or None, \
+    link : {'auto', 'identity', 'log', 'logit', 'cloglog'} oe Link, \
             optional (default='auto')
         The link function of the GLM, i.e. mapping from linear
-        predictor (``X * coef``) to expectation (``mu``). Options ``'auto'``
-        or ``None`` set the link depending on the chosen family as follows:
+        predictor (``X * coef``) to expectation (``mu``). Option ``'auto'`` sets
+        the link depending on the chosen family as follows:
 
         - ``'identity'`` for family ``'normal'``
         - ``'log'`` for families ``'poisson'``, ``'gamma'``,
           ``'inverse.gaussian'`` and ``'negative.binomial'``.
         - ``'logit'`` for family ``'binomial'``
 
-    solver : {'auto', 'irls-cd', 'irls-ls', 'lbfgs', 'trust-constr'} or None, \
+    solver : {'auto', 'irls-cd', 'irls-ls', 'lbfgs', 'trust-constr'}, \
             optional (default='auto')
         Algorithm to use in the optimization problem:
 
-        - ``None`` or ``'auto'``: ``'irls-ls'`` if ``l1_ratio`` is zero and
-          ``'irls-cd'`` otherwise.
+        - ``'auto'``: ``'irls-ls'`` if ``l1_ratio`` is zero and ``'irls-cd'`` otherwise.
         - ``'irls-cd'``: Iteratively reweighted least squares with a coordinate
           descent inner solver. This can deal with L1 as well as L2 penalties.
           Note that in order to avoid unnecessary memory duplication of X in the
@@ -2756,8 +2746,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         P2: Optional[Union[str, np.ndarray, sparse.spmatrix]] = "identity",
         fit_intercept=True,
         family: Union[str, ExponentialDispersionModel] = "normal",
-        link: Optional[Union[str, Link]] = "auto",
-        solver: Optional[str] = "auto",
+        link: Union[str, Link] = "auto",
+        solver: str = "auto",
         max_iter=100,
         gradient_tol: Optional[float] = None,
         step_size_tol: Optional[float] = None,
