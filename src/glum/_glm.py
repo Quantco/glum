@@ -2470,7 +2470,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         is an L1 penalty.  For ``0 < l1_ratio < 1``, the penalty is a
         combination of L1 and L2.
 
-    P1 : {'identity', array-like}, shape (n_features,), optional (default='identity')
+    P1 : {'identity', array-like, None}, shape (n_features,), optional (default='identity')
         This array controls the strength of the regularization for each coefficient
         independently. A high value will lead to higher regularization while a value of
         zero will remove the regularization on this parameter.
@@ -2479,20 +2479,20 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         the penalty of the categorical column will be applied to all the levels of
         the categorical.
 
-    P2 : {'identity', array-like, sparse matrix}, shape (n_features,) \
+    P2 : {'identity', array-like, sparse matrix, None}, shape (n_features,) \
             or (n_features, n_features), optional (default='identity')
         With this option, you can set the P2 matrix in the L2 penalty
         ``w*P2*w``. This gives a fine control over this penalty (Tikhonov
         regularization). A 2d array is directly used as the square matrix P2. A
         1d array is interpreted as diagonal (square) matrix. The default
-        ``'identity'`` sets the identity matrix, which gives the usual squared
-        L2-norm. If you just want to exclude certain coefficients, pass a 1d
-        array filled with 1 and 0 for the coefficients to be excluded. Note that
-        P2 must be positive semi-definite. If ``X`` is a pandas DataFrame
-        with a categorical dtype and P2 has the same size as the number of columns,
-        the penalty of the categorical column will be applied to all the levels of
-        the categorical. Note that if P2 is two-dimensional, its size needs to be
-        of the same length as the expanded ``X`` matrix.
+        ``'identity'`` and ``None`` set the identity matrix, which gives the usual
+        squared L2-norm. If you just want to exclude certain coefficients, pass a 1d
+        array filled with 1 and 0 for the coefficients to be excluded. Note that P2 must
+        be positive semi-definite. If ``X`` is a pandas DataFrame with a categorical
+        dtype and P2 has the same size as the number of columns, the penalty of the
+        categorical column will be applied to all the levels of the categorical. Note
+        that if P2 is two-dimensional, its size needs to be of the same length as the
+        expanded ``X`` matrix.
 
     fit_intercept : bool, optional (default=True)
         Specifies if a constant (a.k.a. bias or intercept) should be
@@ -2507,22 +2507,23 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         specify it in parentheses (e.g., ``'tweedie (1.5)'``). The same applies
         for ``'negative.binomial'`` and theta parameter.
 
-    link : {'auto', 'identity', 'log', 'logit', 'cloglog'} or Link, optional (default='auto')
+    link : {'auto', 'identity', 'log', 'logit', 'cloglog'}, Link or None, \
+            optional (default='auto')
         The link function of the GLM, i.e. mapping from linear
-        predictor (``X * coef``) to expectation (``mu``). Option ``'auto'`` sets
-        the link depending on the chosen family as follows:
+        predictor (``X * coef``) to expectation (``mu``). Options ``'auto'``
+        or ``None`` set the link depending on the chosen family as follows:
 
         - ``'identity'`` for family ``'normal'``
         - ``'log'`` for families ``'poisson'``, ``'gamma'``,
           ``'inverse.gaussian'`` and ``'negative.binomial'``.
         - ``'logit'`` for family ``'binomial'``
 
-    solver : {'auto', 'irls-cd', 'irls-ls', 'lbfgs', 'trust-constr'}, \
+    solver : {'auto', 'irls-cd', 'irls-ls', 'lbfgs', 'trust-constr'} or None, \
             optional (default='auto')
         Algorithm to use in the optimization problem:
 
-        - ``'auto'``: ``'irls-ls'`` if ``l1_ratio`` is zero and ``'irls-cd'``
-          otherwise.
+        - ``None`` or ``'auto'``: ``'irls-ls'`` if ``l1_ratio`` is zero and
+          ``'irls-cd'`` otherwise.
         - ``'irls-cd'``: Iteratively reweighted least squares with a coordinate
           descent inner solver. This can deal with L1 as well as L2 penalties.
           Note that in order to avoid unnecessary memory duplication of X in the
