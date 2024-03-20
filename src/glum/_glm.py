@@ -20,7 +20,6 @@ import re
 import sys
 import warnings
 from collections.abc import Iterable, Mapping, Sequence
-from itertools import chain
 from typing import Any, NamedTuple, Optional, Union, cast
 
 import numpy as np
@@ -64,7 +63,13 @@ from ._solvers import (
     _least_squares_solver,
     _trust_constr_solver,
 )
-from ._util import _add_missing_categories, _align_df_categories, _safe_toarray
+from ._util import (
+    _add_missing_categories,
+    _align_df_categories,
+    _expand_categorical_penalties,
+    _is_contiguous,
+    _safe_toarray,
+)
 
 _float_itemsize_to_dtype = {8: np.float64, 4: np.float32, 2: np.float16}
 
@@ -2642,15 +2647,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         # If self.copy_X is False, check for data of wrong dtype and error if it exists.
         return self.copy_X or False
 
-    def _is_contiguous(self, X):
-        if isinstance(X, np.ndarray):
-            return X.flags["C_CONTIGUOUS"] or X.flags["F_CONTIGUOUS"]
-        elif isinstance(X, pd.DataFrame):
-            return self._is_contiguous(X.values)
-        else:
-            # If not a numpy array or pandas data frame, we assume it is contiguous.
-            return True
-
     def _set_up_and_check_fit_args(
         self,
         X: ArrayLike,
@@ -2679,6 +2675,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         P2 = self.P2
 
         copy_X = self._should_copy_X()
+        drop_first = getattr(self, "drop_first", False)
 
         if isinstance(X, pd.DataFrame):
             if hasattr(self, "formula") and self.formula is not None:
@@ -2724,18 +2721,19 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                     )
 
                 self.X_model_spec_ = X.model_spec
-
                 self.feature_names_ = list(X.model_spec.column_names)
-                self.term_names_ = list(
-                    chain.from_iterable(
-                        [term] * len(cols) for term, _, cols in X.model_spec.structure
-                    )
-                )
+
+                self.term_names_ = [
+                    term
+                    for term, _, cols in X.model_spec.structure
+                    for _ in range(len(cols))
+                ]
 
             else:
                 # Maybe TODO: expand categorical penalties with formulas
 
                 self.feature_dtypes_ = X.dtypes.to_dict()
+
                 self.has_missing_category_ = {
                     col: (getattr(self, "cat_missing_method", "fail") == "convert")
                     and X[col].isna().any()
@@ -2744,62 +2742,16 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 }
 
                 if any(X.dtypes == "category"):
-
-                    def _expand_categorical_penalties(
-                        penalty, X, drop_first, has_missing_category
-                    ):
-                        """
-                        If P1 or P2 has the same shape as X before expanding the
-                        categoricals, we assume that the penalty at the location of
-                        the categorical is the same for all levels.
-                        """
-                        if isinstance(penalty, str):
-                            return penalty
-                        if not sparse.issparse(penalty):
-                            penalty = np.asanyarray(penalty)
-
-                        if penalty.shape[0] == X.shape[1]:
-                            if penalty.ndim == 2:
-                                raise ValueError(
-                                    "When the penalty is two dimensional, it has "
-                                    "to have the same length as the number of "
-                                    "columns of X, after the categoricals "
-                                    "have been expanded."
-                                )
-                            return np.array(
-                                list(
-                                    chain.from_iterable(
-                                        (
-                                            [
-                                                elmt
-                                                for _ in range(
-                                                    len(dtype.categories)
-                                                    + has_missing_category[col]
-                                                    - drop_first
-                                                )
-                                            ]
-                                            if pd.api.types.is_categorical_dtype(dtype)
-                                            else [elmt]
-                                        )
-                                        for elmt, (col, dtype) in zip(
-                                            penalty, X.dtypes.items()
-                                        )
-                                    )
-                                )
-                            )
-                        else:
-                            return penalty
-
                     P1 = _expand_categorical_penalties(
-                        self.P1, X, self.drop_first, self.has_missing_category_
+                        self.P1, X, drop_first, self.has_missing_category_
                     )
                     P2 = _expand_categorical_penalties(
-                        self.P2, X, self.drop_first, self.has_missing_category_
+                        self.P2, X, drop_first, self.has_missing_category_
                     )
 
                 X = tm.from_pandas(
                     X,
-                    drop_first=self.drop_first,
+                    drop_first=drop_first,
                     categorical_format=getattr(  # convention prior to v3
                         self, "categorical_format", "{name}__{category}"
                     ),
@@ -2810,7 +2762,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         if y is None:
             raise ValueError("y cannot be None when not using a two-sided formula.")
 
-        if not self._is_contiguous(X):
+        if not _is_contiguous(X):
             if self.copy_X is not None and not self.copy_X:
                 raise ValueError(
                     "The X matrix is noncontiguous and copy_X = False."
