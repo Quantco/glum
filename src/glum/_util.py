@@ -117,11 +117,12 @@ def _add_missing_categories(
 def _expand_categorical_penalties(
     penalty, X, drop_first, has_missing_category
 ) -> np.ndarray:
-"""Determine penalty matrices `P1` or `P2` after expanding categorical columns.
+    """Determine penalty matrices ``P1`` or ``P2`` after expanding categorical columns.
 
-If `P1` or `P2` has the same shape as `X` before expanding categorical columns, we assume that the penalty at the location of categorical columns is the same for all levels.
-"""
-
+    If ``P1`` or ``P2`` has the same shape as ``X`` before expanding categorical
+    columns, we assume that the penalty at the location of categorical columns
+    is the same for all levels.
+    """
     if isinstance(penalty, str):
         return penalty
     if not sparse.issparse(penalty):
