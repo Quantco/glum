@@ -114,6 +114,54 @@ def _add_missing_categories(
     return df
 
 
+def _expand_categorical_penalties(
+    penalty, X, drop_first, has_missing_category
+) -> np.ndarray:
+"""Determine penalty matrices `P1` or `P2` after expanding categorical columns.
+
+If `P1` or `P2` has the same shape as `X` before expanding categorical columns, we assume that the penalty at the location of categorical columns is the same for all levels.
+"""
+
+    if isinstance(penalty, str):
+        return penalty
+    if not sparse.issparse(penalty):
+        penalty = np.asanyarray(penalty)
+
+    if penalty.shape[0] == X.shape[1]:
+
+        if penalty.ndim == 2:
+            raise ValueError(
+                "When the penalty is two-dimensional, it must have the "
+                "same length as the number of columns in the design "
+                "matrix `X` after expanding categorical columns."
+            )
+
+        expanded_penalty = []  # type: ignore
+
+        for element, (column, dt) in zip(penalty, X.dtypes.items()):
+            if isinstance(dt, pd.CategoricalDtype):
+                length = len(dt.categories) + has_missing_category[column] - drop_first
+                expanded_penalty.extend(element for _ in range(length))
+            else:
+                expanded_penalty.append(element)
+
+        return np.array(expanded_penalty)
+
+    else:
+
+        return penalty
+
+
+def _is_contiguous(X) -> bool:
+    if isinstance(X, np.ndarray):
+        return X.flags["C_CONTIGUOUS"] or X.flags["F_CONTIGUOUS"]
+    elif isinstance(X, pd.DataFrame):
+        return _is_contiguous(X.values)
+    else:
+        # If not a numpy array or pandas data frame, we assume it is contiguous.
+        return True
+
+
 def _safe_lin_pred(
     X: Union[MatrixBase, StandardizedMatrix],
     coef: np.ndarray,
