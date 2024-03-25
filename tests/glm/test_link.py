@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from glum._link import CloglogLink, Link, LogitLink, LogLink, TweedieLink
+from glum._link import CloglogLink, IdentityLink, Link, LogitLink, LogLink, TweedieLink
 
 
 @pytest.mark.parametrize("link", Link.__subclasses__())
@@ -34,9 +34,13 @@ def test_link_properties(link):
 
 
 def test_equality():
+    assert IdentityLink() == IdentityLink()
+    assert LogitLink() == LogitLink()
+    assert LogLink() == LogLink()
+    assert TweedieLink(0) != IdentityLink()
+    assert TweedieLink(0) == IdentityLink().to_tweedie()
+    assert TweedieLink(1.5) != LogitLink()
+    assert TweedieLink(1.5) != TweedieLink(2.5)
     assert TweedieLink(1.5) == TweedieLink(1.5)
     assert TweedieLink(1) != LogLink()
-    assert LogLink() == LogLink()
-    assert TweedieLink(1.5) != TweedieLink(2.5)
-    assert TweedieLink(1.5) != LogitLink()
-    assert LogitLink() == LogitLink()
+    assert TweedieLink(1) == LogLink().to_tweedie()

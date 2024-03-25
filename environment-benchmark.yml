@@ -1,5 +1,6 @@
 name: glum
 channels:
+  - conda-forge/label/tabmat_dev
   - conda-forge
   - nodefaults
 dependencies:
