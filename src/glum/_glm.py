@@ -1661,106 +1661,41 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             context + 1 if isinstance(context, int) else context
         )
 
+        kwargs = {
+            "X": X,
+            "y": y,
+            "sample_weight": sample_weight,
+            "offset": offset,
+            "mu": mu,
+            "dispersion": dispersion,
+            "robust": robust,
+            "clusters": clusters,
+            "expected_information": expected_information,
+            "context": captured_context,
+        }
+
         if R is not None:
-            return self._wald_test_matrix(
-                R=R,
-                r=r,
-                X=X,
-                y=y,
-                sample_weight=sample_weight,
-                offset=offset,
-                mu=mu,
-                dispersion=dispersion,
-                robust=robust,
-                clusters=clusters,
-                expected_information=expected_information,
-                context=captured_context,
-            )
-
+            return self._wald_test_matrix(R=R, r=r, **kwargs)
         if features is not None:
-            return self._wald_test_feature_names(
-                features=features,
-                values=r,
-                X=X,
-                y=y,
-                sample_weight=sample_weight,
-                offset=offset,
-                mu=mu,
-                dispersion=dispersion,
-                robust=robust,
-                clusters=clusters,
-                expected_information=expected_information,
-                context=captured_context,
-            )
-
+            return self._wald_test_feature_names(features=features, values=r, **kwargs)
         if terms is not None:
-            return self._wald_test_term_names(
-                terms=terms,
-                values=r,
-                X=X,
-                y=y,
-                sample_weight=sample_weight,
-                offset=offset,
-                mu=mu,
-                dispersion=dispersion,
-                robust=robust,
-                clusters=clusters,
-                expected_information=expected_information,
-                context=captured_context,
-            )
-
+            return self._wald_test_term_names(terms=terms, values=r, **kwargs)
         if formula is not None:
             if r is not None:
                 raise ValueError("Cannot specify both formula and r")
-            return self._wald_test_formula(
-                formula=formula,
-                X=X,
-                y=y,
-                sample_weight=sample_weight,
-                offset=offset,
-                mu=mu,
-                dispersion=dispersion,
-                robust=robust,
-                clusters=clusters,
-                expected_information=expected_information,
-                context=captured_context,
-            )
+            return self._wald_test_formula(formula=formula, **kwargs)
 
         raise RuntimeError("This should never happen")
 
     def _wald_test_matrix(
-        self,
-        R: np.ndarray,
-        r: Optional[np.ndarray] = None,
-        X=None,
-        y=None,
-        sample_weight=None,
-        offset=None,
-        mu=None,
-        dispersion=None,
-        robust=None,
-        clusters: np.ndarray = None,
-        expected_information=None,
-        context: Optional[Mapping[str, Any]] = None,
+        self, R: np.ndarray, r: Optional[np.ndarray] = None, **kwargs
     ) -> WaldTestResult:
         """
         Perform a Wald test statistic for a hypothesis specified by constraints
         given as ``R @ coef_ = r``. Under the null hypothesis, the test statistic
         follows a chi-squared distribution with ``R.shape[0]`` degrees of freedom.
         """
-
-        covariance_matrix = self.covariance_matrix(
-            X=X,
-            y=y,
-            sample_weight=sample_weight,
-            offset=offset,
-            mu=mu,
-            dispersion=dispersion,
-            robust=robust,
-            clusters=clusters,
-            expected_information=expected_information,
-            context=context,
-        )
+        covariance_matrix = self.covariance_matrix(**kwargs)
 
         if self.fit_intercept:
             beta = np.concatenate([[self.intercept_], self.coef_])
@@ -1798,16 +1733,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self,
         features: Union[str, list[str]],
         values: Optional[Sequence] = None,
-        X=None,
-        y=None,
-        sample_weight=None,
-        offset=None,
-        mu=None,
-        dispersion=None,
-        robust=None,
-        clusters: np.ndarray = None,
-        expected_information=None,
-        context: Optional[Mapping[str, Any]] = None,
+        **kwargs,
     ) -> WaldTestResult:
         """
         Perform a Wald test for the hypothesis that the coefficients of the
@@ -1839,35 +1765,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 raise ValueError(f"feature {feature} is not in the model") from None
             R[i, j] = 1
 
-        return self._wald_test_matrix(
-            R=R,
-            r=r,
-            X=X,
-            y=y,
-            sample_weight=sample_weight,
-            offset=offset,
-            mu=mu,
-            dispersion=dispersion,
-            robust=robust,
-            clusters=clusters,
-            expected_information=expected_information,
-            context=context,
-        )
+        return self._wald_test_matrix(R=R, r=r, **kwargs)
 
-    def _wald_test_formula(
-        self,
-        formula: str,
-        X=None,
-        y=None,
-        sample_weight=None,
-        offset=None,
-        mu=None,
-        dispersion=None,
-        robust=None,
-        clusters: np.ndarray = None,
-        expected_information=None,
-        context: Optional[Mapping[str, Any]] = None,
-    ) -> WaldTestResult:
+    def _wald_test_formula(self, formula: str, **kwargs) -> WaldTestResult:
         """
         Perform a Wald test for the hypothesis described in ``formula``.
         """
@@ -1881,35 +1781,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         R, r = parser.get_matrix(formula)
 
-        return self._wald_test_matrix(
-            R=R,
-            r=r,
-            X=X,
-            y=y,
-            sample_weight=sample_weight,
-            offset=offset,
-            mu=mu,
-            dispersion=dispersion,
-            robust=robust,
-            clusters=clusters,
-            expected_information=expected_information,
-            context=context,
-        )
+        return self._wald_test_matrix(R=R, r=r, **kwargs)
 
     def _wald_test_term_names(
-        self,
-        terms: Union[str, list[str]],
-        values: Optional[Sequence] = None,
-        X=None,
-        y=None,
-        sample_weight=None,
-        offset=None,
-        mu=None,
-        dispersion=None,
-        robust=None,
-        clusters: np.ndarray = None,
-        expected_information=None,
-        context: Optional[Mapping[str, Any]] = None,
+        self, terms: Union[str, list[str]], values: Optional[Sequence] = None, **kwargs
     ) -> WaldTestResult:
         """
         Perform a Wald test for the hypothesis that the coefficients of the
@@ -1951,20 +1826,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         R = np.vstack(R_list)
         r = np.concatenate(r_list) if rhs else None
 
-        return self._wald_test_matrix(
-            R=R,
-            r=r,
-            X=X,
-            y=y,
-            sample_weight=sample_weight,
-            offset=offset,
-            mu=mu,
-            dispersion=dispersion,
-            robust=robust,
-            clusters=clusters,
-            expected_information=expected_information,
-            context=context,
-        )
+        return self._wald_test_matrix(R=R, r=r, **kwargs)
 
     def std_errors(
         self,
