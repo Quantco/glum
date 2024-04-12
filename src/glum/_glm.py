@@ -1327,9 +1327,11 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             Incompatible with ``alpha_index`` (see above).
 
         context : Optional[Union[int, Mapping[str, Any]]], default=0
-            The context to use for evaluating the formula. If an integer, the
-            context is taken from the stack frame of the caller at the given
-            depth. If a dict, it is directly used as the context.
+            The context to add to the evaluation context of the formula with,
+            e.g., custom transforms. If an integer, the context is taken from
+            the stack frame of the caller at the given depth. Otherwise, a
+            mapping from variable names to values is expected. Only relevant
+            if ``self.formula`` is set.
 
         Returns
         -------
@@ -1419,9 +1421,11 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             Incompatible with ``alpha_index`` (see above).
 
         context : Optional[Union[int, Mapping[str, Any]]], default=0
-            The context to use for evaluating the formula. If an integer, the
-            context is taken from the stack frame of the caller at the given
-            depth. If a dict, it is directly used as the context.
+            The context to add to the evaluation context of the formula with,
+            e.g., custom transforms. If an integer, the context is taken from
+            the stack frame of the caller at the given depth. Otherwise, a
+            mapping from variable names to values is expected. Only relevant
+            if ``self.formula`` is set.
 
         Returns
         -------
@@ -1494,9 +1498,11 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             Only relevant when computing robust standard errors.
             If not specified, the model's ``expected_information`` attribute is used.
         context : Optional[Union[int, Mapping[str, Any]]], default=0
-            The context to use for evaluating the formula. If an integer, the
-            context is taken from the stack frame of the caller at the given
-            depth. If a dict, it is directly used as the context.
+            The context to add to the evaluation context of the formula with,
+            e.g., custom transforms. If an integer, the context is taken from
+            the stack frame of the caller at the given depth. Otherwise, a
+            mapping from variable names to values is expected. Only relevant
+            if ``self.formula`` is set.
 
         Returns
         -------
@@ -1625,9 +1631,11 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             Only relevant when computing robust standard errors.
             If not specified, the model's ``expected_information`` attribute is used.
         context : Optional[Union[int, Mapping[str, Any]]], default=0
-            The context to use for evaluating the formula. If an integer, the
-            context is taken from the stack frame of the caller at the given
-            depth. If a dict, it is directly used as the context.
+            The context to add to the evaluation context of the formula with,
+            e.g., custom transforms. If an integer, the context is taken from
+            the stack frame of the caller at the given depth. Otherwise, a
+            mapping from variable names to values is expected. Only relevant
+            if ``self.formula`` is set.
 
         Returns
         -------
@@ -2008,9 +2016,11 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             Whether to store the covariance matrix in the model instance.
             If a covariance matrix has already been stored, it will be overwritten.
         context : Optional[Union[int, Mapping[str, Any]]], default=0
-            The context to use for evaluating the formula. If an integer, the
-            context is taken from the stack frame of the caller at the given
-            depth. If a dict, it is directly used as the context.
+            The context to add to the evaluation context of the formula with,
+            e.g., custom transforms. If an integer, the context is taken from
+            the stack frame of the caller at the given depth. Otherwise, a
+            mapping from variable names to values is expected. Only relevant
+            if ``self.formula`` is set.
         """
         captured_context = capture_context(
             context + 1 if isinstance(context, int) else context
@@ -2093,9 +2103,11 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             Whether to skip input validation. For internal use only.
 
         context : Optional[Union[int, Mapping[str, Any]]], default=0
-            The context to use for evaluating the formula. If an integer, the
-            context is taken from the stack frame of the caller at the given
-            depth. If a dict, it is directly used as the context.
+            The context to add to the evaluation context of the formula with,
+            e.g., custom transforms. If an integer, the context is taken from
+            the stack frame of the caller at the given depth. Otherwise, a
+            mapping from variable names to values is expected. Only relevant
+            if ``self.formula`` is set.
 
         Notes
         -----
@@ -2357,9 +2369,11 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         offset : array-like, shape (n_samples,), optional (default=None)
 
         context : Optional[Union[int, Mapping[str, Any]]], default=0
-            The context to use for evaluating the formula. If an integer, the
-            context is taken from the stack frame of the caller at the given
-            depth. If a dict, it is directly used as the context.
+            The context to add to the evaluation context of the formula with,
+            e.g., custom transforms. If an integer, the context is taken from
+            the stack frame of the caller at the given depth. Otherwise, a
+            mapping from variable names to values is expected. Only relevant
+            if ``self.formula`` is set.
 
         Returns
         -------
@@ -3205,9 +3219,11 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             computed if clusters is not None.
 
         context : Optional[Union[int, Mapping[str, Any]]], default=0
-            The context to use for evaluating the formula. If an integer, the
-            context is taken from the stack frame of the caller at the given
-            depth. If a dict, it is directly used as the context.
+            The context to add to the evaluation context of the formula with,
+            e.g., custom transforms. If an integer, the context is taken from
+            the stack frame of the caller at the given depth. Otherwise, a
+            mapping from variable names to values is expected. Only relevant
+            if ``self.formula`` is set.
 
         weights_sum: float, optional (default=None)
 
@@ -3512,9 +3528,11 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
              Same data as used in 'fit'
 
         context : Optional[Union[int, Mapping[str, Any]]], default=0
-            The context to use for evaluating the formula. If an integer, the
-            context is taken from the stack frame of the caller at the given
-            depth. If a dict, it is directly used as the context.
+            The context to add to the evaluation context of the formula with,
+            e.g., custom transforms. If an integer, the context is taken from
+            the stack frame of the caller at the given depth. Otherwise, a
+            mapping from variable names to values is expected. Only relevant
+            if ``self.formula`` is set.
         """
         captured_context = capture_context(
             context + 1 if isinstance(context, int) else context
@@ -3553,9 +3571,11 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
              Same data as used in 'fit'
 
         context : Optional[Union[int, Mapping[str, Any]]], default=0
-            The context to use for evaluating the formula. If an integer, the
-            context is taken from the stack frame of the caller at the given
-            depth. If a dict, it is directly used as the context.
+            The context to add to the evaluation context of the formula with,
+            e.g., custom transforms. If an integer, the context is taken from
+            the stack frame of the caller at the given depth. Otherwise, a
+            mapping from variable names to values is expected. Only relevant
+            if ``self.formula`` is set.
         """
         captured_context = capture_context(
             context + 1 if isinstance(context, int) else context
@@ -3598,9 +3618,11 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
              Same data as used in 'fit'
 
         context : Optional[Union[int, Mapping[str, Any]]], default=0
-            The context to use for evaluating the formula. If an integer, the
-            context is taken from the stack frame of the caller at the given
-            depth. If a dict, it is directly used as the context.
+            The context to add to the evaluation context of the formula with,
+            e.g., custom transforms. If an integer, the context is taken from
+            the stack frame of the caller at the given depth. Otherwise, a
+            mapping from variable names to values is expected. Only relevant
+            if ``self.formula`` is set.
         """
         captured_context = capture_context(
             context + 1 if isinstance(context, int) else context
