@@ -57,13 +57,11 @@ def _align_df_categories(
             continue
 
         if cat_missing_method == "convert" and not has_missing_category[column]:
-            unseen_categories = set(df[column].unique()) - set(
-                dtypes[column].categories
-            )
+            unseen_categories = set(df[column].unique())
+            unseen_categories = unseen_categories - set(dtypes[column].categories)
         else:
-            unseen_categories = set(df[column].dropna().unique()) - set(
-                dtypes[column].categories
-            )
+            unseen_categories = set(df[column].dropna().unique())
+            unseen_categories = unseen_categories - set(dtypes[column].categories)
 
         if unseen_categories:
             raise ValueError(
@@ -91,7 +89,7 @@ def _add_missing_categories(
     categorical_dtypes = [
         column
         for column, dtype in dtypes.items()
-        if pd.api.types.is_categorical_dtype(dtype) and (column in df)
+        if isinstance(dtype, pd.CategoricalDtype) and (column in df)
     ]
 
     for column in categorical_dtypes:
