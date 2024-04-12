@@ -12,9 +12,9 @@ Changelog
 
 **Breaking changes:**
 
-- All arguments to :class:`~glum.GeneralizedLinearRegressorBase`, :class:`~glum.GeneralizedLinearRegressor`, and :class:`GeneralizedLinearRegressorCV` are now keyword-only.
-- All arguments to public methods of :class:`~glum.GeneralizedLinearRegressorBase`, :class:`~glum.GeneralizedLinearRegressor` or :class:`GeneralizedLinearRegressorCV` except `X`, `y`, `sample_weight`, and `offset` are now keyword-only.
-- :class:`~glum.GeneralizedLinearRegressor`'s default value for `alpha` is now `0`, i.e. no regularization.
+- All arguments to :class:`~glum.GeneralizedLinearRegressorBase`, :class:`~glum.GeneralizedLinearRegressor` and :class:`GeneralizedLinearRegressorCV` are now keyword-only.
+- All arguments to public methods of :class:`~glum.GeneralizedLinearRegressorBase`, :class:`~glum.GeneralizedLinearRegressor` or :class:`GeneralizedLinearRegressorCV` except ``X``, ``y``, ``sample_weight`` and ``offset`` are now keyword-only.
+- :class:`~glum.GeneralizedLinearRegressor`'s default value for ``alpha`` is now ``0``, i.e. no regularization.
 - :class:`~glum.GammaDistribution`, :class:`~glum.InverseGaussianDistribution`, :class:`~glum.NormalDistribution` and :class:`~glum.PoissonDistribution` no longer inherit from :class:`~glum.TweedieDistribution`.
 - The power parameter of :class:`~glum.TweedieLink` has been renamed from ``p`` to ``power``, in line with :class:`~glum.TweedieDistribution`.
 - :class:`~glum.TweedieLink` no longer instantiates :class:`~glum.IdentityLink` or :class:`~glum.LogLink` for ``power=0`` and ``power=1``, respectively. On the other hand, :class:`~glum.TweedieLink` is now compatible with ``power=0`` and ``power=1``.
@@ -24,7 +24,7 @@ Changelog
 - Added a formula interface for specifying models.
 - Improved feature name handling. Feature names are now created for non-pandas input matrices too. Furthermore, the format of categorical features can be specified by the user.
 - Term names are now stored in the model's attributes. This is useful for categorical features, where they refer to the whole variable, not just single levels.
-- Added more options for treating missing values in categorical columns. They can either raise a `ValueError` (`"fail"`), be treated as all-zero indicators (`"zero"`) or represented as a new category (`"convert"`).
+- Added more options for treating missing values in categorical columns. They can either raise a ``ValueError`` (``"fail"``), be treated as all-zero indicators (``"zero"``) or represented as a new category (``"convert"``).
 - `meth:GeneralizedLinearRegressor.wald_test` can now perform tests based on a formula string and term names.
 - :class:`~glum.InverseGaussianDistribution` gains a :meth:`~glum.InverseGaussianDistribution.log_likelihood` method.
 
