@@ -246,14 +246,14 @@ def _parse_formula(
 
     Parameters
     ----------
-    formula : FormulaSpec
+    formula : formulaic.FormulaSpec
         The formula to parse.
     include_intercept: bool, default True
         Whether to include an intercept column.
 
     Returns
     -------
-    tuple[Formula, Formula]
+    tuple[formulaic.Formula, formulaic.Formula]
         The left-hand side and right-hand sides of the formula.
     """
     if isinstance(formula, str):
@@ -1735,52 +1735,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         expected_information=None,
         context: Optional[Mapping[str, Any]] = None,
     ) -> WaldTestResult:
-        """Compute the Wald test statistic and p-value for a linear hypothesis.
-
-        The hypothesis tested is ``R @ coef_ = r``. Under the null hypothesis,
-        the test statistic follows a chi-squared distribution with ``R.shape[0]``
-        degrees of freedom.
-
-        Parameters
-        ----------
-        R : np.ndarray
-            The restriction matrix representing the linear combination of coefficients
-            to test.
-        r : np.ndarray, optional, default=None
-            The vector representing the values of the linear combination.
-            If None, the test is for whether the linear combinations of the coefficients
-            are zero.
-        X : {array-like, sparse matrix}, shape (n_samples, n_features), optional
-            Training data. Can be omitted if a covariance matrix has already
-            been computed.
-        y : array-like, shape (n_samples,), optional
-            Target values. Can be omitted if a covariance matrix has already
-            been computed.
-        sample_weight : array-like, shape (n_samples,), optional, default=None
-            Individual weights for each sample.
-        offset : array-like, optional, default=None
-            Array with additive offsets.
-        mu : array-like, optional, default=None
-            Array with predictions. Estimated if absent.
-        dispersion : float, optional, default=None
-            The dispersion parameter. Estimated if absent.
-        robust : boolean, optional, default=None
-            Whether to compute robust standard errors instead of normal ones.
-            If not specified, the model's ``robust`` attribute is used.
-        clusters : array-like, optional, default=None
-            Array with cluster membership. Clustered standard errors are
-            computed if clusters is not None.
-        expected_information : boolean, optional, default=None
-            Whether to use the expected or observed information matrix.
-            Only relevant when computing robust standard errors.
-            If not specified, the model's ``expected_information`` attribute is used.
-        context : Optional[Mapping[str, Any]], default=None
-            The context to use for evaluating the formula.
-
-        Returns
-        -------
-        WaldTestResult
-            NamedTuple with test statistic, p-value, and degrees of freedom.
+        """
+        Perform a Wald test statistic for a hypothesis specified by constraints
+        given as ``R @ coef_ = r``. Under the null hypothesis, the test statistic
+        follows a chi-squared distribution with ``R.shape[0]`` degrees of freedom.
         """
 
         covariance_matrix = self.covariance_matrix(
@@ -1843,49 +1801,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         expected_information=None,
         context: Optional[Mapping[str, Any]] = None,
     ) -> WaldTestResult:
-        """Compute the Wald test statistic and p-value for a linear hypothesis.
-
+        """
         Perform a Wald test for the hypothesis that the coefficients of the
         features in ``features`` are equal to the values in ``values``.
-
-        Parameters
-        ----------
-        features: Union[str, list[str]]
-            The name of a feature or a list of features to test.
-        values: Sequence, optional, default=None
-            The values to which coefficients are compared. If None, the test is
-            for whether the coefficients are zero.
-        X : {array-like, sparse matrix}, shape (n_samples, n_features), optional
-            Training data. Can be omitted if a covariance matrix has already
-            been computed.
-        y : array-like, shape (n_samples,), optional
-            Target values. Can be omitted if a covariance matrix has already
-            been computed.
-        sample_weight : array-like, shape (n_samples,), optional, default=None
-            Individual weights for each sample.
-        offset : array-like, optional, default=None
-            Array with additive offsets.
-        mu : array-like, optional, default=None
-            Array with predictions. Estimated if absent.
-        dispersion : float, optional, default=None
-            The dispersion parameter. Estimated if absent.
-        robust : boolean, optional, default=None
-            Whether to compute robust standard errors instead of normal ones.
-            If not specified, the model's ``robust`` attribute is used.
-        clusters : array-like, optional, default=None
-            Array with cluster membership. Clustered standard errors are
-            computed if clusters is not None.
-        expected_information : boolean, optional, default=None
-            Whether to use the expected or observed information matrix.
-            Only relevant when computing robust standard errors.
-            If not specified, the model's ``expected_information`` attribute is used.
-        context : Optional[Mapping[str, Any]], default=None
-            The context to use for evaluating the formula.
-
-        Returns
-        -------
-        WaldTestResult
-            NamedTuple with test statistic, p-value, and degrees of freedom.
         """
 
         if isinstance(features, str):
@@ -1942,46 +1860,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         expected_information=None,
         context: Optional[Mapping[str, Any]] = None,
     ) -> WaldTestResult:
-        """Compute the Wald test statistic and p-value for a linear hypothesis.
-
+        """
         Perform a Wald test for the hypothesis described in ``formula``.
-
-        Parameters
-        ----------
-        formula: str
-            A formula string describing the linear restrictions. For more information,
-            see `meth:ModelSpec.get_linear_constraints` in ``formulaic``.
-        X : {array-like, sparse matrix}, shape (n_samples, n_features), optional
-            Training data. Can be omitted if a covariance matrix has already
-            been computed.
-        y : array-like, shape (n_samples,), optional
-            Target values. Can be omitted if a covariance matrix has already
-            been computed.
-        sample_weight : array-like, shape (n_samples,), optional, default=None
-            Individual weights for each sample.
-        offset : array-like, optional, default=None
-            Array with additive offsets.
-        mu : array-like, optional, default=None
-            Array with predictions. Estimated if absent.
-        dispersion : float, optional, default=None
-            The dispersion parameter. Estimated if absent.
-        robust : boolean, optional, default=None
-            Whether to compute robust standard errors instead of normal ones.
-            If not specified, the model's ``robust`` attribute is used.
-        clusters : array-like, optional, default=None
-            Array with cluster membership. Clustered standard errors are
-            computed if clusters is not None.
-        expected_information : boolean, optional, default=None
-            Whether to use the expected or observed information matrix.
-            Only relevant when computing robust standard errors.
-            If not specified, the model's ``expected_information`` attribute is used.
-        context : Optional[Mapping[str, Any]], default=None
-            The context to use for evaluating the formula.
-
-        Returns
-        -------
-        WaldTestResult
-            NamedTuple with test statistic, p-value, and degrees of freedom.
         """
 
         if self.fit_intercept:
@@ -2023,54 +1903,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         expected_information=None,
         context: Optional[Mapping[str, Any]] = None,
     ) -> WaldTestResult:
-        """Compute the Wald test statistic and p-value for a linear hypotheses.
-
+        """
         Perform a Wald test for the hypothesis that the coefficients of the
         features in ``terms`` are equal to the values in ``terms``.
-
-        Parameters
-        ----------
-        terms : Union[str, list[str]]
-            The name of a term or a list of terms to test. It can cover one or more
-            coefficients. In the case of a model based on a formula, a term is one
-            of the expressions separated by ``+`` signs. Otherwise, a term is one column
-            in the input data. As categorical variables need not be one-hot encoded in
-            glum, in their case, the hypothesis to be tested is that the coefficients
-            of all categories are equal to ``r``.
-        values: Sequence, optional, default=None
-            The values to which coefficients are compared. If None, the test is
-            for whether the coefficients are zero.
-        X : {array-like, sparse matrix}, shape (n_samples, n_features), optional
-            Training data. Can be omitted if a covariance matrix has already
-            been computed.
-        y : array-like, shape (n_samples,), optional
-            Target values. Can be omitted if a covariance matrix has already
-            been computed.
-        sample_weight : array-like, shape (n_samples,), optional (default=None)
-            Individual weights for each sample.
-        offset : array-like, optional, default=None
-            Array with additive offsets.
-        mu : array-like, optional, default=None
-            Array with predictions. Estimated if absent.
-        dispersion : float, optional, default=None
-            The dispersion parameter. Estimated if absent.
-        robust : boolean, optional, default=None
-            Whether to compute robust standard errors instead of normal ones.
-            If not specified, the model's ``robust`` attribute is used.
-        clusters : array-like, optional, default=None
-            Array with clusters membership. Clustered standard errors are
-            computed if clusters is not None.
-        expected_information : boolean, optional, default=None
-            Whether to use the expected or observed information matrix.
-            Only relevant when computing robust std-errors.
-            If not specified, the model's ``expected_information`` attribute is used.
-        context : Optional[Mapping[str, Any]], default=None
-            The context to use for evaluating the formula.
-
-        Returns
-        -------
-        WaldTestResult
-            NamedTuple with test statistic, p-value and degrees of freedom.
         """
 
         if isinstance(terms, str):
@@ -2334,9 +2169,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 "matrix will be incorrect."
             )
 
-        cannot_estimate_cov = X is None or (
-            y is None and not hasattr(self, "y_model_spec_")
-        )
+        cannot_estimate_cov = (y is None) and not hasattr(self, "y_model_spec_")
+        cannot_estimate_cov |= X is None
 
         if not skip_checks:
             if cannot_estimate_cov and self.covariance_matrix_ is None:
@@ -3125,12 +2959,12 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         If true, then the expected information matrix is computed by default.
         Only relevant when computing robust standard errors.
 
-    formula : FormulaSpec
+    formula : formulaic.FormulaSpec
         A formula accepted by formulaic. It can either be a one-sided formula, in
         which case ``y`` must be specified in ``fit``, or a two-sided formula, in
         which case ``y`` must be ``None``.
 
-    interaction_separator: str, default ":"
+    interaction_separator: str, default=":"
         The separator between the names of interacted variables.
 
     categorical_format : str, optional, default='{name}[{category}]'

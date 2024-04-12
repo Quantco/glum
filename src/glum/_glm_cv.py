@@ -256,10 +256,10 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         which case ``y`` must be specified in ``fit``, or a two-sided formula, in
         which case ``y`` must be ``None``.
 
-    interaction_separator: str, default ":"
+    interaction_separator: str, default=":"
         The separator between the names of interacted variables.
 
-    categorical_format: str, default "{name}[T.{category}]"
+    categorical_format: str, default="{name}[T.{category}]"
         The format string used to generate the names of categorical variables.
         Has to include the placeholders ``{name}`` and ``{category}``.
         Only used if ``formula`` is not ``None``.
