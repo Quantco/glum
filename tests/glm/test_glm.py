@@ -3173,12 +3173,24 @@ def test_formula_context(get_mixed_data):
     data = get_mixed_data
     x_context = np.arange(len(data), dtype=float)  # noqa: F841
     formula = "y ~ x1 + x2 + x_context"
+
     model_formula = GeneralizedLinearRegressor(
         family="normal",
         drop_first=True,
         formula=formula,
         fit_intercept=True,
-    ).fit(data)
+    )
+    # default is to add nothing to context
+    with pytest.raises(formulaic.errors.FactorEvaluationError):
+        model_formula.fit(data)
+
+    # set context to 0 to capture calling scope
+    model_formula = GeneralizedLinearRegressor(
+        family="normal",
+        drop_first=True,
+        formula=formula,
+        fit_intercept=True,
+    ).fit(data, context=0)
 
     model_smf = smf.glm(formula, data, family=sm.families.Gaussian()).fit()
 
@@ -3186,7 +3198,9 @@ def test_formula_context(get_mixed_data):
         np.concatenate([[model_formula.intercept_], model_formula.coef_]),
         model_smf.params,
     )
-    np.testing.assert_almost_equal(model_formula.predict(data), model_smf.predict(data))
+    np.testing.assert_almost_equal(
+        model_formula.predict(data, context=0), model_smf.predict(data)
+    )
 
 
 @pytest.mark.parametrize(

@@ -471,6 +471,13 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             Array with cluster membership. Clustered standard errors are
             computed if clusters is not None.
 
+        context : Optional[Union[int, Mapping[str, Any]]], default=None
+            The context to add to the evaluation context of the formula with,
+            e.g., custom transforms. If an integer, the context is taken from
+            the stack frame of the caller at the given depth. Otherwise, a
+            mapping from variable names to values is expected. By default,
+            no context is added.
+
         """
         self._validate_hyperparameters()
 

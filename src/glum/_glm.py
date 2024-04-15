@@ -1301,7 +1301,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         *,
         alpha_index: Optional[Union[int, Sequence[int]]] = None,
         alpha: Optional[Union[float, Sequence[float]]] = None,
-        context: Optional[Union[int, Mapping[str, Any]]] = 0,
+        context: Optional[Union[int, Mapping[str, Any]]] = None,
     ):
         """Compute the linear predictor, ``X * coef_ + intercept_``.
 
@@ -1326,12 +1326,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             Sets the alpha(s) to use in case ``alpha_search`` is ``True``.
             Incompatible with ``alpha_index`` (see above).
 
-        context : Optional[Union[int, Mapping[str, Any]]], default=0
+        context : Optional[Union[int, Mapping[str, Any]]], default=None
             The context to add to the evaluation context of the formula with,
             e.g., custom transforms. If an integer, the context is taken from
             the stack frame of the caller at the given depth. Otherwise, a
-            mapping from variable names to values is expected. Only relevant
-            if ``self.formula`` is set.
+            mapping from variable names to values is expected. By default,
+            no context is added.
 
         Returns
         -------
@@ -1392,7 +1392,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         *,
         alpha_index: Optional[Union[int, Sequence[int]]] = None,
         alpha: Optional[Union[float, Sequence[float]]] = None,
-        context: Optional[Union[int, Mapping[str, Any]]] = 0,
+        context: Optional[Union[int, Mapping[str, Any]]] = None,
     ):
         """Predict using GLM with feature matrix ``X``.
 
@@ -1420,12 +1420,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             Sets the alpha(s) to use in case ``alpha_search`` is ``True``.
             Incompatible with ``alpha_index`` (see above).
 
-        context : Optional[Union[int, Mapping[str, Any]]], default=0
+        context : Optional[Union[int, Mapping[str, Any]]], default=None
             The context to add to the evaluation context of the formula with,
             e.g., custom transforms. If an integer, the context is taken from
             the stack frame of the caller at the given depth. Otherwise, a
-            mapping from variable names to values is expected. Only relevant
-            if ``self.formula`` is set.
+            mapping from variable names to values is expected. By default,
+            no context is added.
 
         Returns
         -------
@@ -1462,7 +1462,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         robust=None,
         clusters: np.ndarray = None,
         expected_information=None,
-        context: Optional[Union[int, Mapping[str, Any]]] = 0,
+        context: Optional[Union[int, Mapping[str, Any]]] = None,
     ):
         """Get a table of of the regression coefficients.
 
@@ -1497,12 +1497,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             Whether to use the expected or observed information matrix.
             Only relevant when computing robust standard errors.
             If not specified, the model's ``expected_information`` attribute is used.
-        context : Optional[Union[int, Mapping[str, Any]]], default=0
+        context : Optional[Union[int, Mapping[str, Any]]], default=None
             The context to add to the evaluation context of the formula with,
             e.g., custom transforms. If an integer, the context is taken from
             the stack frame of the caller at the given depth. Otherwise, a
-            mapping from variable names to values is expected. Only relevant
-            if ``self.formula`` is set.
+            mapping from variable names to values is expected. By default,
+            no context is added.
 
         Returns
         -------
@@ -1572,7 +1572,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         robust=None,
         clusters: np.ndarray = None,
         expected_information=None,
-        context: Optional[Union[int, Mapping[str, Any]]] = 0,
+        context: Optional[Union[int, Mapping[str, Any]]] = None,
     ) -> WaldTestResult:
         """Compute the Wald test statistic and p-value for a linear hypothesis.
 
@@ -1630,12 +1630,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             Whether to use the expected or observed information matrix.
             Only relevant when computing robust standard errors.
             If not specified, the model's ``expected_information`` attribute is used.
-        context : Optional[Union[int, Mapping[str, Any]]], default=0
+        context : Optional[Union[int, Mapping[str, Any]]], default=None
             The context to add to the evaluation context of the formula with,
             e.g., custom transforms. If an integer, the context is taken from
             the stack frame of the caller at the given depth. Otherwise, a
-            mapping from variable names to values is expected. Only relevant
-            if ``self.formula`` is set.
+            mapping from variable names to values is expected. By default,
+            no context is added.
 
         Returns
         -------
@@ -1841,7 +1841,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         clusters: np.ndarray = None,
         expected_information=None,
         store_covariance_matrix=False,
-        context: Optional[Union[int, Mapping[str, Any]]] = 0,
+        context: Optional[Union[int, Mapping[str, Any]]] = None,
     ):
         """Calculate standard errors for generalized linear models.
 
@@ -1877,12 +1877,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         store_covariance_matrix : boolean, optional, default=False
             Whether to store the covariance matrix in the model instance.
             If a covariance matrix has already been stored, it will be overwritten.
-        context : Optional[Union[int, Mapping[str, Any]]], default=0
+        context : Optional[Union[int, Mapping[str, Any]]], default=None
             The context to add to the evaluation context of the formula with,
             e.g., custom transforms. If an integer, the context is taken from
             the stack frame of the caller at the given depth. Otherwise, a
-            mapping from variable names to values is expected. Only relevant
-            if ``self.formula`` is set.
+            mapping from variable names to values is expected. By default,
+            no context is added.
         """
         captured_context = capture_context(
             context + 1 if isinstance(context, int) else context
@@ -1918,7 +1918,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         expected_information=None,
         store_covariance_matrix=False,
         skip_checks=False,
-        context: Optional[Union[int, Mapping[str, Any]]] = 0,
+        context: Optional[Union[int, Mapping[str, Any]]] = None,
     ):
         """Calculate the covariance matrix for generalized linear models.
 
@@ -1964,12 +1964,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         skip_checks : boolean, optional, default=False
             Whether to skip input validation. For internal use only.
 
-        context : Optional[Union[int, Mapping[str, Any]]], default=0
+        context : Optional[Union[int, Mapping[str, Any]]], default=None
             The context to add to the evaluation context of the formula with,
             e.g., custom transforms. If an integer, the context is taken from
             the stack frame of the caller at the given depth. Otherwise, a
-            mapping from variable names to values is expected. Only relevant
-            if ``self.formula`` is set.
+            mapping from variable names to values is expected. By default,
+            no context is added.
 
         Notes
         -----
@@ -2203,7 +2203,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         sample_weight: Optional[ArrayLike] = None,
         offset: Optional[ArrayLike] = None,
         *,
-        context: Optional[Union[int, Mapping[str, Any]]] = 0,
+        context: Optional[Union[int, Mapping[str, Any]]] = None,
     ):
         """Compute :math:`D^2`, the percentage of deviance explained.
 
@@ -2230,12 +2230,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         offset : array-like, shape (n_samples,), optional (default=None)
 
-        context : Optional[Union[int, Mapping[str, Any]]], default=0
+        context : Optional[Union[int, Mapping[str, Any]]], default=None
             The context to add to the evaluation context of the formula with,
             e.g., custom transforms. If an integer, the context is taken from
             the stack frame of the caller at the given depth. Otherwise, a
-            mapping from variable names to values is expected. Only relevant
-            if ``self.formula`` is set.
+            mapping from variable names to values is expected. By default,
+            no context is added.
 
         Returns
         -------
@@ -3037,7 +3037,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         clusters: Optional[np.ndarray] = None,
         # TODO: take out weights_sum (or use it properly)
         weights_sum: Optional[float] = None,
-        context: Optional[Union[int, Mapping[str, Any]]] = 0,
+        context: Optional[Union[int, Mapping[str, Any]]] = None,
     ):
         """Fit a Generalized Linear Model.
 
@@ -3080,12 +3080,12 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             Array with cluster membership. Clustered standard errors are
             computed if clusters is not None.
 
-        context : Optional[Union[int, Mapping[str, Any]]], default=0
+        context : Optional[Union[int, Mapping[str, Any]]], default=None
             The context to add to the evaluation context of the formula with,
             e.g., custom transforms. If an integer, the context is taken from
             the stack frame of the caller at the given depth. Otherwise, a
-            mapping from variable names to values is expected. Only relevant
-            if ``self.formula`` is set.
+            mapping from variable names to values is expected. By default,
+            no context is added.
 
         weights_sum: float, optional (default=None)
 
@@ -3368,7 +3368,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         y: ArrayLike,
         sample_weight: Optional[ArrayLike] = None,
         *,
-        context: Optional[Union[int, Mapping[str, Any]]] = 0,
+        context: Optional[Union[int, Mapping[str, Any]]] = None,
     ):
         """
         Akaike's information criteria. Computed as:
@@ -3387,14 +3387,14 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             Same data as used in 'fit'
 
         sample_weight : array-like, shape (n_samples,), optional (default=None)
-             Same data as used in 'fit'
+            Same data as used in 'fit'
 
-        context : Optional[Union[int, Mapping[str, Any]]], default=0
+        context : Optional[Union[int, Mapping[str, Any]]], default=None
             The context to add to the evaluation context of the formula with,
             e.g., custom transforms. If an integer, the context is taken from
             the stack frame of the caller at the given depth. Otherwise, a
-            mapping from variable names to values is expected. Only relevant
-            if ``self.formula`` is set.
+            mapping from variable names to values is expected. By default,
+            no context is added.
         """
         captured_context = capture_context(
             context + 1 if isinstance(context, int) else context
@@ -3409,7 +3409,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         y: ArrayLike,
         sample_weight: Optional[ArrayLike] = None,
         *,
-        context: Optional[Union[int, Mapping[str, Any]]] = 0,
+        context: Optional[Union[int, Mapping[str, Any]]] = None,
     ):
         """
         Second-order Akaike's information criteria (or small sample AIC).
@@ -3432,12 +3432,12 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         sample_weight : array-like, shape (n_samples,), optional (default=None)
              Same data as used in 'fit'
 
-        context : Optional[Union[int, Mapping[str, Any]]], default=0
+        context : Optional[Union[int, Mapping[str, Any]]], default=None
             The context to add to the evaluation context of the formula with,
             e.g., custom transforms. If an integer, the context is taken from
             the stack frame of the caller at the given depth. Otherwise, a
-            mapping from variable names to values is expected. Only relevant
-            if ``self.formula`` is set.
+            mapping from variable names to values is expected. By default,
+            no context is added.
         """
         captured_context = capture_context(
             context + 1 if isinstance(context, int) else context
@@ -3457,7 +3457,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         y: ArrayLike,
         sample_weight: Optional[ArrayLike] = None,
         *,
-        context: Optional[Union[int, Mapping[str, Any]]] = 0,
+        context: Optional[Union[int, Mapping[str, Any]]] = None,
     ):
         """
         Bayesian information criterion. Computed as:
@@ -3479,12 +3479,12 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         sample_weight : array-like, shape (n_samples,), optional (default=None)
              Same data as used in 'fit'
 
-        context : Optional[Union[int, Mapping[str, Any]]], default=0
+        context : Optional[Union[int, Mapping[str, Any]]], default=None
             The context to add to the evaluation context of the formula with,
             e.g., custom transforms. If an integer, the context is taken from
             the stack frame of the caller at the given depth. Otherwise, a
-            mapping from variable names to values is expected. Only relevant
-            if ``self.formula`` is set.
+            mapping from variable names to values is expected. By default,
+            no context is added.
         """
         captured_context = capture_context(
             context + 1 if isinstance(context, int) else context
