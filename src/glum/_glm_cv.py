@@ -476,7 +476,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             e.g., custom transforms. If an integer, the context is taken from
             the stack frame of the caller at the given depth. Otherwise, a
             mapping from variable names to values is expected. By default,
-            no context is added.
+            no context is added. Set ``context=0`` to make the calling scope
+            available.
 
         """
         self._validate_hyperparameters()

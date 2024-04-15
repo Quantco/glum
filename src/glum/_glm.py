@@ -1331,7 +1331,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             e.g., custom transforms. If an integer, the context is taken from
             the stack frame of the caller at the given depth. Otherwise, a
             mapping from variable names to values is expected. By default,
-            no context is added.
+            no context is added. Set ``context=0`` to make the calling scope
+            available.
 
         Returns
         -------
@@ -1425,7 +1426,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             e.g., custom transforms. If an integer, the context is taken from
             the stack frame of the caller at the given depth. Otherwise, a
             mapping from variable names to values is expected. By default,
-            no context is added.
+            no context is added. Set ``context=0`` to make the calling scope
+            available.
 
         Returns
         -------
@@ -1502,7 +1504,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             e.g., custom transforms. If an integer, the context is taken from
             the stack frame of the caller at the given depth. Otherwise, a
             mapping from variable names to values is expected. By default,
-            no context is added.
+            no context is added. Set ``context=0`` to make the calling scope
+            available.
 
         Returns
         -------
@@ -1635,7 +1638,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             e.g., custom transforms. If an integer, the context is taken from
             the stack frame of the caller at the given depth. Otherwise, a
             mapping from variable names to values is expected. By default,
-            no context is added.
+            no context is added. Set ``context=0`` to make the calling scope
+            available.
 
         Returns
         -------
@@ -1882,7 +1886,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             e.g., custom transforms. If an integer, the context is taken from
             the stack frame of the caller at the given depth. Otherwise, a
             mapping from variable names to values is expected. By default,
-            no context is added.
+            no context is added. Set ``context=0`` to make the calling scope
+            available.
         """
         captured_context = capture_context(
             context + 1 if isinstance(context, int) else context
@@ -1969,7 +1974,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             e.g., custom transforms. If an integer, the context is taken from
             the stack frame of the caller at the given depth. Otherwise, a
             mapping from variable names to values is expected. By default,
-            no context is added.
+            no context is added. Set ``context=0`` to make the calling scope
+            available.
 
         Notes
         -----
@@ -2235,7 +2241,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             e.g., custom transforms. If an integer, the context is taken from
             the stack frame of the caller at the given depth. Otherwise, a
             mapping from variable names to values is expected. By default,
-            no context is added.
+            no context is added. Set ``context=0`` to make the calling scope
+            available.
 
         Returns
         -------
@@ -3085,7 +3092,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             e.g., custom transforms. If an integer, the context is taken from
             the stack frame of the caller at the given depth. Otherwise, a
             mapping from variable names to values is expected. By default,
-            no context is added.
+            no context is added. Set ``context=0`` to make the calling scope
+            available.
 
         weights_sum: float, optional (default=None)
 
@@ -3394,7 +3402,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             e.g., custom transforms. If an integer, the context is taken from
             the stack frame of the caller at the given depth. Otherwise, a
             mapping from variable names to values is expected. By default,
-            no context is added.
+            no context is added. Set ``context=0`` to make the calling scope
+            available.
         """
         captured_context = capture_context(
             context + 1 if isinstance(context, int) else context
@@ -3437,7 +3446,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             e.g., custom transforms. If an integer, the context is taken from
             the stack frame of the caller at the given depth. Otherwise, a
             mapping from variable names to values is expected. By default,
-            no context is added.
+            no context is added. Set ``context=0`` to make the calling scope
+            available.
         """
         captured_context = capture_context(
             context + 1 if isinstance(context, int) else context
@@ -3484,7 +3494,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             e.g., custom transforms. If an integer, the context is taken from
             the stack frame of the caller at the given depth. Otherwise, a
             mapping from variable names to values is expected. By default,
-            no context is added.
+            no context is added. Set ``context=0`` to make the calling scope
+            available.
         """
         captured_context = capture_context(
             context + 1 if isinstance(context, int) else context
