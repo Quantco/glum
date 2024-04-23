@@ -48,7 +48,7 @@ jobs:
           pip install --extra-index-url https://pypi.fury.io/arrow-nightlies/ --prefer-binary --pre --no-deps pyarrow
           echo Install tabmat nightly
           micromamba remove -y --force tabmat
-          pip install --no-use-pep517 --no-deps git+https://github.com/Quantco/tabmat@tabmat-v4
+          pip install --no-use-pep517 --no-deps git+https://github.com/Quantco/tabmat
       - name: Install repository
         shell: bash -el {0}
         run: pip install --no-use-pep517 --no-deps --disable-pip-version-check -e .
