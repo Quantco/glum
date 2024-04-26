@@ -104,7 +104,7 @@ def simulate_glm_data(
 
     # Creating sparse component
     sparse_feature_names = [f"sparse{i}" for i in range(sparse_features)]
-    X_sparse = sps.random(n_rows, sparse_features, density=sparse_density).A
+    X_sparse = sps.random(n_rows, sparse_features, density=sparse_density).toarray()
     X_sparse = pd.DataFrame(data=X_sparse, columns=sparse_feature_names)
     coefs_sparse = rand.choice([0, 1, -1], size=sparse_features)
     coefs_sparse = pd.Series(data=coefs_sparse, index=sparse_feature_names)
