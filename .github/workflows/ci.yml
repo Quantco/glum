@@ -41,6 +41,7 @@ jobs:
       - name: Checkout branch
         uses: actions/checkout@v4
       - name: Set up conda env (windows and ubuntu)
+        if: matrix.os != 'macos-latest'
         uses: mamba-org/setup-micromamba@8767fb704bd78032e9392f0386bf46950bdd1194
         with:
           environment-file: environment.yml
