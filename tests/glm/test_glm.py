@@ -721,7 +721,7 @@ def test_x_not_modified_inplace(solver, fit_intercept, offset, convert_x_fn):
     if isinstance(X, np.ndarray):
         np.testing.assert_almost_equal(X, X_before)
     else:
-        np.testing.assert_almost_equal(X.A, X_before.A)
+        np.testing.assert_almost_equal(X.A, X_before.toarray())
 
 
 @pytest.mark.parametrize("solver", GLM_SOLVERS)
