@@ -40,7 +40,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         If you pass ``l1_ratio`` as an array, the ``fit`` method will choose the
         best value of ``l1_ratio`` and store it as ``self.l1_ratio``.
 
-    P1 : {'identity', array-like}, shape (n_features,), optional (default='identity')
+    P1 : {'identity', array-like, None}, shape (n_features,), optional (default='identity')
         This array controls the strength of the regularization for each coefficient
         independently. A high value will lead to higher regularization while a value of
         zero will remove the regularization on this parameter.
@@ -49,20 +49,20 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         the penalty of the categorical column will be applied to all the levels of
         the categorical.
 
-    P2 : {'identity', array-like, sparse matrix}, shape (n_features,) \
+    P2 : {'identity', array-like, sparse matrix, None}, shape (n_features,) \
             or (n_features, n_features), optional (default='identity')
         With this option, you can set the P2 matrix in the L2 penalty
         ``w*P2*w``. This gives a fine control over this penalty (Tikhonov
         regularization). A 2d array is directly used as the square matrix P2. A
         1d array is interpreted as diagonal (square) matrix. The default
-        ``'identity'`` sets the identity matrix, which gives the usual squared
-        L2-norm. If you just want to exclude certain coefficients, pass a 1d
-        array filled with 1 and 0 for the coefficients to be excluded. Note that
-        P2 must be positive semi-definite. If ``X`` is a pandas DataFrame
-        with a categorical dtype and P2 has the same size as the number of columns,
-        the penalty of the categorical column will be applied to all the levels of
-        the categorical. Note that if P2 is two-dimensional, its size needs to be
-        of the same length as the expanded ``X`` matrix.
+        ``'identity'`` and ``None`` set the identity matrix, which gives the usual
+        squared L2-norm. If you just want to exclude certain coefficients, pass a 1d
+        array filled with 1 and 0 for the coefficients to be excluded. Note that P2 must
+        be positive semi-definite. If ``X`` is a pandas DataFrame with a categorical
+        dtype and P2 has the same size as the number of columns, the penalty of the
+        categorical column will be applied to all the levels of the categorical. Note
+        that if P2 is two-dimensional, its size needs to be of the same length as the
+        expanded ``X`` matrix.
 
     fit_intercept : bool, optional (default=True)
         Specifies if a constant (a.k.a. bias or intercept) should be
@@ -77,7 +77,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         specify it in parentheses (e.g., ``'tweedie (1.5)'``). The same applies
         for ``'negative.binomial'`` and theta parameter.
 
-    link : {'auto', 'identity', 'log', 'logit', 'cloglog'} or Link, optional (default='auto')
+    link : {'auto', 'identity', 'log', 'logit', 'cloglog'}, Link or None, \
+            optional (default='auto')
         The link function of the GLM, i.e. mapping from linear
         predictor (``X * coef``) to expectation (``mu``). Option ``'auto'`` sets
         the link depending on the chosen family as follows:
@@ -87,11 +88,11 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
           ``'inverse.gaussian'`` and ``'negative.binomial'``.
         - ``'logit'`` for family ``'binomial'``
 
-    solver : {'auto', 'irls-cd', 'irls-ls', 'lbfgs'}, optional (default='auto')
+    solver : {'auto', 'irls-cd', 'irls-ls', 'lbfgs', 'trust-constr'}, \
+            optional (default='auto')
         Algorithm to use in the optimization problem:
 
-        - ``'auto'``: ``'irls-ls'`` if ``l1_ratio`` is zero and ``'irls-cd'``
-          otherwise.
+        - ``'auto'``: ``'irls-ls'`` if ``l1_ratio`` is zero and ``'irls-cd'`` otherwise.
         - ``'irls-cd'``: Iteratively reweighted least squares with a coordinate
           descent inner solver. This can deal with L1 as well as L2 penalties.
           Note that in order to avoid unnecessary memory duplication of X in the
@@ -329,7 +330,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         fit_intercept=True,
         family: Union[str, ExponentialDispersionModel] = "normal",
         link: Union[str, Link] = "auto",
-        solver="auto",
+        solver: str = "auto",
         max_iter=100,
         gradient_tol: Optional[float] = None,
         step_size_tol: Optional[float] = None,
@@ -587,12 +588,11 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             ):
                 assert isinstance(self._link_instance, LogLink)
 
-            _dtype = [np.float64, np.float32]
             start_params = initialize_start_params(
                 self.start_params,
                 n_cols=X.shape[1],
                 fit_intercept=self.fit_intercept,
-                _dtype=_dtype,
+                dtype=[np.float64, np.float32],
             )
 
             P1_no_alpha = setup_p1(P1, X, X.dtype, 1, l1)
@@ -752,7 +752,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             self.start_params,
             n_cols=X.shape[1],
             fit_intercept=self.fit_intercept,
-            _dtype=X.dtype,
+            dtype=X.dtype,
         )
 
         coef = self._get_start_coef(

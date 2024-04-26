@@ -24,7 +24,7 @@ jobs:
     steps:
       - name: Checkout branch
         uses: actions/checkout@v4
-      - uses: mamba-org/setup-micromamba@8767fb704bd78032e9392f0386bf46950bdd1194
+      - uses: mamba-org/setup-micromamba@422500192359a097648154e8db4e39bdb6c6eed7
         with:
           environment-file: environment.yml
           create-args: >-
@@ -38,7 +38,7 @@ jobs:
           micromamba install -y c-compiler cxx-compiler 'cython!=3.0.4' jemalloc-local libgomp mako xsimd
 
           PRE_WHEELS="https://pypi.anaconda.org/scientific-python-nightly-wheels/simple/"
-          for pkg in numpy pandas scikit-learn scipy; do
+          for pkg in pandas scikit-learn scipy; do
             echo "Installing $pkg nightly"
             micromamba remove -y --force $pkg
             pip install --pre --no-deps --only-binary :all: --upgrade --timeout=60 -i $PRE_WHEELS $pkg
