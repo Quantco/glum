@@ -40,11 +40,20 @@ jobs:
     steps:
       - name: Checkout branch
         uses: actions/checkout@v4
-      - name: Set up conda env
+      - name: Set up conda env (windows and ubuntu)
         uses: mamba-org/setup-micromamba@8767fb704bd78032e9392f0386bf46950bdd1194
         with:
           environment-file: environment.yml
           init-shell: ${{ matrix.os == 'windows-latest' && 'powershell' || 'bash' }}
+          cache-environment: true
+          create-args: >-
+            python=${{ matrix.python-version }}
+      - name: Set up conda env (macos)
+        if: matrix.os == 'macos-latest'
+        uses: mamba-org/setup-micromamba@8767fb704bd78032e9392f0386bf46950bdd1194
+        with:
+          environment-file: environment_macos.yml
+          init-shell: bash
           cache-environment: true
           create-args: >-
             python=${{ matrix.python-version }}
