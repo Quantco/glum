@@ -5,11 +5,14 @@ import copy
 import warnings
 from typing import Any, Optional, Union
 
+import formulaic
 import numpy as np
 import pandas as pd
 import pytest
 import statsmodels.api as sm
+import statsmodels.formula.api as smf
 import tabmat as tm
+from formulaic import Formula
 from numpy.testing import assert_allclose
 from scipy import optimize, sparse
 from sklearn.base import clone
@@ -33,7 +36,12 @@ from glum._distribution import (
     TweedieDistribution,
     guess_intercept,
 )
-from glum._glm import GeneralizedLinearRegressor, _unstandardize, is_pos_semidef
+from glum._glm import (
+    GeneralizedLinearRegressor,
+    _parse_formula,
+    _unstandardize,
+    is_pos_semidef,
+)
 from glum._link import IdentityLink, Link, LogitLink, LogLink
 
 GLM_SOLVERS = ["irls-ls", "lbfgs", "irls-cd", "trust-constr"]
@@ -45,7 +53,7 @@ estimators = [
 
 
 def get_small_x_y(
-    estimator: Union[GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
+    estimator: Union[GeneralizedLinearRegressor, GeneralizedLinearRegressorCV],
 ) -> tuple[np.ndarray, np.ndarray]:
     if isinstance(estimator, GeneralizedLinearRegressor):
         n_rows = 1
@@ -195,7 +203,7 @@ def test_gradient_tol_setting(estimator, kwargs, solver, gradient_tol):
 )
 def test_glm_family_argument(f, fam, y, X):
     """Test GLM family argument set as string."""
-    glm = GeneralizedLinearRegressor(family=f, alpha=0).fit(X, y)
+    glm = GeneralizedLinearRegressor(family=f).fit(X, y)
     assert isinstance(glm._family_instance, fam.__class__)
 
 
@@ -354,6 +362,46 @@ def test_P1_P2_expansion_with_categoricals():
     np.testing.assert_allclose(mdl1.coef_, mdl2.coef_)
 
 
+def test_P1_P2_expansion_with_categoricals_missings():
+    rng = np.random.default_rng(42)
+    X = pd.DataFrame(
+        data={
+            "dense": np.linspace(0, 10, 60),
+            "cat": pd.Categorical(rng.integers(5, size=60)).remove_categories(0),
+        }
+    )
+    y = rng.normal(size=60)
+
+    mdl1 = GeneralizedLinearRegressor(
+        alpha=1.0,
+        l1_ratio=0.01,
+        P1=[1, 2, 2, 2, 2, 2],
+        P2=[2, 1, 1, 1, 1, 1],
+        cat_missing_method="convert",
+    )
+    mdl1.fit(X, y)
+
+    mdl2 = GeneralizedLinearRegressor(
+        alpha=1.0,
+        l1_ratio=0.01,
+        P1=[1, 2],
+        P2=[2, 1],
+        cat_missing_method="convert",
+    )
+    mdl2.fit(X, y)
+    np.testing.assert_allclose(mdl1.coef_, mdl2.coef_)
+
+    mdl3 = GeneralizedLinearRegressor(
+        alpha=1.0,
+        l1_ratio=0.01,
+        P1=[1, 2],
+        P2=sparse.diags([2, 1, 1, 1, 1, 1]),
+        cat_missing_method="convert",
+    )
+    mdl3.fit(X, y)
+    np.testing.assert_allclose(mdl1.coef_, mdl3.coef_)
+
+
 @pytest.mark.parametrize(
     "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
 )
@@ -382,7 +430,10 @@ def test_glm_fit_intercept_argument(estimator, fit_intercept):
 )
 def test_glm_solver_argument(estimator, solver, l1_ratio, y, X):
     """Test GLM for invalid solver argument."""
-    glm = estimator(solver=solver, l1_ratio=l1_ratio)
+    kwargs = {"solver": solver, "l1_ratio": l1_ratio}
+    if estimator == GeneralizedLinearRegressor:
+        kwargs["alpha"] = 1.0
+    glm = estimator(**kwargs)
     with pytest.raises(ValueError):
         glm.fit(X, y)
 
@@ -431,7 +482,10 @@ def test_glm_warm_start_argument(estimator, warm_start):
 def test_glm_warm_start_with_constant_column(estimator):
     X, y = make_regression()
     X[:, 0] = 0
-    glm = estimator(warm_start=True)
+    kwargs = {"warm_start": True}
+    if estimator == GeneralizedLinearRegressor:
+        kwargs["alpha"] = 1.0
+    glm = estimator(**kwargs)
     glm.fit(X, y)
     glm.fit(X, y)
 
@@ -530,7 +584,6 @@ def test_glm_identity_regression(solver, fit_intercept, offset, convert_x_fn):
     X = np.array([[1, 1, 1, 1, 1], [0, 1, 2, 3, 4]]).T
     y = np.dot(X, coef) + (0 if offset is None else offset)
     glm = GeneralizedLinearRegressor(
-        alpha=0,
         family="normal",
         link="identity",
         fit_intercept=fit_intercept,
@@ -563,7 +616,9 @@ def test_get_diagnostics(
     glm = GeneralizedLinearRegressor(fit_intercept=fit_intercept, solver=solver)
     res = glm.fit(X, y)
 
-    diagnostics = res.get_formatted_diagnostics(full_report, custom_columns)
+    diagnostics = res.get_formatted_diagnostics(
+        full_report=full_report, custom_columns=custom_columns
+    )
     if solver in ("lbfgs", "trust-constr"):
         assert diagnostics == "solver does not report diagnostics"
     else:
@@ -625,7 +680,7 @@ def test_report_diagnostics(
 
     f = io.StringIO()
     with redirect_stdout(f):
-        res.report_diagnostics(full_report, custom_columns)
+        res.report_diagnostics(full_report=full_report, custom_columns=custom_columns)
     printed = f.getvalue()
     # Something should be printed
     assert len(printed) > 0
@@ -650,7 +705,6 @@ def test_x_not_modified_inplace(solver, fit_intercept, offset, convert_x_fn):
     X = np.array([[1, 1, 1, 1, 1], [0, 1, 2, 3, 4]]).T
     y = np.dot(X, coef) + (0 if offset is None else offset)
     glm = GeneralizedLinearRegressor(
-        alpha=0,
         family="normal",
         link="identity",
         fit_intercept=fit_intercept,
@@ -667,7 +721,7 @@ def test_x_not_modified_inplace(solver, fit_intercept, offset, convert_x_fn):
     if isinstance(X, np.ndarray):
         np.testing.assert_almost_equal(X, X_before)
     else:
-        np.testing.assert_almost_equal(X.A, X_before.A)
+        np.testing.assert_almost_equal(X.toarray(), X_before.toarray())
 
 
 @pytest.mark.parametrize("solver", GLM_SOLVERS)
@@ -692,7 +746,6 @@ def test_glm_identity_regression_categorical_data(solver, offset, convert_x_fn):
     y = np.dot(x_mat, coef) + (0 if offset is None else offset)
 
     glm = GeneralizedLinearRegressor(
-        alpha=0,
         family="normal",
         link="identity",
         fit_intercept=False,
@@ -700,7 +753,7 @@ def test_glm_identity_regression_categorical_data(solver, offset, convert_x_fn):
         gradient_tol=1e-7,
     )
     X = convert_x_fn(x_mat)
-    np.testing.assert_almost_equal(X.A if hasattr(X, "A") else X, x_mat)
+    np.testing.assert_almost_equal(X.toarray() if hasattr(X, "toarray") else X, x_mat)
     res = glm.fit(X, y, offset=offset)
 
     assert_allclose(res.coef_, coef, rtol=1e-6)
@@ -731,7 +784,6 @@ def test_glm_log_regression(family, solver, tol, fit_intercept, offset):
     X = np.array([[1, 1, 1, 1, 1], [0, 1, 2, 3, 4]]).T
     y = np.exp(np.dot(X, coef) + (0 if offset is None else offset))
     glm = GeneralizedLinearRegressor(
-        alpha=0,
         family=family,
         link="log",
         fit_intercept=fit_intercept,
@@ -1205,7 +1257,6 @@ def test_binomial_cloglog_unregularized(solver):
     sm_fit = sm_glm.fit()
 
     glum_glm = GeneralizedLinearRegressor(
-        alpha=0,
         family="binomial",
         link="cloglog",
         solver=solver,
@@ -1267,11 +1318,11 @@ def test_binomial_enet(alpha):
 @pytest.mark.parametrize(
     "params",
     [
-        {"solver": "irls-ls"},
-        {"solver": "lbfgs"},
-        {"solver": "trust-constr"},
-        {"solver": "irls-cd", "selection": "cyclic"},
-        {"solver": "irls-cd", "selection": "random"},
+        {"solver": "irls-ls", "alpha": 1.0},
+        {"solver": "lbfgs", "alpha": 1.0},
+        {"solver": "trust-constr", "alpha": 1.0},
+        {"solver": "irls-cd", "selection": "cyclic", "alpha": 1.0},
+        {"solver": "irls-cd", "selection": "random", "alpha": 1.0},
     ],
     ids=lambda params: ", ".join(f"{key}={val}" for key, val in params.items()),
 )
@@ -1283,7 +1334,7 @@ def test_solver_equivalence(params, use_offset, regression_data):
         offset = np.random.random(len(y))
     else:
         offset = None
-    est_ref = GeneralizedLinearRegressor(random_state=2)
+    est_ref = GeneralizedLinearRegressor(random_state=2, alpha=1.0)
     est_ref.fit(X, y, offset=offset)
 
     est_2 = GeneralizedLinearRegressor(**params)
@@ -1398,24 +1449,24 @@ def test_standardize(use_sparse, scale_predictors):
         assert _arrays_share_data(X.mat.indptr, M.indptr)
     else:
         # Check that the underlying data pointer is the same
-        assert _arrays_share_data(X.mat, M)
+        assert _arrays_share_data(X.mat.unpack(), M.unpack())
     np.testing.assert_almost_equal(col_means, col_mults)
 
     # After standardization, all the columns will have the same values.
     # To check that, just convert to dense first.
     if use_sparse:
-        Xdense = X.A
+        Xdense = X.toarray()
     else:
         Xdense = X
     for i in range(1, NC):
         if scale_predictors:
             if isinstance(Xdense, tm.StandardizedMatrix):
-                one, two = Xdense.A[:, 0], Xdense.A[:, i]
+                one, two = Xdense.toarray()[:, 0], Xdense.toarray()[:, i]
             else:
                 one, two = Xdense[:, 0], Xdense[:, i]
         else:
             if isinstance(Xdense, tm.StandardizedMatrix):
-                one, two = (i + 1) * Xdense.A[:, 0], Xdense.A[:, i]
+                one, two = (i + 1) * Xdense.toarray()[:, 0], Xdense.toarray()[:, i]
             else:
                 one, two = (i + 1) * Xdense[:, 0], Xdense[:, i]
         np.testing.assert_almost_equal(one, two)
@@ -1720,7 +1771,7 @@ def test_passing_noncontiguous_as_X():
     "X, feature_names",
     [
         (pd.DataFrame({"x1": np.arange(5), "x2": 2}), np.array(["x1", "x2"])),
-        (pd.DataFrame({"x1": np.arange(5), "x2": 2}).to_numpy(), None),
+        (pd.DataFrame({"x1": np.arange(5), "x2": 2}).to_numpy(), ["_col_0", "_col_1"]),
         (
             pd.DataFrame({"x1": pd.Categorical(np.arange(5)), "x2": 2}),
             np.array(["x1__0", "x1__1", "x1__2", "x1__3", "x1__4", "x2"]),
@@ -1734,11 +1785,120 @@ def test_passing_noncontiguous_as_X():
             ),
             np.array(["x1__0", "x1__1", "x1__2", "x1__3", "x1__4", "x2__2"]),
         ),
+        (
+            tm.SplitMatrix(
+                [
+                    tm.CategoricalMatrix(
+                        np.arange(5), column_name_format="{name}__{category}"
+                    ),
+                    tm.DenseMatrix(np.ones((5, 1))),
+                ]
+            ),
+            np.array(
+                [
+                    "_col_0-4__0",
+                    "_col_0-4__1",
+                    "_col_0-4__2",
+                    "_col_0-4__3",
+                    "_col_0-4__4",
+                    "_col_5",
+                ]
+            ),
+        ),
     ],
 )
-def test_feature_names(X, feature_names):
-    model = GeneralizedLinearRegressor(family="poisson").fit(X, np.arange(5))
+def test_feature_names_underscores(X, feature_names):
+    model = GeneralizedLinearRegressor(
+        family="poisson", categorical_format="{name}__{category}", alpha=1.0
+    ).fit(X, np.arange(5))
     np.testing.assert_array_equal(getattr(model, "feature_names_", None), feature_names)
+
+
+@pytest.mark.parametrize(
+    "X, feature_names",
+    [
+        (pd.DataFrame({"x1": np.arange(5), "x2": 2}), np.array(["x1", "x2"])),
+        (pd.DataFrame({"x1": np.arange(5), "x2": 2}).to_numpy(), ["_col_0", "_col_1"]),
+        (
+            pd.DataFrame({"x1": pd.Categorical(np.arange(5)), "x2": 2}),
+            np.array(["x1[0]", "x1[1]", "x1[2]", "x1[3]", "x1[4]", "x2"]),
+        ),
+        (
+            pd.DataFrame(
+                {
+                    "x1": pd.Categorical(np.arange(5)),
+                    "x2": pd.Categorical([2, 2, 2, 2, 2]),
+                }
+            ),
+            np.array(["x1[0]", "x1[1]", "x1[2]", "x1[3]", "x1[4]", "x2[2]"]),
+        ),
+        (
+            tm.SplitMatrix(
+                [
+                    tm.CategoricalMatrix(
+                        np.arange(5), column_name_format="{name}[{category}]"
+                    ),
+                    tm.DenseMatrix(np.ones((5, 1))),
+                ]
+            ),
+            np.array(
+                [
+                    "_col_0-4[0]",
+                    "_col_0-4[1]",
+                    "_col_0-4[2]",
+                    "_col_0-4[3]",
+                    "_col_0-4[4]",
+                    "_col_5",
+                ]
+            ),
+        ),
+    ],
+)
+def test_feature_names_brackets(X, feature_names):
+    model = GeneralizedLinearRegressor(
+        family="poisson", categorical_format="{name}[{category}]", alpha=1.0
+    ).fit(X, np.arange(5))
+    np.testing.assert_array_equal(getattr(model, "feature_names_", None), feature_names)
+
+
+@pytest.mark.parametrize(
+    "X, term_names",
+    [
+        (pd.DataFrame({"x1": np.arange(5), "x2": 2}), np.array(["x1", "x2"])),
+        (pd.DataFrame({"x1": np.arange(5), "x2": 2}).to_numpy(), ["_col_0", "_col_1"]),
+        (
+            pd.DataFrame({"x1": pd.Categorical(np.arange(5)), "x2": 2}),
+            np.array(["x1", "x1", "x1", "x1", "x1", "x2"]),
+        ),
+        (
+            pd.DataFrame(
+                {
+                    "x1": pd.Categorical(np.arange(5)),
+                    "x2": pd.Categorical([2, 2, 2, 2, 2]),
+                }
+            ),
+            np.array(["x1", "x1", "x1", "x1", "x1", "x2"]),
+        ),
+        (
+            tm.SplitMatrix(
+                [tm.CategoricalMatrix(np.arange(5)), tm.DenseMatrix(np.ones((5, 1)))]
+            ),
+            np.array(
+                [
+                    "_col_0-4",
+                    "_col_0-4",
+                    "_col_0-4",
+                    "_col_0-4",
+                    "_col_0-4",
+                    "_col_5",
+                ]
+            ),
+        ),
+    ],
+)
+def test_term_names(X, term_names):
+    model = GeneralizedLinearRegressor(family="poisson", alpha=1.0).fit(X, np.arange(5))
+    np.testing.assert_array_equal(getattr(model, "term_names_", None), term_names)
 
 
 @pytest.mark.parametrize(
@@ -1753,7 +1913,7 @@ def test_feature_names(X, feature_names):
     ],
 )
 def test_feature_dtypes(X, dtypes):
-    model = GeneralizedLinearRegressor(family="poisson").fit(X, np.arange(5))
+    model = GeneralizedLinearRegressor(family="poisson", alpha=1.0).fit(X, np.arange(5))
     np.testing.assert_array_equal(getattr(model, "feature_dtypes_", None), dtypes)
 
 
@@ -1776,12 +1936,12 @@ def test_categorical_types(k, n):
 
     # use categorical types
     X_cat = pd.DataFrame({"group": pd.Categorical(group, categories=categories)})
-    model_cat = GeneralizedLinearRegressor(family="poisson").fit(X_cat, y)
+    model_cat = GeneralizedLinearRegressor(family="poisson", alpha=1.0).fit(X_cat, y)
     pred_cat = model_cat.predict(X_cat)
 
     # use one-hot encoding
     X_oh = pd.get_dummies(X_cat, dtype=float)
-    model_oh = GeneralizedLinearRegressor(family="poisson").fit(X_oh, y)
+    model_oh = GeneralizedLinearRegressor(family="poisson", alpha=1.0).fit(X_oh, y)
     pred_oh = model_oh.predict(X_oh)
 
     # check predictions
@@ -1832,7 +1992,7 @@ def test_verbose(regression_data, capsys):
 
 def test_ols_std_errors(regression_data):
     X, y = regression_data
-    mdl = GeneralizedLinearRegressor(alpha=0, family="normal")
+    mdl = GeneralizedLinearRegressor(family="normal")
     mdl.fit(X=X, y=y)
 
     mdl_sm = sm.OLS(endog=y, exog=sm.add_constant(X))
@@ -1875,9 +2035,9 @@ def test_array_std_errors(regression_data, family, fit_intercept):
         sm_family = sm.families.Gaussian()
         dispersion = None
 
-    mdl = GeneralizedLinearRegressor(
-        alpha=0, family=family, fit_intercept=fit_intercept
-    ).fit(X=X, y=y)
+    mdl = GeneralizedLinearRegressor(family=family, fit_intercept=fit_intercept).fit(
+        X=X, y=y
+    )
 
     if fit_intercept:
         mdl_sm = sm.GLM(endog=y, exog=sm.add_constant(X), family=sm_family)
@@ -1909,7 +2069,7 @@ def test_array_std_errors(regression_data, family, fit_intercept):
 def test_sparse_std_errors(regression_data):
     X, y = regression_data
     sp_X = sparse.csc_matrix(X)
-    mdl = GeneralizedLinearRegressor(alpha=0, family="normal")
+    mdl = GeneralizedLinearRegressor(family="normal")
     mdl.fit(X=X, y=y)
 
     actual1 = mdl.std_errors(X=sp_X, y=y, robust=False)
@@ -1951,9 +2111,7 @@ def test_inputtype_std_errors(regression_data, categorical, split, fit_intercept
                     tm.CategoricalMatrix(pd.Categorical(group, categories=categories)),
                 ]
             )
-    mdl = GeneralizedLinearRegressor(
-        alpha=0, family="normal", fit_intercept=fit_intercept
-    )
+    mdl = GeneralizedLinearRegressor(family="normal", fit_intercept=fit_intercept)
     mdl.fit(X=X, y=y)
     if isinstance(X, tm.MatrixBase):
         X_sm = X.toarray()
@@ -1985,14 +2143,14 @@ def test_inputtype_std_errors(regression_data, categorical, split, fit_intercept
 
 
 @pytest.mark.parametrize("fit_intercept", [True, False])
-@pytest.mark.parametrize("significance_level", [0.01, 0.05])
-def test_coef_table(regression_data, fit_intercept, significance_level):
+@pytest.mark.parametrize("confidence_level", [0.95, 0.99])
+def test_coef_table(regression_data, fit_intercept, confidence_level):
     X, y = regression_data
     colnames = ["dog", "cat", "bat", "cow", "eel", "fox", "bee", "owl", "pig", "rat"]
     X_df = pd.DataFrame(X, columns=colnames)
 
     mdl = GeneralizedLinearRegressor(
-        alpha=0, family="gaussian", fit_intercept=fit_intercept
+        family="gaussian", fit_intercept=fit_intercept
     ).fit(X=X_df, y=y)
 
     if fit_intercept:
@@ -2003,7 +2161,7 @@ def test_coef_table(regression_data, fit_intercept, significance_level):
 
     # Make the covariance matrices the same to focus on the coefficient table
     mdl.covariance_matrix_ = mdl_sm.fit(cov_type="nonrobust").cov_params()
-    our_table = mdl.coef_table()
+    our_table = mdl.coef_table(confidence_level=confidence_level)
 
     if fit_intercept:
         colnames = ["intercept"] + colnames
@@ -2014,7 +2172,9 @@ def test_coef_table(regression_data, fit_intercept, significance_level):
     np.testing.assert_allclose(our_table["t_value"], fit_sm.tvalues, rtol=1e-8)
     np.testing.assert_allclose(our_table["p_value"], fit_sm.pvalues, atol=1e-8)
     np.testing.assert_allclose(
-        our_table[["ci_lower", "ci_upper"]], fit_sm.conf_int(), rtol=1e-8
+        our_table[["ci_lower", "ci_upper"]],
+        fit_sm.conf_int(alpha=1 - confidence_level),
+        rtol=1e-8,
     )
 
 
@@ -2053,9 +2213,9 @@ def test_wald_test_matrix(regression_data, family, fit_intercept, R, r):
         sm_family = sm.families.Gaussian()
         dispersion = None
 
-    mdl = GeneralizedLinearRegressor(
-        alpha=0, family=family, fit_intercept=fit_intercept
-    ).fit(X=X, y=y)
+    mdl = GeneralizedLinearRegressor(family=family, fit_intercept=fit_intercept).fit(
+        X=X, y=y
+    )
 
     if fit_intercept:
         mdl_sm = sm.GLM(endog=y, exog=sm.add_constant(X), family=sm_family)
@@ -2127,9 +2287,9 @@ def test_wald_test_matrix(regression_data, family, fit_intercept, R, r):
 def test_wald_test_matrix_public(regression_data, R, r):
     X, y = regression_data
 
-    mdl = GeneralizedLinearRegressor(
-        alpha=0, family="gaussian", fit_intercept=True
-    ).fit(X=X, y=y, store_covariance_matrix=True)
+    mdl = GeneralizedLinearRegressor(family="gaussian", fit_intercept=True).fit(
+        X=X, y=y, store_covariance_matrix=True
+    )
 
     assert mdl._wald_test_matrix(R, r) == mdl.wald_test(R=R, r=r)
 
@@ -2150,9 +2310,9 @@ def test_wald_test_matrix_public(regression_data, R, r):
 def test_wald_test_matrix_fixed_cov(regression_data, R, r):
     X, y = regression_data
 
-    mdl = GeneralizedLinearRegressor(
-        alpha=0, family="gaussian", fit_intercept=False
-    ).fit(X=X, y=y, store_covariance_matrix=True)
+    mdl = GeneralizedLinearRegressor(family="gaussian", fit_intercept=False).fit(
+        X=X, y=y, store_covariance_matrix=True
+    )
     mdl_sm = sm.GLM(endog=y, exog=X, family=sm.families.Gaussian())
 
     # Use the same covariance matrix for both so that we can use tighter tolerances
@@ -2195,9 +2355,9 @@ def test_wald_test_feature_names(regression_data, names, R, r):
     X, y = regression_data
     X_df = pd.DataFrame(X, columns=[f"col_{i}" for i in range(X.shape[1])])
 
-    mdl = GeneralizedLinearRegressor(
-        alpha=0, family="gaussian", fit_intercept=True
-    ).fit(X=X_df, y=y, store_covariance_matrix=True)
+    mdl = GeneralizedLinearRegressor(family="gaussian", fit_intercept=True).fit(
+        X=X_df, y=y, store_covariance_matrix=True
+    )
 
     feature_names_results = mdl._wald_test_feature_names(names, r)
     if r is not None:
@@ -2236,16 +2396,232 @@ def test_wald_test_feature_names_public(regression_data, names, r):
     X, y = regression_data
     X_df = pd.DataFrame(X, columns=[f"col_{i}" for i in range(X.shape[1])])
 
-    mdl = GeneralizedLinearRegressor(
-        alpha=0, family="gaussian", fit_intercept=True
-    ).fit(X=X_df, y=y, store_covariance_matrix=True)
+    mdl = GeneralizedLinearRegressor(family="gaussian", fit_intercept=True).fit(
+        X=X_df, y=y, store_covariance_matrix=True
+    )
 
     assert mdl._wald_test_feature_names(names, r) == mdl.wald_test(features=names, r=r)
 
 
+@pytest.mark.parametrize(
+    "names, R, r, r_feat",
+    [
+        pytest.param(["col_1"], np.array([[0, 1] + 5 * [0]]), None, None, id="single"),
+        pytest.param(
+            ["col_1", "col_2"],
+            np.array([[0, 1, 0] + 4 * [0], [0, 0, 1] + 4 * [0]]),
+            None,
+            None,
+            id="multiple",
+        ),
+        pytest.param(
+            ["term_3"],
+            np.hstack(
+                (
+                    np.zeros((4, 3)),
+                    np.eye(4),
+                )
+            ),
+            None,
+            None,
+            id="multifeature",
+        ),
+        pytest.param(
+            ["term_3"],
+            np.hstack(
+                (
+                    np.zeros((4, 3)),
+                    np.eye(4),
+                )
+            ),
+            [1],
+            [1] * 4,
+            id="rhs_not_zero",
+        ),
+        pytest.param(
+            ["intercept", "col_1"],
+            np.array([[1, 0] + 5 * [0], [0, 1] + 5 * [0]]),
+            [1, 2],
+            [1, 2],
+            id="intercept",
+        ),
+    ],
+)
+def test_wald_test_term_names(regression_data, names, R, r, r_feat):
+    X, y = regression_data
+    X_df = pd.DataFrame(X, columns=[f"col_{i}" for i in range(X.shape[1])])
+    X_df = X_df[["col_1", "col_2"]].assign(term_3=pd.cut(X_df["col_3"], bins=5))
+
+    mdl = GeneralizedLinearRegressor(
+        family="gaussian", fit_intercept=True, drop_first=True
+    ).fit(X=X_df, y=y, store_covariance_matrix=True)
+
+    term_names_results = mdl._wald_test_term_names(names, r)
+
+    if r is not None:
+        r_feat = np.array(r_feat)  # wald_test_matrix expects an optional numpy array
+    matrix_results = mdl._wald_test_matrix(R, r_feat)
+
+    np.testing.assert_equal(
+        term_names_results.test_statistic, matrix_results.test_statistic
+    )
+    np.testing.assert_equal(term_names_results.p_value, matrix_results.p_value)
+    assert term_names_results.df == matrix_results.df
+
+
+@pytest.mark.parametrize(
+    "names, R, r, r_feat",
+    [
+        pytest.param(["col_1"], np.array([[0, 1] + 5 * [0]]), None, None, id="single"),
+        pytest.param(
+            ["col_1", "col_2"],
+            np.array([[0, 1, 0] + 4 * [0], [0, 0, 1] + 4 * [0]]),
+            None,
+            None,
+            id="multiple",
+        ),
+        pytest.param(
+            ["term_3"],
+            np.hstack(
+                (
+                    np.zeros((4, 3)),
+                    np.eye(4),
+                )
+            ),
+            None,
+            None,
+            id="multifeature",
+        ),
+        pytest.param(
+            ["term_3"],
+            np.hstack(
+                (
+                    np.zeros((4, 3)),
+                    np.eye(4),
+                )
+            ),
+            [1],
+            [1] * 4,
+            id="rhs_not_zero",
+        ),
+        pytest.param(
+            ["intercept", "col_1"],
+            np.array([[1, 0] + 5 * [0], [0, 1] + 5 * [0]]),
+            [1, 2],
+            [1, 2],
+            id="intercept",
+        ),
+    ],
+)
+def test_wald_test_term_names_public(regression_data, names, R, r, r_feat):
+    X, y = regression_data
+    X_df = pd.DataFrame(X, columns=[f"col_{i}" for i in range(X.shape[1])])
+    X_df = X_df[["col_1", "col_2"]].assign(term_3=pd.cut(X_df["col_3"], bins=5))
+
+    mdl = GeneralizedLinearRegressor(
+        family="gaussian", fit_intercept=True, drop_first=True
+    ).fit(X=X_df, y=y, store_covariance_matrix=True)
+
+    term_names_results = mdl.wald_test(terms=names, r=r)
+
+    if r is not None:
+        r_feat = np.array(r_feat)  # wald_test_matrix expects an optional numpy array
+    matrix_results = mdl._wald_test_matrix(R, r_feat)
+
+    np.testing.assert_equal(
+        term_names_results.test_statistic, matrix_results.test_statistic
+    )
+    np.testing.assert_equal(term_names_results.p_value, matrix_results.p_value)
+    assert term_names_results.df == matrix_results.df
+
+
+@pytest.mark.parametrize(
+    "formula, R, r_feat",
+    [
+        pytest.param("col_0 = 0", np.array([[0, 1] + 9 * [0]]), None, id="single"),
+        pytest.param(
+            "col_0 = 0, col_1 = 0",
+            np.array([[0, 1, 0] + 8 * [0], [0, 0, 1] + 8 * [0]]),
+            None,
+            id="multiple",
+        ),
+        pytest.param(
+            "intercept = 1, col_0 = 2",
+            np.array([[1, 0] + 9 * [0], [0, 1] + 9 * [0]]),
+            [1, 2],
+            id="intercept",
+        ),
+    ],
+)
+def test_wald_test_formula(regression_data, formula, R, r_feat):
+    X, y = regression_data
+    X_df = pd.DataFrame(X, columns=[f"col_{i}" for i in range(X.shape[1])])
+
+    mdl = GeneralizedLinearRegressor(
+        family="gaussian", fit_intercept=True, drop_first=True
+    ).fit(X=X_df, y=y, store_covariance_matrix=True)
+
+    term_names_results = mdl._wald_test_formula(formula)
+
+    if r_feat is not None:
+        r_feat = np.array(r_feat)  # wald_test_matrix expects an optional numpy array
+    matrix_results = mdl._wald_test_matrix(R, r_feat)
+
+    np.testing.assert_equal(
+        term_names_results.test_statistic, matrix_results.test_statistic
+    )
+    np.testing.assert_equal(term_names_results.p_value, matrix_results.p_value)
+    assert term_names_results.df == matrix_results.df
+
+
+@pytest.mark.parametrize(
+    "formula, R, r_feat",
+    [
+        pytest.param("col_0 = 0", np.array([[0, 1] + 9 * [0]]), None, id="single"),
+        pytest.param(
+            "col_0 = 0, col_1 = 0",
+            np.array([[0, 1, 0] + 8 * [0], [0, 0, 1] + 8 * [0]]),
+            None,
+            id="multiple",
+        ),
+        pytest.param(
+            "col_0 + col_1 = 2 * col_2 - 1",
+            np.array([[0, 1, 1, -2] + 7 * [0]]),
+            [-1],
+            id="combination",
+        ),
+        pytest.param(
+            "intercept = 1, col_0 = 2",
+            np.array([[1, 0] + 9 * [0], [0, 1] + 9 * [0]]),
+            [1, 2],
+            id="intercept",
+        ),
+    ],
+)
+def test_wald_test_formula_public(regression_data, formula, R, r_feat):
+    X, y = regression_data
+    X_df = pd.DataFrame(X, columns=[f"col_{i}" for i in range(X.shape[1])])
+
+    mdl = GeneralizedLinearRegressor(
+        family="gaussian", fit_intercept=True, drop_first=True
+    ).fit(X=X_df, y=y, store_covariance_matrix=True)
+
+    term_names_results = mdl.wald_test(formula=formula)
+
+    if r_feat is not None:
+        r_feat = np.array(r_feat)  # wald_test_matrix expects an optional numpy array
+    matrix_results = mdl._wald_test_matrix(R, r_feat)
+
+    np.testing.assert_equal(
+        term_names_results.test_statistic, matrix_results.test_statistic
+    )
+    np.testing.assert_equal(term_names_results.p_value, matrix_results.p_value)
+    assert term_names_results.df == matrix_results.df
+
+
 def test_wald_test_raise_on_wrong_input(regression_data):
     X, y = regression_data
-    mdl = GeneralizedLinearRegressor(alpha=0, family="gaussian", fit_intercept=True)
+    mdl = GeneralizedLinearRegressor(family="gaussian", fit_intercept=True)
     mdl.fit(X=X, y=y)
 
     with pytest.raises(ValueError):
@@ -2260,7 +2636,6 @@ def test_wald_test_raise_on_wrong_input(regression_data):
 @pytest.mark.parametrize("weighted", [False, True])
 def test_score_method(as_data_frame, offset, weighted):
     regressor = GeneralizedLinearRegressor(
-        alpha=0,
         family="normal",
         fit_intercept=False,
         gradient_tol=1e-8,
@@ -2294,7 +2669,7 @@ def test_score_method(as_data_frame, offset, weighted):
 
 def test_information_criteria(regression_data):
     X, y = regression_data
-    regressor = GeneralizedLinearRegressor(family="gaussian", alpha=0)
+    regressor = GeneralizedLinearRegressor(family="gaussian")
     regressor.fit(X, y)
 
     llf = regressor.family_instance.log_likelihood(y, regressor.predict(X))
@@ -2310,7 +2685,6 @@ def test_information_criteria(regression_data):
     )
 
 
-@pytest.mark.skip(reason="Skip while future warnings are raised.")
 @pytest.mark.filterwarnings("ignore: There is no")
 def test_information_criteria_raises_correct_warnings_and_errors(regression_data):
     X, y = regression_data
@@ -2350,23 +2724,22 @@ def test_drop_first_allows_alpha_equals_0():
     rng = np.random.default_rng(42)
     y = np.random.normal(size=10)
     X = pd.DataFrame(data={"cat": pd.Categorical(rng.integers(2, size=10))})
-    regressor = GeneralizedLinearRegressor(alpha=0, drop_first=True)
+    regressor = GeneralizedLinearRegressor(drop_first=True)
     regressor.fit(X, y)
 
-    regressor = GeneralizedLinearRegressor(alpha=0)  # default is False
+    regressor = GeneralizedLinearRegressor()  # default is False
     with pytest.raises(np.linalg.LinAlgError):
         regressor.fit(X, y)
 
 
-def test_error_on_distinct_categorical_column():
+def test_dropping_distinct_categorical_column():
     y = np.random.normal(size=10)
-    X = pd.DataFrame(data={"cat": pd.Categorical(np.ones(10))})
-    regressor = GeneralizedLinearRegressor(alpha=0, drop_first=True)
-    with pytest.raises(ValueError):
-        regressor.fit(X, y)
-
-    regressor = GeneralizedLinearRegressor(alpha=0)
+    X = pd.DataFrame(data={"cat": pd.Categorical(np.ones(10)), "num": np.ones(10)})
+    regressor = GeneralizedLinearRegressor(drop_first=True)
     regressor.fit(X, y)
+    assert regressor.coef_.shape == (1,)
+    assert regressor.feature_names_ == ["num"]
+    assert regressor.term_names_ == ["num"]
 
 
 def test_P1_P2_with_drop_first():
@@ -2399,7 +2772,6 @@ def test_store_covariance_matrix(
 
     regressor = GeneralizedLinearRegressor(
         family="gaussian",
-        alpha=0,
         robust=robust,
         expected_information=expected_information,
     )
@@ -2420,10 +2792,52 @@ def test_store_covariance_matrix(
     )
 
 
+@pytest.mark.parametrize(
+    "formula", ["y ~ col_1 + col_2", "col_1 + col_2"], ids=["two-sided", "one-sided"]
+)
+def test_store_covariance_matrix_formula(regression_data, formula):
+    X, y = regression_data
+    df = pd.DataFrame(X, columns=[f"col_{i}" for i in range(X.shape[1])])
+
+    if "~" in formula:
+        df["y"] = y
+        y = None
+
+    regressor = GeneralizedLinearRegressor(
+        formula=formula,
+        family="gaussian",
+    )
+    regressor.fit(df, y, store_covariance_matrix=True)
+
+    np.testing.assert_array_almost_equal(
+        regressor.covariance_matrix(df, y),
+        regressor.covariance_matrix(),
+    )
+
+    np.testing.assert_array_almost_equal(
+        regressor.std_errors(df, y),
+        regressor.std_errors(),
+    )
+
+
+def test_store_covariance_matrix_formula_errors(regression_data):
+    X, y = regression_data
+    df = pd.DataFrame(X, columns=[f"col_{i}" for i in range(X.shape[1])])
+    formula = "col_1 + col_2"
+
+    regressor = GeneralizedLinearRegressor(
+        formula=formula,
+        family="gaussian",
+    )
+    regressor.fit(df, y)
+    with pytest.raises(ValueError, match="Either X and y must be provided"):
+        regressor.covariance_matrix(df)
+
+
 def test_store_covariance_matrix_errors(regression_data):
     X, y = regression_data
 
-    regressor = GeneralizedLinearRegressor(family="gaussian", alpha=0)
+    regressor = GeneralizedLinearRegressor(family="gaussian")
     regressor.fit(X, y, store_covariance_matrix=False)
 
     with pytest.raises(ValueError, match="Either X and y must be provided"):
@@ -2516,3 +2930,361 @@ def test_store_covariance_matrix_cv(
         new_covariance_matrix,
         stored_covariance_matrix,
     )
+
+
+@pytest.mark.parametrize(
+    "input, expected",
+    [
+        pytest.param(
+            "y ~ x1 + x2",
+            (["y"], ["1", "x1", "x2"]),
+            id="implicit_intercept",
+        ),
+        pytest.param(
+            "y ~ x1 + x2 + 1",
+            (["y"], ["1", "x1", "x2"]),
+            id="explicit_intercept",
+        ),
+        pytest.param(
+            "y ~ x1 + x2 - 1",
+            (["y"], ["x1", "x2"]),
+            id="no_intercept",
+        ),
+        pytest.param(
+            "y ~ ",
+            (["y"], ["1"]),
+            id="empty_rhs",
+        ),
+    ],
+)
+def test_parse_formula(input, expected):
+    lhs_exp, rhs_exp = expected
+    lhs, rhs = _parse_formula(input)
+    assert list(lhs) == lhs_exp
+    assert list(rhs) == rhs_exp
+
+    formula = Formula(input)
+    lhs, rhs = _parse_formula(formula)
+    assert list(lhs) == lhs_exp
+    assert list(rhs) == rhs_exp
+
+
+@pytest.mark.parametrize(
+    "input, error",
+    [
+        pytest.param("y1 + y2 ~ x1 + x2", ValueError, id="multiple_lhs"),
+        pytest.param([["y"], ["x1", "x2"]], TypeError, id="wrong_type"),
+    ],
+)
+def test_parse_formula_invalid(input, error):
+    with pytest.raises(error):
+        _parse_formula(input)
+
+
+@pytest.fixture
+def get_mixed_data():
+    nrow = 10
+    np.random.seed(0)
+    return pd.DataFrame(
+        {
+            "y": np.random.rand(nrow),
+            "x1": np.random.rand(nrow),
+            "x2": np.random.rand(nrow),
+            "c1": np.random.choice(["a", "b", "c"], nrow),
+            "c2": np.random.choice(["d", "e"], nrow),
+        }
+    )
+
+
+@pytest.mark.parametrize(
+    "formula",
+    [
+        pytest.param("y ~ x1 + x2", id="numeric"),
+        pytest.param("y ~ c1", id="categorical"),
+        pytest.param("y ~ c1 * c2", id="categorical_interaction"),
+        pytest.param("y ~ x1 + x2 + c1 + c2", id="numeric_categorical"),
+        pytest.param("y ~ x1 * c1 * c2", id="numeric_categorical_interaction"),
+    ],
+)
+@pytest.mark.parametrize(
+    "drop_first", [True, False], ids=["drop_first", "no_drop_first"]
+)
+@pytest.mark.parametrize(
+    "fit_intercept", [True, False], ids=["intercept", "no_intercept"]
+)
+def test_formula(get_mixed_data, formula, drop_first, fit_intercept):
+    """Model with formula and model with externally constructed model matrix should match."""
+    data = get_mixed_data
+
+    model_formula = GeneralizedLinearRegressor(
+        family="normal",
+        drop_first=drop_first,
+        formula=formula,
+        fit_intercept=fit_intercept,
+        categorical_format="{name}[T.{category}]",
+        alpha=1.0,
+    ).fit(data)
+
+    if fit_intercept:
+        # full rank check must consider presence of intercept
+        y_ext, X_ext = formulaic.model_matrix(
+            formula, data, ensure_full_rank=drop_first
+        )
+        X_ext = X_ext.drop(columns="Intercept")
+    else:
+        y_ext, X_ext = formulaic.model_matrix(
+            formula + "-1", data, ensure_full_rank=drop_first
+        )
+    y_ext = y_ext.iloc[:, 0]
+
+    model_ext = GeneralizedLinearRegressor(
+        family="normal",
+        drop_first=drop_first,
+        fit_intercept=fit_intercept,
+        categorical_format="{name}[T.{category}]",
+        alpha=1.0,
+    ).fit(X_ext, y_ext)
+
+    np.testing.assert_almost_equal(model_ext.coef_, model_formula.coef_)
+    np.testing.assert_array_equal(
+        model_ext.feature_names_, model_formula.feature_names_
+    )
+
+
+def test_formula_explicit_intercept(get_mixed_data):
+    data = get_mixed_data
+
+    with pytest.raises(ValueError, match="The formula sets the intercept to False"):
+        GeneralizedLinearRegressor(
+            family="normal",
+            formula="y ~ x1 - 1",
+            fit_intercept=True,
+        ).fit(data)
+
+
+@pytest.mark.parametrize(
+    "formula, feature_names, term_names",
+    [
+        pytest.param("y ~ x1 + x2", ["x1", "x2"], ["x1", "x2"], id="numeric"),
+        pytest.param(
+            "y ~ c1", ["c1[T.a]", "c1[T.b]", "c1[T.c]"], 3 * ["c1"], id="categorical"
+        ),
+        pytest.param(
+            "y ~ x1 : c1",
+            ["x1:c1[T.a]", "x1:c1[T.b]", "x1:c1[T.c]"],
+            3 * ["x1:c1"],
+            id="interaction",
+        ),
+        pytest.param(
+            "y ~ poly(x1, 3)",
+            ["poly(x1, 3)[1]", "poly(x1, 3)[2]", "poly(x1, 3)[3]"],
+            3 * ["poly(x1, 3)"],
+            id="function",
+        ),
+    ],
+)
+def test_formula_names_formulaic_style(
+    get_mixed_data, formula, feature_names, term_names
+):
+    data = get_mixed_data
+    model_formula = GeneralizedLinearRegressor(
+        family="normal",
+        drop_first=False,
+        formula=formula,
+        categorical_format="{name}[T.{category}]",
+        interaction_separator=":",
+        alpha=1.0,
+    ).fit(data)
+
+    np.testing.assert_array_equal(model_formula.feature_names_, feature_names)
+    np.testing.assert_array_equal(model_formula.term_names_, term_names)
+
+
+@pytest.mark.parametrize(
+    "formula, feature_names, term_names",
+    [
+        pytest.param("y ~ x1 + x2", ["x1", "x2"], ["x1", "x2"], id="numeric"),
+        pytest.param(
+            "y ~ c1", ["c1__a", "c1__b", "c1__c"], 3 * ["c1"], id="categorical"
+        ),
+        pytest.param(
+            "y ~ x1 : c1",
+            ["x1__x__c1__a", "x1__x__c1__b", "x1__x__c1__c"],
+            3 * ["x1:c1"],
+            id="interaction",
+        ),
+        pytest.param(
+            "y ~ poly(x1, 3)",
+            ["poly(x1, 3)[1]", "poly(x1, 3)[2]", "poly(x1, 3)[3]"],
+            3 * ["poly(x1, 3)"],
+            id="function",
+        ),
+    ],
+)
+def test_formula_names_old_glum_style(
+    get_mixed_data, formula, feature_names, term_names
+):
+    data = get_mixed_data
+    model_formula = GeneralizedLinearRegressor(
+        family="normal",
+        drop_first=False,
+        formula=formula,
+        categorical_format="{name}__{category}",
+        interaction_separator="__x__",
+        alpha=1.0,
+    ).fit(data)
+
+    np.testing.assert_array_equal(model_formula.feature_names_, feature_names)
+    np.testing.assert_array_equal(model_formula.term_names_, term_names)
+
+
+@pytest.mark.parametrize(
+    "formula",
+    [
+        pytest.param("y ~ x1 + x2", id="numeric"),
+        pytest.param("y ~ c1", id="categorical"),
+        pytest.param("y ~ c1 * c2", id="categorical_interaction"),
+    ],
+)
+@pytest.mark.parametrize(
+    "fit_intercept", [True, False], ids=["intercept", "no_intercept"]
+)
+def test_formula_against_smf(get_mixed_data, formula, fit_intercept):
+    data = get_mixed_data
+    model_formula = GeneralizedLinearRegressor(
+        family="normal",
+        drop_first=True,
+        formula=formula,
+        fit_intercept=fit_intercept,
+    ).fit(data)
+
+    if fit_intercept:
+        beta_formula = np.concatenate([[model_formula.intercept_], model_formula.coef_])
+    else:
+        beta_formula = model_formula.coef_
+
+    formula_smf = formula + "- 1" if not fit_intercept else formula
+    model_smf = smf.glm(formula_smf, data, family=sm.families.Gaussian()).fit()
+
+    np.testing.assert_almost_equal(beta_formula, model_smf.params)
+
+
+def test_formula_context(get_mixed_data):
+    data = get_mixed_data
+    x_context = np.arange(len(data), dtype=float)  # noqa: F841
+    formula = "y ~ x1 + x2 + x_context"
+
+    model_formula = GeneralizedLinearRegressor(
+        family="normal",
+        drop_first=True,
+        formula=formula,
+        fit_intercept=True,
+    )
+    # default is to add nothing to context
+    with pytest.raises(formulaic.errors.FactorEvaluationError):
+        model_formula.fit(data)
+
+    # set context to 0 to capture calling scope
+    model_formula = GeneralizedLinearRegressor(
+        family="normal",
+        drop_first=True,
+        formula=formula,
+        fit_intercept=True,
+    ).fit(data, context=0)
+
+    model_smf = smf.glm(formula, data, family=sm.families.Gaussian()).fit()
+
+    np.testing.assert_almost_equal(
+        np.concatenate([[model_formula.intercept_], model_formula.coef_]),
+        model_smf.params,
+    )
+    np.testing.assert_almost_equal(
+        model_formula.predict(data, context=0), model_smf.predict(data)
+    )
+
+
+@pytest.mark.parametrize(
+    "formula",
+    [
+        pytest.param("y ~ x1 + x2", id="numeric"),
+        pytest.param("y ~ c1", id="categorical"),
+        pytest.param("y ~ c1 * c2", id="categorical_interaction"),
+    ],
+)
+@pytest.mark.parametrize(
+    "fit_intercept", [True, False], ids=["intercept", "no_intercept"]
+)
+def test_formula_predict(get_mixed_data, formula, fit_intercept):
+    data = get_mixed_data
+    data_unseen = data.copy()
+    data_unseen.loc[data_unseen["c1"] == "b", "c1"] = "c"
+    model_formula = GeneralizedLinearRegressor(
+        family="normal",
+        drop_first=True,
+        formula=formula,
+        fit_intercept=fit_intercept,
+    ).fit(data)
+
+    formula_smf = formula + "- 1" if not fit_intercept else formula
+    model_smf = smf.glm(formula_smf, data, family=sm.families.Gaussian()).fit()
+
+    yhat_formula = model_formula.predict(data_unseen)
+    yhat_smf = model_smf.predict(data_unseen)
+
+    np.testing.assert_almost_equal(yhat_formula, yhat_smf)
+
+
+@pytest.mark.parametrize("cat_missing_method", ["fail", "zero", "convert"])
+@pytest.mark.parametrize("unseen_missing", [False, True])
+@pytest.mark.parametrize("formula", [None, "cat_1 + cat_2"])
+def test_cat_missing(cat_missing_method, unseen_missing, formula):
+    X = pd.DataFrame(
+        {
+            "cat_1": pd.Categorical([1, 2, pd.NA, 2, 1]),
+            "cat_2": pd.Categorical([1, 2, pd.NA, 1, 2]),
+        }
+    )
+    if unseen_missing:
+        X = X.dropna()
+    X_unseen = pd.DataFrame(
+        {
+            "cat_1": pd.Categorical([1, pd.NA]),
+            "cat_2": pd.Categorical([1, 2]),
+        }
+    )
+    y = np.array(X.index)
+
+    model = GeneralizedLinearRegressor(
+        family="normal",
+        cat_missing_method=cat_missing_method,
+        drop_first=False,
+        formula=formula,
+        fit_intercept=False,
+        alpha=1.0,
+    )
+    if cat_missing_method == "fail" and not unseen_missing:
+        with pytest.raises(
+            ValueError, match="Categorical data can't have missing values"
+        ):
+            model.fit(X, y)
+    else:
+        model.fit(X, y)
+        feature_names = ["cat_1[1]", "cat_1[2]", "cat_2[1]", "cat_2[2]"]
+
+        if cat_missing_method == "convert" and not unseen_missing:
+            feature_names.insert(2, "cat_1[(MISSING)]")
+            feature_names.append("cat_2[(MISSING)]")
+
+        np.testing.assert_array_equal(model.feature_names_, feature_names)
+        assert len(model.coef_) == len(feature_names)
+
+        if cat_missing_method == "fail" and unseen_missing:
+            with pytest.raises(
+                ValueError, match="Categorical data can't have missing values"
+            ):
+                model.predict(X_unseen)
+        elif cat_missing_method == "convert" and unseen_missing:
+            with pytest.raises(ValueError, match="contains unseen categories"):
+                model.predict(X_unseen)
+        else:
+            model.predict(X_unseen)

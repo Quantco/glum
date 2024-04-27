@@ -48,8 +48,8 @@ def test_normal_elastic_net_comparison(l1_ratio, fit_intercept, convert_x_fn):
     y = y[0:n_samples]
     X, T = X[0:n_samples], X[n_samples:]
 
-    x_arr = X if isinstance(X, np.ndarray) else X.A
-    t_arr = T if isinstance(T, np.ndarray) else T.A
+    x_arr = X if isinstance(X, np.ndarray) else X.toarray()
+    t_arr = T if isinstance(T, np.ndarray) else T.toarray()
     elastic_net = ElasticNetCV(
         l1_ratio=l1_ratio,
         n_alphas=n_alphas,

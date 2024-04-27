@@ -1,7 +1,10 @@
 import copy
-from typing import Optional, Union
+from collections.abc import Mapping
+from typing import Any, Optional, Union
 
 import numpy as np
+from formulaic import FormulaSpec
+from formulaic.utils.context import capture_context
 from joblib import Parallel, delayed
 from sklearn.model_selection._split import check_cv
 
@@ -18,7 +21,7 @@ from ._glm import (
     setup_p2,
 )
 from ._link import Link, LogLink
-from ._util import _positional_args_deprecated, _safe_lin_pred
+from ._util import _safe_lin_pred
 
 
 class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
@@ -244,6 +247,23 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
 
     drop_first : bool, optional (default = False)
         If ``True``, drop the first column when encoding categorical variables.
+        Set this to True when alpha=0 and solver='auto' to prevent an error due to a
+        singular feature matrix. In the case of using a formula with interactions,
+        setting this argument to ``True`` ensures structural full-rankness (it is
+        equivalent to ``ensure_full_rank`` in formulaic and tabmat).
+
+    formula : FormulaSpec
+        A formula accepted by formulaic. It can either be a one-sided formula, in
+        which case ``y`` must be specified in ``fit``, or a two-sided formula, in
+        which case ``y`` must be ``None``.
+
+    interaction_separator: str, default=":"
+        The separator between the names of interacted variables.
+
+    categorical_format: str, default="{name}[T.{category}]"
+        The format string used to generate the names of categorical variables.
+        Has to include the placeholders ``{name}`` and ``{category}``.
+        Only used if ``formula`` is not ``None``.
 
     Attributes
     ----------
@@ -281,11 +301,29 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
     expected_information : bool, optional (default = False)
         If true, then the expected information matrix is computed by default.
         Only relevant when computing robust standard errors.
+
+    categorical_format : str, optional (default = "{name}[{category}]")
+        Format string for categorical features. The format string should
+        contain the placeholder ``{name}`` for the feature name and
+        ``{category}`` for the category name. Only used if ``X`` is a pandas
+        DataFrame.
+
+    cat_missing_method: str {'fail'|'zero'|'convert'}, default='fail'
+        How to handle missing values in categorical columns. Only used if ``X``
+        is a pandas data frame.
+        - if 'fail', raise an error if there are missing values
+        - if 'zero', missing values will represent all-zero indicator columns.
+        - if 'convert', missing values will be converted to the ``cat_missing_name``
+          category.
+
+    cat_missing_name: str, default='(MISSING)'
+        Name of the category to which missing values will be converted if
+        ``cat_missing_method='convert'``.  Only used if ``X`` is a pandas data frame.
     """
 
-    @_positional_args_deprecated()
     def __init__(
         self,
+        *,
         l1_ratio=0,
         P1="identity",
         P2="identity",
@@ -319,6 +357,11 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         drop_first: bool = False,
         robust: bool = True,
         expected_information: bool = False,
+        formula: Optional[FormulaSpec] = None,
+        interaction_separator: str = ":",
+        categorical_format: str = "{name}[{category}]",
+        cat_missing_method: str = "fail",
+        cat_missing_name: str = "(MISSING)",
     ):
         self.alphas = alphas
         self.cv = cv
@@ -354,6 +397,11 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             drop_first=drop_first,
             robust=robust,
             expected_information=expected_information,
+            formula=formula,
+            interaction_separator=interaction_separator,
+            categorical_format=categorical_format,
+            cat_missing_method=cat_missing_method,
+            cat_missing_name=cat_missing_name,
         )
 
     def _validate_hyperparameters(self) -> None:
@@ -372,15 +420,16 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             )
         super()._validate_hyperparameters()
 
-    @_positional_args_deprecated(("X", "y", "sample_weight", "offset"))
     def fit(
         self,
         X: ArrayLike,
         y: ArrayLike,
         sample_weight: Optional[ArrayLike] = None,
         offset: Optional[ArrayLike] = None,
+        *,
         store_covariance_matrix: bool = False,
         clusters: Optional[np.ndarray] = None,
+        context: Optional[Union[int, Mapping[str, Any]]] = None,
     ):
         r"""
         Choose the best model along a 'regularization path' by cross-validation.
@@ -423,8 +472,20 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             Array with cluster membership. Clustered standard errors are
             computed if clusters is not None.
 
+        context : Optional[Union[int, Mapping[str, Any]]], default=None
+            The context to add to the evaluation context of the formula with,
+            e.g., custom transforms. If an integer, the context is taken from
+            the stack frame of the caller at the given depth. Otherwise, a
+            mapping from variable names to values is expected. By default,
+            no context is added. Set ``context=0`` to make the calling scope
+            available.
+
         """
         self._validate_hyperparameters()
+
+        captured_context = capture_context(
+            context + 1 if isinstance(context, int) else context
+        )
 
         (
             X,
@@ -441,6 +502,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             offset,
             solver=self.solver,
             force_all_finite=self.force_all_finite,
+            context=captured_context,
         )
 
         #########
@@ -480,7 +542,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         else:
             _stype = ["csc", "csr"]
 
-        def fit_path(
+        def _fit_path(
             self,
             train_idx,
             test_idx,
@@ -613,7 +675,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             return intercept_path_, coef_path_, deviance_path_
 
         jobs = (
-            delayed(fit_path)(
+            delayed(_fit_path)(
                 self,
                 train_idx=train_idx,
                 test_idx=test_idx,

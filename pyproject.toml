@@ -32,7 +32,7 @@ default_section = 'THIRDPARTY'
 skip = [
   "*-win32",
   "*-manylinux_i686",
-  "pp*", 
+  "pp*",
   "*-musllinux_*",
   "cp36*",
   "cp37*",

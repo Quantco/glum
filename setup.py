@@ -86,7 +86,8 @@ setup(
         "pandas",
         "scikit-learn>=0.23",
         "scipy",
-        "tabmat>=3.1.0,<4.0.0",
+        "formulaic>=0.6",
+        "tabmat>=4.0.0",
     ],
     entry_points=(
         None

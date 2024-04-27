@@ -1,5 +1,6 @@
 import logging
 import warnings
+from collections.abc import Sequence
 from functools import wraps
 from typing import Union
 
@@ -16,7 +17,9 @@ def _asanyarray(x, **kwargs):
     return x if pd.api.types.is_scalar(x) else np.asanyarray(x, **kwargs)
 
 
-def _align_df_categories(df, dtypes) -> pd.DataFrame:
+def _align_df_categories(
+    df, dtypes, has_missing_category, cat_missing_method
+) -> pd.DataFrame:
     """Align data types for prediction.
 
     This function checks that categorical columns have same categories in the
@@ -27,6 +30,8 @@ def _align_df_categories(df, dtypes) -> pd.DataFrame:
     ----------
     df : pandas.DataFrame
     dtypes : Dict[str, Union[str, type, pandas.core.dtypes.base.ExtensionDtype]]
+    has_missing_category : Dict[str, bool]
+    missing_method : str
     """
     if not isinstance(df, pd.DataFrame):
         raise TypeError(f"Expected `pandas.DataFrame'; got {type(df)}.")
@@ -48,11 +53,112 @@ def _align_df_categories(df, dtypes) -> pd.DataFrame:
             changed_dtypes[column] = df[column].cat.set_categories(
                 dtypes[column].categories
             )
+        else:
+            continue
+
+        if cat_missing_method == "convert" and not has_missing_category[column]:
+            unseen_categories = set(df[column].unique())
+            unseen_categories = unseen_categories - set(dtypes[column].categories)
+        else:
+            unseen_categories = set(df[column].dropna().unique())
+            unseen_categories = unseen_categories - set(dtypes[column].categories)
+
+        if unseen_categories:
+            raise ValueError(
+                f"Column {column} contains unseen categories: {unseen_categories}."
+            )
 
     if changed_dtypes:
         df = df.assign(**changed_dtypes)
 
     return df
+
+
+def _add_missing_categories(
+    df,
+    dtypes,
+    feature_names: Sequence[str],
+    categorical_format: str,
+    cat_missing_name: str,
+) -> pd.DataFrame:
+    if not isinstance(df, pd.DataFrame):
+        raise TypeError(f"Expected `pandas.DataFrame'; got {type(df)}.")
+
+    changed_dtypes = {}
+
+    categorical_dtypes = [
+        column
+        for column, dtype in dtypes.items()
+        if isinstance(dtype, pd.CategoricalDtype) and (column in df)
+    ]
+
+    for column in categorical_dtypes:
+        if (
+            categorical_format.format(name=column, category=cat_missing_name)
+            in feature_names
+        ):
+            if cat_missing_name in df[column].cat.categories:
+                raise ValueError(
+                    f"Missing category {cat_missing_name} already exists in {column}."
+                )
+            _logger.info(f"Adding missing category {cat_missing_name} to {column}.")
+            changed_dtypes[column] = df[column].cat.add_categories(cat_missing_name)
+            if df[column].isnull().any():
+                changed_dtypes[column] = changed_dtypes[column].fillna(cat_missing_name)
+
+    if changed_dtypes:
+        df = df.assign(**changed_dtypes)
+
+    return df
+
+
+def _expand_categorical_penalties(
+    penalty, X, drop_first, has_missing_category
+) -> np.ndarray:
+    """Determine penalty matrices ``P1`` or ``P2`` after expanding categorical columns.
+
+    If ``P1`` or ``P2`` has the same shape as ``X`` before expanding categorical
+    columns, we assume that the penalty at the location of categorical columns
+    is the same for all levels.
+    """
+    if isinstance(penalty, str):
+        return penalty
+    if not sparse.issparse(penalty):
+        penalty = np.asanyarray(penalty)
+
+    if penalty.shape[0] == X.shape[1]:
+
+        if penalty.ndim == 2:
+            raise ValueError(
+                "When the penalty is two-dimensional, it must have the "
+                "same length as the number of columns in the design "
+                "matrix `X` after expanding categorical columns."
+            )
+
+        expanded_penalty = []  # type: ignore
+
+        for element, (column, dt) in zip(penalty, X.dtypes.items()):
+            if isinstance(dt, pd.CategoricalDtype):
+                length = len(dt.categories) + has_missing_category[column] - drop_first
+                expanded_penalty.extend(element for _ in range(length))
+            else:
+                expanded_penalty.append(element)
+
+        return np.array(expanded_penalty)
+
+    else:
+
+        return penalty
+
+
+def _is_contiguous(X) -> bool:
+    if isinstance(X, np.ndarray):
+        return X.flags["C_CONTIGUOUS"] or X.flags["F_CONTIGUOUS"]
+    elif isinstance(X, pd.DataFrame):
+        return _is_contiguous(X.values)
+    else:
+        # If not a numpy array or pandas data frame, we assume it is contiguous.
+        return True
 
 
 def _safe_lin_pred(
@@ -88,7 +194,7 @@ def _safe_sandwich_dot(
     """
     result = X.sandwich(d, rows, cols)
     if isinstance(result, sparse.dia_matrix):
-        result = result.A
+        result = result.toarray()
 
     if intercept:
         dim = result.shape[0] + 1
