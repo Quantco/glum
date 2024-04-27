@@ -194,7 +194,7 @@ def _safe_sandwich_dot(
     """
     result = X.sandwich(d, rows, cols)
     if isinstance(result, sparse.dia_matrix):
-        result = result.A
+        result = result.toarray()
 
     if intercept:
         dim = result.shape[0] + 1

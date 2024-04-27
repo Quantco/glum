@@ -2093,7 +2093,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 return self.covariance_matrix_
 
             if hasattr(self, "y_model_spec_"):
-                y = self.y_model_spec_.get_model_matrix(X).A.ravel()
+                y = self.y_model_spec_.get_model_matrix(X).toarray().ravel()
                 # This has to go first because X is modified in the next line
 
             if isinstance(X, pd.DataFrame):
@@ -2417,7 +2417,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                     )
 
                     self.y_model_spec_ = y.model_spec
-                    y = y.A.ravel()
+                    y = y.toarray().ravel()
 
                 X = tm.from_formula(
                     formula=rhs,

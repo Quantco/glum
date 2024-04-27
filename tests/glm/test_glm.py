@@ -721,7 +721,7 @@ def test_x_not_modified_inplace(solver, fit_intercept, offset, convert_x_fn):
     if isinstance(X, np.ndarray):
         np.testing.assert_almost_equal(X, X_before)
     else:
-        np.testing.assert_almost_equal(X.A, X_before.toarray())
+        np.testing.assert_almost_equal(X.toarray(), X_before.toarray())
 
 
 @pytest.mark.parametrize("solver", GLM_SOLVERS)
@@ -1455,18 +1455,18 @@ def test_standardize(use_sparse, scale_predictors):
     # After standardization, all the columns will have the same values.
     # To check that, just convert to dense first.
     if use_sparse:
-        Xdense = X.A
+        Xdense = X.toarray()
     else:
         Xdense = X
     for i in range(1, NC):
         if scale_predictors:
             if isinstance(Xdense, tm.StandardizedMatrix):
-                one, two = Xdense.A[:, 0], Xdense.A[:, i]
+                one, two = Xdense.toarray()[:, 0], Xdense.toarray()[:, i]
             else:
                 one, two = Xdense[:, 0], Xdense[:, i]
         else:
             if isinstance(Xdense, tm.StandardizedMatrix):
-                one, two = (i + 1) * Xdense.A[:, 0], Xdense.A[:, i]
+                one, two = (i + 1) * Xdense.toarray()[:, 0], Xdense.toarray()[:, i]
             else:
                 one, two = (i + 1) * Xdense[:, 0], Xdense[:, i]
         np.testing.assert_almost_equal(one, two)
