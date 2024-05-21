@@ -1716,9 +1716,7 @@ def test_column_with_stddev_zero():
 
     model = GeneralizedLinearRegressor(
         family="poisson", fit_intercept=False, scale_predictors=False
-    ).fit(
-        X, y
-    )  # noqa: F841
+    ).fit(X, y)  # noqa: F841
     model = GeneralizedLinearRegressor(family="poisson").fit(X, y)  # noqa: F841
 
 
@@ -3028,12 +3026,18 @@ def test_formula(get_mixed_data, formula, drop_first, fit_intercept):
     if fit_intercept:
         # full rank check must consider presence of intercept
         y_ext, X_ext = formulaic.model_matrix(
-            formula, data, ensure_full_rank=drop_first
+            formula,
+            data,
+            ensure_full_rank=drop_first,
+            materializer=formulaic.materializers.PandasMaterializer,
         )
         X_ext = X_ext.drop(columns="Intercept")
     else:
         y_ext, X_ext = formulaic.model_matrix(
-            formula + "-1", data, ensure_full_rank=drop_first
+            formula + "-1",
+            data,
+            ensure_full_rank=drop_first,
+            materializer=formulaic.materializers.PandasMaterializer,
         )
     y_ext = y_ext.iloc[:, 0]
 
