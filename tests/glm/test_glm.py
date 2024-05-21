@@ -1716,7 +1716,9 @@ def test_column_with_stddev_zero():
 
     model = GeneralizedLinearRegressor(
         family="poisson", fit_intercept=False, scale_predictors=False
-    ).fit(X, y)  # noqa: F841
+    ).fit(
+        X, y
+    )  # noqa: F841
     model = GeneralizedLinearRegressor(family="poisson").fit(X, y)  # noqa: F841
 
 
