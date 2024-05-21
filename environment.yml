@@ -27,7 +27,7 @@ dependencies:
   - pyarrow
   - pytest
   - pytest-xdist
-  - setuptools_scm
+  - setuptools_scm>=8.1
 
   # build tools
   - c-compiler
