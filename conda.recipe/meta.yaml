@@ -25,7 +25,7 @@ requirements:
     - llvm-openmp  # [osx]
     - numpy
     - pip
-    - scikit-learn >=0.23
+    - scikit-learn >=1.5
     - setuptools_scm
   run:
     - python
@@ -33,7 +33,7 @@ requirements:
     - numexpr
     - {{ pin_compatible('numpy') }}
     - pandas
-    - scikit-learn >=0.23
+    - scikit-learn >=1.5
     - scipy
     - formulaic >=0.6
     - tabmat >=4.0.0
