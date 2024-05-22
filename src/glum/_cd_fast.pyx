@@ -20,7 +20,7 @@ from sklearn.exceptions import ConvergenceWarning
 from sklearn.utils._random cimport our_rand_r
 
 ctypedef np.float64_t DOUBLE
-ctypedef np.uint32_t UINT32_t
+ctypedef np.uint32_t uint32_t
 
 np.import_array()
 
@@ -34,7 +34,7 @@ cdef enum:
     RAND_R_MAX = 0x7FFFFFFF
 
 
-cdef inline UINT32_t rand_int(UINT32_t end, UINT32_t* random_state) nogil:
+cdef inline uint32_t rand_int(uint32_t end, uint32_t* random_state) nogil:
     """Generate a random integer in [0; end)."""
     return our_rand_r(random_state) % end
 
@@ -125,8 +125,8 @@ def enet_coordinate_descent_gram(int[::1] active_set,
     cdef unsigned int ii, jj
     cdef int n_iter = 0
     cdef unsigned int f_iter
-    cdef UINT32_t rand_r_state_seed = rng.randint(0, RAND_R_MAX)
-    cdef UINT32_t* rand_r_state = &rand_r_state_seed
+    cdef uint32_t rand_r_state_seed = rng.randint(0, RAND_R_MAX)
+    cdef uint32_t* rand_r_state = &rand_r_state_seed
 
     with nogil:
         for n_iter in range(max_iter):
