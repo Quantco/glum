@@ -18,9 +18,9 @@ import warnings
 from sklearn.exceptions import ConvergenceWarning
 
 from sklearn.utils._random cimport our_rand_r
+from sklearn.utils._typedefs cimport uint32_t
 
 ctypedef np.float64_t DOUBLE
-ctypedef np.uint32_t uint32_t
 
 np.import_array()
 
