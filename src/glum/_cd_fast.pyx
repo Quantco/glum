@@ -18,7 +18,6 @@ import warnings
 from sklearn.exceptions import ConvergenceWarning
 
 from sklearn.utils._random cimport our_rand_r
-from sklearn.utils._typedefs cimport uint32_t
 
 ctypedef double float64_t
 ctypedef unsigned int uint32_t
