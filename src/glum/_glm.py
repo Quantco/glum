@@ -1815,7 +1815,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             names = np.array(["intercept"] + list(self.term_names_))
             beta = np.concatenate([[self.intercept_], self.coef_])
         else:
-            names = np.array(self.feature_names_)
+            names = np.array(self.term_names_)
             beta = self.coef_
 
         R_list = []

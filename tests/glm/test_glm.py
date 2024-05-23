@@ -2470,14 +2470,17 @@ def test_wald_test_term_names(regression_data, names, R, r, r_feat):
 
 
 @pytest.mark.parametrize(
-    "names, R, r, r_feat",
+    "names, R, r, r_feat, fit_intercept",
     [
-        pytest.param(["col_1"], np.array([[0, 1] + 5 * [0]]), None, None, id="single"),
+        pytest.param(
+            ["col_1"], np.array([[0, 1] + 5 * [0]]), None, None, True, id="single"
+        ),
         pytest.param(
             ["col_1", "col_2"],
             np.array([[0, 1, 0] + 4 * [0], [0, 0, 1] + 4 * [0]]),
             None,
             None,
+            True,
             id="multiple",
         ),
         pytest.param(
@@ -2490,6 +2493,7 @@ def test_wald_test_term_names(regression_data, names, R, r, r_feat):
             ),
             None,
             None,
+            True,
             id="multifeature",
         ),
         pytest.param(
@@ -2502,6 +2506,7 @@ def test_wald_test_term_names(regression_data, names, R, r, r_feat):
             ),
             [1],
             [1] * 4,
+            True,
             id="rhs_not_zero",
         ),
         pytest.param(
@@ -2509,17 +2514,23 @@ def test_wald_test_term_names(regression_data, names, R, r, r_feat):
             np.array([[1, 0] + 5 * [0], [0, 1] + 5 * [0]]),
             [1, 2],
             [1, 2],
+            True,
             id="intercept",
+        ),
+        pytest.param(
+            ["col_1"], np.array([[1] + 5 * [0]]), None, None, False, id="no_intercept"
         ),
     ],
 )
-def test_wald_test_term_names_public(regression_data, names, R, r, r_feat):
+def test_wald_test_term_names_public(
+    regression_data, names, R, r, r_feat, fit_intercept
+):
     X, y = regression_data
     X_df = pd.DataFrame(X, columns=[f"col_{i}" for i in range(X.shape[1])])
     X_df = X_df[["col_1", "col_2"]].assign(term_3=pd.cut(X_df["col_3"], bins=5))
 
     mdl = GeneralizedLinearRegressor(
-        family="gaussian", fit_intercept=True, drop_first=True
+        family="gaussian", fit_intercept=fit_intercept, drop_first=True
     ).fit(X=X_df, y=y, store_covariance_matrix=True)
 
     term_names_results = mdl.wald_test(terms=names, r=r)
