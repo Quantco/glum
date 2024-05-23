@@ -25,7 +25,7 @@ np.import_array()
 # The following two functions are shamelessly copied from the tree code. (_random.pxd)
 # Authors: Arnaud Joly
 #
-# License: BSD 3 clause
+# License: BSD-3-clause
 cdef enum:
     # Max value for our rand_r replacement (near the bottom).
     # We don't use RAND_MAX because it's different across platforms and
