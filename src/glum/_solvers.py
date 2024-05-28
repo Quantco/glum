@@ -344,7 +344,7 @@ def _irls_solver(inner_solver, coef, data) -> tuple[np.ndarray, int, int, list[l
         warnings.warn(
             "IRLS failed to converge. Increase"
             " the maximum number of iterations max_iter"
-            " (currently {})".format(data.max_iter),
+            f" (currently {data.max_iter})",
             ConvergenceWarning,
         )
     return state.coef, state.n_iter, state.n_cycles, state.diagnostics

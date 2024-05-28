@@ -1,51 +1,24 @@
 repos:
- - repo: https://github.com/Quantco/pre-commit-mirrors-black
-   rev: 24.4.2
-   hooks:
-     - id: black-conda
-       args:
-         - --safe
-         - --target-version=py39
- - repo: https://github.com/Quantco/pre-commit-mirrors-flake8
-   rev: 7.0.0
-   hooks:
-    - id: flake8-conda
-      additional_dependencies: [
-          -c,
-          conda-forge,
-          flake8-bugbear=22.12.6,
-          flake8-builtins=2.1.0,
-          flake8-comprehensions=3.10.1,
-          flake8-docstrings=1.6.0,
-          flake8-print=5.0.0,
-          pep8-naming=0.13.3,
-          python<3.12,
-        ]
-      exclude: (^src/glum_benchmarks/orig_sklearn_fork/|^docs)
- - repo: https://github.com/Quantco/pre-commit-mirrors-isort
-   rev: 5.13.2
-   hooks:
-    - id: isort-conda
-      additional_dependencies: [toml]
- - repo: https://github.com/Quantco/pre-commit-mirrors-mypy
-   rev: "1.10.0"
-   hooks:
-    - id: mypy-conda
-      args:
-       - --check-untyped-defs
-       - --ignore-missing-imports
-       - --namespace-packages
-      exclude: ^tests/
-      additional_dependencies: [-c, conda-forge, types-setuptools=67.5, attrs]
- - repo: https://github.com/Quantco/pre-commit-mirrors-pyupgrade
-   rev: 3.15.2
-   hooks:
-    - id: pyupgrade-conda
-      exclude: ^src/glum_benchmarks/orig_sklearn_fork/
-      args: [--py39-plus]
- - repo: https://github.com/Quantco/pre-commit-mirrors-cython-lint
-   rev: 0.16.2
-   hooks:
-    - id: cython-lint-conda
-      args: [--no-pycodestyle]
-    - id: double-quote-cython-strings-conda
+  - repo: https://github.com/Quantco/pre-commit-mirrors-ruff
+    rev: 0.4.3
+    hooks:
+      - id: ruff-conda
+        exclude: ^src/glum_benchmarks/orig_sklearn_fork/
+      - id: ruff-format-conda
+        exclude: ^src/glum_benchmarks/orig_sklearn_fork/
+  - repo: https://github.com/Quantco/pre-commit-mirrors-mypy
+    rev: "1.10.0"
+    hooks:
+      - id: mypy-conda
+        args:
+          - --check-untyped-defs
+          - --ignore-missing-imports
+          - --namespace-packages
+        exclude: (^tests/|^src/glum_benchmarks/orig_sklearn_fork/)
+        additional_dependencies: [-c, conda-forge, types-setuptools=67.5, attrs]
+  - repo: https://github.com/Quantco/pre-commit-mirrors-cython-lint
+    rev: 0.16.2
+    hooks:
+      - id: cython-lint-conda
+        args: [--no-pycodestyle]
+      - id: double-quote-cython-strings-conda

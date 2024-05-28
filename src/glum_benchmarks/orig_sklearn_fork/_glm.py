@@ -36,9 +36,6 @@ Generalized Linear Models with Exponential Dispersion Family
 #   So far, coefficients=w and sample weights=s.
 # - The intercept term is the first index, i.e. coef[0]
 
-
-from __future__ import division
-
 import numbers
 import warnings
 from abc import ABCMeta, abstractmethod
@@ -755,7 +752,7 @@ class TweedieDistribution(ExponentialDispersionModel):
     @power.setter
     def power(self, power):
         if not isinstance(power, numbers.Real):
-            raise TypeError("power must be a real number, input was {}".format(power))
+            raise TypeError(f"power must be a real number, input was {power}")
 
         self._upper_bound = np.inf
         self._include_upper_bound = False
@@ -1056,7 +1053,7 @@ def _irls_solver(coef, X, y, weights, P2, fit_intercept, family, link, max_iter,
     if not converged:
         warnings.warn(
             "irls failed to converge. Increase the number "
-            "of iterations (currently {})".format(max_iter),
+            f"of iterations (currently {max_iter})",
             ConvergenceWarning,
         )
 
@@ -1445,7 +1442,7 @@ def _cd_solver(
         warnings.warn(
             "Coordinate descent failed to converge. Increase"
             " the maximum number of iterations max_iter"
-            " (currently {})".format(max_iter),
+            f" (currently {max_iter})",
             ConvergenceWarning,
         )
 
@@ -1796,7 +1793,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                     "The family must be an instance of class"
                     " ExponentialDispersionModel or an element of"
                     " ['normal', 'poisson', 'gamma', 'inverse.gaussian', "
-                    "'binomial']; got (family={})".format(self.family)
+                    f"'binomial']; got (family={self.family})"
                 )
 
         # Guarantee that self._link_instance is set to an instance of
@@ -1819,7 +1816,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                         "No default link known for the "
                         "specified distribution family. Please "
                         "set link manually, i.e. not to 'auto'; "
-                        "got (link='auto', family={}".format(self.family)
+                        f"got (link='auto', family={self.family}"
                     )
             elif self.link == "identity":
                 self._link_instance = IdentityLink()
@@ -1831,13 +1828,13 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 raise ValueError(
                     "The link must be an instance of class Link or "
                     "an element of ['auto', 'identity', 'log', 'logit']; "
-                    "got (link={})".format(self.link)
+                    f"got (link={self.link})"
                 )
 
         if not isinstance(self.alpha, numbers.Number) or self.alpha < 0:
             raise ValueError(
                 "Penalty term must be a non-negative number;"
-                " got (alpha={})".format(self.alpha)
+                f" got (alpha={self.alpha})"
             )
         if (
             not isinstance(self.l1_ratio, numbers.Number)
@@ -1846,18 +1843,17 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
         ):
             raise ValueError(
                 "l1_ratio must be a number in interval [0, 1];"
-                " got (l1_ratio={})".format(self.l1_ratio)
+                f" got (l1_ratio={self.l1_ratio})"
             )
         if not isinstance(self.fit_intercept, bool):
             raise ValueError(
-                "The argument fit_intercept must be bool;"
-                " got {}".format(self.fit_intercept)
+                "The argument fit_intercept must be bool;" f" got {self.fit_intercept}"
             )
         if self.solver not in ["auto", "irls", "lbfgs", "newton-cg", "cd"]:
             raise ValueError(
                 "GeneralizedLinearRegressor supports only solvers"
                 " 'auto', 'irls', 'lbfgs', 'newton-cg' and 'cd';"
-                " got {}".format(self.solver)
+                f" got {self.solver}"
             )
         solver = self.solver
         if self.solver == "auto":
@@ -1867,47 +1863,41 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 solver = "cd"
         if self.alpha > 0 and self.l1_ratio > 0 and solver not in ["cd"]:
             raise ValueError(
-                "The chosen solver (solver={}) can't deal "
+                f"The chosen solver (solver={solver}) can't deal "
                 "with L1 penalties, which are included with "
-                "(alpha={}) and (l1_ratio={}).".format(
-                    solver, self.alpha, self.l1_ratio
-                )
+                f"(alpha={self.alpha}) and (l1_ratio={self.l1_ratio})."
             )
         if not isinstance(self.max_iter, int) or self.max_iter <= 0:
             raise ValueError(
                 "Maximum number of iteration must be a positive "
                 "integer;"
-                " got (max_iter={!r})".format(self.max_iter)
+                f" got (max_iter={self.max_iter!r})"
             )
         if not isinstance(self.tol, numbers.Number) or self.tol <= 0:
             raise ValueError(
                 "Tolerance for stopping criteria must be "
-                "positive; got (tol={!r})".format(self.tol)
+                f"positive; got (tol={self.tol!r})"
             )
         if not isinstance(self.warm_start, bool):
             raise ValueError(
-                "The argument warm_start must be bool;"
-                " got {}".format(self.warm_start)
+                "The argument warm_start must be bool;" f" got {self.warm_start}"
             )
         if self.selection not in ["cyclic", "random"]:
             raise ValueError(
                 "The argument selection must be 'cyclic' or "
-                "'random'; got (selection={})".format(self.selection)
+                f"'random'; got (selection={self.selection})"
             )
         random_state = check_random_state(self.random_state)
         if not isinstance(self.diag_fisher, bool):
             raise ValueError(
-                "The argument diag_fisher must be bool;"
-                " got {}".format(self.diag_fisher)
+                "The argument diag_fisher must be bool;" f" got {self.diag_fisher}"
             )
         if not isinstance(self.copy_X, bool):
-            raise ValueError(
-                "The argument copy_X must be bool;" " got {}".format(self.copy_X)
-            )
+            raise ValueError("The argument copy_X must be bool;" f" got {self.copy_X}")
         if not isinstance(self.check_input, bool):
             raise ValueError(
                 "The argument check_input must be bool; got "
-                "(check_input={})".format(self.check_input)
+                f"(check_input={self.check_input})"
             )
 
         family = self._family_instance
@@ -1948,14 +1938,14 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             except TypeError:
                 raise TypeError(
                     "The given P1 cannot be converted to a numeric"
-                    "array; got (P1.dtype={}).".format(P1.dtype)
+                    f"array; got (P1.dtype={P1.dtype})."
                 )
             if (P1.ndim != 1) or (P1.shape[0] != n_features):
                 raise ValueError(
                     "P1 must be either 'identity' or a 1d array "
                     "with the length of X.shape[1]; "
-                    "got (P1.shape[0]={}), "
-                    "needed (X.shape[1]={}).".format(P1.shape[0], n_features)
+                    f"got (P1.shape[0]={P1.shape[0]}), "
+                    f"needed (X.shape[1]={n_features})."
                 )
         # If X is sparse, make P2 sparse, too.
         if isinstance(self.P2, str) and self.P2 == "identity":
@@ -1978,9 +1968,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                         "P2 should be a 1d array of shape "
                         "(n_features,) with "
                         "n_features=X.shape[1]; "
-                        "got (P2.shape=({},)), needed ({},)".format(
-                            P2.shape[0], X.shape[1]
-                        )
+                        f"got (P2.shape=({P2.shape[0]},)), needed ({X.shape[1]},)"
                     )
                 if sparse.issparse(X):
                     P2 = (
@@ -1998,9 +1986,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                     "P2 must be either None or an array of shape "
                     "(n_features, n_features) with "
                     "n_features=X.shape[1]; "
-                    "got (P2.shape=({0}, {1})), needed ({2}, {2})".format(
-                        P2.shape[0], P2.shape[1], X.shape[1]
-                    )
+                    f"got (P2.shape=({P2.shape[0]}, {P2.shape[1]})), needed ({X.shape[1]}, {X.shape[1]})"
                 )
 
         start_params = self.start_params
@@ -2009,7 +1995,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 raise ValueError(
                     "The argument start_params must be 'guess', "
                     "'zero' or an array of correct length; "
-                    "got(start_params={})".format(start_params)
+                    f"got(start_params={start_params})"
                 )
         else:
             start_params = check_array(
@@ -2026,11 +2012,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
                 raise ValueError(
                     "Start values for parameters must have the"
                     "right length and dimension; required (length"
-                    "={}, ndim=1); got (length={}, ndim={}).".format(
-                        X.shape[1] + self.fit_intercept,
-                        start_params.shape[0],
-                        start_params.ndim,
-                    )
+                    f"={X.shape[1] + self.fit_intercept}, ndim=1); got (length={start_params.shape[0]}, ndim={start_params.ndim})."
                 )
 
         l1 = self.alpha * self.l1_ratio
@@ -2058,7 +2040,7 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             if not np.all(family.in_y_range(y)):
                 raise ValueError(
                     "Some value(s) of y are out of the valid "
-                    "range for family {}".format(family.__class__.__name__)
+                    f"range for family {family.__class__.__name__}"
                 )
             # check if P1 has only non-negative values, negative values might
             # indicate group lasso in the future.
@@ -2405,8 +2387,8 @@ class GeneralizedLinearRegressor(BaseEstimator, RegressorMixin):
             raise ValueError(
                 "Estimation of dispersion parameter phi requires"
                 " more samples than features, got"
-                " samples=X.shape[0]={} and"
-                " n_features=X.shape[1]+fit_intercept={}.".format(n_samples, n_features)
+                f" samples=X.shape[0]={n_samples} and"
+                f" n_features=X.shape[1]+fit_intercept={n_features}."
             )
         mu = self._link_instance.inverse(eta)
         if self.fit_dispersion == "chisqr":

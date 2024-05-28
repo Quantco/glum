@@ -604,7 +604,6 @@ class TweedieDistribution(ExponentialDispersionModel):
 
     @power.setter
     def power(self, power):
-
         if not isinstance(power, (int, float, np.number)):
             raise TypeError(f"The power parameter must be numeric; got {power}.")
         if (power > 0) and (power < 1):
@@ -622,7 +621,6 @@ class TweedieDistribution(ExponentialDispersionModel):
         return numexpr.evaluate("p * mu ** (p - 1)")
 
     def deviance(self, y, mu, sample_weight=None) -> float:  # noqa D
-
         y, mu, sample_weight = _as_float_arrays(y, mu, sample_weight)
         sample_weight = np.ones_like(y) if sample_weight is None else sample_weight
 
@@ -641,7 +639,6 @@ class TweedieDistribution(ExponentialDispersionModel):
             return tweedie_deviance(y, sample_weight, mu, p=float(self.power))
 
     def unit_deviance(self, y, mu):  # noqa D
-
         if self.power == 0:  # normal distribution
             return (y - mu) ** 2
         if self.power == 1:  # Poisson distribution
@@ -803,7 +800,6 @@ class NormalDistribution(ExponentialDispersionModel):
         return 0 if np.isscalar(mu) else np.zeros_like(mu)
 
     def deviance(self, y, mu, sample_weight=None) -> float:  # noqa D
-
         y, mu, sample_weight = _as_float_arrays(y, mu, sample_weight)
         sample_weight = np.ones_like(y) if sample_weight is None else sample_weight
 
@@ -1031,7 +1027,6 @@ class GammaDistribution(ExponentialDispersionModel):
         return 2 * mu
 
     def deviance(self, y, mu, sample_weight=None) -> float:  # noqa D
-
         y, mu, sample_weight = _as_float_arrays(y, mu, sample_weight)
         sample_weight = np.ones_like(y) if sample_weight is None else sample_weight
 
@@ -1388,7 +1383,6 @@ class NegativeBinomialDistribution(ExponentialDispersionModel):
 
     @theta.setter
     def theta(self, theta):
-
         if not isinstance(theta, (int, float)):
             raise TypeError(f"Theta must be numeric; got {theta}.")
         if not theta > 0:
@@ -1517,7 +1511,6 @@ def guess_intercept(
     avg_y = np.average(y, weights=sample_weight)
 
     if isinstance(link, IdentityLink):
-
         # This is only correct for the normal. For other distributions, the
         # answer is unknown, but we assume that we want `sum(y) = sum(mu)`
 
@@ -1529,7 +1522,6 @@ def guess_intercept(
         return avg_y - avg_eta
 
     elif isinstance(link, LogLink):
-
         # This is only correct for Tweedie
 
         log_avg_y = np.log(avg_y)
@@ -1564,7 +1556,6 @@ def guess_intercept(
         return first - second
 
     elif isinstance(link, LogitLink):
-
         log_odds = np.log(avg_y) - np.log(1 - avg_y)
 
         if eta is None:
@@ -1575,7 +1566,6 @@ def guess_intercept(
         return log_odds - avg_eta
 
     else:
-
         return link.link(y.dot(sample_weight))
 
 

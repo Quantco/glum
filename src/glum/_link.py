@@ -234,7 +234,6 @@ class LogitLink(Link):
         return 1.0 / (mu * (1 - mu))
 
     def inverse(self, lin_pred):  # noqa D
-
         inv_logit = special.expit(lin_pred)
         eps50 = 50 * np.finfo(inv_logit.dtype).eps
 
@@ -266,7 +265,6 @@ class CloglogLink(Link):
         return 1.0 / ((mu - 1) * (np.log1p(-mu)))
 
     def inverse(self, lin_pred):  # noqa D
-
         lin_pred = lin_pred
         inv_cloglog = -np.expm1(-np.exp(lin_pred))
         eps50 = 50 * np.finfo(inv_cloglog.dtype).eps

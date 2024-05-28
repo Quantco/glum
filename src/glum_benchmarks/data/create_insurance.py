@@ -67,17 +67,13 @@ def create_insurance_raw_data(verbose=False) -> None:
 
     if verbose:
         print(
-            "Number or rows with ClaimAmountCut > 0 and ClaimNb == 0: {}".format(
-                df[(df.ClaimAmountCut > 0) & (df.ClaimNb == 0)].shape[0]
-            )
+            f"Number or rows with ClaimAmountCut > 0 and ClaimNb == 0: {df[(df.ClaimAmountCut > 0) & (df.ClaimNb == 0)].shape[0]}"
         )
 
     # 9116 zero claims
     if verbose:
         print(
-            "Number or rows with ClaimAmountCut = 0 and ClaimNb >= 1: {}".format(
-                df[(df.ClaimAmountCut == 0) & (df.ClaimNb >= 1)].shape[0]
-            )
+            f"Number or rows with ClaimAmountCut = 0 and ClaimNb >= 1: {df[(df.ClaimAmountCut == 0) & (df.ClaimNb >= 1)].shape[0]}"
         )
 
     # Note: Zero claims must be ignored in severity models, because the support is
@@ -201,7 +197,7 @@ make_column_transformer.__doc__ = getattr(  # noqa: B009
 
 
 def func_returns_df(
-    fn: Callable[[pd.DataFrame], np.ndarray]
+    fn: Callable[[pd.DataFrame], np.ndarray],
 ) -> Callable[[pd.DataFrame], pd.DataFrame]:
     """
     Take a function that takes a dataframe and returns a Numpy array, and return a \

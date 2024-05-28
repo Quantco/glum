@@ -8,25 +8,30 @@ requires = [
   'scikit-learn',
 ]
 
-[tool.black]
-exclude = '''
-/(
-    \.eggs
-  | \.git
-  | \.venv
-  | build
-  | dist
-)/
-'''
+[tool.ruff]
+line-length = 88
+target-version = "py39"
 
-[tool.isort]
-multi_line_output = 3
-include_trailing_comma = true
-ensure_newline_before_comments = true
-line_length = 88
-known_first_party = "glum"
-skip_glob = '\.eggs/*,\.git/*,\.venv/*,build/*,dist/*'
-default_section = 'THIRDPARTY'
+[tool.ruff.lint]
+ignore = ["E731", "N802", "N803", "N806", "E501"]
+select = [
+  # pyflakes
+  "F",
+  # pycodestyle
+  "E", "W",
+  # isort
+  "I",
+  # pep8-naming
+  "N",
+  # pyupgrade
+  "UP",
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["glum"]
+
+[tool.mypy]
+python_version = '3.9'
 
 [tool.cibuildwheel]
 skip = [
@@ -51,6 +56,7 @@ CFLAGS="-I$CONDA/envs/build/include"
 CXXFLAGS="-I$CONDA/envs/build/include"
 CXX="/usr/bin/clang++"
 CC="/usr/bin/clang"
+MACOSX_DEPLOYMENT_TARGET="10.13"
 
 
 [tool.pytest.ini_options]

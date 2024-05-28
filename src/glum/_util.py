@@ -127,7 +127,6 @@ def _expand_categorical_penalties(
         penalty = np.asanyarray(penalty)
 
     if penalty.shape[0] == X.shape[1]:
-
         if penalty.ndim == 2:
             raise ValueError(
                 "When the penalty is two-dimensional, it must have the "
@@ -147,7 +146,6 @@ def _expand_categorical_penalties(
         return np.array(expanded_penalty)
 
     else:
-
         return penalty
 
 

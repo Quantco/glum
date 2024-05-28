@@ -1,6 +1,5 @@
 import numpy as np
 import pytest
-
 from glum_benchmarks.cli_run import get_all_problems
 from glum_benchmarks.problems import Problem
 from glum_benchmarks.util import (

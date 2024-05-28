@@ -5,7 +5,6 @@ import click
 import numpy as np
 import pytest
 from git_root import git_root
-
 from glum_benchmarks.cli_run import execute_problem_library
 from glum_benchmarks.problems import Problem, get_all_problems
 from glum_benchmarks.util import BenchmarkParams, get_obj_val

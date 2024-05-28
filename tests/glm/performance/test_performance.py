@@ -10,10 +10,10 @@ import pandas as pd
 import psutil
 import scipy.sparse as sps
 import tabmat as tm
-
-from glum import GeneralizedLinearRegressor
 from glum_benchmarks.cli_run import get_all_problems
 from glum_benchmarks.util import get_sklearn_family, runtime
+
+from glum import GeneralizedLinearRegressor
 
 
 def _get_memory_usage() -> int:
@@ -200,7 +200,8 @@ def runtime_checker():
             force_all_finite=False,
         )
         min_runtime, result = runtime(
-            lambda: model.fit(X=dat["X"], y=dat["y"]), 5  # noqa B023
+            lambda: model.fit(X=dat["X"], y=dat["y"]),
+            5,  # noqa B023
         )
 
         # Let's just guess that we're about half flop-limited and half

@@ -14,7 +14,6 @@ some parts and tricks stolen from other sklearn files.
 
 # License: BSD 3 clause
 
-
 import copy
 import re
 import sys
@@ -133,7 +132,9 @@ def check_array_tabmat_compliant(mat: ArrayLike, drop_first: int = False, **kwar
 
     if res is not mat and original_type in (tm.DenseMatrix, tm.SparseMatrix):
         res = original_type(
-            res, column_names=mat.column_names, term_names=mat.term_names  # type: ignore
+            res,
+            column_names=mat.column_names,  # type: ignore
+            term_names=mat.term_names,  # type: ignore
         )
 
     return res
@@ -462,7 +463,7 @@ def _standardize_warm_start(
 
 
 def get_family(
-    family: Union[str, ExponentialDispersionModel]
+    family: Union[str, ExponentialDispersionModel],
 ) -> ExponentialDispersionModel:
     if isinstance(family, ExponentialDispersionModel):
         return family
@@ -552,7 +553,6 @@ def setup_p1(
     alpha: float,
     l1_ratio: float,
 ) -> np.ndarray:
-
     if not isinstance(X, (tm.MatrixBase, tm.StandardizedMatrix)):
         raise TypeError
 
@@ -593,7 +593,6 @@ def setup_p2(
     alpha: float,
     l1_ratio: float,
 ) -> Union[np.ndarray, sparse.spmatrix]:
-
     if not isinstance(X, (tm.MatrixBase, tm.StandardizedMatrix)):
         raise TypeError
 
@@ -3019,7 +3018,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             ):
                 raise ValueError(
                     "Penalty term must be a non-negative number;"
-                    " got (alpha={})".format(self.alpha)
+                    f" got (alpha={self.alpha})"
                 )
 
         if (
@@ -3031,7 +3030,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         ):
             raise ValueError(
                 "l1_ratio must be a number in interval [0, 1];"
-                " got (l1_ratio={})".format(self.l1_ratio)
+                f" got (l1_ratio={self.l1_ratio})"
             )
         super()._validate_hyperparameters()
 
@@ -3260,11 +3259,9 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
                 _alpha = self.alpha
             if _alpha > 0 and self.l1_ratio > 0 and self._solver != "irls-cd":
                 raise ValueError(
-                    "The chosen solver (solver={}) can't deal "
+                    f"The chosen solver (solver={self._solver}) can't deal "
                     "with L1 penalties, which are included with "
-                    "(alpha={}) and (l1_ratio={}).".format(
-                        self._solver, _alpha, self.l1_ratio
-                    )
+                    f"(alpha={_alpha}) and (l1_ratio={self.l1_ratio})."
                 )
             coef = self._solve(
                 X=X,
