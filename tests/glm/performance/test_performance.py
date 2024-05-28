@@ -10,10 +10,10 @@ import pandas as pd
 import psutil
 import scipy.sparse as sps
 import tabmat as tm
-from glum_benchmarks.cli_run import get_all_problems
-from glum_benchmarks.util import get_sklearn_family, runtime
 
 from glum import GeneralizedLinearRegressor
+from glum_benchmarks.cli_run import get_all_problems
+from glum_benchmarks.util import get_sklearn_family, runtime
 
 
 def _get_memory_usage() -> int:

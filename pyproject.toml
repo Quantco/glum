@@ -28,7 +28,7 @@ select = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["glum"]
+known-first-party = ["glum", "glum_benchmarks"]
 
 [tool.mypy]
 python_version = '3.9'

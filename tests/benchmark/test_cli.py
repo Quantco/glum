@@ -6,6 +6,7 @@ from typing import Any
 import click
 import pytest
 from click.testing import CliRunner
+
 from glum_benchmarks.cli_analyze import _identify_parameter_fnames
 from glum_benchmarks.cli_run import cli_run
 from glum_benchmarks.util import BenchmarkParams, benchmark_params_cli, defaults
