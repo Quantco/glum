@@ -97,3 +97,9 @@ Please install the package through conda-forge:
 ```bash
 conda install glum -c conda-forge
 ```
+
+# Performance
+
+For optimal performance on an x86_64 architecture, we recommend using the MKL library
+(`conda install mkl`). By default, conda usually installs the openblas version, which
+is slower, but supported on all major architecture and OS.

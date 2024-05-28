@@ -8,17 +8,21 @@ Changelog
 =========
 
 
-3.0.2 - 2024-XX-XX
-------------------
+Unreleased
+----------
 
-**Bug fix**
+**Bug fix:**
 
 - Fixed :meth:`~glum.GeneralizedLinearRegressor.wald_test` when using ``terms`` and no intercept.
+
+**Other changes:**
+
+- Removed libblas MKL from the development environment.
 
 3.0.1 - 2024-05-23
 ------------------
 
-**Bug fix**
+**Bug fix:**
 
 - We now support scikit-learn 1.5.
 
