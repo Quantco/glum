@@ -7,13 +7,16 @@
 Changelog
 =========
 
-
-3.0.2 - 2024-XX-XX
-------------------
+Unreleased
+----------
 
 **Bug fix**
 
 - Fixed :meth:`~glum.GeneralizedLinearRegressor.wald_test` when using ``terms`` and no intercept.
+
+**Other changes:**
+
+- Move the linting and formatting to ruff.
 
 3.0.1 - 2024-05-23
 ------------------
