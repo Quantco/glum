@@ -67,7 +67,8 @@ def create_insurance_raw_data(verbose=False) -> None:
 
     if verbose:
         print(
-            f"Number or rows with ClaimAmountCut > 0 and ClaimNb == 0: {df[(df.ClaimAmountCut > 0) & (df.ClaimNb == 0)].shape[0]}"
+            "Number or rows with ClaimAmountCut > 0 and ClaimNb == 0: "
+            f"{df[(df.ClaimAmountCut > 0) & (df.ClaimNb == 0)].shape[0]}"
         )
 
     # 9116 zero claims
