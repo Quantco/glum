@@ -73,7 +73,8 @@ def create_insurance_raw_data(verbose=False) -> None:
     # 9116 zero claims
     if verbose:
         print(
-            f"Number or rows with ClaimAmountCut = 0 and ClaimNb >= 1: {df[(df.ClaimAmountCut == 0) & (df.ClaimNb >= 1)].shape[0]}"
+            "Number or rows with ClaimAmountCut = 0 and ClaimNb >= 1: "
+            f"{df[(df.ClaimAmountCut == 0) & (df.ClaimNb >= 1)].shape[0]}"
         )
 
     # Note: Zero claims must be ignored in severity models, because the support is
