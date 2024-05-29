@@ -7,7 +7,6 @@
 Changelog
 =========
 
-
 Unreleased
 ----------
 
@@ -17,6 +16,7 @@ Unreleased
 
 **Other changes:**
 
+- Move the linting and formatting to ruff.
 - Removed libblas MKL from the development environment.
 
 3.0.1 - 2024-05-23

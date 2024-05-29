@@ -40,7 +40,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         If you pass ``l1_ratio`` as an array, the ``fit`` method will choose the
         best value of ``l1_ratio`` and store it as ``self.l1_ratio``.
 
-    P1 : {'identity', array-like, None}, shape (n_features,), optional (default='identity')
+    P1 : {'identity', array-like, None}, shape (n_features,), optional
+         (default='identity')
         This array controls the strength of the regularization for each coefficient
         independently. A high value will lead to higher regularization while a value of
         zero will remove the regularization on this parameter.
@@ -414,9 +415,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             or np.any(l1_ratio > 1)
         ):
             raise ValueError(
-                "l1_ratio must be a number in interval [0, 1]; got l1_ratio={}".format(
-                    self.l1_ratio
-                )
+                "l1_ratio must be a number in interval [0, 1]; got "
+                f"l1_ratio={self.l1_ratio}"
             )
         super()._validate_hyperparameters()
 

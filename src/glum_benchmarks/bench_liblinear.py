@@ -47,8 +47,8 @@ def liblinear_bench(
     X = dat["X"]
     if not isinstance(X, (np.ndarray, sps.spmatrix, pd.DataFrame)):
         warnings.warn(
-            "liblinear requires data as scipy.sparse matrix, pandas dataframe, or numpy "
-            "array. Skipping."
+            "liblinear requires data as scipy.sparse matrix, pandas dataframe, or "
+            "numpy array. Skipping."
         )
         return result
 

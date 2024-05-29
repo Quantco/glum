@@ -1716,9 +1716,7 @@ def test_column_with_stddev_zero():
 
     model = GeneralizedLinearRegressor(
         family="poisson", fit_intercept=False, scale_predictors=False
-    ).fit(
-        X, y
-    )  # noqa: F841
+    ).fit(X, y)  # noqa: F841
     model = GeneralizedLinearRegressor(family="poisson").fit(X, y)  # noqa: F841
 
 
@@ -3024,7 +3022,9 @@ def get_mixed_data():
     "fit_intercept", [True, False], ids=["intercept", "no_intercept"]
 )
 def test_formula(get_mixed_data, formula, drop_first, fit_intercept):
-    """Model with formula and model with externally constructed model matrix should match."""
+    """Model with formula and model with externally constructed model matrix should
+    match.
+    """
     data = get_mixed_data
 
     model_formula = GeneralizedLinearRegressor(

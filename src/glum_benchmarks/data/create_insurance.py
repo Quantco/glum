@@ -14,7 +14,7 @@ from sklearn.utils.validation import check_is_fitted
 
 from ..util import exposure_and_offset_to_weights
 
-# taken from https://github.com/lorentzenchr/Tutorial_freMTPL2/blob/master/glm_freMTPL2_example.ipynb  # noqa: B950
+# taken from https://github.com/lorentzenchr/Tutorial_freMTPL2/blob/master/glm_freMTPL2_example.ipynb  # noqa: E501
 # Modified to generate data sets of different sizes
 
 
@@ -67,17 +67,15 @@ def create_insurance_raw_data(verbose=False) -> None:
 
     if verbose:
         print(
-            "Number or rows with ClaimAmountCut > 0 and ClaimNb == 0: {}".format(
-                df[(df.ClaimAmountCut > 0) & (df.ClaimNb == 0)].shape[0]
-            )
+            "Number or rows with ClaimAmountCut > 0 and ClaimNb == 0: "
+            f"{df[(df.ClaimAmountCut > 0) & (df.ClaimNb == 0)].shape[0]}"
         )
 
     # 9116 zero claims
     if verbose:
         print(
-            "Number or rows with ClaimAmountCut = 0 and ClaimNb >= 1: {}".format(
-                df[(df.ClaimAmountCut == 0) & (df.ClaimNb >= 1)].shape[0]
-            )
+            "Number or rows with ClaimAmountCut = 0 and ClaimNb >= 1: "
+            f"{df[(df.ClaimAmountCut == 0) & (df.ClaimNb >= 1)].shape[0]}"
         )
 
     # Note: Zero claims must be ignored in severity models, because the support is
@@ -201,7 +199,7 @@ make_column_transformer.__doc__ = getattr(  # noqa: B009
 
 
 def func_returns_df(
-    fn: Callable[[pd.DataFrame], np.ndarray]
+    fn: Callable[[pd.DataFrame], np.ndarray],
 ) -> Callable[[pd.DataFrame], pd.DataFrame]:
     """
     Take a function that takes a dataframe and returns a Numpy array, and return a \
@@ -209,8 +207,8 @@ def func_returns_df(
 
     fn: Function that takes a dataframe and returns a numpy array
     Returns: Function that takes a dataframe and returns a dataframe with the values
-             determined by the original function, and the index and columns of the original
-             dataframe.
+             determined by the original function, and the index and columns of the
+             original dataframe.
     """
     return lambda x: x.assign(**{x.columns[0]: fn(x)})
 

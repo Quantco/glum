@@ -5,7 +5,8 @@ Modified from code submitted as a PR to sklearn:
 https://github.com/scikit-learn/scikit-learn/pull/9405
 
 Original attribution from:
-https://github.com/scikit-learn/scikit-learn/pull/9405/files#diff-38e412190dc50455611b75cfcf2d002713dcf6d537a78b9a22cc6b1c164390d1 # noqa: B950
+https://github.com/scikit-learn/scikit-learn/pull/9405/files
+#diff-38e412190dc50455611b75cfcf2d002713dcf6d537a78b9a22cc6b1c164390d1
 '''
 Author: Christian Lorentzen <lorentzen.ch@googlemail.com>
 some parts and tricks stolen from other sklearn files.
@@ -13,7 +14,6 @@ some parts and tricks stolen from other sklearn files.
 """
 
 # License: BSD 3 clause
-
 
 import copy
 import re
@@ -133,7 +133,9 @@ def check_array_tabmat_compliant(mat: ArrayLike, drop_first: int = False, **kwar
 
     if res is not mat and original_type in (tm.DenseMatrix, tm.SparseMatrix):
         res = original_type(
-            res, column_names=mat.column_names, term_names=mat.term_names  # type: ignore
+            res,
+            column_names=mat.column_names,  # type: ignore
+            term_names=mat.term_names,  # type: ignore
         )
 
     return res
@@ -462,7 +464,7 @@ def _standardize_warm_start(
 
 
 def get_family(
-    family: Union[str, ExponentialDispersionModel]
+    family: Union[str, ExponentialDispersionModel],
 ) -> ExponentialDispersionModel:
     if isinstance(family, ExponentialDispersionModel):
         return family
@@ -552,7 +554,6 @@ def setup_p1(
     alpha: float,
     l1_ratio: float,
 ) -> np.ndarray:
-
     if not isinstance(X, (tm.MatrixBase, tm.StandardizedMatrix)):
         raise TypeError
 
@@ -593,7 +594,6 @@ def setup_p2(
     alpha: float,
     l1_ratio: float,
 ) -> Union[np.ndarray, sparse.spmatrix]:
-
     if not isinstance(X, (tm.MatrixBase, tm.StandardizedMatrix)):
         raise TypeError
 
@@ -2007,10 +2007,11 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         correction of :math:`\\frac{N}{N-p}`.
 
         The clustered covariance matrix uses a similar approach to the robust (HC-1)
-        covariance matrix. However, instead of using :math:`\\mathbf{G}^{T}(\\hat{\\theta}
-        \\mathbf{G}(\\hat{\\theta})` directly, we first sum over all the groups first.
-        The finite-sample correction is affected as well, becoming :math:`\\frac{M}{M-1}
-        \\frac{N}{N-p}` where :math:`M` is the number of groups.
+        covariance matrix. However, instead of using :math:`\\mathbf{G}^{T}(
+        \\hat{\\theta}\\mathbf{G}(\\hat{\\theta})` directly, we first sum over
+        all the groups first. The finite-sample correction is affected as well,
+        becoming :math:`\\frac{M}{M-1}\\frac{N}{N-p}` where :math:`M` is the number
+        of groups.
 
         References
         ----------
@@ -2223,7 +2224,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         the deviance. Note that those two are equal for ``family='normal'``.
 
         :math:`D^2` is defined as
-        :math:`D^2 = 1 - \\frac{D(y_{\\mathrm{true}}, y_{\\mathrm{pred}})}{D_{\\mathrm{null}}}`,
+        :math:`D^2 = 1 - \\frac{D(y_{\\mathrm{true}}, y_{\\mathrm{pred}})}
+        {D_{\\mathrm{null}}}`,
         :math:`D_{\\mathrm{null}}` is the null deviance, i.e. the deviance of a
         model with intercept alone. The best possible score is one and it can be
         negative.
@@ -2573,8 +2575,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     with inverse link function ``h`` and ``s=sample_weight``.
     Note that, for ``alpha=0`` the unregularized GLM is recovered.
     This is not the default behavior (see ``alpha`` parameter description for details).
-    Additionally, for ``sample_weight=None``, one has ``s_i=1`` and ``sum(s)=n_samples``.
-    For ``P1=P2='identity'``, the penalty is the elastic net::
+    Additionally, for ``sample_weight=None``, one has ``s_i=1`` and
+    ``sum(s)=n_samples``. For ``P1=P2='identity'``, the penalty is the elastic net::
 
             alpha * l1_ratio * ||w||_1 + 1/2 * alpha * (1 - l1_ratio) * ||w||_2^2.
 
@@ -2612,7 +2614,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         is an L1 penalty.  For ``0 < l1_ratio < 1``, the penalty is a
         combination of L1 and L2.
 
-    P1 : {'identity', array-like, None}, shape (n_features,), optional (default='identity')
+    P1 : {'identity', array-like, None}, shape (n_features,), optional
+         (default='identity')
         This array controls the strength of the regularization for each coefficient
         independently. A high value will lead to higher regularization while a value of
         zero will remove the regularization on this parameter.
@@ -3019,7 +3022,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             ):
                 raise ValueError(
                     "Penalty term must be a non-negative number;"
-                    " got (alpha={})".format(self.alpha)
+                    f" got (alpha={self.alpha})"
                 )
 
         if (
@@ -3031,7 +3034,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         ):
             raise ValueError(
                 "l1_ratio must be a number in interval [0, 1];"
-                " got (l1_ratio={})".format(self.l1_ratio)
+                f" got (l1_ratio={self.l1_ratio})"
             )
         super()._validate_hyperparameters()
 
@@ -3260,11 +3263,9 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
                 _alpha = self.alpha
             if _alpha > 0 and self.l1_ratio > 0 and self._solver != "irls-cd":
                 raise ValueError(
-                    "The chosen solver (solver={}) can't deal "
+                    f"The chosen solver (solver={self._solver}) can't deal "
                     "with L1 penalties, which are included with "
-                    "(alpha={}) and (l1_ratio={}).".format(
-                        self._solver, _alpha, self.l1_ratio
-                    )
+                    f"(alpha={_alpha}) and (l1_ratio={self.l1_ratio})."
                 )
             coef = self._solve(
                 X=X,

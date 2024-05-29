@@ -105,7 +105,8 @@ def update_hessian(state, data, active_set):
     ``dH``. If ``threshold/data.hessian_approx == 0.0``, then we will always use
     every row. However, for ``data.hessian_approx != 0``, we include rows for
     which
-    ``include = (np.abs(hessian_rows_diff[i]) >= T * np.max(np.abs(hessian_rows_diff)))``.
+    ``include = (np.abs(hessian_rows_diff[i]) >= T *
+    np.max(np.abs(hessian_rows_diff)))``.
 
     Essentially, this criterion ignores data matrix rows that have not seen the
     second derivatives of their predictions change very much in the last
@@ -344,7 +345,7 @@ def _irls_solver(inner_solver, coef, data) -> tuple[np.ndarray, int, int, list[l
         warnings.warn(
             "IRLS failed to converge. Increase"
             " the maximum number of iterations max_iter"
-            " (currently {})".format(data.max_iter),
+            f" (currently {data.max_iter})",
             ConvergenceWarning,
         )
     return state.coef, state.n_iter, state.n_cycles, state.diagnostics
