@@ -282,7 +282,9 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         link: Link,
         offset=None,
     ):
-        """Compute ``mu`` and the derivative of the deviance with respect to coefficients."""
+        """Compute ``mu`` and the derivative of the deviance with respect to
+        coefficients.
+        """
         lin_pred = _safe_lin_pred(X, coef, offset)
         mu = link.inverse(lin_pred)
         d1 = link.inverse_derivative(lin_pred)

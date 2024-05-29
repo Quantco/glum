@@ -14,7 +14,7 @@ from sklearn.utils.validation import check_is_fitted
 
 from ..util import exposure_and_offset_to_weights
 
-# taken from https://github.com/lorentzenchr/Tutorial_freMTPL2/blob/master/glm_freMTPL2_example.ipynb  # noqa: B950
+# taken from https://github.com/lorentzenchr/Tutorial_freMTPL2/blob/master/glm_freMTPL2_example.ipynb  # noqa: E501
 # Modified to generate data sets of different sizes
 
 
@@ -207,8 +207,8 @@ def func_returns_df(
 
     fn: Function that takes a dataframe and returns a numpy array
     Returns: Function that takes a dataframe and returns a dataframe with the values
-             determined by the original function, and the index and columns of the original
-             dataframe.
+             determined by the original function, and the index and columns of the
+             original dataframe.
     """
     return lambda x: x.assign(**{x.columns[0]: fn(x)})
 

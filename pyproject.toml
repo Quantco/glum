@@ -13,7 +13,7 @@ line-length = 88
 target-version = "py39"
 
 [tool.ruff.lint]
-ignore = ["E731", "N802", "N803", "N806", "E501"]
+ignore = ["E731", "N802", "N803", "N806"]
 select = [
   # pyflakes
   "F",
