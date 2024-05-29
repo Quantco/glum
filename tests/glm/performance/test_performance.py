@@ -200,8 +200,8 @@ def runtime_checker():
             force_all_finite=False,
         )
         min_runtime, result = runtime(
-            lambda: model.fit(X=dat["X"], y=dat["y"]),
-            5,  # noqa B023
+            lambda: model.fit(X=dat["X"], y=dat["y"]),  # noqa B023
+            5,
         )
 
         # Let's just guess that we're about half flop-limited and half
