@@ -1,0 +1,92 @@
+[project]
+name = "glum"
+channels = ["conda-forge"]
+platforms = ["linux-64"]
+
+[tasks]
+postinstall = "pip install --no-use-pep517 --no-build-isolation --no-deps --disable-pip-version-check -e ."
+postinstall-all = { depends_on = ["postinstall", "postinstall-docs", "postinstall-tutorial", "postinstall-benchmark"] }
+
+[feature.test.tasks]
+test = "pytest tests/glm"
+store-golden-master = "python tests/glm/test_golden_master.py"
+store-benchmark-golden-master = "python tests/glm/test_benchmark_golden_master.py"
+
+[feature.docs.tasks]
+postinstall-docs = "pip install --no-use-pep517 --no-build-isolation --no-deps --disable-pip-version-check -e ."
+make-docs = "cd docs && make html"
+serve-docs = { cmd = "python -m http.server --directory docs/_build/html", depends_on = ["make-docs"] }
+
+[feature.tutorial.tasks]
+postinstall-tutorial = "pip install --no-use-pep517 --no-build-isolation --no-deps --disable-pip-version-check -e ."
+
+[feature.benchmark.tasks]
+postinstall-benchmark = "pip install --no-use-pep517 --no-build-isolation --no-deps --disable-pip-version-check -e ."
+glm-benchmarks-run = "glm_benchmarks_run"
+glm-benchmarks-analyze = "glm_benchmarks_analyze"
+
+[build-dependencies]
+c-compiler = "*"
+cxx-compiler = "*"
+cython = "*"
+setuptools_scm = ">=8.1"
+
+[host-dependencies]
+python = ">=3.9"
+pip = "*"
+
+[dependencies]
+numexpr = "*"
+pandas = ">=0.21"
+tabmat = ">=4.0.0"
+scikit-learn = ">=0.23"
+scipy = "*"
+tqdm = "*"
+formulaic = "*"
+pyarrow = "*"
+
+[feature.test.dependencies]
+statsmodels = "*"
+pytest = "*"
+pytest-xdist = "*"
+git_root = "*"
+click = "*"
+attrs = "*"
+
+[feature.dev.dependencies]
+ruff = "*"
+ipdb = "*"
+ipython = "*"
+line_profiler = "*"
+memory_profiler = "*"
+pre-commit = "*"
+
+[feature.docs.dependencies]
+jinja2 = "*"
+jupyterlab = "*"
+jupytext = "*"
+make = "*"
+matplotlib-base = "*"
+nbclassic = ">=0.2.8"
+nbsphinx = ">=0.8.3"
+sphinx = ">=3.5.3"
+sphinx_rtd_theme = "*"
+sphinxcontrib-apidoc = "*"
+sphinxext-altair = "*"
+
+[feature.tutorial.dependencies]
+jupyterlab = "*"
+altair = "*" # used in docs/tutorials/rossman
+openml = "*" # used for downloading datasets in the tutorials.
+dask-ml = ">=2022.5.27" # used in tutorials rossman and insurance
+shapely = "*" # used in docs/tutorials/regularization_housing_data
+libpysal = "*" # used in docs/tutorials/regularization_housing_data
+
+[feature.benchmark.dependencies]
+h2o-py = "*"
+openjdk = "*"
+
+[environments]
+default = ["dev", "test"]
+docs = ["dev", "docs", "tutorial"]
+benchmark = ["test", "benchmark"]
