@@ -2564,7 +2564,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/linux-64/cython-3.0.10-py39h3d6467e_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/exceptiongroup-1.2.0-pyhd8ed1ab_2.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/execnet-2.1.1-pyhd8ed1ab_0.conda
-      - conda: https://conda.anaconda.org/conda-forge/noarch/formulaic-1.0.1-pyhd8ed1ab_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/noarch/formulaic-0.6.6-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/gcc-12.3.0-h915e2ae_7.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/gcc_impl_linux-64-12.3.0-h58ffeeb_7.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/gcc_linux-64-12.3.0-h6477408_3.conda
@@ -2708,7 +2708,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/cython-3.0.10-py39hf3050f2_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/exceptiongroup-1.2.0-pyhd8ed1ab_2.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/execnet-2.1.1-pyhd8ed1ab_0.conda
-      - conda: https://conda.anaconda.org/conda-forge/noarch/formulaic-1.0.1-pyhd8ed1ab_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/noarch/formulaic-0.6.6-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/gflags-2.2.2-hc88da5d_1004.tar.bz2
       - conda: https://conda.anaconda.org/conda-forge/noarch/git_root-0.1-py_0.tar.bz2
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/glog-0.7.0-hc6770e3_0.conda
@@ -2832,7 +2832,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/win-64/cython-3.0.10-py39h99910a6_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/exceptiongroup-1.2.0-pyhd8ed1ab_2.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/execnet-2.1.1-pyhd8ed1ab_0.conda
-      - conda: https://conda.anaconda.org/conda-forge/noarch/formulaic-1.0.1-pyhd8ed1ab_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/noarch/formulaic-0.6.6-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/git_root-0.1-py_0.tar.bz2
       - conda: https://conda.anaconda.org/conda-forge/noarch/graphlib-backport-1.0.3-pyhd8ed1ab_0.tar.bz2
       - conda: https://conda.anaconda.org/conda-forge/noarch/iniconfig-2.0.0-pyhd8ed1ab_0.conda
@@ -8104,6 +8104,33 @@ packages:
   license_family: MIT
   size: 2725521
   timestamp: 1717209760583
+- kind: conda
+  name: formulaic
+  version: 0.6.6
+  build: pyhd8ed1ab_0
+  subdir: noarch
+  noarch: python
+  url: https://conda.anaconda.org/conda-forge/noarch/formulaic-0.6.6-pyhd8ed1ab_0.conda
+  sha256: d84f843134acbe4649fc5afcf9e79099a02e856b3ceac363cf24103e2e7fd457
+  md5: ccd375df3e828fd581f45a25a1ad1d81
+  depends:
+  - astor >=0.8
+  - cached_property
+  - graphlib-backport
+  - interface_meta >=1.2
+  - numpy >=1.16.5
+  - pandas >=1.0
+  - python >=3.7.2
+  - scipy >=1.6
+  - typing-extensions >=4.2
+  - wrapt >=1.0
+  constrains:
+  - pyarrow >=1
+  - sympy >=1.3,!=1.10
+  license: MIT
+  license_family: MIT
+  size: 71387
+  timestamp: 1696462245091
 - kind: conda
   name: formulaic
   version: 1.0.1

@@ -119,6 +119,7 @@ pandas = "1.2.*"
 scikit-learn = "0.24.*"
 tabmat = "4.0.*"
 scipy = "1.7.*"
+formulaic = "0.6.*"
 
 [environments]
 default = ["dev", "test"]
