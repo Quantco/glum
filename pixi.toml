@@ -37,7 +37,7 @@ pip = "*"
 
 [dependencies]
 numexpr = "*"
-pandas = ">=0.21"
+pandas = ">=1.1"
 tabmat = ">=4.0.0"
 scikit-learn = ">=0.23"
 scipy = "*"
@@ -96,15 +96,22 @@ python = "3.11.*"
 [feature.py312.dependencies]
 python = "3.12.*"
 
+[feature.oldies]
+platforms = ["linux-64"]
+[feature.oldies.dependencies]
+pandas = "1.1.*"
+scikit-learn = "0.23.*"
+tabmat = "4.0.*"
+
 [environments]
-ci = ["test"]
 default = ["dev", "test"]
-docs = ["dev", "docs", "tutorial"]
-benchmark = ["test", "benchmark"]
-py39 = ["py39", "test"]
-py310 = ["py310", "test"]
-py311 = ["py311", "test"]
-py312 = ["py312", "test"]
+docs = ["docs", "tutorial"]
+benchmark = ["benchmark"]
+py39 = { features = ["py39", "test"], no-default-feature = true }
+py310 = { features = ["py310", "test"], no-default-feature = true }
+py311 = { features = ["py311", "test"], no-default-feature = true }
+py312 = { features = ["py312", "test"], no-default-feature = true }
+oldies = { features = ["oldies", "py39", "test"], no-default-feature = true }
 
 [tool.update]
 autoupdate-branch = "pixi-update"

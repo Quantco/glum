@@ -35,6 +35,7 @@ jobs:
           - { os: ubuntu-latest, environment: 'py310' }
           - { os: ubuntu-latest, environment: 'py311' }
           - { os: ubuntu-latest, environment: 'py312' }
+          - { os: ubuntu-latest, environment: 'oldies' }
           - { os: windows-latest, environment: 'py312' }
           - { os: macos-latest, environment: 'py312' }
     steps:
