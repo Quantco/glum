@@ -45,3 +45,12 @@ jobs:
         run: pixi run -e ${{ matrix.environment }} postinstall
       - name: Run pytest
         run: pixi run -e ${{ matrix.environment }} test -nauto
+      - name: Run doctest
+        # Check that the readme example will work by running via doctest.
+        # We run outside the repo to make the test a bit more similar to
+        # a user running after installing with conda.
+        run: |
+          mkdir ../temp
+          cp README.md ../temp
+          cd ../temp
+          pixi run --manifest-path ../glum/pixi.toml -e ${{ matrix.environment }} python -m doctest -v README.md
