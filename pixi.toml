@@ -90,6 +90,18 @@ libpysal = "*" # used in docs/tutorials/regularization_housing_data
 h2o-py = "*"
 openjdk = "*"
 
+[feature.build-tabmat.dependencies]
+c-compiler = "*"
+cxx-compiler = "*"
+cython = "!=3.0.4"
+make = "*"
+mako = "*"
+xsimd = "<11|>12.1"
+[feature.build-tabmat.target.linux-64.dependencies]
+jemalloc-local = "*"
+[feature.build-tabmat.target.osx-arm64.dependencies]
+jemalloc-local = "*"
+
 [feature.py39.dependencies]
 python = "3.9.*"
 [feature.py310.dependencies]
@@ -117,3 +129,4 @@ py311 = ["py311", "test"]
 py312 = ["py312", "test"]
 oldies = ["oldies", "test"]
 lint = ["lint"]
+nightly = ["py312", "build-tabmat"]
