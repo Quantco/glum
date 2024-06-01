@@ -8,7 +8,7 @@ postinstall = "pip install --no-use-pep517 --no-build-isolation --no-deps --disa
 postinstall-all = { depends_on = ["postinstall", "postinstall-docs", "postinstall-tutorial", "postinstall-benchmark"] }
 
 [feature.test.tasks]
-test = "pytest -nauto tests/glm --doctest-modules src/glum"
+test = "pytest tests/glm --doctest-modules src/glum"
 store-golden-master = "python tests/glm/test_golden_master.py"
 store-benchmark-golden-master = "python tests/glm/test_benchmark_golden_master.py"
 

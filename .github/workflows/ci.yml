@@ -44,4 +44,4 @@ jobs:
       - name: Install repository
         run: pixi run -e ${{ matrix.environment }} postinstall
       - name: Run pytest
-        run: pixi run -e ${{ matrix.environment }} test
+        run: pixi run -e ${{ matrix.environment }} test -nauto
