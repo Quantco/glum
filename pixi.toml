@@ -123,11 +123,3 @@ py311 = ["py311", "test"]
 py312 = ["py312", "test"]
 oldies = ["oldies", "test"]
 lint = ["lint"]
-
-[tool.update]
-autoupdate-branch = "pixi-update"
-autoupdate-commit-message = "Update pixi lockfile"
-autoupdate-pull-request-labels = ["dependencies"]
-autoupdate-schedule = "monthly" # weekly, monthly, quarterly, never
-ignore-environments = []
-ignore-platforms = []
