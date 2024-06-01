@@ -46,9 +46,5 @@ jobs:
           environments: ${{ matrix.environment }}
       - name: Install repository
         run: pixi run -e ${{ matrix.environment }} postinstall
-      - name: Install repository (windows)
-        if: matrix.os == 'windows-latest'
-        shell: powershell
-        run: pip install --no-use-pep517 --no-deps --disable-pip-version-check -e .
       - name: Run pytest
         run: pixi run -e ${{ matrix.environment }} test
