@@ -5,7 +5,6 @@ platforms = ["linux-64", "osx-arm64", "win-64"]
 
 [tasks]
 postinstall = "pip install --no-use-pep517 --no-build-isolation --no-deps --disable-pip-version-check -e ."
-postinstall-all = { depends_on = ["postinstall", "postinstall-docs", "postinstall-tutorial", "postinstall-benchmark"] }
 
 [feature.test.tasks]
 test = "pytest tests/glm --doctest-modules src/glum"
@@ -13,15 +12,10 @@ store-golden-master = "python tests/glm/test_golden_master.py"
 store-benchmark-golden-master = "python tests/glm/test_benchmark_golden_master.py"
 
 [feature.docs.tasks]
-postinstall-docs = "pip install --no-use-pep517 --no-build-isolation --no-deps --disable-pip-version-check -e ."
 make-docs = "cd docs && make html"
 serve-docs = { cmd = "python -m http.server --directory docs/_build/html", depends_on = ["make-docs"] }
 
-[feature.tutorial.tasks]
-postinstall-tutorial = "pip install --no-use-pep517 --no-build-isolation --no-deps --disable-pip-version-check -e ."
-
 [feature.benchmark.tasks]
-postinstall-benchmark = "pip install --no-use-pep517 --no-build-isolation --no-deps --disable-pip-version-check -e ."
 glm-benchmarks-run = "glm_benchmarks_run"
 glm-benchmarks-analyze = "glm_benchmarks_analyze"
 

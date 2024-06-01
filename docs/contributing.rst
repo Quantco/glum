@@ -47,18 +47,18 @@ We strongly suggest to use ``mamba`` instead of ``conda`` as this provides the s
    pixi run postinstall
 
    # If you want to install the dependencies necessary for benchmarking against other GLM packages:
-   pixi run postinstall-benchmarks
+   pixi run -e benchmark postinstall
 
    # If you want to work on the tutorial notebooks or the documentation:
-   pixi run postinstall-docs
+   pixi run -e docs postinstall
 
    # You can run any command in the pixi environment with `pixi run <command>`. For example:
-   pixi run ipython
+   pixi run [-e ENVIRONMENT] ipython
 
-   # Alternatively, you can a shell with the pixi environment activated:
+   # Alternatively, you can create a shell with the pixi environment activated:
    pixi shell
 
-   # Alternatively, a number of pixi tasks are available for common tasks.
+   # Alternatively, a number of pixi tasks are available for commonly used commands.
    # You can run them with `pixi run <task>`.
    # To get a list of available tasks, run:
    pixi task list
