@@ -99,6 +99,7 @@ python = "3.12.*"
 [feature.oldies]
 platforms = ["linux-64"]
 [feature.oldies.dependencies]
+python = "3.9.*"
 pandas = "1.1.*"
 scikit-learn = "0.23.*"
 tabmat = "4.0.*"
@@ -107,11 +108,11 @@ tabmat = "4.0.*"
 default = ["dev", "test"]
 docs = ["docs", "tutorial"]
 benchmark = ["benchmark"]
-py39 = { features = ["py39", "test"], no-default-feature = true }
-py310 = { features = ["py310", "test"], no-default-feature = true }
-py311 = { features = ["py311", "test"], no-default-feature = true }
-py312 = { features = ["py312", "test"], no-default-feature = true }
-oldies = { features = ["oldies", "py39", "test"], no-default-feature = true }
+py39 = ["py39", "test"]
+py310 = ["py310", "test"]
+py311 = ["py311", "test"]
+py312 = ["py312", "test"]
+oldies = ["oldies", "test"]
 
 [tool.update]
 autoupdate-branch = "pixi-update"
