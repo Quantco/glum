@@ -52,6 +52,7 @@ pytest-xdist = "*"
 git_root = "*"
 click = "*"
 attrs = "*"
+psutil = "*"
 
 [feature.dev.dependencies]
 ruff = "*"
