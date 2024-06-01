@@ -2,25 +2,21 @@ name: CI
 on: [push]
 
 jobs:
-  # pre-commit-checks:
-  #   name: Linux - pre-commit checks - Python 3.11
-  #   timeout-minutes: 30
-  #   runs-on: ubuntu-latest
-  #   env:
-  #     PRE_COMMIT_USE_MICROMAMBA: 1
-  #   steps:
-  #     - name: Checkout branch
-  #       uses: actions/checkout@v4
-  #     - name: Set up micromamba
-  #       uses: mamba-org/setup-micromamba@f8b8a1e23a26f60a44c853292711bacfd3eac822
-  #     - name: Add micromamba to GITHUB_PATH
-  #       run: echo "${HOME}/micromamba-bin" >> "$GITHUB_PATH"
-  #     - name: Install Python 3.11
-  #       uses: actions/setup-python@v5
-  #       with:
-  #         python-version: "3.11"
-  #     - name: Run pre-commit checks
-  #       uses: pre-commit/action@v3.0.1
+  pre-commit-checks:
+    name: Linux - pre-commit checks
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    env:
+      PRE_COMMIT_USE_MICROMAMBA: 1
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+      - name: Set up pixi
+        uses: prefix-dev/setup-pixi@v0.8.0
+        with:
+          environments: lint default
+      - name: pre-commit
+        run: pixi run pre-commit-run --color=always --show-diff-on-failure
 
   unit-tests:
     name: Tests - ${{ matrix.os }} - ${{ matrix.environment }}

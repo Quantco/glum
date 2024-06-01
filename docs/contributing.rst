@@ -40,6 +40,9 @@ We strongly suggest to use ``mamba`` instead of ``conda`` as this provides the s
    git clone git@github.com:Quantco/glum.git
    cd glum
 
+   # Install the pre-commit hooks
+   pixi run pre-commit-install
+
    # Install the dependencies, as well as and glum in editable mode
    pixi run postinstall
 

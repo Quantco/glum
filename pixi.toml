@@ -25,6 +25,10 @@ postinstall-benchmark = "pip install --no-use-pep517 --no-build-isolation --no-d
 glm-benchmarks-run = "glm_benchmarks_run"
 glm-benchmarks-analyze = "glm_benchmarks_analyze"
 
+[feature.lint.tasks]
+pre-commit-install = "pre-commit install"
+pre-commit-run = "pre-commit run -a"
+
 [build-dependencies]
 c-compiler = "*"
 cxx-compiler = "*"
@@ -53,6 +57,7 @@ git_root = "*"
 click = "*"
 attrs = "*"
 psutil = "*"
+mypy = "*"
 
 [feature.dev.dependencies]
 ruff = "*"
@@ -60,7 +65,11 @@ ipdb = "*"
 ipython = "*"
 line_profiler = "*"
 memory_profiler = "*"
+
+[feature.lint.dependencies]
 pre-commit = "*"
+cython-lint = "*"
+ruff = "*"
 
 [feature.docs.dependencies]
 jinja2 = "*"
@@ -113,6 +122,7 @@ py310 = ["py310", "test"]
 py311 = ["py311", "test"]
 py312 = ["py312", "test"]
 oldies = ["oldies", "test"]
+lint = ["lint"]
 
 [tool.update]
 autoupdate-branch = "pixi-update"
