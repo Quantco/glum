@@ -111,13 +111,14 @@ python = "3.11.*"
 [feature.py312.dependencies]
 python = "3.12.*"
 
-[feature.oldies]
-platforms = ["linux-64"]
+# [feature.oldies]
+# platforms = ["linux-64"]
 [feature.oldies.dependencies]
 python = "3.9.*"
-pandas = "1.1.*"
-scikit-learn = "0.23.*"
+pandas = "1.2.*"
+scikit-learn = "0.24.*"
 tabmat = "4.0.*"
+scipy = "1.7.*"
 
 [environments]
 default = ["dev", "test"]
