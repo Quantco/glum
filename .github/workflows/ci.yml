@@ -19,7 +19,7 @@ jobs:
         run: pixi run pre-commit-run --color=always --show-diff-on-failure
 
   unit-tests:
-    name: Tests - ${{ matrix.os }} - ${{ matrix.environment }}
+    name: Tests
     runs-on: ${{ matrix.os }}
     env:
       CI: True
