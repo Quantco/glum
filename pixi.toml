@@ -129,5 +129,5 @@ py310 = ["py310", "test"]
 py311 = ["py311", "test"]
 py312 = ["py312", "test"]
 oldies = ["oldies", "test"]
-lint = ["lint"]
+lint = { features = ["lint"], no-default-feature = true}
 nightly = ["py312", "build-tabmat"]
