@@ -97,9 +97,7 @@ cython = "!=3.0.4"
 make = "*"
 mako = "*"
 xsimd = "<11|>12.1"
-[feature.build-tabmat.target.linux-64.dependencies]
-jemalloc-local = "*"
-[feature.build-tabmat.target.osx-arm64.dependencies]
+[feature.build-tabmat.target.unix.dependencies]
 jemalloc-local = "*"
 
 [feature.py39.dependencies]
