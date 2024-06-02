@@ -109,8 +109,6 @@ python = "3.11.*"
 [feature.py312.dependencies]
 python = "3.12.*"
 
-# [feature.oldies]
-# platforms = ["linux-64"]
 [feature.oldies.dependencies]
 python = "3.9.*"
 pandas = "1.2.*"
