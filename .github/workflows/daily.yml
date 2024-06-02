@@ -19,7 +19,7 @@ jobs:
         include:
           - environment: 'nightly'
             NOTE: 'Nightly Builds' # run once with nightlies
-          - environment: 'nightly'
+          - environment: 'py312'
             NOTE: 'Python 3.12' # run once with normal dependencies
     steps:
       - name: Checkout branch
@@ -30,17 +30,7 @@ jobs:
           environments: ${{ matrix.environment }}
       - name: Install nightlies
         if: matrix.NOTE == 'Nightly Builds'
-        shell: bash -el {0}
-        run: |
-          PRE_WHEELS="https://pypi.anaconda.org/scientific-python-nightly-wheels/simple/"
-          for pkg in pandas scikit-learn scipy; do
-            echo "Installing $pkg nightly"
-            pixi run -e ${{ matrix.environment }} pip install --pre --no-deps --only-binary :all: --upgrade --timeout=60 -i $PRE_WHEELS $pkg
-          done
-          echo Install pyarrow nightly
-          pixi run -e ${{ matrix.environment }} pip install --extra-index-url https://pypi.fury.io/arrow-nightlies/ --prefer-binary --pre --no-deps pyarrow
-          echo Install tabmat nightly
-          pixi run -e ${{ matrix.environment }} pip install --no-use-pep517 --no-deps git+https://github.com/Quantco/tabmat
+        run: pixi run -e ${{ matrix.environment }} install-nightlies
       - name: Install repository
         run: pixi run -e ${{ matrix.environment }} postinstall
       - name: Run pytest
