@@ -89,6 +89,10 @@ libpysal = "*" # used in docs/tutorials/regularization_housing_data
 [feature.benchmark.dependencies]
 h2o-py = "*"
 openjdk = "*"
+[feature.benchmark.target.win-64.dependencies]
+blas = "=*=*mkl"
+[feature.benchmark.target.linux-64.dependencies]
+blas = "=*=*mkl"
 
 [feature.build-tabmat.dependencies]
 c-compiler = "*"
