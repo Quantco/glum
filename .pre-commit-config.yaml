@@ -1,6 +1,6 @@
 repos:
   - repo: https://github.com/Quantco/pre-commit-mirrors-ruff
-    rev: 0.4.3
+    rev: 0.4.7
     hooks:
       - id: ruff-conda
         exclude: ^src/glum_benchmarks/orig_sklearn_fork/
