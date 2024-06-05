@@ -24,6 +24,12 @@ glm-benchmarks-analyze = "glm_benchmarks_analyze"
 pre-commit-install = "pre-commit install"
 pre-commit-run = "pre-commit run -a"
 
+[feature.no-tabmat.tasks.postinstall-glum-tabmat]
+cmd = """
+pip install --no-use-pep517 --no-build-isolation --no-deps --disable-pip-version-check -e ../tabmat
+&& pip install --no-use-pep517 --no-build-isolation --no-deps --disable-pip-version-check -e .
+"""
+
 [feature.build-tabmat.tasks.install-nightlies]
 cmd = """
     PRE_WHEELS="https://pypi.anaconda.org/scientific-python-nightly-wheels/simple/"
@@ -48,6 +54,15 @@ pip = "*"
 numexpr = "*"
 pandas = ">=1.1"
 tabmat = ">=4.0.0"
+scikit-learn = ">=0.23"
+scipy = "*"
+tqdm = "*"
+formulaic = "*"
+pyarrow = "*"
+
+[feature.no-tabmat.dependencies]
+numexpr = "*"
+pandas = ">=1.1"
 scikit-learn = ">=0.23"
 scipy = "*"
 tqdm = "*"
@@ -109,9 +124,11 @@ blas = "=*=*mkl"
 c-compiler = "*"
 cxx-compiler = "*"
 cython = "!=3.0.4"
+setuptools-scm = "*"
 make = "*"
 mako = "*"
 xsimd = "<11|>12.1"
+pip = "*"
 [feature.build-tabmat.target.unix.dependencies]
 jemalloc-local = "*"
 
@@ -143,3 +160,4 @@ py312 = ["py312", "test"]
 oldies = ["oldies", "test"]
 lint = { features = ["lint"], no-default-feature = true}
 nightly = ["py312", "build-tabmat", "test"]
+glum-tabmat = { features = ["no-tabmat", "build-tabmat", "dev", "test"], no-default-feature = true}
