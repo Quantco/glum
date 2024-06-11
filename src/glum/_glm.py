@@ -2356,7 +2356,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         y: ArrayLike,
         sample_weight: Optional[VectorLike],
         offset: Optional[VectorLike],
-        solver: str,
         force_all_finite,
         context: Optional[Mapping[str, Any]] = None,
     ) -> tuple[
@@ -2369,7 +2368,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         Union[str, np.ndarray],
     ]:
         dtype = [np.float64, np.float32]
-        stype = ["csc"] if solver == "irls-cd" else ["csc", "csr"]
+        stype = ["csc"] if self.solver == "irls-cd" else ["csc", "csr"]
 
         P1 = self.P1
         P2 = self.P2
@@ -3107,7 +3106,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             y,
             sample_weight,
             offset,
-            solver=self.solver,
             force_all_finite=self.force_all_finite,
             context=captured_context,
         )
