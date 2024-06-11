@@ -38,7 +38,6 @@ from sklearn.utils.validation import (
     _assert_all_finite,
     check_consistent_length,
     check_is_fitted,
-    check_random_state,
     column_or_1d,
 )
 
@@ -958,8 +957,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         else:
             self._gradient_tol = self.gradient_tol
 
-        self._random_state = check_random_state(self.random_state)
-
         # 1.4 additional validations ##########################################
         if self.check_input:
             if not np.all(self._family_instance.in_y_range(y)):
@@ -967,12 +964,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                     "Some value(s) of y are out of the valid range for family"
                     f"{self._family_instance.__class__.__name__}."
                 )
-
-    def _tear_down_from_fit(self):
-        """
-        Delete attributes that were only needed for the fit method.
-        """
-        del self._random_state
 
     def _get_alpha_path(
         self,
@@ -1071,8 +1062,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         b_ineq: Optional[np.ndarray],
     ) -> np.ndarray:
         """
-        Must be run after running :func:`_set_up_for_fit` and before running
-        :func:`_tear_down_from_fit`. Sets ``self.coef_`` and ``self.intercept_``.
+        Must be run after running :func:`_set_up_for_fit`. Sets
+        ``self.coef_`` and ``self.intercept_``.
         """
         fixed_inner_tol = None
         if (
@@ -3277,8 +3268,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
                 self.intercept_, self.coef_ = _unstandardize(
                     col_means, col_stds, 0.0, coef
                 )
-
-        self._tear_down_from_fit()
 
         self.covariance_matrix_ = None
         if store_covariance_matrix:
