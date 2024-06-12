@@ -93,7 +93,7 @@ def get_obj_val(
     )
     model._set_up_for_fit(dat["y"])
 
-    full_coefs = np.concatenate(([intercept], coefs))
+    full_coefs: np.ndarray = np.concatenate([[intercept], coefs])
     offset = dat.get("offset")
     if isinstance(dat["X"], tm.MatrixBase):
         X_dot_coef = dat["X"].matvec(coefs)

@@ -33,6 +33,7 @@ known-first-party = ["glum", "glum_benchmarks"]
 
 [tool.mypy]
 python_version = '3.9'
+no_implicit_optional = false
 
 [tool.cibuildwheel]
 skip = [

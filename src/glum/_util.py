@@ -114,7 +114,7 @@ def _add_missing_categories(
 
 def _expand_categorical_penalties(
     penalty, X, drop_first, has_missing_category
-) -> np.ndarray:
+) -> Union[np.ndarray, str]:
     """Determine penalty matrices ``P1`` or ``P2`` after expanding categorical columns.
 
     If ``P1`` or ``P2`` has the same shape as ``X`` before expanding categorical
