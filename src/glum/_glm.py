@@ -98,7 +98,7 @@ class WaldTestResult(NamedTuple):
     df: int
 
 
-def check_array_tabmat_compliant(mat: ArrayLike, drop_first: int = False, **kwargs):
+def check_array_tabmat_compliant(mat: ArrayLike, drop_first: bool = False, **kwargs):
     to_copy = kwargs.get("copy", False)
 
     if isinstance(mat, pd.DataFrame):
