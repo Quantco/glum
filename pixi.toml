@@ -80,11 +80,11 @@ psutil = "*"
 mypy = "*"
 
 [feature.dev.dependencies]
-ruff = "*"
 ipdb = "*"
 ipython = "*"
 line_profiler = "*"
 memory_profiler = "*"
+ipykernel = "*"
 
 [feature.lint.dependencies]
 pre-commit = "*"
