@@ -1506,7 +1506,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         captured_context = capture_context(
             context + 1 if isinstance(context, int) else context
         )
-        if (X is None) and not hasattr(self, "covariance_matrix_"):
+        if (X is None) and (getattr(self, "covariance_matrix_", None) is None):
             return pd.Series(beta, index=names, name="coef")
 
         covariance_matrix = self.covariance_matrix(
@@ -2353,7 +2353,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
     def _set_up_and_check_fit_args(
         self,
         X: ArrayLike,
-        y: ArrayLike,
+        y: Optional[ArrayLike],
         sample_weight: Optional[VectorLike],
         offset: Optional[VectorLike],
         force_all_finite,
@@ -2396,8 +2396,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                         context=context,
                     )
 
-                    self.y_model_spec_ = y.model_spec
-                    y = y.toarray().ravel()
+                    self.y_model_spec_ = y.model_spec  # type: ignore
+                    y = y.toarray().ravel()  # type: ignore
 
                 X = tm.from_formula(
                     formula=rhs,
