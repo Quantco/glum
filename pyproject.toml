@@ -33,10 +33,6 @@ known-first-party = ["glum", "glum_benchmarks"]
 
 [tool.mypy]
 python_version = '3.9'
-exclude = [
-  "tests/",
-  "src/glum_benchmarks/orig_sklearn_fork/",
-]
 
 [tool.cibuildwheel]
 skip = [

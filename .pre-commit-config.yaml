@@ -31,6 +31,7 @@ repos:
       - id: mypy
         name: mypy
         entry: pixi run -e default mypy --check-untyped-defs --ignore-missing-imports --namespace-packages
+        exclude: (^tests/|^src/glum_benchmarks/orig_sklearn_fork/)
         language: system
         types: [python]
         require_serial: true
