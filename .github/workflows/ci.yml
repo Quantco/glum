@@ -16,7 +16,7 @@ jobs:
         with:
           environments: lint default
       - name: pre-commit
-        run: pixi run -e lint pre-commit run --color=always --show-diff-on-failure
+        run: pixi run -e lint pre-commit-run --color=always --show-diff-on-failure
 
   unit-tests:
     name: Tests

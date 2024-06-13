@@ -1,6 +1,16 @@
+exclude: ^.pixi$
 repos:
   - repo: local
     hooks:
+      # ensure pixi environments are up to date
+      # workaround for https://github.com/prefix-dev/pixi/issues/1482
+      - id: pixi-install
+        name: pixi-install
+        entry: pixi install -e default -e lint
+        language: system
+        always_run: true
+        require_serial: true
+        pass_filenames: false
       # ruff
       - id: ruff
         name: ruff
@@ -30,7 +40,7 @@ repos:
       # mypy
       - id: mypy
         name: mypy
-        entry: pixi run -e default mypy --check-untyped-defs --ignore-missing-imports --namespace-packages
+        entry: pixi run -e default mypy
         exclude: (^tests/|^src/glum_benchmarks/orig_sklearn_fork/)
         language: system
         types: [python]

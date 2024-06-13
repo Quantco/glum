@@ -33,7 +33,19 @@ known-first-party = ["glum", "glum_benchmarks"]
 
 [tool.mypy]
 python_version = '3.9'
+exclude = [
+  "tests/",
+  "src/glum_benchmarks/orig_sklearn_fork/",
+]
 no_implicit_optional = false
+check_untyped_defs = true
+namespace_packages = true
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]  
+# https://github.com/scikit-learn/scikit-learn/issues/16705  
+module = ["sklearn.*"]  
+ignore_missing_imports = true  
 
 [tool.cibuildwheel]
 skip = [
