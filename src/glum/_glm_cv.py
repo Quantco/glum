@@ -481,6 +481,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
 
         """
         self._validate_hyperparameters()
+        self._set_up_for_fit()
 
         captured_context = capture_context(
             context + 1 if isinstance(context, int) else context
@@ -505,7 +506,6 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
 
         #########
         # Checks
-        self._set_up_for_fit(y)
         if (
             hasattr(self._family_instance, "_power")
             and self._family_instance._power == 1.5  # type: ignore
@@ -601,7 +601,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             ) = _standardize(
                 x_train,
                 w_train,
-                self._center_predictors,
+                self.fit_intercept,
                 self.scale_predictors,
                 lower_bounds,
                 upper_bounds,
@@ -730,7 +730,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         ) = _standardize(
             X,
             sample_weight,
-            self._center_predictors,
+            self.fit_intercept,
             self.scale_predictors,
             lower_bounds,
             upper_bounds,

@@ -818,7 +818,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             intercept = self.intercept_  # type: ignore
             if self.fit_intercept:
                 coef = np.concatenate((np.array([intercept]), coef))
-            if self._center_predictors:
+            if self.fit_intercept:
                 _standardize_warm_start(coef, col_means, col_stds)  # type: ignore
 
         elif self.start_params is None:
@@ -851,7 +851,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                     f"({len(col_means) + self.fit_intercept},)."
                 )
 
-            if self._center_predictors:
+            if self.fit_intercept:
                 _standardize_warm_start(coef, col_means, col_stds)  # type: ignore
 
         # If starting values are outside the specified bounds (if set),
@@ -912,7 +912,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         return X
 
-    def _set_up_for_fit(self, y: np.ndarray) -> None:
+    def _set_up_for_fit(self) -> None:
         #######################################################################
         # 1. input validation                                                 #
         #######################################################################
@@ -923,14 +923,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self._family_instance: ExponentialDispersionModel = get_family(self.family)
         # Guarantee that self._link_instance is set to an instance of class Link
         self._link_instance: Link = get_link(self.link, self._family_instance)
-
-        # when fit_intercept is False, we can't center because that would
-        # substantially change estimates
-        self._center_predictors: bool = self.fit_intercept
-
-        # require number of observations in the training data for later
-        # computation of information criteria
-        self._num_obs: int = y.shape[0]
 
         if self.solver == "auto":
             if (self.A_ineq is not None) and (self.b_ineq is not None):
@@ -956,14 +948,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 self._gradient_tol = 1e-4
         else:
             self._gradient_tol = self.gradient_tol
-
-        # 1.4 additional validations ##########################################
-        if self.check_input:
-            if not np.all(self._family_instance.in_y_range(y)):
-                raise ValueError(
-                    "Some value(s) of y are out of the valid range for family"
-                    f"{self._family_instance.__class__.__name__}."
-                )
 
     def _get_alpha_path(
         self,
@@ -2368,7 +2352,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         Union[str, np.ndarray],
     ]:
         dtype = [np.float64, np.float32]
-        stype = ["csc"] if self.solver == "irls-cd" else ["csc", "csr"]
+        stype = ["csc"] if self._solver == "irls-cd" else ["csc", "csr"]
 
         P1 = self.P1
         P2 = self.P2
@@ -2508,6 +2492,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 force_all_finite=force_all_finite,
             )
 
+        if not np.all(self._family_instance.in_y_range(y)):
+            raise ValueError(
+                "Some value(s) of y are out of the valid range for family"
+                f"{self._family_instance.__class__.__name__}."
+            )
+
         # Without converting y to float, deviance might raise
         # ValueError: Integers to negative integer powers are not allowed.
         # Also, y must not be sparse.
@@ -2515,10 +2505,11 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         # This will prevent accidental upcasting later and slow operations on
         # mixed-precision numbers
         y = np.asarray(y, dtype=X.dtype)
+        offset = _check_offset(offset, y.shape[0], X.dtype)
+
         sample_weight = _check_weights(
             sample_weight, y.shape[0], X.dtype, force_all_finite=force_all_finite
         )
-        offset = _check_offset(offset, y.shape[0], X.dtype)
 
         # IMPORTANT NOTE: Since we want to minimize
         # 1/(2*sum(sample_weight)) * deviance + L1 + L2,
@@ -2534,6 +2525,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         self.feature_names_ = X.get_names(type="column", missing_prefix="_col_")
         self.term_names_ = X.get_names(type="term", missing_prefix="_col_")
+        # require number of observations in the training data for later
+        # computation of information criteria
+        self._num_obs: int = y.shape[0]
 
         return X, y, sample_weight, offset, weights_sum, P1, P2
 
@@ -3086,6 +3080,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         """
 
         self._validate_hyperparameters()
+        self._set_up_for_fit()
 
         captured_context = capture_context(
             context + 1 if isinstance(context, int) else context
@@ -3109,10 +3104,9 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             force_all_finite=self.force_all_finite,
             context=captured_context,
         )
+
         assert isinstance(X, tm.MatrixBase)
         assert isinstance(y, np.ndarray)
-
-        self._set_up_for_fit(y)
 
         # 1.3 arguments to take special care ##################################
         # P1, P2, start_params
@@ -3160,7 +3154,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         ) = _standardize(
             X,
             sample_weight,
-            self._center_predictors,
+            self.fit_intercept,
             self.scale_predictors,
             lower_bounds,
             upper_bounds,

@@ -235,9 +235,10 @@ class LogitLink(Link):
 
     def inverse(self, lin_pred):  # noqa D
         inv_logit = special.expit(lin_pred)
-        eps50 = 50 * np.finfo(inv_logit.dtype).eps
+        # parse the `dtype` because NumPy doesn't understand Arrow types
+        eps50 = 50 * np.finfo(str(inv_logit.dtype).lower()).eps
 
-        if np.any(inv_logit > 1 - eps50) or np.any(inv_logit < eps50):
+        if (inv_logit > 1 - eps50).any() or (inv_logit < eps50).any():
             warnings.warn("Sigmoid function too close to 0 or 1. Clipping.")
             return np.clip(inv_logit, eps50, 1 - eps50)
 
@@ -267,9 +268,10 @@ class CloglogLink(Link):
     def inverse(self, lin_pred):  # noqa D
         lin_pred = lin_pred
         inv_cloglog = -np.expm1(-np.exp(lin_pred))
-        eps50 = 50 * np.finfo(inv_cloglog.dtype).eps
+        # parse the `dtype` because NumPy doesn't understand Arrow types
+        eps50 = 50 * np.finfo(str(inv_cloglog.dtype).lower()).eps
 
-        if np.any(inv_cloglog > 1 - eps50) or np.any(inv_cloglog < eps50):
+        if (inv_cloglog > 1 - eps50).any() or (inv_cloglog < eps50).any():
             warnings.warn("Sigmoid function too close to 0 or 1. Clipping.")
             return np.clip(inv_cloglog, eps50, 1 - eps50)
 
