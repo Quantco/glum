@@ -32,7 +32,6 @@ Install for development
 
 The first step is to set up a conda environment and install glum in editable mode.
 The project uses [pixi](https://pixi.sh/latest/) for managing the environment. If you don't have pixi installed, start by [installing it](https://pixi.sh/latest/#installation).
-We strongly suggest to use ``mamba`` instead of ``conda`` as this provides the same functionality at much greater speed.
 
 ::
 
