@@ -15,7 +15,6 @@ from ._glm import (
     _standardize,
     _unstandardize,
     check_bounds,
-    initialize_start_params,
     is_pos_semidef,
     setup_p1,
     setup_p2,
@@ -500,7 +499,6 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             y,
             sample_weight,
             offset,
-            solver=self.solver,
             force_all_finite=self.force_all_finite,
             context=captured_context,
         )
@@ -590,13 +588,6 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             ):
                 assert isinstance(self._link_instance, LogLink)
 
-            start_params = initialize_start_params(
-                self.start_params,
-                n_cols=X.shape[1],
-                fit_intercept=self.fit_intercept,
-                dtype=[np.float64, np.float32],
-            )
-
             P1_no_alpha = setup_p1(P1, X, X.dtype, 1, l1)
             P2_no_alpha = setup_p2(P2, X, _stype, X.dtype, 1, l1)
 
@@ -622,13 +613,13 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             )
 
             coef = self._get_start_coef(
-                start_params,
                 x_train,
                 y_train,
                 w_train,
                 offset_train,
                 col_means,
                 col_stds,
+                dtype=[np.float64, np.float32],
             )
 
             if self.check_input:
@@ -750,15 +741,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             P2,
         )
 
-        start_params = initialize_start_params(
-            self.start_params,
-            n_cols=X.shape[1],
-            fit_intercept=self.fit_intercept,
-            dtype=X.dtype,
-        )
-
         coef = self._get_start_coef(
-            start_params, X, y, sample_weight, offset, col_means, col_stds
+            X, y, sample_weight, offset, col_means, col_stds, dtype=X.dtype
         )
 
         coef = self._solve(
@@ -782,8 +766,6 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         else:
             # set intercept to zero as the other linear models do
             self.intercept_, self.coef_ = _unstandardize(col_means, col_stds, 0.0, coef)
-
-        self._tear_down_from_fit()
 
         self.covariance_matrix_ = None
         if store_covariance_matrix:

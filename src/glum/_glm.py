@@ -38,7 +38,6 @@ from sklearn.utils.validation import (
     _assert_all_finite,
     check_consistent_length,
     check_is_fitted,
-    check_random_state,
     column_or_1d,
 )
 
@@ -99,7 +98,7 @@ class WaldTestResult(NamedTuple):
     df: int
 
 
-def check_array_tabmat_compliant(mat: ArrayLike, drop_first: int = False, **kwargs):
+def check_array_tabmat_compliant(mat: ArrayLike, drop_first: bool = False, **kwargs):
     to_copy = kwargs.get("copy", False)
 
     if isinstance(mat, pd.DataFrame):
@@ -654,33 +653,6 @@ def setup_p2(
     return P2
 
 
-def initialize_start_params(
-    start_params: Optional[np.ndarray], n_cols: int, fit_intercept: bool, dtype
-) -> Optional[np.ndarray]:
-    if start_params is None:
-        return None
-
-    start_params = check_array(
-        start_params,
-        accept_sparse=False,
-        force_all_finite=True,
-        ensure_2d=False,
-        dtype=dtype,
-        copy=True,
-    )
-
-    start_params = cast(np.ndarray, start_params)
-
-    if start_params.shape != (n_cols + fit_intercept,):
-        raise ValueError(
-            "Start values for parameters must have the right length and dimension; "
-            f"got (length={start_params.shape[0]}, ndim={start_params.ndim}); "
-            f"needed (length={n_cols + fit_intercept}, ndim=1)."
-        )
-
-    return start_params
-
-
 def is_pos_semidef(p: Union[sparse.spmatrix, np.ndarray]) -> Union[bool, np.bool_]:
     """
     Checks for positive semidefiniteness of ``p`` if ``p`` is a matrix, or
@@ -833,13 +805,13 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
     def _get_start_coef(
         self,
-        start_params,
         X: Union[tm.MatrixBase, tm.StandardizedMatrix],
         y: np.ndarray,
         sample_weight: np.ndarray,
         offset: Optional[np.ndarray],
-        col_means: Optional[np.ndarray],
+        col_means: np.ndarray,
         col_stds: Optional[np.ndarray],
+        dtype,
     ) -> np.ndarray:
         if self.warm_start and hasattr(self, "coef_"):
             coef = self.coef_  # type: ignore
@@ -849,7 +821,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             if self._center_predictors:
                 _standardize_warm_start(coef, col_means, col_stds)  # type: ignore
 
-        elif start_params is None:
+        elif self.start_params is None:
             if self.fit_intercept:
                 coef = np.zeros(
                     X.shape[1] + 1, dtype=_float_itemsize_to_dtype[X.dtype.itemsize]
@@ -863,13 +835,28 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 )
 
         else:  # assign given array as start values
-            coef = start_params
+            coef = check_array(
+                self.start_params,
+                accept_sparse=False,
+                force_all_finite=True,
+                ensure_2d=False,
+                dtype=dtype,
+                copy=True,
+            )
+
+            if coef.shape != (len(col_means) + self.fit_intercept,):
+                raise ValueError(
+                    "Start values for parameters must have the right length "
+                    f"and dimension; got {coef.shape}, needed "
+                    f"({len(col_means) + self.fit_intercept},)."
+                )
+
             if self._center_predictors:
                 _standardize_warm_start(coef, col_means, col_stds)  # type: ignore
 
         # If starting values are outside the specified bounds (if set),
         # bring the starting value exactly at the bound.
-        idx = 1 if self.fit_intercept else 0
+        idx = int(self.fit_intercept)
         if self.lower_bounds is not None:
             if np.any(coef[idx:] < self.lower_bounds):
                 warnings.warn(
@@ -970,8 +957,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         else:
             self._gradient_tol = self.gradient_tol
 
-        self._random_state = check_random_state(self.random_state)
-
         # 1.4 additional validations ##########################################
         if self.check_input:
             if not np.all(self._family_instance.in_y_range(y)):
@@ -979,12 +964,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                     "Some value(s) of y are out of the valid range for family"
                     f"{self._family_instance.__class__.__name__}."
                 )
-
-    def _tear_down_from_fit(self):
-        """
-        Delete attributes that were only needed for the fit method.
-        """
-        del self._random_state
 
     def _get_alpha_path(
         self,
@@ -1083,8 +1062,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         b_ineq: Optional[np.ndarray],
     ) -> np.ndarray:
         """
-        Must be run after running :func:`_set_up_for_fit` and before running
-        :func:`_tear_down_from_fit`. Sets ``self.coef_`` and ``self.intercept_``.
+        Must be run after running :func:`_set_up_for_fit`. Sets
+        ``self.coef_`` and ``self.intercept_``.
         """
         fixed_inner_tol = None
         if (
@@ -1527,7 +1506,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         captured_context = capture_context(
             context + 1 if isinstance(context, int) else context
         )
-        if (X is None) and not hasattr(self, "covariance_matrix_"):
+        if (X is None) and (getattr(self, "covariance_matrix_", None) is None):
             return pd.Series(beta, index=names, name="coef")
 
         covariance_matrix = self.covariance_matrix(
@@ -2374,10 +2353,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
     def _set_up_and_check_fit_args(
         self,
         X: ArrayLike,
-        y: ArrayLike,
+        y: Optional[ArrayLike],
         sample_weight: Optional[VectorLike],
         offset: Optional[VectorLike],
-        solver: str,
         force_all_finite,
         context: Optional[Mapping[str, Any]] = None,
     ) -> tuple[
@@ -2390,7 +2368,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         Union[str, np.ndarray, Any],
     ]:
         dtype = [np.float64, np.float32]
-        stype = ["csc"] if solver == "irls-cd" else ["csc", "csr"]
+        stype = ["csc"] if self.solver == "irls-cd" else ["csc", "csr"]
 
         P1 = self.P1
         P2 = self.P2
@@ -2418,8 +2396,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                         context=context,
                     )
 
-                    self.y_model_spec_ = y.model_spec
-                    y = y.toarray().ravel()
+                    self.y_model_spec_ = y.model_spec  # type: ignore
+                    y = y.toarray().ravel()  # type: ignore
 
                 X = tm.from_formula(
                     formula=rhs,
@@ -3128,7 +3106,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             y,
             sample_weight,
             offset,
-            solver=self.solver,
             force_all_finite=self.force_all_finite,
             context=captured_context,
         )
@@ -3153,13 +3130,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         if (lower_bounds is not None) and (upper_bounds is not None):
             if np.any(lower_bounds > upper_bounds):
                 raise ValueError("Upper bounds must be higher than lower bounds.")
-
-        start_params = initialize_start_params(
-            self.start_params,
-            n_cols=X.shape[1],
-            fit_intercept=self.fit_intercept,
-            dtype=[np.float64, np.float32],
-        )
 
         # 1.4 additional validations ##########################################
         if self.check_input:
@@ -3204,7 +3174,13 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         #######################################################################
 
         coef = self._get_start_coef(
-            start_params, X, y, sample_weight, offset, col_means, col_stds
+            X,
+            y,
+            sample_weight,
+            offset,
+            col_means,
+            col_stds,
+            dtype=[np.float64, np.float32],
         )
 
         #######################################################################
@@ -3290,8 +3266,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
                 self.intercept_, self.coef_ = _unstandardize(
                     col_means, col_stds, 0.0, coef
                 )
-
-        self._tear_down_from_fit()
 
         self.covariance_matrix_ = None
         if store_covariance_matrix:
