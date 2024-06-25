@@ -1,0 +1,163 @@
+[project]
+name = "glum"
+channels = ["conda-forge"]
+platforms = ["linux-64", "osx-arm64", "win-64"]
+
+[tasks]
+postinstall = "pip install --no-use-pep517 --no-build-isolation --no-deps --disable-pip-version-check -e ."
+
+[feature.test.tasks]
+test = "pytest tests/glm --doctest-modules src/glum"
+store-golden-master = "python tests/glm/test_golden_master.py"
+store-benchmark-golden-master = "python tests/glm/test_benchmark_golden_master.py"
+
+[feature.docs.tasks]
+make-docs = "cd docs && make html"
+serve-docs = { cmd = "python -m http.server --directory docs/_build/html", depends_on = ["make-docs"] }
+readthedocs = { cmd = "rm -rf $READTHEDOCS_OUTPUT/html && cp -r docs/_build/html $READTHEDOCS_OUTPUT/html", depends_on = ["make-docs"] }
+
+[feature.benchmark.tasks]
+glm-benchmarks-run = "glm_benchmarks_run"
+glm-benchmarks-analyze = "glm_benchmarks_analyze"
+
+[feature.lint.tasks]
+pre-commit-install = "pre-commit install"
+pre-commit-run = "pre-commit run -a"
+
+[feature.no-tabmat.tasks.postinstall-glum-tabmat]
+cmd = """
+pip install --no-use-pep517 --no-build-isolation --no-deps --disable-pip-version-check -e ../tabmat
+&& pip install --no-use-pep517 --no-build-isolation --no-deps --disable-pip-version-check -e .
+"""
+
+[feature.build-tabmat.tasks.install-nightlies]
+cmd = """
+    PRE_WHEELS="https://pypi.anaconda.org/scientific-python-nightly-wheels/simple/"
+    && pip install --pre --no-deps --only-binary :all: --upgrade --timeout=60 -i $PRE_WHEELS pandas
+    && pip install --pre --no-deps --only-binary :all: --upgrade --timeout=60 -i $PRE_WHEELS scikit-learn
+    && pip install --pre --no-deps --only-binary :all: --upgrade --timeout=60 -i $PRE_WHEELS scipy
+    && pip install --pre --no-deps --only-binary :all: --upgrade --timeout=60 -i https://pypi.fury.io/arrow-nightlies/ pyarrow
+    && pip install --no-use-pep517 --no-deps git+https://github.com/Quantco/tabmat
+"""
+
+[build-dependencies]
+c-compiler = "*"
+cxx-compiler = "*"
+cython = "*"
+setuptools-scm = ">=8.1"
+
+[host-dependencies]
+python = ">=3.9"
+pip = "*"
+
+[dependencies]
+numexpr = "*"
+pandas = ">=1.1"
+tabmat = ">=4.0.0"
+scikit-learn = ">=0.23"
+scipy = "*"
+tqdm = "*"
+formulaic = "*"
+pyarrow = "*"
+
+[feature.no-tabmat.dependencies]
+numexpr = "*"
+pandas = ">=1.1"
+scikit-learn = ">=0.23"
+scipy = "*"
+tqdm = "*"
+formulaic = "*"
+pyarrow = "*"
+
+[feature.test.dependencies]
+statsmodels = "*"
+pytest = "*"
+pytest-xdist = "*"
+git_root = "*"
+click = "*"
+attrs = "*"
+psutil = "*"
+mypy = "*"
+
+[feature.dev.dependencies]
+ipdb = "*"
+ipython = "*"
+line_profiler = "*"
+memory_profiler = "*"
+ipykernel = "*"
+
+[feature.lint.dependencies]
+pre-commit = "*"
+cython-lint = "*"
+ruff = "*"
+
+[feature.docs.dependencies]
+jinja2 = "*"
+jupyterlab = "*"
+jupytext = "*"
+make = "*"
+matplotlib-base = "*"
+nbclassic = ">=0.2.8"
+nbsphinx = ">=0.8.3"
+sphinx = ">=3.5.3"
+sphinx_rtd_theme = "*"
+sphinxcontrib-apidoc = "*"
+sphinxext-altair = "*"
+
+[feature.tutorial.dependencies]
+jupyterlab = "*"
+altair = "*" # used in docs/tutorials/rossman
+openml = "*" # used for downloading datasets in the tutorials.
+dask-ml = ">=2022.5.27" # used in tutorials rossman and insurance
+shapely = "*" # used in docs/tutorials/regularization_housing_data
+libpysal = "*" # used in docs/tutorials/regularization_housing_data
+
+[feature.benchmark.dependencies]
+h2o-py = "*"
+openjdk = "*"
+[feature.benchmark.target.win-64.dependencies]
+blas = "=*=*mkl"
+[feature.benchmark.target.linux-64.dependencies]
+blas = "=*=*mkl"
+
+[feature.build-tabmat.dependencies]
+c-compiler = "*"
+cxx-compiler = "*"
+cython = "!=3.0.4"
+setuptools-scm = "*"
+make = "*"
+mako = "*"
+xsimd = "<11|>12.1"
+pip = "*"
+[feature.build-tabmat.target.unix.dependencies]
+jemalloc-local = "*"
+
+[feature.py39.dependencies]
+python = "3.9.*"
+[feature.py310.dependencies]
+python = "3.10.*"
+[feature.py311.dependencies]
+python = "3.11.*"
+[feature.py312.dependencies]
+python = "3.12.*"
+
+[feature.oldies.dependencies]
+python = "3.9.*"
+pandas = "1.2.*"
+scikit-learn = "0.24.*"
+tabmat = "4.0.*"
+scipy = "1.7.*"
+formulaic = "0.6.*"
+
+[environments]
+default = ["dev", "test"]
+docs = ["docs", "tutorial"]
+benchmark = ["benchmark"]
+py39 = ["py39", "test"]
+py310 = ["py310", "test"]
+py311 = ["py311", "test"]
+py312 = ["py312", "test"]
+oldies = ["oldies", "test"]
+lint = { features = ["lint"], no-default-feature = true}
+nightly = ["py312", "build-tabmat", "test"]
+glum-tabmat = { features = ["no-tabmat", "build-tabmat", "dev", "test"], no-default-feature = true}

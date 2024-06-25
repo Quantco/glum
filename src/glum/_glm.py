@@ -180,7 +180,7 @@ def _check_weights(
     if sample_weight is None:
         return np.ones(n_samples, dtype=dtype)
     if np.isscalar(sample_weight):
-        if sample_weight <= 0:
+        if sample_weight <= 0:  # type: ignore
             raise ValueError("Sample weights must be non-negative.")
         return np.full(n_samples, sample_weight, dtype=dtype)
 
@@ -201,7 +201,7 @@ def _check_weights(
     if np.sum(sample_weight) == 0:  # type: ignore
         raise ValueError("Sample weights must have at least one positive element.")
 
-    return sample_weight
+    return sample_weight  # type: ignore
 
 
 def _check_offset(
@@ -567,11 +567,11 @@ def setup_p1(
     else:
         P1 = np.atleast_1d(P1)
         try:
-            P1 = P1.astype(dtype, casting="safe", copy=False)
+            P1 = P1.astype(dtype, casting="safe", copy=False)  # type: ignore
         except TypeError as e:
             raise TypeError(
                 "The given P1 cannot be converted to a numeric array; "
-                f"got (P1.dtype={P1.dtype})."
+                f"got (P1.dtype={P1.dtype})."  # type: ignore
             ) from e
         if (P1.ndim != 1) or (P1.shape[0] != n_features):
             raise ValueError(
@@ -1353,7 +1353,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             if offset is not None:
                 xb += offset
         elif np.isscalar(alpha_index):  # `None` doesn't qualify
-            xb = X @ self.coef_path_[alpha_index] + self.intercept_path_[alpha_index]
+            xb = X @ self.coef_path_[alpha_index] + self.intercept_path_[alpha_index]  # type: ignore
             if offset is not None:
                 xb += offset
         else:  # hopefully a list or some such
@@ -1599,7 +1599,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             in the input data. As categorical variables need not be one-hot encoded in
             glum, in their case, the hypothesis to be tested is that the coefficients
             of all categories are equal to ``r``.
-        r : np.ndarray, optional, default=None
+        r : Sequence, optional, default=None
             The vector representing the values of the linear combination.
             If None, the test is for whether the linear combinations of the coefficients
             are zero.
@@ -1663,7 +1663,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         }
 
         if R is not None:
-            return self._wald_test_matrix(R=R, r=r, **kwargs)
+            return self._wald_test_matrix(R=R, r=np.asarray(r), **kwargs)
         if features is not None:
             return self._wald_test_feature_names(features=features, values=r, **kwargs)
         if terms is not None:
@@ -2364,8 +2364,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         np.ndarray,
         Optional[np.ndarray],
         float,
-        Union[str, np.ndarray],
-        Union[str, np.ndarray],
+        Union[str, np.ndarray, Any],
+        Union[str, np.ndarray, Any],
     ]:
         dtype = [np.float64, np.float32]
         stype = ["csc"] if self.solver == "irls-cd" else ["csc", "csr"]
@@ -3000,15 +3000,15 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             ):
                 raise ValueError(
                     "Penalty term must be a non-negative number;"
-                    f" got (alpha={self.alpha})"
+                    f" got (alpha={self.alpha})"  # type: ignore
                 )
 
         if (
             not np.isscalar(self.l1_ratio)
             # check for numeric, i.e. not a string
             or not np.issubdtype(np.asarray(self.l1_ratio).dtype, np.number)
-            or self.l1_ratio < 0
-            or self.l1_ratio > 1
+            or self.l1_ratio < 0  # type: ignore
+            or self.l1_ratio > 1  # type: ignore
         ):
             raise ValueError(
                 "l1_ratio must be a number in interval [0, 1];"

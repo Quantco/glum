@@ -736,7 +736,7 @@ def identify_active_set(state: IRLSState, data: IRLSData):
     active = np.logical_or(state.coef[data.intercept_offset :] != 0, abs_score >= T)
 
     active_set = np.concatenate(
-        ([0] if data.fit_intercept else [], np.where(active)[0] + data.intercept_offset)
+        [[0] if data.fit_intercept else [], np.where(active)[0] + data.intercept_offset]
     ).astype(np.int32)
 
     return active_set
@@ -795,7 +795,7 @@ def line_search(state: IRLSState, data: IRLSData, d: np.ndarray):
         if mu_wd.max() < 1e43 and loss_improvement <= factor * bound:
             break
         # 2. Deal with relative loss differences around machine precision.
-        tiny_loss = np.abs(state.obj_val * eps)
+        tiny_loss = np.abs(state.obj_val * eps)  # type: ignore
         if np.abs(loss_improvement) <= tiny_loss:
             if sum_abs_grad_old < 0:
                 sum_abs_grad_old = linalg.norm(state.score, ord=1)
