@@ -7,8 +7,8 @@
 Changelog
 =========
 
-Unreleased
-----------
+3.0.2 - 2024-06-25
+------------------
 
 **Bug fix:**
 
@@ -16,9 +16,10 @@ Unreleased
 
 **Other changes:**
 
-- Move the linting and formatting to ruff.
+- Moved the development infrastructure to pixi.
+- Moved the linting and formatting to ruff.
 - Removed libblas MKL from the development environment.
-- Replace deprecated 'oldest-supported-numpy' dependency with 'numpy' to support 2.0 release.
+- Replaced deprecated 'oldest-supported-numpy' dependency with 'numpy' to support 2.0 release.
 
 3.0.1 - 2024-05-23
 ------------------
