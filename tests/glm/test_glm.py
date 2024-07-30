@@ -2695,6 +2695,9 @@ def test_information_criteria(regression_data):
 
 
 @pytest.mark.filterwarnings("ignore: There is no")
+@pytest.mark.filterwarnings(
+    "ignore:'force_all_finite' was renamed to 'ensure_all_finite':FutureWarning"
+)
 def test_information_criteria_raises_correct_warnings_and_errors(regression_data):
     X, y = regression_data
 
