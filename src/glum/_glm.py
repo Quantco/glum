@@ -26,11 +26,13 @@ import numpy as np
 import pandas as pd
 import scipy.sparse as sps
 import scipy.sparse.linalg as splinalg
+import sklearn as skl
 import tabmat as tm
 from formulaic import Formula, FormulaSpec
 from formulaic.parser import DefaultFormulaParser
 from formulaic.utils.constraints import LinearConstraintParser
 from formulaic.utils.context import capture_context
+from packaging import version
 from scipy import linalg, sparse, stats
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.utils import check_array
@@ -69,6 +71,11 @@ from ._util import (
     _is_contiguous,
     _safe_toarray,
 )
+
+if version.parse(skl.__version__) < version.parse("1.6"):
+    keyword_finiteness = "force_all_finite"
+else:
+    keyword_finiteness = "ensure_all_finite"
 
 _float_itemsize_to_dtype = {8: np.float64, 4: np.float32, 2: np.float16}
 
@@ -187,9 +194,9 @@ def _check_weights(
     sample_weight = check_array(
         sample_weight,
         accept_sparse=False,
-        force_all_finite=force_all_finite,
         ensure_2d=False,
         dtype=[np.float64, np.float32],
+        **{keyword_finiteness: force_all_finite},
     )
 
     if sample_weight.ndim > 1:  # type: ignore
@@ -219,9 +226,9 @@ def _check_offset(
     offset = check_array(
         offset,
         accept_sparse=False,
-        force_all_finite=True,
         ensure_2d=False,
         dtype=dtype,
+        **{keyword_finiteness: True},
     )
 
     offset = cast(np.ndarray, offset)
@@ -291,9 +298,9 @@ def check_bounds(
     bounds = check_array(
         bounds,
         accept_sparse=False,
-        force_all_finite=False,
         ensure_2d=False,
         dtype=dtype,
+        **{keyword_finiteness: False},
     )
 
     bounds = cast(np.ndarray, bounds)
@@ -319,18 +326,18 @@ def check_inequality_constraints(
         A_ineq = check_array(
             A_ineq,
             accept_sparse=False,
-            force_all_finite=False,
             ensure_2d=True,
             dtype=dtype,
             copy=True,
+            **{keyword_finiteness: False},
         )
         b_ineq = check_array(
             b_ineq,
             accept_sparse=False,
-            force_all_finite=False,
             ensure_2d=False,
             dtype=dtype,
             copy=True,
+            **{keyword_finiteness: False},
         )
         if A_ineq.shape[1] != n_features:  # type: ignore
             raise ValueError("A_ineq must have same number of columns as X.")
@@ -838,10 +845,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             coef = check_array(
                 self.start_params,
                 accept_sparse=False,
-                force_all_finite=True,
                 ensure_2d=False,
                 dtype=dtype,
                 copy=True,
+                **{keyword_finiteness: True},
             )
 
             if coef.shape != (len(col_means) + self.fit_intercept,):
@@ -2493,8 +2500,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 accept_sparse=stype,
                 dtype=dtype,
                 copy=copy_X,
-                force_all_finite=force_all_finite,
                 drop_first=getattr(self, "drop_first", False),
+                **{keyword_finiteness: force_all_finite},
             )
             self._check_n_features(X, reset=True)
         else:
@@ -2505,7 +2512,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 accept_sparse=stype,
                 dtype=dtype,
                 copy=copy_X,
-                force_all_finite=force_all_finite,
+                **{keyword_finiteness: force_all_finite},
             )
 
         # Without converting y to float, deviance might raise

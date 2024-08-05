@@ -51,44 +51,45 @@ python = ">=3.9"
 pip = "*"
 
 [dependencies]
+formulaic = "*"
 numexpr = "*"
+packaging = "*"
 pandas = ">=1.1"
-tabmat = ">=4.0.0"
+pyarrow = "*"
 scikit-learn = ">=0.23"
 scipy = "*"
+tabmat = ">=4.0.0"
 tqdm = "*"
-formulaic = "*"
-pyarrow = "*"
 
 [feature.no-tabmat.dependencies]
+formulaic = "*"
 numexpr = "*"
 pandas = ">=1.1"
+pyarrow = "*"
 scikit-learn = ">=0.23"
 scipy = "*"
 tqdm = "*"
-formulaic = "*"
-pyarrow = "*"
 
 [feature.test.dependencies]
-statsmodels = "*"
+attrs = "*"
+click = "*"
+git_root = "*"
+mypy = "*"
+psutil = "*"
 pytest = "*"
 pytest-xdist = "*"
-git_root = "*"
-click = "*"
-attrs = "*"
-psutil = "*"
-mypy = "*"
+statsmodels = "*"
 
 [feature.dev.dependencies]
 ipdb = "*"
+ipykernel = "*"
 ipython = "*"
 line_profiler = "*"
 memory_profiler = "*"
-ipykernel = "*"
 
 [feature.lint.dependencies]
-pre-commit = "*"
 cython-lint = "*"
+pre-commit = "*"
 ruff = "*"
 
 [feature.docs.dependencies]
@@ -105,12 +106,12 @@ sphinxcontrib-apidoc = "*"
 sphinxext-altair = "*"
 
 [feature.tutorial.dependencies]
-jupyterlab = "*"
 altair = "*" # used in docs/tutorials/rossman
-openml = "*" # used for downloading datasets in the tutorials.
 dask-ml = ">=2022.5.27" # used in tutorials rossman and insurance
-shapely = "*" # used in docs/tutorials/regularization_housing_data
+jupyterlab = "*"
 libpysal = "*" # used in docs/tutorials/regularization_housing_data
+openml = "*" # used for downloading datasets in the tutorials.
+shapely = "*" # used in docs/tutorials/regularization_housing_data
 
 [feature.benchmark.dependencies]
 h2o-py = "*"
@@ -124,11 +125,11 @@ blas = "=*=*mkl"
 c-compiler = "*"
 cxx-compiler = "*"
 cython = "!=3.0.4"
-setuptools-scm = "*"
 make = "*"
 mako = "*"
-xsimd = "<11|>12.1"
 pip = "*"
+setuptools-scm = "*"
+xsimd = "<11|>12.1"
 [feature.build-tabmat.target.unix.dependencies]
 jemalloc-local = "*"
 
@@ -142,12 +143,12 @@ python = "3.11.*"
 python = "3.12.*"
 
 [feature.oldies.dependencies]
-python = "3.9.*"
-pandas = "1.2.*"
-scikit-learn = "0.24.*"
-tabmat = "4.0.*"
-scipy = "1.7.*"
 formulaic = "0.6.*"
+pandas = "1.2.*"
+python = "3.9.*"
+scikit-learn = "0.24.*"
+scipy = "1.7.*"
+tabmat = "4.0.*"
 
 [environments]
 default = ["dev", "test"]
