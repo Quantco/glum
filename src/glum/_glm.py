@@ -72,7 +72,7 @@ from ._util import (
     _safe_toarray,
 )
 
-if version.parse(skl.__version__) < version.parse("1.6"):
+if version.parse(skl.__version__).release < (1, 6):
     keyword_finiteness = "force_all_finite"
 else:
     keyword_finiteness = "ensure_all_finite"
