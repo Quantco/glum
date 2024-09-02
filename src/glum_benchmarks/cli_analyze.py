@@ -134,9 +134,9 @@ def _extract_dict_results_to_pd_series(
 
     coefs = results["coef"]
     runtime_per_iter = results["runtime"] / results["n_iter"]
-    l1_norm = np.sum(np.abs(coefs))
-    l2_norm = np.sum(coefs**2)
-    num_nonzero_coef = np.sum(np.abs(coefs) > 1e-8)
+    l1_norm = np.sum(np.abs(coefs))  # type: ignore
+    l2_norm = np.sum(coefs**2)  # type: ignore
+    num_nonzero_coef = np.sum(np.abs(coefs) > 1e-8)  # type: ignore
 
     # weights and offsets are solving the same problem, but the objective is set up to
     # deal with weights, so load the data for the weights problem rather than the

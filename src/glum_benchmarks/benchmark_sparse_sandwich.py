@@ -67,7 +67,7 @@ def _run_one_problem_all_methods(x, d, include_naive, dtype) -> pd.DataFrame:
             start = time.perf_counter()
             res = func(x, d)
             ts.append(time.perf_counter() - start)
-        elapsed = np.min(ts)
+        elapsed = np.min(ts)  # type: ignore
 
         info[name] = {}
         info[name]["res"] = res

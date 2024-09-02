@@ -174,11 +174,11 @@ def exposure_and_offset_to_weights(
         raise ValueError("Need offset or exposure.")
     y = y / exposure
     sample_weight = (
-        exposure ** (2 - power)
+        exposure ** (2 - power)  # type: ignore
         if sample_weight is None
-        else sample_weight * exposure ** (2 - power)
+        else sample_weight * exposure ** (2 - power)  # type: ignore
     )
-    return y, sample_weight
+    return y, sample_weight  # type: ignore
 
 
 class BenchmarkParams:

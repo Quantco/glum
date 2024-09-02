@@ -56,7 +56,7 @@ def _mn_run(m, n, iter, dtype):
         elif "numpy_mklC" in to_run:
             err = np.abs((true - result) / true)
             np.testing.assert_almost_equal(err, 0, 4 if precision == 32 else 7)
-        runtime = np.min(ts)
+        runtime = np.min(ts)  # type: ignore
         out["name"].append(name)
         out["runtime"].append(runtime)
         print(name, runtime)
@@ -99,7 +99,7 @@ def main2():
     pls = []
     krs = []
     ibs = []
-    results = []
+    results = []  # type: ignore
     # for thresh1d in [16, 32, 64, 128]:
     #     for parlevel in [5, 7, 10, 13]:
     #         for kratio in [1, 10, 20, 80]:
