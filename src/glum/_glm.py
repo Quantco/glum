@@ -580,15 +580,15 @@ def setup_p1(
                 "The given P1 cannot be converted to a numeric array; "
                 f"got (P1.dtype={P1.dtype})."  # type: ignore
             ) from e
-        if (P1.ndim != 1) or (P1.shape[0] != n_features):
+        if (P1.ndim != 1) or (P1.shape[0] != n_features):  # type: ignore
             raise ValueError(
                 "P1 must be either 'identity' or a 1d array with the length of "
                 "X.shape[1] (either before or after categorical expansion); "
-                f"got (P1.shape[0]={P1.shape[0]})."
+                f"got (P1.shape[0]={P1.shape[0]})."  # type: ignore
             )
 
     # P1 and P2 are now for sure copies
-    P1 = alpha * l1_ratio * P1
+    P1 = alpha * l1_ratio * P1  # type: ignore
     return cast(np.ndarray, P1).astype(dtype)
 
 
@@ -2110,7 +2110,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             )
             offset = _check_offset(offset, y.shape[0], X.dtype)
 
-        sum_weights = np.sum(sample_weight)
+        sum_weights = np.sum(sample_weight)  # type: ignore
 
         mu = self.predict(X, offset=offset) if mu is None else np.asanyarray(mu)
 
@@ -2523,9 +2523,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         # mixed-precision numbers
         y = np.asarray(y, dtype=X.dtype)
         sample_weight = _check_weights(
-            sample_weight, y.shape[0], X.dtype, force_all_finite=force_all_finite
+            sample_weight,
+            y.shape[0],  # type: ignore
+            X.dtype,
+            force_all_finite=force_all_finite,
         )
-        offset = _check_offset(offset, y.shape[0], X.dtype)
+        offset = _check_offset(offset, y.shape[0], X.dtype)  # type: ignore
 
         # IMPORTANT NOTE: Since we want to minimize
         # 1/(2*sum(sample_weight)) * deviance + L1 + L2,
@@ -2539,10 +2542,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         #######################################################################
         X = tm.as_tabmat(X)
 
-        self.feature_names_ = X.get_names(type="column", missing_prefix="_col_")
+        self.feature_names_ = X.get_names(type="column", missing_prefix="_col_")  # type: ignore
         self.term_names_ = X.get_names(type="term", missing_prefix="_col_")
 
-        return X, y, sample_weight, offset, weights_sum, P1, P2
+        return X, y, sample_weight, offset, weights_sum, P1, P2  # type: ignore
 
 
 class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
@@ -3324,7 +3327,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
                 "the binomial, negative binomial and Tweedie (power<=2 or power=3)."
             )
 
-        ddof = np.sum(np.abs(self.coef_) > np.finfo(self.coef_.dtype).eps)
+        ddof = np.sum(np.abs(self.coef_) > np.finfo(self.coef_.dtype).eps)  # type: ignore
         k_params = ddof + self.fit_intercept
         nobs = X.shape[0]
 

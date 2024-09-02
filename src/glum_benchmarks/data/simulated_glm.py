@@ -22,7 +22,7 @@ def tweedie_rv(mu, sigma2=1, p=1.5):
 
     arr_N = rand.poisson(lambda_)
     out = np.empty(n, dtype=np.float64)
-    for i, N in enumerate(arr_N):
+    for i, N in enumerate(arr_N):  # type: ignore
         out[i] = np.sum(rand.gamma(alpha_, 1 / beta_[i], size=N))
 
     return out

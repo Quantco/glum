@@ -242,7 +242,7 @@ def gen_col_trans() -> tuple[Any, list[str]]:
                         "bin",
                         FunctionTransformer(
                             func_returns_df(
-                                lambda x: np.digitize(
+                                lambda x: np.digitize(  # type: ignore
                                     np.where(x == 10, 9, x), bins=[1, 10]
                                 )
                             ),
@@ -263,7 +263,7 @@ def gen_col_trans() -> tuple[Any, list[str]]:
                         "bin",
                         FunctionTransformer(
                             func_returns_df(
-                                lambda x: np.digitize(x, bins=[21, 26, 31, 41, 51, 71])
+                                lambda x: np.digitize(x, bins=[21, 26, 31, 41, 51, 71])  # type: ignore
                             ),
                             validate=False,
                         ),

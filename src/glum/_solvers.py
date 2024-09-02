@@ -552,7 +552,7 @@ class IRLSState:
         self.iteration_runtime = time.time() - self.iteration_start
         self.iteration_start = time.time()
 
-        coef_l1 = np.sum(np.abs(self.coef))
+        coef_l1 = np.sum(np.abs(self.coef))  # type: ignore
         coef_l2 = np.linalg.norm(self.coef)
         step_l2 = np.linalg.norm(self.step)
         self.diagnostics.append(
