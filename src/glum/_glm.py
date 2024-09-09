@@ -74,8 +74,14 @@ from ._util import (
 
 if version.parse(skl.__version__).release < (1, 6):
     keyword_finiteness = "force_all_finite"
+    _check_n_features = BaseEstimator._check_n_features
+    validate_data = BaseEstimator._validate_data
 else:
     keyword_finiteness = "ensure_all_finite"
+    from sklearn.utils.validation import (  # type: ignore
+        _check_n_features,
+        validate_data,
+    )
 
 _float_itemsize_to_dtype = {8: np.float64, 4: np.float32, 2: np.float16}
 
@@ -2466,7 +2472,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 )
 
         if y is None:
-            raise ValueError("y cannot be None when not using a two-sided formula.")
+            raise ValueError(
+                f"Unless using a two-sided formula, {self.__class__.__name__} "
+                "requires y to be passed, but the target y is None."
+            )
 
         if not _is_contiguous(X):
             if self.copy_X is not None and not self.copy_X:
@@ -2503,9 +2512,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 drop_first=getattr(self, "drop_first", False),
                 **{keyword_finiteness: force_all_finite},
             )
-            self._check_n_features(X, reset=True)
+            _check_n_features(self, X, reset=True)
         else:
-            X, y = self._validate_data(
+            X, y = validate_data(
+                self,
                 X,
                 y,
                 ensure_2d=True,
