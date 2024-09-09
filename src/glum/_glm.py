@@ -2466,7 +2466,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 )
 
         if y is None:
-            raise ValueError("y cannot be None when not using a two-sided formula.")
+            raise ValueError(
+                f"Unless using a two-sided formula, {self.__class__.__name__} "
+                "requires y to be passed, but the target y is None."
+            )
 
         if not _is_contiguous(X):
             if self.copy_X is not None and not self.copy_X:
