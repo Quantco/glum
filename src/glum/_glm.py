@@ -27,6 +27,7 @@ import pandas as pd
 import scipy.sparse as sps
 import scipy.sparse.linalg as splinalg
 import sklearn as skl
+import sklearn.utils.validation
 import tabmat as tm
 from formulaic import Formula, FormulaSpec
 from formulaic.parser import DefaultFormulaParser
@@ -42,6 +43,17 @@ from sklearn.utils.validation import (
     check_is_fitted,
     column_or_1d,
 )
+
+if hasattr(sklearn.utils.validation, "validate_data"):
+    validate_data = sklearn.utils.validation.validate_data
+else:
+    validate_data = BaseEstimator._validate_data
+
+if hasattr(sklearn.utils.validation, "_check_n_features"):
+    _check_n_features = sklearn.utils.validation._check_n_features
+else:
+    _check_n_features = BaseEstimator._check_n_features
+
 
 from ._distribution import (
     BinomialDistribution,
@@ -2506,9 +2518,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 drop_first=getattr(self, "drop_first", False),
                 **{keyword_finiteness: force_all_finite},
             )
-            self._check_n_features(X, reset=True)
+            _check_n_features(self, X, reset=True)
         else:
-            X, y = self._validate_data(
+            X, y = validate_data(
+                self,
                 X,
                 y,
                 ensure_2d=True,
