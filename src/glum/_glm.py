@@ -44,17 +44,6 @@ from sklearn.utils.validation import (
     column_or_1d,
 )
 
-if hasattr(sklearn.utils.validation, "validate_data"):
-    validate_data = sklearn.utils.validation.validate_data
-else:
-    validate_data = BaseEstimator._validate_data
-
-if hasattr(sklearn.utils.validation, "_check_n_features"):
-    _check_n_features = sklearn.utils.validation._check_n_features
-else:
-    _check_n_features = BaseEstimator._check_n_features
-
-
 from ._distribution import (
     BinomialDistribution,
     ExponentialDispersionModel,
@@ -88,6 +77,16 @@ if version.parse(skl.__version__).release < (1, 6):
     keyword_finiteness = "force_all_finite"
 else:
     keyword_finiteness = "ensure_all_finite"
+
+if hasattr(sklearn.utils.validation, "validate_data"):
+    validate_data = sklearn.utils.validation.validate_data
+else:
+    validate_data = BaseEstimator._validate_data
+
+if hasattr(sklearn.utils.validation, "_check_n_features"):
+    _check_n_features = sklearn.utils.validation._check_n_features
+else:
+    _check_n_features = BaseEstimator._check_n_features
 
 _float_itemsize_to_dtype = {8: np.float64, 4: np.float32, 2: np.float16}
 
