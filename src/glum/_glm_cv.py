@@ -422,7 +422,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
     def fit(
         self,
         X: ArrayLike,
-        y: ArrayLike,
+        y: Optional[ArrayLike] = None,
         sample_weight: Optional[ArrayLike] = None,
         offset: Optional[ArrayLike] = None,
         *,
