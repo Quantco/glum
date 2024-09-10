@@ -7,7 +7,6 @@ import pandas as pd
 import sklearn.compose
 from git_root import git_root
 from sklearn.base import BaseEstimator, TransformerMixin
-from sklearn.compose._column_transformer import _get_transformer_list
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer
 from sklearn.utils.validation import check_is_fitted
@@ -183,21 +182,6 @@ class ColumnTransformer(sklearn.compose.ColumnTransformer):
         return pd.concat(Xs, axis="columns")
 
 
-def make_column_transformer(*transformers, remainder: str = "drop"):  # noqa: D103
-    # This is identical to scikit-learn's. We're just using our
-    # ColumnTransformer instead.
-    transformer_list = _get_transformer_list(transformers)
-    return ColumnTransformer(
-        transformer_list,
-        remainder=remainder,
-    )
-
-
-make_column_transformer.__doc__ = getattr(  # noqa: B009
-    sklearn.compose.make_column_transformer, "__doc__"
-)
-
-
 def func_returns_df(
     fn: Callable[[pd.DataFrame], np.ndarray],
 ) -> Callable[[pd.DataFrame], pd.DataFrame]:
@@ -220,89 +204,101 @@ def gen_col_trans() -> tuple[Any, list[str]]:
 
     Encodes k categories with k binary features (redundant).
     """
-    column_trans = make_column_transformer(
-        # VehPower 4, 5, 6, 7, 8, 9, drop=4
-        (
-            Pipeline(
-                [
-                    (
-                        "cut_9",
-                        FunctionTransformer(lambda x: np.minimum(x, 9), validate=False),
-                    ),
-                    get_categorizer("VehPower"),
-                ]
-            ),
-            ["VehPower"],
-        ),
-        # VehAge intervals [0,1), [1, 10], (10, inf), drop=[1,10]
-        (
-            Pipeline(
-                [
-                    (
-                        "bin",
-                        FunctionTransformer(
-                            func_returns_df(
-                                lambda x: np.digitize(  # type: ignore
-                                    np.where(x == 10, 9, x), bins=[1, 10]
-                                )
+    column_trans = ColumnTransformer(
+        [
+            # VehPower 4, 5, 6, 7, 8, 9, drop=4
+            (
+                "VehPower",
+                Pipeline(
+                    [
+                        (
+                            "cut_9",
+                            FunctionTransformer(
+                                lambda x: np.minimum(x, 9), validate=False
                             ),
-                            validate=False,
                         ),
-                    ),
-                    get_categorizer("VehAge"),
-                ]
+                        get_categorizer("VehPower"),
+                    ]
+                ),
+                ["VehPower"],
             ),
-            ["VehAge"],
-        ),
-        # DrivAge intervals [18,21), [21,26), [26,31), [31,41), [41,51), [51,71),[71,∞),
-        # drop=[41,51)
-        (
-            Pipeline(
-                [
-                    (
-                        "bin",
-                        FunctionTransformer(
-                            func_returns_df(
-                                lambda x: np.digitize(x, bins=[21, 26, 31, 41, 51, 71])  # type: ignore
+            # VehAge intervals [0,1), [1, 10], (10, inf), drop=[1,10]
+            (
+                "VehAge",
+                Pipeline(
+                    [
+                        (
+                            "bin",
+                            FunctionTransformer(
+                                func_returns_df(
+                                    lambda x: np.digitize(  # type: ignore
+                                        np.where(x == 10, 9, x), bins=[1, 10]
+                                    )
+                                ),
+                                validate=False,
                             ),
-                            validate=False,
                         ),
-                    ),
-                    get_categorizer("DrivAge"),
-                ]
+                        get_categorizer("VehAge"),
+                    ]
+                ),
+                ["VehAge"],
             ),
-            ["DrivAge"],
-        ),
-        (
-            Pipeline(
-                [
-                    (
-                        "cutat150",
-                        FunctionTransformer(
-                            lambda x: np.minimum(x, 150), validate=False
+            # DrivAge intervals [18, 21), [21, 26), [26, 31), [31, 41),
+            #                   [41, 51), [51, 71), [71, ∞),
+            # drop=[41,51)
+            (
+                "DrivAge",
+                Pipeline(
+                    [
+                        (
+                            "bin",
+                            FunctionTransformer(
+                                func_returns_df(
+                                    lambda x: np.digitize(  # type: ignore
+                                        x, bins=[21, 26, 31, 41, 51, 71]
+                                    )
+                                ),
+                                validate=False,
+                            ),
                         ),
-                    )
-                ]
+                        get_categorizer("DrivAge"),
+                    ]
+                ),
+                ["DrivAge"],
             ),
-            ["BonusMalus"],
-        ),
-        (Pipeline([get_categorizer("VehBrand")]), ["VehBrand"]),
-        (Pipeline([get_categorizer("VehGas")]), ["VehGas"]),
-        (FunctionTransformer(np.log, validate=False), ["Density"]),
-        (Pipeline([get_categorizer("Region")]), ["Region"]),
-        (
-            Pipeline(
-                [
-                    get_categorizer("Area"),
-                    ("OE", OrdinalEncoder()),
-                    (
-                        "plus_1",
-                        FunctionTransformer(lambda x: x + 1, validate=False),
-                    ),
-                ]
+            (
+                "BonusMalus",
+                Pipeline(
+                    [
+                        (
+                            "cutat150",
+                            FunctionTransformer(
+                                lambda x: np.minimum(x, 150), validate=False
+                            ),
+                        )
+                    ]
+                ),
+                ["BonusMalus"],
             ),
-            ["Area"],
-        ),
+            ("VehBrand", Pipeline([get_categorizer("VehBrand")]), ["VehBrand"]),
+            ("VehGas", Pipeline([get_categorizer("VehGas")]), ["VehGas"]),
+            ("Density", FunctionTransformer(np.log, validate=False), ["Density"]),
+            ("Region", Pipeline([get_categorizer("Region")]), ["Region"]),
+            (
+                "Area",
+                Pipeline(
+                    [
+                        get_categorizer("Area"),
+                        ("OE", OrdinalEncoder()),
+                        (
+                            "plus_1",
+                            FunctionTransformer(lambda x: x + 1, validate=False),
+                        ),
+                    ]
+                ),
+                ["Area"],
+            ),
+        ],
         remainder="drop",
     )
     column_trans_names = [
@@ -497,19 +493,23 @@ def generate_wide_insurance_dataset(
         "Region",
     ]
 
-    transformer = make_column_transformer(
-        (
-            FunctionTransformer(),
-            lambda x: [
-                elmt
-                for elmt in x.select_dtypes(["number"]).columns
-                if elmt not in cat_cols
-            ],
-        ),
-        (
-            Pipeline([get_categorizer(col, "cat_" + col) for col in cat_cols]),
-            cat_cols,
-        ),
+    transformer = ColumnTransformer(
+        [
+            (
+                "numeric",
+                FunctionTransformer(),
+                lambda x: [
+                    elmt
+                    for elmt in x.select_dtypes(["number"]).columns
+                    if elmt not in cat_cols
+                ],
+            ),
+            (
+                "categorical",
+                Pipeline([get_categorizer(col, "cat_" + col) for col in cat_cols]),
+                cat_cols,
+            ),
+        ],
         remainder="drop",
     )
     y, exposure = compute_y_exposure(df, distribution)
