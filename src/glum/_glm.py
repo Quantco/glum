@@ -37,7 +37,7 @@ from scipy import linalg, sparse, stats
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.utils import check_array
 from sklearn.utils.validation import (
-    _assert_all_finite,
+    assert_all_finite,
     check_consistent_length,
     check_is_fitted,
     column_or_1d,
@@ -74,14 +74,10 @@ from ._util import (
 
 if version.parse(skl.__version__).release < (1, 6):
     keyword_finiteness = "force_all_finite"
-    _check_n_features = BaseEstimator._check_n_features
     validate_data = BaseEstimator._validate_data
 else:
     keyword_finiteness = "ensure_all_finite"
-    from sklearn.utils.validation import (  # type: ignore
-        _check_n_features,
-        validate_data,
-    )
+    from sklearn.utils.validation import validate_data  # type: ignore
 
 _float_itemsize_to_dtype = {8: np.float64, 4: np.float32, 2: np.float16}
 
@@ -173,7 +169,7 @@ def check_X_y_tabmat_compliant(
         raise ValueError("y cannot be None")
 
     y = column_or_1d(y, warn=True)
-    _assert_all_finite(y)
+    assert_all_finite(y)
     if y.dtype.kind == "O":
         y = y.astype(np.float64)
 
@@ -2512,7 +2508,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 drop_first=getattr(self, "drop_first", False),
                 **{keyword_finiteness: force_all_finite},
             )
-            _check_n_features(self, X, reset=True)
+            self.n_features_in_ = X.shape[1]
         else:
             X, y = validate_data(
                 self,
