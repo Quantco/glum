@@ -12,7 +12,7 @@ Changelog
 
 **Bug fix:
 
-- Fixed a bug where :meth:`~glum.GeneralizedLinearRegressor.fit` would raise a `dtype` mismatch error if fit with `alpha_search=True`.
+- Fixed a bug where :meth:`glum.GeneralizedLinearRegressor.fit` would raise a ``dtype`` mismatch error if fit with ``alpha_search=True``.
 
 3.0.2 - 2024-06-25
 ------------------
