@@ -13,6 +13,7 @@ Changelog
 **Bug fix**
 
 - Fix the ``glm_benchmarks_analyze`` command line tool. See `here <https://github.com/Quantco/glum/issues/642>`_.
+- Fixed a bug where :meth:`~glum.GeneralizedLinearRegressor.fit` would raise a `dtype` mismatch error if fit with `alpha_search=True`.
 
 **Other changes:**
 
