@@ -2,14 +2,14 @@ name: Daily runs
 on:
   schedule:
     - cron: '0 5 * * *'
+  workflow_dispatch:
   push:
     paths:
     - '.github/workflows/daily.yml'
-    - '.github/workflows/test.sh'
 
 jobs:
   linux-daily-unittests:
-    name: "Linux - daily unit tests - Python ${{ matrix.PYTHON_VERSION}} - ${{ matrix.NOTE }}"
+    name: "Linux - daily unit tests - ${{ matrix.NOTE }}"
     runs-on: ubuntu-latest
     env:
       CI: True
@@ -17,39 +17,37 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - PYTHON_VERSION: '3.10'
-            PANDAS_VERSION: 'nightly'
-            NUMPY_VERSION: 'nightly'
-            SCIKIT_VERSION: 'nightly'
-            SCIPY_VERSION: 'nightly'
-            TABMAT_VERSION: 'nightly'
+          - environment: 'nightly'
             NOTE: 'Nightly Builds' # run once with nightlies
-          - PYTHON_VERSION: '3.10'
-            PANDAS_VERSION: ''
-            NUMPY_VERSION: ''
-            SCIKIT_VERSION: ''
-            SCIPY_VERSION: ''
-            TABMAT_VERSION: ''
-            NOTE: 'Default Builds' # run once with normal dependencies
+          - environment: 'py312'
+            NOTE: 'Python 3.12' # run once with normal dependencies
     steps:
-      - name: Pull image
-        run: docker pull condaforge/mambaforge:latest
       - name: Checkout branch
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+      - name: Set up pixi
+        uses: prefix-dev/setup-pixi@992a3081e2f87829e0fff9fb29f4fe6a5d1e80a2
         with:
-          ref: ${{ github.head_ref }}
-      - name: Run CI inside of container
-        uses: ./.github/actions/unittests
-        with:
-          python_version: ${{ matrix.PYTHON_VERSION }}
-          pandas_version: ${{ matrix.PANDAS_VERSION }}
-          numpy_version: ${{ matrix.NUMPY_VERSION }}
-          scikit_version: ${{ matrix.SCIKIT_VERSION }}
-          scipy_version: ${{ matrix.SCIPY_VERSION }}
-          tabmat_version: ${{ matrix.TABMAT_VERSION }}
+          environments: ${{ matrix.environment }}
+      - name: Install nightlies
+        if: matrix.NOTE == 'Nightly Builds'
+        run: pixi run -e ${{ matrix.environment }} install-nightlies
+      - name: Install repository
+        run: pixi run -e ${{ matrix.environment }} postinstall
+      - name: Run pytest
+        run: pixi run -e ${{ matrix.environment }} test -nauto
+      - name: Run doctest
+        # Check that the readme example will work by running via doctest.
+        # We run outside the repo to make the test a bit more similar to
+        # a user running after installing with conda.
+        run: |
+          mkdir ../temp
+          cp README.md ../temp
+          cd ../temp
+          pixi run --manifest-path ../glum/pixi.toml -e ${{ matrix.environment }} python -m doctest -v README.md
+
       - name: Issue on failure
-        uses: actions/github-script@v6
-        if: ${{ failure() }}
+        uses: actions/github-script@v7
+        if: ${{ failure() && github.ref == 'refs/heads/main' }}
         with:
           script: |
             github.rest.issues.listForRepo({

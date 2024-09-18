@@ -1,7 +1,7 @@
 import functools
 import time
 import warnings
-from typing import List, Optional, Tuple, Union
+from typing import Optional, Union
 
 import numpy as np
 from scipy import linalg, sparse
@@ -15,7 +15,7 @@ from ._cd_fast import (
     enet_coordinate_descent_gram,
     identify_active_rows,
 )
-from ._distribution import ExponentialDispersionModel
+from ._distribution import ExponentialDispersionModel, get_one_over_variance
 from ._link import Link
 from ._util import _safe_lin_pred, _safe_sandwich_dot
 
@@ -105,7 +105,8 @@ def update_hessian(state, data, active_set):
     ``dH``. If ``threshold/data.hessian_approx == 0.0``, then we will always use
     every row. However, for ``data.hessian_approx != 0``, we include rows for
     which
-    ``include = (np.abs(hessian_rows_diff[i]) >= T * np.max(np.abs(hessian_rows_diff)))``.
+    ``include = (np.abs(hessian_rows_diff[i]) >= T *
+    np.max(np.abs(hessian_rows_diff)))``.
 
     Essentially, this criterion ignores data matrix rows that have not seen the
     second derivatives of their predictions change very much in the last
@@ -135,7 +136,6 @@ def update_hessian(state, data, active_set):
     first_iteration = not state.hessian_initialized
     reset_iteration = not _is_subset(state.old_active_set, active_set)
     if first_iteration or reset_iteration:
-
         # In the first iteration or in a reset iteration, we need to:
         # 1) use hessian_rows, not the difference
         # 2) use all the rows
@@ -153,7 +153,6 @@ def update_hessian(state, data, active_set):
         state.hessian_initialized = True
         n_active_rows = data.X.shape[0]
     else:
-
         # In an update iteration, we want to:
         # 1) use the difference in hessian_rows from the last iteration
         # 2) filter for active_rows in case data.hessian_approx != 0
@@ -235,7 +234,7 @@ def build_hessian_delta(
     return delta
 
 
-def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[List]]:
+def _irls_solver(inner_solver, coef, data) -> tuple[np.ndarray, int, int, list[list]]:
     """
     Solve GLM with L1 and L2 penalty by IRLS.
 
@@ -346,7 +345,7 @@ def _irls_solver(inner_solver, coef, data) -> Tuple[np.ndarray, int, int, List[L
         warnings.warn(
             "IRLS failed to converge. Increase"
             " the maximum number of iterations max_iter"
-            " (currently {})".format(data.max_iter),
+            f" (currently {data.max_iter})",
             ConvergenceWarning,
         )
     return state.coef, state.n_iter, state.n_cycles, state.diagnostics
@@ -426,7 +425,7 @@ class IRLSData:
         gradient_tol: Optional[float] = 1e-4,
         step_size_tol: Optional[float] = 1e-4,
         hessian_approx: float = 0.0,
-        fixed_inner_tol: Optional[Tuple] = None,
+        fixed_inner_tol: Optional[tuple] = None,
         selection="cyclic",
         random_state=None,
         offset: Optional[np.ndarray] = None,
@@ -482,7 +481,7 @@ class IRLSData:
 
 def _setup_bounds(
     bounds: Optional[np.ndarray], dtype
-) -> Tuple[bool, Optional[np.ndarray]]:
+) -> tuple[bool, Optional[np.ndarray]]:
     _out_bounds = bounds
     if _out_bounds is None:
         _out_bounds = np.array([], dtype=dtype)
@@ -553,7 +552,7 @@ class IRLSState:
         self.iteration_runtime = time.time() - self.iteration_start
         self.iteration_start = time.time()
 
-        coef_l1 = np.sum(np.abs(self.coef))
+        coef_l1 = np.sum(np.abs(self.coef))  # type: ignore
         coef_l2 = np.linalg.norm(self.coef)
         step_l2 = np.linalg.norm(self.step)
         self.diagnostics.append(
@@ -581,7 +580,7 @@ class IRLSState:
 
 def check_convergence(
     state: IRLSState, data: IRLSData
-) -> Tuple[bool, float, float, float]:
+) -> tuple[bool, float, float, float]:
     """Calculate parameters needed to determine whether we have converged."""
     # stopping criterion for outer loop is a mix of a subgradient tolerance
     # and a step size tolerance
@@ -678,7 +677,7 @@ def eta_mu_objective(
 @timeit("quadratic_update_runtime")
 def update_quadratic(
     state: IRLSState, data: IRLSData, coef_P2
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Update the quadratic approximation."""
     gradient_rows, hessian_rows = data.family.rowwise_gradient_hessian(
         data.link,
@@ -737,7 +736,7 @@ def identify_active_set(state: IRLSState, data: IRLSData):
     active = np.logical_or(state.coef[data.intercept_offset :] != 0, abs_score >= T)
 
     active_set = np.concatenate(
-        ([0] if data.fit_intercept else [], np.where(active)[0] + data.intercept_offset)
+        [[0] if data.fit_intercept else [], np.where(active)[0] + data.intercept_offset]
     ).astype(np.int32)
 
     return active_set
@@ -760,6 +759,7 @@ def line_search(state: IRLSState, data: IRLSData, d: np.ndarray):
     """
     # line search parameters
     (beta, sigma) = (0.5, 0.0001)
+    eps = 16 * np.finfo(state.obj_val.dtype).eps  # type: ignore
 
     # line search by sequence beta^k, k=0, 1, ..
     # F(w + lambda d) - F(w) <= lambda * bound
@@ -772,6 +772,9 @@ def line_search(state: IRLSState, data: IRLSData, d: np.ndarray):
 
     # Note: the L2 penalty term is included in the score.
     bound = sigma * (-(state.score @ d) + P1wd_1 - P1w_1)
+
+    # np.sum(np.abs(state.score))
+    sum_abs_grad_old = -1  # defer calculation
 
     # The step direction in row space. We'll be multiplying this by varying
     # step sizes during the line search. Factoring this matrix-vector product
@@ -787,8 +790,30 @@ def line_search(state: IRLSState, data: IRLSData, d: np.ndarray):
         eta_wd, mu_wd, obj_val_wd, coef_wd_P2 = _update_predictions(
             state, data, coef_wd, X_dot_d, factor=factor
         )
-        if (mu_wd.max() < 1e43) and (obj_val_wd - state.obj_val <= factor * bound):
+        # 1. Check Armijo / sufficient decrease condition.
+        loss_improvement = obj_val_wd - state.obj_val
+        if mu_wd.max() < 1e43 and loss_improvement <= factor * bound:
             break
+        # 2. Deal with relative loss differences around machine precision.
+        tiny_loss = np.abs(state.obj_val * eps)  # type: ignore
+        if np.abs(loss_improvement) <= tiny_loss:
+            if sum_abs_grad_old < 0:
+                sum_abs_grad_old = linalg.norm(state.score, ord=1)
+            # 2.1 Check sum of absolute gradients as alternative condition.
+            # Therefore, we need the recent gradient, see update_quadratic.
+            sigma_inv = get_one_over_variance(
+                data.family, data.link, mu_wd, eta_wd, 1.0, data.sample_weight
+            )
+            d1 = data.link.inverse_derivative(eta_wd)  # = h'(eta)
+            d1_sigma_inv = d1 * sigma_inv
+            gradient_rows = d1_sigma_inv * (data.y - mu_wd)
+            grad = gradient_rows @ data.X
+            if data.fit_intercept:
+                grad = np.concatenate(([gradient_rows.sum()], grad))
+            grad -= coef_wd_P2
+            sum_abs_grad = linalg.norm(grad, ord=1)
+            if sum_abs_grad < sum_abs_grad_old:
+                break
         factor *= beta
     else:
         warnings.warn(
@@ -907,7 +932,6 @@ def _trust_constr_solver(
     )
 
     if (A_ineq is not None) and (b_ineq is not None):
-
         if fit_intercept:
             # add one column of 0's from the left
             # the intercept will not be constrained
@@ -919,7 +943,7 @@ def _trust_constr_solver(
         # we express constraints in the form A theta <= b
         constraints = LinearConstraint(
             A=A_ineq_,
-            lb=-np.Inf,
+            lb=-np.inf,
             ub=b_ineq,
         )
     else:

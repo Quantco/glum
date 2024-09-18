@@ -1,17 +1,11 @@
 from abc import ABCMeta, abstractmethod
 from functools import partial
-from typing import Tuple, Union
+from typing import Union
 
 import numexpr
 import numpy as np
-from scipy import sparse, special
-from tabmat import (
-    CategoricalMatrix,
-    DenseMatrix,
-    MatrixBase,
-    SplitMatrix,
-    StandardizedMatrix,
-)
+from scipy import special
+from tabmat import MatrixBase, StandardizedMatrix, hstack
 
 from ._functions import (
     binomial_logit_eta_mu_deviance,
@@ -20,6 +14,10 @@ from ._functions import (
     gamma_log_eta_mu_deviance,
     gamma_log_likelihood,
     gamma_log_rowwise_gradient_hessian,
+    inv_gaussian_deviance,
+    inv_gaussian_log_eta_mu_deviance,
+    inv_gaussian_log_likelihood,
+    inv_gaussian_log_rowwise_gradient_hessian,
     negative_binomial_deviance,
     negative_binomial_log_eta_mu_deviance,
     negative_binomial_log_likelihood,
@@ -44,45 +42,23 @@ from ._util import _safe_lin_pred, _safe_sandwich_dot
 class ExponentialDispersionModel(metaclass=ABCMeta):
     r"""Base class for reproductive Exponential Dispersion Models (EDM).
 
-    The PDF of :math:`Y \sim \mathrm{EDM}(\mu, \phi)` is given by
+    The PDF of :math:`Y \sim \mathrm{EDM}(\theta, \phi)` is given by
 
     .. math::
 
         p(y \mid \theta, \phi)
-        &= c(y, \phi) \exp((\theta y - A(\theta)_ / \phi) \\
-        &= \tilde{c}(y, \phi) \exp(-d(y, \mu) / (2\phi))
+        &= \exp \left(\frac{y \theta - b(\theta)}{\phi / w} + c(y; w / \phi) \right),
 
-    with mean :math:`\mathrm{E}(Y) = A'(\theta) = \mu`, variance
-    :math:`\mathrm{var}(Y) = \phi \cdot v(\mu)`, unit variance
-    :math:`v(\mu)` and unit deviance :math:`d(y, \mu)`.
+    where :math:`\theta` is the scale parameter, :math:`\phi` is the dispersion
+    parameter, :math:`w` is a given weight, :math:`b` is the cumulant function
+    and :math:`c` is a normalization term.
 
-    Properties
-    ----------
-    lower_bound
-    upper_bound
-    include_lower_bound
-    include_upper_bound
-
-    Methods
-    -------
-    in_y_range
-    unit_variance
-    unit_variance_derivative
-    variance
-    variance_derivative
-    unit_deviance
-    unit_deviance_derivative
-    deviance
-    deviance_derivative
-    starting_mu
-
-    _mu_deviance_derivative
-    eta_mu_deviance
-    gradient_hessian
+    It can be shown that :math:`\mathrm{E}(Y) = b'(\theta)` and
+    :math:`\mathrm{var}(Y) = b''(\theta) \times \phi / w`.
 
     References
     ----------
-    https://en.wikipedia.org/wiki/Exponential_dispersion_model.
+    < https://en.wikipedia.org/wiki/Exponential_dispersion_model >.
     """
 
     @property
@@ -110,51 +86,41 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         pass
 
     def in_y_range(self, x) -> np.ndarray:
-        """Return ``True`` if ``x`` is in the valid range of the EDM.
-
-        Parameters
-        ----------
-        x : array-like, shape (n_samples,)
-            Target values.
-
-        Returns
-        -------
-        np.ndarray
-        """
+        """Return ``True`` if ``x`` is in the valid range of the EDM."""
         if self.include_lower_bound:
-            if self.include_upper_bound:
-                return np.logical_and(
-                    np.greater_equal(x, self.lower_bound),
-                    np.less_equal(x, self.upper_bound),
-                )
-            else:
-                return np.logical_and(
-                    np.greater_equal(x, self.lower_bound), np.less(x, self.upper_bound)
-                )
+            lb_op: np.ufunc = np.greater_equal
         else:
-            if self.include_upper_bound:
-                return np.logical_and(
-                    np.greater(x, self.lower_bound), np.less_equal(x, self.upper_bound)
-                )
-            else:
-                return np.logical_and(
-                    np.greater(x, self.lower_bound), np.less(x, self.upper_bound)
-                )
+            lb_op = np.greater
+
+        if self.include_upper_bound:
+            ub_op: np.ufunc = np.less_equal
+        else:
+            ub_op = np.less
+
+        return lb_op(x, self.lower_bound) & ub_op(x, self.upper_bound)
+
+    def to_tweedie(self, safe=True):
+        """Return the Tweedie representation of a distribution if it exists."""
+        if hasattr(self, "__tweedie_repr__"):
+            return self.__tweedie_repr__()
+        if safe:
+            raise ValueError("This distribution has no Tweedie representation.")
+        return None
 
     @abstractmethod
     def unit_variance(self, mu):
-        r"""Compute the unit variance function.
+        r"""Compute the unit variance.
 
-        The unit variance :math:`v(\mu)` determines the variance as a function
-        of the mean :math:`\mu` by
-        :math:`\mathrm{var}(y_i) = (\phi / s_i) \times v(\mu_i)`. It can
-        also be derived from the unit deviance :math:`d(y, \mu)` as
+        The unit variance, :math:`v(\mu) \equiv b''((b')^{-1} (\mu))`,
+        determines the variance as a function of the mean :math:`\mu` by
+        :math:`\mathrm{var}(y_i) = v(\mu_i) \times \phi / w_i`. It can also be
+        derived from the unit deviance :math:`d(y, \mu)` as
 
         .. math::
 
-            v(\mu) = \frac{2}{\frac{\partial^2 d(y, \mu)}{\partial\mu^2}}\big|_{y=\mu}.
+            v(\mu) = 2 \div \frac{\partial^2 d(y, \mu)}{\partial\mu^2} \big| _{y=\mu}.
 
-        See also :func:`variance`.
+        See also :meth:`~ExponentialDispersionModel.variance`.
 
         Parameters
         ----------
@@ -167,8 +133,6 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
     def unit_variance_derivative(self, mu):
         r"""Compute the derivative of the unit variance with respect to ``mu``.
 
-        Return :math:`v'(\mu)`.
-
         Parameters
         ----------
         mu : array-like, shape (n_samples,)
@@ -176,12 +140,12 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         """
         pass
 
-    def variance(self, mu: np.ndarray, dispersion=1, sample_weight=1) -> np.ndarray:
+    def variance(self, mu, dispersion=1, sample_weight=1) -> np.ndarray:
         r"""Compute the variance function.
 
-        The variance of :math:`Y_i \sim \mathrm{EDM}(\mu_i, \phi / s_i)` is
-        :math:`\mathrm{var}(Y_i) = (\phi / s_i) * v(\mu_i)`, with unit variance
-        :math:`v(\mu)` and weights :math:`s_i`.
+        The variance of :math:`Y_i \sim \mathrm{EDM}(\mu_i, \phi / w_i)` takes
+        the form :math:`v(\mu_i) \times \phi / w_i`, where :math:`v(\mu)` is the
+        unit variance and :math:`w_i` are weights.
 
         Parameters
         ----------
@@ -204,8 +168,8 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         r"""Compute the derivative of the variance with respect to ``mu``.
 
         The derivative of the variance is equal to
-        :math:`(\phi / s_i) * v'(\mu_i)`, where :math:`v(\mu)` is the unit
-        variance and :math:`s_i` are weights.
+        :math:`v(\mu_i) \times \phi / w_i`, where :math:`v(\mu)` is the unit
+        variance and :math:`ws_i` are weights.
 
         Parameters
         ----------
@@ -228,8 +192,10 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
     def unit_deviance(self, y, mu):
         r"""Compute the unit deviance.
 
-        In terms of the log likelihood :math:`L`, the unit deviance is
-        :math:`-2\phi\times [L(y, \mu, \phi) - L(y, y, \phi)].`
+        In terms of the unit log likelihood :math:`\ell`, the unit deviance is
+        :math:`2 [\ell(y_i, y_i, \phi) - \ell(y_i, \mu, \phi)]`, i.e. twice the
+        difference between the log likelihood of a saturated model (with one
+        parameter per observation) and the model at hand.
 
         Parameters
         ----------
@@ -245,7 +211,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         r"""Compute the derivative of the unit deviance with respect to ``mu``.
 
         The derivative of the unit deviance is given by
-        :math:`-2 \times (y - \mu) / v(\mu)`, where :math:`v(\mu)` is the unit
+        :math:`2 \times (\mu - y) / v(\mu)`, where :math:`v(\mu)` is the unit
         variance.
 
         Parameters
@@ -262,13 +228,14 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         """
         return -2 * (y - mu) / self.unit_variance(mu)
 
-    def deviance(self, y, mu, sample_weight=1):
+    def deviance(self, y, mu, sample_weight=1) -> float:
         r"""Compute the deviance.
 
-        The deviance is a weighted sum of the unit deviances,
-        :math:`\sum_i s_i \times d(y_i, \mu_i)`, where :math:`d(y, \mu)` is the
-        unit deviance and :math:`s` are weights. In terms of the log likelihood,
-        it is :math:`-2\phi \times [L(y, \mu, \phi / s) - L(y, y, \phi / s)]`.
+        The deviance is a weighted sum of the unit deviances. In terms of the
+        unit log likelihood :math:`\ell`, it equals
+        :math:`2 \sum_i [\ell(y_i, y_i, \phi) - \ell(y_i, \mu, \phi)]`,
+        i.e. twice the difference between the log likelihood of a saturated
+        model (with one parameter per observation) and the model at hand.
 
         Parameters
         ----------
@@ -279,11 +246,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
             Predicted mean.
 
         sample_weight : array-like, shape (n_samples,), optional (default=1)
-            Weights or exposure to which variance is inversely proportional.
-
-        Returns
-        -------
-        float
+            Weights or exposure to which the variance is inversely proportional.
         """
         if sample_weight is None:
             return np.sum(self.unit_deviance(y, mu))
@@ -312,46 +275,43 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
 
     def _mu_deviance_derivative(
         self,
-        coef: np.ndarray,
-        X,
-        y: np.ndarray,
-        sample_weight: np.ndarray,
+        coef,
+        X: Union[MatrixBase, StandardizedMatrix],
+        y,
+        sample_weight,
         link: Link,
-        offset: np.ndarray = None,
-    ) -> Tuple[np.ndarray, np.ndarray]:
-        """Compute ``mu`` and the derivative of the deviance \
-            with respect to coefficients."""
+        offset=None,
+    ):
+        """Compute ``mu`` and the derivative of the deviance with respect to
+        coefficients.
+        """
         lin_pred = _safe_lin_pred(X, coef, offset)
         mu = link.inverse(lin_pred)
         d1 = link.inverse_derivative(lin_pred)
         temp = d1 * self.deviance_derivative(y, mu, sample_weight)
+
         if coef.size == X.shape[1] + 1:
             devp = np.concatenate(([temp.sum()], temp @ X))
         else:
             devp = temp @ X  # same as X.T @ temp
+
         return mu, devp
 
     def eta_mu_deviance(
         self,
         link: Link,
         factor: float,
-        cur_eta: np.ndarray,
-        X_dot_d: np.ndarray,
-        y: np.ndarray,
-        sample_weight: np.ndarray,
-    ):
-        """
-        Compute ``eta``, ``mu`` and the deviance.
-
-        Compute:
-        * the linear predictor, ``eta``, as ``cur_eta + factor * X_dot_d``;
-        * the link-function-transformed prediction, ``mu``;
-        * the deviance.
+        cur_eta,
+        X_dot_d,
+        y,
+        sample_weight,
+    ) -> tuple[np.ndarray, np.ndarray, float]:
+        """Compute ``eta``, ``mu`` and the deviance.
 
         Returns
         -------
         numpy.ndarray, shape (X.shape[0],)
-            The linear predictor, ``eta``.
+            The linear predictor, ``eta``, as ``cur_eta + factor * X_dot_d``.
         numpy.ndarray, shape (X.shape[0],)
             The link-function-transformed prediction, ``mu``.
         float
@@ -361,24 +321,25 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         # avoiding allocating new arrays for every line search loop
         eta_out = np.empty_like(cur_eta)
         mu_out = np.empty_like(cur_eta)
+
         deviance = self._eta_mu_deviance(
             link, factor, cur_eta, X_dot_d, y, sample_weight, eta_out, mu_out
         )
+
         return eta_out, mu_out, deviance
 
     def _eta_mu_deviance(
         self,
         link: Link,
         factor: float,
-        cur_eta: np.ndarray,
-        X_dot_d: np.ndarray,
-        y: np.ndarray,
-        sample_weight: np.ndarray,
-        eta_out: np.ndarray,
-        mu_out: np.ndarray,
-    ):
-        """
-        Update ``eta`` and ``mu`` and compute the deviance.
+        cur_eta,
+        X_dot_d,
+        y,
+        sample_weight,
+        eta_out,
+        mu_out,
+    ) -> float:
+        """Update ``eta`` and ``mu`` and compute the deviance.
 
         This is a default implementation that should work for all valid
         distributions and link functions. To implement a custom optimized
@@ -388,6 +349,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         Returns
         -------
         float
+            The deviance.
         """
         eta_out[:] = cur_eta + factor * X_dot_d
         mu_out[:] = link.inverse(eta_out)
@@ -396,17 +358,16 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
     def rowwise_gradient_hessian(
         self,
         link: Link,
-        coef: np.ndarray,
+        coef,
         dispersion,
         X: Union[MatrixBase, StandardizedMatrix],
-        y: np.ndarray,
-        sample_weight: np.ndarray,
-        eta: np.ndarray,
-        mu: np.ndarray,
-        offset: np.ndarray = None,
+        y,
+        sample_weight,
+        eta,
+        mu,
+        offset=None,
     ):
-        """
-        Compute the gradient and negative Hessian of the log likelihood row-wise.
+        """Compute the gradient and negative Hessian of the log likelihood row-wise.
 
         Returns
         -------
@@ -417,6 +378,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         """
         gradient_rows = np.empty_like(mu)
         hessian_rows = np.empty_like(mu)
+
         self._rowwise_gradient_hessian(
             link, y, sample_weight, eta, mu, gradient_rows, hessian_rows
         )
@@ -428,8 +390,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
     def _rowwise_gradient_hessian(
         self, link, y, sample_weight, eta, mu, gradient_rows, hessian_rows
     ):
-        """
-        Update ``gradient_rows`` and ``hessian_rows`` in place.
+        """Update ``gradient_rows`` and ``hessian_rows`` in place.
 
         This is a default implementation that should work for all valid
         distributions and link functions. To implement a custom optimized
@@ -532,19 +493,11 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
             * link.inverse_derivative(linpred)
             * (y - mu)
         ).reshape(-1, 1)
-
+        XW = X.multiply(W)
         if fit_intercept:
-            if sparse.issparse(X):
-                return sparse.hstack((W, X.multiply(W)))
-            elif isinstance(X, (SplitMatrix, CategoricalMatrix)):
-                return SplitMatrix((DenseMatrix(W), X.multiply(W)))
-            else:
-                return np.hstack((W, np.multiply(X, W)))
+            return hstack((W, XW))
         else:
-            if sparse.issparse(X) or isinstance(X, (SplitMatrix, CategoricalMatrix)):
-                return X.multiply(W)
-            else:
-                return np.multiply(X, W)
+            return XW
 
     def dispersion(self, y, mu, sample_weight=None, ddof=1, method="pearson") -> float:
         r"""Estimate the dispersion parameter :math:`\phi`.
@@ -565,10 +518,6 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
 
         method = {'pearson', 'deviance'}, optional (default='pearson')
             Whether to base the estimate on the Pearson residuals or the deviance.
-
-        Returns
-        -------
-        float
         """
         y, mu, sample_weight = _as_float_arrays(y, mu, sample_weight)
 
@@ -594,29 +543,32 @@ class TweedieDistribution(ExponentialDispersionModel):
 
     A Tweedie distribution with mean :math:`\mu = \mathrm{E}(Y)` is uniquely
     defined by its mean-variance relationship
-    :math:`\mathrm{var}(Y) \propto \mu^{\mathrm{power}}`.
+    :math:`\mathrm{var}(Y) \propto \mu^{\mathrm{p}}`.
 
     Special cases are:
 
-    ====== ================
-    Power  Distribution
-    ====== ================
-    0      Normal
-    1      Poisson
-    (1, 2) Compound Poisson
-    2      Gamma
-    3      Inverse Gaussian
-    ====== ================
+    ====== ================ ============
+    Power  Distribution     Support
+    ====== ================ ============
+    0      Normal           ``(-∞, +∞)``
+    1      Poisson          ``[0, +∞)``
+    (1, 2) Compound Poisson ``[0, +∞)``
+    2      Gamma            ``(0, +∞)``
+    3      Inverse Gaussian ``(0, +∞)``
+    ====== ================ ============
+
+    See the documentation of the superclass,
+    :class:`~glum.ExponentialDispersionModel`, for details.
 
     Parameters
     ----------
     power : float, optional (default=0)
-        The variance power of the `unit_variance`
+        The variance power of the ``unit_variance``
         :math:`v(\mu) = \mu^{\mathrm{power}}`. For
         :math:`0 < \mathrm{power} < 1`, no distribution exists.
     """
 
-    upper_bound = np.Inf
+    upper_bound = np.inf
     include_upper_bound = False
 
     def __init__(self, power=0):
@@ -626,18 +578,19 @@ class TweedieDistribution(ExponentialDispersionModel):
     def __eq__(self, other):  # noqa D
         return isinstance(other, TweedieDistribution) and (self.power == other.power)
 
+    def __tweedie_repr__(self):  # noqa D
+        return self.__class__(self.power)
+
     @property
-    def lower_bound(self) -> float:
-        """Return the lowest value of ``y`` allowed."""
+    def lower_bound(self) -> float:  # noqa D
         if self.power <= 0:
-            return -np.Inf
+            return -np.inf
         if self.power >= 1:
             return 0
         raise ValueError
 
     @property
-    def include_lower_bound(self) -> bool:
-        """Return whether ``lower_bound`` is allowed as a value of ``y``."""
+    def include_lower_bound(self) -> bool:  # noqa D
         if self.power <= 0:
             return False
         if (self.power >= 1) and (self.power < 2):
@@ -647,104 +600,69 @@ class TweedieDistribution(ExponentialDispersionModel):
         raise ValueError
 
     @property
-    def power(self) -> float:
+    def power(self):
         """Return the Tweedie power parameter."""
         return self._power
 
     @power.setter
     def power(self, power):
-
-        if not isinstance(power, (int, float)):
-            raise TypeError(f"power must be an int or float, input was {power}")
+        if not isinstance(power, (int, float, np.number)):
+            raise TypeError(f"The power parameter must be numeric; got {power}.")
         if (power > 0) and (power < 1):
-            raise ValueError("For 0<power<1, no distribution exists.")
+            raise ValueError("For `0 < p < 1`, no distribution exists.")
 
         # Prevents upcasting when working with 32-bit data
         self._power = power if isinstance(power, int) else np.float32(power)
 
-    def unit_variance(self, mu: np.ndarray) -> np.ndarray:
-        """Compute the unit variance of a Tweedie distribution ``v(mu) = mu^power``.
-
-        Parameters
-        ----------
-        mu : array-like, shape (n_samples,)
-            Predicted mean.
-
-        Returns
-        -------
-        numpy.ndarray, shape (n_samples,)
-        """
+    def unit_variance(self, mu):  # noqa D
         p = self.power  # noqa: F841
         return numexpr.evaluate("mu ** p")
 
-    def unit_variance_derivative(self, mu: np.ndarray) -> np.ndarray:
-        r"""Compute the derivative of the unit variance of a Tweedie distribution.
-
-        Equation: :math:`v(\mu) = p \times \mu^{(p-1)}`.
-
-        Parameters
-        ----------
-        mu : array-like, shape (n_samples,)
-            Predicted mean.
-
-        Returns
-        -------
-        numpy.ndarray, shape (n_samples,)
-        """
+    def unit_variance_derivative(self, mu):  # noqa D
         p = self.power  # noqa: F841
         return numexpr.evaluate("p * mu ** (p - 1)")
 
-    def deviance(self, y, mu, sample_weight=None) -> float:
-        """Compute the deviance.
-
-        Parameters
-        ----------
-        y : array-like, shape (n_samples,)
-            Target values.
-
-        mu : array-like, shape (n_samples,)
-            Predicted mean.
-
-        sample_weight : array-like, shape (n_samples,), optional (default=1)
-            Sample weights.
-        """
-        p = self.power
+    def deviance(self, y, mu, sample_weight=None) -> float:  # noqa D
         y, mu, sample_weight = _as_float_arrays(y, mu, sample_weight)
         sample_weight = np.ones_like(y) if sample_weight is None else sample_weight
 
         # NOTE: the dispersion parameter is only necessary to convey
         # type information on account of a bug in Cython
 
-        if p == 0:
+        if self.power == 0:
             return normal_deviance(y, sample_weight, mu, dispersion=1.0)
-        if p == 1:
+        if self.power == 1:
             return poisson_deviance(y, sample_weight, mu, dispersion=1.0)
-        elif p == 2:
+        elif self.power == 2:
             return gamma_deviance(y, sample_weight, mu, dispersion=1.0)
+        elif self.power == 3:
+            return inv_gaussian_deviance(y, sample_weight, mu, dispersion=1.0)
         else:
-            return tweedie_deviance(y, sample_weight, mu, p=float(p))
+            return tweedie_deviance(y, sample_weight, mu, p=float(self.power))
 
-    def unit_deviance(self, y, mu):
-        """Get the deviance of each observation."""
-        p = self.power
-        if p == 0:  # Normal distribution
+    def unit_deviance(self, y, mu):  # noqa D
+        if self.power == 0:  # normal distribution
             return (y - mu) ** 2
-        if p == 1:  # Poisson distribution
+        if self.power == 1:  # Poisson distribution
             return 2 * (special.xlogy(y, y / mu) - y + mu)
-        elif p == 2:  # Gamma distribution
+        elif self.power == 2:  # Gamma distribution
             return 2 * (np.log(mu / y) + y / mu - 1)
+        elif self.power == 3:  # inverse Gaussian distribution
+            return ((y / mu - 1) ** 2) / y
         else:
-            mu1mp = mu ** (1 - p)
+            mu1mp = mu ** (1 - self.power)
             return 2 * (
-                (np.maximum(y, 0) ** (2 - p)) / ((1 - p) * (2 - p))
-                - y * mu1mp / (1 - p)
-                + mu * mu1mp / (2 - p)
+                (np.maximum(y, 0) ** (2 - self.power))
+                / ((1 - self.power) * (2 - self.power))
+                - y * mu1mp / (1 - self.power)
+                + mu * mu1mp / (2 - self.power)
             )
 
     def _rowwise_gradient_hessian(
         self, link, y, sample_weight, eta, mu, gradient_rows, hessian_rows
     ):
         f = None
+
         if self.power == 0 and isinstance(link, IdentityLink):
             f = normal_identity_rowwise_gradient_hessian
         elif self.power == 1 and isinstance(link, LogLink):
@@ -753,6 +671,8 @@ class TweedieDistribution(ExponentialDispersionModel):
             f = gamma_log_rowwise_gradient_hessian
         elif 1 < self.power < 2 and isinstance(link, LogLink):
             f = partial(tweedie_log_rowwise_gradient_hessian, p=self.power)
+        elif self.power == 3:
+            f = partial(inv_gaussian_log_rowwise_gradient_hessian, p=self.power)
 
         if f is not None:
             return f(y, sample_weight, eta, mu, gradient_rows, hessian_rows)
@@ -773,6 +693,7 @@ class TweedieDistribution(ExponentialDispersionModel):
         mu_out: np.ndarray,
     ):
         f = None
+
         if self.power == 0 and isinstance(link, IdentityLink):
             f = normal_identity_eta_mu_deviance
         elif self.power == 1 and isinstance(link, LogLink):
@@ -781,6 +702,8 @@ class TweedieDistribution(ExponentialDispersionModel):
             f = gamma_log_eta_mu_deviance
         elif 1 < self.power < 2 and isinstance(link, LogLink):
             f = partial(tweedie_log_eta_mu_deviance, p=self.power)
+        elif self.power == 3 and isinstance(link, LogLink):
+            f = partial(inv_gaussian_log_eta_mu_deviance, p=self.power)
 
         if f is not None:
             return f(cur_eta, X_dot_d, y, sample_weight, eta_out, mu_out, factor)
@@ -792,7 +715,7 @@ class TweedieDistribution(ExponentialDispersionModel):
     def log_likelihood(self, y, mu, sample_weight=None, dispersion=None) -> float:
         r"""Compute the log likelihood.
 
-        For ``1 < power < 2``, we use the series approximation by Dunn and Smyth
+        For ``1 < p < 2``, we use the series approximation by Dunn and Smyth
         (2005) to compute the normalization term.
 
         Parameters
@@ -828,33 +751,14 @@ class TweedieDistribution(ExponentialDispersionModel):
             return tweedie_log_likelihood(
                 y, sample_weight, mu, float(p), float(dispersion)
             )
+        elif p == 3:
+            return inv_gaussian_log_likelihood(y, sample_weight, mu, float(dispersion))
         else:
             raise NotImplementedError
 
-    def dispersion(self, y, mu, sample_weight=None, ddof=1, method="pearson") -> float:
-        r"""Estimate the dispersion parameter :math:`\phi`.
-
-        Parameters
-        ----------
-        y : array-like, shape (n_samples,)
-            Target values.
-
-        mu : array-like, shape (n_samples,)
-            Predicted mean.
-
-        sample_weight : array-like, shape (n_samples,), optional (default=None)
-            Weights or exposure to which variance is inversely proportional.
-
-        ddof : int, optional (default=1)
-            Degrees of freedom consumed by the model for ``mu``.
-
-        method = {'pearson', 'deviance'}, optional (default='pearson')
-            Whether to base the estimate on the Pearson residuals or the deviance.
-
-        Returns
-        -------
-        float
-        """
+    def dispersion(  # noqa D
+        self, y, mu, sample_weight=None, ddof=1, method="pearson"
+    ) -> float:
         p = self.power  # noqa: F841
         y, mu, sample_weight = _as_float_arrays(y, mu, sample_weight)
 
@@ -871,101 +775,485 @@ class TweedieDistribution(ExponentialDispersionModel):
         )
 
 
-class NormalDistribution(TweedieDistribution):
-    """Class for the Normal (a.k.a. Gaussian) distribution."""
+class NormalDistribution(ExponentialDispersionModel):
+    """Class for the normal (a.k.a. Gaussian) distribution.
 
-    def __init__(self):
-        super().__init__(power=0)
+    The normal distribution models outcomes ``y`` in ``(-∞, +∞)``.
 
-
-class PoissonDistribution(TweedieDistribution):
-    """Class for the scaled Poisson distribution."""
-
-    def __init__(self):
-        super().__init__(power=1)
-
-
-class GammaDistribution(TweedieDistribution):
-    """Class for the Gamma distribution."""
-
-    def __init__(self):
-        super().__init__(power=2)
-
-
-class InverseGaussianDistribution(TweedieDistribution):
-    """Class for the scaled Inverse Gaussian distribution."""
-
-    def __init__(self):
-        super().__init__(power=3)
-
-
-class GeneralizedHyperbolicSecant(ExponentialDispersionModel):
-    """A class for the Generalized Hyperbolic Secant (GHS) distribution.
-
-    The GHS distribution is for targets ``y`` in ``(-∞, +∞)``.
+    See the documentation of the superclass,
+    :class:`~glum.ExponentialDispersionModel`, for details.
     """
 
-    lower_bound = -np.Inf
-    upper_bound = np.Inf
+    lower_bound = -np.inf
+    upper_bound = np.inf
     include_lower_bound = False
     include_upper_bound = False
 
     def __eq__(self, other):  # noqa D
         return isinstance(other, self.__class__)
 
-    def unit_variance(self, mu: np.ndarray) -> np.ndarray:
-        """Get the unit-level expected variance.
+    def __tweedie_repr__(self):  # noqa D
+        return TweedieDistribution(0)
 
-        See superclass documentation.
+    def unit_variance(self, mu) -> np.ndarray:  # noqa D
+        return 1 if np.isscalar(mu) else np.ones_like(mu)
+
+    def unit_variance_derivative(self, mu) -> np.ndarray:  # noqa D
+        return 0 if np.isscalar(mu) else np.zeros_like(mu)
+
+    def deviance(self, y, mu, sample_weight=None) -> float:  # noqa D
+        y, mu, sample_weight = _as_float_arrays(y, mu, sample_weight)
+        sample_weight = np.ones_like(y) if sample_weight is None else sample_weight
+
+        # NOTE: the dispersion parameter is only necessary to convey
+        # type information on account of a bug in Cython
+
+        return normal_deviance(y, sample_weight, mu, dispersion=1.0)
+
+    def unit_deviance(self, y, mu):  # noqa D
+        return (y - mu) ** 2
+
+    def _rowwise_gradient_hessian(
+        self, link, y, sample_weight, eta, mu, gradient_rows, hessian_rows
+    ):
+        if isinstance(link, IdentityLink):
+            return normal_identity_rowwise_gradient_hessian(
+                y, sample_weight, eta, mu, gradient_rows, hessian_rows
+            )
+
+        return super()._rowwise_gradient_hessian(
+            link, y, sample_weight, eta, mu, gradient_rows, hessian_rows
+        )
+
+    def _eta_mu_deviance(
+        self,
+        link: Link,
+        factor: float,
+        cur_eta,
+        X_dot_d,
+        y,
+        sample_weight,
+        eta_out,
+        mu_out,
+    ):
+        if isinstance(link, IdentityLink):
+            return normal_identity_eta_mu_deviance(
+                cur_eta, X_dot_d, y, sample_weight, eta_out, mu_out, factor
+            )
+
+        return super()._eta_mu_deviance(
+            link, factor, cur_eta, X_dot_d, y, sample_weight, eta_out, mu_out
+        )
+
+    def log_likelihood(self, y, mu, sample_weight=None, dispersion=None) -> float:
+        r"""Compute the log likelihood.
 
         Parameters
         ----------
-        mu : array-like or float
+        y : array-like, shape (n_samples,)
+            Target values.
 
-        Returns
-        -------
-        array-like
+        mu : array-like, shape (n_samples,)
+            Predicted mean.
+
+        sample_weight : array-like, shape (n_samples,), optional (default=1)
+            Sample weights.
+
+        dispersion : float, optional (default=None)
+            Dispersion parameter :math:`\phi`. Estimated if ``None``.
         """
-        return 1 + mu**2
+        y, mu, sample_weight = _as_float_arrays(y, mu, sample_weight)
+        sample_weight = np.ones_like(y) if sample_weight is None else sample_weight
 
-    def unit_variance_derivative(self, mu: np.ndarray) -> np.ndarray:
-        """Get the derivative of the unit variance.
+        if dispersion is None:
+            dispersion = self.dispersion(y, mu, sample_weight)
 
-        See superclass documentation.
+        return normal_log_likelihood(y, sample_weight, mu, float(dispersion))
+
+    def dispersion(  # noqa D
+        self, y, mu, sample_weight=None, ddof=1, method="pearson"
+    ) -> float:
+        y, mu, sample_weight = _as_float_arrays(y, mu, sample_weight)
+
+        if method == "pearson":
+            formula = "(y - mu) ** 2"
+            if sample_weight is None:
+                return numexpr.evaluate(formula).sum() / (len(y) - ddof)
+            else:
+                formula = f"sample_weight * {formula}"
+                return numexpr.evaluate(formula).sum() / (sample_weight.sum() - ddof)
+
+        return super().dispersion(
+            y, mu, sample_weight=sample_weight, ddof=ddof, method=method
+        )
+
+
+class PoissonDistribution(ExponentialDispersionModel):
+    """Class for the scaled Poisson distribution.
+
+    The Poisson distribution models discrete outcomes ``y`` in ``[0, +∞)``.
+
+    See the documentation of the superclass,
+    :class:`~glum.ExponentialDispersionModel`, for details.
+    """
+
+    lower_bound = 0
+    upper_bound = np.inf
+    include_lower_bound = True
+    include_upper_bound = False
+
+    def __eq__(self, other):  # noqa D
+        return isinstance(other, self.__class__)
+
+    def __tweedie_repr__(self):  # noqa D
+        return TweedieDistribution(1)
+
+    def unit_variance(self, mu) -> np.ndarray:  # noqa D
+        return mu
+
+    def unit_variance_derivative(self, mu) -> np.ndarray:  # noqa D
+        return 1.0 if np.isscalar(mu) else np.ones_like(mu)
+
+    def deviance(self, y, mu, sample_weight=None) -> float:  # noqa D
+        y, mu, sample_weight = _as_float_arrays(y, mu, sample_weight)
+        sample_weight = np.ones_like(y) if sample_weight is None else sample_weight
+
+        # NOTE: the dispersion parameter is only necessary to convey
+        # type information on account of a bug in Cython
+
+        return poisson_deviance(y, sample_weight, mu, dispersion=1.0)
+
+    def unit_deviance(self, y, mu):
+        """Compute the unit deviance."""
+        return 2 * (special.xlogy(y, y / mu) - y + mu)
+
+    def _rowwise_gradient_hessian(
+        self, link, y, sample_weight, eta, mu, gradient_rows, hessian_rows
+    ):
+        if isinstance(link, LogLink):
+            return poisson_log_rowwise_gradient_hessian(
+                y, sample_weight, eta, mu, gradient_rows, hessian_rows
+            )
+
+        return super()._rowwise_gradient_hessian(
+            link, y, sample_weight, eta, mu, gradient_rows, hessian_rows
+        )
+
+    def _eta_mu_deviance(
+        self,
+        link: Link,
+        factor: float,
+        cur_eta,
+        X_dot_d,
+        y,
+        sample_weight,
+        eta_out,
+        mu_out,
+    ):
+        if isinstance(link, LogLink):
+            return poisson_log_eta_mu_deviance(
+                cur_eta, X_dot_d, y, sample_weight, eta_out, mu_out, factor
+            )
+
+        return super()._eta_mu_deviance(
+            link, factor, cur_eta, X_dot_d, y, sample_weight, eta_out, mu_out
+        )
+
+    def log_likelihood(self, y, mu, sample_weight=None, dispersion=None) -> float:
+        r"""Compute the log likelihood.
 
         Parameters
         ----------
-        mu : array-like or float
+        y : array-like, shape (n_samples,)
+            Target values.
 
-        Returns
-        -------
-        array-like
+        mu : array-like, shape (n_samples,)
+            Predicted mean.
+
+        sample_weight : array-like, shape (n_samples,), optional (default=1)
+            Sample weights.
+
+        dispersion : float, optional (default=None)
+            Dispersion parameter :math:`\phi`. Estimated if ``None``.
         """
+        y, mu, sample_weight = _as_float_arrays(y, mu, sample_weight)
+        sample_weight = np.ones_like(y) if sample_weight is None else sample_weight
+
+        # NOTE: the dispersion parameter is only necessary to convey
+        # type information on account of a bug in Cython
+
+        return poisson_log_likelihood(y, sample_weight, mu, 1.0)
+
+    def dispersion(  # noqa D
+        self, y, mu, sample_weight=None, ddof=1, method="pearson"
+    ) -> float:
+        y, mu, sample_weight = _as_float_arrays(y, mu, sample_weight)
+
+        if method == "pearson":
+            formula = "((y - mu) ** 2) / mu"
+            if sample_weight is None:
+                return numexpr.evaluate(formula).sum() / (len(y) - ddof)
+            else:
+                formula = f"sample_weight * {formula}"
+                return numexpr.evaluate(formula).sum() / (sample_weight.sum() - ddof)
+
+        return super().dispersion(
+            y, mu, sample_weight=sample_weight, ddof=ddof, method=method
+        )
+
+
+class GammaDistribution(ExponentialDispersionModel):
+    """Class for the gamma distribution.
+
+    The gamma distribution models outcomes ``y`` in ``(0, +∞)``.
+
+    See the documentation of the superclass,
+    :class:`~glum.ExponentialDispersionModel`, for details.
+    """
+
+    lower_bound = 0
+    upper_bound = np.inf
+    include_lower_bound = False
+    include_upper_bound = False
+
+    def __eq__(self, other):  # noqa D
+        return isinstance(other, self.__class__)
+
+    def __tweedie_repr__(self):  # noqa D
+        return TweedieDistribution(2)
+
+    def unit_variance(self, mu) -> np.ndarray:  # noqa D
+        return mu**2
+
+    def unit_variance_derivative(self, mu) -> np.ndarray:  # noqa D
         return 2 * mu
 
-    def unit_deviance(self, y: np.ndarray, mu: np.ndarray) -> np.ndarray:
-        """Get the unit-level deviance.
+    def deviance(self, y, mu, sample_weight=None) -> float:  # noqa D
+        y, mu, sample_weight = _as_float_arrays(y, mu, sample_weight)
+        sample_weight = np.ones_like(y) if sample_weight is None else sample_weight
 
-        See superclass documentation.
+        # NOTE: the dispersion parameter is only necessary to convey
+        # type information on account of a bug in Cython
+
+        return gamma_deviance(y, sample_weight, mu, dispersion=1.0)
+
+    def unit_deviance(self, y, mu):  # noqa D
+        return 2 * (np.log(mu / y) + y / mu - 1)
+
+    def _rowwise_gradient_hessian(
+        self, link, y, sample_weight, eta, mu, gradient_rows, hessian_rows
+    ):
+        if isinstance(link, LogLink):
+            return gamma_log_rowwise_gradient_hessian(
+                y, sample_weight, eta, mu, gradient_rows, hessian_rows
+            )
+
+        return super()._rowwise_gradient_hessian(
+            link, y, sample_weight, eta, mu, gradient_rows, hessian_rows
+        )
+
+    def _eta_mu_deviance(
+        self,
+        link: Link,
+        factor: float,
+        cur_eta,
+        X_dot_d,
+        y,
+        sample_weight,
+        eta_out,
+        mu_out,
+    ):
+        if isinstance(link, LogLink):
+            return gamma_log_eta_mu_deviance(
+                cur_eta, X_dot_d, y, sample_weight, eta_out, mu_out, factor
+            )
+
+        return super()._eta_mu_deviance(
+            link, factor, cur_eta, X_dot_d, y, sample_weight, eta_out, mu_out
+        )
+
+    def log_likelihood(self, y, mu, sample_weight=None, dispersion=None) -> float:
+        r"""Compute the log likelihood.
 
         Parameters
         ----------
-        y : array-like
-        mu : array-like
+        y : array-like, shape (n_samples,)
+            Target values.
 
-        Returns
-        -------
-        array-like
+        mu : array-like, shape (n_samples,)
+            Predicted mean.
+
+        sample_weight : array-like, shape (n_samples,), optional (default=1)
+            Sample weights.
+
+        dispersion : float, optional (default=None)
+            Dispersion parameter :math:`\phi`. Estimated if ``None``.
         """
-        return 2 * y * (np.arctan(y) - np.arctan(mu)) + np.log(
-            (1 + mu**2) / (1 + y**2)
+        y, mu, sample_weight = _as_float_arrays(y, mu, sample_weight)
+        sample_weight = np.ones_like(y) if sample_weight is None else sample_weight
+
+        if dispersion is None:
+            dispersion = self.dispersion(y, mu, sample_weight)
+
+        return gamma_log_likelihood(y, sample_weight, mu, float(dispersion))
+
+    def dispersion(  # noqa D
+        self, y, mu, sample_weight=None, ddof=1, method="pearson"
+    ) -> float:
+        y, mu, sample_weight = _as_float_arrays(y, mu, sample_weight)
+
+        if method == "pearson":
+            formula = "((y - mu) ** 2) / (mu ** 2)"
+            if sample_weight is None:
+                return numexpr.evaluate(formula).sum() / (len(y) - ddof)
+            else:
+                formula = f"sample_weight * {formula}"
+                return numexpr.evaluate(formula).sum() / (sample_weight.sum() - ddof)
+
+        return super().dispersion(
+            y, mu, sample_weight=sample_weight, ddof=ddof, method=method
         )
+
+
+class InverseGaussianDistribution(ExponentialDispersionModel):
+    """Class for the inverse Gaussian distribution.
+
+    The inverse Gaussian distribution models outcomes ``y`` in ``(0, +∞)``.
+
+    See the documentation of the superclass,
+    :class:`~glum.ExponentialDispersionModel`, for details.
+    """
+
+    lower_bound = 0
+    upper_bound = np.inf
+    include_lower_bound = False
+    include_upper_bound = False
+
+    def __eq__(self, other):  # noqa D
+        return isinstance(other, self.__class__)
+
+    def __tweedie_repr__(self):  # noqa D
+        return TweedieDistribution(3)
+
+    def unit_variance(self, mu) -> np.ndarray:  # noqa D
+        return mu**3
+
+    def unit_variance_derivative(self, mu) -> np.ndarray:  # noqa D
+        return 3 * (mu**2)
+
+    def deviance(self, y, mu, sample_weight=None) -> float:  # noqa D
+        y, mu, sample_weight = _as_float_arrays(y, mu, sample_weight)
+        sample_weight = np.ones_like(y) if sample_weight is None else sample_weight
+
+        return tweedie_deviance(y, sample_weight, mu, p=3.0)
+
+    def unit_deviance(self, y, mu):  # noqa D
+        return numexpr.evaluate("y / (mu**2) + 1 / y - 2 / mu")
+
+    def _rowwise_gradient_hessian(
+        self, link, y, sample_weight, eta, mu, gradient_rows, hessian_rows
+    ):
+        return super()._rowwise_gradient_hessian(
+            link, y, sample_weight, eta, mu, gradient_rows, hessian_rows
+        )
+
+    def _eta_mu_deviance(
+        self,
+        link: Link,
+        factor: float,
+        cur_eta,
+        X_dot_d,
+        y,
+        sample_weight,
+        eta_out,
+        mu_out,
+    ):
+        if isinstance(link, LogLink):
+            return tweedie_log_eta_mu_deviance(
+                cur_eta, X_dot_d, y, sample_weight, eta_out, mu_out, factor, p=3.0
+            )
+
+        return super()._eta_mu_deviance(
+            link, factor, cur_eta, X_dot_d, y, sample_weight, eta_out, mu_out
+        )
+
+    def log_likelihood(self, y, mu, sample_weight=None, dispersion=None) -> float:
+        r"""Compute the log likelihood.
+
+        Parameters
+        ----------
+        y : array-like, shape (n_samples,)
+            Target values.
+
+        mu : array-like, shape (n_samples,)
+            Predicted mean.
+
+        sample_weight : array-like, shape (n_samples,), optional (default=1)
+            Sample weights.
+
+        dispersion : float, optional (default=None)
+            Dispersion parameter :math:`\phi`. Estimated if ``None``.
+        """
+        y, mu, sample_weight = _as_float_arrays(y, mu, sample_weight)
+        sample_weight = np.ones_like(y) if sample_weight is None else sample_weight
+
+        if dispersion is None:
+            dispersion = self.dispersion(y, mu, sample_weight)
+
+        return tweedie_log_likelihood(y, sample_weight, mu, 3.0, float(dispersion))
+
+    def dispersion(  # noqa D
+        self, y, mu, sample_weight=None, ddof=1, method="pearson"
+    ) -> float:
+        y, mu, sample_weight = _as_float_arrays(y, mu, sample_weight)
+
+        if method == "pearson":
+            formula = "((y - mu) ** 2) / (mu ** 3)"
+            if sample_weight is None:
+                return numexpr.evaluate(formula).sum() / (len(y) - ddof)
+            else:
+                formula = f"sample_weight * {formula}"
+                return numexpr.evaluate(formula).sum() / (sample_weight.sum() - ddof)
+
+        return super().dispersion(
+            y, mu, sample_weight=sample_weight, ddof=ddof, method=method
+        )
+
+
+class GeneralizedHyperbolicSecant(ExponentialDispersionModel):
+    """A class for the Generalized Hyperbolic Secant (GHS) distribution.
+
+    The GHS distribution models outcomes ``y`` in ``(-∞, +∞)``.
+
+    See the documentation of the superclass,
+    :class:`~glum.ExponentialDispersionModel`, for details.
+    """
+
+    lower_bound = -np.inf
+    upper_bound = np.inf
+    include_lower_bound = False
+    include_upper_bound = False
+
+    def __eq__(self, other):  # noqa D
+        return isinstance(other, self.__class__)
+
+    def unit_variance(self, mu) -> np.ndarray:  # noqa D
+        return 1 + mu**2
+
+    def unit_variance_derivative(self, mu) -> np.ndarray:  # noqa D
+        return 2 * mu
+
+    def unit_deviance(self, y, mu) -> np.ndarray:  # noqa D
+        return 2 * y * (np.arctan(y) - np.arctan(mu)) + np.log((1 + mu**2) / (1 + y**2))
 
 
 class BinomialDistribution(ExponentialDispersionModel):
     """A class for the Binomial distribution.
 
-    The Binomial distribution is for targets ``y`` in ``[0, 1]``.
+    The Binomial distribution models outcomes ``y`` in ``[0, 1]``.
+
+    See the documentation of the superclass,
+    :class:`~glum.ExponentialDispersionModel`, for details.
     """
 
     lower_bound = 0
@@ -976,50 +1264,13 @@ class BinomialDistribution(ExponentialDispersionModel):
     def __eq__(self, other):  # noqa D
         return isinstance(other, self.__class__)
 
-    def unit_variance(self, mu: np.ndarray) -> np.ndarray:
-        """Get the unit-level expected variance.
-
-        See superclass documentation.
-
-        Parameters
-        ----------
-        mu : array-like
-
-        Returns
-        -------
-        array-like
-        """
+    def unit_variance(self, mu):  # noqa D
         return mu * (1 - mu)
 
-    def unit_variance_derivative(self, mu):
-        """Get the derivative of the unit variance.
-
-        See superclass documentation.
-
-        Parameters
-        ----------
-        mu : array-like or float
-
-        Returns
-        -------
-        array-like
-        """
+    def unit_variance_derivative(self, mu):  # noqa D
         return 1 - 2 * mu
 
-    def unit_deviance(self, y: np.ndarray, mu: np.ndarray) -> np.ndarray:
-        """Get the unit-level deviance.
-
-        See superclass documentation.
-
-        Parameters
-        ----------
-        y : array-like
-        mu : array-like
-
-        Returns
-        -------
-        array-like
-        """
+    def unit_deviance(self, y, mu):  # noqa D
         # see Wooldridge and Papke (1996) for the fractional case
         return -2 * (special.xlogy(y, mu) + special.xlogy(1 - y, 1 - mu))
 
@@ -1038,17 +1289,18 @@ class BinomialDistribution(ExponentialDispersionModel):
         self,
         link: Link,
         factor: float,
-        cur_eta: np.ndarray,
-        X_dot_d: np.ndarray,
-        y: np.ndarray,
-        sample_weight: np.ndarray,
-        eta_out: np.ndarray,
-        mu_out: np.ndarray,
+        cur_eta,
+        X_dot_d,
+        y,
+        sample_weight,
+        eta_out,
+        mu_out,
     ):
         if isinstance(link, LogitLink):
             return binomial_logit_eta_mu_deviance(
                 cur_eta, X_dot_d, y, sample_weight, eta_out, mu_out, factor
             )
+
         return super()._eta_mu_deviance(
             link, factor, cur_eta, X_dot_d, y, sample_weight, eta_out, mu_out
         )
@@ -1073,30 +1325,9 @@ class BinomialDistribution(ExponentialDispersionModel):
         ll = special.xlogy(y, mu) + special.xlogy(1 - y, 1 - mu)
         return np.sum(ll) if sample_weight is None else np.dot(ll, sample_weight)
 
-    def dispersion(self, y, mu, sample_weight=None, ddof=1, method="pearson") -> float:
-        r"""Estimate the dispersion parameter :math:`\phi`.
-
-        Parameters
-        ----------
-        y : array-like, shape (n_samples,)
-            Target values.
-
-        mu : array-like, shape (n_samples,)
-            Predicted mean.
-
-        sample_weight : array-like, shape (n_samples,), optional (default=None)
-            Weights or exposure to which variance is inversely proportional.
-
-        ddof : int, optional (default=1)
-            Degrees of freedom consumed by the model for ``mu``.
-
-        method = {'pearson', 'deviance'}, optional (default='pearson')
-            Whether to base the estimate on the Pearson residuals or the deviance.
-
-        Returns
-        -------
-        float
-        """
+    def dispersion(  # noqa D
+        self, y, mu, sample_weight=None, ddof=1, method="pearson"
+    ) -> float:
         y, mu, sample_weight = _as_float_arrays(y, mu, sample_weight)
 
         if method == "pearson":
@@ -1115,14 +1346,14 @@ class BinomialDistribution(ExponentialDispersionModel):
 class NegativeBinomialDistribution(ExponentialDispersionModel):
     r"""A class for the Negative Binomial distribution.
 
-    A Negative Binomial distribution with mean :math:`\mu = \mathrm{E}(Y)` is uniquely
-    defined by its mean-variance relationship
+    A negative binomial distribution with mean :math:`\mu = \mathrm{E}(Y)` is
+    uniquely defined by its mean-variance relationship
     :math:`\mathrm{var}(Y) \propto \mu + \theta * \mu^2`.
 
     Parameters
     ----------
     theta : float, optional (default=1.0)
-        The dispersion parameter from `unit_variance`
+        The dispersion parameter from the ``unit_variance``
         :math:`v(\mu) = \mu + \theta * \mu^2`. For
         :math:`\theta <= 0`, no distribution exists.
 
@@ -1134,7 +1365,7 @@ class NegativeBinomialDistribution(ExponentialDispersionModel):
     """
 
     lower_bound = 0
-    upper_bound = np.Inf
+    upper_bound = np.inf
     include_lower_bound = True
     include_upper_bound = False
 
@@ -1148,76 +1379,34 @@ class NegativeBinomialDistribution(ExponentialDispersionModel):
         )
 
     @property
-    def theta(self) -> float:
-        """Return the Negative Binomial theta parameter."""
+    def theta(self):
+        """Return the negative binomial theta parameter."""
         return self._theta
 
     @theta.setter
     def theta(self, theta):
-
         if not isinstance(theta, (int, float)):
-            raise TypeError(f"theta must be an int or float, input was {theta}")
+            raise TypeError(f"Theta must be numeric; got {theta}.")
         if not theta > 0:
-            raise ValueError(
-                "theta must be strictly positive number, input was {}".format(theta)
-            )
+            raise ValueError(f"Theta must be strictly positive; got was {theta}.")
 
         # Prevents upcasting when working with 32-bit data
-        self._theta = np.float32(theta)
+        self._theta = theta if isinstance(theta, int) else np.float32(theta)
 
-    def unit_variance(self, mu: np.ndarray) -> np.ndarray:
-        """Compute the unit variance of a Negative Binomial distribution
-        ``v(mu) = mu + theta * mu^2``.
-
-        Parameters
-        ----------
-        mu : array-like, shape (n_samples,)
-            Predicted mean.
-
-        Returns
-        -------
-        numpy.ndarray, shape (n_samples,)
-        """
+    def unit_variance(self, mu):  # noqa D
         return mu + self.theta * mu**2
 
-    def unit_variance_derivative(self, mu: np.ndarray) -> np.ndarray:
-        r"""Compute the derivative of the unit variance of a Negative Binomial distribution.
-
-        Equation: :math:`v(\mu) = 1 + 2 \times \theta \times \mu`.
-
-        Parameters
-        ----------
-        mu : array-like, shape (n_samples,)
-            Predicted mean.
-
-        Returns
-        -------
-        numpy.ndarray, shape (n_samples,)
-        """
+    def unit_variance_derivative(self, mu):  # noqa D
         return 1 + 2 * self.theta * mu
 
-    def deviance(self, y, mu, sample_weight=None) -> float:
-        """Compute the deviance.
-
-        Parameters
-        ----------
-        y : array-like, shape (n_samples,)
-            Target values.
-
-        mu : array-like, shape (n_samples,)
-            Predicted mean.
-
-        sample_weight : array-like, shape (n_samples,), optional (default=1)
-            Sample weights.
-        """
+    def deviance(self, y, mu, sample_weight=None) -> float:  # noqa D
         theta = self.theta
         y, mu, sample_weight = _as_float_arrays(y, mu, sample_weight)
         sample_weight = np.ones_like(y) if sample_weight is None else sample_weight
 
         return negative_binomial_deviance(y, sample_weight, mu, theta=float(theta))
 
-    def unit_deviance(self, y: np.ndarray, mu: np.ndarray) -> np.ndarray:
-        """Get the deviance of each observation."""
+    def unit_deviance(self, y, mu):  # noqa D
         theta = self.theta
 
         r = 1.0 / theta
@@ -1239,12 +1428,12 @@ class NegativeBinomialDistribution(ExponentialDispersionModel):
         self,
         link: Link,
         factor: float,
-        cur_eta: np.ndarray,
-        X_dot_d: np.ndarray,
-        y: np.ndarray,
-        sample_weight: np.ndarray,
-        eta_out: np.ndarray,
-        mu_out: np.ndarray,
+        cur_eta,
+        X_dot_d,
+        y,
+        sample_weight,
+        eta_out,
+        mu_out,
     ):
         if isinstance(link, LogLink):
             return negative_binomial_log_eta_mu_deviance(
@@ -1284,30 +1473,9 @@ class NegativeBinomialDistribution(ExponentialDispersionModel):
 
         return negative_binomial_log_likelihood(y, sample_weight, mu, float(theta), 1.0)
 
-    def dispersion(self, y, mu, sample_weight=None, ddof=1, method="pearson") -> float:
-        r"""Estimate the dispersion parameter :math:`\phi`.
-
-        Parameters
-        ----------
-        y : array-like, shape (n_samples,)
-            Target values.
-
-        mu : array-like, shape (n_samples,)
-            Predicted mean.
-
-        sample_weight : array-like, shape (n_samples,), optional (default=None)
-            Weights or exposure to which variance is inversely proportional.
-
-        ddof : int, optional (default=1)
-            Degrees of freedom consumed by the model for ``mu``.
-
-        method = {'pearson', 'deviance'}, optional (default='pearson')
-            Whether to base the estimate on the Pearson residuals or the deviance.
-
-        Returns
-        -------
-        float
-        """
+    def dispersion(  # noqa D
+        self, y, mu, sample_weight=None, ddof=1, method="pearson"
+    ) -> float:
         theta = self.theta  # noqa: F841
         y, mu, sample_weight = _as_float_arrays(y, mu, sample_weight)
 
@@ -1325,8 +1493,8 @@ class NegativeBinomialDistribution(ExponentialDispersionModel):
 
 
 def guess_intercept(
-    y: np.ndarray,
-    sample_weight: np.ndarray,
+    y,
+    sample_weight,
     link: Link,
     distribution: ExponentialDispersionModel,
     eta: Union[np.ndarray, float] = None,
@@ -1345,37 +1513,60 @@ def guess_intercept(
     avg_y = np.average(y, weights=sample_weight)
 
     if isinstance(link, IdentityLink):
-        # This is only correct for normal. For other distributions, answer is unknown,
-        # but assume that we want sum(y) = sum(mu)
+        # This is only correct for the normal. For other distributions, the
+        # answer is unknown, but we assume that we want `sum(y) = sum(mu)`
+
         if eta is None:
             return avg_y
+
         avg_eta = eta if np.isscalar(eta) else np.average(eta, weights=sample_weight)
+
         return avg_y - avg_eta
+
     elif isinstance(link, LogLink):
         # This is only correct for Tweedie
+
         log_avg_y = np.log(avg_y)
+
         assert np.isfinite(log_avg_y).all()
 
         if eta is None:
             return log_avg_y
+
         mu = np.exp(eta)
+
         if isinstance(distribution, TweedieDistribution):
             p = distribution.power
+        elif isinstance(distribution, NormalDistribution):
+            p = 0
+        elif isinstance(distribution, PoissonDistribution):
+            p = 1
+        elif isinstance(distribution, GammaDistribution):
+            p = 2
+        elif isinstance(distribution, InverseGaussianDistribution):
+            p = 3
         else:
             p = 1  # Like Poisson
+
         if np.isscalar(mu):
-            first = np.log(y.dot(sample_weight) * mu ** (1 - p))
-            second = np.log(sample_weight.sum() * mu ** (2 - p))
+            first = np.log(y.dot(sample_weight) * mu ** (1 - p))  # type: ignore
+            second = np.log(sample_weight.sum() * mu ** (2 - p))  # type: ignore
         else:
-            first = np.log((y * mu ** (1 - p)).dot(sample_weight))
-            second = np.log((mu ** (2 - p)).dot(sample_weight))
+            first = np.log((y * mu ** (1 - p)).dot(sample_weight))  # type: ignore
+            second = np.log((mu ** (2 - p)).dot(sample_weight))  # type: ignore
+
         return first - second
+
     elif isinstance(link, LogitLink):
-        log_odds = np.log(avg_y) - np.log(np.average(1 - y, weights=sample_weight))
+        log_odds = np.log(avg_y) - np.log(1 - avg_y)
+
         if eta is None:
             return log_odds
+
         avg_eta = eta if np.isscalar(eta) else np.average(eta, weights=sample_weight)
+
         return log_odds - avg_eta
+
     else:
         return link.link(y.dot(sample_weight))
 
@@ -1383,13 +1574,12 @@ def guess_intercept(
 def get_one_over_variance(
     distribution: ExponentialDispersionModel,
     link: Link,
-    mu: np.ndarray,
-    eta: np.ndarray,
-    dispersion,
-    sample_weight: np.ndarray,
+    mu,
+    eta,
+    dispersion: float,
+    sample_weight,
 ):
-    """
-    Get one over the variance.
+    """Get one over the variance.
 
     For Tweedie: ``sigma_inv = sample_weight / (mu ** p)`` during optimization,
     because ``phi = 1``.

@@ -9,5 +9,5 @@ else
     CONDA_CHANNEL="conda-forge/osx-64"
 fi
 
-conda create -n build -c $CONDA_CHANNEL llvm-openmp
+conda create -n build -c $CONDA_CHANNEL 'llvm-openmp=11'
 

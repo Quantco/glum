@@ -1,0 +1,62 @@
+name: conda-build
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/**'
+      - 'conda.recipe/**'
+
+jobs:
+  conda-build:
+    name: ${{ matrix.conda_build_yml }}
+    runs-on: ${{ matrix.os }}
+    env:
+      CI: True
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { conda_build_yml: linux_64_python3.9.____cpython,   os: ubuntu-latest,  conda-build-args: '' }
+          - { conda_build_yml: linux_64_python3.12.____cpython,  os: ubuntu-latest,  conda-build-args: '' }
+          - { conda_build_yml: osx_64_python3.9.____cpython,     os: macos-latest,   conda-build-args: '' }
+          - { conda_build_yml: osx_64_python3.12.____cpython,    os: macos-latest,   conda-build-args: '' }
+          - { conda_build_yml: osx_arm64_python3.10.____cpython, os: macos-latest,   conda-build-args: '' }
+          - { conda_build_yml: win_64_python3.9.____cpython,     os: windows-latest, conda-build-args: '' }
+          - { conda_build_yml: win_64_python3.12.____cpython,    os: windows-latest, conda-build-args: '' }
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+      - name: Fetch full git history
+        run: git fetch --prune --unshallow
+      - uses: mamba-org/setup-micromamba@f8b8a1e23a26f60a44c853292711bacfd3eac822
+        with:
+          init-shell: ${{ matrix.os == 'windows-latest' && 'cmd.exe' || 'bash' }}
+          environment-name: build
+          create-args: boa
+      - name: Patch conda build configuration
+        # use the latest macOS SDK when cross-compiling for arm64
+        if: startsWith(matrix.conda_build_yml, 'osx_arm64')
+        run: |
+          CONDA_BUILD_SYSROOT="$(xcrun --sdk macosx --show-sdk-path)"
+          cat <<EOF >> ".ci_support/${{ matrix.CONDA_BUILD_YML }}.yaml"
+          CONDA_BUILD_SYSROOT:
+            - "${CONDA_BUILD_SYSROOT}"
+          EOF
+      - name: Build conda package (unix)
+        if: matrix.os != 'windows-latest'
+        shell: bash -el {0}
+        run: >-
+          conda-mambabuild
+          -m ".ci_support/${{ matrix.CONDA_BUILD_YML }}.yaml"${{ matrix.conda-build-args }}
+          conda.recipe
+      - name: Build conda package (windows)
+        if: matrix.os == 'windows-latest'
+        shell: cmd /C CALL {0}
+        run: >-
+          conda-mambabuild
+          -m ".ci_support/${{ matrix.conda_build_yml }}.yaml"${{ matrix.conda-build-args }}
+          conda.recipe

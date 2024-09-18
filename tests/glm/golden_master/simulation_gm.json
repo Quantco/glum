@@ -1,6 +1,6 @@
 {
   "normal": {
-    "default_weights_offset": {
+    "regularization_weights_offset": {
       "coef_": [
         0.5027665204024282,
         0.23449539956055546,
@@ -36,7 +36,7 @@
       "intercept_": 3.026490229054092,
       "n_iter_": 1
     },
-    "default_weights": {
+    "regularization_weights": {
       "coef_": [
         0.5012056522046088,
         0.23528722263235485,
@@ -72,7 +72,7 @@
       "intercept_": 2.0279948791150764,
       "n_iter_": 1
     },
-    "default_offset": {
+    "regularization_offset": {
       "coef_": [
         0.49784759015593427,
         0.23166926058137094,
@@ -108,7 +108,7 @@
       "intercept_": 2.981778440705444,
       "n_iter_": 1
     },
-    "default": {
+    "regularization": {
       "coef_": [
         0.4985676422254175,
         0.22818569911229844,
@@ -1478,7 +1478,7 @@
     }
   },
   "poisson": {
-    "default_weights_offset": {
+    "regularization_weights_offset": {
       "coef_": [
         0.9604408672344522,
         0.4432562524921413,
@@ -1514,7 +1514,7 @@
       "intercept_": 1.8189178943867188,
       "n_iter_": 6
     },
-    "default_weights": {
+    "regularization_weights": {
       "coef_": [
         0.9817372866211753,
         0.49117907395980553,
@@ -1550,7 +1550,7 @@
       "intercept_": 1.157828764208921,
       "n_iter_": 6
     },
-    "default_offset": {
+    "regularization_offset": {
       "coef_": [
         0.9693196874148616,
         0.46707910961062293,
@@ -1586,7 +1586,7 @@
       "intercept_": 1.8396971485658087,
       "n_iter_": 6
     },
-    "default": {
+    "regularization": {
       "coef_": [
         0.9821298947770232,
         0.4937841900606277,
@@ -2812,7 +2812,7 @@
     }
   },
   "gamma": {
-    "default_weights_offset": {
+    "regularization_weights_offset": {
       "coef_": [
         0.4866808417045077,
         0.1370793228217412,
@@ -2848,7 +2848,7 @@
       "intercept_": 5.268950639816242,
       "n_iter_": 4
     },
-    "default_weights": {
+    "regularization_weights": {
       "coef_": [
         0.48972345202083134,
         0.24707128799109493,
@@ -2884,7 +2884,7 @@
       "intercept_": 2.512993119536852,
       "n_iter_": 4
     },
-    "default_offset": {
+    "regularization_offset": {
       "coef_": [
         0.5107634971640694,
         0.1783139942111257,
@@ -2920,7 +2920,7 @@
       "intercept_": 5.272870219406924,
       "n_iter_": 4
     },
-    "default": {
+    "regularization": {
       "coef_": [
         0.4966531683982075,
         0.24896254652599858,
@@ -4146,7 +4146,7 @@
     }
   },
   "tweedie_p=1.5": {
-    "default_weights_offset": {
+    "regularization_weights_offset": {
       "coef_": [
         0.8740584736837378,
         0.39026903329437757,
@@ -4182,7 +4182,7 @@
       "intercept_": 2.8380327257627473,
       "n_iter_": 4
     },
-    "default_weights": {
+    "regularization_weights": {
       "coef_": [
         0.8592854961617753,
         0.42694459825027725,
@@ -4218,7 +4218,7 @@
       "intercept_": 1.6496674803774887,
       "n_iter_": 4
     },
-    "default_offset": {
+    "regularization_offset": {
       "coef_": [
         0.8763610403720393,
         0.4023951463085115,
@@ -4254,7 +4254,7 @@
       "intercept_": 2.7855262434295343,
       "n_iter_": 4
     },
-    "default": {
+    "regularization": {
       "coef_": [
         0.860178238544325,
         0.43000049156945763,
@@ -5480,7 +5480,7 @@
     }
   },
   "binomial": {
-    "default_weights_offset": {
+    "regularization_weights_offset": {
       "coef_": [
         0.0645115293284631,
         0.03563706184469416,
@@ -5516,7 +5516,7 @@
       "intercept_": 3.3761974509366994,
       "n_iter_": 3
     },
-    "default_weights": {
+    "regularization_weights": {
       "coef_": [
         0.06396142685405831,
         0.03544619397195947,
@@ -5552,7 +5552,7 @@
       "intercept_": 2.007458821879875,
       "n_iter_": 2
     },
-    "default_offset": {
+    "regularization_offset": {
       "coef_": [
         0.059850128940604715,
         0.029620907232596274,
@@ -5588,7 +5588,7 @@
       "intercept_": 3.4202998674202676,
       "n_iter_": 3
     },
-    "default": {
+    "regularization": {
       "coef_": [
         0.05979957149348005,
         0.03233408720147587,

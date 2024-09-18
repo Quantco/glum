@@ -7,23 +7,110 @@
 Changelog
 =========
 
-2.5.2 - UNRELEASED
+3.0.3 - unreleased
+------------------
+
+**Bug fix:
+
+- Fixed a bug where :meth:`~glum.GeneralizedLinearRegressor.fit` would raise a `dtype` mismatch error if fit with `alpha_search=True`.
+
+3.0.2 - 2024-06-25
+------------------
+
+**Bug fix:**
+
+- Fixed :meth:`~glum.GeneralizedLinearRegressor.wald_test` when using ``terms`` and no intercept.
+
+**Other changes:**
+
+- Moved the development infrastructure to pixi.
+- Moved the linting and formatting to ruff.
+- Removed libblas MKL from the development environment.
+- Replaced deprecated 'oldest-supported-numpy' dependency with 'numpy' to support 2.0 release.
+
+3.0.1 - 2024-05-23
+------------------
+
+**Bug fix:**
+
+- We now support scikit-learn 1.5.
+
+
+3.0.0 - 2024-04-27
+------------------
+
+**Breaking changes:**
+
+- All arguments to :class:`~glum.GeneralizedLinearRegressorBase`, :class:`~glum.GeneralizedLinearRegressor` and :class:`GeneralizedLinearRegressorCV` are now keyword-only.
+- All arguments to public methods of :class:`~glum.GeneralizedLinearRegressorBase`, :class:`~glum.GeneralizedLinearRegressor` or :class:`GeneralizedLinearRegressorCV` except ``X``, ``y``, ``sample_weight`` and ``offset`` are now keyword-only.
+- :class:`~glum.GeneralizedLinearRegressor`'s default value for ``alpha`` is now ``0``, i.e. no regularization.
+- :class:`~glum.GammaDistribution`, :class:`~glum.InverseGaussianDistribution`, :class:`~glum.NormalDistribution` and :class:`~glum.PoissonDistribution` no longer inherit from :class:`~glum.TweedieDistribution`.
+- The power parameter of :class:`~glum.TweedieLink` has been renamed from ``p`` to ``power``, in line with :class:`~glum.TweedieDistribution`.
+- :class:`~glum.TweedieLink` no longer instantiates :class:`~glum.IdentityLink` or :class:`~glum.LogLink` for ``power=0`` and ``power=1``, respectively. On the other hand, :class:`~glum.TweedieLink` is now compatible with ``power=0`` and ``power=1``.
+
+**New features:**
+
+- Added a formula interface for specifying models.
+- Improved feature name handling. Feature names are now created for non-pandas input matrices too. Furthermore, the format of categorical features can be specified by the user.
+- Term names are now stored in the model's attributes. This is useful for categorical features, where they refer to the whole variable, not just single levels.
+- Added more options for treating missing values in categorical columns. They can either raise a ``ValueError`` (``"fail"``), be treated as all-zero indicators (``"zero"``) or represented as a new category (``"convert"``).
+- `meth:GeneralizedLinearRegressor.wald_test` can now perform tests based on a formula string and term names.
+- :class:`~glum.InverseGaussianDistribution` gains a :meth:`~glum.InverseGaussianDistribution.log_likelihood` method.
+
+
+2.7.0 - 2024-02-19
+------------------
+
+**Bug fix:**
+
+- Added cython compiler directive legacy_implicit_noexcept = True to fix performance regression with cython 3.
+
+**Other changes:**
+
+- Require Python>=3.9 in line with `NEP 29 <https://numpy.org/neps/nep-0029-deprecation_policy.html#support-table>`.
+- Build and test with Python 3.12 in CI.
+- Added line search stopping criterion for tiny loss improvements based on gradient information.
+- Added warnings about breaking changes in future versions.
+
+
+2.6.0 - 2023-09-05
+------------------
+
+**New features:**
+
+- Added the complementary log-log (``cloglog``) link function.
+- Added the option to store the covariance matrix after estimating it. In this case, the covariance matrix does not have to be recomputed when calling inference methods.
+- Added methods for performing Wald tests based on a restriction matrix, feature names or term names.
+- Added a method for creating a coefficient table with confidence intervals and p-values.
+
+**Bug fix:**
+
+- Fixed :meth:`~glum.GeneralizedLinearRegressorBase.covariance_matrix` mutating feature names when called with a data frame. See `here <https://github.com/Quantco/glum/issues/669>`_.
+
+**Other changes:**
+
+- When computing the covariance matrix, check whether the design matrix is ill-conditioned for all types of input. Furthermore, do it in a more efficient way.
+- Pin ``tabmat<4.0.0`` (the new release will bring breaking changes).
+
+
+2.5.2 - 2023-06-02
 ------------------
 
 **Bug fix**
 
 - Fix the ``glm_benchmarks_analyze`` command line tool. See `here <https://github.com/Quantco/glum/issues/642>`_.
-- Fixed a bug where :meth:`~glum.GeneralizedLinearRegressor.fit` would raise a `dtype` mismatch error if fit with `alpha_search=True`.
+- Fixed a bug in :class:`~glum.GeneralizedLinearRegressor` when fit on a data set with a constant column and ``warm_start=True``. See `here <https://github.com/Quantco/glum/issues/645>`_.
 
 **Other changes:**
 
 - Remove dev dependency on ``dask_ml``.
+- We now pin ``llvm-openmp=11`` when creating the wheel for macOS in line with what scikit-learn does.
 
 
 2.5.1 - 2023-05-19
 ------------------
 
-**Bug fix**
+**Bug fix:**
 
 - We fixed a bug in the computation of :meth:`~glum.distribution.NegativeBinomialDistribution.log_likelihood`. Previously, this method just returned ``None``.
 
@@ -31,11 +118,12 @@ Changelog
 2.5.0 - 2023-04-28
 ------------------
 
-**New feature**
+**New feature:**
 
 - Added Negative Binomial distribution by setting the ``'family'`` parameter of
   :class:`~glum.GeneralizedLinearRegressor` and :class:`~glum.GeneralizedLinearRegressorCV`
   to ``'negative.binomial'``.
+
 
 2.4.1 - 2023-03-14
 ------------------

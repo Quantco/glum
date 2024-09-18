@@ -3,7 +3,7 @@ import multiprocessing as mp
 import time
 import warnings
 from threading import Thread
-from typing import List, Optional
+from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -44,7 +44,7 @@ class MemoryPoller:
         self.stop_polling = False
         self.max_memory = 0
         self.initial_memory = _get_memory_usage()
-        self.memory_usage: List[int] = [self.initial_memory]
+        self.memory_usage: list[int] = [self.initial_memory]
         self.t = Thread(target=self._poll_max_memory_usage)
         self.t.start()
         return self
@@ -199,8 +199,9 @@ def runtime_checker():
             copy_X=False,
             force_all_finite=False,
         )
-        min_runtime, result = runtime(
-            lambda: model.fit(X=dat["X"], y=dat["y"]), 5  # noqa B023
+        min_runtime, _ = runtime(
+            lambda: model.fit(X=dat["X"], y=dat["y"]),  # noqa B023
+            5,
         )
 
         # Let's just guess that we're about half flop-limited and half

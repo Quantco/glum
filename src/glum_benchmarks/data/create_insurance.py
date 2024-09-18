@@ -1,20 +1,19 @@
 import os
-from typing import Any, Callable, Iterable, List, Optional, Tuple, Union
+from collections.abc import Iterable
+from typing import Any, Callable, Optional, Union
 
 import numpy as np
 import pandas as pd
 import sklearn.compose
 from git_root import git_root
-from pandas.api.types import is_categorical_dtype
 from sklearn.base import BaseEstimator, TransformerMixin
-from sklearn.compose._column_transformer import _get_transformer_list
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer
 from sklearn.utils.validation import check_is_fitted
 
 from ..util import exposure_and_offset_to_weights
 
-# taken from https://github.com/lorentzenchr/Tutorial_freMTPL2/blob/master/glm_freMTPL2_example.ipynb  # noqa: B950
+# taken from https://github.com/lorentzenchr/Tutorial_freMTPL2/blob/master/glm_freMTPL2_example.ipynb  # noqa: E501
 # Modified to generate data sets of different sizes
 
 
@@ -67,17 +66,15 @@ def create_insurance_raw_data(verbose=False) -> None:
 
     if verbose:
         print(
-            "Number or rows with ClaimAmountCut > 0 and ClaimNb == 0: {}".format(
-                df[(df.ClaimAmountCut > 0) & (df.ClaimNb == 0)].shape[0]
-            )
+            "Number or rows with ClaimAmountCut > 0 and ClaimNb == 0: "
+            f"{df[(df.ClaimAmountCut > 0) & (df.ClaimNb == 0)].shape[0]}"
         )
 
     # 9116 zero claims
     if verbose:
         print(
-            "Number or rows with ClaimAmountCut = 0 and ClaimNb >= 1: {}".format(
-                df[(df.ClaimAmountCut == 0) & (df.ClaimNb >= 1)].shape[0]
-            )
+            "Number or rows with ClaimAmountCut = 0 and ClaimNb >= 1: "
+            f"{df[(df.ClaimAmountCut == 0) & (df.ClaimNb >= 1)].shape[0]}"
         )
 
     # Note: Zero claims must be ignored in severity models, because the support is
@@ -108,7 +105,7 @@ class Categorizer(BaseEstimator, TransformerMixin):
         categories = {}
         for name in columns:
             col = X[name]
-            if not is_categorical_dtype(col):
+            if str(col.dtype) != "category":  # type: ignore
                 col = pd.Series(col, index=X.index).astype("category")
             categories[name] = col.dtype
 
@@ -131,7 +128,7 @@ class Categorizer(BaseEstimator, TransformerMixin):
         return X
 
 
-def get_categorizer(col_name: str, name="cat") -> Tuple[str, Categorizer]:
+def get_categorizer(col_name: str, name="cat") -> tuple[str, Categorizer]:
     """Get a Categorizer."""
     return name, Categorizer()
 
@@ -180,28 +177,13 @@ class ColumnTransformer(sklearn.compose.ColumnTransformer):
             transformer_weights=transformer_weights,
         )
 
-    def _hstack(self, Xs: Iterable[Union[pd.Series, pd.DataFrame]]):
+    def _hstack(self, Xs: Iterable[Union[pd.Series, pd.DataFrame]], *, n_samples=None):
         """Stacks X horizontally."""
         return pd.concat(Xs, axis="columns")
 
 
-def make_column_transformer(*transformers, remainder: str = "drop"):  # noqa: D103
-    # This is identical to scikit-learn's. We're just using our
-    # ColumnTransformer instead.
-    transformer_list = _get_transformer_list(transformers)
-    return ColumnTransformer(
-        transformer_list,
-        remainder=remainder,
-    )
-
-
-make_column_transformer.__doc__ = getattr(  # noqa: B009
-    sklearn.compose.make_column_transformer, "__doc__"
-)
-
-
 def func_returns_df(
-    fn: Callable[[pd.DataFrame], np.ndarray]
+    fn: Callable[[pd.DataFrame], np.ndarray],
 ) -> Callable[[pd.DataFrame], pd.DataFrame]:
     """
     Take a function that takes a dataframe and returns a Numpy array, and return a \
@@ -209,102 +191,114 @@ def func_returns_df(
 
     fn: Function that takes a dataframe and returns a numpy array
     Returns: Function that takes a dataframe and returns a dataframe with the values
-             determined by the original function, and the index and columns of the original
-             dataframe.
+             determined by the original function, and the index and columns of the
+             original dataframe.
     """
     return lambda x: x.assign(**{x.columns[0]: fn(x)})
 
 
-def gen_col_trans() -> Tuple[Any, List[str]]:
+def gen_col_trans() -> tuple[Any, list[str]]:
     """Generate a ColumnTransformer and list of names.
 
     The transformer corresponds to the GLM of the case study paper.
 
     Encodes k categories with k binary features (redundant).
     """
-    column_trans = make_column_transformer(
-        # VehPower 4, 5, 6, 7, 8, 9, drop=4
-        (
-            Pipeline(
-                [
-                    (
-                        "cut_9",
-                        FunctionTransformer(lambda x: np.minimum(x, 9), validate=False),
-                    ),
-                    get_categorizer("VehPower"),
-                ]
-            ),
-            ["VehPower"],
-        ),
-        # VehAge intervals [0,1), [1, 10], (10, inf), drop=[1,10]
-        (
-            Pipeline(
-                [
-                    (
-                        "bin",
-                        FunctionTransformer(
-                            func_returns_df(
-                                lambda x: np.digitize(
-                                    np.where(x == 10, 9, x), bins=[1, 10]
-                                )
+    column_trans = ColumnTransformer(
+        [
+            # VehPower 4, 5, 6, 7, 8, 9, drop=4
+            (
+                "VehPower",
+                Pipeline(
+                    [
+                        (
+                            "cut_9",
+                            FunctionTransformer(
+                                lambda x: np.minimum(x, 9), validate=False
                             ),
-                            validate=False,
                         ),
-                    ),
-                    get_categorizer("VehAge"),
-                ]
+                        get_categorizer("VehPower"),
+                    ]
+                ),
+                ["VehPower"],
             ),
-            ["VehAge"],
-        ),
-        # DrivAge intervals [18,21), [21,26), [26,31), [31,41), [41,51), [51,71),[71,∞),
-        # drop=[41,51)
-        (
-            Pipeline(
-                [
-                    (
-                        "bin",
-                        FunctionTransformer(
-                            func_returns_df(
-                                lambda x: np.digitize(x, bins=[21, 26, 31, 41, 51, 71])
+            # VehAge intervals [0,1), [1, 10], (10, inf), drop=[1,10]
+            (
+                "VehAge",
+                Pipeline(
+                    [
+                        (
+                            "bin",
+                            FunctionTransformer(
+                                func_returns_df(
+                                    lambda x: np.digitize(  # type: ignore
+                                        np.where(x == 10, 9, x), bins=[1, 10]
+                                    )
+                                ),
+                                validate=False,
                             ),
-                            validate=False,
                         ),
-                    ),
-                    get_categorizer("DrivAge"),
-                ]
+                        get_categorizer("VehAge"),
+                    ]
+                ),
+                ["VehAge"],
             ),
-            ["DrivAge"],
-        ),
-        (
-            Pipeline(
-                [
-                    (
-                        "cutat150",
-                        FunctionTransformer(
-                            lambda x: np.minimum(x, 150), validate=False
+            # DrivAge intervals [18, 21), [21, 26), [26, 31), [31, 41),
+            #                   [41, 51), [51, 71), [71, ∞),
+            # drop=[41,51)
+            (
+                "DrivAge",
+                Pipeline(
+                    [
+                        (
+                            "bin",
+                            FunctionTransformer(
+                                func_returns_df(
+                                    lambda x: np.digitize(  # type: ignore
+                                        x, bins=[21, 26, 31, 41, 51, 71]
+                                    )
+                                ),
+                                validate=False,
+                            ),
                         ),
-                    )
-                ]
+                        get_categorizer("DrivAge"),
+                    ]
+                ),
+                ["DrivAge"],
             ),
-            ["BonusMalus"],
-        ),
-        (Pipeline([get_categorizer("VehBrand")]), ["VehBrand"]),
-        (Pipeline([get_categorizer("VehGas")]), ["VehGas"]),
-        (FunctionTransformer(np.log, validate=False), ["Density"]),
-        (Pipeline([get_categorizer("Region")]), ["Region"]),
-        (
-            Pipeline(
-                [
-                    get_categorizer("Area"),
-                    ("OE", OrdinalEncoder()),
-                    (
-                        "plus_1",
-                        FunctionTransformer(lambda x: x + 1, validate=False),
-                    ),
-                ]
+            (
+                "BonusMalus",
+                Pipeline(
+                    [
+                        (
+                            "cutat150",
+                            FunctionTransformer(
+                                lambda x: np.minimum(x, 150), validate=False
+                            ),
+                        )
+                    ]
+                ),
+                ["BonusMalus"],
             ),
-            ["Area"],
-        ),
+            ("VehBrand", Pipeline([get_categorizer("VehBrand")]), ["VehBrand"]),
+            ("VehGas", Pipeline([get_categorizer("VehGas")]), ["VehGas"]),
+            ("Density", FunctionTransformer(np.log, validate=False), ["Density"]),
+            ("Region", Pipeline([get_categorizer("Region")]), ["Region"]),
+            (
+                "Area",
+                Pipeline(
+                    [
+                        get_categorizer("Area"),
+                        ("OE", OrdinalEncoder()),
+                        (
+                            "plus_1",
+                            FunctionTransformer(lambda x: x + 1, validate=False),
+                        ),
+                    ]
+                ),
+                ["Area"],
+            ),
+        ],
         remainder="drop",
     )
     column_trans_names = [
@@ -441,7 +435,7 @@ def _read_insurance_data(
 
 def generate_narrow_insurance_dataset(
     num_rows=None, noise=None, distribution="poisson"
-) -> Tuple[pd.DataFrame, np.ndarray, np.ndarray]:
+) -> tuple[pd.DataFrame, np.ndarray, np.ndarray]:
     """Generate the tutorial data set from the sklearn fork and save it to disk."""
     df = _read_insurance_data(num_rows, noise, distribution)
 
@@ -453,7 +447,7 @@ def generate_narrow_insurance_dataset(
 
 def generate_real_insurance_dataset(
     num_rows=None, noise=None, distribution="poisson"
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Load real insurance data set."""
     df = pd.read_parquet(git_root("data", "outcomes.parquet"))
     X = pd.read_parquet(git_root("data", "X.parquet"))
@@ -485,7 +479,7 @@ def generate_real_insurance_dataset(
 
 def generate_wide_insurance_dataset(
     num_rows=None, noise=None, distribution="poisson"
-) -> Tuple[pd.DataFrame, np.ndarray, np.ndarray]:
+) -> tuple[pd.DataFrame, np.ndarray, np.ndarray]:
     """Generate a version of the tutorial data set with many features."""
     df = _read_insurance_data(num_rows, noise, distribution)
     cat_cols = [
@@ -499,19 +493,23 @@ def generate_wide_insurance_dataset(
         "Region",
     ]
 
-    transformer = make_column_transformer(
-        (
-            FunctionTransformer(),
-            lambda x: [
-                elmt
-                for elmt in x.select_dtypes(["number"]).columns
-                if elmt not in cat_cols
-            ],
-        ),
-        (
-            Pipeline([get_categorizer(col, "cat_" + col) for col in cat_cols]),
-            cat_cols,
-        ),
+    transformer = ColumnTransformer(
+        [
+            (
+                "numeric",
+                FunctionTransformer(),
+                lambda x: [
+                    elmt
+                    for elmt in x.select_dtypes(["number"]).columns
+                    if elmt not in cat_cols
+                ],
+            ),
+            (
+                "categorical",
+                Pipeline([get_categorizer(col, "cat_" + col) for col in cat_cols]),
+                cat_cols,
+            ),
+        ],
         remainder="drop",
     )
     y, exposure = compute_y_exposure(df, distribution)
@@ -521,7 +519,7 @@ def generate_wide_insurance_dataset(
 
 def generate_intermediate_insurance_dataset(
     num_rows=None, noise=None, distribution="poisson"
-) -> Tuple[pd.DataFrame, np.ndarray, np.ndarray]:
+) -> tuple[pd.DataFrame, np.ndarray, np.ndarray]:
     """Generate the tutorial data set from the sklearn fork and save it to disk."""
     df = _read_insurance_data(num_rows, noise, distribution)
     df["BonusMalusClipped"] = df["BonusMalus"].clip(50, 100)

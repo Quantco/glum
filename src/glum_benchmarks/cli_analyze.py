@@ -1,6 +1,6 @@
 import os
 import pickle
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 import click
 import numpy as np
@@ -15,7 +15,7 @@ from glum_benchmarks.util import (
 )
 
 
-def _get_comma_sep_names(xs: str) -> List[str]:
+def _get_comma_sep_names(xs: str) -> list[str]:
     return [x.strip() for x in xs.split(",")]
 
 
@@ -126,17 +126,17 @@ def cli_analyze(
 
 def _extract_dict_results_to_pd_series(
     fname: str,
-    results: Dict[str, Any],
-) -> Dict:
+    results: dict[str, Any],
+) -> dict:
     assert "coef" in results.keys()
     params = get_params_from_fname(fname)
     assert params.problem_name is not None
 
     coefs = results["coef"]
     runtime_per_iter = results["runtime"] / results["n_iter"]
-    l1_norm = np.sum(np.abs(coefs))
-    l2_norm = np.sum(coefs**2)
-    num_nonzero_coef = np.sum(np.abs(coefs) > 1e-8)
+    l1_norm = np.sum(np.abs(coefs))  # type: ignore
+    l2_norm = np.sum(coefs**2)  # type: ignore
+    num_nonzero_coef = np.sum(np.abs(coefs) > 1e-8)  # type: ignore
 
     # weights and offsets are solving the same problem, but the objective is set up to
     # deal with weights, so load the data for the weights problem rather than the
@@ -147,7 +147,7 @@ def _extract_dict_results_to_pd_series(
         prob_name_weights = params.problem_name
     problem = get_all_problems()[prob_name_weights]
 
-    formatted: Dict[str, Any] = params.__dict__
+    formatted: dict[str, Any] = params.__dict__
     items_to_use_from_results = ["n_iter", "runtime", "intercept"]
     if params.cv:
         items_to_use_from_results += [
@@ -182,7 +182,7 @@ def _extract_dict_results_to_pd_series(
 
 def _identify_parameter_fnames(
     root_dir: str, constraint_params: BenchmarkParams
-) -> List[str]:
+) -> list[str]:
     def _satisfies_constraint(params: BenchmarkParams, k: str) -> bool:
         constraint = getattr(constraint_params, k)
         param = getattr(params, k)

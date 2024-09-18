@@ -1,7 +1,10 @@
 import copy
-from typing import Optional, Union
+from collections.abc import Mapping
+from typing import Any, Optional, Union
 
 import numpy as np
+from formulaic import FormulaSpec
+from formulaic.utils.context import capture_context
 from joblib import Parallel, delayed
 from sklearn.model_selection._split import check_cv
 
@@ -12,7 +15,6 @@ from ._glm import (
     _standardize,
     _unstandardize,
     check_bounds,
-    initialize_start_params,
     is_pos_semidef,
     setup_p1,
     setup_p2,
@@ -37,7 +39,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         If you pass ``l1_ratio`` as an array, the ``fit`` method will choose the
         best value of ``l1_ratio`` and store it as ``self.l1_ratio``.
 
-    P1 : {'identity', array-like}, shape (n_features,), optional (default='identity')
+    P1 : {'identity', array-like, None}, shape (n_features,), optional
+         (default='identity')
         This array controls the strength of the regularization for each coefficient
         independently. A high value will lead to higher regularization while a value of
         zero will remove the regularization on this parameter.
@@ -46,20 +49,20 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         the penalty of the categorical column will be applied to all the levels of
         the categorical.
 
-    P2 : {'identity', array-like, sparse matrix}, shape (n_features,) \
+    P2 : {'identity', array-like, sparse matrix, None}, shape (n_features,) \
             or (n_features, n_features), optional (default='identity')
         With this option, you can set the P2 matrix in the L2 penalty
         ``w*P2*w``. This gives a fine control over this penalty (Tikhonov
         regularization). A 2d array is directly used as the square matrix P2. A
         1d array is interpreted as diagonal (square) matrix. The default
-        ``'identity'`` sets the identity matrix, which gives the usual squared
-        L2-norm. If you just want to exclude certain coefficients, pass a 1d
-        array filled with 1 and 0 for the coefficients to be excluded. Note that
-        P2 must be positive semi-definite. If ``X`` is a pandas DataFrame
-        with a categorical dtype and P2 has the same size as the number of columns,
-        the penalty of the categorical column will be applied to all the levels of
-        the categorical. Note that if P2 is two-dimensional, its size needs to be
-        of the same length as the expanded ``X`` matrix.
+        ``'identity'`` and ``None`` set the identity matrix, which gives the usual
+        squared L2-norm. If you just want to exclude certain coefficients, pass a 1d
+        array filled with 1 and 0 for the coefficients to be excluded. Note that P2 must
+        be positive semi-definite. If ``X`` is a pandas DataFrame with a categorical
+        dtype and P2 has the same size as the number of columns, the penalty of the
+        categorical column will be applied to all the levels of the categorical. Note
+        that if P2 is two-dimensional, its size needs to be of the same length as the
+        expanded ``X`` matrix.
 
     fit_intercept : bool, optional (default=True)
         Specifies if a constant (a.k.a. bias or intercept) should be
@@ -74,21 +77,22 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         specify it in parentheses (e.g., ``'tweedie (1.5)'``). The same applies
         for ``'negative.binomial'`` and theta parameter.
 
-    link : {'auto', 'identity', 'log', 'logit'} or Link, optional (default='auto')
-        The link function of the GLM, i.e. mapping from linear predictor
-        (``X * coef``) to expectation (``mu``). Option ``'auto'`` sets the link
-        depending on the chosen family as follows:
+    link : {'auto', 'identity', 'log', 'logit', 'cloglog'}, Link or None, \
+            optional (default='auto')
+        The link function of the GLM, i.e. mapping from linear
+        predictor (``X * coef``) to expectation (``mu``). Option ``'auto'`` sets
+        the link depending on the chosen family as follows:
 
         - ``'identity'`` for family ``'normal'``
         - ``'log'`` for families ``'poisson'``, ``'gamma'``,
           ``'inverse.gaussian'`` and ``'negative.binomial'``.
         - ``'logit'`` for family ``'binomial'``
 
-    solver : {'auto', 'irls-cd', 'irls-ls', 'lbfgs'}, optional (default='auto')
+    solver : {'auto', 'irls-cd', 'irls-ls', 'lbfgs', 'trust-constr'}, \
+            optional (default='auto')
         Algorithm to use in the optimization problem:
 
-        - ``'auto'``: ``'irls-ls'`` if ``l1_ratio`` is zero and ``'irls-cd'``
-          otherwise.
+        - ``'auto'``: ``'irls-ls'`` if ``l1_ratio`` is zero and ``'irls-cd'`` otherwise.
         - ``'irls-cd'``: Iteratively reweighted least squares with a coordinate
           descent inner solver. This can deal with L1 as well as L2 penalties.
           Note that in order to avoid unnecessary memory duplication of X in the
@@ -243,6 +247,23 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
 
     drop_first : bool, optional (default = False)
         If ``True``, drop the first column when encoding categorical variables.
+        Set this to True when alpha=0 and solver='auto' to prevent an error due to a
+        singular feature matrix. In the case of using a formula with interactions,
+        setting this argument to ``True`` ensures structural full-rankness (it is
+        equivalent to ``ensure_full_rank`` in formulaic and tabmat).
+
+    formula : FormulaSpec
+        A formula accepted by formulaic. It can either be a one-sided formula, in
+        which case ``y`` must be specified in ``fit``, or a two-sided formula, in
+        which case ``y`` must be ``None``.
+
+    interaction_separator: str, default=":"
+        The separator between the names of interacted variables.
+
+    categorical_format: str, default="{name}[T.{category}]"
+        The format string used to generate the names of categorical variables.
+        Has to include the placeholders ``{name}`` and ``{category}``.
+        Only used if ``formula`` is not ``None``.
 
     Attributes
     ----------
@@ -273,17 +294,43 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
 
     deviance_path_: array, shape(n_folds, n_alphas)
         Deviance for the test set on each fold, varying alpha.
+
+    robust : bool, optional (default = False)
+        If true, then robust standard errors are computed by default.
+
+    expected_information : bool, optional (default = False)
+        If true, then the expected information matrix is computed by default.
+        Only relevant when computing robust standard errors.
+
+    categorical_format : str, optional (default = "{name}[{category}]")
+        Format string for categorical features. The format string should
+        contain the placeholder ``{name}`` for the feature name and
+        ``{category}`` for the category name. Only used if ``X`` is a pandas
+        DataFrame.
+
+    cat_missing_method: str {'fail'|'zero'|'convert'}, default='fail'
+        How to handle missing values in categorical columns. Only used if ``X``
+        is a pandas data frame.
+        - if 'fail', raise an error if there are missing values
+        - if 'zero', missing values will represent all-zero indicator columns.
+        - if 'convert', missing values will be converted to the ``cat_missing_name``
+          category.
+
+    cat_missing_name: str, default='(MISSING)'
+        Name of the category to which missing values will be converted if
+        ``cat_missing_method='convert'``.  Only used if ``X`` is a pandas data frame.
     """
 
     def __init__(
         self,
+        *,
         l1_ratio=0,
         P1="identity",
         P2="identity",
         fit_intercept=True,
         family: Union[str, ExponentialDispersionModel] = "normal",
         link: Union[str, Link] = "auto",
-        solver="auto",
+        solver: str = "auto",
         max_iter=100,
         gradient_tol: Optional[float] = None,
         step_size_tol: Optional[float] = None,
@@ -308,6 +355,13 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         cv=None,
         n_jobs: Optional[int] = None,
         drop_first: bool = False,
+        robust: bool = True,
+        expected_information: bool = False,
+        formula: Optional[FormulaSpec] = None,
+        interaction_separator: str = ":",
+        categorical_format: str = "{name}[{category}]",
+        cat_missing_method: str = "fail",
+        cat_missing_name: str = "(MISSING)",
     ):
         self.alphas = alphas
         self.cv = cv
@@ -341,6 +395,13 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             b_ineq=b_ineq,
             force_all_finite=force_all_finite,
             drop_first=drop_first,
+            robust=robust,
+            expected_information=expected_information,
+            formula=formula,
+            interaction_separator=interaction_separator,
+            categorical_format=categorical_format,
+            cat_missing_method=cat_missing_method,
+            cat_missing_name=cat_missing_name,
         )
 
     def _validate_hyperparameters(self) -> None:
@@ -353,18 +414,21 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             or np.any(l1_ratio > 1)
         ):
             raise ValueError(
-                "l1_ratio must be a number in interval [0, 1]; got l1_ratio={}".format(
-                    self.l1_ratio
-                )
+                "l1_ratio must be a number in interval [0, 1]; got "
+                f"l1_ratio={self.l1_ratio}"
             )
         super()._validate_hyperparameters()
 
     def fit(
         self,
         X: ArrayLike,
-        y: ArrayLike,
+        y: Optional[ArrayLike] = None,
         sample_weight: Optional[ArrayLike] = None,
         offset: Optional[ArrayLike] = None,
+        *,
+        store_covariance_matrix: bool = False,
+        clusters: Optional[np.ndarray] = None,
+        context: Optional[Union[int, Mapping[str, Any]]] = None,
     ):
         r"""
         Choose the best model along a 'regularization path' by cross-validation.
@@ -398,8 +462,29 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             Added to linear predictor. An offset of 3 will increase expected
             ``y`` by 3 if the link is linear and will multiply expected ``y`` by
             3 if the link is logarithmic.
+
+        store_covariance_matrix : bool, optional (default=False)
+            Whether to store the covariance matrix of the parameter estimates
+            corresponding to the best best model.
+
+        clusters : array-like, optional, default=None
+            Array with cluster membership. Clustered standard errors are
+            computed if clusters is not None.
+
+        context : Optional[Union[int, Mapping[str, Any]]], default=None
+            The context to add to the evaluation context of the formula with,
+            e.g., custom transforms. If an integer, the context is taken from
+            the stack frame of the caller at the given depth. Otherwise, a
+            mapping from variable names to values is expected. By default,
+            no context is added. Set ``context=0`` to make the calling scope
+            available.
+
         """
         self._validate_hyperparameters()
+
+        captured_context = capture_context(
+            context + 1 if isinstance(context, int) else context
+        )
 
         (
             X,
@@ -414,8 +499,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             y,
             sample_weight,
             offset,
-            solver=self.solver,
             force_all_finite=self.force_all_finite,
+            context=captured_context,
         )
 
         #########
@@ -430,9 +515,14 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         l1_ratio = np.atleast_1d(self.l1_ratio)
 
         if self.alphas is None:
-            alphas = [self._get_alpha_path(l1, X, y, sample_weight) for l1 in l1_ratio]
+            alphas: Union[np.ndarray, list[np.ndarray]] = [
+                self._get_alpha_path(l1, X, y, sample_weight) for l1 in l1_ratio
+            ]
         else:
-            alphas = np.tile(np.sort(self.alphas)[::-1], (len(l1_ratio), 1))
+            alphas = np.tile(
+                np.sort(np.asarray(self.alphas, dtype=X.dtype))[::-1],
+                (len(l1_ratio), 1),
+            )
 
         if len(l1_ratio) == 1:
             self.alphas_ = alphas[0]
@@ -452,7 +542,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         else:
             _stype = ["csc", "csr"]
 
-        def fit_path(
+        def _fit_path(
             self,
             train_idx,
             test_idx,
@@ -467,7 +557,6 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             A_ineq,
             b_ineq,
         ):
-
             x_train, y_train, w_train = (
                 X[train_idx, :],
                 y[train_idx],
@@ -499,14 +588,6 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             ):
                 assert isinstance(self._link_instance, LogLink)
 
-            _dtype = [np.float64, np.float32]
-            start_params = initialize_start_params(
-                self.start_params,
-                n_cols=X.shape[1],
-                fit_intercept=self.fit_intercept,
-                _dtype=_dtype,
-            )
-
             P1_no_alpha = setup_p1(P1, X, X.dtype, 1, l1)
             P2_no_alpha = setup_p2(P2, X, _stype, X.dtype, 1, l1)
 
@@ -532,13 +613,13 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             )
 
             coef = self._get_start_coef(
-                start_params,
                 x_train,
                 y_train,
                 w_train,
                 offset_train,
                 col_means,
                 col_stds,
+                dtype=[np.float64, np.float32],
             )
 
             if self.check_input:
@@ -587,7 +668,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             return intercept_path_, coef_path_, deviance_path_
 
         jobs = (
-            delayed(fit_path)(
+            delayed(_fit_path)(
                 self,
                 train_idx=train_idx,
                 test_idx=test_idx,
@@ -635,8 +716,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             self.l1_ratio_ = l1_ratio[best_l1]
             self.alpha_ = self.alphas_[best_alpha]
 
-        P1 = setup_p1(P1, X, X.dtype, self.alpha_, self.l1_ratio_)
-        P2 = setup_p2(P2, X, _stype, X.dtype, self.alpha_, self.l1_ratio_)
+        P1 = setup_p1(P1, X, X.dtype, self.alpha_, self.l1_ratio_)  # type: ignore
+        P2 = setup_p2(P2, X, _stype, X.dtype, self.alpha_, self.l1_ratio_)  # type: ignore
 
         # Refit with full data and best alpha and lambda
         (
@@ -660,15 +741,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             P2,
         )
 
-        start_params = initialize_start_params(
-            self.start_params,
-            n_cols=X.shape[1],
-            fit_intercept=self.fit_intercept,
-            _dtype=X.dtype,
-        )
-
         coef = self._get_start_coef(
-            start_params, X, y, sample_weight, offset, col_means, col_stds
+            X, y, sample_weight, offset, col_means, col_stds, dtype=X.dtype
         )
 
         coef = self._solve(
@@ -693,6 +767,18 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             # set intercept to zero as the other linear models do
             self.intercept_, self.coef_ = _unstandardize(col_means, col_stds, 0.0, coef)
 
-        self._tear_down_from_fit()
+        self.covariance_matrix_ = None
+        if store_covariance_matrix:
+            self.covariance_matrix(
+                X=X.unstandardize(),
+                y=y,
+                offset=offset,
+                sample_weight=sample_weight * weights_sum,
+                robust=self.robust,
+                clusters=clusters,
+                expected_information=self.expected_information,
+                store_covariance_matrix=True,
+                skip_checks=True,
+            )
 
         return self

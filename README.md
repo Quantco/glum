@@ -22,7 +22,8 @@ The goal of `glum` is to be at least as feature-complete as existing GLM librari
 
 This repo also includes tools for benchmarking GLM implementations in the `glum_benchmarks` module. For details on the benchmarking, [see here](src/glum_benchmarks/README.md). Although the performance of `glum` relative to `glmnet` and `h2o` depends on the specific problem, we find that when N >> K (there are more observations than predictors), it is consistently much faster for a wide range of problems.
 
-![](docs/_static/headline_benchmark.png)
+![Performance benchmarks](docs/_static/headline_benchmark.png#gh-light-mode-only)
+![Performance benchmarks](docs/_static/headline_benchmark_dark.png#gh-dark-mode-only)
 
 For more information on `glum`, including tutorials and API reference, please see [the documentation](https://glum.readthedocs.io/en/latest/).
 
@@ -67,7 +68,7 @@ Why did we choose the name `glum`? We wanted a name that had the letters GLM and
 >>>
 >>> _ = model.fit(X=X, y=y)
 >>>
->>> # .report_diagnostics shows details about the steps taken by the iterative solver
+>>> # .report_diagnostics shows details about the steps taken by the iterative solver.
 >>> diags = model.get_formatted_diagnostics(full_report=True)
 >>> diags[['objective_fct']]
         objective_fct
@@ -78,6 +79,15 @@ n_iter
 3            0.443681
 4            0.443498
 5            0.443497
+>>>
+>>> # Models can also be built with formulas from formulaic.
+>>> model_formula = GeneralizedLinearRegressor(
+...     family='binomial',
+...     l1_ratio=1.0,
+...     alpha=0.001,
+...     formula="bedrooms + np.log(bathrooms + 1) + bs(sqft_living, 3) + C(waterfront)"
+... )
+>>> _ = model_formula.fit(X=house_data.data, y=y)
 
 ```
 
@@ -87,3 +97,9 @@ Please install the package through conda-forge:
 ```bash
 conda install glum -c conda-forge
 ```
+
+# Performance
+
+For optimal performance on an x86_64 architecture, we recommend using the MKL library
+(`conda install mkl`). By default, conda usually installs the openblas version, which
+is slower, but supported on all major architecture and OS.

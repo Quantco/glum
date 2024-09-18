@@ -4,36 +4,59 @@ requires = [
   'setuptools-scm',
   'wheel',
   'Cython',
-  'oldest-supported-numpy',
+  'numpy>=1.25',
   'scikit-learn',
 ]
 
-[tool.black]
-exclude = '''
-/(
-    \.eggs
-  | \.git
-  | \.venv
-  | build
-  | dist
-)/
-'''
+[tool.ruff]
+line-length = 88
+target-version = "py39"
+exclude = ["src/glum_benchmarks/orig_sklearn_fork/"]
 
-[tool.isort]
-multi_line_output = 3
-include_trailing_comma = true
-ensure_newline_before_comments = true
-line_length = 88
-known_first_party = "glum"
-skip_glob = '\.eggs/*,\.git/*,\.venv/*,build/*,dist/*'
-default_section = 'THIRDPARTY'
+[tool.ruff.lint]
+ignore = ["E731", "N802", "N803", "N806"]
+select = [
+  # pyflakes
+  "F",
+  # pycodestyle
+  "E", "W",
+  # isort
+  "I",
+  # pep8-naming
+  "N",
+  # pyupgrade
+  "UP",
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["glum", "glum_benchmarks"]
+
+[tool.mypy]
+python_version = '3.9'
+exclude = [
+  "tests/",
+  "src/glum_benchmarks/orig_sklearn_fork/",
+]
+no_implicit_optional = false
+check_untyped_defs = true
+namespace_packages = true
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]  
+# https://github.com/scikit-learn/scikit-learn/issues/16705  
+module = ["sklearn.*"]  
+ignore_missing_imports = true  
 
 [tool.cibuildwheel]
 skip = [
   "*-win32",
   "*-manylinux_i686",
-  "pp*", 
-  "*-musllinux_*"
+  "pp*",
+  "*-musllinux_*",
+  "cp36*",
+  "cp37*",
+  "cp38*",
+  "cp313-*",
 ]
 test-requires = ["pytest", "pytest-xdist"]
 
@@ -48,9 +71,8 @@ CFLAGS="-I$CONDA/envs/build/include"
 CXXFLAGS="-I$CONDA/envs/build/include"
 CXX="/usr/bin/clang++"
 CC="/usr/bin/clang"
+MACOSX_DEPLOYMENT_TARGET="10.13"
 
-[tool.cibuildwheel.windows.environment]
-SETUPTOOLS_USE_DISTUTILS="stdlib"
 
 [tool.pytest.ini_options]
 # Filters are standard python warning filters as described here:

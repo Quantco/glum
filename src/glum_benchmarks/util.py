@@ -3,7 +3,7 @@ import os
 import shutil
 import time
 from functools import reduce
-from typing import Callable, Dict, Optional, Tuple, Union
+from typing import Callable, Optional, Union
 
 import click
 import numpy as np
@@ -61,7 +61,7 @@ def get_sklearn_family(distribution):
 
 
 def get_obj_val(
-    dat: Dict[str, Union[np.ndarray, sps.spmatrix, tm.MatrixBase, pd.DataFrame]],
+    dat: dict[str, Union[np.ndarray, sps.spmatrix, tm.MatrixBase, pd.DataFrame]],
     distribution: str,
     alpha: float,
     l1_ratio: float,
@@ -93,7 +93,7 @@ def get_obj_val(
     )
     model._set_up_for_fit(dat["y"])
 
-    full_coefs = np.concatenate(([intercept], coefs))
+    full_coefs: np.ndarray = np.concatenate([[intercept], coefs])
     offset = dat.get("offset")
     if isinstance(dat["X"], tm.MatrixBase):
         X_dot_coef = dat["X"].matvec(coefs)
@@ -136,7 +136,7 @@ def exposure_and_offset_to_weights(
     exposure: np.ndarray = None,
     sample_weight: np.ndarray = None,
     offset: np.ndarray = None,
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray]:
     """
     Adjust outcomes and weights for exposure and offsets.
 
@@ -174,11 +174,11 @@ def exposure_and_offset_to_weights(
         raise ValueError("Need offset or exposure.")
     y = y / exposure
     sample_weight = (
-        exposure ** (2 - power)
+        exposure ** (2 - power)  # type: ignore
         if sample_weight is None
-        else sample_weight * exposure ** (2 - power)
+        else sample_weight * exposure ** (2 - power)  # type: ignore
     )
-    return y, sample_weight
+    return y, sample_weight  # type: ignore
 
 
 class BenchmarkParams:
@@ -202,7 +202,6 @@ class BenchmarkParams:
         hessian_approx: Optional[float] = None,
         diagnostics_level: Optional[str] = None,
     ):
-
         self.problem_name = problem_name
         self.library_name = library_name
         self.num_rows = num_rows
@@ -410,9 +409,7 @@ def clear_cache(force=False):
     if cache_location is None:
         return
 
-    cache_size_limit = float(
-        os.environ.get("GLM_BENCHMARKS_CACHE_SIZE_LIMIT", 1024**3)
-    )
+    cache_size_limit = float(os.environ.get("GLM_BENCHMARKS_CACHE_SIZE_LIMIT", 1024**3))
 
     if force or _get_size_of_cache_directory() > cache_size_limit:
         shutil.rmtree(cache_location)

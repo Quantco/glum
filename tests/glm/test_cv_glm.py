@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import pytest
 import tabmat as tm
 from scipy import sparse as sparse
@@ -48,8 +49,8 @@ def test_normal_elastic_net_comparison(l1_ratio, fit_intercept, convert_x_fn):
     y = y[0:n_samples]
     X, T = X[0:n_samples], X[n_samples:]
 
-    x_arr = X if isinstance(X, np.ndarray) else X.A
-    t_arr = T if isinstance(T, np.ndarray) else T.A
+    x_arr = X if isinstance(X, np.ndarray) else X.toarray()
+    t_arr = T if isinstance(T, np.ndarray) else T.toarray()
     elastic_net = ElasticNetCV(
         l1_ratio=l1_ratio,
         n_alphas=n_alphas,
@@ -123,3 +124,45 @@ def test_normal_ridge_comparison(fit_intercept):
     np.testing.assert_allclose(glm_pred, el_pred, atol=4e-6)
     np.testing.assert_allclose(glm.intercept_, ridge.intercept_, atol=4e-7)
     np.testing.assert_allclose(glm.coef_, ridge.coef_, atol=3e-6)
+
+
+def test_formula():
+    """Model with formula and model with externally constructed model matrix should
+    match.
+    """
+    n_samples = 100
+    n_alphas = 2
+    tol = 1e-9
+
+    np.random.seed(10)
+    data = pd.DataFrame(
+        {
+            "y": np.random.rand(n_samples),
+            "x1": np.random.rand(n_samples),
+            "x2": np.random.rand(n_samples),
+        }
+    )
+    formula = "y ~ x1 + x2"
+
+    model_formula = GeneralizedLinearRegressorCV(
+        family="normal",
+        formula=formula,
+        fit_intercept=False,
+        n_alphas=n_alphas,
+        gradient_tol=tol,
+    ).fit(data)
+
+    y = data["y"]
+    X = data[["x1", "x2"]]
+
+    model_pandas = GeneralizedLinearRegressorCV(
+        family="normal",
+        fit_intercept=False,
+        n_alphas=n_alphas,
+        gradient_tol=tol,
+    ).fit(X, y)
+
+    np.testing.assert_almost_equal(model_pandas.coef_, model_formula.coef_)
+    np.testing.assert_array_equal(
+        model_pandas.feature_names_, model_formula.feature_names_
+    )

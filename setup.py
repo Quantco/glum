@@ -66,18 +66,19 @@ setup(
     license="BSD",
     classifiers=[  # Optional
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
     ],
     package_dir={"": "src"},
     packages=find_packages(
         where="src",
-        include=["glum"]
-        if os.environ.get("CONDA_BUILD")
-        else ["glum", "glum_benchmarks"],
+        include=(
+            ["glum"] if os.environ.get("CONDA_BUILD") else ["glum", "glum_benchmarks"]
+        ),
     ),
+    python_requires=">=3.9",
     install_requires=[
         "joblib",
         "numexpr",
@@ -85,15 +86,30 @@ setup(
         "pandas",
         "scikit-learn>=0.23",
         "scipy",
-        "tabmat>=3.1.0",
+        "formulaic>=0.6",
+        "tabmat>=4.0.0",
     ],
-    entry_points=None
-    if os.environ.get("CONDA_BUILD")
-    else """
+    entry_points=(
+        None
+        if os.environ.get("CONDA_BUILD")
+        else """
         [console_scripts]
         glm_benchmarks_run = glum_benchmarks.cli_run:cli_run
         glm_benchmarks_analyze = glum_benchmarks.cli_analyze:cli_analyze
-    """,
-    ext_modules=cythonize(ext_modules, annotate=False),
+    """
+    ),
+    ext_modules=cythonize(
+        ext_modules,
+        annotate=False,
+        compiler_directives={
+            "language_level": "3",
+            "boundscheck": False,
+            "wraparound": False,
+            "initializedcheck": False,
+            "nonecheck": False,
+            "cdivision": True,
+            "legacy_implicit_noexcept": True,
+        },
+    ),
     zip_safe=False,
 )

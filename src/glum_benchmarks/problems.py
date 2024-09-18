@@ -1,6 +1,6 @@
 import os
 from functools import partial
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import Callable, Optional, Union
 
 import attr
 import numpy as np
@@ -36,7 +36,7 @@ class Problem:
 def load_data(
     loader_func: Callable[
         [Optional[int], Optional[float], Optional[str]],
-        Tuple[pd.DataFrame, np.ndarray, np.ndarray],
+        tuple[pd.DataFrame, np.ndarray, np.ndarray],
     ],
     num_rows: Optional[int] = None,
     storage: str = "dense",
@@ -44,7 +44,7 @@ def load_data(
     noise: Optional[float] = None,
     distribution: str = "poisson",
     data_setup: str = "weights",
-) -> Dict[str, np.ndarray]:
+) -> dict[str, np.ndarray]:
     """
     Load the data.
 
@@ -82,8 +82,8 @@ def load_data(
         dtype = np.float32 if single_precision else np.float64
         X = tm.from_pandas(X_in, dtype, sparse_threshold=0.1, cat_threshold=3)
     elif storage == "cat":
-        cat_indices_in_expanded_arr: List[np.ndarray] = []
-        dense_indices_in_expanded_arr: List[int] = []
+        cat_indices_in_expanded_arr: list[np.ndarray] = []
+        dense_indices_in_expanded_arr: list[int] = []
         i = 0
         for elt in mat_parts:
             assert elt.ndim == 2
@@ -141,7 +141,7 @@ def load_data(
     return dict(X=X, y=y)
 
 
-def get_all_problems() -> Dict[str, Problem]:
+def get_all_problems() -> dict[str, Problem]:
     """
     Return the name of all possible problems.
 

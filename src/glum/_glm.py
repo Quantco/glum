@@ -5,7 +5,8 @@ Modified from code submitted as a PR to sklearn:
 https://github.com/scikit-learn/scikit-learn/pull/9405
 
 Original attribution from:
-https://github.com/scikit-learn/scikit-learn/pull/9405/files#diff-38e412190dc50455611b75cfcf2d002713dcf6d537a78b9a22cc6b1c164390d1 # noqa: B950
+https://github.com/scikit-learn/scikit-learn/pull/9405/files
+#diff-38e412190dc50455611b75cfcf2d002713dcf6d537a78b9a22cc6b1c164390d1
 '''
 Author: Christian Lorentzen <lorentzen.ch@googlemail.com>
 some parts and tricks stolen from other sklearn files.
@@ -14,27 +15,31 @@ some parts and tricks stolen from other sklearn files.
 
 # License: BSD 3 clause
 
-
 import copy
 import re
 import sys
 import warnings
-from collections.abc import Iterable
-from itertools import chain
-from typing import Any, Optional, Sequence, Tuple, Union, cast
+from collections.abc import Iterable, Mapping, Sequence
+from typing import Any, NamedTuple, Optional, Union, cast
 
 import numpy as np
 import pandas as pd
+import scipy.sparse as sps
 import scipy.sparse.linalg as splinalg
+import sklearn as skl
 import tabmat as tm
-from scipy import linalg, sparse
+from formulaic import Formula, FormulaSpec
+from formulaic.parser import DefaultFormulaParser
+from formulaic.utils.constraints import LinearConstraintParser
+from formulaic.utils.context import capture_context
+from packaging import version
+from scipy import linalg, sparse, stats
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.utils import check_array
 from sklearn.utils.validation import (
-    _assert_all_finite,
+    assert_all_finite,
     check_consistent_length,
     check_is_fitted,
-    check_random_state,
     column_or_1d,
 )
 
@@ -50,7 +55,7 @@ from ._distribution import (
     TweedieDistribution,
     guess_intercept,
 )
-from ._link import IdentityLink, Link, LogitLink, LogLink, TweedieLink
+from ._link import CloglogLink, IdentityLink, Link, LogitLink, LogLink, TweedieLink
 from ._solvers import (
     IRLSData,
     _cd_solver,
@@ -59,7 +64,20 @@ from ._solvers import (
     _least_squares_solver,
     _trust_constr_solver,
 )
-from ._util import _align_df_categories, _safe_toarray
+from ._util import (
+    _add_missing_categories,
+    _align_df_categories,
+    _expand_categorical_penalties,
+    _is_contiguous,
+    _safe_toarray,
+)
+
+if version.parse(skl.__version__).release < (1, 6):
+    keyword_finiteness = "force_all_finite"
+    validate_data = BaseEstimator._validate_data
+else:
+    keyword_finiteness = "ensure_all_finite"
+    from sklearn.utils.validation import validate_data  # type: ignore
 
 _float_itemsize_to_dtype = {8: np.float64, 4: np.float32, 2: np.float16}
 
@@ -83,11 +101,17 @@ ShapedArrayLike = Union[
 ]
 
 
-def check_array_tabmat_compliant(mat: ArrayLike, drop_first: int = False, **kwargs):
+class WaldTestResult(NamedTuple):
+    test_statistic: float
+    p_value: float
+    df: int
+
+
+def check_array_tabmat_compliant(mat: ArrayLike, drop_first: bool = False, **kwargs):
     to_copy = kwargs.get("copy", False)
 
-    if isinstance(mat, pd.DataFrame) and any(mat.dtypes == "category"):
-        mat = tm.from_pandas(mat, drop_first=drop_first)
+    if isinstance(mat, pd.DataFrame):
+        raise RuntimeError("DataFrames should have been converted by this point.")
 
     if isinstance(mat, tm.SplitMatrix):
         kwargs.update({"ensure_min_features": 0})
@@ -110,17 +134,24 @@ def check_array_tabmat_compliant(mat: ArrayLike, drop_first: int = False, **kwar
         )
 
     original_type = type(mat)
-    res = check_array(mat, **kwargs)
+    if isinstance(mat, (tm.DenseMatrix, tm.SparseMatrix)):
+        res = check_array(mat.unpack(), **kwargs)
+    else:
+        res = check_array(mat, **kwargs)
 
     if res is not mat and original_type in (tm.DenseMatrix, tm.SparseMatrix):
-        res = original_type(res)  # type: ignore
+        res = original_type(
+            res,
+            column_names=mat.column_names,  # type: ignore
+            term_names=mat.term_names,  # type: ignore
+        )
 
     return res
 
 
 def check_X_y_tabmat_compliant(
     X: ArrayLike, y: Union[VectorLike, sparse.spmatrix], **kwargs
-) -> Tuple[Union[tm.MatrixBase, sparse.spmatrix, np.ndarray], np.ndarray]:
+) -> tuple[Union[tm.MatrixBase, sparse.spmatrix, np.ndarray], np.ndarray]:
     """
     See the documentation for :func:`sklearn.utils.check_X_y`. This function
     behaves identically for inputs that are not from the Matrix package and
@@ -138,7 +169,7 @@ def check_X_y_tabmat_compliant(
         raise ValueError("y cannot be None")
 
     y = column_or_1d(y, warn=True)
-    _assert_all_finite(y)
+    assert_all_finite(y)
     if y.dtype.kind == "O":
         y = y.astype(np.float64)
 
@@ -158,16 +189,16 @@ def _check_weights(
     if sample_weight is None:
         return np.ones(n_samples, dtype=dtype)
     if np.isscalar(sample_weight):
-        if sample_weight <= 0:
+        if sample_weight <= 0:  # type: ignore
             raise ValueError("Sample weights must be non-negative.")
         return np.full(n_samples, sample_weight, dtype=dtype)
 
     sample_weight = check_array(
         sample_weight,
         accept_sparse=False,
-        force_all_finite=force_all_finite,
         ensure_2d=False,
         dtype=[np.float64, np.float32],
+        **{keyword_finiteness: force_all_finite},
     )
 
     if sample_weight.ndim > 1:  # type: ignore
@@ -179,7 +210,7 @@ def _check_weights(
     if np.sum(sample_weight) == 0:  # type: ignore
         raise ValueError("Sample weights must have at least one positive element.")
 
-    return sample_weight
+    return sample_weight  # type: ignore
 
 
 def _check_offset(
@@ -197,9 +228,9 @@ def _check_offset(
     offset = check_array(
         offset,
         accept_sparse=False,
-        force_all_finite=True,
         ensure_2d=False,
         dtype=dtype,
+        **{keyword_finiteness: True},
     )
 
     offset = cast(np.ndarray, offset)
@@ -212,18 +243,49 @@ def _check_offset(
     return offset
 
 
-def _name_categorical_variables(
-    categories: Tuple[str], column_name: str, drop_first: bool
-):
-    new_names = [
-        f"{column_name}__{category}" for category in categories[int(drop_first) :]
-    ]
-    if len(new_names) == 0:
-        raise ValueError(
-            f"Categorical column: {column_name}, contains only one category. "
-            + "This should be dropped from the feature matrix."
-        )
-    return new_names
+def _parse_formula(
+    formula: FormulaSpec, include_intercept: bool = True
+) -> tuple[Optional[Formula], Formula]:
+    """
+    Parse and transform the formula for use in a GeneralizedLinearRegressor.
+
+    The left-hand side and right-hand side of the formula are separated. If an
+    intercept is present, it will be removed from the right-hand side, and a
+    boolean flag to indicate whether or not an intercept should be added to
+    the model will be returned.
+
+    Parameters
+    ----------
+    formula : formulaic.FormulaSpec
+        The formula to parse.
+    include_intercept: bool, default True
+        Whether to include an intercept column.
+
+    Returns
+    -------
+    tuple[formulaic.Formula, formulaic.Formula]
+        The left-hand side and right-hand sides of the formula.
+    """
+    if isinstance(formula, str):
+        parser = DefaultFormulaParser(include_intercept=include_intercept)
+        terms = parser.get_terms(formula)
+    elif isinstance(formula, Formula):
+        terms = formula
+    else:
+        raise TypeError("formula must be a string or Formula object.")
+
+    if hasattr(terms, "lhs"):
+        lhs_terms = terms.lhs
+        if len(lhs_terms) != 1:
+            raise ValueError(
+                "formula must have exactly one term on the left-hand side."
+            )
+        rhs_terms = terms.rhs
+    else:
+        lhs_terms = None
+        rhs_terms = terms
+
+    return lhs_terms, rhs_terms
 
 
 def check_bounds(
@@ -238,9 +300,9 @@ def check_bounds(
     bounds = check_array(
         bounds,
         accept_sparse=False,
-        force_all_finite=False,
         ensure_2d=False,
         dtype=dtype,
+        **{keyword_finiteness: False},
     )
 
     bounds = cast(np.ndarray, bounds)
@@ -258,7 +320,7 @@ def check_inequality_constraints(
     b_ineq: Optional[np.ndarray],
     n_features: int,
     dtype,
-) -> Tuple[Union[None, np.ndarray], Union[None, np.ndarray]]:
+) -> tuple[Union[None, np.ndarray], Union[None, np.ndarray]]:
     """Check that the inequality constraints are well-defined."""
     if A_ineq is None or b_ineq is None:
         return None, None
@@ -266,18 +328,18 @@ def check_inequality_constraints(
         A_ineq = check_array(
             A_ineq,
             accept_sparse=False,
-            force_all_finite=False,
             ensure_2d=True,
             dtype=dtype,
             copy=True,
+            **{keyword_finiteness: False},
         )
         b_ineq = check_array(
             b_ineq,
             accept_sparse=False,
-            force_all_finite=False,
             ensure_2d=False,
             dtype=dtype,
             copy=True,
+            **{keyword_finiteness: False},
         )
         if A_ineq.shape[1] != n_features:  # type: ignore
             raise ValueError("A_ineq must have same number of columns as X.")
@@ -298,7 +360,7 @@ def _standardize(
     A_ineq: Optional[np.ndarray],
     P1: Union[np.ndarray, sparse.spmatrix],
     P2: Union[np.ndarray, sparse.spmatrix],
-) -> Tuple[
+) -> tuple[
     tm.StandardizedMatrix,
     np.ndarray,
     Optional[np.ndarray],
@@ -372,7 +434,7 @@ def _unstandardize(
     col_stds: Optional[np.ndarray],
     intercept: Union[float, np.ndarray],
     coef: np.ndarray,
-) -> Tuple[Union[float, np.ndarray], np.ndarray]:
+) -> tuple[Union[float, np.ndarray], np.ndarray]:
     if col_stds is None:
         intercept -= np.squeeze(np.squeeze(col_means).dot(np.atleast_1d(coef).T))
     else:
@@ -404,11 +466,13 @@ def _standardize_warm_start(
         coef[0] += np.squeeze(col_means).dot(coef[1:])
     else:
         coef[1:] *= col_stds
-        coef[0] += np.squeeze(col_means / col_stds).dot(coef[1:])
+        coef[0] += np.squeeze(col_means * _one_over_var_inf_to_val(col_stds, 1)).dot(
+            coef[1:]
+        )
 
 
 def get_family(
-    family: Union[str, ExponentialDispersionModel]
+    family: Union[str, ExponentialDispersionModel],
 ) -> ExponentialDispersionModel:
     if isinstance(family, ExponentialDispersionModel):
         return family
@@ -445,23 +509,19 @@ def get_family(
 
 def get_link(link: Union[str, Link], family: ExponentialDispersionModel) -> Link:
     """
-    For the Tweedie distribution, this code follows actuarial best practices regarding
-    link functions. Note that these links are sometimes not canonical:
-        - identity for normal (``p=0``);
+    For the Tweedie distribution, this code follows actuarial best practices
+    regarding link functions. Note that these links are sometimes not canonical:
+        - identity for normal (``p = 0``);
         - no convention for ``p < 0``, so let's leave it as identity;
         - log otherwise.
     """
     if isinstance(link, Link):
         return link
-    if link == "auto":
-        if isinstance(family, TweedieDistribution):
-            if family.power <= 0:
+
+    if (link is None) or (link == "auto"):
+        if tweedie_representation := family.to_tweedie(safe=False):
+            if tweedie_representation.power <= 0:
                 return IdentityLink()
-            if family.power < 1:
-                raise ValueError(
-                    "For 0 < p < 1, no Tweedie distribution exists. "
-                    "Please choose a different distribution."
-                )
             return LogLink()
         if isinstance(family, GeneralizedHyperbolicSecant):
             return IdentityLink()
@@ -474,24 +534,31 @@ def get_link(link: Union[str, Link], family: ExponentialDispersionModel) -> Link
             "Please set link manually, i.e. not to 'auto'. "
             f"Got (link='auto', family={family.__class__.__name__})."
         )
-    if link == "identity":
-        return IdentityLink()
-    if link == "log":
-        return LogLink()
-    if link == "logit":
-        return LogitLink()
-    if link[:7] == "tweedie":
-        return TweedieLink(float(link[7:]))
+
+    mapping = {
+        "cloglog": CloglogLink(),
+        "identity": IdentityLink(),
+        "log": LogLink(),
+        "logit": LogitLink(),
+        "tweedie": TweedieLink(1.5),
+    }
+
+    if link in mapping:
+        return mapping[link]
+    if custom_tweedie := re.search(r"tweedie\s?\((.+)\)", link):
+        return TweedieLink(float(custom_tweedie.group(1)))
+
     raise ValueError(
         "The link must be an instance of class Link or an element of "
-        f"['auto', 'identity', 'log', 'logit', 'tweedie']; got (link={link})."
+        "['auto', 'identity', 'log', 'logit', 'cloglog', 'tweedie']; "
+        f"got (link={link})."
     )
 
 
 def setup_p1(
-    P1: Union[str, np.ndarray],
+    P1: Optional[Union[str, np.ndarray]],
     X: Union[tm.MatrixBase, tm.StandardizedMatrix],
-    _dtype,
+    dtype,
     alpha: float,
     l1_ratio: float,
 ) -> np.ndarray:
@@ -503,33 +570,35 @@ def setup_p1(
     if isinstance(P1, str):
         if P1 != "identity":
             raise ValueError(f"P1 must be either 'identity' or an array; got {P1}.")
-        P1 = np.ones(n_features, dtype=_dtype)
+        P1 = np.ones(n_features, dtype=dtype)
+    elif P1 is None:
+        P1 = np.ones(n_features, dtype=dtype)
     else:
         P1 = np.atleast_1d(P1)
         try:
-            P1 = P1.astype(_dtype, casting="safe", copy=False)
+            P1 = P1.astype(dtype, casting="safe", copy=False)  # type: ignore
         except TypeError as e:
             raise TypeError(
                 "The given P1 cannot be converted to a numeric array; "
-                f"got (P1.dtype={P1.dtype})."
+                f"got (P1.dtype={P1.dtype})."  # type: ignore
             ) from e
-        if (P1.ndim != 1) or (P1.shape[0] != n_features):
+        if (P1.ndim != 1) or (P1.shape[0] != n_features):  # type: ignore
             raise ValueError(
                 "P1 must be either 'identity' or a 1d array with the length of "
                 "X.shape[1] (either before or after categorical expansion); "
-                f"got (P1.shape[0]={P1.shape[0]})."
+                f"got (P1.shape[0]={P1.shape[0]})."  # type: ignore
             )
 
     # P1 and P2 are now for sure copies
-    P1 = alpha * l1_ratio * P1
-    return cast(np.ndarray, P1).astype(_dtype)
+    P1 = alpha * l1_ratio * P1  # type: ignore
+    return cast(np.ndarray, P1).astype(dtype)
 
 
 def setup_p2(
-    P2: Union[str, np.ndarray, sparse.spmatrix],
+    P2: Optional[Union[str, np.ndarray, sparse.spmatrix]],
     X: Union[tm.MatrixBase, tm.StandardizedMatrix],
-    _stype,
-    _dtype,
+    stype,
+    dtype,
     alpha: float,
     l1_ratio: float,
 ) -> Union[np.ndarray, sparse.spmatrix]:
@@ -538,21 +607,24 @@ def setup_p2(
 
     n_features = X.shape[1]
 
+    def _setup_sparse_p2(P2):
+        return (sparse.dia_matrix((P2, 0), shape=(n_features, n_features))).tocsc()
+
     if isinstance(P2, str):
         if P2 != "identity":
             raise ValueError(f"P2 must be either 'identity' or an array. Got {P2}.")
         if sparse.issparse(X):  # if X is sparse, make P2 sparse, too
-            P2 = (
-                sparse.dia_matrix(
-                    (np.ones(n_features, dtype=_dtype), 0),
-                    shape=(n_features, n_features),
-                )
-            ).tocsc()
+            P2 = _setup_sparse_p2(np.ones(n_features, dtype=dtype))
         else:
-            P2 = np.ones(n_features, dtype=_dtype)
+            P2 = np.ones(n_features, dtype=dtype)
+    elif P2 is None:
+        if sparse.issparse(X):  # if X is sparse, make P2 sparse, too
+            P2 = _setup_sparse_p2(np.ones(n_features, dtype=dtype))
+        else:
+            P2 = np.ones(n_features, dtype=dtype)
     else:
         P2 = check_array(
-            P2, copy=True, accept_sparse=_stype, dtype=_dtype, ensure_2d=False
+            P2, copy=True, accept_sparse=stype, dtype=dtype, ensure_2d=False
         )
         P2 = cast(np.ndarray, P2)
         if P2.ndim == 1:
@@ -564,9 +636,7 @@ def setup_p2(
                     f"got (P2.shape={P2.shape})."
                 )
             if sparse.issparse(X):
-                P2 = (
-                    sparse.dia_matrix((P2, 0), shape=(n_features, n_features))
-                ).tocsc()
+                P2 = _setup_sparse_p2(P2)
         elif P2.ndim == 2 and P2.shape[0] == P2.shape[1] and P2.shape[0] == n_features:
             if sparse.issparse(X):
                 P2 = sparse.csc_matrix(P2)
@@ -590,33 +660,6 @@ def setup_p2(
         else:
             P2 = 0.5 * (P2 + P2.T)
     return P2
-
-
-def initialize_start_params(
-    start_params: Optional[np.ndarray], n_cols: int, fit_intercept: bool, _dtype
-) -> Optional[np.ndarray]:
-    if start_params is None:
-        return None
-
-    start_params = check_array(
-        start_params,
-        accept_sparse=False,
-        force_all_finite=True,
-        ensure_2d=False,
-        dtype=_dtype,
-        copy=True,
-    )
-
-    start_params = cast(np.ndarray, start_params)
-
-    if start_params.shape != (n_cols + fit_intercept,):
-        raise ValueError(
-            "Start values for parameters must have the right length and dimension; "
-            f"got (length={start_params.shape[0]}, ndim={start_params.ndim}); "
-            f"needed (length={n_cols + fit_intercept}, ndim=1)."
-        )
-
-    return start_params
 
 
 def is_pos_semidef(p: Union[sparse.spmatrix, np.ndarray]) -> Union[bool, np.bool_]:
@@ -659,19 +702,13 @@ def is_pos_semidef(p: Union[sparse.spmatrix, np.ndarray]) -> Union[bool, np.bool
     return np.all(eigenvalues >= epsneg)
 
 
-def _group_sum(groups: np.ndarray, data: np.ndarray):
+def _group_sum(groups: np.ndarray, data: tm.MatrixBase):
     """Sum over groups."""
     ngroups = len(np.unique(groups))
     out = np.empty((ngroups, data.shape[1]))
-    if sparse.issparse(data) or isinstance(
-        data, (tm.SplitMatrix, tm.CategoricalMatrix)
-    ):
-        eye_n = np.eye(ngroups)[:, groups]
-        for i in range(data.shape[1]):
-            out[:, i] = (eye_n @ data.getcol(i)).ravel()
-    else:
-        for i in range(data.shape[1]):
-            out[:, i] = np.bincount(groups, weights=data[:, i])
+    eye_n = sps.eye(ngroups, format="csc")[:, groups]
+    for i in range(data.shape[1]):
+        out[:, i] = _safe_toarray(eye_n @ data.getcol(i).unpack()).ravel()
     return out
 
 
@@ -684,13 +721,14 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
     def __init__(
         self,
+        *,
         l1_ratio: float = 0,
-        P1="identity",
-        P2: Union[str, np.ndarray, sparse.spmatrix] = "identity",
+        P1: Optional[Union[str, np.ndarray]] = "identity",
+        P2: Optional[Union[str, np.ndarray, sparse.spmatrix]] = "identity",
         fit_intercept=True,
         family: Union[str, ExponentialDispersionModel] = "normal",
         link: Union[str, Link] = "auto",
-        solver="auto",
+        solver: str = "auto",
         max_iter=100,
         gradient_tol: Optional[float] = None,
         step_size_tol: Optional[float] = None,
@@ -713,6 +751,13 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         b_ineq: Optional[np.ndarray] = None,
         force_all_finite: bool = True,
         drop_first: bool = False,
+        robust: bool = True,
+        expected_information: bool = False,
+        formula: Optional[FormulaSpec] = None,
+        interaction_separator: str = ":",
+        categorical_format: str = "{name}[{category}]",
+        cat_missing_method: str = "fail",
+        cat_missing_name: str = "(MISSING)",
     ):
         self.l1_ratio = l1_ratio
         self.P1 = P1
@@ -743,6 +788,13 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self.b_ineq = b_ineq
         self.force_all_finite = force_all_finite
         self.drop_first = drop_first
+        self.robust = robust
+        self.expected_information = expected_information
+        self.formula = formula
+        self.interaction_separator = interaction_separator
+        self.categorical_format = categorical_format
+        self.cat_missing_method = cat_missing_method
+        self.cat_missing_name = cat_missing_name
 
     @property
     def family_instance(self) -> ExponentialDispersionModel:
@@ -762,13 +814,13 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
     def _get_start_coef(
         self,
-        start_params,
         X: Union[tm.MatrixBase, tm.StandardizedMatrix],
         y: np.ndarray,
         sample_weight: np.ndarray,
         offset: Optional[np.ndarray],
-        col_means: Optional[np.ndarray],
+        col_means: np.ndarray,
         col_stds: Optional[np.ndarray],
+        dtype,
     ) -> np.ndarray:
         if self.warm_start and hasattr(self, "coef_"):
             coef = self.coef_  # type: ignore
@@ -778,7 +830,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             if self._center_predictors:
                 _standardize_warm_start(coef, col_means, col_stds)  # type: ignore
 
-        elif start_params is None:
+        elif self.start_params is None:
             if self.fit_intercept:
                 coef = np.zeros(
                     X.shape[1] + 1, dtype=_float_itemsize_to_dtype[X.dtype.itemsize]
@@ -792,13 +844,28 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 )
 
         else:  # assign given array as start values
-            coef = start_params
+            coef = check_array(
+                self.start_params,
+                accept_sparse=False,
+                ensure_2d=False,
+                dtype=dtype,
+                copy=True,
+                **{keyword_finiteness: True},
+            )
+
+            if coef.shape != (len(col_means) + self.fit_intercept,):
+                raise ValueError(
+                    "Start values for parameters must have the right length "
+                    f"and dimension; got {coef.shape}, needed "
+                    f"({len(col_means) + self.fit_intercept},)."
+                )
+
             if self._center_predictors:
                 _standardize_warm_start(coef, col_means, col_stds)  # type: ignore
 
         # If starting values are outside the specified bounds (if set),
         # bring the starting value exactly at the bound.
-        idx = 1 if self.fit_intercept else 0
+        idx = int(self.fit_intercept)
         if self.lower_bounds is not None:
             if np.any(coef[idx:] < self.lower_bounds):
                 warnings.warn(
@@ -815,6 +882,44 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 coef[idx:] = np.minimum(coef[idx:], self.upper_bounds)
 
         return coef
+
+    def _convert_from_pandas(
+        self, df: pd.DataFrame, context: Optional[Mapping[str, Any]] = None
+    ) -> tm.MatrixBase:
+        """Convert a pandas data frame to a tabmat matrix."""
+        if hasattr(self, "X_model_spec_"):
+            return self.X_model_spec_.get_model_matrix(df, context=context)
+
+        cat_missing_method_after_alignment = getattr(self, "cat_missing_method", "fail")
+
+        if hasattr(self, "feature_dtypes_"):
+            df = _align_df_categories(
+                df,
+                self.feature_dtypes_,
+                getattr(self, "has_missing_category_", {}),
+                cat_missing_method_after_alignment,
+            )
+            if cat_missing_method_after_alignment == "convert":
+                df = _add_missing_categories(
+                    df=df,
+                    dtypes=self.feature_dtypes_,
+                    feature_names=self.feature_names_,
+                    cat_missing_name=self.cat_missing_name,
+                    categorical_format=self.categorical_format,
+                )
+                # there should be no missing categories after this
+                cat_missing_method_after_alignment = "fail"
+
+        X = tm.from_pandas(
+            df,
+            drop_first=self.drop_first,
+            categorical_format=getattr(  # convention prior to v3
+                self, "categorical_format", "{name}__{category}"
+            ),
+            cat_missing_method=cat_missing_method_after_alignment,
+        )
+
+        return X
 
     def _set_up_for_fit(self, y: np.ndarray) -> None:
         #######################################################################
@@ -842,7 +947,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             elif (self.lower_bounds is None) and (self.upper_bounds is None):
                 if np.all(np.asarray(self.l1_ratio) == 0):
                     self._solver = "irls-ls"
-                elif getattr(self, "alpha", 1) == 0 and not self.alpha_search:
+                elif (
+                    hasattr(self, "alpha") and self.alpha == 0 and not self.alpha_search
+                ):
                     self._solver = "irls-ls"
                 else:
                     self._solver = "irls-cd"
@@ -859,8 +966,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         else:
             self._gradient_tol = self.gradient_tol
 
-        self._random_state = check_random_state(self.random_state)
-
         # 1.4 additional validations ##########################################
         if self.check_input:
             if not np.all(self._family_instance.in_y_range(y)):
@@ -868,12 +973,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                     "Some value(s) of y are out of the valid range for family"
                     f"{self._family_instance.__class__.__name__}."
                 )
-
-    def _tear_down_from_fit(self):
-        """
-        Delete attributes that were only needed for the fit method.
-        """
-        del self._random_state
 
     def _get_alpha_path(
         self,
@@ -914,7 +1013,11 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                     warnings.warn("`min_alpha` is set. Ignoring `min_alpha_ratio`.")
                 min_alpha = self.min_alpha
             return np.logspace(
-                np.log(max_alpha), np.log(min_alpha), self.n_alphas, base=np.e
+                np.log(max_alpha),
+                np.log(min_alpha),
+                self.n_alphas,
+                base=np.e,
+                dtype=X.dtype,
             )
 
         if np.all(P1_no_alpha == 0):
@@ -968,8 +1071,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         b_ineq: Optional[np.ndarray],
     ) -> np.ndarray:
         """
-        Must be run after running :func:`_set_up_for_fit` and before running
-        :func:`_tear_down_from_fit`. Sets ``self.coef_`` and ``self.intercept_``.
+        Must be run after running :func:`_set_up_for_fit`. Sets
+        ``self.coef_`` and ``self.intercept_``.
         """
         fixed_inner_tol = None
         if (
@@ -1075,7 +1178,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         A_ineq: Optional[np.ndarray],
         b_ineq: Optional[np.ndarray],
     ) -> np.ndarray:
-
         self.coef_path_ = np.empty((len(alphas), len(coef)), dtype=X.dtype)
 
         for k, alpha in enumerate(alphas):
@@ -1101,7 +1203,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         return self.coef_path_
 
     def report_diagnostics(
-        self, full_report: bool = False, custom_columns: Optional[Iterable] = None
+        self, *, full_report: bool = False, custom_columns: Optional[Iterable] = None
     ) -> None:
         """Print diagnostics to ``stdout``.
 
@@ -1115,7 +1217,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         custom_columns : iterable, optional (default=None)
             Print only the specified columns.
         """
-        diagnostics = self.get_formatted_diagnostics(full_report, custom_columns)
+        diagnostics = self.get_formatted_diagnostics(
+            full_report=full_report, custom_columns=custom_columns
+        )
         if isinstance(diagnostics, str):
             print(diagnostics)
             return
@@ -1127,9 +1231,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             print(diagnostics)
 
     def get_formatted_diagnostics(
-        self, full_report: bool = False, custom_columns: Optional[Iterable] = None
+        self, *, full_report: bool = False, custom_columns: Optional[Iterable] = None
     ) -> Union[str, pd.DataFrame]:
-        """Get formatted diagnostics; can be printed with _report_diagnostics.
+        """Get formatted diagnostics which can be printed with report_diagnostics.
 
         Parameters
         ----------
@@ -1187,8 +1291,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self,
         X: ArrayLike,
         offset: Optional[ArrayLike] = None,
+        *,
         alpha_index: Optional[Union[int, Sequence[int]]] = None,
         alpha: Optional[Union[float, Sequence[float]]] = None,
+        context: Optional[Union[int, Mapping[str, Any]]] = None,
     ):
         """Compute the linear predictor, ``X * coef_ + intercept_``.
 
@@ -1213,6 +1319,14 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             Sets the alpha(s) to use in case ``alpha_search`` is ``True``.
             Incompatible with ``alpha_index`` (see above).
 
+        context : Optional[Union[int, Mapping[str, Any]]], default=None
+            The context to add to the evaluation context of the formula with,
+            e.g., custom transforms. If an integer, the context is taken from
+            the stack frame of the caller at the given depth. Otherwise, a
+            mapping from variable names to values is expected. By default,
+            no context is added. Set ``context=0`` to make the calling scope
+            available.
+
         Returns
         -------
         array, shape (n_samples, n_alphas)
@@ -1227,6 +1341,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         elif alpha is not None:
             alpha_index = [self._find_alpha_index(a) for a in alpha]  # type: ignore
 
+        if isinstance(X, pd.DataFrame):
+            captured_context = capture_context(
+                context + 1 if isinstance(context, int) else context
+            )
+            X = self._convert_from_pandas(X, context=captured_context)
+
         X = check_array_tabmat_compliant(
             X,
             accept_sparse=["csr", "csc", "coo"],
@@ -1234,7 +1354,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             copy=True,
             ensure_2d=True,
             allow_nd=False,
-            drop_first=self.drop_first,
+            drop_first=getattr(self, "drop_first", False),
         )
 
         if alpha_index is None:
@@ -1242,7 +1362,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             if offset is not None:
                 xb += offset
         elif np.isscalar(alpha_index):  # `None` doesn't qualify
-            xb = X @ self.coef_path_[alpha_index] + self.intercept_path_[alpha_index]
+            xb = X @ self.coef_path_[alpha_index] + self.intercept_path_[alpha_index]  # type: ignore
             if offset is not None:
                 xb += offset
         else:  # hopefully a list or some such
@@ -1263,8 +1383,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         X: ShapedArrayLike,
         sample_weight: Optional[ArrayLike] = None,
         offset: Optional[ArrayLike] = None,
+        *,
         alpha_index: Optional[Union[int, Sequence[int]]] = None,
         alpha: Optional[Union[float, Sequence[float]]] = None,
+        context: Optional[Union[int, Mapping[str, Any]]] = None,
     ):
         """Predict using GLM with feature matrix ``X``.
 
@@ -1292,23 +1414,25 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             Sets the alpha(s) to use in case ``alpha_search`` is ``True``.
             Incompatible with ``alpha_index`` (see above).
 
+        context : Optional[Union[int, Mapping[str, Any]]], default=None
+            The context to add to the evaluation context of the formula with,
+            e.g., custom transforms. If an integer, the context is taken from
+            the stack frame of the caller at the given depth. Otherwise, a
+            mapping from variable names to values is expected. By default,
+            no context is added. Set ``context=0`` to make the calling scope
+            available.
+
         Returns
         -------
         array, shape (n_samples, n_alphas)
             Predicted values times ``sample_weight``.
         """
-        if isinstance(X, pd.DataFrame) and hasattr(self, "feature_dtypes_"):
-            X = _align_df_categories(X, self.feature_dtypes_)
+        if isinstance(X, pd.DataFrame):
+            captured_context = capture_context(
+                context + 1 if isinstance(context, int) else context
+            )
+            X = self._convert_from_pandas(X, context=captured_context)
 
-        X = check_array_tabmat_compliant(
-            X,
-            accept_sparse=["csr", "csc", "coo"],
-            dtype="numeric",
-            copy=self._should_copy_X(),
-            ensure_2d=True,
-            allow_nd=False,
-            drop_first=self.drop_first,
-        )
         eta = self.linear_predictor(
             X, offset=offset, alpha_index=alpha_index, alpha=alpha
         )
@@ -1320,17 +1444,401 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         sample_weight = _check_weights(sample_weight, X.shape[0], X.dtype)
         return mu * sample_weight
 
+    def coef_table(
+        self,
+        X=None,
+        y=None,
+        sample_weight=None,
+        offset=None,
+        *,
+        confidence_level=0.95,
+        mu=None,
+        dispersion=None,
+        robust=None,
+        clusters: np.ndarray = None,
+        expected_information=None,
+        context: Optional[Union[int, Mapping[str, Any]]] = None,
+    ):
+        """Get a table of of the regression coefficients.
+
+        Includes coefficient estimates, standard errors, t-values, p-values
+        and confidence intervals.
+
+        Parameters
+        ----------
+        confidence_level : float, optional, default=0.95
+            The confidence level for the confidence intervals.
+        X : {array-like, sparse matrix}, shape (n_samples, n_features), optional
+            Training data. Can be omitted if a covariance matrix has already
+            been computed or if standard errors, etc. are not desired.
+        y : array-like, shape (n_samples,), optional
+            Target values. Can be omitted if a covariance matrix has already
+            been computed.
+        mu : array-like, optional, default=None
+            Array with predictions. Estimated if absent.
+        offset : array-like, optional, default=None
+            Array with additive offsets.
+        sample_weight : array-like, shape (n_samples,), optional, default=None
+            Individual weights for each sample.
+        dispersion : float, optional, default=None
+            The dispersion parameter. Estimated if absent.
+        robust : boolean, optional, default=None
+            Whether to compute robust standard errors instead of normal ones.
+            If not specified, the model's ``robust`` attribute is used.
+        clusters : array-like, optional, default=None
+            Array with cluster membership. Clustered standard errors are
+            computed if clusters is not None.
+        expected_information : boolean, optional, default=None
+            Whether to use the expected or observed information matrix.
+            Only relevant when computing robust standard errors.
+            If not specified, the model's ``expected_information`` attribute is used.
+        context : Optional[Union[int, Mapping[str, Any]]], default=None
+            The context to add to the evaluation context of the formula with,
+            e.g., custom transforms. If an integer, the context is taken from
+            the stack frame of the caller at the given depth. Otherwise, a
+            mapping from variable names to values is expected. By default,
+            no context is added. Set ``context=0`` to make the calling scope
+            available.
+
+        Returns
+        -------
+        pandas.DataFrame
+            A table of the regression results.
+        """
+        if self.fit_intercept:
+            names = ["intercept"] + list(self.feature_names_)
+            beta = np.concatenate([[self.intercept_], self.coef_])
+        else:
+            names = self.feature_names_
+            beta = self.coef_
+
+        captured_context = capture_context(
+            context + 1 if isinstance(context, int) else context
+        )
+        if (X is None) and (getattr(self, "covariance_matrix_", None) is None):
+            return pd.Series(beta, index=names, name="coef")
+
+        covariance_matrix = self.covariance_matrix(
+            X=X,
+            y=y,
+            mu=mu,
+            offset=offset,
+            sample_weight=sample_weight,
+            dispersion=dispersion,
+            robust=robust,
+            clusters=clusters,
+            expected_information=expected_information,
+            context=captured_context,
+        )
+
+        significance_level = 1 - confidence_level
+
+        std_errors = np.sqrt(np.diag(covariance_matrix))
+        ci_lower = beta + stats.norm.ppf(significance_level / 2) * std_errors
+        ci_upper = beta + stats.norm.ppf(1 - significance_level / 2) * std_errors
+        t_values = beta / std_errors
+        p_values = 2.0 * (1.0 - stats.norm.cdf(np.abs(t_values)))
+
+        return pd.DataFrame(
+            {
+                "coef": beta,
+                "se": std_errors,
+                "t_value": t_values,
+                "p_value": p_values,
+                "ci_lower": ci_lower,
+                "ci_upper": ci_upper,
+            },
+            index=names,
+        )
+
+    def wald_test(
+        self,
+        X=None,
+        y=None,
+        sample_weight=None,
+        offset=None,
+        *,
+        R: Optional[np.ndarray] = None,
+        features: Optional[Union[str, list[str]]] = None,
+        terms: Optional[Union[str, list[str]]] = None,
+        formula: Optional[str] = None,
+        r: Optional[Sequence] = None,
+        mu=None,
+        dispersion=None,
+        robust=None,
+        clusters: np.ndarray = None,
+        expected_information=None,
+        context: Optional[Union[int, Mapping[str, Any]]] = None,
+    ) -> WaldTestResult:
+        """Compute the Wald test statistic and p-value for a linear hypothesis.
+
+        The left hand side of the hypothesis may be specified in the following ways:
+
+        - ``R``: The restriction matrix representing the linear combination of
+          coefficients to test.
+        - ``features``: The name of a feature or a list of features to test.
+        - ``terms``: The name of a term or a list of terms to test.
+        - ``formula``: A formula string specifying the hypothesis to test.
+
+        The right hand side of the tested hypothesis is specified by ``r``. In the
+        case of a ``terms``-based test, the null hypothesis is that each coefficient
+        relating to a term equals the corresponding value in ``r``.
+
+        Parameters
+        ----------
+        X : {array-like, sparse matrix}, shape (n_samples, n_features), optional
+            Training data. Can be omitted if a covariance matrix has already
+            been computed.
+        y : array-like, shape (n_samples,), optional
+            Target values. Can be omitted if a covariance matrix has already
+            been computed.
+        sample_weight : array-like, shape (n_samples,), optional, default=None
+            Individual weights for each sample.
+        offset : array-like, optional, default=None
+            Array with additive offsets.
+        R : np.ndarray, optional, default=None
+            The restriction matrix representing the linear combination of coefficients
+            to test.
+        features : Union[str, list[str]], optional, default=None
+            The name of a feature or a list of features to test.
+        terms : Union[str, list[str]], optional, default=None
+            The name of a term or a list of terms to test. It can cover one or more
+            coefficients. In the case of a model based on a formula, a term is one
+            of the expressions separated by ``+`` signs. Otherwise, a term is one column
+            in the input data. As categorical variables need not be one-hot encoded in
+            glum, in their case, the hypothesis to be tested is that the coefficients
+            of all categories are equal to ``r``.
+        r : Sequence, optional, default=None
+            The vector representing the values of the linear combination.
+            If None, the test is for whether the linear combinations of the coefficients
+            are zero.
+        mu : array-like, optional, default=None
+            Array with predictions. Estimated if absent.
+        dispersion : float, optional, default=None
+            The dispersion parameter. Estimated if absent.
+        robust : boolean, optional, default=None
+            Whether to compute robust standard errors instead of normal ones.
+            If not specified, the model's ``robust`` attribute is used.
+        clusters : array-like, optional, default=None
+            Array with cluster membership. Clustered standard errors are
+            computed if clusters is not None.
+        expected_information : boolean, optional, default=None
+            Whether to use the expected or observed information matrix.
+            Only relevant when computing robust standard errors.
+            If not specified, the model's ``expected_information`` attribute is used.
+        context : Optional[Union[int, Mapping[str, Any]]], default=None
+            The context to add to the evaluation context of the formula with,
+            e.g., custom transforms. If an integer, the context is taken from
+            the stack frame of the caller at the given depth. Otherwise, a
+            mapping from variable names to values is expected. By default,
+            no context is added. Set ``context=0`` to make the calling scope
+            available.
+
+        Returns
+        -------
+        WaldTestResult
+            NamedTuple with test statistic, p-value, and degrees of freedom.
+        """
+
+        num_lhs_specs = sum(
+            [
+                R is not None,
+                features is not None,
+                terms is not None,
+                formula is not None,
+            ]
+        )
+        if num_lhs_specs != 1:
+            raise ValueError(
+                "Exactly one of R, features, terms or formula must be specified. "
+                f"Received {num_lhs_specs} specifications."
+            )
+
+        captured_context = capture_context(
+            context + 1 if isinstance(context, int) else context
+        )
+
+        kwargs = {
+            "X": X,
+            "y": y,
+            "sample_weight": sample_weight,
+            "offset": offset,
+            "mu": mu,
+            "dispersion": dispersion,
+            "robust": robust,
+            "clusters": clusters,
+            "expected_information": expected_information,
+            "context": captured_context,
+        }
+
+        if R is not None:
+            return self._wald_test_matrix(R=R, r=np.asarray(r), **kwargs)
+        if features is not None:
+            return self._wald_test_feature_names(features=features, values=r, **kwargs)
+        if terms is not None:
+            return self._wald_test_term_names(terms=terms, values=r, **kwargs)
+        if formula is not None:
+            if r is not None:
+                raise ValueError("Cannot specify both formula and r")
+            return self._wald_test_formula(formula=formula, **kwargs)
+
+        raise RuntimeError("This should never happen")
+
+    def _wald_test_matrix(
+        self, R: np.ndarray, r: Optional[np.ndarray] = None, **kwargs
+    ) -> WaldTestResult:
+        """
+        Perform a Wald test statistic for a hypothesis specified by constraints
+        given as ``R @ coef_ = r``. Under the null hypothesis, the test statistic
+        follows a chi-squared distribution with ``R.shape[0]`` degrees of freedom.
+        """
+        covariance_matrix = self.covariance_matrix(**kwargs)
+
+        if self.fit_intercept:
+            beta = np.concatenate([[self.intercept_], self.coef_])
+        else:
+            beta = self.coef_
+
+        if r is None:
+            r = np.zeros(R.shape[0])
+
+        if R.shape[0] != r.shape[0]:
+            raise ValueError("R and r must have the same number of rows")
+        if R.shape[1] != beta.shape[0]:
+            raise ValueError("R must have one column for each coefficient")
+        # There is no point in checking that R is full rank. If it is not, then
+        # solve(RVR, Rb_r) will raise an exception.
+
+        beta = beta[:, np.newaxis]
+        r = r[:, np.newaxis]
+        Q = R.shape[0]
+
+        Rb_r = R @ beta - r  # R \beta - r
+        RVR = R @ covariance_matrix @ R.T  # R V R^T
+
+        # We want to calculate Rb_r^T (RVR)^{-1} Rb_r.
+        # We can do it in a more numerically stable way by using `scipy.linalg.solve`:
+        try:
+            test_stat = (Rb_r.T @ linalg.solve(RVR, Rb_r))[0]
+        except linalg.LinAlgError as err:
+            raise linalg.LinAlgError("The restriction matrix is not full rank") from err
+        p_value = 1 - stats.chi2.cdf(test_stat, Q)
+
+        return WaldTestResult(test_stat, p_value, Q)
+
+    def _wald_test_feature_names(
+        self,
+        features: Union[str, list[str]],
+        values: Optional[Sequence] = None,
+        **kwargs,
+    ) -> WaldTestResult:
+        """
+        Perform a Wald test for the hypothesis that the coefficients of the
+        features in ``features`` are equal to the values in ``values``.
+        """
+
+        if isinstance(features, str):
+            features = [features]
+
+        if values is not None:
+            r = np.array(values)
+            if len(features) != len(values):
+                raise ValueError("features and values must have the same length")
+        else:
+            r = None
+
+        if self.fit_intercept:
+            names = ["intercept"] + list(self.feature_names_)
+            beta = np.concatenate([[self.intercept_], self.coef_])
+        else:
+            names = self.feature_names_
+            beta = self.coef_
+
+        R = np.zeros((len(features), len(beta)))
+        for i, feature in enumerate(features):
+            try:
+                j = names.index(feature)
+            except ValueError:
+                raise ValueError(f"feature {feature} is not in the model") from None
+            R[i, j] = 1
+
+        return self._wald_test_matrix(R=R, r=r, **kwargs)
+
+    def _wald_test_formula(self, formula: str, **kwargs) -> WaldTestResult:
+        """
+        Perform a Wald test for the hypothesis described in ``formula``.
+        """
+
+        if self.fit_intercept:
+            names = ["intercept"] + list(self.feature_names_)
+        else:
+            names = self.feature_names_
+
+        parser = LinearConstraintParser(names)
+
+        R, r = parser.get_matrix(formula)
+
+        return self._wald_test_matrix(R=R, r=r, **kwargs)
+
+    def _wald_test_term_names(
+        self, terms: Union[str, list[str]], values: Optional[Sequence] = None, **kwargs
+    ) -> WaldTestResult:
+        """
+        Perform a Wald test for the hypothesis that the coefficients of the
+        features in ``terms`` are equal to the values in ``terms``.
+        """
+
+        if isinstance(terms, str):
+            terms = [terms]
+
+        if values is not None:
+            rhs = True
+            if len(terms) != len(values):
+                raise ValueError("terms and values must have the same length")
+        else:
+            rhs = False
+            values = [None] * len(terms)
+
+        if self.fit_intercept:
+            names = np.array(["intercept"] + list(self.term_names_))
+            beta = np.concatenate([[self.intercept_], self.coef_])
+        else:
+            names = np.array(self.term_names_)
+            beta = self.coef_
+
+        R_list = []
+        r_list = []
+        for term, value in zip(terms, values):
+            R_indices, *_ = np.where(names == term)
+            num_restrictions = len(R_indices)
+            if num_restrictions == 0:
+                raise ValueError(f"term {term} is not in the model")
+            R_current = np.zeros((num_restrictions, len(beta)), dtype=np.float64)
+            R_current[np.arange(num_restrictions), R_indices] = 1.0
+            R_list.append(R_current)
+
+            if rhs:
+                r_list.append(np.full(num_restrictions, fill_value=value))
+
+        R = np.vstack(R_list)
+        r = np.concatenate(r_list) if rhs else None
+
+        return self._wald_test_matrix(R=R, r=r, **kwargs)
+
     def std_errors(
         self,
-        X,
-        y,
-        mu=None,
-        offset=None,
+        X=None,
+        y=None,
         sample_weight=None,
+        offset=None,
+        *,
+        mu=None,
         dispersion=None,
-        robust=True,
+        robust=None,
         clusters: np.ndarray = None,
-        expected_information=False,
+        expected_information=None,
+        store_covariance_matrix=False,
+        context: Optional[Union[int, Mapping[str, Any]]] = None,
     ):
         """Calculate standard errors for generalized linear models.
 
@@ -1339,77 +1847,128 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         Parameters
         ----------
-        X : {array-like, sparse matrix}, shape (n_samples, n_features)
-            Training data.
-        y : array-like, shape (n_samples,)
-            Target values.
-        mu : array-like, optional, default=None
-            Array with predictions. Estimated if absent.
+        X : {array-like, sparse matrix}, shape (n_samples, n_features), optional
+            Training data. Can be omitted if a covariance matrix has already
+            been computed.
+        y : array-like, shape (n_samples,), optional
+            Target values. Can be omitted if a covariance matrix has already
+            been computed.
+        sample_weight : array-like, shape (n_samples,), optional, default=None
+            Individual weights for each sample.
         offset : array-like, optional, default=None
             Array with additive offsets.
-        sample_weight : array-like, shape (n_samples,), optional (default=None)
-            Individual weights for each sample.
+        mu : array-like, optional, default=None
+            Array with predictions. Estimated if absent.
         dispersion : float, optional, default=None
             The dispersion parameter. Estimated if absent.
-        robust : boolean, optional, default=True
+        robust : boolean, optional, default=None
             Whether to compute robust standard errors instead of normal ones.
+            If not specified, the model's ``robust`` attribute is used.
         clusters : array-like, optional, default=None
-            Array with clusters membership. Clustered standard errors are
+            Array with cluster membership. Clustered standard errors are
             computed if clusters is not None.
-        expected_information : boolean, optional, default=False
+        expected_information : boolean, optional, default=None
             Whether to use the expected or observed information matrix.
-            Only relevant when computing robust std-errors.
+            Only relevant when computing robust standard errors.
+            If not specified, the model's ``expected_information`` attribute is used.
+        store_covariance_matrix : boolean, optional, default=False
+            Whether to store the covariance matrix in the model instance.
+            If a covariance matrix has already been stored, it will be overwritten.
+        context : Optional[Union[int, Mapping[str, Any]]], default=None
+            The context to add to the evaluation context of the formula with,
+            e.g., custom transforms. If an integer, the context is taken from
+            the stack frame of the caller at the given depth. Otherwise, a
+            mapping from variable names to values is expected. By default,
+            no context is added. Set ``context=0`` to make the calling scope
+            available.
         """
+        captured_context = capture_context(
+            context + 1 if isinstance(context, int) else context
+        )
+
         return np.sqrt(
             self.covariance_matrix(
                 X=X,
                 y=y,
-                mu=mu,
-                offset=offset,
                 sample_weight=sample_weight,
+                offset=offset,
+                mu=mu,
                 dispersion=dispersion,
                 robust=robust,
                 clusters=clusters,
                 expected_information=expected_information,
+                store_covariance_matrix=store_covariance_matrix,
+                context=captured_context,
             ).diagonal()
         )
 
     def covariance_matrix(
         self,
-        X,
-        y,
-        mu=None,
-        offset=None,
+        X=None,
+        y=None,
         sample_weight=None,
+        offset=None,
+        *,
+        mu=None,
         dispersion=None,
-        robust=True,
-        clusters: np.ndarray = None,
-        expected_information=False,
+        robust=None,
+        clusters: Optional[np.ndarray] = None,
+        expected_information=None,
+        store_covariance_matrix=False,
+        skip_checks=False,
+        context: Optional[Union[int, Mapping[str, Any]]] = None,
     ):
         """Calculate the covariance matrix for generalized linear models.
 
         Parameters
         ----------
-        X : {array-like, sparse matrix}, shape (n_samples, n_features)
-            Training data.
-        y : array-like, shape (n_samples,)
-            Target values.
+        X : {array-like, sparse matrix}, shape (n_samples, n_features), optional
+            Training data. Can be omitted if a covariance matrix has already
+            been computed.
+
+        y : array-like, shape (n_samples,), optional
+            Target values. Can be omitted if a covariance matrix has already
+            been computed.
+
         mu : array-like, optional, default=None
             Array with predictions. Estimated if absent.
+
         offset : array-like, optional, default=None
             Array with additive offsets.
-        sample_weight : array-like, shape (n_samples,), optional (default=None)
+
+        sample_weight : array-like, shape (n_samples,), optional, default=None
             Individual weights for each sample.
+
         dispersion : float, optional, default=None
             The dispersion parameter. Estimated if absent.
-        robust : boolean, optional, default=True
+
+        robust : boolean, optional, default=None
             Whether to compute robust standard errors instead of normal ones.
+            If not specified, the model's ``robust`` attribute is used.
+
         clusters : array-like, optional, default=None
-            Array with clusters membership. Clustered standard errors are
+            Array with cluster membership. Clustered standard errors are
             computed if clusters is not None.
-        expected_information : boolean, optional, default=False
+
+        expected_information : boolean, optional, default=None
             Whether to use the expected or observed information matrix.
             Only relevant when computing robust standard errors.
+            If not specified, the model's ``expected_information`` attribute is used.
+
+        store_covariance_matrix : boolean, optional, default=False
+            Whether to store the covariance matrix in the model instance.
+            If a covariance matrix has already been stored, it will be overwritten.
+
+        skip_checks : boolean, optional, default=False
+            Whether to skip input validation. For internal use only.
+
+        context : Optional[Union[int, Mapping[str, Any]]], default=None
+            The context to add to the evaluation context of the formula with,
+            e.g., custom transforms. If an integer, the context is taken from
+            the stack frame of the caller at the given depth. Otherwise, a
+            mapping from variable names to values is expected. By default,
+            no context is added. Set ``context=0`` to make the calling scope
+            available.
 
         Notes
         -----
@@ -1436,10 +1995,11 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         correction of :math:`\\frac{N}{N-p}`.
 
         The clustered covariance matrix uses a similar approach to the robust (HC-1)
-        covariance matrix. However, instead of using :math:`\\mathbf{G}^{T}(\\hat{\\theta}
-        \\mathbf{G}(\\hat{\\theta})` directly, we first sum over all the groups first.
-        The finite-sample correction is affected as well, becoming :math:`\\frac{M}{M-1}
-        \\frac{N}{N-p}` where :math:`M` is the number of groups.
+        covariance matrix. However, instead of using :math:`\\mathbf{G}^{T}(
+        \\hat{\\theta}\\mathbf{G}(\\hat{\\theta})` directly, we first sum over
+        all the groups first. The finite-sample correction is affected as well,
+        becoming :math:`\\frac{M}{M-1}\\frac{N}{N-p}` where :math:`M` is the number
+        of groups.
 
         References
         ----------
@@ -1452,26 +2012,107 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
            Cambridge university press
 
         """
-        (
-            X,
-            y,
-            sample_weight,
-            offset,
-            sum_weights,
-            P1,
-            P2,
-        ) = self._set_up_and_check_fit_args(
-            X,
-            y,
-            sample_weight,
-            offset,
-            solver=self.solver,
-            force_all_finite=self.force_all_finite,
+        self.covariance_matrix_: Union[np.ndarray, None]
+
+        captured_context = capture_context(
+            context + 1 if isinstance(context, int) else context
         )
 
-        # Here we don't want sample_weight to be normalized to sum up to 1
-        # We want sample_weight to sum up to the number of samples
-        sample_weight = sample_weight * sum_weights
+        if robust is None:
+            _robust = getattr(self, "robust", True)
+        else:
+            _robust = robust
+
+        if expected_information is None:
+            _expected_information = getattr(self, "expected_information", False)
+        else:
+            _expected_information = expected_information
+
+        if (
+            (
+                hasattr(self, "alpha")
+                and isinstance(self.alpha, (int, float))
+                and self.alpha > 0
+            )
+            or (hasattr(self, "alpha_") and self.alpha_ > 0)  # glm_cv
+            or (hasattr(self, "_alphas") and self._alphas[-1] > 0)  # alpha_search
+        ):
+            warnings.warn(
+                "Covariance matrix estimation assumes that the model is not "
+                "penalized. You are estimating a penalized model. The covariance "
+                "matrix will be incorrect."
+            )
+
+        cannot_estimate_cov = (y is None) and not hasattr(self, "y_model_spec_")
+        cannot_estimate_cov |= X is None
+
+        if not skip_checks:
+            if cannot_estimate_cov and self.covariance_matrix_ is None:
+                raise ValueError(
+                    "Either X and y must be provided or the covariance matrix "
+                    "must have been previously computed."
+                )
+
+            if cannot_estimate_cov and store_covariance_matrix:
+                raise ValueError(
+                    "X and y must be provided if 'store_covariance_matrix' is True."
+                )
+
+            if store_covariance_matrix and self.covariance_matrix_ is not None:
+                warnings.warn(
+                    "A covariance matrix has already been computed. "
+                    "It will be overwritten."
+                )
+
+            if X is None and y is None:
+                if (
+                    offset is not None
+                    or mu is not None
+                    or offset is not None
+                    or sample_weight is not None
+                    or dispersion is not None
+                    or robust is not None
+                    or clusters is not None
+                    or expected_information is not None
+                ):
+                    raise ValueError(
+                        "Cannot reestimate the covariance matrix with different "
+                        "parameters if X and y are not provided."
+                    )
+                return self.covariance_matrix_
+
+            if hasattr(self, "y_model_spec_"):
+                y = self.y_model_spec_.get_model_matrix(X).toarray().ravel()
+                # This has to go first because X is modified in the next line
+
+            if isinstance(X, pd.DataFrame):
+                X = self._convert_from_pandas(X, context=captured_context)
+
+            X, y = check_X_y_tabmat_compliant(
+                X,
+                y,
+                accept_sparse=["csr", "csc", "coo"],
+                dtype="numeric",
+                copy=self._should_copy_X(),
+                ensure_2d=True,
+                allow_nd=False,
+                drop_first=getattr(self, "drop_first", False),
+            )
+
+            if isinstance(X, np.ndarray):
+                X = tm.DenseMatrix(X)
+            if sparse.issparse(X) and not isinstance(X, tm.SparseMatrix):
+                X = tm.SparseMatrix(X)
+
+            sample_weight = _check_weights(
+                sample_weight,
+                y.shape[0],
+                X.dtype,
+                force_all_finite=self.force_all_finite,
+            )
+            offset = _check_offset(offset, y.shape[0], X.dtype)
+
+        sum_weights = np.sum(sample_weight)  # type: ignore
 
         mu = self.predict(X, offset=offset) if mu is None else np.asanyarray(mu)
 
@@ -1486,16 +2127,16 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 method="pearson",
             )
 
-        if not (
-            sparse.issparse(X) or isinstance(X, (tm.SplitMatrix, tm.CategoricalMatrix))
+        if (
+            np.linalg.cond(_safe_toarray(X.sandwich(np.ones(X.shape[0]))))
+            > 1 / sys.float_info.epsilon**2
         ):
-            if np.linalg.cond(X) > 1 / sys.float_info.epsilon:
-                raise np.linalg.LinAlgError(
-                    "Matrix is singular. Cannot estimate standard errors."
-                )
+            raise np.linalg.LinAlgError(
+                "Matrix is singular. Cannot estimate standard errors."
+            )
 
-        if robust or clusters is not None:
-            if expected_information:
+        if _robust or clusters is not None:
+            if _expected_information:
                 oim_fct = self._family_instance._fisher_information
             else:
                 oim_fct = self._family_instance._observed_information
@@ -1526,10 +2167,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                     / (sum_weights - self.n_features_in_ - int(self.fit_intercept))
                 )
             else:
-                if isinstance(gradient, tm.SplitMatrix):
-                    inner_part = gradient.sandwich(np.ones_like(y))
-                else:
-                    inner_part = gradient.T @ gradient
+                inner_part = gradient.sandwich(np.ones_like(y, dtype=X.dtype))
                 correction = sum_weights / (
                     sum_weights - self.n_features_in_ - int(self.fit_intercept)
                 )
@@ -1550,6 +2188,9 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 sum_weights - self.n_features_in_ - int(self.fit_intercept)
             )
 
+        if store_covariance_matrix:
+            self.covariance_matrix_ = vcov
+
         return vcov
 
     # Note: check_estimator(GeneralizedLinearRegressor) might raise
@@ -1561,6 +2202,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         y: ShapedArrayLike,
         sample_weight: Optional[ArrayLike] = None,
         offset: Optional[ArrayLike] = None,
+        *,
+        context: Optional[Union[int, Mapping[str, Any]]] = None,
     ):
         """Compute :math:`D^2`, the percentage of deviance explained.
 
@@ -1569,7 +2212,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         the deviance. Note that those two are equal for ``family='normal'``.
 
         :math:`D^2` is defined as
-        :math:`D^2 = 1 - \\frac{D(y_{\\mathrm{true}}, y_{\\mathrm{pred}})}{D_{\\mathrm{null}}}`,
+        :math:`D^2 = 1 - \\frac{D(y_{\\mathrm{true}}, y_{\\mathrm{pred}})}
+        {D_{\\mathrm{null}}}`,
         :math:`D_{\\mathrm{null}}` is the null deviance, i.e. the deviance of a
         model with intercept alone. The best possible score is one and it can be
         negative.
@@ -1587,6 +2231,14 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         offset : array-like, shape (n_samples,), optional (default=None)
 
+        context : Optional[Union[int, Mapping[str, Any]]], default=None
+            The context to add to the evaluation context of the formula with,
+            e.g., custom transforms. If an integer, the context is taken from
+            the stack frame of the caller at the given depth. Otherwise, a
+            mapping from variable names to values is expected. By default,
+            no context is added. Set ``context=0`` to make the calling scope
+            available.
+
         Returns
         -------
         float
@@ -1595,8 +2247,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         # Note, default score defined in RegressorMixin is R^2 score.
         # TODO: make D^2 a score function in module metrics (and thereby get
         #       input validation and so on)
+        captured_context = capture_context(
+            context + 1 if isinstance(context, int) else context
+        )
+
         sample_weight = _check_weights(sample_weight, y.shape[0], y.dtype)
-        mu = self.predict(X, offset=offset)
+        mu = self.predict(X, offset=offset, context=captured_context)
         family = get_family(self.family)
         dev = family.deviance(y, mu, sample_weight=sample_weight)
         y_mean = np.average(y, weights=sample_weight)
@@ -1604,7 +2260,6 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         return 1.0 - dev / dev_null
 
     def _validate_hyperparameters(self) -> None:
-
         if not isinstance(self.fit_intercept, bool):
             raise TypeError(
                 f"The argument fit_intercept must be bool; got {self.fit_intercept}."
@@ -1667,14 +2322,14 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 "scale_predictors=True is not supported when fit_intercept=False."
             )
         if ((self.lower_bounds is not None) or (self.upper_bounds is not None)) and (
-            self.solver not in ["irls-cd", "auto"]
+            self.solver not in ["auto", "irls-cd"]
         ):
             raise ValueError(
                 "Only the 'cd' solver is supported when bounds are set; "
                 f"got {self.solver}."
             )
         if ((self.A_ineq is not None) or (self.b_ineq is not None)) and (
-            self.solver not in ["trust-constr", "auto"]
+            self.solver not in [None, "auto", "trust-constr"]
         ):
             raise ValueError(
                 "Only the 'trust-constr' solver supports inequality constraints; "
@@ -1704,101 +2359,121 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         # If self.copy_X is False, check for data of wrong dtype and error if it exists.
         return self.copy_X or False
 
-    def _is_contiguous(self, X):
-        if isinstance(X, np.ndarray):
-            return X.flags["C_CONTIGUOUS"] or X.flags["F_CONTIGUOUS"]
-        elif isinstance(X, pd.DataFrame):
-            return self._is_contiguous(X.values)
-        else:
-            # If not a numpy array or pandas data frame, we assume it is contiguous.
-            return True
-
     def _set_up_and_check_fit_args(
         self,
         X: ArrayLike,
-        y: ArrayLike,
+        y: Optional[ArrayLike],
         sample_weight: Optional[VectorLike],
         offset: Optional[VectorLike],
-        solver: str,
         force_all_finite,
-    ) -> Tuple[
+        context: Optional[Mapping[str, Any]] = None,
+    ) -> tuple[
         tm.MatrixBase,
         np.ndarray,
         np.ndarray,
         Optional[np.ndarray],
         float,
-        Union[str, np.ndarray],
-        Union[str, np.ndarray],
+        Union[str, np.ndarray, Any],
+        Union[str, np.ndarray, Any],
     ]:
-
-        _dtype = [np.float64, np.float32]
-        if solver == "irls-cd":
-            _stype = ["csc"]
-        else:
-            _stype = ["csc", "csr"]
+        dtype = [np.float64, np.float32]
+        stype = ["csc"] if self.solver == "irls-cd" else ["csc", "csr"]
 
         P1 = self.P1
         P2 = self.P2
 
         copy_X = self._should_copy_X()
+        drop_first = getattr(self, "drop_first", False)
 
         if isinstance(X, pd.DataFrame):
-
-            self.feature_dtypes_ = X.dtypes.to_dict()
-
-            if any(X.dtypes == "category"):
-                self.feature_names_ = list(
-                    chain.from_iterable(
-                        _name_categorical_variables(
-                            dtype.categories, column, self.drop_first
-                        )
-                        if pd.api.types.is_categorical_dtype(dtype)
-                        else [column]
-                        for column, dtype in zip(X.columns, X.dtypes)
-                    )
+            if hasattr(self, "formula") and self.formula is not None:
+                lhs, rhs = _parse_formula(
+                    self.formula, include_intercept=self.fit_intercept
                 )
 
-                def _expand_categorical_penalties(penalty, X, drop_first):
-                    """
-                    If P1 or P2 has the same shape as X before expanding the
-                    categoricals, we assume that the penalty at the location of
-                    the categorical is the same for all levels.
-                    """
-                    if isinstance(penalty, str):
-                        return penalty
-                    if not sparse.issparse(penalty):
-                        penalty = np.asanyarray(penalty)
-
-                    if penalty.shape[0] == X.shape[1]:
-                        if penalty.ndim == 2:
-                            raise ValueError(
-                                "When the penalty is two dimensional, it has "
-                                "to have the same length as the number of "
-                                "columns of X, after the categoricals "
-                                "have been expanded."
-                            )
-                        return np.array(
-                            list(
-                                chain.from_iterable(
-                                    [elmt for _ in dtype.categories[int(drop_first) :]]
-                                    if pd.api.types.is_categorical_dtype(dtype)
-                                    else [elmt]
-                                    for elmt, dtype in zip(penalty, X.dtypes)
-                                )
-                            )
+                if lhs is not None:
+                    if y is not None:
+                        raise ValueError(
+                            "`y` is not allowed when using a two-sided formula. "
+                            "Either set `y=None` or use a one-sided formula."
                         )
-                    else:
-                        return penalty
 
-                P1 = _expand_categorical_penalties(self.P1, X, self.drop_first)
-                P2 = _expand_categorical_penalties(self.P2, X, self.drop_first)
+                    y = tm.from_formula(
+                        formula=lhs,
+                        data=X,
+                        include_intercept=False,
+                        context=context,
+                    )
 
-                X = tm.from_pandas(X, drop_first=self.drop_first)
+                    self.y_model_spec_ = y.model_spec  # type: ignore
+                    y = y.toarray().ravel()  # type: ignore
+
+                X = tm.from_formula(
+                    formula=rhs,
+                    data=X,
+                    include_intercept=False,
+                    ensure_full_rank=self.drop_first,
+                    categorical_format=self.categorical_format,
+                    cat_missing_method=self.cat_missing_method,
+                    interaction_separator=self.interaction_separator,
+                    add_column_for_intercept=False,
+                    context=context,
+                )
+
+                intercept = "1" in X.model_spec.terms
+                if intercept != self.fit_intercept:
+                    raise ValueError(
+                        f"The formula sets the intercept to {intercept}, "
+                        f"contradicting fit_intercept={self.fit_intercept}. "
+                        "You should use fit_intercept to specify the intercept."
+                    )
+
+                self.X_model_spec_ = X.model_spec
+                self.feature_names_ = list(X.model_spec.column_names)
+
+                self.term_names_ = [
+                    term
+                    for term, _, cols in X.model_spec.structure
+                    for _ in range(len(cols))
+                ]
+
             else:
-                self.feature_names_ = X.columns
-                X = tm.from_pandas(X)
+                # Maybe TODO: expand categorical penalties with formulas
 
-        if not self._is_contiguous(X):
+                self.feature_dtypes_ = X.dtypes.to_dict()
+
+                self.has_missing_category_ = {
+                    col: (getattr(self, "cat_missing_method", "fail") == "convert")
+                    and X[col].isna().any()
+                    for col, dtype in self.feature_dtypes_.items()
+                    if isinstance(dtype, pd.CategoricalDtype)
+                }
+
+                if any(X.dtypes == "category"):
+                    P1 = _expand_categorical_penalties(
+                        self.P1, X, drop_first, self.has_missing_category_
+                    )
+                    P2 = _expand_categorical_penalties(
+                        self.P2, X, drop_first, self.has_missing_category_
+                    )
+
+                X = tm.from_pandas(
+                    X,
+                    drop_first=drop_first,
+                    categorical_format=getattr(  # convention prior to v3
+                        self, "categorical_format", "{name}__{category}"
+                    ),
+                    cat_missing_method=getattr(self, "cat_missing_method", "fail"),
+                    cat_missing_name=getattr(self, "cat_missing_name", "(MISSING)"),
+                )
+
+        if y is None:
+            raise ValueError(
+                f"Unless using a two-sided formula, {self.__class__.__name__} "
+                "requires y to be passed, but the target y is None."
+            )
+
+        if not _is_contiguous(X):
             if self.copy_X is not None and not self.copy_X:
                 raise ValueError(
                     "The X matrix is noncontiguous and copy_X = False."
@@ -1827,22 +2502,23 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             X, y = check_X_y_tabmat_compliant(
                 X,
                 y,
-                accept_sparse=_stype,
-                dtype=_dtype,
+                accept_sparse=stype,
+                dtype=dtype,
                 copy=copy_X,
-                force_all_finite=force_all_finite,
-                drop_first=self.drop_first,
+                drop_first=getattr(self, "drop_first", False),
+                **{keyword_finiteness: force_all_finite},
             )
-            self._check_n_features(X, reset=True)
+            self.n_features_in_ = X.shape[1]
         else:
-            X, y = self._validate_data(
+            X, y = validate_data(
+                self,
                 X,
                 y,
                 ensure_2d=True,
-                accept_sparse=_stype,
-                dtype=_dtype,
+                accept_sparse=stype,
+                dtype=dtype,
                 copy=copy_X,
-                force_all_finite=force_all_finite,
+                **{keyword_finiteness: force_all_finite},
             )
 
         # Without converting y to float, deviance might raise
@@ -1853,9 +2529,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         # mixed-precision numbers
         y = np.asarray(y, dtype=X.dtype)
         sample_weight = _check_weights(
-            sample_weight, y.shape[0], X.dtype, force_all_finite=force_all_finite
+            sample_weight,
+            y.shape[0],  # type: ignore
+            X.dtype,
+            force_all_finite=force_all_finite,
         )
-        offset = _check_offset(offset, y.shape[0], X.dtype)
+        offset = _check_offset(offset, y.shape[0], X.dtype)  # type: ignore
 
         # IMPORTANT NOTE: Since we want to minimize
         # 1/(2*sum(sample_weight)) * deviance + L1 + L2,
@@ -1867,12 +2546,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         #######################################################################
         # 2b. convert to wrapper matrix types
         #######################################################################
-        if sparse.issparse(X) and not isinstance(X, tm.SparseMatrix):
-            X = tm.SparseMatrix(X)
-        elif isinstance(X, np.ndarray):
-            X = tm.DenseMatrix(X)
+        X = tm.as_tabmat(X)
 
-        return X, y, sample_weight, offset, weights_sum, P1, P2
+        self.feature_names_ = X.get_names(type="column", missing_prefix="_col_")  # type: ignore
+        self.term_names_ = X.get_names(type="term", missing_prefix="_col_")
+
+        return X, y, sample_weight, offset, weights_sum, P1, P2  # type: ignore
 
 
 class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
@@ -1890,8 +2569,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     with inverse link function ``h`` and ``s=sample_weight``.
     Note that, for ``alpha=0`` the unregularized GLM is recovered.
     This is not the default behavior (see ``alpha`` parameter description for details).
-    Additionally, for ``sample_weight=None``, one has ``s_i=1`` and ``sum(s)=n_samples``.
-    For ``P1=P2='identity'``, the penalty is the elastic net::
+    Additionally, for ``sample_weight=None``, one has ``s_i=1`` and
+    ``sum(s)=n_samples``. For ``P1=P2='identity'``, the penalty is the elastic net::
 
             alpha * l1_ratio * ||w||_1 + 1/2 * alpha * (1 - l1_ratio) * ||w||_2^2.
 
@@ -1915,11 +2594,11 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     alpha : {float, array-like}, optional (default=None)
         Constant that multiplies the penalty terms and thus determines the
         regularization strength. If ``alpha_search`` is ``False`` (the default),
-        then ``alpha`` must be a scalar or None (equivalent to ``alpha=1.0``).
+        then ``alpha`` must be a scalar or None (equivalent to ``alpha=0``).
         If ``alpha_search`` is ``True``, then ``alpha`` must be an iterable or
         ``None``. See ``alpha_search`` to find how the regularization path is
         set if ``alpha`` is ``None``. See the notes for the exact mathematical
-        meaning of this parameter. ``alpha = 0`` is equivalent to unpenalized
+        meaning of this parameter. ``alpha=0`` is equivalent to unpenalized
         GLMs. In this case, the design matrix ``X`` must have full column rank
         (no collinearities).
 
@@ -1929,7 +2608,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         is an L1 penalty.  For ``0 < l1_ratio < 1``, the penalty is a
         combination of L1 and L2.
 
-    P1 : {'identity', array-like}, shape (n_features,), optional (default='identity')
+    P1 : {'identity', array-like, None}, shape (n_features,), optional
+         (default='identity')
         This array controls the strength of the regularization for each coefficient
         independently. A high value will lead to higher regularization while a value of
         zero will remove the regularization on this parameter.
@@ -1938,20 +2618,20 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         the penalty of the categorical column will be applied to all the levels of
         the categorical.
 
-    P2 : {'identity', array-like, sparse matrix}, shape (n_features,) \
+    P2 : {'identity', array-like, sparse matrix, None}, shape (n_features,) \
             or (n_features, n_features), optional (default='identity')
         With this option, you can set the P2 matrix in the L2 penalty
         ``w*P2*w``. This gives a fine control over this penalty (Tikhonov
         regularization). A 2d array is directly used as the square matrix P2. A
         1d array is interpreted as diagonal (square) matrix. The default
-        ``'identity'`` sets the identity matrix, which gives the usual squared
-        L2-norm. If you just want to exclude certain coefficients, pass a 1d
-        array filled with 1 and 0 for the coefficients to be excluded. Note that
-        P2 must be positive semi-definite. If ``X`` is a pandas DataFrame
-        with a categorical dtype and P2 has the same size as the number of columns,
-        the penalty of the categorical column will be applied to all the levels of
-        the categorical. Note that if P2 is two-dimensional, its size needs to be
-        of the same length as the expanded ``X`` matrix.
+        ``'identity'`` and ``None`` set the identity matrix, which gives the usual
+        squared L2-norm. If you just want to exclude certain coefficients, pass a 1d
+        array filled with 1 and 0 for the coefficients to be excluded. Note that P2 must
+        be positive semi-definite. If ``X`` is a pandas DataFrame with a categorical
+        dtype and P2 has the same size as the number of columns, the penalty of the
+        categorical column will be applied to all the levels of the categorical. Note
+        that if P2 is two-dimensional, its size needs to be of the same length as the
+        expanded ``X`` matrix.
 
     fit_intercept : bool, optional (default=True)
         Specifies if a constant (a.k.a. bias or intercept) should be
@@ -1966,10 +2646,11 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         specify it in parentheses (e.g., ``'tweedie (1.5)'``). The same applies
         for ``'negative.binomial'`` and theta parameter.
 
-    link : {'auto', 'identity', 'log', 'logit'} or Link, optional (default='auto')
-        The link function of the GLM, i.e. mapping from linear predictor
-        (``X * coef``) to expectation (``mu``). Option ``'auto'`` sets the link
-        depending on the chosen family as follows:
+    link : {'auto', 'identity', 'log', 'logit', 'cloglog'} oe Link, \
+            optional (default='auto')
+        The link function of the GLM, i.e. mapping from linear
+        predictor (``X * coef``) to expectation (``mu``). Option ``'auto'`` sets
+        the link depending on the chosen family as follows:
 
         - ``'identity'`` for family ``'normal'``
         - ``'log'`` for families ``'poisson'``, ``'gamma'``,
@@ -1980,8 +2661,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             optional (default='auto')
         Algorithm to use in the optimization problem:
 
-        - ``'auto'``: ``'irls-ls'`` if ``l1_ratio`` is zero and ``'irls-cd'``
-          otherwise.
+        - ``'auto'``: ``'irls-ls'`` if ``l1_ratio`` is zero and ``'irls-cd'`` otherwise.
         - ``'irls-cd'``: Iteratively reweighted least squares with a coordinate
           descent inner solver. This can deal with L1 as well as L2 penalties.
           Note that in order to avoid unnecessary memory duplication of X in the
@@ -2115,10 +2795,11 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         set ``verbose`` to any positive number for verbosity.
 
     scale_predictors: bool, optional (default=False)
-        If ``True``, estimate a scaled model where all predictors have a
-        standard deviation of 1. This can result in better estimates if
-        predictors are on very different scales (for example, centimeters and
-        kilometers).
+        If ``True``, scale all predictors to have standard deviation one.
+        Should be set to ``True`` if ``alpha > 0`` and if you want coefficients
+        to be penalized equally.
+
+        Reported coefficient estimates are always at the original scale.
 
         Advanced developer note: Internally, predictors are always rescaled for
         computational reasons, but this only affects results if
@@ -2147,8 +2828,44 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
 
     drop_first : bool, optional (default = False)
         If ``True``, drop the first column when encoding categorical variables.
-        Set this to True when alpha=0 and solver='auto' to prevent an error due to a singular
-        feature matrix.
+        Set this to True when ``alpha=0`` and ``solver='auto'`` to prevent an error
+        due to a singular feature matrix. In the case of using a formula with
+        interactions, setting this argument to ``True`` ensures structural
+        full-rankness (it is equivalent to ``ensure_full_rank`` in formulaic and
+        tabmat).
+
+    robust : bool, optional (default = False)
+        If true, then robust standard errors are computed by default.
+
+    expected_information : bool, optional (default = False)
+        If true, then the expected information matrix is computed by default.
+        Only relevant when computing robust standard errors.
+
+    formula : formulaic.FormulaSpec
+        A formula accepted by formulaic. It can either be a one-sided formula, in
+        which case ``y`` must be specified in ``fit``, or a two-sided formula, in
+        which case ``y`` must be ``None``.
+
+    interaction_separator: str, default=":"
+        The separator between the names of interacted variables.
+
+    categorical_format : str, optional, default='{name}[{category}]'
+        Format string for categorical features. The format string should
+        contain the placeholder ``{name}`` for the feature name and
+        ``{category}`` for the category name. Only used if ``X`` is a pandas
+        DataFrame.
+
+    cat_missing_method: str {'fail'|'zero'|'convert'}, default='fail'
+        How to handle missing values in categorical columns. Only used if ``X``
+        is a pandas data frame.
+        - if 'fail', raise an error if there are missing values
+        - if 'zero', missing values will represent all-zero indicator columns.
+        - if 'convert', missing values will be converted to the ``cat_missing_name``
+          category.
+
+    cat_missing_name: str, default='(MISSING)'
+        Name of the category to which missing values will be converted if
+        ``cat_missing_method='convert'``.  Only used if ``X`` is a pandas data frame.
 
     Attributes
     ----------
@@ -2175,10 +2892,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     minimizing the deviance plus penalty term, which is equivalent to
     (penalized) maximum likelihood estimation.
 
-    For ``alpha > 0``, the feature matrix ``X`` should be standardized in order
-    to penalize features equally strong. Call
-    :class:`sklearn.preprocessing.StandardScaler` before calling ``fit``.
-
     If the target ``y`` is a ratio, appropriate sample weights ``s`` should be
     provided. As an example, consider Poisson distributed counts ``z``
     (integers) and weights ``s = exposure`` (time, money, persons years, ...).
@@ -2200,14 +2913,15 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
 
     def __init__(
         self,
+        *,
         alpha=None,
         l1_ratio=0,
-        P1="identity",
-        P2="identity",
+        P1: Optional[Union[str, np.ndarray]] = "identity",
+        P2: Optional[Union[str, np.ndarray, sparse.spmatrix]] = "identity",
         fit_intercept=True,
         family: Union[str, ExponentialDispersionModel] = "normal",
         link: Union[str, Link] = "auto",
-        solver="auto",
+        solver: str = "auto",
         max_iter=100,
         gradient_tol: Optional[float] = None,
         step_size_tol: Optional[float] = None,
@@ -2231,6 +2945,13 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         b_ineq: Optional[np.ndarray] = None,
         force_all_finite: bool = True,
         drop_first: bool = False,
+        robust: bool = True,
+        expected_information: bool = False,
+        formula: Optional[FormulaSpec] = None,
+        interaction_separator: str = ":",
+        categorical_format: str = "{name}[{category}]",
+        cat_missing_method: str = "fail",
+        cat_missing_name: str = "(MISSING)",
     ):
         self.alphas = alphas
         self.alpha = alpha
@@ -2264,6 +2985,13 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             b_ineq=b_ineq,
             force_all_finite=force_all_finite,
             drop_first=drop_first,
+            robust=robust,
+            expected_information=expected_information,
+            formula=formula,
+            interaction_separator=interaction_separator,
+            categorical_format=categorical_format,
+            cat_missing_method=cat_missing_method,
+            cat_missing_name=cat_missing_name,
         )
 
     def _validate_hyperparameters(self) -> None:
@@ -2288,30 +3016,34 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             ):
                 raise ValueError(
                     "Penalty term must be a non-negative number;"
-                    " got (alpha={})".format(self.alpha)
+                    f" got (alpha={self.alpha})"  # type: ignore
                 )
 
         if (
             not np.isscalar(self.l1_ratio)
             # check for numeric, i.e. not a string
             or not np.issubdtype(np.asarray(self.l1_ratio).dtype, np.number)
-            or self.l1_ratio < 0
-            or self.l1_ratio > 1
+            or self.l1_ratio < 0  # type: ignore
+            or self.l1_ratio > 1  # type: ignore
         ):
             raise ValueError(
                 "l1_ratio must be a number in interval [0, 1];"
-                " got (l1_ratio={})".format(self.l1_ratio)
+                f" got (l1_ratio={self.l1_ratio})"
             )
         super()._validate_hyperparameters()
 
     def fit(
         self,
         X: ArrayLike,
-        y: ArrayLike,
+        y: Optional[ArrayLike] = None,
         sample_weight: Optional[ArrayLike] = None,
         offset: Optional[ArrayLike] = None,
+        *,
+        store_covariance_matrix: bool = False,
+        clusters: Optional[np.ndarray] = None,
         # TODO: take out weights_sum (or use it properly)
         weights_sum: Optional[float] = None,
+        context: Optional[Union[int, Mapping[str, Any]]] = None,
     ):
         """Fit a Generalized Linear Model.
 
@@ -2345,6 +3077,23 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             ``y`` by 3 if the link is linear and will multiply expected ``y`` by
             3 if the link is logarithmic.
 
+        store_covariance_matrix : bool, optional (default=False)
+            Whether to estimate and store the covariance matrix of the parameter
+            estimates. If ``True``, the covariance matrix will be available in the
+            ``covariance_matrix_`` attribute after fitting.
+
+        clusters : array-like, optional, default=None
+            Array with cluster membership. Clustered standard errors are
+            computed if clusters is not None.
+
+        context : Optional[Union[int, Mapping[str, Any]]], default=None
+            The context to add to the evaluation context of the formula with,
+            e.g., custom transforms. If an integer, the context is taken from
+            the stack frame of the caller at the given depth. Otherwise, a
+            mapping from variable names to values is expected. By default,
+            no context is added. Set ``context=0`` to make the calling scope
+            available.
+
         weights_sum: float, optional (default=None)
 
         Returns
@@ -2353,6 +3102,10 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         """
 
         self._validate_hyperparameters()
+
+        captured_context = capture_context(
+            context + 1 if isinstance(context, int) else context
+        )
 
         # NOTE: This function checks if all the entries in X and y are
         # finite. That can be expensive. But probably worthwhile.
@@ -2369,24 +3122,19 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             y,
             sample_weight,
             offset,
-            solver=self.solver,
             force_all_finite=self.force_all_finite,
+            context=captured_context,
         )
         assert isinstance(X, tm.MatrixBase)
         assert isinstance(y, np.ndarray)
 
         self._set_up_for_fit(y)
 
-        _dtype = [np.float64, np.float32]
-        if self._solver == "irls-cd":
-            _stype = ["csc"]
-        else:
-            _stype = ["csc", "csr"]
-
         # 1.3 arguments to take special care ##################################
         # P1, P2, start_params
+        stype = ["csc"] if self._solver == "irls-cd" else ["csc", "csr"]
         P1_no_alpha = setup_p1(P1, X, X.dtype, 1, self.l1_ratio)
-        P2_no_alpha = setup_p2(P2, X, _stype, X.dtype, 1, self.l1_ratio)
+        P2_no_alpha = setup_p2(P2, X, stype, X.dtype, 1, self.l1_ratio)
 
         lower_bounds = check_bounds(self.lower_bounds, X.shape[1], X.dtype)
         upper_bounds = check_bounds(self.upper_bounds, X.shape[1], X.dtype)
@@ -2399,18 +3147,10 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             if np.any(lower_bounds > upper_bounds):
                 raise ValueError("Upper bounds must be higher than lower bounds.")
 
-        start_params = initialize_start_params(
-            self.start_params,
-            n_cols=X.shape[1],
-            fit_intercept=self.fit_intercept,
-            _dtype=_dtype,
-        )
-
         # 1.4 additional validations ##########################################
         if self.check_input:
             # check if P2 is positive semidefinite
             if not isinstance(self.P2, str):  # self.P2 != 'identity'
-
                 if not is_pos_semidef(P2_no_alpha):
                     if P2_no_alpha.ndim == 1 or P2_no_alpha.shape[0] == 1:
                         error = "1d array P2 must not have negative values."
@@ -2450,7 +3190,13 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         #######################################################################
 
         coef = self._get_start_coef(
-            start_params, X, y, sample_weight, offset, col_means, col_stds
+            X,
+            y,
+            sample_weight,
+            offset,
+            col_means,
+            col_stds,
+            dtype=[np.float64, np.float32],
         )
 
         #######################################################################
@@ -2504,16 +3250,14 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
                 self.coef_ = self.coef_path_[-1]
         else:
             if self.alpha is None:
-                _alpha = 1.0
+                _alpha = 0.0
             else:
                 _alpha = self.alpha
             if _alpha > 0 and self.l1_ratio > 0 and self._solver != "irls-cd":
                 raise ValueError(
-                    "The chosen solver (solver={}) can't deal "
+                    f"The chosen solver (solver={self._solver}) can't deal "
                     "with L1 penalties, which are included with "
-                    "(alpha={}) and (l1_ratio={}).".format(
-                        self._solver, _alpha, self.l1_ratio
-                    )
+                    f"(alpha={_alpha}) and (l1_ratio={self.l1_ratio})."
                 )
             coef = self._solve(
                 X=X,
@@ -2539,7 +3283,19 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
                     col_means, col_stds, 0.0, coef
                 )
 
-        self._tear_down_from_fit()
+        self.covariance_matrix_ = None
+        if store_covariance_matrix:
+            self.covariance_matrix(
+                X=X.unstandardize(),
+                y=y,
+                offset=offset,
+                sample_weight=sample_weight * weights_sum,
+                robust=getattr(self, "robust", True),
+                clusters=clusters,
+                expected_information=getattr(self, "expected_information", False),
+                store_covariance_matrix=True,
+                skip_checks=True,
+            )
 
         return self
 
@@ -2548,6 +3304,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         X: ShapedArrayLike,
         y: ShapedArrayLike,
         sample_weight: Optional[ArrayLike] = None,
+        context: Optional[Mapping[str, Any]] = None,
     ):
         """
         Computes and stores the model's degrees of freedom, the 'aic', 'aicc'
@@ -2569,42 +3326,29 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         [3] Park, M.Y., 2006. Generalized linear models with regularization;
         Stanford Universty.
         """
+        if not hasattr(self.family_instance, "log_likelihood"):
+            raise NotImplementedError(
+                "The family instance does not define a `log_likelihood` method, so "
+                "information criteria cannot be computed. Compatible families include "
+                "the binomial, negative binomial and Tweedie (power<=2 or power=3)."
+            )
 
-        # we require that the log_likelihood be defined
-        model_err_str = (
-            "The computation of the information criteria has only "
-            + "been defined for models with a Binomial likelihood, Negative "
-            + "Binomial likelihood or a Tweedie likelihood with power <= 2."
-        )
-        if not isinstance(
-            self.family_instance,
-            (BinomialDistribution, TweedieDistribution, NegativeBinomialDistribution),
-        ):
-            raise NotImplementedError(model_err_str)
-
-        # the log_likelihood has not been implemented for the InverseGaussianDistribution
-        if (
-            isinstance(self.family_instance, TweedieDistribution)
-            and self.family_instance.power > 2
-        ):
-            raise NotImplementedError(model_err_str)
-
-        ddof = np.sum(np.abs(self.coef_) > np.finfo(self.coef_.dtype).eps)
+        ddof = np.sum(np.abs(self.coef_) > np.finfo(self.coef_.dtype).eps)  # type: ignore
         k_params = ddof + self.fit_intercept
         nobs = X.shape[0]
 
         if nobs != self._num_obs:
             raise ValueError(
-                "The same dataset that was used for training should "
-                + "also be used for the computation of information "
-                + "criteria"
+                "The same dataset that was used for training should also be used for "
+                "the computation of information criteria."
             )
 
-        mu = self.predict(X)
+        mu = self.predict(X, context=context)
         ll = self.family_instance.log_likelihood(y, mu, sample_weight=sample_weight)
 
         aic = -2 * ll + 2 * k_params
         bic = -2 * ll + np.log(nobs) * k_params
+
         if nobs > k_params + 1:
             aicc = aic + 2 * k_params * (k_params + 1) / (nobs - k_params - 1)
         else:
@@ -2615,7 +3359,12 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         return True
 
     def aic(
-        self, X: ArrayLike, y: ArrayLike, sample_weight: Optional[ArrayLike] = None
+        self,
+        X: ArrayLike,
+        y: ArrayLike,
+        sample_weight: Optional[ArrayLike] = None,
+        *,
+        context: Optional[Union[int, Mapping[str, Any]]] = None,
     ):
         """
         Akaike's information criteria. Computed as:
@@ -2634,12 +3383,30 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             Same data as used in 'fit'
 
         sample_weight : array-like, shape (n_samples,), optional (default=None)
-             Same data as used in 'fit'
+            Same data as used in 'fit'
+
+        context : Optional[Union[int, Mapping[str, Any]]], default=None
+            The context to add to the evaluation context of the formula with,
+            e.g., custom transforms. If an integer, the context is taken from
+            the stack frame of the caller at the given depth. Otherwise, a
+            mapping from variable names to values is expected. By default,
+            no context is added. Set ``context=0`` to make the calling scope
+            available.
         """
-        return self._get_info_criteria("aic", X, y, sample_weight)
+        captured_context = capture_context(
+            context + 1 if isinstance(context, int) else context
+        )
+        return self._get_info_criteria(
+            "aic", X, y, sample_weight, context=captured_context
+        )
 
     def aicc(
-        self, X: ArrayLike, y: ArrayLike, sample_weight: Optional[ArrayLike] = None
+        self,
+        X: ArrayLike,
+        y: ArrayLike,
+        sample_weight: Optional[ArrayLike] = None,
+        *,
+        context: Optional[Union[int, Mapping[str, Any]]] = None,
     ):
         """
         Second-order Akaike's information criteria (or small sample AIC).
@@ -2661,8 +3428,21 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
 
         sample_weight : array-like, shape (n_samples,), optional (default=None)
              Same data as used in 'fit'
+
+        context : Optional[Union[int, Mapping[str, Any]]], default=None
+            The context to add to the evaluation context of the formula with,
+            e.g., custom transforms. If an integer, the context is taken from
+            the stack frame of the caller at the given depth. Otherwise, a
+            mapping from variable names to values is expected. By default,
+            no context is added. Set ``context=0`` to make the calling scope
+            available.
         """
-        aicc = self._get_info_criteria("aicc", X, y, sample_weight)
+        captured_context = capture_context(
+            context + 1 if isinstance(context, int) else context
+        )
+        aicc = self._get_info_criteria(
+            "aicc", X, y, sample_weight, context=captured_context
+        )
         if not aicc:
             raise ValueError(
                 "Model degrees of freedom should be more than training datapoints."
@@ -2670,7 +3450,12 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         return aicc
 
     def bic(
-        self, X: ArrayLike, y: ArrayLike, sample_weight: Optional[ArrayLike] = None
+        self,
+        X: ArrayLike,
+        y: ArrayLike,
+        sample_weight: Optional[ArrayLike] = None,
+        *,
+        context: Optional[Union[int, Mapping[str, Any]]] = None,
     ):
         """
         Bayesian information criterion. Computed as:
@@ -2691,8 +3476,21 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
 
         sample_weight : array-like, shape (n_samples,), optional (default=None)
              Same data as used in 'fit'
+
+        context : Optional[Union[int, Mapping[str, Any]]], default=None
+            The context to add to the evaluation context of the formula with,
+            e.g., custom transforms. If an integer, the context is taken from
+            the stack frame of the caller at the given depth. Otherwise, a
+            mapping from variable names to values is expected. By default,
+            no context is added. Set ``context=0`` to make the calling scope
+            available.
         """
-        return self._get_info_criteria("bic", X, y, sample_weight)
+        captured_context = capture_context(
+            context + 1 if isinstance(context, int) else context
+        )
+        return self._get_info_criteria(
+            "bic", X, y, sample_weight, context=captured_context
+        )
 
     def _get_info_criteria(
         self,
@@ -2700,12 +3498,12 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         X: ArrayLike,
         y: ArrayLike,
         sample_weight: Optional[ArrayLike] = None,
+        context: Optional[Mapping[str, Any]] = None,
     ):
-
         check_is_fitted(self, "coef_")
 
         if not hasattr(self, "_info_criteria"):
-            self._compute_information_criteria(X, y, sample_weight)
+            self._compute_information_criteria(X, y, sample_weight, context=context)
 
         if (
             self.alpha is None or (self.alpha is not None and self.alpha > 0)

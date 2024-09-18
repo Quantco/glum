@@ -56,9 +56,9 @@ def test_family_bounds(family, expected):
 def test_tweedie_distribution_power():
     with pytest.raises(ValueError, match="no distribution exists"):
         TweedieDistribution(power=0.5)
-    with pytest.raises(TypeError, match="must be an int or float"):
+    with pytest.raises(TypeError, match="must be numeric"):
         TweedieDistribution(power=1j)
-    with pytest.raises(TypeError, match="must be an int or float"):
+    with pytest.raises(TypeError, match="must be numeric"):
         dist = TweedieDistribution()
         dist.power = 1j
 
@@ -69,7 +69,6 @@ def test_tweedie_distribution_power():
 
 
 def test_tweedie_distribution_parsing():
-
     dist = get_family("tweedie")
 
     assert isinstance(dist, TweedieDistribution)
@@ -90,17 +89,16 @@ def test_tweedie_distribution_parsing():
 
 
 def test_negative_binomial_distribution_alpha():
-    with pytest.raises(ValueError, match="must be strictly positive number"):
+    with pytest.raises(ValueError, match="must be strictly positive"):
         NegativeBinomialDistribution(theta=-0.5)
-    with pytest.raises(TypeError, match="must be an int or float"):
+    with pytest.raises(TypeError, match="must be numeric"):
         NegativeBinomialDistribution(theta=1j)
-    with pytest.raises(TypeError, match="must be an int or float"):
+    with pytest.raises(TypeError, match="must be numeric"):
         dist = NegativeBinomialDistribution()
         dist.theta = 1j
 
 
 def test_negative_binomial_distribution_parsing():
-
     dist = get_family("negative.binomial")
 
     assert isinstance(dist, NegativeBinomialDistribution)
@@ -121,16 +119,24 @@ def test_negative_binomial_distribution_parsing():
 
 
 def test_equality():
-    assert TweedieDistribution(1) == TweedieDistribution(1)
-    assert TweedieDistribution(1) == PoissonDistribution()
-    assert TweedieDistribution(2) == GammaDistribution()
-    assert PoissonDistribution() == PoissonDistribution()
-    assert TweedieDistribution(1) != TweedieDistribution(1.5)
-    assert TweedieDistribution(1) != BinomialDistribution()
     assert BinomialDistribution() == BinomialDistribution()
-    assert NegativeBinomialDistribution(1) == NegativeBinomialDistribution(1)
-    assert NegativeBinomialDistribution(1) != NegativeBinomialDistribution(1.5)
+    assert GammaDistribution() == GammaDistribution()
     assert NegativeBinomialDistribution(1) != BinomialDistribution()
+    assert NegativeBinomialDistribution(1) != NegativeBinomialDistribution(1.5)
+    assert NegativeBinomialDistribution(1) == NegativeBinomialDistribution(1)
+    assert NormalDistribution() == NormalDistribution()
+    assert PoissonDistribution() == PoissonDistribution()
+    assert TweedieDistribution(0) != NormalDistribution()
+    assert TweedieDistribution(0) == NormalDistribution().to_tweedie()
+    assert TweedieDistribution(1) != BinomialDistribution()
+    assert TweedieDistribution(1) != PoissonDistribution()
+    assert TweedieDistribution(1) == PoissonDistribution().to_tweedie()
+    assert TweedieDistribution(1) != TweedieDistribution(1.5)
+    assert TweedieDistribution(1) == TweedieDistribution(1)
+    assert TweedieDistribution(2) != GammaDistribution()
+    assert TweedieDistribution(2) == GammaDistribution().to_tweedie()
+    assert TweedieDistribution(3) != InverseGaussianDistribution()
+    assert TweedieDistribution(3) == InverseGaussianDistribution().to_tweedie()
 
 
 @pytest.mark.parametrize(
@@ -172,7 +178,6 @@ def test_deviance_zero(family, chk_values):
     ids=lambda args: args.__class__.__name__,
 )
 def test_gradients(family, link):
-
     np.random.seed(1001)
 
     nrows = 100
@@ -183,7 +188,6 @@ def test_gradients(family, link):
     sample_weight = np.ones(nrows)
 
     for _ in range(5):
-
         eta, mu, _ = family.eta_mu_deviance(
             link, 1.0, np.zeros(nrows), X.dot(coef), y, sample_weight
         )
@@ -238,7 +242,7 @@ def test_hessian_matrix(family, link, true_hessian):
     dispersion = 0.5
     rng = np.random.RandomState(42)
     X = tm.DenseMatrix(rng.randn(10, 5))
-    lin_pred = np.dot(X, coef)
+    lin_pred = X.matvec(coef)
     mu = link.inverse(lin_pred)
     sample_weight = rng.randn(10) ** 2 + 1
     _, hessian_rows = family.rowwise_gradient_hessian(
@@ -261,7 +265,7 @@ def test_hessian_matrix(family, link, true_hessian):
     for i in range(coef.shape[0]):
 
         def f(coef):
-            this_eta = X.dot(coef)
+            this_eta = X.matvec(coef)
             this_mu = link.inverse(this_eta)
             yv = mu
             if true_hessian:
@@ -291,7 +295,6 @@ def test_hessian_matrix(family, link, true_hessian):
 
 @pytest.mark.parametrize("weighted", [False, True])
 def test_poisson_deviance_dispersion_loglihood(weighted):
-
     # y <- c(0, 0, 1, 2, 3)
     # glm_model = glm(y ~ 1, family = poisson)
 
@@ -301,7 +304,6 @@ def test_poisson_deviance_dispersion_loglihood(weighted):
     # logLik(glm_model)  # -7.390977 (df=1)
 
     regressor = GeneralizedLinearRegressor(
-        alpha=0,
         family="poisson",
         fit_intercept=False,
         gradient_tol=1e-8,
@@ -341,7 +343,6 @@ def test_poisson_deviance_dispersion_loglihood(weighted):
 
 @pytest.mark.parametrize("weighted", [False, True])
 def test_gamma_deviance_dispersion_loglihood(weighted):
-
     # y <- c(1, 2, 2, 3, 4)
     # glm_model = glm(y ~ 1, family = Gamma(link = "log"))
 
@@ -351,7 +352,6 @@ def test_gamma_deviance_dispersion_loglihood(weighted):
     # logLik(glm_model)  # -7.057068 (df=2)
 
     regressor = GeneralizedLinearRegressor(
-        alpha=0,
         family="gamma",
         fit_intercept=False,
         gradient_tol=1e-8,
@@ -390,7 +390,6 @@ def test_gamma_deviance_dispersion_loglihood(weighted):
 @pytest.mark.parametrize("family", ["gaussian", "normal"])
 @pytest.mark.parametrize("weighted", [False, True])
 def test_gaussian_deviance_dispersion_loglihood(family, weighted):
-
     # y <- c(-1, -1, 0, 1, 2)
     # glm_model = glm(y ~ 1, family = gaussian)
 
@@ -400,7 +399,6 @@ def test_gaussian_deviance_dispersion_loglihood(family, weighted):
     # logLik(glm_model)  # -7.863404 (df=2)
 
     regressor = GeneralizedLinearRegressor(
-        alpha=0,
         family=family,
         fit_intercept=False,
         gradient_tol=1e-8,
@@ -436,7 +434,6 @@ def test_gaussian_deviance_dispersion_loglihood(family, weighted):
 
 @pytest.mark.parametrize("weighted", [False, True])
 def test_tweedie_deviance_dispersion_loglihood(weighted):
-
     # library(statmod)  # Tweedie GLMs
     # library(tweedie)  # Tweedie log likelihood
 
@@ -449,7 +446,6 @@ def test_tweedie_deviance_dispersion_loglihood(weighted):
     # logLiktweedie(glm_model)  # -8.35485
 
     regressor = GeneralizedLinearRegressor(
-        alpha=0,
         family=TweedieDistribution(1.5),
         fit_intercept=False,
         gradient_tol=1e-8,
@@ -489,7 +485,6 @@ def test_tweedie_deviance_dispersion_loglihood(weighted):
 
 @pytest.mark.parametrize("weighted", [False, True])
 def test_binomial_deviance_dispersion_loglihood(weighted):
-
     # y <- c(0, 1, 0, 1, 0)
     # glm_model = glm(y ~ 1, family = binomial)
 
@@ -499,7 +494,6 @@ def test_binomial_deviance_dispersion_loglihood(weighted):
     # logLik(glm_model)  # -3.365058 (df=1)
 
     regressor = GeneralizedLinearRegressor(
-        alpha=0,
         family="binomial",
         fit_intercept=False,
         gradient_tol=1e-8,
@@ -535,7 +529,6 @@ def test_binomial_deviance_dispersion_loglihood(weighted):
 
 @pytest.mark.parametrize("weighted", [False, True])
 def test_negative_binomial_deviance_dispersion_loglihood(weighted):
-
     # y <- c(0, 1, 0, 1, 0)
     # glm_model = glm(y~1, family=MASS::negative.binomial(theta=1))
 
@@ -545,7 +538,6 @@ def test_negative_binomial_deviance_dispersion_loglihood(weighted):
     # logLik(glm_model)  # -4.187887 (df=1)
 
     regressor = GeneralizedLinearRegressor(
-        alpha=0,
         family="negative.binomial",
         fit_intercept=False,
         gradient_tol=1e-8,
@@ -590,7 +582,6 @@ def test_tweedie_normalization(dispersion, power):
         return np.log(sp.special.wright_bessel(-alpha, 0, x)) - np.log(y)
 
     def scipy_based_loglihood(y, mu, power, dispersion):
-
         ll = np.zeros_like(y)
         ix = y > 0
 
