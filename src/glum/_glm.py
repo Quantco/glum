@@ -1026,7 +1026,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         if self.fit_intercept:
             intercept_offset = 1
-            coef = np.zeros(X.shape[1] + 1)
+            coef = np.zeros(X.shape[1] + 1, dtype=X.dtype)
             coef[0] = guess_intercept(
                 y=y,
                 sample_weight=w,
@@ -1035,7 +1035,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             )
         else:
             intercept_offset = 0
-            coef = np.zeros(X.shape[1])
+            coef = np.zeros(X.shape[1], dtype=X.dtype)
 
         _, dev_der = self._family_instance._mu_deviance_derivative(
             coef=coef,
