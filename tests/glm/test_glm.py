@@ -64,12 +64,12 @@ def get_small_x_y(
     return x, y
 
 
-@pytest.fixture(scope="module")
-def regression_data():
+@pytest.fixture(scope="module", params=["float32", "float64"])
+def regression_data(request):
     X, y = make_regression(
         n_samples=107, n_features=10, n_informative=80, noise=0.5, random_state=2
     )
-    return X, y
+    return X.astype(request.param), y.astype(request.param)
 
 
 @pytest.fixture
