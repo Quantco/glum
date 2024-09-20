@@ -452,7 +452,7 @@ def _one_over_var_inf_to_val(arr: np.ndarray, val: float) -> np.ndarray:
 
     If values are zeros, return val.
     """
-    zeros = np.where(np.abs(arr) < 1e-7)
+    zeros = np.where(np.abs(arr) < np.sqrt(np.finfo(arr.dtype).eps))
     with np.errstate(divide="ignore"):
         one_over = 1 / arr
     one_over[zeros] = val
