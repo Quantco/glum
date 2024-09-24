@@ -110,6 +110,10 @@ Changelog
 2.5.1 - 2023-05-19
 ------------------
 
+**Other changes:**
+
+- Better error message when the number of input features is different between the fit and predict methods.
+
 **Bug fix:**
 
 - We fixed a bug in the computation of :meth:`~glum.distribution.NegativeBinomialDistribution.log_likelihood`. Previously, this method just returned ``None``.
