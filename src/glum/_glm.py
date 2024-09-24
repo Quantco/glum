@@ -1357,6 +1357,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             drop_first=getattr(self, "drop_first", False),
         )
 
+        if X.shape[1] != self.n_features_in_:
+            raise ValueError(
+                f"X has {X.shape[1]} features, but {self.__class__.__name__} "
+                f"is expecting {self.n_features_in_} features as input."
+            )
+
         if alpha_index is None:
             xb = X @ self.coef_ + self.intercept_
             if offset is not None:
