@@ -794,7 +794,7 @@ def line_search(state: IRLSState, data: IRLSData, d: np.ndarray):
         )
         # 1. Check Armijo / sufficient decrease condition.
         loss_improvement = obj_val_wd - state.obj_val
-        if mu_wd.dtype == np.float64:
+        if mu_wd.dtype == np.float32:
             large_number = 1e30
         else:
             large_number = 1e43
