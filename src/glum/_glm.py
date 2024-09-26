@@ -1056,7 +1056,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             )
         )
         return _make_grid(alpha_max)
-    
+
     def _solve(
         self,
         X: Union[tm.MatrixBase, tm.StandardizedMatrix],
@@ -1164,7 +1164,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 b_ineq=b_ineq,
             )
         return coef
-    
+
     def _solve_regularization_path(
         self,
         X: Union[tm.MatrixBase, tm.StandardizedMatrix],
