@@ -14,7 +14,6 @@ some parts and tricks stolen from other sklearn files.
 """
 
 # License: BSD 3 clause
-
 import copy
 import re
 import sys
@@ -730,6 +729,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         link: Union[str, Link] = "auto",
         solver: str = "auto",
         max_iter=100,
+        max_inner_iter=100000,
         gradient_tol: Optional[float] = None,
         step_size_tol: Optional[float] = None,
         hessian_approx: float = 0.0,
@@ -767,6 +767,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self.link = link
         self.solver = solver
         self.max_iter = max_iter
+        self.max_inner_iter = max_inner_iter
         self.gradient_tol = gradient_tol
         self.step_size_tol = step_size_tol
         self.hessian_approx = hessian_approx
@@ -1055,7 +1056,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             )
         )
         return _make_grid(alpha_max)
-
+    
     def _solve(
         self,
         X: Union[tm.MatrixBase, tm.StandardizedMatrix],
@@ -1102,6 +1103,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 family=self._family_instance,
                 link=self._link_instance,
                 max_iter=max_iter,
+                max_inner_iter=self.max_inner_iter,
                 gradient_tol=self._gradient_tol,
                 step_size_tol=self.step_size_tol,
                 fixed_inner_tol=fixed_inner_tol,
@@ -1162,7 +1164,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 b_ineq=b_ineq,
             )
         return coef
-
+    
     def _solve_regularization_path(
         self,
         X: Union[tm.MatrixBase, tm.StandardizedMatrix],
@@ -2682,6 +2684,10 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     max_iter : int, optional (default=100)
         The maximal number of iterations for solver algorithms.
 
+    max_inner_iter: int, optional (default=100000)
+        The maximal number of iterations for the inner solver in the IRLS-CD
+        algorithm. This parameter is only used when ``solver='irls-cd'``.
+
     gradient_tol : float, optional (default=None)
         Stopping criterion. If ``None``, solver-specific defaults will be used.
         The default value for most solvers is ``1e-4``, except for
@@ -2923,6 +2929,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         link: Union[str, Link] = "auto",
         solver: str = "auto",
         max_iter=100,
+        max_inner_iter=100000,
         gradient_tol: Optional[float] = None,
         step_size_tol: Optional[float] = None,
         hessian_approx: float = 0.0,
@@ -2964,6 +2971,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             link=link,
             solver=solver,
             max_iter=max_iter,
+            max_inner_iter=max_inner_iter,
             gradient_tol=gradient_tol,
             step_size_tol=step_size_tol,
             hessian_approx=hessian_approx,

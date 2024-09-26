@@ -9,7 +9,6 @@ from scipy.optimize import LinearConstraint, fmin_l_bfgs_b, minimize
 from sklearn.exceptions import ConvergenceWarning
 from sklearn.utils import check_array
 from sklearn.utils.validation import check_random_state
-
 from ._cd_fast import (
     _norm_min_subgrad,
     enet_coordinate_descent_gram,
@@ -41,7 +40,6 @@ def timeit(runtime_attr: str):
 
     return fct_wrap
 
-
 @timeit("inner_solver_runtime")
 def _least_squares_solver(state, data, hessian):
     if data.has_lower_bounds or data.has_upper_bounds:
@@ -51,7 +49,6 @@ def _least_squares_solver(state, data, hessian):
     # sandwich product and use something like iterative lsqr or lsmr.
     d = linalg.solve(hessian, state.score, assume_a="pos")
     return d, 1
-
 
 @timeit("inner_solver_runtime")
 def _cd_solver(state, data, active_hessian):
@@ -72,7 +69,6 @@ def _cd_solver(state, data, active_hessian):
         data._upper_bounds,
     )
     return new_coef - state.coef, n_cycles
-
 
 @timeit("build_hessian_runtime")
 def update_hessian(state, data, active_set):
@@ -187,7 +183,6 @@ def _is_subset(x, y):
     intersection = np.intersect1d(x, y)
     return intersection.size == y.size
 
-
 def build_hessian_delta(
     X, hessian_rows, intercept, P2, active_rows, active_cols
 ) -> np.ndarray:
@@ -232,7 +227,6 @@ def build_hessian_delta(
                 np.ix_(active_cols_non_intercept, active_cols_non_intercept)
             ]
     return delta
-
 
 def _irls_solver(inner_solver, coef, data) -> tuple[np.ndarray, int, int, list[list]]:
     """
@@ -421,7 +415,7 @@ class IRLSData:
         family: ExponentialDispersionModel,
         link: Link,
         max_iter: int = 100,
-        max_inner_iter: int = 100000,
+        max_inner_iter: int = 10000,
         gradient_tol: Optional[float] = 1e-4,
         step_size_tol: Optional[float] = 1e-4,
         hessian_approx: float = 0.0,
@@ -672,7 +666,6 @@ def eta_mu_objective(
     coef_P2 = _make_coef_P2(intercept_offset, P2, coef)
     obj_val += 0.5 * (coef_P2 @ coef)
     return eta, mu, obj_val, coef_P2
-
 
 @timeit("quadratic_update_runtime")
 def update_quadratic(
