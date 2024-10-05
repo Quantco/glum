@@ -1791,7 +1791,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
     ) -> WaldTestResult:
         """
         Perform a Wald test for the hypothesis that the coefficients of the
-        features in ``terms`` are equal to the values in ``terms``.
+        features in ``terms`` are equal to the values in ``values``.
         """
 
         if isinstance(terms, str):
