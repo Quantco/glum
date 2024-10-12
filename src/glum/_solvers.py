@@ -70,6 +70,7 @@ def _cd_solver(state, data, active_hessian):
         data._lower_bounds,
         data.has_upper_bounds,
         data._upper_bounds,
+        np.finfo(state.coef.dtype).eps * 16,
     )
     return new_coef - state.coef, n_cycles
 
@@ -759,7 +760,8 @@ def line_search(state: IRLSState, data: IRLSData, d: np.ndarray):
     """
     # line search parameters
     (beta, sigma) = (0.5, 0.0001)
-    eps = 16 * np.finfo(state.obj_val.dtype).eps  # type: ignore
+    # state.obj_val is np.float64, even if coef is np.float32
+    eps = 16 * np.finfo(state.coef.dtype).eps  # type: ignore
 
     # line search by sequence beta^k, k=0, 1, ..
     # F(w + lambda d) - F(w) <= lambda * bound
@@ -792,7 +794,12 @@ def line_search(state: IRLSState, data: IRLSData, d: np.ndarray):
         )
         # 1. Check Armijo / sufficient decrease condition.
         loss_improvement = obj_val_wd - state.obj_val
-        if mu_wd.max() < 1e43 and loss_improvement <= factor * bound:
+        if mu_wd.dtype == np.float32:
+            large_number = 1e30
+        else:
+            large_number = 1e43
+
+        if mu_wd.max() < large_number and loss_improvement <= factor * bound:
             break
         # 2. Deal with relative loss differences around machine precision.
         tiny_loss = np.abs(state.obj_val * eps)  # type: ignore
