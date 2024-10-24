@@ -7,12 +7,16 @@
 Changelog
 =========
 
-3.0.3 - unreleased
+3.1.0 - unreleased
 ------------------
 
-**Bug fix:
+**Bug fix:**
 
 - Fixed a bug where :meth:`glum.GeneralizedLinearRegressor.fit` would raise a ``dtype`` mismatch error if fit with ``alpha_search=True``.
+
+**Other changes:**
+
+- Use datatype (``float64`` or ``float32``) dependent precision in solvers.
 
 3.0.2 - 2024-06-25
 ------------------
