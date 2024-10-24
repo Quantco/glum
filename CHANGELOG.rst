@@ -7,8 +7,12 @@
 Changelog
 =========
 
-3.0.3 - unreleased
+3.1.0 - unreleased
 ------------------
+
+**New features:**
+
+- New argument `max_inner_iter` for classes :class:`~glum.GeneralizedLinearRegressor` and :class:`~glum.GeneralizedLinearRegressorCV` to control the maximum number of iterations of the inner solver in the IRLS-CD algorithm.
 
 **Bug fix:
 
