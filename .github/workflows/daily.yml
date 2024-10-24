@@ -29,7 +29,7 @@ jobs:
         with:
           environments: ${{ matrix.environment }}
       - name: Install nightlies
-        if: matrix.NOTE == 'Nightly Builds'
+        if: matrix.environment == 'nightly'
         run: pixi run -e ${{ matrix.environment }} install-nightlies
       - name: Install repository
         run: pixi run -e ${{ matrix.environment }} postinstall

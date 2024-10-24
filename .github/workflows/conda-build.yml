@@ -34,9 +34,10 @@ jobs:
         run: git fetch --prune --unshallow
       - uses: mamba-org/setup-micromamba@f8b8a1e23a26f60a44c853292711bacfd3eac822
         with:
+          micromamba-version: 1.5.10-0
           init-shell: ${{ matrix.os == 'windows-latest' && 'cmd.exe' || 'bash' }}
           environment-name: build
-          create-args: boa
+          create-args: conda-build
       - name: Patch conda build configuration
         # use the latest macOS SDK when cross-compiling for arm64
         if: startsWith(matrix.conda_build_yml, 'osx_arm64')
@@ -50,13 +51,13 @@ jobs:
         if: matrix.os != 'windows-latest'
         shell: bash -el {0}
         run: >-
-          conda-mambabuild
+          conda-build
           -m ".ci_support/${{ matrix.CONDA_BUILD_YML }}.yaml"${{ matrix.conda-build-args }}
           conda.recipe
       - name: Build conda package (windows)
         if: matrix.os == 'windows-latest'
         shell: cmd /C CALL {0}
         run: >-
-          conda-mambabuild
+          conda-build
           -m ".ci_support/${{ matrix.conda_build_yml }}.yaml"${{ matrix.conda-build-args }}
           conda.recipe
