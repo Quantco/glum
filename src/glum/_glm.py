@@ -14,12 +14,12 @@ some parts and tricks stolen from other sklearn files.
 """
 
 # License: BSD 3 clause
-
 import copy
 import re
 import sys
 import warnings
 from collections.abc import Iterable, Mapping, Sequence
+from time import perf_counter
 from typing import Any, NamedTuple, Optional, Union, cast
 
 import numpy as np
@@ -1184,6 +1184,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             P1 = P1_no_alpha * alpha
             P2 = P2_no_alpha * alpha
 
+            tic = perf_counter()
             coef = self._solve(
                 X=X,
                 y=y,
@@ -1197,6 +1198,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 A_ineq=A_ineq,
                 b_ineq=b_ineq,
             )
+            toc = perf_counter()
+
+            if self.verbose > 0:
+                print(
+                    f"alpha={alpha:.3e}, time={toc - tic:.2f}s, n_iter={self.n_iter_}"
+                )
 
             self.coef_path_[k, :] = coef
 
