@@ -16,7 +16,7 @@ Changelog
 
 **Other changes:**
 
-- Use datatype (``float64`` or ``float32``) dependent precision in solvers.
+- Use data type (``float64`` or ``float32``) dependent precision in solvers.
 
 3.0.2 - 2024-06-25
 ------------------
