@@ -547,6 +547,9 @@ class IRLSState:
         self.line_search_runtime = None
         self.quadratic_update_runtime = None
 
+        # used in the line-search Armijo stopping criterion
+        self.large_number = 1e30 if data.X.dtype == np.float32 else 1e43
+
     def _record_iteration(self):
         self.n_iter += 1
 
@@ -795,12 +798,8 @@ def line_search(state: IRLSState, data: IRLSData, d: np.ndarray):
         )
         # 1. Check Armijo / sufficient decrease condition.
         loss_improvement = obj_val_wd - state.obj_val
-        if mu_wd.dtype == np.float32:
-            large_number = 1e30
-        else:
-            large_number = 1e43
 
-        if mu_wd.max() < large_number and loss_improvement <= factor * bound:
+        if mu_wd.max() < state.large_number and loss_improvement <= factor * bound:
             break
         # 2. Deal with relative loss differences around machine precision.
         tiny_loss = np.abs(state.obj_val * eps)  # type: ignore
