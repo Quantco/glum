@@ -758,6 +758,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         categorical_format: str = "{name}[{category}]",
         cat_missing_method: str = "fail",
         cat_missing_name: str = "(MISSING)",
+        use_sparse_hessian: bool = True,
     ):
         self.l1_ratio = l1_ratio
         self.P1 = P1
@@ -795,6 +796,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self.categorical_format = categorical_format
         self.cat_missing_method = cat_missing_method
         self.cat_missing_name = cat_missing_name
+        self.use_sparse_hessian = use_sparse_hessian
 
     @property
     def family_instance(self) -> ExponentialDispersionModel:
@@ -1112,6 +1114,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 lower_bounds=lower_bounds,
                 upper_bounds=upper_bounds,
                 verbose=self.verbose > 0,
+                use_sparse_hessian=self.use_sparse_hessian,
             )
             if self._solver == "irls-ls":
                 coef, self.n_iter_, self._n_cycles, self.diagnostics_ = _irls_solver(
@@ -1119,6 +1122,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 )
             # 4.2 coordinate descent ##############################################
             elif self._solver == "irls-cd":
+                # This is the case we're concerned with for wide problems.
                 coef, self.n_iter_, self._n_cycles, self.diagnostics_ = _irls_solver(
                     _cd_solver, coef, irls_data
                 )
@@ -2880,6 +2884,12 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         Name of the category to which missing values will be converted if
         ``cat_missing_method='convert'``.  Only used if ``X`` is a pandas data frame.
 
+    use_sparse_hessian : boolean, optional, (default=True)
+        If ``True``, stores the current state of the Hessian as a sparse COO matrix.
+        If ``False``, stores as a dense matrix of size `num_cols` x `num_cols`, where
+        `num_cols` is the number of columns in the data X. Use ``True`` to avoid memory
+        issues when working with extremely wide data.
+
     Attributes
     ----------
     coef_ : numpy.array, shape (n_features,)
@@ -2965,6 +2975,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         categorical_format: str = "{name}[{category}]",
         cat_missing_method: str = "fail",
         cat_missing_name: str = "(MISSING)",
+        use_sparse_hessian: bool = True,
     ):
         self.alphas = alphas
         self.alpha = alpha
@@ -3005,6 +3016,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             categorical_format=categorical_format,
             cat_missing_method=cat_missing_method,
             cat_missing_name=cat_missing_name,
+            use_sparse_hessian=use_sparse_hessian,
         )
 
     def _validate_hyperparameters(self) -> None:
