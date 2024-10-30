@@ -3294,7 +3294,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
 
             if self.fit_intercept:
                 self.intercept_, self.coef_ = _unstandardize(
-                    self.col_means, self.col_stds_, coef[0], coef[1:]
+                    self.col_means_, self.col_stds_, coef[0], coef[1:]
                 )
             else:
                 # set intercept to zero as the other linear models do
