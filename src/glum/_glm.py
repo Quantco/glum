@@ -2879,6 +2879,12 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     n_iter_ : int
         Actual number of iterations used in solver.
 
+    col_means_: array, shape (n_features,)
+        The means of the columns of the design matrix ``X``.
+
+    col_stds_: array, shape (n_features,)
+        The standard deviations of the columns of the design matrix ``X``.
+
     Notes
     -----
     The fit itself does not need outcomes to be from an EDM, but only assumes
@@ -3166,8 +3172,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
 
         (
             X,
-            col_means,
-            col_stds,
+            self.col_means_,
+            self.col_stds_,
             lower_bounds,
             upper_bounds,
             A_ineq,
@@ -3194,8 +3200,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             y,
             sample_weight,
             offset,
-            col_means,
-            col_stds,
+            self.col_means_,
+            self.col_stds_,
             dtype=[np.float64, np.float32],
         )
 
@@ -3237,14 +3243,14 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             # intercept_ and coef_ return the last estimated alpha
             if self.fit_intercept:
                 self.intercept_path_, self.coef_path_ = _unstandardize(
-                    col_means, col_stds, coef[:, 0], coef[:, 1:]
+                    self.col_means_, self.col_stds_, coef[:, 0], coef[:, 1:]
                 )
                 self.intercept_ = self.intercept_path_[-1]  # type: ignore
                 self.coef_ = self.coef_path_[-1]
             else:
                 # set intercept to zero as the other linear models do
                 self.intercept_path_, self.coef_path_ = _unstandardize(
-                    col_means, col_stds, np.zeros(coef.shape[0]), coef
+                    self.col_means_, self.col_stds_, np.zeros(coef.shape[0]), coef
                 )
                 self.intercept_ = 0.0
                 self.coef_ = self.coef_path_[-1]
@@ -3275,12 +3281,12 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
 
             if self.fit_intercept:
                 self.intercept_, self.coef_ = _unstandardize(
-                    col_means, col_stds, coef[0], coef[1:]
+                    self.col_means, self.col_stds_, coef[0], coef[1:]
                 )
             else:
                 # set intercept to zero as the other linear models do
                 self.intercept_, self.coef_ = _unstandardize(
-                    col_means, col_stds, 0.0, coef
+                    self.col_means_, self.col_stds_, 0.0, coef
                 )
 
         self.covariance_matrix_ = None

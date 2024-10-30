@@ -319,6 +319,12 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
     cat_missing_name: str, default='(MISSING)'
         Name of the category to which missing values will be converted if
         ``cat_missing_method='convert'``.  Only used if ``X`` is a pandas data frame.
+
+    col_means_: array, shape (n_features,)
+        The means of the columns of the design matrix ``X``.
+
+    col_stds_: array, shape (n_features,)
+        The standard deviations of the columns of the design matrix ``X``.
     """
 
     def __init__(
@@ -617,8 +623,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
                 y_train,
                 w_train,
                 offset_train,
-                col_means,
-                col_stds,
+                self.col_means,
+                self.col_stds,
                 dtype=[np.float64, np.float32],
             )
 
@@ -722,8 +728,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         # Refit with full data and best alpha and lambda
         (
             X,
-            col_means,
-            col_stds,
+            self.col_means_,
+            self.col_stds_,
             lower_bounds,
             upper_bounds,
             A_ineq,
@@ -742,7 +748,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         )
 
         coef = self._get_start_coef(
-            X, y, sample_weight, offset, col_means, col_stds, dtype=X.dtype
+            X, y, sample_weight, offset, self.col_means_, self.col_stds_, dtype=X.dtype
         )
 
         coef = self._solve(
@@ -761,11 +767,13 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
 
         if self.fit_intercept:
             self.intercept_, self.coef_ = _unstandardize(
-                col_means, col_stds, coef[0], coef[1:]
+                self.col_means_, self.col_stds_, coef[0], coef[1:]
             )
         else:
             # set intercept to zero as the other linear models do
-            self.intercept_, self.coef_ = _unstandardize(col_means, col_stds, 0.0, coef)
+            self.intercept_, self.coef_ = _unstandardize(
+                self.col_means_, self.col_stds_, 0.0, coef
+            )
 
         self.covariance_matrix_ = None
         if store_covariance_matrix:
