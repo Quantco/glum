@@ -13,6 +13,7 @@ Changelog
 **New features:**
 
 - New attributes ``col_means_`` and ``col_stds_`` for classes :class:`~glum.GeneralizedLinearRegressor` and :class:`~glum.GeneralizedLinearRegressorCV`.
+- :class:`~glum.GeneralizedLinearRegressor` now prints more informative logs when fitting with ``alpha_search=True`` and ``verbose=True``.
 
 **Bug fix:
 
@@ -113,6 +114,10 @@ Changelog
 
 2.5.1 - 2023-05-19
 ------------------
+
+**Other changes:**
+
+- Better error message when the number of input features is different between the fit and predict methods.
 
 **Bug fix:**
 
