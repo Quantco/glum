@@ -623,8 +623,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
                 y_train,
                 w_train,
                 offset_train,
-                self.col_means,
-                self.col_stds,
+                self.col_means_,
+                self.col_stds_,
                 dtype=[np.float64, np.float32],
             )
 
