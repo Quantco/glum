@@ -12,7 +12,7 @@ Changelog
 
 **New features:**
 
-- New attributes ``col_means_`` and ``col_stds_`` for classes :class:`~glum.GeneralizedLinearRegressor` and :class:`~glum.GeneralizedLinearRegressorCV`.
+- New fitted attributes ``col_means_`` and ``col_stds_`` for classes :class:`~glum.GeneralizedLinearRegressor` and :class:`~glum.GeneralizedLinearRegressorCV`.
 - :class:`~glum.GeneralizedLinearRegressor` now prints more informative logs when fitting with ``alpha_search=True`` and ``verbose=True``.
 
 **Bug fix:
