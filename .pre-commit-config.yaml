@@ -1,24 +1,47 @@
+exclude: ^.pixi$
 repos:
-  - repo: https://github.com/Quantco/pre-commit-mirrors-ruff
-    rev: 0.4.7
+  - repo: local
     hooks:
-      - id: ruff-conda
-        exclude: ^src/glum_benchmarks/orig_sklearn_fork/
-      - id: ruff-format-conda
-        exclude: ^src/glum_benchmarks/orig_sklearn_fork/
-  - repo: https://github.com/Quantco/pre-commit-mirrors-mypy
-    rev: "1.10.0"
-    hooks:
-      - id: mypy-conda
-        args:
-          - --check-untyped-defs
-          - --ignore-missing-imports
-          - --namespace-packages
+      # ensure pixi environments are up to date
+      # workaround for https://github.com/prefix-dev/pixi/issues/1482
+      - id: pixi-install
+        name: pixi-install
+        entry: pixi install -e default -e lint
+        language: system
+        always_run: true
+        require_serial: true
+        pass_filenames: false
+      # ruff
+      - id: ruff
+        name: ruff
+        entry: pixi run -e lint ruff check --fix --exit-non-zero-on-fix --force-exclude
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
+      - id: ruff-format
+        name: ruff-format
+        entry: pixi run -e lint ruff format --force-exclude
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
+      # cython-lint
+      - id: cython-lint
+        name: cython-lint
+        entry: pixi run -e lint cython-lint --no-pycodestyle
+        language: system
+        types: [cython]
+        require_serial: true
+      - id: cython-double-quote
+        name: cython-double-quote
+        entry: pixi run -e lint double-quote-cython-strings
+        language: system
+        types: [cython]
+        require_serial: true
+      # mypy
+      - id: mypy
+        name: mypy
+        entry: pixi run -e default mypy
         exclude: (^tests/|^src/glum_benchmarks/orig_sklearn_fork/)
-        additional_dependencies: [-c, conda-forge, types-setuptools=67.5, attrs]
-  - repo: https://github.com/Quantco/pre-commit-mirrors-cython-lint
-    rev: 0.16.2
-    hooks:
-      - id: cython-lint-conda
-        args: [--no-pycodestyle]
-      - id: double-quote-cython-strings-conda
+        language: system
+        types: [python]
+        require_serial: true

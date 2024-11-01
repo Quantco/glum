@@ -1,9 +1,19 @@
 name: CI
-on: [push]
+on:
+  # We would like to trigger for CI for any pull request action -
+  # both from QuantCo's branches as well as forks.
+  pull_request:
+  # In addition to pull requests, we want to run CI for pushes
+  # to the main branch and tags.
+  push:
+    branches:
+      - "main"
+    tags:
+      - "*"
 
 jobs:
   pre-commit-checks:
-    name: Linux - pre-commit checks - Python 3.11
+    name: Linux - pre-commit checks
     timeout-minutes: 30
     runs-on: ubuntu-latest
     env:
@@ -11,19 +21,15 @@ jobs:
     steps:
       - name: Checkout branch
         uses: actions/checkout@v4
-      - name: Set up micromamba
-        uses: mamba-org/setup-micromamba@f8b8a1e23a26f60a44c853292711bacfd3eac822
-      - name: Add micromamba to GITHUB_PATH
-        run: echo "${HOME}/micromamba-bin" >> "$GITHUB_PATH"
-      - name: Install Python 3.11
-        uses: actions/setup-python@v5
+      - name: Set up pixi
+        uses: prefix-dev/setup-pixi@v0.8.1
         with:
-          python-version: "3.11"
-      - name: Run pre-commit checks
-        uses: pre-commit/action@v3.0.1
+          environments: lint default
+      - name: pre-commit
+        run: pixi run -e lint pre-commit-run --color=always --show-diff-on-failure
 
   unit-tests:
-    name: Tests - ${{ matrix.os }} - Py${{ matrix.python-version }}
+    name: Tests
     runs-on: ${{ matrix.os }}
     env:
       CI: True
@@ -31,42 +37,28 @@ jobs:
       fail-fast: true
       matrix:
         include:
-          - { os: ubuntu-latest, python-version: '3.9' }
-          - { os: ubuntu-latest, python-version: '3.10' }
-          - { os: ubuntu-latest, python-version: '3.11' }
-          - { os: ubuntu-latest, python-version: '3.12' }
-          - { os: macos-latest, python-version: '3.12' }
-          - { os: windows-latest, python-version: '3.12' }
+          - { os: ubuntu-latest, environment: 'py310' }
+          - { os: ubuntu-latest, environment: 'py311' }
+          - { os: ubuntu-latest, environment: 'py312' }
+          - { os: windows-latest, environment: 'py312' }
+          - { os: macos-latest, environment: 'py312' }
+          - { os: ubuntu-latest, environment: 'oldies' }
+          - { os: ubuntu-latest, environment: 'nightly' }
     steps:
       - name: Checkout branch
         uses: actions/checkout@v4
-      - name: Set up conda env
-        uses: mamba-org/setup-micromamba@f8b8a1e23a26f60a44c853292711bacfd3eac822
+      - name: Set up pixi
+        uses: prefix-dev/setup-pixi@992a3081e2f87829e0fff9fb29f4fe6a5d1e80a2
         with:
-          environment-file: environment.yml
-          init-shell: ${{ matrix.os == 'windows-latest' && 'powershell' || 'bash' }}
-          cache-environment: true
-          create-args: >-
-            python=${{ matrix.python-version }}
-      - name: Install repository (unix)
-        if: matrix.os != 'windows-latest'
-        shell: bash -el {0}
-        run: pip install --no-use-pep517 --no-deps --disable-pip-version-check -e .
-      - name: Install repository (windows)
-        if: matrix.os == 'windows-latest'
-        shell: powershell
-        run: pip install --no-use-pep517 --no-deps --disable-pip-version-check -e .
-      - name: Run pytest (unix)
-        if: matrix.os != 'windows-latest'
-        shell: bash -el {0}
-        run: pytest -nauto tests/glm --doctest-modules src/glum
-      - name: Run pytest (windows)
-        if: matrix.os == 'windows-latest'
-        shell: powershell
-        run: pytest -nauto .\tests\glm --doctest-modules .\src\glum
+          environments: ${{ matrix.environment }}
+      - name: Install nightlies
+        if: matrix.environment == 'nightly'
+        run: pixi run -e ${{ matrix.environment }} install-nightlies
+      - name: Install repository
+        run: pixi run -e ${{ matrix.environment }} postinstall
+      - name: Run pytest
+        run: pixi run -e ${{ matrix.environment }} test -nauto
       - name: Run doctest
-        if: matrix.os != 'windows-latest'
-        shell: bash -el {0}
         # Check that the readme example will work by running via doctest.
         # We run outside the repo to make the test a bit more similar to
         # a user running after installing with conda.
@@ -74,4 +66,4 @@ jobs:
           mkdir ../temp
           cp README.md ../temp
           cd ../temp
-          python -m doctest -v README.md
+          pixi run --manifest-path ../glum/pixi.toml -e ${{ matrix.environment }} python -m doctest -v README.md

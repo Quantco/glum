@@ -114,7 +114,7 @@ class TweedieLink(Link):
         return self.__class__(self.power)
 
     @property
-    def power(self) -> float:  # noqa D
+    def power(self):  # noqa D
         return self._power
 
     @power.setter

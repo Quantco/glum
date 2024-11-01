@@ -1,7 +1,0 @@
-name: glum
-channels:
-  - conda-forge
-  - nodefaults
-dependencies:
-  - h2o-py
-  - openjdk

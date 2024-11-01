@@ -93,7 +93,7 @@ def get_obj_val(
     )
     model._set_up_for_fit(dat["y"])
 
-    full_coefs = np.concatenate(([intercept], coefs))
+    full_coefs: np.ndarray = np.concatenate([[intercept], coefs])
     offset = dat.get("offset")
     if isinstance(dat["X"], tm.MatrixBase):
         X_dot_coef = dat["X"].matvec(coefs)
@@ -174,11 +174,11 @@ def exposure_and_offset_to_weights(
         raise ValueError("Need offset or exposure.")
     y = y / exposure
     sample_weight = (
-        exposure ** (2 - power)
+        exposure ** (2 - power)  # type: ignore
         if sample_weight is None
-        else sample_weight * exposure ** (2 - power)
+        else sample_weight * exposure ** (2 - power)  # type: ignore
     )
-    return y, sample_weight
+    return y, sample_weight  # type: ignore
 
 
 class BenchmarkParams:

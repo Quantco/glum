@@ -31,39 +31,46 @@ Install for development
 --------------------------------------------------
 
 The first step is to set up a conda environment and install glum in editable mode.
-We strongly suggest to use ``mamba`` instead of ``conda`` as this provides the same functionality at much greater speed.
+The project uses [pixi](https://pixi.sh/latest/) for managing the environment. If you don't have pixi installed, start by [installing it](https://pixi.sh/latest/#installation).
 
 ::
-
-   # First, make sure you have conda-forge as your primary conda channel:
-   conda config --add channels conda-forge
 
    # Clone the repository
    git clone git@github.com:Quantco/glum.git
    cd glum
 
-   # Set up a conda environment with name "glum"
-   mamba env create
+   # Install the pre-commit hooks
+   pixi run pre-commit-install
+
+   # Install the dependencies, as well as and glum in editable mode
+   pixi run postinstall
 
    # If you want to install the dependencies necessary for benchmarking against other GLM packages:
-   mamba env update -n glum --file environment-benchmark.yml
+   pixi run -e benchmark postinstall
 
-   # If you want to work on the tutorial notebooks:
-   mamba env update -n glum --file environment-tutorial.yml
+   # If you want to work on the tutorial notebooks or the documentation:
+   pixi run -e docs postinstall
 
-   # Activate the previously created conda environment
-   conda activate glum
+   # You can run any command in the pixi environment with `pixi run <command>`. For example:
+   pixi run [-e ENVIRONMENT] ipython
 
-   # Set up our pre-commit hooks for black, mypy, isort and flake8.
-   pre-commit install
+   # Alternatively, you can create a shell with the pixi environment activated:
+   pixi shell
 
-   # Install this package in editable mode.
-   pip install --no-use-pep517 --disable-pip-version-check -e .
+   # Alternatively, a number of pixi tasks are available for commonly used commands.
+   # You can run them with `pixi run <task>`.
+   # To get a list of available tasks, run:
+   pixi task list
 
 
 Testing and continuous integration
 --------------------------------------------------
-The test suite is in ``tests/``. 
+The test suite is in ``tests/``. A pixi task is available to run the tests:
+
+::
+
+   pixi run test
+
 
 Golden master tests
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -80,12 +87,12 @@ If you want to skip the slow tests, add the ``-m "not slow"`` flag to any pytest
 Storing and modifying
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-To store the golden master results:
+To store the golden master results, use the following pixi tasks:
 
 ::
 
-   python tests/glm/test_golden_master.py
-   python tests/glm/test_benchmark_golden_master.py
+   pixi run store-golden-master
+   pixi run store-benchmark-golden-master
 
 Add the ``--overwrite`` flag if you want to overwrite already existing golden master results
 
@@ -108,9 +115,7 @@ The documentation is built with a mix of Sphinx, autodoc, and nbsphinx. To devel
 
 ::
 
-   cd docs
-   make html
-   python -m http.server --directory _build/html
+   pixi run serve-docs
 
 Then, navigate to `<http://localhost:8000>`_ to view the documentation.
 

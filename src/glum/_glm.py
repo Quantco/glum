@@ -14,28 +14,30 @@ some parts and tricks stolen from other sklearn files.
 """
 
 # License: BSD 3 clause
-
 import copy
 import re
 import sys
 import warnings
 from collections.abc import Iterable, Mapping, Sequence
+from time import perf_counter
 from typing import Any, NamedTuple, Optional, Union, cast
 
 import numpy as np
 import pandas as pd
 import scipy.sparse as sps
 import scipy.sparse.linalg as splinalg
+import sklearn as skl
 import tabmat as tm
 from formulaic import Formula, FormulaSpec
 from formulaic.parser import DefaultFormulaParser
 from formulaic.utils.constraints import LinearConstraintParser
 from formulaic.utils.context import capture_context
+from packaging import version
 from scipy import linalg, sparse, stats
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.utils import check_array
 from sklearn.utils.validation import (
-    _assert_all_finite,
+    assert_all_finite,
     check_consistent_length,
     check_is_fitted,
     column_or_1d,
@@ -69,6 +71,13 @@ from ._util import (
     _is_contiguous,
     _safe_toarray,
 )
+
+if version.parse(skl.__version__).release < (1, 6):
+    keyword_finiteness = "force_all_finite"
+    validate_data = BaseEstimator._validate_data
+else:
+    keyword_finiteness = "ensure_all_finite"
+    from sklearn.utils.validation import validate_data  # type: ignore
 
 _float_itemsize_to_dtype = {8: np.float64, 4: np.float32, 2: np.float16}
 
@@ -160,7 +169,7 @@ def check_X_y_tabmat_compliant(
         raise ValueError("y cannot be None")
 
     y = column_or_1d(y, warn=True)
-    _assert_all_finite(y)
+    assert_all_finite(y)
     if y.dtype.kind == "O":
         y = y.astype(np.float64)
 
@@ -180,16 +189,16 @@ def _check_weights(
     if sample_weight is None:
         return np.ones(n_samples, dtype=dtype)
     if np.isscalar(sample_weight):
-        if sample_weight <= 0:
+        if sample_weight <= 0:  # type: ignore
             raise ValueError("Sample weights must be non-negative.")
         return np.full(n_samples, sample_weight, dtype=dtype)
 
     sample_weight = check_array(
         sample_weight,
         accept_sparse=False,
-        force_all_finite=force_all_finite,
         ensure_2d=False,
         dtype=[np.float64, np.float32],
+        **{keyword_finiteness: force_all_finite},
     )
 
     if sample_weight.ndim > 1:  # type: ignore
@@ -201,7 +210,7 @@ def _check_weights(
     if np.sum(sample_weight) == 0:  # type: ignore
         raise ValueError("Sample weights must have at least one positive element.")
 
-    return sample_weight
+    return sample_weight  # type: ignore
 
 
 def _check_offset(
@@ -219,9 +228,9 @@ def _check_offset(
     offset = check_array(
         offset,
         accept_sparse=False,
-        force_all_finite=True,
         ensure_2d=False,
         dtype=dtype,
+        **{keyword_finiteness: True},
     )
 
     offset = cast(np.ndarray, offset)
@@ -291,9 +300,9 @@ def check_bounds(
     bounds = check_array(
         bounds,
         accept_sparse=False,
-        force_all_finite=False,
         ensure_2d=False,
         dtype=dtype,
+        **{keyword_finiteness: False},
     )
 
     bounds = cast(np.ndarray, bounds)
@@ -319,18 +328,18 @@ def check_inequality_constraints(
         A_ineq = check_array(
             A_ineq,
             accept_sparse=False,
-            force_all_finite=False,
             ensure_2d=True,
             dtype=dtype,
             copy=True,
+            **{keyword_finiteness: False},
         )
         b_ineq = check_array(
             b_ineq,
             accept_sparse=False,
-            force_all_finite=False,
             ensure_2d=False,
             dtype=dtype,
             copy=True,
+            **{keyword_finiteness: False},
         )
         if A_ineq.shape[1] != n_features:  # type: ignore
             raise ValueError("A_ineq must have same number of columns as X.")
@@ -567,21 +576,21 @@ def setup_p1(
     else:
         P1 = np.atleast_1d(P1)
         try:
-            P1 = P1.astype(dtype, casting="safe", copy=False)
+            P1 = P1.astype(dtype, casting="safe", copy=False)  # type: ignore
         except TypeError as e:
             raise TypeError(
                 "The given P1 cannot be converted to a numeric array; "
-                f"got (P1.dtype={P1.dtype})."
+                f"got (P1.dtype={P1.dtype})."  # type: ignore
             ) from e
-        if (P1.ndim != 1) or (P1.shape[0] != n_features):
+        if (P1.ndim != 1) or (P1.shape[0] != n_features):  # type: ignore
             raise ValueError(
                 "P1 must be either 'identity' or a 1d array with the length of "
                 "X.shape[1] (either before or after categorical expansion); "
-                f"got (P1.shape[0]={P1.shape[0]})."
+                f"got (P1.shape[0]={P1.shape[0]})."  # type: ignore
             )
 
     # P1 and P2 are now for sure copies
-    P1 = alpha * l1_ratio * P1
+    P1 = alpha * l1_ratio * P1  # type: ignore
     return cast(np.ndarray, P1).astype(dtype)
 
 
@@ -838,10 +847,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             coef = check_array(
                 self.start_params,
                 accept_sparse=False,
-                force_all_finite=True,
                 ensure_2d=False,
                 dtype=dtype,
                 copy=True,
+                **{keyword_finiteness: True},
             )
 
             if coef.shape != (len(col_means) + self.fit_intercept,):
@@ -1017,7 +1026,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
 
         if self.fit_intercept:
             intercept_offset = 1
-            coef = np.zeros(X.shape[1] + 1)
+            coef = np.zeros(X.shape[1] + 1, dtype=X.dtype)
             coef[0] = guess_intercept(
                 y=y,
                 sample_weight=w,
@@ -1026,7 +1035,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             )
         else:
             intercept_offset = 0
-            coef = np.zeros(X.shape[1])
+            coef = np.zeros(X.shape[1], dtype=X.dtype)
 
         _, dev_der = self._family_instance._mu_deviance_derivative(
             coef=coef,
@@ -1175,6 +1184,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             P1 = P1_no_alpha * alpha
             P2 = P2_no_alpha * alpha
 
+            tic = perf_counter()
             coef = self._solve(
                 X=X,
                 y=y,
@@ -1188,6 +1198,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 A_ineq=A_ineq,
                 b_ineq=b_ineq,
             )
+            toc = perf_counter()
+
+            if self.verbose > 0:
+                print(
+                    f"alpha={alpha:.3e}, time={toc - tic:.2f}s, n_iter={self.n_iter_}"
+                )
 
             self.coef_path_[k, :] = coef
 
@@ -1348,12 +1364,18 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             drop_first=getattr(self, "drop_first", False),
         )
 
+        if X.shape[1] != self.n_features_in_:
+            raise ValueError(
+                f"X has {X.shape[1]} features, but {self.__class__.__name__} "
+                f"is expecting {self.n_features_in_} features as input."
+            )
+
         if alpha_index is None:
             xb = X @ self.coef_ + self.intercept_
             if offset is not None:
                 xb += offset
         elif np.isscalar(alpha_index):  # `None` doesn't qualify
-            xb = X @ self.coef_path_[alpha_index] + self.intercept_path_[alpha_index]
+            xb = X @ self.coef_path_[alpha_index] + self.intercept_path_[alpha_index]  # type: ignore
             if offset is not None:
                 xb += offset
         else:  # hopefully a list or some such
@@ -1599,7 +1621,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             in the input data. As categorical variables need not be one-hot encoded in
             glum, in their case, the hypothesis to be tested is that the coefficients
             of all categories are equal to ``r``.
-        r : np.ndarray, optional, default=None
+        r : Sequence, optional, default=None
             The vector representing the values of the linear combination.
             If None, the test is for whether the linear combinations of the coefficients
             are zero.
@@ -1663,7 +1685,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         }
 
         if R is not None:
-            return self._wald_test_matrix(R=R, r=r, **kwargs)
+            return self._wald_test_matrix(R=R, r=np.asarray(r), **kwargs)
         if features is not None:
             return self._wald_test_feature_names(features=features, values=r, **kwargs)
         if terms is not None:
@@ -1776,7 +1798,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
     ) -> WaldTestResult:
         """
         Perform a Wald test for the hypothesis that the coefficients of the
-        features in ``terms`` are equal to the values in ``terms``.
+        features in ``terms`` are equal to the values in ``values``.
         """
 
         if isinstance(terms, str):
@@ -2103,7 +2125,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             )
             offset = _check_offset(offset, y.shape[0], X.dtype)
 
-        sum_weights = np.sum(sample_weight)
+        sum_weights = np.sum(sample_weight)  # type: ignore
 
         mu = self.predict(X, offset=offset) if mu is None else np.asanyarray(mu)
 
@@ -2364,8 +2386,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         np.ndarray,
         Optional[np.ndarray],
         float,
-        Union[str, np.ndarray],
-        Union[str, np.ndarray],
+        Union[str, np.ndarray, Any],
+        Union[str, np.ndarray, Any],
     ]:
         dtype = [np.float64, np.float32]
         stype = ["csc"] if self.solver == "irls-cd" else ["csc", "csr"]
@@ -2459,7 +2481,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 )
 
         if y is None:
-            raise ValueError("y cannot be None when not using a two-sided formula.")
+            raise ValueError(
+                f"Unless using a two-sided formula, {self.__class__.__name__} "
+                "requires y to be passed, but the target y is None."
+            )
 
         if not _is_contiguous(X):
             if self.copy_X is not None and not self.copy_X:
@@ -2493,19 +2518,20 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 accept_sparse=stype,
                 dtype=dtype,
                 copy=copy_X,
-                force_all_finite=force_all_finite,
                 drop_first=getattr(self, "drop_first", False),
+                **{keyword_finiteness: force_all_finite},
             )
-            self._check_n_features(X, reset=True)
+            self.n_features_in_ = X.shape[1]
         else:
-            X, y = self._validate_data(
+            X, y = validate_data(
+                self,
                 X,
                 y,
                 ensure_2d=True,
                 accept_sparse=stype,
                 dtype=dtype,
                 copy=copy_X,
-                force_all_finite=force_all_finite,
+                **{keyword_finiteness: force_all_finite},
             )
 
         # Without converting y to float, deviance might raise
@@ -2516,9 +2542,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         # mixed-precision numbers
         y = np.asarray(y, dtype=X.dtype)
         sample_weight = _check_weights(
-            sample_weight, y.shape[0], X.dtype, force_all_finite=force_all_finite
+            sample_weight,
+            y.shape[0],  # type: ignore
+            X.dtype,
+            force_all_finite=force_all_finite,
         )
-        offset = _check_offset(offset, y.shape[0], X.dtype)
+        offset = _check_offset(offset, y.shape[0], X.dtype)  # type: ignore
 
         # IMPORTANT NOTE: Since we want to minimize
         # 1/(2*sum(sample_weight)) * deviance + L1 + L2,
@@ -2532,10 +2561,10 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         #######################################################################
         X = tm.as_tabmat(X)
 
-        self.feature_names_ = X.get_names(type="column", missing_prefix="_col_")
+        self.feature_names_ = X.get_names(type="column", missing_prefix="_col_")  # type: ignore
         self.term_names_ = X.get_names(type="term", missing_prefix="_col_")
 
-        return X, y, sample_weight, offset, weights_sum, P1, P2
+        return X, y, sample_weight, offset, weights_sum, P1, P2  # type: ignore
 
 
 class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
@@ -3000,15 +3029,15 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             ):
                 raise ValueError(
                     "Penalty term must be a non-negative number;"
-                    f" got (alpha={self.alpha})"
+                    f" got (alpha={self.alpha})"  # type: ignore
                 )
 
         if (
             not np.isscalar(self.l1_ratio)
             # check for numeric, i.e. not a string
             or not np.issubdtype(np.asarray(self.l1_ratio).dtype, np.number)
-            or self.l1_ratio < 0
-            or self.l1_ratio > 1
+            or self.l1_ratio < 0  # type: ignore
+            or self.l1_ratio > 1  # type: ignore
         ):
             raise ValueError(
                 "l1_ratio must be a number in interval [0, 1];"
@@ -3317,7 +3346,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
                 "the binomial, negative binomial and Tweedie (power<=2 or power=3)."
             )
 
-        ddof = np.sum(np.abs(self.coef_) > np.finfo(self.coef_.dtype).eps)
+        ddof = np.sum(np.abs(self.coef_) > np.finfo(self.coef_.dtype).eps)  # type: ignore
         k_params = ddof + self.fit_intercept
         nobs = X.shape[0]
 

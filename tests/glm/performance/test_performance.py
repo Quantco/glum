@@ -199,7 +199,7 @@ def runtime_checker():
             copy_X=False,
             force_all_finite=False,
         )
-        min_runtime, result = runtime(
+        min_runtime, _ = runtime(
             lambda: model.fit(X=dat["X"], y=dat["y"]),  # noqa B023
             5,
         )

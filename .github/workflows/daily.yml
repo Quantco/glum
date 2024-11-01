@@ -9,7 +9,7 @@ on:
 
 jobs:
   linux-daily-unittests:
-    name: "Linux - daily unit tests - Python ${{ matrix.PYTHON_VERSION}} - ${{ matrix.NOTE }}"
+    name: "Linux - daily unit tests - ${{ matrix.NOTE }}"
     runs-on: ubuntu-latest
     env:
       CI: True
@@ -17,46 +17,25 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - PYTHON_VERSION: '3.10'
+          - environment: 'nightly'
             NOTE: 'Nightly Builds' # run once with nightlies
-          - PYTHON_VERSION: '3.10'
-            NOTE: 'Default Builds' # run once with normal dependencies
+          - environment: 'py312'
+            NOTE: 'Python 3.12' # run once with normal dependencies
     steps:
       - name: Checkout branch
         uses: actions/checkout@v4
-      - uses: mamba-org/setup-micromamba@f8b8a1e23a26f60a44c853292711bacfd3eac822
+      - name: Set up pixi
+        uses: prefix-dev/setup-pixi@992a3081e2f87829e0fff9fb29f4fe6a5d1e80a2
         with:
-          environment-file: environment.yml
-          create-args: >-
-            python=${{ matrix.PYTHON_VERSION }}
+          environments: ${{ matrix.environment }}
       - name: Install nightlies
-        if: matrix.NOTE == 'Nightly Builds'
-        shell: bash -el {0}
-        run: |
-          # needed for tabmat
-          echo "Install compilation dependencies"
-          micromamba install -y c-compiler cxx-compiler 'cython!=3.0.4' jemalloc-local libgomp mako xsimd
-
-          PRE_WHEELS="https://pypi.anaconda.org/scientific-python-nightly-wheels/simple/"
-          for pkg in pandas scikit-learn scipy; do
-            echo "Installing $pkg nightly"
-            micromamba remove -y --force $pkg
-            pip install --pre --no-deps --only-binary :all: --upgrade --timeout=60 -i $PRE_WHEELS $pkg
-          done
-          echo Install pyarrow nightly
-          micromamba remove -y --force pyarrow
-          pip install --extra-index-url https://pypi.fury.io/arrow-nightlies/ --prefer-binary --pre --no-deps pyarrow
-          echo Install tabmat nightly
-          micromamba remove -y --force tabmat
-          pip install --no-use-pep517 --no-deps git+https://github.com/Quantco/tabmat
+        if: matrix.environment == 'nightly'
+        run: pixi run -e ${{ matrix.environment }} install-nightlies
       - name: Install repository
-        shell: bash -el {0}
-        run: pip install --no-use-pep517 --no-deps --disable-pip-version-check -e .
+        run: pixi run -e ${{ matrix.environment }} postinstall
       - name: Run pytest
-        shell: bash -el {0}
-        run: pytest -nauto tests/glm --doctest-modules src/glum/
+        run: pixi run -e ${{ matrix.environment }} test -nauto
       - name: Run doctest
-        shell: bash -el {0}
         # Check that the readme example will work by running via doctest.
         # We run outside the repo to make the test a bit more similar to
         # a user running after installing with conda.
@@ -64,10 +43,11 @@ jobs:
           mkdir ../temp
           cp README.md ../temp
           cd ../temp
-          python -m doctest -v README.md
+          pixi run --manifest-path ../glum/pixi.toml -e ${{ matrix.environment }} python -m doctest -v README.md
+
       - name: Issue on failure
         uses: actions/github-script@v7
-        if: ${{ failure() }}
+        if: ${{ failure() && github.ref == 'refs/heads/main' }}
         with:
           script: |
             github.rest.issues.listForRepo({

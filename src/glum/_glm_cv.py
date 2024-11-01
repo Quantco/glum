@@ -422,7 +422,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
     def fit(
         self,
         X: ArrayLike,
-        y: ArrayLike,
+        y: Optional[ArrayLike] = None,
         sample_weight: Optional[ArrayLike] = None,
         offset: Optional[ArrayLike] = None,
         *,
@@ -515,7 +515,9 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         l1_ratio = np.atleast_1d(self.l1_ratio)
 
         if self.alphas is None:
-            alphas = [self._get_alpha_path(l1, X, y, sample_weight) for l1 in l1_ratio]
+            alphas: Union[np.ndarray, list[np.ndarray]] = [
+                self._get_alpha_path(l1, X, y, sample_weight) for l1 in l1_ratio
+            ]
         else:
             alphas = np.tile(
                 np.sort(np.asarray(self.alphas, dtype=X.dtype))[::-1],
@@ -714,8 +716,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             self.l1_ratio_ = l1_ratio[best_l1]
             self.alpha_ = self.alphas_[best_alpha]
 
-        P1 = setup_p1(P1, X, X.dtype, self.alpha_, self.l1_ratio_)
-        P2 = setup_p2(P2, X, _stype, X.dtype, self.alpha_, self.l1_ratio_)
+        P1 = setup_p1(P1, X, X.dtype, self.alpha_, self.l1_ratio_)  # type: ignore
+        P2 = setup_p2(P2, X, _stype, X.dtype, self.alpha_, self.l1_ratio_)  # type: ignore
 
         # Refit with full data and best alpha and lambda
         (

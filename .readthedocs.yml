@@ -3,13 +3,11 @@ build:
   os: ubuntu-22.04
   tools:
     python: mambaforge-4.10
+  commands:
+    - mamba install -c conda-forge -c nodefaults pixi==0.22.0
+    - pixi run -e docs postinstall
+    - pixi run readthedocs
 sphinx:
   configuration: docs/conf.py
-python:
-  install:
-  - method: pip
-    path: .
-conda:
-  environment: environment.yml
 formats:
 - pdf

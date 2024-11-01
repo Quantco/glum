@@ -7,8 +7,19 @@
 Changelog
 =========
 
-Unreleased
-----------
+3.1.0 - unreleased
+------------------
+
+**New features:**
+
+- :class:`~glum.GeneralizedLinearRegressor` now prints more informative logs when fitting with ``alpha_search=True`` and ``verbose=True``.
+
+**Bug fix:
+
+- Fixed a bug where :meth:`glum.GeneralizedLinearRegressor.fit` would raise a ``dtype`` mismatch error if fit with ``alpha_search=True``.
+
+3.0.2 - 2024-06-25
+------------------
 
 **Bug fix:**
 
@@ -16,9 +27,10 @@ Unreleased
 
 **Other changes:**
 
-- Move the linting and formatting to ruff.
+- Moved the development infrastructure to pixi.
+- Moved the linting and formatting to ruff.
 - Removed libblas MKL from the development environment.
-- Replace deprecated 'oldest-supported-numpy' dependency with 'numpy' to support 2.0 release.
+- Replaced deprecated 'oldest-supported-numpy' dependency with 'numpy' to support 2.0 release.
 
 3.0.1 - 2024-05-23
 ------------------
@@ -101,6 +113,10 @@ Unreleased
 
 2.5.1 - 2023-05-19
 ------------------
+
+**Other changes:**
+
+- Better error message when the number of input features is different between the fit and predict methods.
 
 **Bug fix:**
 

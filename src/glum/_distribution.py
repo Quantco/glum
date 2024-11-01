@@ -88,12 +88,12 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
     def in_y_range(self, x) -> np.ndarray:
         """Return ``True`` if ``x`` is in the valid range of the EDM."""
         if self.include_lower_bound:
-            lb_op = np.greater_equal
+            lb_op: np.ufunc = np.greater_equal
         else:
             lb_op = np.greater
 
         if self.include_upper_bound:
-            ub_op = np.less_equal
+            ub_op: np.ufunc = np.less_equal
         else:
             ub_op = np.less
 
@@ -600,7 +600,7 @@ class TweedieDistribution(ExponentialDispersionModel):
         raise ValueError
 
     @property
-    def power(self) -> float:
+    def power(self):
         """Return the Tweedie power parameter."""
         return self._power
 
@@ -1379,7 +1379,7 @@ class NegativeBinomialDistribution(ExponentialDispersionModel):
         )
 
     @property
-    def theta(self) -> float:
+    def theta(self):
         """Return the negative binomial theta parameter."""
         return self._theta
 
@@ -1549,11 +1549,11 @@ def guess_intercept(
             p = 1  # Like Poisson
 
         if np.isscalar(mu):
-            first = np.log(y.dot(sample_weight) * mu ** (1 - p))
-            second = np.log(sample_weight.sum() * mu ** (2 - p))
+            first = np.log(y.dot(sample_weight) * mu ** (1 - p))  # type: ignore
+            second = np.log(sample_weight.sum() * mu ** (2 - p))  # type: ignore
         else:
-            first = np.log((y * mu ** (1 - p)).dot(sample_weight))
-            second = np.log((mu ** (2 - p)).dot(sample_weight))
+            first = np.log((y * mu ** (1 - p)).dot(sample_weight))  # type: ignore
+            second = np.log((mu ** (2 - p)).dot(sample_weight))  # type: ignore
 
         return first - second
 
