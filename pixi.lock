@@ -1032,6 +1032,8 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/asttokens-2.4.1-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/async-lru-2.0.4-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/attrs-24.2.0-pyh71513ae_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/noarch/autograd-1.7.0-pyhd8ed1ab_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/noarch/autograd-gamma-0.5.0-pyh9f0ad1d_0.tar.bz2
       - conda: https://conda.anaconda.org/conda-forge/linux-64/aws-c-auth-0.7.26-hc36b679_2.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/aws-c-cal-0.7.4-h2abdd08_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/aws-c-common-0.9.27-h4bc722e_0.conda
@@ -1254,6 +1256,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libxml2-2.12.7-he7c6b58_4.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libzip-1.10.1-h2629f0a_3.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libzlib-1.3.1-h4ab18f5_1.conda
+      - conda: https://conda.anaconda.org/conda-forge/noarch/lifelines-0.30.0-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/llvmlite-0.43.0-py312h9c5d478_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/locket-1.0.0-pyhd8ed1ab_0.tar.bz2
       - conda: https://conda.anaconda.org/conda-forge/linux-64/lz4-4.3.3-py312hb3f7f12_1.conda
@@ -1438,6 +1441,8 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/asttokens-2.4.1-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/async-lru-2.0.4-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/attrs-24.2.0-pyh71513ae_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/noarch/autograd-1.7.0-pyhd8ed1ab_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/noarch/autograd-gamma-0.5.0-pyh9f0ad1d_0.tar.bz2
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/aws-c-auth-0.7.26-h1e647a1_2.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/aws-c-cal-0.7.4-h41e72e7_0.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/aws-c-common-0.9.27-h99b78c6_0.conda
@@ -1654,6 +1659,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/libxml2-2.12.7-h01dff8b_4.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/libzip-1.10.1-ha0bc3c6_3.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/libzlib-1.3.1-hfb2fe0b_1.conda
+      - conda: https://conda.anaconda.org/conda-forge/noarch/lifelines-0.30.0-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/llvm-openmp-18.1.8-hde57baf_1.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/llvm-tools-16.0.6-haab561b_3.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/llvmlite-0.43.0-py312h30cb90f_0.conda
@@ -1831,6 +1837,8 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/asttokens-2.4.1-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/async-lru-2.0.4-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/attrs-24.2.0-pyh71513ae_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/noarch/autograd-1.7.0-pyhd8ed1ab_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/noarch/autograd-gamma-0.5.0-pyh9f0ad1d_0.tar.bz2
       - conda: https://conda.anaconda.org/conda-forge/win-64/aws-c-auth-0.7.26-h5dd0cea_2.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/aws-c-cal-0.7.4-ha1e9ad3_0.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/aws-c-common-0.9.27-h2466b09_0.conda
@@ -2018,6 +2026,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/win-64/libxml2-2.12.7-h0f24e4e_4.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/libzip-1.10.1-h1d365fa_3.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/libzlib-1.3.1-h2466b09_1.conda
+      - conda: https://conda.anaconda.org/conda-forge/noarch/lifelines-0.30.0-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/llvm-meta-5.0.0-0.tar.bz2
       - conda: https://conda.anaconda.org/conda-forge/win-64/llvmlite-0.43.0-py312h1f7db74_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/locket-1.0.0-pyhd8ed1ab_0.tar.bz2
@@ -5650,6 +5659,40 @@ packages:
   license_family: MIT
   size: 56048
   timestamp: 1722977241383
+- kind: conda
+  name: autograd
+  version: 1.7.0
+  build: pyhd8ed1ab_0
+  subdir: noarch
+  noarch: python
+  url: https://conda.anaconda.org/conda-forge/noarch/autograd-1.7.0-pyhd8ed1ab_0.conda
+  sha256: 2640424d10419ebc53cf962b606de81deec33611f9d1f08eee1e23bbd7fc4a96
+  md5: 3d0c2341f515348d7fdc4f6d5f448446
+  depends:
+  - numpy >=1.25
+  - python >=3.8
+  - scipy >=1.11
+  license: MIT
+  license_family: MIT
+  size: 47431
+  timestamp: 1724658599538
+- kind: conda
+  name: autograd-gamma
+  version: 0.5.0
+  build: pyh9f0ad1d_0
+  subdir: noarch
+  noarch: python
+  url: https://conda.anaconda.org/conda-forge/noarch/autograd-gamma-0.5.0-pyh9f0ad1d_0.tar.bz2
+  sha256: ee6384ca35889fbc2a877ae7140eb90ca66980310640027eb39185ffa84f92bd
+  md5: 1d2f3cd0881ead2f033ec5a9d567c6f0
+  depends:
+  - autograd >=1.2.0
+  - python
+  - scipy >=1.2.0
+  license: MIT
+  license_family: MIT
+  size: 7767
+  timestamp: 1602812490828
 - kind: conda
   name: aws-c-auth
   version: 0.7.26
@@ -16158,6 +16201,28 @@ packages:
   license_family: Other
   size: 46921
   timestamp: 1716874262512
+- kind: conda
+  name: lifelines
+  version: 0.30.0
+  build: pyhd8ed1ab_0
+  subdir: noarch
+  noarch: python
+  url: https://conda.anaconda.org/conda-forge/noarch/lifelines-0.30.0-pyhd8ed1ab_0.conda
+  sha256: 226cf5033ddf1a5a977dd7fa754d06d518f58f4dbdcadbfbc4e9e4768642d91c
+  md5: b8d86da95fef6c11135562d2b37ce3e3
+  depends:
+  - autograd >=1.5
+  - autograd-gamma >=0.3
+  - formulaic >=0.2.2
+  - matplotlib-base >=3.0
+  - numpy >=1.14.0
+  - pandas >=2.1.0
+  - python >=3.9
+  - scipy >=1.7
+  license: MIT
+  license_family: MIT
+  size: 266707
+  timestamp: 1730245900323
 - kind: conda
   name: line_profiler
   version: 4.1.3
