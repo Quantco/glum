@@ -796,10 +796,10 @@ class NormalDistribution(ExponentialDispersionModel):
         return TweedieDistribution(0)
 
     def unit_variance(self, mu) -> np.ndarray:  # noqa D
-        return 1 if np.isscalar(mu) else np.ones_like(mu)
+        return 1 if np.isscalar(mu) else np.ones_like(mu)  # type: ignore
 
     def unit_variance_derivative(self, mu) -> np.ndarray:  # noqa D
-        return 0 if np.isscalar(mu) else np.zeros_like(mu)
+        return 0 if np.isscalar(mu) else np.zeros_like(mu)  # type: ignore
 
     def deviance(self, y, mu, sample_weight=None) -> float:  # noqa D
         y, mu, sample_weight = _as_float_arrays(y, mu, sample_weight)
@@ -912,7 +912,7 @@ class PoissonDistribution(ExponentialDispersionModel):
         return mu
 
     def unit_variance_derivative(self, mu) -> np.ndarray:  # noqa D
-        return 1.0 if np.isscalar(mu) else np.ones_like(mu)
+        return 1.0 if np.isscalar(mu) else np.ones_like(mu)  # type: ignore
 
     def deviance(self, y, mu, sample_weight=None) -> float:  # noqa D
         y, mu, sample_weight = _as_float_arrays(y, mu, sample_weight)
