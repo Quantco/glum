@@ -599,8 +599,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
 
             (
                 x_train,
-                col_means,
-                col_stds,
+                self.col_means_,
+                self.col_stds_,
                 lower_bounds,
                 upper_bounds,
                 A_ineq,
@@ -655,7 +655,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
 
             if self.fit_intercept:
                 intercept_path_, coef_path_ = _unstandardize(
-                    col_means, col_stds, coef[:, 0], coef[:, 1:]
+                    self.col_means_, self.col_stds_, coef[:, 0], coef[:, 1:]
                 )
                 assert isinstance(intercept_path_, np.ndarray)  # make mypy happy
                 deviance_path_ = [
@@ -667,7 +667,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             else:
                 # set intercept to zero as the other linear models do
                 intercept_path_, coef_path_ = _unstandardize(
-                    col_means, col_stds, np.zeros(coef.shape[0]), coef
+                    self.col_means_, self.col_stds_, np.zeros(coef.shape[0]), coef
                 )
                 deviance_path_ = [_get_deviance(_coef) for _coef in coef_path_]
 
