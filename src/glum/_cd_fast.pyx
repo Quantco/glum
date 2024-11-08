@@ -117,7 +117,8 @@ def enet_coordinate_descent_gram(int[::1] active_set,
                                  bint has_lower_bounds,
                                  floating[:] lower_bounds,
                                  bint has_upper_bounds,
-                                 floating[:] upper_bounds):
+                                 floating[:] upper_bounds,
+                                 floating eps):
     """Cython version of the coordinate descent algorithm
         for Elastic-Net regression
         We minimize
@@ -162,7 +163,7 @@ def enet_coordinate_descent_gram(int[::1] active_set,
                 else:
                     P1_ii = P1[ii - intercept]
 
-                if Q[active_set_ii, active_set_ii] == 0.0:
+                if Q[active_set_ii, active_set_ii] <= eps:
                     continue
 
                 w_ii = w[ii]  # Store previous value

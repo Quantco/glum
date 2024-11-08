@@ -70,6 +70,7 @@ def _cd_solver(state, data, active_hessian):
         data._lower_bounds,
         data.has_upper_bounds,
         data._upper_bounds,
+        np.finfo(state.coef.dtype).eps * 16,
     )
     return new_coef - state.coef, n_cycles
 
@@ -546,6 +547,9 @@ class IRLSState:
         self.line_search_runtime = None
         self.quadratic_update_runtime = None
 
+        # used in the line-search Armijo stopping criterion
+        self.large_number = 1e30 if data.X.dtype == np.float32 else 1e43
+
     def _record_iteration(self):
         self.n_iter += 1
 
@@ -759,7 +763,9 @@ def line_search(state: IRLSState, data: IRLSData, d: np.ndarray):
     """
     # line search parameters
     (beta, sigma) = (0.5, 0.0001)
-    eps = 16 * np.finfo(state.obj_val.dtype).eps  # type: ignore
+    # Use np.finfo(state.coef.dtype).eps instead np.finfo(state.obj_val), as
+    # state.obj_val is np.float64, even if the data is np.float32.
+    eps = 16 * np.finfo(state.coef.dtype).eps  # type: ignore
 
     # line search by sequence beta^k, k=0, 1, ..
     # F(w + lambda d) - F(w) <= lambda * bound
@@ -792,7 +798,8 @@ def line_search(state: IRLSState, data: IRLSData, d: np.ndarray):
         )
         # 1. Check Armijo / sufficient decrease condition.
         loss_improvement = obj_val_wd - state.obj_val
-        if mu_wd.max() < 1e43 and loss_improvement <= factor * bound:
+
+        if mu_wd.max() < state.large_number and loss_improvement <= factor * bound:
             break
         # 2. Deal with relative loss differences around machine precision.
         tiny_loss = np.abs(state.obj_val * eps)  # type: ignore
