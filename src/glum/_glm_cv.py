@@ -106,6 +106,10 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
     max_iter : int, optional (default=100)
         The maximal number of iterations for solver algorithms.
 
+    max_inner_iter: int, optional (default=100000)
+        The maximal number of iterations for the inner solver in the IRLS-CD
+        algorithm. This parameter is only used when ``solver='irls-cd'``.
+
     gradient_tol : float, optional (default=None)
         Stopping criterion. If ``None``, solver-specific defaults will be used.
         The default value for most solvers is ``1e-4``, except for
@@ -338,6 +342,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         link: Union[str, Link] = "auto",
         solver: str = "auto",
         max_iter=100,
+        max_inner_iter=100000,
         gradient_tol: Optional[float] = None,
         step_size_tol: Optional[float] = None,
         hessian_approx: float = 0.0,
@@ -381,6 +386,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             link=link,
             solver=solver,
             max_iter=max_iter,
+            max_inner_iter=max_inner_iter,
             gradient_tol=gradient_tol,
             step_size_tol=step_size_tol,
             hessian_approx=hessian_approx,
