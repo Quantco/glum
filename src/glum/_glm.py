@@ -2544,12 +2544,17 @@ class GeneralizedLinearRegressorBase(RegressorMixin, BaseEstimator):
         # This will prevent accidental upcasting later and slow operations on
         # mixed-precision numbers
         y = np.asarray(y, dtype=X.dtype)
+
+        if len(np.unique(y)) == 1:
+            raise ValueError("No variation in `y`. Coefficients can't be estimated.")
+
         sample_weight = _check_weights(
             sample_weight,
             y.shape[0],  # type: ignore
             X.dtype,
             force_all_finite=force_all_finite,
         )
+
         offset = _check_offset(offset, y.shape[0], X.dtype)  # type: ignore
 
         # IMPORTANT NOTE: Since we want to minimize
@@ -2559,9 +2564,8 @@ class GeneralizedLinearRegressorBase(RegressorMixin, BaseEstimator):
         # 1/2*deviance + L1 + L2 with deviance=sum(weights * unit_deviance)
         weights_sum: float = np.sum(sample_weight)  # type: ignore
         sample_weight = sample_weight / weights_sum
-        #######################################################################
-        # 2b. convert to wrapper matrix types
-        #######################################################################
+
+        # Convert to wrapper matrix types
         X = tm.as_tabmat(X)
 
         self.feature_names_ = X.get_names(type="column", missing_prefix="_col_")  # type: ignore

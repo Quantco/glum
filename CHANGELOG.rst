@@ -7,7 +7,7 @@
 Changelog
 =========
 
-3.1.0 - unreleased
+3.1.0 - 2024-11-08
 ------------------
 
 **New features:**
