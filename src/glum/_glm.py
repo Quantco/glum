@@ -713,7 +713,7 @@ def _group_sum(groups: np.ndarray, data: tm.MatrixBase):
 
 
 # TODO: abc
-class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
+class GeneralizedLinearRegressorBase(RegressorMixin, BaseEstimator):
     """
     Base class for :class:`GeneralizedLinearRegressor` and
     :class:`GeneralizedLinearRegressorCV`.
