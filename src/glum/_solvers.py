@@ -1,7 +1,7 @@
-from dataclasses import InitVar, dataclass
 import functools
 import time
 import warnings
+from dataclasses import InitVar, dataclass
 from typing import Any, Optional, Union
 
 import numpy as np
