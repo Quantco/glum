@@ -2545,9 +2545,6 @@ class GeneralizedLinearRegressorBase(RegressorMixin, BaseEstimator):
         # mixed-precision numbers
         y = np.asarray(y, dtype=X.dtype)
 
-        if len(np.unique(y)) == 1:
-            raise ValueError("No variation in `y`. Coefficients can't be estimated.")
-
         sample_weight = _check_weights(
             sample_weight,
             y.shape[0],  # type: ignore
