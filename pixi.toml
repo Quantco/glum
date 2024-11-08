@@ -109,6 +109,7 @@ altair = "*" # used in docs/tutorials/rossman
 dask-ml = ">=2022.5.27" # used in tutorials rossman and insurance
 jupyterlab = "*"
 libpysal = "*" # used in docs/tutorials/regularization_housing_data
+lifelines = "*" # used in docs/tutorials/cox_model
 openml = "*" # used for downloading datasets in the tutorials.
 shapely = "*" # used in docs/tutorials/regularization_housing_data
 
@@ -129,6 +130,7 @@ cxx-compiler = "*"
 cython = "!=3.0.4"
 make = "*"
 mako = "*"
+narwhals = ">=1.4.1"
 pip = "*"
 setuptools-scm = "*"
 xsimd = "<11|>12.1"

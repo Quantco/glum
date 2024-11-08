@@ -106,6 +106,10 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
     max_iter : int, optional (default=100)
         The maximal number of iterations for solver algorithms.
 
+    max_inner_iter: int, optional (default=100000)
+        The maximal number of iterations for the inner solver in the IRLS-CD
+        algorithm. This parameter is only used when ``solver='irls-cd'``.
+
     gradient_tol : float, optional (default=None)
         Stopping criterion. If ``None``, solver-specific defaults will be used.
         The default value for most solvers is ``1e-4``, except for
@@ -319,6 +323,12 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
     cat_missing_name: str, default='(MISSING)'
         Name of the category to which missing values will be converted if
         ``cat_missing_method='convert'``.  Only used if ``X`` is a pandas data frame.
+
+    col_means_: array, shape (n_features,)
+        The means of the columns of the design matrix ``X``.
+
+    col_stds_: array, shape (n_features,)
+        The standard deviations of the columns of the design matrix ``X``.
     """
 
     def __init__(
@@ -332,6 +342,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         link: Union[str, Link] = "auto",
         solver: str = "auto",
         max_iter=100,
+        max_inner_iter=100000,
         gradient_tol: Optional[float] = None,
         step_size_tol: Optional[float] = None,
         hessian_approx: float = 0.0,
@@ -375,6 +386,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             link=link,
             solver=solver,
             max_iter=max_iter,
+            max_inner_iter=max_inner_iter,
             gradient_tol=gradient_tol,
             step_size_tol=step_size_tol,
             hessian_approx=hessian_approx,
@@ -593,8 +605,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
 
             (
                 x_train,
-                col_means,
-                col_stds,
+                self.col_means_,
+                self.col_stds_,
                 lower_bounds,
                 upper_bounds,
                 A_ineq,
@@ -617,8 +629,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
                 y_train,
                 w_train,
                 offset_train,
-                col_means,
-                col_stds,
+                self.col_means_,
+                self.col_stds_,
                 dtype=[np.float64, np.float32],
             )
 
@@ -649,7 +661,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
 
             if self.fit_intercept:
                 intercept_path_, coef_path_ = _unstandardize(
-                    col_means, col_stds, coef[:, 0], coef[:, 1:]
+                    self.col_means_, self.col_stds_, coef[:, 0], coef[:, 1:]
                 )
                 assert isinstance(intercept_path_, np.ndarray)  # make mypy happy
                 deviance_path_ = [
@@ -661,7 +673,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             else:
                 # set intercept to zero as the other linear models do
                 intercept_path_, coef_path_ = _unstandardize(
-                    col_means, col_stds, np.zeros(coef.shape[0]), coef
+                    self.col_means_, self.col_stds_, np.zeros(coef.shape[0]), coef
                 )
                 deviance_path_ = [_get_deviance(_coef) for _coef in coef_path_]
 
@@ -722,8 +734,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         # Refit with full data and best alpha and lambda
         (
             X,
-            col_means,
-            col_stds,
+            self.col_means_,
+            self.col_stds_,
             lower_bounds,
             upper_bounds,
             A_ineq,
@@ -742,7 +754,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         )
 
         coef = self._get_start_coef(
-            X, y, sample_weight, offset, col_means, col_stds, dtype=X.dtype
+            X, y, sample_weight, offset, self.col_means_, self.col_stds_, dtype=X.dtype
         )
 
         coef = self._solve(
@@ -761,11 +773,13 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
 
         if self.fit_intercept:
             self.intercept_, self.coef_ = _unstandardize(
-                col_means, col_stds, coef[0], coef[1:]
+                self.col_means_, self.col_stds_, coef[0], coef[1:]
             )
         else:
             # set intercept to zero as the other linear models do
-            self.intercept_, self.coef_ = _unstandardize(col_means, col_stds, 0.0, coef)
+            self.intercept_, self.coef_ = _unstandardize(
+                self.col_means_, self.col_stds_, 0.0, coef
+            )
 
         self.covariance_matrix_ = None
         if store_covariance_matrix:

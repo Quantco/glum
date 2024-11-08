@@ -14,12 +14,12 @@ some parts and tricks stolen from other sklearn files.
 """
 
 # License: BSD 3 clause
-
 import copy
 import re
 import sys
 import warnings
 from collections.abc import Iterable, Mapping, Sequence
+from time import perf_counter
 from typing import Any, NamedTuple, Optional, Union, cast
 
 import numpy as np
@@ -730,6 +730,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         link: Union[str, Link] = "auto",
         solver: str = "auto",
         max_iter=100,
+        max_inner_iter=100000,
         gradient_tol: Optional[float] = None,
         step_size_tol: Optional[float] = None,
         hessian_approx: float = 0.0,
@@ -767,6 +768,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self.link = link
         self.solver = solver
         self.max_iter = max_iter
+        self.max_inner_iter = max_inner_iter
         self.gradient_tol = gradient_tol
         self.step_size_tol = step_size_tol
         self.hessian_approx = hessian_approx
@@ -1102,6 +1104,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 family=self._family_instance,
                 link=self._link_instance,
                 max_iter=max_iter,
+                max_inner_iter=self.max_inner_iter,
                 gradient_tol=self._gradient_tol,
                 step_size_tol=self.step_size_tol,
                 fixed_inner_tol=fixed_inner_tol,
@@ -1184,6 +1187,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             P1 = P1_no_alpha * alpha
             P2 = P2_no_alpha * alpha
 
+            tic = perf_counter()
             coef = self._solve(
                 X=X,
                 y=y,
@@ -1197,6 +1201,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 A_ineq=A_ineq,
                 b_ineq=b_ineq,
             )
+            toc = perf_counter()
+
+            if self.verbose > 0:
+                print(
+                    f"alpha={alpha:.3e}, time={toc - tic:.2f}s, n_iter={self.n_iter_}"
+                )
 
             self.coef_path_[k, :] = coef
 
@@ -2688,6 +2698,10 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     max_iter : int, optional (default=100)
         The maximal number of iterations for solver algorithms.
 
+    max_inner_iter: int, optional (default=100000)
+        The maximal number of iterations for the inner solver in the IRLS-CD
+        algorithm. This parameter is only used when ``solver='irls-cd'``.
+
     gradient_tol : float, optional (default=None)
         Stopping criterion. If ``None``, solver-specific defaults will be used.
         The default value for most solvers is ``1e-4``, except for
@@ -2885,6 +2899,12 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     n_iter_ : int
         Actual number of iterations used in solver.
 
+    col_means_: array, shape (n_features,)
+        The means of the columns of the design matrix ``X``.
+
+    col_stds_: array, shape (n_features,)
+        The standard deviations of the columns of the design matrix ``X``.
+
     Notes
     -----
     The fit itself does not need outcomes to be from an EDM, but only assumes
@@ -2929,6 +2949,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         link: Union[str, Link] = "auto",
         solver: str = "auto",
         max_iter=100,
+        max_inner_iter=100000,
         gradient_tol: Optional[float] = None,
         step_size_tol: Optional[float] = None,
         hessian_approx: float = 0.0,
@@ -2970,6 +2991,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             link=link,
             solver=solver,
             max_iter=max_iter,
+            max_inner_iter=max_inner_iter,
             gradient_tol=gradient_tol,
             step_size_tol=step_size_tol,
             hessian_approx=hessian_approx,
@@ -3172,8 +3194,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
 
         (
             X,
-            col_means,
-            col_stds,
+            self.col_means_,
+            self.col_stds_,
             lower_bounds,
             upper_bounds,
             A_ineq,
@@ -3200,8 +3222,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             y,
             sample_weight,
             offset,
-            col_means,
-            col_stds,
+            self.col_means_,
+            self.col_stds_,
             dtype=[np.float64, np.float32],
         )
 
@@ -3243,14 +3265,14 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             # intercept_ and coef_ return the last estimated alpha
             if self.fit_intercept:
                 self.intercept_path_, self.coef_path_ = _unstandardize(
-                    col_means, col_stds, coef[:, 0], coef[:, 1:]
+                    self.col_means_, self.col_stds_, coef[:, 0], coef[:, 1:]
                 )
                 self.intercept_ = self.intercept_path_[-1]  # type: ignore
                 self.coef_ = self.coef_path_[-1]
             else:
                 # set intercept to zero as the other linear models do
                 self.intercept_path_, self.coef_path_ = _unstandardize(
-                    col_means, col_stds, np.zeros(coef.shape[0]), coef
+                    self.col_means_, self.col_stds_, np.zeros(coef.shape[0]), coef
                 )
                 self.intercept_ = 0.0
                 self.coef_ = self.coef_path_[-1]
@@ -3281,12 +3303,12 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
 
             if self.fit_intercept:
                 self.intercept_, self.coef_ = _unstandardize(
-                    col_means, col_stds, coef[0], coef[1:]
+                    self.col_means_, self.col_stds_, coef[0], coef[1:]
                 )
             else:
                 # set intercept to zero as the other linear models do
                 self.intercept_, self.coef_ = _unstandardize(
-                    col_means, col_stds, 0.0, coef
+                    self.col_means_, self.col_stds_, 0.0, coef
                 )
 
         self.covariance_matrix_ = None

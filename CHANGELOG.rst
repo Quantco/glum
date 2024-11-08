@@ -10,12 +10,15 @@ Changelog
 3.1.0 - unreleased
 ------------------
 
-**Bug fix:**
+**New features:**
+
+- New argument ``max_inner_iter`` for classes :class:`~glum.GeneralizedLinearRegressor` and :class:`~glum.GeneralizedLinearRegressorCV` to control the maximum number of iterations of the inner solver in the IRLS-CD algorithm.
+- New fitted attributes ``col_means_`` and ``col_stds_`` for classes :class:`~glum.GeneralizedLinearRegressor` and :class:`~glum.GeneralizedLinearRegressorCV`.
+- :class:`~glum.GeneralizedLinearRegressor` now prints more informative logs when fitting with ``alpha_search=True`` and ``verbose=True``.
+
+**Bug fixes:**
 
 - Fixed a bug where :meth:`glum.GeneralizedLinearRegressor.fit` would raise a ``dtype`` mismatch error if fit with ``alpha_search=True``.
-
-**Other changes:**
-
 - Use data type (``float64`` or ``float32``) dependent precision in solvers.
 
 3.0.2 - 2024-06-25
