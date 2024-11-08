@@ -428,8 +428,8 @@ class IRLSData:
     step_size_tol: Optional[float] = 1e-4
     hessian_approx: float = 0.0
     fixed_inner_tol: Optional[tuple] = None
-    selection = "cyclic"
-    random_state = None
+    selection: str = "cyclic"
+    random_state: Union[None, int, np.random.RandomState] = None
     offset: Optional[np.ndarray] = None
     lower_bounds: InitVar[Optional[np.ndarray]] = None
     upper_bounds: InitVar[Optional[np.ndarray]] = None
