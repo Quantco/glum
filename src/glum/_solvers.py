@@ -1,4 +1,4 @@
-from dataclasses import dataclass, InitVar
+from dataclasses import InitVar, dataclass
 import functools
 import time
 import warnings
