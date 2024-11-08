@@ -14,12 +14,12 @@ some parts and tricks stolen from other sklearn files.
 """
 
 # License: BSD 3 clause
-
 import copy
 import re
 import sys
 import warnings
 from collections.abc import Iterable, Mapping, Sequence
+from time import perf_counter
 from typing import Any, NamedTuple, Optional, Union, cast
 
 import numpy as np
@@ -1187,6 +1187,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             P1 = P1_no_alpha * alpha
             P2 = P2_no_alpha * alpha
 
+            tic = perf_counter()
             coef = self._solve(
                 X=X,
                 y=y,
@@ -1200,6 +1201,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 A_ineq=A_ineq,
                 b_ineq=b_ineq,
             )
+            toc = perf_counter()
+
+            if self.verbose > 0:
+                print(
+                    f"alpha={alpha:.3e}, time={toc - tic:.2f}s, n_iter={self.n_iter_}"
+                )
 
             self.coef_path_[k, :] = coef
 
@@ -1359,6 +1366,12 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
             allow_nd=False,
             drop_first=getattr(self, "drop_first", False),
         )
+
+        if X.shape[1] != self.n_features_in_:
+            raise ValueError(
+                f"X has {X.shape[1]} features, but {self.__class__.__name__} "
+                f"is expecting {self.n_features_in_} features as input."
+            )
 
         if alpha_index is None:
             xb = X @ self.coef_ + self.intercept_
@@ -1788,7 +1801,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
     ) -> WaldTestResult:
         """
         Perform a Wald test for the hypothesis that the coefficients of the
-        features in ``terms`` are equal to the values in ``terms``.
+        features in ``terms`` are equal to the values in ``values``.
         """
 
         if isinstance(terms, str):
@@ -2886,6 +2899,12 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     n_iter_ : int
         Actual number of iterations used in solver.
 
+    col_means_: array, shape (n_features,)
+        The means of the columns of the design matrix ``X``.
+
+    col_stds_: array, shape (n_features,)
+        The standard deviations of the columns of the design matrix ``X``.
+
     Notes
     -----
     The fit itself does not need outcomes to be from an EDM, but only assumes
@@ -3175,8 +3194,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
 
         (
             X,
-            col_means,
-            col_stds,
+            self.col_means_,
+            self.col_stds_,
             lower_bounds,
             upper_bounds,
             A_ineq,
@@ -3203,8 +3222,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             y,
             sample_weight,
             offset,
-            col_means,
-            col_stds,
+            self.col_means_,
+            self.col_stds_,
             dtype=[np.float64, np.float32],
         )
 
@@ -3246,14 +3265,14 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             # intercept_ and coef_ return the last estimated alpha
             if self.fit_intercept:
                 self.intercept_path_, self.coef_path_ = _unstandardize(
-                    col_means, col_stds, coef[:, 0], coef[:, 1:]
+                    self.col_means_, self.col_stds_, coef[:, 0], coef[:, 1:]
                 )
                 self.intercept_ = self.intercept_path_[-1]  # type: ignore
                 self.coef_ = self.coef_path_[-1]
             else:
                 # set intercept to zero as the other linear models do
                 self.intercept_path_, self.coef_path_ = _unstandardize(
-                    col_means, col_stds, np.zeros(coef.shape[0]), coef
+                    self.col_means_, self.col_stds_, np.zeros(coef.shape[0]), coef
                 )
                 self.intercept_ = 0.0
                 self.coef_ = self.coef_path_[-1]
@@ -3284,12 +3303,12 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
 
             if self.fit_intercept:
                 self.intercept_, self.coef_ = _unstandardize(
-                    col_means, col_stds, coef[0], coef[1:]
+                    self.col_means_, self.col_stds_, coef[0], coef[1:]
                 )
             else:
                 # set intercept to zero as the other linear models do
                 self.intercept_, self.coef_ = _unstandardize(
-                    col_means, col_stds, 0.0, coef
+                    self.col_means_, self.col_stds_, 0.0, coef
                 )
 
         self.covariance_matrix_ = None

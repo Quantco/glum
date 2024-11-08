@@ -35,7 +35,6 @@ cmd = """
     PRE_WHEELS="https://pypi.anaconda.org/scientific-python-nightly-wheels/simple/"
     && pip install --pre --no-deps --only-binary :all: --upgrade --timeout=60 -i $PRE_WHEELS pandas
     && pip install --pre --no-deps --only-binary :all: --upgrade --timeout=60 -i $PRE_WHEELS scikit-learn
-    && pip install --pre --no-deps --only-binary :all: --upgrade --timeout=60 -i $PRE_WHEELS scipy
     && pip install --pre --no-deps --only-binary :all: --upgrade --timeout=60 -i https://pypi.fury.io/arrow-nightlies/ pyarrow
     && pip install --no-use-pep517 --no-deps git+https://github.com/Quantco/tabmat
 """
@@ -110,6 +109,7 @@ altair = "*" # used in docs/tutorials/rossman
 dask-ml = ">=2022.5.27" # used in tutorials rossman and insurance
 jupyterlab = "*"
 libpysal = "*" # used in docs/tutorials/regularization_housing_data
+lifelines = "*" # used in docs/tutorials/cox_model
 openml = "*" # used for downloading datasets in the tutorials.
 shapely = "*" # used in docs/tutorials/regularization_housing_data
 
@@ -130,6 +130,7 @@ cxx-compiler = "*"
 cython = "!=3.0.4"
 make = "*"
 mako = "*"
+narwhals = ">=1.4.1"
 pip = "*"
 setuptools-scm = "*"
 xsimd = "<11|>12.1"
