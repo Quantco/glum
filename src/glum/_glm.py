@@ -452,7 +452,7 @@ def _one_over_var_inf_to_val(arr: np.ndarray, val: float) -> np.ndarray:
 
     If values are zeros, return val.
     """
-    zeros = np.where(np.abs(arr) < np.sqrt(np.finfo(arr.dtype).eps))
+    zeros = np.where(np.abs(arr) < 10 * np.sqrt(np.finfo(arr.dtype).eps))
     with np.errstate(divide="ignore"):
         one_over = 1 / arr
     one_over[zeros] = val
@@ -1104,7 +1104,7 @@ class GeneralizedLinearRegressorBase(RegressorMixin, BaseEstimator):
                 family=self._family_instance,
                 link=self._link_instance,
                 max_iter=max_iter,
-                max_inner_iter=self.max_inner_iter,
+                max_inner_iter=getattr(self, "max_inner_iter", 100_000),
                 gradient_tol=self._gradient_tol,
                 step_size_tol=self.step_size_tol,
                 fixed_inner_tol=fixed_inner_tol,
@@ -2544,12 +2544,14 @@ class GeneralizedLinearRegressorBase(RegressorMixin, BaseEstimator):
         # This will prevent accidental upcasting later and slow operations on
         # mixed-precision numbers
         y = np.asarray(y, dtype=X.dtype)
+
         sample_weight = _check_weights(
             sample_weight,
             y.shape[0],  # type: ignore
             X.dtype,
             force_all_finite=force_all_finite,
         )
+
         offset = _check_offset(offset, y.shape[0], X.dtype)  # type: ignore
 
         # IMPORTANT NOTE: Since we want to minimize
@@ -2559,9 +2561,8 @@ class GeneralizedLinearRegressorBase(RegressorMixin, BaseEstimator):
         # 1/2*deviance + L1 + L2 with deviance=sum(weights * unit_deviance)
         weights_sum: float = np.sum(sample_weight)  # type: ignore
         sample_weight = sample_weight / weights_sum
-        #######################################################################
-        # 2b. convert to wrapper matrix types
-        #######################################################################
+
+        # Convert to wrapper matrix types
         X = tm.as_tabmat(X)
 
         self.feature_names_ = X.get_names(type="column", missing_prefix="_col_")  # type: ignore
