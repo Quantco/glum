@@ -452,7 +452,7 @@ def _one_over_var_inf_to_val(arr: np.ndarray, val: float) -> np.ndarray:
 
     If values are zeros, return val.
     """
-    zeros = np.where(np.abs(arr) < np.sqrt(np.finfo(arr.dtype).eps))
+    zeros = np.where(np.abs(arr) < 10 * np.sqrt(np.finfo(arr.dtype).eps))
     with np.errstate(divide="ignore"):
         one_over = 1 / arr
     one_over[zeros] = val
@@ -1104,7 +1104,7 @@ class GeneralizedLinearRegressorBase(RegressorMixin, BaseEstimator):
                 family=self._family_instance,
                 link=self._link_instance,
                 max_iter=max_iter,
-                max_inner_iter=self.max_inner_iter,
+                max_inner_iter=getattr(self, "max_inner_iter", 100_000),
                 gradient_tol=self._gradient_tol,
                 step_size_tol=self.step_size_tol,
                 fixed_inner_tol=fixed_inner_tol,
