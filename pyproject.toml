@@ -56,13 +56,12 @@ skip = [
   "cp36*",
   "cp37*",
   "cp38*",
-  "cp313-*",
 ]
 test-requires = ["pytest", "pytest-xdist"]
 
 [tool.cibuildwheel.macos]
 before-build = [
-  "bash build_tools/prepare_macos_wheel.sh",
+  "conda create -n build 'llvm-openmp=11'",
 ]
 
 [tool.cibuildwheel.macos.environment]

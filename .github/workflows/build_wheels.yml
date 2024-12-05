@@ -12,14 +12,12 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-20.04, macos-12, windows-2022]
+        os: [ubuntu-20.04, windows-2022, macos-13, macos-14]
 
     steps:
       - uses: actions/checkout@v4
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.22.0
-        env:
-          CIBW_ARCHS_MACOS: x86_64 arm64
       - uses: actions/upload-artifact@v4
         with:
           path: ./wheelhouse/*.whl
