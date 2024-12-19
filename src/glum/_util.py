@@ -23,7 +23,7 @@ def _align_df_categories(
     categorical_levels: dict[str, list[str]],
     has_missing_category: dict[str, bool],
     cat_missing_method: str,
-) -> pd.DataFrame:
+) -> nw.DataFrame:
     """Align data types for prediction.
 
     This function checks that categorical columns have same categories in the
@@ -37,7 +37,7 @@ def _align_df_categories(
     has_missing_category : Dict[str, bool]
     missing_method : str
     """
-    if not isinstance(df, pd.DataFrame):
+    if not isinstance(df, nw.DataFrame):
         raise TypeError(f"Expected `narwhals.DataFrame'; got {type(df)}.")
 
     changed_dtypes: dict[str, nw.Series] = {}
@@ -80,8 +80,8 @@ def _add_missing_categories(
     feature_names: Sequence[str],
     categorical_format: str,
     cat_missing_name: str,
-) -> pd.DataFrame:
-    if not isinstance(df, pd.DataFrame):
+) -> nw.DataFrame:
+    if not isinstance(df, nw.DataFrame):
         raise TypeError(f"Expected `pandas.DataFrame'; got {type(df)}.")
 
     changed_dtypes: dict[str, nw.Series] = {}
@@ -151,8 +151,9 @@ def _expand_categorical_penalties(
 def _is_contiguous(X) -> bool:
     if isinstance(X, np.ndarray):
         return X.flags["C_CONTIGUOUS"] or X.flags["F_CONTIGUOUS"]
-    elif isinstance(X, pd.DataFrame):
-        return _is_contiguous(X.values)
+    elif isinstance(X, nw.DataFrame):
+        # We should probably handle the most important cases separately/
+        return _is_contiguous(X.to_numpy())
     else:
         # If not a numpy array or pandas data frame, we assume it is contiguous.
         return True
