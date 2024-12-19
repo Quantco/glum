@@ -2484,7 +2484,11 @@ class GeneralizedLinearRegressorBase(RegressorMixin, BaseEstimator):
                     for col in self.categorical_levels_
                 }
 
-                if any(X.dtypes == "category"):
+                if any(
+                    dtype
+                    for _, dtype in X.schema
+                    if isinstance(dtype, (nw.Categorical, nw.Enum))
+                ):  # do we want to expand penalties for strings that we treat as categoricals?
                     P1 = _expand_categorical_penalties(
                         self.P1, X, drop_first, self.has_missing_category_
                     )

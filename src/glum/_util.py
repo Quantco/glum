@@ -112,7 +112,7 @@ def _add_missing_categories(
 
 
 def _expand_categorical_penalties(
-    penalty, X, drop_first, has_missing_category
+    penalty, X: nw.DataFrame, drop_first: bool, has_missing_category: dict[str, bool]
 ) -> Union[np.ndarray, str]:
     """Determine penalty matrices ``P1`` or ``P2`` after expanding categorical columns.
 
@@ -135,9 +135,13 @@ def _expand_categorical_penalties(
 
         expanded_penalty = []  # type: ignore
 
-        for element, (column, dt) in zip(penalty, X.dtypes.items()):
-            if isinstance(dt, pd.CategoricalDtype):
-                length = len(dt.categories) + has_missing_category[column] - drop_first
+        for element, (column, dt) in zip(penalty, X.schema.items()):
+            if isinstance(dt, (nw.Enum, nw.Categorical)):
+                length = (
+                    len(X[column].cat.get_categories())
+                    + has_missing_category[column]
+                    - drop_first
+                )
                 expanded_penalty.extend(element for _ in range(length))
             else:
                 expanded_penalty.append(element)
