@@ -208,7 +208,7 @@ def test_add_missing_categories(df_na):
     pd.testing.assert_frame_equal(
         _add_missing_categories(
             df=df_na,
-            dtypes=dtypes,
+            categorical_levels=dtypes,
             feature_names=feature_names,
             categorical_format=categorical_format,
             cat_missing_name=cat_missing_name,
@@ -240,7 +240,7 @@ def test_raise_on_existing_missing(df_na):
     with pytest.raises(ValueError):
         _add_missing_categories(
             df=df,
-            dtypes=dtypes,
+            categorical_levels=dtypes,
             feature_names=feature_names,
             categorical_format=categorical_format,
             cat_missing_name=cat_missing_name,

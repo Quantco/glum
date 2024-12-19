@@ -22,6 +22,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from time import perf_counter
 from typing import Any, NamedTuple, Optional, Union, cast
 
+import narwhals.stable.v1 as nw
 import numpy as np
 import pandas as pd
 import scipy.sparse as sps
@@ -32,6 +33,7 @@ from formulaic import Formula, FormulaSpec
 from formulaic.parser import DefaultFormulaParser
 from formulaic.utils.constraints import LinearConstraintParser
 from formulaic.utils.context import capture_context
+from narwhals.typing import IntoDataFrame
 from packaging import version
 from scipy import linalg, sparse, stats
 from sklearn.base import BaseEstimator, RegressorMixin
@@ -87,7 +89,7 @@ ArrayLike = Union[
     list,
     tm.MatrixBase,
     tm.StandardizedMatrix,
-    pd.DataFrame,
+    IntoDataFrame,
     sparse.spmatrix,
     VectorLike,
 ]
@@ -95,7 +97,7 @@ ArrayLike = Union[
 ShapedArrayLike = Union[
     tm.MatrixBase,
     tm.StandardizedMatrix,
-    pd.DataFrame,
+    IntoDataFrame,
     sparse.spmatrix,
     VectorLike,
 ]
@@ -110,7 +112,7 @@ class WaldTestResult(NamedTuple):
 def check_array_tabmat_compliant(mat: ArrayLike, drop_first: bool = False, **kwargs):
     to_copy = kwargs.get("copy", False)
 
-    if isinstance(mat, pd.DataFrame):
+    if nw.dependencies.is_into_dataframe(mat):
         raise RuntimeError("DataFrames should have been converted by this point.")
 
     if isinstance(mat, tm.SplitMatrix):
@@ -814,6 +816,18 @@ class GeneralizedLinearRegressorBase(RegressorMixin, BaseEstimator):
         else:
             return get_link(self.link, self.family_instance)
 
+    @property
+    def categorical_levels_(self) -> dict[str, list[str]]:
+        if hasattr(self, "_categorical_levels_"):
+            return self._categorical_levels_
+        if hasattr(self, "feature_dtypes_"):
+            return {
+                col: dtype.categories.tolist()
+                for col, dtype in self.feature_dtypes_.items()
+                if isinstance(dtype, pd.CategoricalDtype)
+            }
+        return AttributeError("No categorical levels stored.")
+
     def _get_start_coef(
         self,
         X: Union[tm.MatrixBase, tm.StandardizedMatrix],
@@ -886,7 +900,7 @@ class GeneralizedLinearRegressorBase(RegressorMixin, BaseEstimator):
         return coef
 
     def _convert_from_pandas(
-        self, df: pd.DataFrame, context: Optional[Mapping[str, Any]] = None
+        self, df: IntoDataFrame, context: Optional[Mapping[str, Any]] = None
     ) -> tm.MatrixBase:
         """Convert a pandas data frame to a tabmat matrix."""
         if hasattr(self, "X_model_spec_"):
@@ -897,14 +911,14 @@ class GeneralizedLinearRegressorBase(RegressorMixin, BaseEstimator):
         if hasattr(self, "feature_dtypes_"):
             df = _align_df_categories(
                 df,
-                self.feature_dtypes_,
+                self.categorical_levels_,
                 getattr(self, "has_missing_category_", {}),
                 cat_missing_method_after_alignment,
             )
             if cat_missing_method_after_alignment == "convert":
                 df = _add_missing_categories(
                     df=df,
-                    dtypes=self.feature_dtypes_,
+                    categorical_levels=self.categorical_levels_,
                     feature_names=self.feature_names_,
                     cat_missing_name=self.cat_missing_name,
                     categorical_format=self.categorical_format,
@@ -912,7 +926,7 @@ class GeneralizedLinearRegressorBase(RegressorMixin, BaseEstimator):
                 # there should be no missing categories after this
                 cat_missing_method_after_alignment = "fail"
 
-        X = tm.from_pandas(
+        X = tm.from_df(
             df,
             drop_first=self.drop_first,
             categorical_format=getattr(  # convention prior to v3
@@ -1351,7 +1365,7 @@ class GeneralizedLinearRegressorBase(RegressorMixin, BaseEstimator):
         elif alpha is not None:
             alpha_index = [self._find_alpha_index(a) for a in alpha]  # type: ignore
 
-        if isinstance(X, pd.DataFrame):
+        if nw.dependencies.is_into_dataframe(X):
             captured_context = capture_context(
                 context + 1 if isinstance(context, int) else context
             )
@@ -1443,7 +1457,7 @@ class GeneralizedLinearRegressorBase(RegressorMixin, BaseEstimator):
         array, shape (n_samples, n_alphas)
             Predicted values times ``sample_weight``.
         """
-        if isinstance(X, pd.DataFrame):
+        if nw.dependencies.is_into_dataframe(X):
             captured_context = capture_context(
                 context + 1 if isinstance(context, int) else context
             )
@@ -2101,7 +2115,7 @@ class GeneralizedLinearRegressorBase(RegressorMixin, BaseEstimator):
                 y = self.y_model_spec_.get_model_matrix(X).toarray().ravel()
                 # This has to go first because X is modified in the next line
 
-            if isinstance(X, pd.DataFrame):
+            if nw.dependencies.is_into_dataframe(X):
                 X = self._convert_from_pandas(X, context=captured_context)
 
             X, y = check_X_y_tabmat_compliant(
@@ -2401,7 +2415,7 @@ class GeneralizedLinearRegressorBase(RegressorMixin, BaseEstimator):
         copy_X = self._should_copy_X()
         drop_first = getattr(self, "drop_first", False)
 
-        if isinstance(X, pd.DataFrame):
+        if nw.dependencies.is_into_dataframe(X):
             if hasattr(self, "formula") and self.formula is not None:
                 lhs, rhs = _parse_formula(
                     self.formula, include_intercept=self.fit_intercept
@@ -2456,13 +2470,18 @@ class GeneralizedLinearRegressorBase(RegressorMixin, BaseEstimator):
             else:
                 # Maybe TODO: expand categorical penalties with formulas
 
-                self.feature_dtypes_ = X.dtypes.to_dict()
+                X = nw.from_native(X)
+
+                self._categorical_levels_ = {
+                    col: X[col].cat.get_categories().to_list()
+                    for col, dtype in X.schema
+                    if isinstance(dtype, (nw.Categorical, nw.Enum))
+                }
 
                 self.has_missing_category_ = {
                     col: (getattr(self, "cat_missing_method", "fail") == "convert")
-                    and X[col].isna().any()
-                    for col, dtype in self.feature_dtypes_.items()
-                    if isinstance(dtype, pd.CategoricalDtype)
+                    and X[col].is_null().any()
+                    for col in self.categorical_levels_
                 }
 
                 if any(X.dtypes == "category"):
@@ -2473,7 +2492,7 @@ class GeneralizedLinearRegressorBase(RegressorMixin, BaseEstimator):
                         self.P2, X, drop_first, self.has_missing_category_
                     )
 
-                X = tm.from_pandas(
+                X = tm.from_df(
                     X,
                     drop_first=drop_first,
                     categorical_format=getattr(  # convention prior to v3

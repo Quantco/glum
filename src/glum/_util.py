@@ -4,6 +4,7 @@ from collections.abc import Sequence
 from functools import wraps
 from typing import Union
 
+import narwhals.stable.v1 as nw
 import numpy as np
 import pandas as pd
 from scipy import sparse
@@ -18,7 +19,10 @@ def _asanyarray(x, **kwargs):
 
 
 def _align_df_categories(
-    df, dtypes, has_missing_category, cat_missing_method
+    df: nw.DataFrame,
+    categorical_levels: dict[str, list[str]],
+    has_missing_category: dict[str, bool],
+    cat_missing_method: str,
 ) -> pd.DataFrame:
     """Align data types for prediction.
 
@@ -34,34 +38,30 @@ def _align_df_categories(
     missing_method : str
     """
     if not isinstance(df, pd.DataFrame):
-        raise TypeError(f"Expected `pandas.DataFrame'; got {type(df)}.")
+        raise TypeError(f"Expected `narwhals.DataFrame'; got {type(df)}.")
 
-    changed_dtypes = {}
+    changed_dtypes: dict[str, nw.Series] = {}
 
-    categorical_dtypes = [
-        column
-        for column, dtype in dtypes.items()
-        if isinstance(dtype, pd.CategoricalDtype) and (column in df)
-    ]
-
-    for column in categorical_dtypes:
-        if not isinstance(df[column].dtype, pd.CategoricalDtype):
-            _logger.info(f"Casting {column} to categorical.")
-            changed_dtypes[column] = df[column].astype(dtypes[column])
-        elif list(df[column].cat.categories) != list(dtypes[column].categories):
+    for column, levels in categorical_levels.items():
+        if not isinstance(df[column].dtype, (nw.Enum)):
+            _logger.info(f"Casting {column} to Enum (categorical).")
+        elif df[column].cat.get_categories().to_list() != levels:
             _logger.info(f"Aligning categories of {column}.")
-            changed_dtypes[column] = df[column].cat.set_categories(
-                dtypes[column].categories
-            )
         else:
             continue
 
+        changed_dtypes[column] = df[column].cast(
+            nw.Enum(levels)
+        )  # Need to wait for narwhals #1541
+
         if cat_missing_method == "convert" and not has_missing_category[column]:
-            unseen_categories = set(df[column].unique())
-            unseen_categories = unseen_categories - set(dtypes[column].categories)
+            unseen_categories = set(df[column].unique()) - set(
+                categorical_levels[column]
+            )
         else:
-            unseen_categories = set(df[column].dropna().unique())
-            unseen_categories = unseen_categories - set(dtypes[column].categories)
+            unseen_categories = set(df[column].drop_nulls().unique()) - set(
+                categorical_levels[column]
+            )
 
         if unseen_categories:
             raise ValueError(
@@ -69,14 +69,14 @@ def _align_df_categories(
             )
 
     if changed_dtypes:
-        df = df.assign(**changed_dtypes)
+        df = df.with_columns(**changed_dtypes)
 
     return df
 
 
 def _add_missing_categories(
-    df,
-    dtypes,
+    df: nw.DataFrame,
+    categorical_levels: dict[str, list[str]],
     feature_names: Sequence[str],
     categorical_format: str,
     cat_missing_name: str,
@@ -84,30 +84,29 @@ def _add_missing_categories(
     if not isinstance(df, pd.DataFrame):
         raise TypeError(f"Expected `pandas.DataFrame'; got {type(df)}.")
 
-    changed_dtypes = {}
+    changed_dtypes: dict[str, nw.Series] = {}
 
-    categorical_dtypes = [
-        column
-        for column, dtype in dtypes.items()
-        if isinstance(dtype, pd.CategoricalDtype) and (column in df)
-    ]
-
-    for column in categorical_dtypes:
+    for column in categorical_levels:
         if (
             categorical_format.format(name=column, category=cat_missing_name)
             in feature_names
         ):
-            if cat_missing_name in df[column].cat.categories:
+            if cat_missing_name in df[column].cat.get_categories():
                 raise ValueError(
                     f"Missing category {cat_missing_name} already exists in {column}."
                 )
             _logger.info(f"Adding missing category {cat_missing_name} to {column}.")
-            changed_dtypes[column] = df[column].cat.add_categories(cat_missing_name)
-            if df[column].isnull().any():
-                changed_dtypes[column] = changed_dtypes[column].fillna(cat_missing_name)
+
+            changed_dtypes[column] = df[column].cast(
+                nw.Enum(df[column].cat.get_categories().to_list() + [cat_missing_name])
+            )
+            if df[column].is_null().any():
+                changed_dtypes[column] = changed_dtypes[column].fill_null(
+                    cat_missing_name
+                )
 
     if changed_dtypes:
-        df = df.assign(**changed_dtypes)
+        df = df.with_columns(**changed_dtypes)
 
     return df
 
