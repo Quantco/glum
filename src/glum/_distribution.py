@@ -672,7 +672,7 @@ class TweedieDistribution(ExponentialDispersionModel):
         elif 1 < self.power < 2 and isinstance(link, LogLink):
             f = partial(tweedie_log_rowwise_gradient_hessian, p=self.power)
         elif self.power == 3:
-            f = partial(inv_gaussian_log_rowwise_gradient_hessian, p=self.power)
+            f = inv_gaussian_log_rowwise_gradient_hessian
 
         if f is not None:
             return f(y, sample_weight, eta, mu, gradient_rows, hessian_rows)
