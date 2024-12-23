@@ -7,7 +7,15 @@
 Changelog
 =========
 
-3.1.0 - unreleased
+3.1.1 - unreleased
+------------------
+
+**Bug fix:
+
+- Fixed a bug where `TweedieDistribution._rowwise_gradient_hessian` would pass `p` paramter to `inv_gaussian_log_rowwise_gradient_hessian`, even though `p` is not defined in its function signature.
+
+
+3.1.0
 ------------------
 
 **New features:**
