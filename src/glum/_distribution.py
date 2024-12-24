@@ -703,7 +703,7 @@ class TweedieDistribution(ExponentialDispersionModel):
         elif 1 < self.power < 2 and isinstance(link, LogLink):
             f = partial(tweedie_log_eta_mu_deviance, p=self.power)
         elif self.power == 3 and isinstance(link, LogLink):
-            f = partial(inv_gaussian_log_eta_mu_deviance, p=self.power)
+            f = inv_gaussian_log_eta_mu_deviance
 
         if f is not None:
             return f(cur_eta, X_dot_d, y, sample_weight, eta_out, mu_out, factor)
