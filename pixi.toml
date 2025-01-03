@@ -48,6 +48,8 @@ setuptools-scm = ">=8.1"
 [host-dependencies]
 python = ">=3.9"
 pip = "*"
+setuptools = "*"
+wheel = "*"
 
 [dependencies]
 formulaic = "*"
