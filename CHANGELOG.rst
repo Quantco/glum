@@ -7,6 +7,14 @@
 Changelog
 =========
 
+UNRELEASED
+----------
+
+**Other changes:**
+
+- Build and test with Python 3.13 in CI.
+
+
 3.1.0 - 2024-11-11
 ------------------
 

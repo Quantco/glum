@@ -19,8 +19,8 @@ jobs:
         include:
           - environment: 'nightly'
             NOTE: 'Nightly Builds' # run once with nightlies
-          - environment: 'py312'
-            NOTE: 'Python 3.12' # run once with normal dependencies
+          - environment: 'py313'
+            NOTE: 'Python 3.13' # run once with normal dependencies
     steps:
       - name: Checkout branch
         uses: actions/checkout@v4
