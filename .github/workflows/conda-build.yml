@@ -21,12 +21,12 @@ jobs:
       matrix:
         include:
           - { conda_build_yml: linux_64_python3.9.____cpython,   os: ubuntu-latest,  conda-build-args: '' }
-          - { conda_build_yml: linux_64_python3.12.____cpython,  os: ubuntu-latest,  conda-build-args: '' }
+          - { conda_build_yml: linux_64_python3.13.____cpython,  os: ubuntu-latest,  conda-build-args: '' }
           - { conda_build_yml: osx_64_python3.9.____cpython,     os: macos-latest,   conda-build-args: '' }
-          - { conda_build_yml: osx_64_python3.12.____cpython,    os: macos-latest,   conda-build-args: '' }
+          - { conda_build_yml: osx_64_python3.13.____cpython,    os: macos-latest,   conda-build-args: '' }
           - { conda_build_yml: osx_arm64_python3.10.____cpython, os: macos-latest,   conda-build-args: '' }
           - { conda_build_yml: win_64_python3.9.____cpython,     os: windows-latest, conda-build-args: '' }
-          - { conda_build_yml: win_64_python3.12.____cpython,    os: windows-latest, conda-build-args: '' }
+          - { conda_build_yml: win_64_python3.13.____cpython,    os: windows-latest, conda-build-args: '' }
     steps:
       - name: Checkout branch
         uses: actions/checkout@v4
