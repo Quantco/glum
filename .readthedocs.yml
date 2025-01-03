@@ -4,7 +4,7 @@ build:
   tools:
     python: mambaforge-4.10
   commands:
-    - mamba install -c conda-forge -c nodefaults pixi==0.22.0
+    - mamba install -c conda-forge -c nodefaults pixi==0.39.4
     - pixi run -e docs postinstall
     - pixi run readthedocs
 sphinx:
