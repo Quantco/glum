@@ -798,6 +798,11 @@ class GeneralizedLinearRegressorBase(RegressorMixin, BaseEstimator):
         self.cat_missing_method = cat_missing_method
         self.cat_missing_name = cat_missing_name
 
+    def __sklearn_tags__(self):
+        tags = super().__sklearn_tags__()
+        tags.input_tags.sparse = True
+        return tags
+
     @property
     def family_instance(self) -> ExponentialDispersionModel:
         """Return an :class:`~glum._distribution.ExponentialDispersionModel`."""
