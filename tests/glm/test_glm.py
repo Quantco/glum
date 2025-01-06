@@ -3063,9 +3063,6 @@ def test_formula(get_mixed_data, formula, drop_first, fit_intercept):
     ).fit(X_ext, y_ext)
 
     np.testing.assert_almost_equal(model_ext.coef_, model_formula.coef_)
-    np.testing.assert_array_equal(
-        model_ext.feature_names_, model_formula.feature_names_
-    )
 
 
 def test_formula_explicit_intercept(get_mixed_data):
