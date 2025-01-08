@@ -12,7 +12,8 @@ UNRELEASED
 
 **Bug fix:
 
-- Fixed a bug where `TweedieDistribution._rowwise_gradient_hessian` would pass `p` paramter to `inv_gaussian_log_rowwise_gradient_hessian`, even though `p` is not defined in its function signature.
+- Fixed a bug where :meth:`~glum.TweedieDistribution._rowwise_gradient_hessian` and :meth:`~glum.TweedieDistribution._eta_mu_deviance` would call functions with wrong arguments in the p = 3 case.
+- Fixed :class:`glum.InverseGaussianDistribution` not using the optimized gradient, hessian and deviance implementations, as well as those gradients and hessians being incorrect.
 
 **Other changes:**
 
