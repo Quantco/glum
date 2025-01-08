@@ -7,25 +7,31 @@
 Changelog
 =========
 
-3.1.1 - unreleased
-------------------
+UNRELEASED
+----------
 
 **Bug fix:
 
 - Fixed a bug where `TweedieDistribution._rowwise_gradient_hessian` would pass `p` paramter to `inv_gaussian_log_rowwise_gradient_hessian`, even though `p` is not defined in its function signature.
 
+**Other changes:**
 
-3.1.0
+- Build and test with Python 3.13 in CI.
+
+
+3.1.0 - 2024-11-11
 ------------------
 
 **New features:**
 
+- New argument ``max_inner_iter`` for classes :class:`~glum.GeneralizedLinearRegressor` and :class:`~glum.GeneralizedLinearRegressorCV` to control the maximum number of iterations of the inner solver in the IRLS-CD algorithm.
 - New fitted attributes ``col_means_`` and ``col_stds_`` for classes :class:`~glum.GeneralizedLinearRegressor` and :class:`~glum.GeneralizedLinearRegressorCV`.
 - :class:`~glum.GeneralizedLinearRegressor` now prints more informative logs when fitting with ``alpha_search=True`` and ``verbose=True``.
 
-**Bug fix:
+**Bug fixes:**
 
 - Fixed a bug where :meth:`glum.GeneralizedLinearRegressor.fit` would raise a ``dtype`` mismatch error if fit with ``alpha_search=True``.
+- Use data type (``float64`` or ``float32``) dependent precision in solvers.
 
 3.0.2 - 2024-06-25
 ------------------

@@ -1510,6 +1510,9 @@ def guess_intercept(
     If the distribution and corresponding link are something else, we use the
     Tweedie or normal solution, depending on the link function.
     """
+    if (not isinstance(link, IdentityLink)) and (len(np.unique(y)) == 1):
+        raise ValueError("No variation in `y`. Coefficients can't be estimated.")
+
     avg_y = np.average(y, weights=sample_weight)
 
     if isinstance(link, IdentityLink):

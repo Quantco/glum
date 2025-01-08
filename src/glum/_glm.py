@@ -452,7 +452,7 @@ def _one_over_var_inf_to_val(arr: np.ndarray, val: float) -> np.ndarray:
 
     If values are zeros, return val.
     """
-    zeros = np.where(np.abs(arr) < 1e-7)
+    zeros = np.where(np.abs(arr) < 10 * np.sqrt(np.finfo(arr.dtype).eps))
     with np.errstate(divide="ignore"):
         one_over = 1 / arr
     one_over[zeros] = val
@@ -713,7 +713,7 @@ def _group_sum(groups: np.ndarray, data: tm.MatrixBase):
 
 
 # TODO: abc
-class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
+class GeneralizedLinearRegressorBase(RegressorMixin, BaseEstimator):
     """
     Base class for :class:`GeneralizedLinearRegressor` and
     :class:`GeneralizedLinearRegressorCV`.
@@ -730,6 +730,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         link: Union[str, Link] = "auto",
         solver: str = "auto",
         max_iter=100,
+        max_inner_iter=100000,
         gradient_tol: Optional[float] = None,
         step_size_tol: Optional[float] = None,
         hessian_approx: float = 0.0,
@@ -767,6 +768,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self.link = link
         self.solver = solver
         self.max_iter = max_iter
+        self.max_inner_iter = max_inner_iter
         self.gradient_tol = gradient_tol
         self.step_size_tol = step_size_tol
         self.hessian_approx = hessian_approx
@@ -795,6 +797,11 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         self.categorical_format = categorical_format
         self.cat_missing_method = cat_missing_method
         self.cat_missing_name = cat_missing_name
+
+    def __sklearn_tags__(self):
+        tags = super().__sklearn_tags__()
+        tags.input_tags.sparse = True
+        return tags
 
     @property
     def family_instance(self) -> ExponentialDispersionModel:
@@ -1102,6 +1109,7 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
                 family=self._family_instance,
                 link=self._link_instance,
                 max_iter=max_iter,
+                max_inner_iter=getattr(self, "max_inner_iter", 100_000),
                 gradient_tol=self._gradient_tol,
                 step_size_tol=self.step_size_tol,
                 fixed_inner_tol=fixed_inner_tol,
@@ -2541,12 +2549,14 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         # This will prevent accidental upcasting later and slow operations on
         # mixed-precision numbers
         y = np.asarray(y, dtype=X.dtype)
+
         sample_weight = _check_weights(
             sample_weight,
             y.shape[0],  # type: ignore
             X.dtype,
             force_all_finite=force_all_finite,
         )
+
         offset = _check_offset(offset, y.shape[0], X.dtype)  # type: ignore
 
         # IMPORTANT NOTE: Since we want to minimize
@@ -2556,9 +2566,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         # 1/2*deviance + L1 + L2 with deviance=sum(weights * unit_deviance)
         weights_sum: float = np.sum(sample_weight)  # type: ignore
         sample_weight = sample_weight / weights_sum
-        #######################################################################
-        # 2b. convert to wrapper matrix types
-        #######################################################################
+
+        # Convert to wrapper matrix types
         X = tm.as_tabmat(X)
 
         self.feature_names_ = X.get_names(type="column", missing_prefix="_col_")  # type: ignore
@@ -2694,6 +2703,10 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
 
     max_iter : int, optional (default=100)
         The maximal number of iterations for solver algorithms.
+
+    max_inner_iter: int, optional (default=100000)
+        The maximal number of iterations for the inner solver in the IRLS-CD
+        algorithm. This parameter is only used when ``solver='irls-cd'``.
 
     gradient_tol : float, optional (default=None)
         Stopping criterion. If ``None``, solver-specific defaults will be used.
@@ -2942,6 +2955,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         link: Union[str, Link] = "auto",
         solver: str = "auto",
         max_iter=100,
+        max_inner_iter=100000,
         gradient_tol: Optional[float] = None,
         step_size_tol: Optional[float] = None,
         hessian_approx: float = 0.0,
@@ -2983,6 +2997,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             link=link,
             solver=solver,
             max_iter=max_iter,
+            max_inner_iter=max_inner_iter,
             gradient_tol=gradient_tol,
             step_size_tol=step_size_tol,
             hessian_approx=hessian_approx,

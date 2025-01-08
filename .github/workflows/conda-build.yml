@@ -21,18 +21,18 @@ jobs:
       matrix:
         include:
           - { conda_build_yml: linux_64_python3.9.____cpython,   os: ubuntu-latest,  conda-build-args: '' }
-          - { conda_build_yml: linux_64_python3.12.____cpython,  os: ubuntu-latest,  conda-build-args: '' }
-          - { conda_build_yml: osx_64_python3.9.____cpython,     os: macos-latest,   conda-build-args: '' }
-          - { conda_build_yml: osx_64_python3.12.____cpython,    os: macos-latest,   conda-build-args: '' }
-          - { conda_build_yml: osx_arm64_python3.10.____cpython, os: macos-latest,   conda-build-args: '' }
+          - { conda_build_yml: linux_64_python3.13.____cpython,  os: ubuntu-latest,  conda-build-args: '' }
+          - { conda_build_yml: osx_64_python3.10.____cpython,    os: macos-latest,   conda-build-args: '' }
+          - { conda_build_yml: osx_arm64_python3.9.____cpython,  os: macos-latest,   conda-build-args: '' }
+          - { conda_build_yml: osx_arm64_python3.13.____cpython, os: macos-latest,   conda-build-args: '' }
           - { conda_build_yml: win_64_python3.9.____cpython,     os: windows-latest, conda-build-args: '' }
-          - { conda_build_yml: win_64_python3.12.____cpython,    os: windows-latest, conda-build-args: '' }
+          - { conda_build_yml: win_64_python3.13.____cpython,    os: windows-latest, conda-build-args: '' }
     steps:
       - name: Checkout branch
         uses: actions/checkout@v4
       - name: Fetch full git history
         run: git fetch --prune --unshallow
-      - uses: mamba-org/setup-micromamba@f8b8a1e23a26f60a44c853292711bacfd3eac822
+      - uses: mamba-org/setup-micromamba@068f1ab4b37ed9b3d9f73da7db90a0cda0a48d29
         with:
           micromamba-version: 1.5.10-0
           init-shell: ${{ matrix.os == 'windows-latest' && 'cmd.exe' || 'bash' }}

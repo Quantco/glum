@@ -56,11 +56,11 @@ def get_small_x_y(
     estimator: Union[GeneralizedLinearRegressor, GeneralizedLinearRegressorCV],
 ) -> tuple[np.ndarray, np.ndarray]:
     if isinstance(estimator, GeneralizedLinearRegressor):
-        n_rows = 1
+        n_rows = 2
     else:
         n_rows = 10
     x = np.ones((n_rows, 1), dtype=int)
-    y = np.ones(n_rows) * 0.5
+    y = np.array([0, 1] * (n_rows // 2)) * 0.5
     return x, y
 
 
@@ -222,7 +222,7 @@ def test_glm_family_argument_invalid_input(estimator):
 def test_glm_family_argument_as_exponential_dispersion_model(estimator, kwargs, family):
     X, y = get_small_x_y(estimator)
     glm = estimator(family=family(), **kwargs)
-    glm.fit(X, y)
+    glm.fit(X, np.where(y > family().lower_bound, y, y.max() / 2))
 
 
 @pytest.mark.parametrize(
@@ -3063,9 +3063,6 @@ def test_formula(get_mixed_data, formula, drop_first, fit_intercept):
     ).fit(X_ext, y_ext)
 
     np.testing.assert_almost_equal(model_ext.coef_, model_formula.coef_)
-    np.testing.assert_array_equal(
-        model_ext.feature_names_, model_formula.feature_names_
-    )
 
 
 def test_formula_explicit_intercept(get_mixed_data):

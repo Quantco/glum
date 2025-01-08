@@ -1,0 +1,21 @@
+c_compiler:
+- vs2019
+channel_sources:
+- conda-forge
+channel_targets:
+- conda-forge main
+cxx_compiler:
+- vs2019
+numpy:
+- '2.1'
+pin_run_as_build:
+  python:
+    min_pin: x.x
+    max_pin: x.x
+python:
+- 3.13.* *_cp313
+target_platform:
+- win-64
+zip_keys:
+- - python
+  - numpy

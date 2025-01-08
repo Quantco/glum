@@ -12,14 +12,14 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-20.04, macos-12, windows-2022]
+        os: [ubuntu-20.04, windows-2022, macos-13, macos-14]
 
     steps:
       - uses: actions/checkout@v4
+      - name: Set up micromamba
+        uses: mamba-org/setup-micromamba@068f1ab4b37ed9b3d9f73da7db90a0cda0a48d29
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2.21.3
-        env:
-          CIBW_ARCHS_MACOS: x86_64 arm64
+        uses: pypa/cibuildwheel@v2.22.0
       - uses: actions/upload-artifact@v4
         with:
           path: ./wheelhouse/*.whl
@@ -57,7 +57,7 @@ jobs:
         with:
           merge-multiple: true
           path: dist
-      - uses: pypa/gh-action-pypi-publish@v1.11.0
+      - uses: pypa/gh-action-pypi-publish@v1.12.3
         with:
           repository-url: https://test.pypi.org/legacy/
 
@@ -75,4 +75,4 @@ jobs:
         with:
           path: dist
           merge-multiple: true
-      - uses: pypa/gh-action-pypi-publish@v1.11.0
+      - uses: pypa/gh-action-pypi-publish@v1.12.3
