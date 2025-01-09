@@ -277,6 +277,8 @@ def inv_gaussian_log_rowwise_gradient_hessian(
         inv_mu2 = inv_mu ** 2
 
         gradient_rows_out[i] = weights[i] * (y[i] * inv_mu2 - inv_mu)
+        # Use the FIM instead of the true Hessian, as the latter is not
+        # necessarily positive definite.
         hessian_rows_out[i] = weights[i] * inv_mu
 
 def inv_gaussian_log_likelihood(
