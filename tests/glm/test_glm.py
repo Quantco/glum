@@ -1270,6 +1270,80 @@ def test_binomial_cloglog_unregularized(solver):
     assert_allclose(glum_glm.coef_, sm_fit.params[1:], rtol=2e-5)
 
 
+def test_inv_gaussian_log_enet():
+    """Test elastic net regression with inverse gaussian family and log link.
+
+    Compare to R's glmnet
+    """
+    # library(glmnet)
+    # options(digits=10)
+    # df <- data.frame(a=c(1,2,3,4,5,6), b=c(0,0,0,0,1, 1), y=cy=c(.2,.5,.8,.3,.9,.9))
+    # x <- data.matrix(df[,c("a", "b")])
+    # y <- df$y
+    # fit <- glmnet(
+    #     x=x, y=y, lambda=1, alpha=0.5, intercept=TRUE,
+    #     family=inv.gaussian(link=log),standardize=FALSE, thresh=1e-10
+    # )
+    # coef(fit)
+    #                       s0
+    # (Intercept) -1.028655076
+    # a            0.123000467
+    # b            .
+    glmnet_intercept = -1.028655076
+    glmnet_coef = [0.123000467, 0.0]
+    X = np.array([[1, 2, 3, 4, 5, 6], [0, 0, 0, 0, 1, 1]], dtype="float").T
+    y = np.array([0.2, 0.5, 0.8, 0.3, 0.9, 0.9])
+    rng = np.random.RandomState(42)
+    glm = GeneralizedLinearRegressor(
+        alpha=1,
+        l1_ratio=0.5,
+        family="inverse.gaussian",
+        link="log",
+        solver="irls-cd",
+        gradient_tol=1e-8,
+        selection="random",
+        random_state=rng,
+    )
+    glm.fit(X, y)
+    assert_allclose(glm.intercept_, glmnet_intercept, rtol=1e-3)
+    assert_allclose(glm.coef_, glmnet_coef, rtol=1e-3)
+
+    # same for start_params='zero' and selection='cyclic'
+    # with reduced precision
+    glm = GeneralizedLinearRegressor(
+        alpha=1,
+        l1_ratio=0.5,
+        family="inverse.gaussian",
+        link="log",
+        solver="irls-cd",
+        gradient_tol=1e-8,
+        selection="cyclic",
+    )
+    glm.fit(X, y)
+    assert_allclose(glm.intercept_, glmnet_intercept, rtol=1e-3)
+    assert_allclose(glm.coef_, glmnet_coef, rtol=1e-3)
+
+    # check warm_start, therefore start with different alpha
+    glm = GeneralizedLinearRegressor(
+        alpha=0.005,
+        l1_ratio=0.5,
+        family="inverse.gaussian",
+        max_iter=300,
+        link="log",
+        solver="irls-cd",
+        gradient_tol=1e-8,
+        selection="cyclic",
+    )
+    glm.fit(X, y)
+    # warm start with original alpha and use of sparse matrices
+    glm.warm_start = True
+    glm.alpha = 1
+    X = sparse.csr_matrix(X)
+    glm.fit(X, y)
+    assert_allclose(glm.intercept_, glmnet_intercept, rtol=1e-3)
+    assert_allclose(glm.coef_, glmnet_coef, rtol=1e-3)
+
+
 @pytest.mark.parametrize("alpha", [0.01, 0.1, 1, 10])
 def test_binomial_enet(alpha):
     """Test elastic net regression with binomial family and LogitLink.
