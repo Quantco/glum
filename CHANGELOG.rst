@@ -10,6 +10,11 @@ Changelog
 UNRELEASED
 ----------
 
+**Bug fix:
+
+- Fixed a bug where :meth:`~glum.TweedieDistribution._rowwise_gradient_hessian` and :meth:`~glum.TweedieDistribution._eta_mu_deviance` would call functions with wrong arguments in the ``p = 3`` case.
+- Fixed :class:`glum.InverseGaussianDistribution` not using the optimized gradient, Hessian and deviance implementations, as well as those derivatives having the wrong sign.
+
 **Other changes:**
 
 - Build and test with Python 3.13 in CI.

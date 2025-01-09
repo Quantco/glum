@@ -671,8 +671,8 @@ class TweedieDistribution(ExponentialDispersionModel):
             f = gamma_log_rowwise_gradient_hessian
         elif 1 < self.power < 2 and isinstance(link, LogLink):
             f = partial(tweedie_log_rowwise_gradient_hessian, p=self.power)
-        elif self.power == 3:
-            f = partial(inv_gaussian_log_rowwise_gradient_hessian, p=self.power)
+        elif self.power == 3 and isinstance(link, LogLink):
+            f = inv_gaussian_log_rowwise_gradient_hessian
 
         if f is not None:
             return f(y, sample_weight, eta, mu, gradient_rows, hessian_rows)
@@ -703,7 +703,7 @@ class TweedieDistribution(ExponentialDispersionModel):
         elif 1 < self.power < 2 and isinstance(link, LogLink):
             f = partial(tweedie_log_eta_mu_deviance, p=self.power)
         elif self.power == 3 and isinstance(link, LogLink):
-            f = partial(inv_gaussian_log_eta_mu_deviance, p=self.power)
+            f = inv_gaussian_log_eta_mu_deviance
 
         if f is not None:
             return f(cur_eta, X_dot_d, y, sample_weight, eta_out, mu_out, factor)
@@ -1153,6 +1153,11 @@ class InverseGaussianDistribution(ExponentialDispersionModel):
     def _rowwise_gradient_hessian(
         self, link, y, sample_weight, eta, mu, gradient_rows, hessian_rows
     ):
+        if isinstance(link, LogLink):
+            return inv_gaussian_log_rowwise_gradient_hessian(
+                y, sample_weight, eta, mu, gradient_rows, hessian_rows
+            )
+
         return super()._rowwise_gradient_hessian(
             link, y, sample_weight, eta, mu, gradient_rows, hessian_rows
         )
@@ -1169,8 +1174,8 @@ class InverseGaussianDistribution(ExponentialDispersionModel):
         mu_out,
     ):
         if isinstance(link, LogLink):
-            return tweedie_log_eta_mu_deviance(
-                cur_eta, X_dot_d, y, sample_weight, eta_out, mu_out, factor, p=3.0
+            return inv_gaussian_log_eta_mu_deviance(
+                cur_eta, X_dot_d, y, sample_weight, eta_out, mu_out, factor
             )
 
         return super()._eta_mu_deviance(
