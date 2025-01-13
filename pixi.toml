@@ -13,8 +13,8 @@ store-benchmark-golden-master = "python tests/glm/test_benchmark_golden_master.p
 
 [feature.docs.tasks]
 make-docs = "cd docs && make html"
-serve-docs = { cmd = "python -m http.server --directory docs/_build/html", depends_on = ["make-docs"] }
-readthedocs = { cmd = "rm -rf $READTHEDOCS_OUTPUT/html && cp -r docs/_build/html $READTHEDOCS_OUTPUT/html", depends_on = ["make-docs"] }
+serve-docs = { cmd = "python -m http.server --directory docs/_build/html", depends-on = ["make-docs"] }
+readthedocs = { cmd = "rm -rf $READTHEDOCS_OUTPUT/html && cp -r docs/_build/html $READTHEDOCS_OUTPUT/html", depends-on = ["make-docs"] }
 
 [feature.benchmark.tasks]
 glm-benchmarks-run = "glm_benchmarks_run"
