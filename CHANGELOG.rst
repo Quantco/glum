@@ -7,10 +7,10 @@
 Changelog
 =========
 
-UNRELEASED
-----------
+3.1.1 - 2025-01-13
+------------------
 
-**Bug fix:
+**Bug fix:**
 
 - Fixed a bug where :meth:`~glum.TweedieDistribution._rowwise_gradient_hessian` and :meth:`~glum.TweedieDistribution._eta_mu_deviance` would call functions with wrong arguments in the ``p = 3`` case.
 - Fixed :class:`glum.InverseGaussianDistribution` not using the optimized gradient, Hessian and deviance implementations, as well as those derivatives having the wrong sign.
@@ -34,6 +34,7 @@ UNRELEASED
 - Fixed a bug where :meth:`glum.GeneralizedLinearRegressor.fit` would raise a ``dtype`` mismatch error if fit with ``alpha_search=True``.
 - Use data type (``float64`` or ``float32``) dependent precision in solvers.
 
+
 3.0.2 - 2024-06-25
 ------------------
 
@@ -47,6 +48,7 @@ UNRELEASED
 - Moved the linting and formatting to ruff.
 - Removed libblas MKL from the development environment.
 - Replaced deprecated 'oldest-supported-numpy' dependency with 'numpy' to support 2.0 release.
+
 
 3.0.1 - 2024-05-23
 ------------------
