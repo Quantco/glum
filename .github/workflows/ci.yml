@@ -66,5 +66,7 @@ jobs:
         run: |
           mkdir ../temp
           cp README.md ../temp
+          mkdir ../temp/data
+          cp data/housing.parquet ../temp/data
           cd ../temp
           pixi run --manifest-path ../glum/pixi.toml -e ${{ matrix.environment }} python -m doctest -v README.md
