@@ -28,6 +28,8 @@ jobs:
         uses: prefix-dev/setup-pixi@992a3081e2f87829e0fff9fb29f4fe6a5d1e80a2
         with:
           environments: ${{ matrix.environment }}
+      - name: Update dependencies
+        run: pixi update -e ${{ matrix.environment }}
       - name: Install nightlies
         if: matrix.environment == 'nightly'
         run: pixi run -e ${{ matrix.environment }} install-nightlies
@@ -42,6 +44,8 @@ jobs:
         run: |
           mkdir ../temp
           cp README.md ../temp
+          mkdir ../temp/data
+          cp data/housing.parquet ../temp/data
           cd ../temp
           pixi run --manifest-path ../glum/pixi.toml -e ${{ matrix.environment }} python -m doctest -v README.md
 
