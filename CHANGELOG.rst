@@ -7,6 +7,13 @@
 Changelog
 =========
 
+3.1.2 - 2025-12-30
+
+**Other changes:**
+
+- Linux-aarch64 wheels are now uploaded to PyPI.
+
+
 3.1.1 - 2025-01-13
 ------------------
 
