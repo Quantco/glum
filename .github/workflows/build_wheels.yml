@@ -52,7 +52,7 @@ jobs:
     if: github.event_name == 'release' && github.event.action == 'published'
     needs: [build_wheels, build_sdist]
     runs-on: ubuntu-latest
-    environment: 
+    environment:
       name: test_release
       url: https://test.pypi.org/p/glum
     permissions:
@@ -70,7 +70,7 @@ jobs:
     if: github.event_name == 'release' && github.event.action == 'published'
     needs: [build_wheels, build_sdist, upload_testpypi]
     runs-on: ubuntu-latest
-    environment: 
+    environment:
       name: release
       url: https://pypi.org/p/glum
     permissions:

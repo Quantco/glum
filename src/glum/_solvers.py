@@ -11,6 +11,7 @@ from sklearn.exceptions import ConvergenceWarning
 from sklearn.utils import check_array
 from sklearn.utils.validation import check_random_state
 
+from ._algebra import _safe_lin_pred, _safe_sandwich_dot
 from ._cd_fast import (
     _norm_min_subgrad,
     enet_coordinate_descent_gram,
@@ -18,7 +19,6 @@ from ._cd_fast import (
 )
 from ._distribution import ExponentialDispersionModel, get_one_over_variance
 from ._link import Link
-from ._util import _safe_lin_pred, _safe_sandwich_dot
 
 
 def timeit(runtime_attr: str):

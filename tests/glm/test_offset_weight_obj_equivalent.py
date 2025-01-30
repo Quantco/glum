@@ -15,6 +15,7 @@ all_test_problems_offset = {
     for k, v in get_all_problems().items()
     if "offset" in k and "gaussian" not in k and "binomial" not in k
 }
+
 bench_cfg = dict(
     num_rows=10000,
     regularization_strength=0.1,

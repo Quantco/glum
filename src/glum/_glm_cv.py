@@ -2,25 +2,19 @@ import copy
 from collections.abc import Mapping
 from typing import Any, Optional, Union
 
+import formulaic
+import joblib
 import numpy as np
-from formulaic import FormulaSpec
-from formulaic.utils.context import capture_context
-from joblib import Parallel, delayed
-from sklearn.model_selection._split import check_cv
+import sklearn as skl
 
+from ._algebra import _safe_lin_pred, is_pos_semidef
 from ._distribution import ExponentialDispersionModel
-from ._glm import (
-    ArrayLike,
-    GeneralizedLinearRegressorBase,
-    _standardize,
-    _unstandardize,
-    check_bounds,
-    is_pos_semidef,
-    setup_p1,
-    setup_p2,
-)
+from ._formula import capture_context
+from ._glm import GeneralizedLinearRegressorBase, setup_p1, setup_p2
 from ._link import Link, LogLink
-from ._util import _safe_lin_pred
+from ._typing import ArrayLike
+from ._util import standardize, unstandardize
+from ._validation import check_bounds
 
 
 class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
@@ -368,7 +362,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         drop_first: bool = False,
         robust: bool = True,
         expected_information: bool = False,
-        formula: Optional[FormulaSpec] = None,
+        formula: Optional[formulaic.FormulaSpec] = None,
         interaction_separator: str = ":",
         categorical_format: str = "{name}[{category}]",
         cat_missing_method: str = "fail",
@@ -494,10 +488,6 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         """
         self._validate_hyperparameters()
 
-        captured_context = capture_context(
-            context + 1 if isinstance(context, int) else context
-        )
-
         (
             X,
             y,
@@ -512,7 +502,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             sample_weight,
             offset,
             force_all_finite=self.force_all_finite,
-            context=captured_context,
+            context=capture_context(context),
         )
 
         #########
@@ -547,7 +537,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         A_ineq = copy.copy(self.A_ineq)
         b_ineq = copy.copy(self.b_ineq)
 
-        cv = check_cv(self.cv)
+        cv = skl.model_selection.check_cv(self.cv)
 
         if self._solver == "cd":
             _stype = ["csc"]
@@ -612,7 +602,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
                 A_ineq,
                 P1_no_alpha,
                 P2_no_alpha,
-            ) = _standardize(
+            ) = standardize(
                 x_train,
                 w_train,
                 self._center_predictors,
@@ -660,7 +650,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             )
 
             if self.fit_intercept:
-                intercept_path_, coef_path_ = _unstandardize(
+                intercept_path_, coef_path_ = unstandardize(
                     self.col_means_, self.col_stds_, coef[:, 0], coef[:, 1:]
                 )
                 assert isinstance(intercept_path_, np.ndarray)  # make mypy happy
@@ -672,7 +662,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
                 ]
             else:
                 # set intercept to zero as the other linear models do
-                intercept_path_, coef_path_ = _unstandardize(
+                intercept_path_, coef_path_ = unstandardize(
                     self.col_means_, self.col_stds_, np.zeros(coef.shape[0]), coef
                 )
                 deviance_path_ = [_get_deviance(_coef) for _coef in coef_path_]
@@ -680,7 +670,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             return intercept_path_, coef_path_, deviance_path_
 
         jobs = (
-            delayed(_fit_path)(
+            joblib.delayed(_fit_path)(
                 self,
                 train_idx=train_idx,
                 test_idx=test_idx,
@@ -698,7 +688,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             for train_idx, test_idx in cv.split(X, y)
             for this_l1_ratio, this_alphas in zip(l1_ratio, alphas)
         )
-        paths_data = Parallel(n_jobs=self.n_jobs, prefer="processes")(jobs)
+
+        paths_data = joblib.Parallel(n_jobs=self.n_jobs, prefer="processes")(jobs)
 
         self.intercept_path_ = np.reshape(
             [elmt[0] for elmt in paths_data],
@@ -741,7 +732,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             A_ineq,
             P1,
             P2,
-        ) = _standardize(
+        ) = standardize(
             X,
             sample_weight,
             self._center_predictors,
@@ -772,12 +763,12 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         )
 
         if self.fit_intercept:
-            self.intercept_, self.coef_ = _unstandardize(
+            self.intercept_, self.coef_ = unstandardize(
                 self.col_means_, self.col_stds_, coef[0], coef[1:]
             )
         else:
             # set intercept to zero as the other linear models do
-            self.intercept_, self.coef_ = _unstandardize(
+            self.intercept_, self.coef_ = unstandardize(
                 self.col_means_, self.col_stds_, 0.0, coef
             )
 
