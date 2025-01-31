@@ -1,6 +1,6 @@
 # glum
 
-[![CI](https://github.com/Quantco/glm_benchmarks/workflows/CI/badge.svg)](https://github.com/Quantco/glum/actions)
+[![CI](https://github.com/Quantco/glum/actions/workflows/ci.yml/badge.svg)](https://github.com/Quantco/glum/actions)
 [![Daily runs](https://github.com/Quantco/glum/actions/workflows/daily.yml/badge.svg)](https://github.com/Quantco/glum/actions/workflows/daily.yml)
 [![Docs](https://readthedocs.org/projects/pip/badge/?version=latest&style=flat)](https://glum.readthedocs.io/)
 [![Conda-forge](https://img.shields.io/conda/vn/conda-forge/glum?logoColor=white&logo=conda-forge)](https://anaconda.org/conda-forge/glum)
