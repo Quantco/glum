@@ -91,6 +91,7 @@ memory_profiler = "*"
 [feature.lint.dependencies]
 cython-lint = "*"
 pre-commit = "*"
+pre-commit-hooks = "*"
 ruff = "*"
 
 [feature.docs.dependencies]

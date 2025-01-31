@@ -19,7 +19,7 @@ Ces fichiers sont proposés au format shapefile, en projection WGS84 avec plusie
 La topologie est conservée lors du processus de simplification (cf: http://openstreetmap.fr/blogs/cquest/limites-administratives-simplifiees)
 
 
-= Contenu = 
+= Contenu =
 
 Ces fichiers contiennent l'ensemble des régions françaises, y compris les DOM et Mayotte.
 

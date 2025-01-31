@@ -7,7 +7,6 @@ import numpy as np
 from scipy import special
 from tabmat import MatrixBase, StandardizedMatrix, hstack
 
-from ._algebra import _safe_lin_pred, _safe_sandwich_dot
 from ._functions import (
     binomial_logit_eta_mu_deviance,
     binomial_logit_rowwise_gradient_hessian,
@@ -36,6 +35,7 @@ from ._functions import (
     tweedie_log_likelihood,
     tweedie_log_rowwise_gradient_hessian,
 )
+from ._linalg import _safe_lin_pred, _safe_sandwich_dot
 from ._link import IdentityLink, Link, LogitLink, LogLink
 
 

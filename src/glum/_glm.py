@@ -38,7 +38,7 @@ from ._solvers import (
     _trust_constr_solver,
 )
 from ._typing import ArrayLike, ShapedArrayLike, VectorLike, WaldTestResult
-from ._util import (
+from ._utils import (
     add_missing_categories,
     align_df_categories,
     expand_categorical_penalties,

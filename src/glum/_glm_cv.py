@@ -7,13 +7,13 @@ import joblib
 import numpy as np
 import sklearn as skl
 
-from ._algebra import _safe_lin_pred, is_pos_semidef
 from ._distribution import ExponentialDispersionModel
 from ._formula import capture_context
 from ._glm import GeneralizedLinearRegressorBase, setup_p1, setup_p2
+from ._linalg import _safe_lin_pred, is_pos_semidef
 from ._link import Link, LogLink
 from ._typing import ArrayLike
-from ._util import standardize, unstandardize
+from ._utils import standardize, unstandardize
 from ._validation import check_bounds
 
 

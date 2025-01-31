@@ -3,7 +3,6 @@ import pytest
 import scipy as sp
 import tabmat as tm
 
-from glum._algebra import _safe_sandwich_dot
 from glum._distribution import (
     BinomialDistribution,
     ExponentialDispersionModel,
@@ -17,6 +16,7 @@ from glum._distribution import (
 )
 from glum._glm import get_family
 from glum._glm_regressor import GeneralizedLinearRegressor
+from glum._linalg import _safe_sandwich_dot
 from glum._link import IdentityLink, LogitLink, LogLink, TweedieLink
 
 

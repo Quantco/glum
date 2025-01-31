@@ -24,7 +24,7 @@ from glum._distribution import (
 from glum._glm_cv import GeneralizedLinearRegressorCV
 from glum._glm_regressor import GeneralizedLinearRegressor
 from glum._link import LogitLink, LogLink
-from glum._util import unstandardize
+from glum._utils import unstandardize
 
 GLM_SOLVERS = ["irls-ls", "lbfgs", "irls-cd", "trust-constr"]
 

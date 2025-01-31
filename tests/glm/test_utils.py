@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from glum._util import add_missing_categories, align_df_categories
+from glum._utils import add_missing_categories, align_df_categories
 
 
 @pytest.fixture()
@@ -21,7 +21,7 @@ def df():
     )
 
 
-def testalign_df_categories_numeric(df):
+def test_align_df_categories_numeric(df):
     dtypes = {column: np.float64 for column in df}
     has_missing_category = {column: False for column in df}
     missing_method = "fail"
@@ -44,7 +44,7 @@ def testalign_df_categories_numeric(df):
     )
 
 
-def testalign_df_categories_categorical(df):
+def test_align_df_categories_categorical(df):
     df = df[["x5", "x6", "x7", "x8"]]
     dtypes = {column: pd.CategoricalDtype(["a", "b"]) for column in df}
     has_missing_category = {column: False for column in df}
@@ -66,7 +66,7 @@ def testalign_df_categories_categorical(df):
     )
 
 
-def testalign_df_categories_excess_columns(df):
+def test_align_df_categories_excess_columns(df):
     dtypes = {"x1": np.float64}
     has_missing_category = {column: False for column in df}
     missing_method = "fail"
@@ -89,7 +89,7 @@ def testalign_df_categories_excess_columns(df):
     )
 
 
-def testalign_df_categories_missing_columns(df):
+def test_align_df_categories_missing_columns(df):
     dtypes = {"x0": np.float64}
     has_missing_category = {column: False for column in df}
     missing_method = "fail"
@@ -113,7 +113,7 @@ def testalign_df_categories_missing_columns(df):
 
 
 @pytest.mark.parametrize("has_missings", [False, True])
-def testalign_df_categories_convert(df, has_missings):
+def test_align_df_categories_convert(df, has_missings):
     df = df[["x5", "x6", "x7", "x8"]]
     dtypes = {column: pd.CategoricalDtype(["a", "b"]) for column in df}
     has_missing_category = {column: has_missings for column in df}
@@ -149,7 +149,7 @@ def testalign_df_categories_convert(df, has_missings):
             )
 
 
-def testalign_df_categories_raise_on_unseen(df):
+def test_align_df_categories_raise_on_unseen(df):
     dtypes = {column: pd.CategoricalDtype(["a", "b"]) for column in df}
     has_missing_category = {column: False for column in df}
     missing_method = "fail"
@@ -163,7 +163,7 @@ def testalign_df_categories_raise_on_unseen(df):
         )
 
 
-def testalign_df_categories_not_df():
+def test_align_df_categories_not_df():
     with pytest.raises(TypeError):
         align_df_categories(np.array([[0], [1]]), {"x0": np.float64}, {}, "fail")
 
@@ -180,7 +180,7 @@ def df_na():
     )
 
 
-def testadd_missing_categories(df_na):
+def test_add_missing_categories(df_na):
     categorical_format = "{name}[{category}]"
     cat_missing_name = "(M)"
     dtypes = df_na.dtypes

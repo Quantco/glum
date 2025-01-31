@@ -15,7 +15,7 @@ Welcome to glum's documentation!
 
 .. image:: _static/headline_benchmark.png
    :width: 600
-   
+
 We suggest visiting the :doc:`Installation<install>` and :doc:`Getting Started<getting_started/getting_started>` sections first.
 
 .. toctree::

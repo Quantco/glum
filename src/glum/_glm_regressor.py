@@ -8,13 +8,13 @@ import sklearn as skl
 import tabmat as tm
 from scipy import sparse
 
-from ._algebra import is_pos_semidef
 from ._distribution import ExponentialDispersionModel
 from ._formula import capture_context
 from ._glm import GeneralizedLinearRegressorBase, setup_p1, setup_p2
+from ._linalg import is_pos_semidef
 from ._link import Link
 from ._typing import ArrayLike, ShapedArrayLike
-from ._util import standardize, unstandardize
+from ._utils import standardize, unstandardize
 from ._validation import check_bounds, check_inequality_constraints
 
 
