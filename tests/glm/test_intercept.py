@@ -11,8 +11,8 @@ from glum._distribution import (
     NormalDistribution,
     PoissonDistribution,
     TweedieDistribution,
+    guess_intercept,
 )
-from glum._intercept import guess_intercept
 from glum._link import IdentityLink, Link, LogitLink, LogLink
 
 

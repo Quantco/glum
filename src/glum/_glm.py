@@ -25,9 +25,9 @@ from ._distribution import (
     NormalDistribution,
     PoissonDistribution,
     TweedieDistribution,
+    guess_intercept,
 )
 from ._formula import capture_context, parse_formula
-from ._intercept import guess_intercept
 from ._link import CloglogLink, IdentityLink, Link, LogitLink, LogLink, TweedieLink
 from ._solvers import (
     IRLSData,
