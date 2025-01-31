@@ -35,6 +35,7 @@ from ._functions import (
     tweedie_log_likelihood,
     tweedie_log_rowwise_gradient_hessian,
 )
+from ._intercept import guess_intercept  # noqa  # for backward compatibility
 from ._linalg import _safe_lin_pred, _safe_sandwich_dot
 from ._link import IdentityLink, Link, LogitLink, LogLink
 

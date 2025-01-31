@@ -51,7 +51,7 @@ repos:
         entry: pixi run -e lint trailing-whitespace-fixer
         language: system
         types: [text]
-        exclude: (\.py|README.md)$
+        exclude: \.py$
       - id: end-of-file-fixer
         name: end-of-file-fixer
         entry: pixi run -e lint end-of-file-fixer
