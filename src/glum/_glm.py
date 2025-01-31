@@ -640,12 +640,8 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         elif full_report:
             keep_cols = df.columns
         else:
-            keep_cols = [
-                "convergence",
-                "n_cycles",
-                "iteration_runtime",
-                "intercept",
-            ]
+            keep_cols = ["convergence", "n_cycles", "iteration_runtime", "intercept"]
+
         return df[keep_cols]
 
     def _find_alpha_index(self, alpha):
