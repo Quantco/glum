@@ -76,7 +76,7 @@ Why did we choose the name `glum`? We wanted a name that had the letters GLM and
 >>> diags = model.get_formatted_diagnostics(full_report=True)
 >>> diags[['objective_fct']]
         objective_fct
-n_iter
+n_iter               
 0            0.693091
 1            0.489500
 2            0.449585
