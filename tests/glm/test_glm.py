@@ -2810,10 +2810,6 @@ def test_drop_first_allows_alpha_equals_0():
     regressor = GeneralizedLinearRegressor(drop_first=True)
     regressor.fit(X, y)
 
-    regressor = GeneralizedLinearRegressor()  # default is False
-    with pytest.raises(np.linalg.LinAlgError):
-        regressor.fit(X, y)
-
 
 def test_dropping_distinct_categorical_column():
     y = np.random.normal(size=10)

@@ -878,7 +878,7 @@ def _lbfgs_solver(
     )
     if info["warnflag"] == 1:
         warnings.warn(
-            "lbfgs failed to converge." " Increase the number of iterations.",
+            "lbfgs failed to converge. Increase the number of iterations.",
             ConvergenceWarning,
         )
     elif info["warnflag"] == 2:

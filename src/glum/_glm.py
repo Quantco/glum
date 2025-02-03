@@ -3032,8 +3032,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         if self.alpha_search:
             if not isinstance(self.alpha, Iterable) and self.alpha is not None:
                 raise ValueError(
-                    "`alpha` should be an Iterable or None when `alpha_search`"
-                    " is True"
+                    "`alpha` should be an Iterable or None when `alpha_search` is True"
                 )
             if self.alpha is not None and (
                 (np.asarray(self.alpha) < 0).any()
@@ -3043,7 +3042,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         if not self.alpha_search:
             if not np.isscalar(self.alpha) and self.alpha is not None:
                 raise ValueError(
-                    "`alpha` should be a scalar or None when `alpha_search`" " is False"
+                    "`alpha` should be a scalar or None when `alpha_search` is False"
                 )
             if self.alpha is not None and (
                 not isinstance(self.alpha, (int, float)) or self.alpha < 0
