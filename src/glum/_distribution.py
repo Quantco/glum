@@ -35,8 +35,8 @@ from ._functions import (
     tweedie_log_likelihood,
     tweedie_log_rowwise_gradient_hessian,
 )
+from ._linalg import _safe_lin_pred, _safe_sandwich_dot
 from ._link import IdentityLink, Link, LogitLink, LogLink
-from ._util import _safe_lin_pred, _safe_sandwich_dot
 
 
 class ExponentialDispersionModel(metaclass=ABCMeta):
@@ -1497,6 +1497,62 @@ class NegativeBinomialDistribution(ExponentialDispersionModel):
         )
 
 
+def get_one_over_variance(
+    distribution: ExponentialDispersionModel,
+    link: Link,
+    mu,
+    eta,
+    dispersion: float,
+    sample_weight,
+):
+    """Get one over the variance.
+
+    For Tweedie: ``sigma_inv = sample_weight / (mu ** p)`` during optimization,
+    because ``phi = 1``.
+
+    For binomial with logit link: simplifies to
+    ``variance = phi / ( sample_weight * (exp(eta) + 2 + exp(-eta)))``,
+    more numerically accurate.
+    """
+    if isinstance(distribution, BinomialDistribution) and isinstance(link, LogitLink):
+        max_float_for_exp = np.log(np.finfo(eta.dtype).max / 10)
+        if np.any(np.abs(eta) > max_float_for_exp):
+            eta = np.clip(eta, -max_float_for_exp, max_float_for_exp)  # type: ignore
+        return sample_weight * (np.exp(eta) + 2 + np.exp(-eta)) / dispersion
+    return 1.0 / distribution.variance(
+        mu, dispersion=dispersion, sample_weight=sample_weight
+    )
+
+
+def _as_float_arrays(*args):
+    """Convert to a float array, passing ``None`` through, and broadcast."""
+    never_broadcast = {}  # type: ignore
+    maybe_broadcast = {}
+    always_broadcast = {}
+
+    for ix, arg in enumerate(args):
+        if isinstance(arg, (int, float)):
+            maybe_broadcast[ix] = np.array([arg], dtype="float")
+        elif arg is None:
+            never_broadcast[ix] = None
+        else:
+            always_broadcast[ix] = np.asanyarray(arg, dtype="float")
+
+    if always_broadcast and maybe_broadcast:
+        to_broadcast = {**always_broadcast, **maybe_broadcast}
+        _broadcast = np.broadcast_arrays(*to_broadcast.values())
+        broadcast = dict(zip(to_broadcast.keys(), _broadcast))
+    elif always_broadcast:
+        _broadcast = np.broadcast_arrays(*always_broadcast.values())
+        broadcast = dict(zip(always_broadcast.keys(), _broadcast))
+    else:
+        broadcast = maybe_broadcast  # possibly `{}`
+
+    out = {**never_broadcast, **broadcast}
+
+    return [out[ix] for ix in range(len(args))]
+
+
 def guess_intercept(
     y,
     sample_weight,
@@ -1577,59 +1633,3 @@ def guess_intercept(
 
     else:
         return link.link(y.dot(sample_weight))
-
-
-def get_one_over_variance(
-    distribution: ExponentialDispersionModel,
-    link: Link,
-    mu,
-    eta,
-    dispersion: float,
-    sample_weight,
-):
-    """Get one over the variance.
-
-    For Tweedie: ``sigma_inv = sample_weight / (mu ** p)`` during optimization,
-    because ``phi = 1``.
-
-    For Binomial with Logit link: Simplifies to
-    ``variance = phi / ( sample_weight * (exp(eta) + 2 + exp(-eta)))``.
-    More numerically accurate.
-    """
-    if isinstance(distribution, BinomialDistribution) and isinstance(link, LogitLink):
-        max_float_for_exp = np.log(np.finfo(eta.dtype).max / 10)
-        if np.any(np.abs(eta) > max_float_for_exp):
-            eta = np.clip(eta, -max_float_for_exp, max_float_for_exp)  # type: ignore
-        return sample_weight * (np.exp(eta) + 2 + np.exp(-eta)) / dispersion
-    return 1.0 / distribution.variance(
-        mu, dispersion=dispersion, sample_weight=sample_weight
-    )
-
-
-def _as_float_arrays(*args):
-    """Convert to a float array, passing ``None`` through, and broadcast."""
-    never_broadcast = {}  # type: ignore
-    maybe_broadcast = {}
-    always_broadcast = {}
-
-    for ix, arg in enumerate(args):
-        if isinstance(arg, (int, float)):
-            maybe_broadcast[ix] = np.array([arg], dtype="float")
-        elif arg is None:
-            never_broadcast[ix] = None
-        else:
-            always_broadcast[ix] = np.asanyarray(arg, dtype="float")
-
-    if always_broadcast and maybe_broadcast:
-        to_broadcast = {**always_broadcast, **maybe_broadcast}
-        _broadcast = np.broadcast_arrays(*to_broadcast.values())
-        broadcast = dict(zip(to_broadcast.keys(), _broadcast))
-    elif always_broadcast:
-        _broadcast = np.broadcast_arrays(*always_broadcast.values())
-        broadcast = dict(zip(always_broadcast.keys(), _broadcast))
-    else:
-        broadcast = maybe_broadcast  # possibly `{}`
-
-    out = {**never_broadcast, **broadcast}
-
-    return [out[ix] for ix in range(len(args))]

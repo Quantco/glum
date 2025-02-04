@@ -17,8 +17,8 @@ from ._cd_fast import (
     identify_active_rows,
 )
 from ._distribution import ExponentialDispersionModel, get_one_over_variance
+from ._linalg import _safe_lin_pred, _safe_sandwich_dot
 from ._link import Link
-from ._util import _safe_lin_pred, _safe_sandwich_dot
 
 
 def timeit(runtime_attr: str):

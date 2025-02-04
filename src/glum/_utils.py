@@ -1,23 +1,16 @@
 import logging
-import warnings
 from collections.abc import Sequence
-from functools import wraps
-from typing import Union
+from typing import Any, Optional, Union
 
 import numpy as np
 import pandas as pd
+import tabmat as tm
 from scipy import sparse
-from tabmat import MatrixBase, StandardizedMatrix
 
 _logger = logging.getLogger(__name__)
 
 
-def _asanyarray(x, **kwargs):
-    """``np.asanyarray`` with passthrough for scalars."""
-    return x if pd.api.types.is_scalar(x) else np.asanyarray(x, **kwargs)
-
-
-def _align_df_categories(
+def align_df_categories(
     df, dtypes, has_missing_category, cat_missing_method
 ) -> pd.DataFrame:
     """Align data types for prediction.
@@ -29,7 +22,7 @@ def _align_df_categories(
     Parameters
     ----------
     df : pandas.DataFrame
-    dtypes : Dict[str, Union[str, type, pandas.core.dtypes.base.ExtensionDtype]]
+    dtypes : Dict[str, str | type | pandas.core.dtypes.base.ExtensionDtype]
     has_missing_category : Dict[str, bool]
     missing_method : str
     """
@@ -74,7 +67,7 @@ def _align_df_categories(
     return df
 
 
-def _add_missing_categories(
+def add_missing_categories(
     df,
     dtypes,
     feature_names: Sequence[str],
@@ -112,7 +105,7 @@ def _add_missing_categories(
     return df
 
 
-def _expand_categorical_penalties(
+def expand_categorical_penalties(
     penalty, X, drop_first, has_missing_category
 ) -> Union[np.ndarray, str]:
     """Determine penalty matrices ``P1`` or ``P2`` after expanding categorical columns.
@@ -149,64 +142,17 @@ def _expand_categorical_penalties(
         return penalty
 
 
-def _is_contiguous(X) -> bool:
+def is_contiguous(X) -> bool:
     if isinstance(X, np.ndarray):
         return X.flags["C_CONTIGUOUS"] or X.flags["F_CONTIGUOUS"]
     elif isinstance(X, pd.DataFrame):
-        return _is_contiguous(X.values)
+        return is_contiguous(X.values)
     else:
         # If not a numpy array or pandas data frame, we assume it is contiguous.
         return True
 
 
-def _safe_lin_pred(
-    X: Union[MatrixBase, StandardizedMatrix],
-    coef: np.ndarray,
-    offset: np.ndarray = None,
-) -> np.ndarray:
-    """Compute the linear predictor taking care if intercept is present."""
-    idx_offset = 0 if X.shape[1] == coef.shape[0] else 1
-    nonzero_coefs = np.where(coef[idx_offset:] != 0.0)[0].astype(np.int32)
-    res = X.matvec(coef[idx_offset:], cols=nonzero_coefs)
-
-    if idx_offset == 1:
-        res += coef[0]
-    if offset is not None:
-        return res + offset
-    return res
-
-
-def _safe_sandwich_dot(
-    X: Union[MatrixBase, StandardizedMatrix],
-    d: np.ndarray,
-    rows: np.ndarray = None,
-    cols: np.ndarray = None,
-    intercept=False,
-) -> np.ndarray:
-    """
-    Compute sandwich product ``X.T @ diag(d) @ X``.
-
-    With ``intercept=True``, ``X`` is treated as if a column of 1 were appended
-    as first column of ``X``. ``X`` can be sparse; ``d`` must be an ndarray.
-    Always returns an ndarray.
-    """
-    result = X.sandwich(d, rows, cols)
-    if isinstance(result, sparse.dia_matrix):
-        result = result.toarray()
-
-    if intercept:
-        dim = result.shape[0] + 1
-        res_including_intercept = np.empty((dim, dim), dtype=X.dtype)
-        res_including_intercept[0, 0] = d.sum()
-        res_including_intercept[1:, 0] = X.transpose_matvec(d, rows, cols)
-        res_including_intercept[0, 1:] = res_including_intercept[1:, 0]
-        res_including_intercept[1:, 1:] = result
-    else:
-        res_including_intercept = result
-    return res_including_intercept
-
-
-def _safe_toarray(X) -> np.ndarray:
+def safe_toarray(X) -> np.ndarray:
     """Return a numpy array."""
     if sparse.issparse(X):
         return X.toarray()
@@ -214,36 +160,122 @@ def _safe_toarray(X) -> np.ndarray:
         return np.asarray(X)
 
 
-def _positional_args_deprecated(unchanged_args=(), unchanged_args_number=None):
+def standardize(
+    X: tm.MatrixBase,
+    sample_weight: np.ndarray,
+    center_predictors: bool,
+    estimate_as_if_scaled_model: bool,
+    lower_bounds: Optional[np.ndarray],
+    upper_bounds: Optional[np.ndarray],
+    A_ineq: Optional[np.ndarray],
+    P1: Union[np.ndarray, sparse.spmatrix],
+    P2: Union[np.ndarray, sparse.spmatrix],
+) -> tuple[
+    tm.StandardizedMatrix,
+    np.ndarray,
+    Optional[np.ndarray],
+    Optional[np.ndarray],
+    Optional[np.ndarray],
+    Optional[np.ndarray],
+    Any,
+    Any,
+]:
     """
-    Raise a FutureWarning if more than `unchanged_args_number` positional
-    arguments are passed.
-    """
-    if unchanged_args_number is None:
-        unchanged_args_number = len(unchanged_args)
+    Standardize the data matrix ``X`` and adjust the bounds and penalties to
+    match the standardized data matrix, so that standardizing does not affect
+    estimates.
 
-    def decorator(func):
-        first_part = "Arguments" if unchanged_args else "All arguments"
-        exceptions = (
-            " other than " + ", ".join(f"`{arg}`" for arg in unchanged_args)
-            if unchanged_args
-            else ""
+    This is only done for computational reasons and does not affect final
+    estimates or alter the input data. Columns are always scaled to have unit
+    standard deviation.
+
+    Bounds, inequality constraints and regularization coefficients are modified
+    appropriately so that the estimates remain unchanged compared to an
+    unstandardized problem.
+
+    Parameters
+    ----------
+    X : MatrixBase
+    sample_weight : numpy.ndarray
+    center_predictors : bool
+        If ``True``, adjust the data matrix so that columns have mean zero.
+    estimate_as_if_scaled_model : bool
+        If ``True``, estimates returned equal those from a model where
+        predictors have been standardized to have unit standard deviation, with
+        penalty unchanged. Note that, internally, for purely computational
+        reasons, we always scale predictors; whether estimates match a scaled
+        model depends on whether we modify the penalty. If ``False``, penalties
+        are rescaled to match the original scale, canceling out the effect of
+        rescaling X.
+    lower_bounds
+    upper_bounds
+    A_ineq
+    P1
+    P2
+    """
+    X, col_means, col_stds = X.standardize(sample_weight, center_predictors, True)
+
+    if col_stds is not None:
+        inv_col_stds = _one_over_var_inf_to_val(col_stds, 1.0)
+        # We copy the bounds when multiplying here so the we avoid
+        # side effects.
+        if lower_bounds is not None:
+            lower_bounds = lower_bounds / inv_col_stds
+        if upper_bounds is not None:
+            upper_bounds = upper_bounds / inv_col_stds
+        if A_ineq is not None:
+            A_ineq = A_ineq * inv_col_stds
+
+    if not estimate_as_if_scaled_model and col_stds is not None:
+        P1 *= inv_col_stds
+        if sparse.issparse(P2):
+            inv_col_stds_mat = sparse.diags(inv_col_stds)
+            P2 = inv_col_stds_mat @ P2 @ inv_col_stds_mat
+        elif P2.ndim == 1:
+            P2 *= inv_col_stds**2
+        else:
+            P2 = (inv_col_stds[:, None] * P2) * inv_col_stds[None, :]
+
+    return X, col_means, col_stds, lower_bounds, upper_bounds, A_ineq, P1, P2
+
+
+def standardize_warm_start(  # noda D
+    coef: np.ndarray, col_means: np.ndarray, col_stds: Optional[np.ndarray]
+) -> None:
+    if col_stds is None:
+        coef[0] += np.squeeze(col_means).dot(coef[1:])
+    else:
+        coef[1:] *= col_stds
+        coef[0] += np.squeeze(col_means * _one_over_var_inf_to_val(col_stds, 1)).dot(
+            coef[1:]
         )
 
-        msg = (
-            f"{first_part} to `{func.__qualname__}`{exceptions} "
-            "will become keyword-only in 3.0.0."
+
+def unstandardize(  # noda D
+    col_means: np.ndarray,
+    col_stds: Optional[np.ndarray],
+    intercept: Union[float, np.ndarray],
+    coef: np.ndarray,
+) -> tuple[Union[float, np.ndarray], np.ndarray]:
+    if col_stds is None:
+        intercept -= np.squeeze(np.squeeze(col_means).dot(np.atleast_1d(coef).T))
+    else:
+        penalty_mult = _one_over_var_inf_to_val(col_stds, 1.0)
+        intercept -= np.squeeze(
+            np.squeeze(col_means * penalty_mult).dot(np.atleast_1d(coef).T)
         )
+        coef *= penalty_mult
+    return intercept, coef
 
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            if len(args) > unchanged_args_number + 1:  # +1 for self
-                warnings.warn(
-                    msg,
-                    FutureWarning,
-                )
-            return func(*args, **kwargs)
 
-        return wrapper
+def _one_over_var_inf_to_val(arr: np.ndarray, val: float) -> np.ndarray:
+    """
+    Return 1/arr unless the values are zeros.
 
-    return decorator
+    If values are zeros, return val.
+    """
+    zeros = np.where(np.abs(arr) < 10 * np.sqrt(np.finfo(arr.dtype).eps))
+    with np.errstate(divide="ignore"):
+        one_over = 1 / arr
+    one_over[zeros] = val
+    return one_over

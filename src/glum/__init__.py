@@ -11,8 +11,9 @@ from ._distribution import (
     PoissonDistribution,
     TweedieDistribution,
 )
-from ._glm import GeneralizedLinearRegressor, get_family, get_link
+from ._glm import get_family, get_link
 from ._glm_cv import GeneralizedLinearRegressorCV
+from ._glm_regressor import GeneralizedLinearRegressor
 from ._link import CloglogLink, IdentityLink, Link, LogitLink, LogLink, TweedieLink
 
 try:

@@ -14,9 +14,10 @@ from glum._distribution import (
     PoissonDistribution,
     TweedieDistribution,
 )
-from glum._glm import GeneralizedLinearRegressor, get_family
+from glum._glm import get_family
+from glum._glm_regressor import GeneralizedLinearRegressor
+from glum._linalg import _safe_sandwich_dot
 from glum._link import IdentityLink, LogitLink, LogLink, TweedieLink
-from glum._util import _safe_sandwich_dot
 
 
 @pytest.mark.parametrize(

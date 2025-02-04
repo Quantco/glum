@@ -2,7 +2,7 @@
 
 ![CI](https://github.com/Quantco/glm_benchmarks/workflows/CI/badge.svg)
 
-Python package to benchmark GLM implementations. 
+Python package to benchmark GLM implementations.
 
 ## Running the benchmarks
 
@@ -10,7 +10,7 @@ After installing the package, you should have two CLI tools: `glm_benchmarks_run
 
 To run the full benchmarking suite, just run `glm_benchmarks_run` with no flags. This will probably take a very long time.
 
-For a more advanced example: `glm_benchmarks_run --problem_name narrow-insurance-no-weights-l2-poisson --library_name glum --storage dense --num_rows 1000 --output_dir mydatadirname` will run just the first 1000 rows of the `narrow-insurance-no-weights-l2-poisson` problem through the `glum` library and save the output to `mydatadirname`. This demonstrates several capabilities that will speed development when you just want to run a subset of either data or problems or libraries. 
+For a more advanced example: `glm_benchmarks_run --problem_name narrow-insurance-no-weights-l2-poisson --library_name glum --storage dense --num_rows 1000 --output_dir mydatadirname` will run just the first 1000 rows of the `narrow-insurance-no-weights-l2-poisson` problem through the `glum` library and save the output to `mydatadirname`. This demonstrates several capabilities that will speed development when you just want to run a subset of either data or problems or libraries.
 
 Demonstrating the command above:
 ```
@@ -20,7 +20,7 @@ e-no-weights-l2-poisson --library_name glum --storage dense --num_rows 1000 --ou
 running problem=narrow-insurance-no-weights-l2-poisson library=glum
 Diagnostics:
          convergence  n_cycles  iteration_runtime  intercept
-n_iter                                                      
+n_iter
 0       1.444101e+00         0           0.001196  -1.843114
 1       5.008199e-01         1           0.009937  -1.843114
 2       8.087132e-02         2           0.001981  -2.311497
@@ -33,13 +33,13 @@ ran in 0.045558929443359375
 
 The `--problem_name` and `--library_name` flags take comma separated lists. This mean that if you want to run both `glum` and `r-glmnet`, you could run `glm_benchmarks_run --library_name glum,r-glmnet`.
 
-The `glm_benchmarks_analyze` tool produces a dataframe comparing the correct and runtime of several runs/libraries. `glm_benchmarks_analyze` accepts an almost identical range of command line parameters as `glm_benchmarks_run`. You can use these CLI parameters to filter which problems and runs you would like to compare. 
+The `glm_benchmarks_analyze` tool produces a dataframe comparing the correct and runtime of several runs/libraries. `glm_benchmarks_analyze` accepts an almost identical range of command line parameters as `glm_benchmarks_run`. You can use these CLI parameters to filter which problems and runs you would like to compare.
 
 For example:
 ```
 (glum) ➜  glum git:(master) ✗ glm_benchmarks_analyze --problem_name narrow-insurance-no-weights-l2-poisson --library_name glum --storage dense --num_rows 1000 --output_dir mydatadirname --cols intercept,runtime,n_iter
                                                                                  library_name  intercept  runtime  n_iter
-problem_name                           num_rows regularization_strength offset                                           
+problem_name                           num_rows regularization_strength offset
 narrow-insurance-no-weights-l2-poisson 1000     0.001                   False   glum    -3.3194   0.0456       5
 ```
 

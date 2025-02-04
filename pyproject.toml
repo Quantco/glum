@@ -42,10 +42,10 @@ check_untyped_defs = true
 namespace_packages = true
 ignore_missing_imports = true
 
-[[tool.mypy.overrides]]  
-# https://github.com/scikit-learn/scikit-learn/issues/16705  
-module = ["sklearn.*"]  
-ignore_missing_imports = true  
+[[tool.mypy.overrides]]
+# https://github.com/scikit-learn/scikit-learn/issues/16705
+module = ["sklearn.*"]
+ignore_missing_imports = true
 
 [tool.cibuildwheel]
 skip = [

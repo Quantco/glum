@@ -150,4 +150,3 @@ pkgs/*
 # pixi environments
 .pixi
 *.egg-info
-

@@ -14,7 +14,7 @@ jupyter:
 ---
 
 <!-- #region tags=[] -->
-# Getting Started: fitting a Lasso model 
+# Getting Started: fitting a Lasso model
 
 The purpose of this tutorial is to show the basics of `glum`. It assumes a working knowledge of python, regularized linear models, and machine learning. The API is very similar to scikit-learn. After all, `glum` is based on a fork of scikit-learn.
 
@@ -62,7 +62,7 @@ X_train, X_test, y_train, y_test = sklearn.model_selection.train_test_split(
 
 ## GLM basics: fitting and predicting using the normal family
 
-We'll use `glum.GeneralizedLinearRegressor` to predict the house prices using the available predictors. 
+We'll use `glum.GeneralizedLinearRegressor` to predict the house prices using the available predictors.
 
 We set three key parameters:
 
@@ -118,7 +118,7 @@ which we interact with as in the example above.
 
 ## Fitting a GLM with cross validation
 
-Now, we fit using automatic cross validation with `glum.GeneralizedLinearRegressorCV`. This mirrors the commonly used `cv.glmnet` function. 
+Now, we fit using automatic cross validation with `glum.GeneralizedLinearRegressorCV`. This mirrors the commonly used `cv.glmnet` function.
 
 Some important parameters:
 
@@ -130,7 +130,7 @@ Some important parameters:
     3. If `min_alpha_ratio` is set, create a path where the ratio of
         `min_alpha / max_alpha = min_alpha_ratio`.
     4. If none of the above parameters are set, use a `min_alpha_ratio`
-        of 1e-6.      
+        of 1e-6.
 - `l1_ratio`: for `GeneralizedLinearRegressorCV`, if you pass `l1_ratio` as an array, the `fit` method will choose the best value of `l1_ratio` and store it as `self.l1_ratio_`.
 
 ```python

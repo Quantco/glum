@@ -1,7 +1,7 @@
 Contributing and Development
 ====================================
 
-Hello! And thanks for exploring glum more deeply. Please see the issue tracker and pull requests tabs on Github for information about what is currently happening. Feel free to post an issue if you'd like to get involved in development and don't really know where to start -- we can give some advice. 
+Hello! And thanks for exploring glum more deeply. Please see the issue tracker and pull requests tabs on Github for information about what is currently happening. Feel free to post an issue if you'd like to get involved in development and don't really know where to start -- we can give some advice.
 
 We welcome contributions of any kind!
 
@@ -25,7 +25,7 @@ Pull request process
 Releases
 --------------------------------------------------
 
-- We make package releases infrequently, but usually any time a new non-trivial feature is contributed or a bug is fixed. To make a release, just open a PR that updates the change log with the current date. Once that PR is approved and merged, you can create a new release on [GitHub](https://github.com/Quantco/glum/releases/new). Use the version from the change log as tag and copy the change log entry into the release description. 
+- We make package releases infrequently, but usually any time a new non-trivial feature is contributed or a bug is fixed. To make a release, just open a PR that updates the change log with the current date. Once that PR is approved and merged, you can create a new release on [GitHub](https://github.com/Quantco/glum/releases/new). Use the version from the change log as tag and copy the change log entry into the release description.
 
 Install for development
 --------------------------------------------------
@@ -75,10 +75,10 @@ The test suite is in ``tests/``. A pixi task is available to run the tests:
 Golden master tests
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-We use golden master testing to preserve correctness. The results of many different GLM models have been saved. After an update, the tests will compare the new output to the saved models. Any significant deviation will result in a test failure. This doesn't strictly mean that the update was wrong. In case of a bug fix, it's possible that the new output will be more accurate than the old output. In that situation, the golden master results can be overwritten as explained below. 
+We use golden master testing to preserve correctness. The results of many different GLM models have been saved. After an update, the tests will compare the new output to the saved models. Any significant deviation will result in a test failure. This doesn't strictly mean that the update was wrong. In case of a bug fix, it's possible that the new output will be more accurate than the old output. In that situation, the golden master results can be overwritten as explained below.
 
 There are two sets of golden master tests, one with artificial data and one directly using the benchmarking problems from :mod:`glum_benchmarks`. For both sets of tests, creating the golden master and the tests definition are located in the same file. Calling the file with pytest will run the tests while calling the file as a python script will generate the golden master result. When creating the golden master results, both scripts accept the ``--overwrite`` command line flag. If set, the existing golden master results will be overwritten. Otherwise, only the new problems will be run.
- 
+
 Skipping the slow tests
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -102,7 +102,7 @@ Building a conda package
 To use the package in another project, we distribute it as a conda package.
 For building the package locally, you can use the following command:
 
-:: 
+::
 
    conda build conda.recipe
 
@@ -121,7 +121,7 @@ Then, navigate to `<http://localhost:8000>`_ to view the documentation.
 
 Alternatively, if you install `entr <http://eradman.com/entrproject/>`_, then you can auto-rebuild the documentation any time a file changes with:
 
-:: 
+::
 
    cd docs
    ./dev
@@ -141,7 +141,7 @@ If you are a newbie to Sphinx, the links below may help get you up to speed on s
 Where to start looking in the source?
 -------------------------------------
 
-The primary user interface of ``glum`` consists of the :class:`GeneralizedLinearRegressor <glum.GeneralizedLinearRegressor>` and :class:`GeneralizedLinearRegressorCV <glum.GeneralizedLinearRegressorCV>` classes via their constructors and the :meth:`fit() <glum.GeneralizedLinearRegressor.fit>` and :meth:`predict() <glum.GeneralizedLinearRegressor.predict>` functions. Those are the places to start looking if you plan to change the system in some way. 
+The primary user interface of ``glum`` consists of the :class:`GeneralizedLinearRegressor <glum.GeneralizedLinearRegressor>` and :class:`GeneralizedLinearRegressorCV <glum.GeneralizedLinearRegressorCV>` classes via their constructors and the :meth:`fit() <glum.GeneralizedLinearRegressor.fit>` and :meth:`predict() <glum.GeneralizedLinearRegressor.predict>` functions. Those are the places to start looking if you plan to change the system in some way.
 
 What follows is a high-level summary of the source code structure. For more details, please look in the documentation and docstrings of the relevant classes, functions and methods.
 
@@ -149,7 +149,7 @@ What follows is a high-level summary of the source code structure. For more deta
 * ``_glm_cv.py`` - This is the entrypoint for the cross validated GLM implementation. It depends on a lot of the code in ``_glm.py`` and only modifies the sections necessary for running training many models with different regularization parameters.
 * ``_solvers.py`` - This contains the bulk of the IRLS and L-BFGS algorithms for training GLMs.
 * ``_cd_fast.pyx`` - This is a Cython implementation of the coordinate descent algorithm used for fitting L1 penalty GLMs. Note the ``.pyx`` extension indicating that it is a Cython source file.
-* ``_distribution.py`` - definitions of the distributions that can be used. Includes Normal, Poisson, Gamma, InverseGaussian, Tweedie, Binomial and GeneralizedHyperbolicSecant distributions. 
+* ``_distribution.py`` - definitions of the distributions that can be used. Includes Normal, Poisson, Gamma, InverseGaussian, Tweedie, Binomial and GeneralizedHyperbolicSecant distributions.
 * ``_link.py`` - definitions of the link functions that can be used. Includes identity, log, logit and Tweedie link functions.
 * ``_functions.pyx`` - This is a Cython implementation of the log likelihoods, gradients and Hessians for several popular distributions.
 * ``_util.py`` - This contains a few general purpose linear algebra routines that serve several other modules and don't fit well elsewhere.
@@ -157,7 +157,7 @@ What follows is a high-level summary of the source code structure. For more deta
 The GLM benchmark suite
 ------------------------
 
-Before deciding to build a library custom built for our purposes, we did an thorough investigation of the various open source GLM implementations available. This resulted in an extensive suite of benchmarks for comparing the correctness, runtime and availability of features for these libraries. 
+Before deciding to build a library custom built for our purposes, we did an thorough investigation of the various open source GLM implementations available. This resulted in an extensive suite of benchmarks for comparing the correctness, runtime and availability of features for these libraries.
 
 The benchmark suite has two command line entrypoints:
 
@@ -167,4 +167,3 @@ The benchmark suite has two command line entrypoints:
 Both of these CLI tools take a range of arguments that specify the details of the benchmark problems and which libraries to benchmark.
 
 For more details on the benchmark suite, see the README in the source at ``src/glum_benchmarks/README.md``.
-

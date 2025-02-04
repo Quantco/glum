@@ -1,32 +1,18 @@
-# Authors: Christian Lorentzen <lorentzen.ch@gmail.com>
-#
-# License: BSD 3 clause
 import copy
 import warnings
 from typing import Any, Optional, Union
 
-import formulaic
 import numpy as np
 import pandas as pd
 import pytest
+import sklearn as skl
 import statsmodels.api as sm
-import statsmodels.formula.api as smf
+import statsmodels.tools
 import tabmat as tm
-from formulaic import Formula
-from numpy.testing import assert_allclose
 from scipy import optimize, sparse
-from sklearn.base import clone
-from sklearn.datasets import make_classification, make_regression
-from sklearn.exceptions import ConvergenceWarning
-from sklearn.linear_model import ElasticNet, LogisticRegression, Ridge
-from sklearn.metrics import mean_absolute_error
-from sklearn.utils.estimator_checks import check_estimator
-from statsmodels.tools import eval_measures
 
-from glum import GeneralizedLinearRegressorCV
 from glum._distribution import (
     BinomialDistribution,
-    ExponentialDispersionModel,
     GammaDistribution,
     GeneralizedHyperbolicSecant,
     InverseGaussianDistribution,
@@ -34,15 +20,11 @@ from glum._distribution import (
     NormalDistribution,
     PoissonDistribution,
     TweedieDistribution,
-    guess_intercept,
 )
-from glum._glm import (
-    GeneralizedLinearRegressor,
-    _parse_formula,
-    _unstandardize,
-    is_pos_semidef,
-)
-from glum._link import IdentityLink, Link, LogitLink, LogLink
+from glum._glm_cv import GeneralizedLinearRegressorCV
+from glum._glm_regressor import GeneralizedLinearRegressor
+from glum._link import LogitLink, LogLink
+from glum._utils import unstandardize
 
 GLM_SOLVERS = ["irls-ls", "lbfgs", "irls-cd", "trust-constr"]
 
@@ -66,7 +48,7 @@ def get_small_x_y(
 
 @pytest.fixture(scope="module")
 def regression_data():
-    X, y = make_regression(
+    X, y = skl.datasets.make_regression(
         n_samples=107, n_features=10, n_informative=80, noise=0.5, random_state=2
     )
     return X, y
@@ -81,487 +63,6 @@ def y():
 @pytest.fixture
 def X():
     return np.array([[1], [2]])
-
-
-@pytest.mark.parametrize("estimator, kwargs", estimators)
-def test_sample_weights_validation(estimator, kwargs):
-    """Test the raised errors in the validation of sample_weight."""
-    # scalar value but not positive
-    X, y = get_small_x_y(estimator)
-    sample_weight: Any = 0
-    glm = estimator(fit_intercept=False, **kwargs)
-    with pytest.raises(ValueError, match="weights must be non-negative"):
-        glm.fit(X, y, sample_weight)
-
-    # Positive weights are accepted
-    glm.fit(X, y, sample_weight=1)
-
-    # 2d array
-    sample_weight = [[0]]
-    with pytest.raises(ValueError, match="must be 1D array or scalar"):
-        glm.fit(X, y, sample_weight)
-
-    # 1d but wrong length
-    sample_weight = [1, 0]
-    with pytest.raises(ValueError, match="weights must have the same length as y"):
-        glm.fit(X, y, sample_weight)
-
-    # 1d but only zeros (sum not greater than 0)
-    sample_weight = [0, 0]
-    X = [[0], [1]]
-    y = [1, 2]
-    with pytest.raises(ValueError, match="must have at least one positive element"):
-        glm.fit(X, y, sample_weight)
-
-    # 5. 1d but with a negative value
-    sample_weight = [2, -1]
-    with pytest.raises(ValueError, match="weights must be non-negative"):
-        glm.fit(X, y, sample_weight)
-
-
-@pytest.mark.parametrize("estimator, kwargs", estimators)
-def test_offset_validation(estimator, kwargs):
-    X, y = get_small_x_y(estimator)
-    glm = estimator(fit_intercept=False, **kwargs)
-
-    # Negatives are accepted (makes sense for log link)
-    glm.fit(X, y, offset=-1)
-
-    # Arrays of the right shape are accepted
-    glm.fit(X, y, offset=y.copy())
-
-    # 2d array
-    with pytest.raises(ValueError, match="must be 1D array or scalar"):
-        glm.fit(X, y, offset=np.zeros_like(X))
-
-    # 1d but wrong length
-    with pytest.raises(ValueError, match="must have the same length as y"):
-        glm.fit(X, y, offset=[1, 0])
-
-
-@pytest.mark.parametrize(
-    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
-)
-def test_tol_validation_errors(estimator):
-    X, y = get_small_x_y(estimator)
-
-    glm = estimator(gradient_tol=-0.1)
-    with pytest.raises(ValueError, match="Tolerance for the gradient stopping"):
-        glm.fit(X, y)
-
-    glm = estimator(step_size_tol=-0.1)
-    with pytest.raises(ValueError, match="Tolerance for the step-size stopping"):
-        glm.fit(X, y)
-
-
-@pytest.mark.parametrize("estimator, kwargs", estimators)
-@pytest.mark.parametrize(
-    "tol_kws",
-    [
-        {},
-        {"step_size_tol": 1},
-        {"step_size_tol": None},
-        {"gradient_tol": 1},
-        {"gradient_tol": 1, "step_size_tol": 1},
-    ],
-)
-def test_tol_validation_no_error(estimator, kwargs, tol_kws):
-    X, y = get_small_x_y(estimator)
-    glm = estimator(**tol_kws, **kwargs)
-    glm.fit(X, y)
-
-
-@pytest.mark.parametrize("estimator, kwargs", estimators)
-@pytest.mark.parametrize("solver", ["auto", "irls-cd", "trust-constr"])
-@pytest.mark.parametrize("gradient_tol", [None, 1])
-def test_gradient_tol_setting(estimator, kwargs, solver, gradient_tol):
-    X, y = get_small_x_y(estimator)
-    glm = estimator(solver=solver, gradient_tol=gradient_tol, **kwargs)
-    glm.fit(X, y)
-
-    if gradient_tol is None:
-        if solver == "trust-constr":
-            gradient_tol = 1e-8
-        else:
-            gradient_tol = 1e-4
-
-    np.testing.assert_allclose(gradient_tol, glm._gradient_tol)
-
-
-# TODO: something for CV regressor
-@pytest.mark.parametrize(
-    "f, fam",
-    [
-        ("gaussian", NormalDistribution()),
-        ("normal", NormalDistribution()),
-        ("poisson", PoissonDistribution()),
-        ("gamma", GammaDistribution()),
-        ("inverse.gaussian", InverseGaussianDistribution()),
-        ("binomial", BinomialDistribution()),
-        ("negative.binomial", NegativeBinomialDistribution()),
-    ],
-)
-def test_glm_family_argument(f, fam, y, X):
-    """Test GLM family argument set as string."""
-    glm = GeneralizedLinearRegressor(family=f).fit(X, y)
-    assert isinstance(glm._family_instance, fam.__class__)
-
-
-@pytest.mark.parametrize(
-    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
-)
-def test_glm_family_argument_invalid_input(estimator):
-    X, y = get_small_x_y(estimator)
-    glm = estimator(family="not a family", fit_intercept=False)
-    with pytest.raises(ValueError, match="family must be"):
-        glm.fit(X, y)
-
-
-@pytest.mark.parametrize("estimator, kwargs", estimators)
-@pytest.mark.parametrize("family", ExponentialDispersionModel.__subclasses__())
-def test_glm_family_argument_as_exponential_dispersion_model(estimator, kwargs, family):
-    X, y = get_small_x_y(estimator)
-    glm = estimator(family=family(), **kwargs)
-    glm.fit(X, np.where(y > family().lower_bound, y, y.max() / 2))
-
-
-@pytest.mark.parametrize(
-    "link_func, link",
-    [("identity", IdentityLink()), ("log", LogLink()), ("logit", LogitLink())],
-)
-def test_glm_link_argument(link_func, link, y, X):
-    """Test GLM link argument set as string."""
-    glm = GeneralizedLinearRegressor(family="normal", link=link_func).fit(X, y)
-    assert isinstance(glm._link_instance, link.__class__)
-
-
-@pytest.mark.parametrize(
-    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
-)
-def test_glm_link_argument_invalid_input(estimator):
-    X, y = get_small_x_y(estimator)
-    glm = estimator(family="normal", link="not a link")
-    with pytest.raises(ValueError, match="link must be"):
-        glm.fit(X, y)
-
-
-@pytest.mark.parametrize("alpha", ["not a number", -4.2])
-def test_glm_alpha_argument(alpha, y, X):
-    """Test GLM for invalid alpha argument."""
-    glm = GeneralizedLinearRegressor(family="normal", alpha=alpha)
-    with pytest.raises(ValueError, match="Penalty term must be a non-negative"):
-        glm.fit(X, y)
-
-
-@pytest.mark.parametrize(
-    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
-)
-@pytest.mark.parametrize("l1_ratio", ["not a number", -4.2, 1.1])
-def test_glm_l1_ratio_argument(estimator, l1_ratio):
-    """Test GLM for invalid l1_ratio argument."""
-    X, y = get_small_x_y(estimator)
-    glm = estimator(family="normal", l1_ratio=l1_ratio)
-    with pytest.raises(ValueError, match="l1_ratio must be a number in interval.*0, 1"):
-        glm.fit(X, y)
-
-
-def test_glm_ratio_argument_array():
-    X, y = get_small_x_y(GeneralizedLinearRegressor)
-    glm = GeneralizedLinearRegressor(family="normal", l1_ratio=[1])
-    with pytest.raises(ValueError, match="l1_ratio must be a number in interval.*0, 1"):
-        glm.fit(X, y)
-
-
-@pytest.mark.parametrize(
-    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
-)
-@pytest.mark.parametrize("P1", [["a string", "a string"], [1, [2]], [1, 2, 3], [-1]])
-def test_glm_P1_argument(estimator, P1, y, X):
-    """Test GLM for invalid P1 argument."""
-    glm = estimator(P1=P1, l1_ratio=0.5, check_input=True)
-    with pytest.raises((ValueError, TypeError)):
-        glm.fit(X, y)
-
-
-@pytest.mark.parametrize(
-    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
-)
-@pytest.mark.parametrize(
-    "P2", ["a string", [1, 2, 3], [[2, 3]], sparse.csr_matrix([1, 2, 3]), [-1]]
-)
-def test_glm_P2_argument(estimator, P2, y, X):
-    """Test GLM for invalid P2 argument."""
-    glm = estimator(P2=P2, check_input=True)
-    with pytest.raises(ValueError):
-        glm.fit(X, y)
-
-
-@pytest.mark.parametrize(
-    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
-)
-def test_glm_P2_positive_semidefinite(estimator):
-    """Test GLM for a positive semi-definite P2 argument."""
-    n_samples, n_features = 10, 2
-    y = np.arange(n_samples)
-    X = np.zeros((n_samples, n_features))
-
-    # negative definite matrix
-    P2 = np.array([[1, 2], [2, 1]])
-    glm = estimator(P2=P2, fit_intercept=False, check_input=True)
-    with pytest.raises(ValueError, match="P2 must be positive semi-definite"):
-        glm.fit(X, y)
-
-    P2 = sparse.csr_matrix(P2)
-    glm = estimator(P2=P2, fit_intercept=False, check_input=True)
-    with pytest.raises(ValueError, match="P2 must be positive semi-definite"):
-        glm.fit(X, y)
-
-
-def test_positive_semidefinite():
-    """Test GLM for a positive semi-definite P2 argument."""
-    # negative definite matrix
-    P2 = np.array([[1, 2], [2, 1]])
-    assert not is_pos_semidef(P2)
-
-    P2 = sparse.csr_matrix(P2)
-    assert not is_pos_semidef(P2)
-
-    assert is_pos_semidef(np.eye(2))
-    assert is_pos_semidef(sparse.eye(2))
-
-
-def test_P1_P2_expansion_with_categoricals():
-    rng = np.random.default_rng(42)
-    X = pd.DataFrame(
-        data={
-            "dense": np.linspace(0, 10, 60),
-            "cat": pd.Categorical(rng.integers(5, size=60)),
-        }
-    )
-    y = rng.normal(size=60)
-
-    mdl1 = GeneralizedLinearRegressor(
-        l1_ratio=0.01,
-        P1=[1, 2, 2, 2, 2, 2],
-        P2=[2, 1, 1, 1, 1, 1],
-    )
-    mdl1.fit(X, y)
-
-    mdl2 = GeneralizedLinearRegressor(
-        l1_ratio=0.01,
-        P1=[1, 2],
-        P2=[2, 1],
-    )
-    mdl2.fit(X, y)
-    np.testing.assert_allclose(mdl1.coef_, mdl2.coef_)
-
-    mdl2 = GeneralizedLinearRegressor(
-        l1_ratio=0.01, P1=[1, 2], P2=sparse.diags([2, 1, 1, 1, 1, 1])
-    )
-    mdl2.fit(X, y)
-    np.testing.assert_allclose(mdl1.coef_, mdl2.coef_)
-
-
-def test_P1_P2_expansion_with_categoricals_missings():
-    rng = np.random.default_rng(42)
-    X = pd.DataFrame(
-        data={
-            "dense": np.linspace(0, 10, 60),
-            "cat": pd.Categorical(rng.integers(5, size=60)).remove_categories(0),
-        }
-    )
-    y = rng.normal(size=60)
-
-    mdl1 = GeneralizedLinearRegressor(
-        alpha=1.0,
-        l1_ratio=0.01,
-        P1=[1, 2, 2, 2, 2, 2],
-        P2=[2, 1, 1, 1, 1, 1],
-        cat_missing_method="convert",
-    )
-    mdl1.fit(X, y)
-
-    mdl2 = GeneralizedLinearRegressor(
-        alpha=1.0,
-        l1_ratio=0.01,
-        P1=[1, 2],
-        P2=[2, 1],
-        cat_missing_method="convert",
-    )
-    mdl2.fit(X, y)
-    np.testing.assert_allclose(mdl1.coef_, mdl2.coef_)
-
-    mdl3 = GeneralizedLinearRegressor(
-        alpha=1.0,
-        l1_ratio=0.01,
-        P1=[1, 2],
-        P2=sparse.diags([2, 1, 1, 1, 1, 1]),
-        cat_missing_method="convert",
-    )
-    mdl3.fit(X, y)
-    np.testing.assert_allclose(mdl1.coef_, mdl3.coef_)
-
-
-@pytest.mark.parametrize(
-    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
-)
-@pytest.mark.parametrize("fit_intercept", ["not bool", 1, 0, [True]])
-def test_glm_fit_intercept_argument(estimator, fit_intercept):
-    """Test GLM for invalid fit_intercept argument."""
-    X, y = get_small_x_y(estimator)
-    glm = estimator(fit_intercept=fit_intercept)
-    with pytest.raises(TypeError, match="fit_intercept must be bool"):
-        glm.fit(X, y)
-
-
-@pytest.mark.parametrize(
-    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
-)
-@pytest.mark.parametrize(
-    "solver, l1_ratio",
-    [
-        ("not a solver", 0),
-        (1, 0),
-        ([1], 0),
-        ("irls-ls", 0.5),
-        ("lbfgs", 0.5),
-        ("trust-constr", 0.5),
-    ],
-)
-def test_glm_solver_argument(estimator, solver, l1_ratio, y, X):
-    """Test GLM for invalid solver argument."""
-    kwargs = {"solver": solver, "l1_ratio": l1_ratio}
-    if estimator == GeneralizedLinearRegressor:
-        kwargs["alpha"] = 1.0
-    glm = estimator(**kwargs)
-    with pytest.raises(ValueError):
-        glm.fit(X, y)
-
-
-@pytest.mark.parametrize(
-    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
-)
-@pytest.mark.parametrize("max_iter", ["not a number", 0, -1, 5.5, [1]])
-def test_glm_max_iter_argument(estimator, max_iter):
-    """Test GLM for invalid max_iter argument."""
-    X, y = get_small_x_y(estimator)
-    glm = estimator(max_iter=max_iter)
-    with pytest.raises(ValueError, match="must be a positive integer"):
-        glm.fit(X, y)
-
-
-@pytest.mark.parametrize(
-    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
-)
-@pytest.mark.parametrize("tol_param", ["gradient_tol", "step_size_tol"])
-@pytest.mark.parametrize("tol", ["not a number", 0, -1.0, [1e-3]])
-def test_glm_tol_argument(estimator, tol_param, tol):
-    """Test GLM for invalid tol argument."""
-    X, y = get_small_x_y(estimator)
-    glm = estimator(**{tol_param: tol})
-    with pytest.raises(ValueError, match="stopping criteria must be positive"):
-        glm.fit(X, y)
-
-
-@pytest.mark.parametrize(
-    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
-)
-@pytest.mark.parametrize("warm_start", ["not bool", 1, 0, [True]])
-def test_glm_warm_start_argument(estimator, warm_start):
-    """Test GLM for invalid warm_start argument."""
-    X, y = get_small_x_y(estimator)
-    glm = estimator(warm_start=warm_start)
-    with pytest.raises(TypeError, match="warm_start must be bool"):
-        glm.fit(X, y)
-
-
-# https://github.com/Quantco/glum/issues/645
-@pytest.mark.parametrize(
-    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
-)
-def test_glm_warm_start_with_constant_column(estimator):
-    X, y = make_regression()
-    X[:, 0] = 0
-    kwargs = {"warm_start": True}
-    if estimator == GeneralizedLinearRegressor:
-        kwargs["alpha"] = 1.0
-    glm = estimator(**kwargs)
-    glm.fit(X, y)
-    glm.fit(X, y)
-
-
-@pytest.mark.parametrize(
-    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
-)
-@pytest.mark.parametrize(
-    "start_params", ["not a start_params", ["zero"], [0, 0, 0], [[0, 0]], ["a", "b"]]
-)
-def test_glm_start_params_argument(estimator, start_params, y, X):
-    """Test GLM for invalid start_params argument."""
-    glm = estimator(start_params=start_params)
-    with pytest.raises(ValueError):
-        glm.fit(X, y)
-
-
-@pytest.mark.parametrize(
-    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
-)
-@pytest.mark.parametrize("selection", ["not a selection", 1, 0, ["cyclic"]])
-def test_glm_selection_argument(estimator, selection):
-    """Test GLM for invalid selection argument."""
-    X, y = get_small_x_y(estimator)
-    glm = estimator(selection=selection)
-    with pytest.raises(ValueError, match="argument selection must be"):
-        glm.fit(X, y)
-
-
-@pytest.mark.parametrize(
-    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
-)
-@pytest.mark.parametrize("random_state", ["a string", 0.5, [0]])
-def test_glm_random_state_argument(estimator, random_state):
-    """Test GLM for invalid random_state argument."""
-    X, y = get_small_x_y(estimator)
-    glm = estimator(random_state=random_state)
-    with pytest.raises(ValueError, match="cannot be used to seed"):
-        glm.fit(X, y)
-
-
-@pytest.mark.parametrize(
-    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
-)
-@pytest.mark.parametrize("copy_X", ["not bool", 1, 0, [True]])
-def test_glm_copy_X_argument_invalid(estimator, copy_X):
-    """Test GLM for invalid copy_X arguments."""
-    X, y = get_small_x_y(estimator)
-    glm = estimator(copy_X=copy_X)
-    with pytest.raises(TypeError, match="copy_X must be None or bool"):
-        glm.fit(X, y)
-
-
-def test_glm_copy_X_input_needs_conversion():
-    y = np.array([1.0])
-    # If X is of int dtype, it needs to be copied
-    X = np.array([[1]])
-    glm = GeneralizedLinearRegressor(copy_X=False)
-    # should raise an error
-    with pytest.raises(ValueError, match="copy_X"):
-        glm.fit(X, y)
-    # should be OK with copy_X = None or copy_X = True
-    GeneralizedLinearRegressor(copy_X=None).fit(X, y)
-    GeneralizedLinearRegressor(copy_X=True).fit(X, y)
-
-
-@pytest.mark.parametrize(
-    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
-)
-@pytest.mark.parametrize("check_input", ["not bool", 1, 0, [True]])
-def test_glm_check_input_argument(estimator, check_input):
-    """Test GLM for invalid check_input argument."""
-    X, y = get_small_x_y(estimator)
-    glm = estimator(check_input=check_input)
-    with pytest.raises(TypeError, match="check_input must be bool"):
-        glm.fit(X, y)
 
 
 @pytest.mark.parametrize("solver", GLM_SOLVERS)
@@ -600,7 +101,7 @@ def test_glm_identity_regression(solver, fit_intercept, offset, convert_x_fn):
     else:
         fit_coef = res.coef_
     assert fit_coef.dtype.itemsize == X.dtype.itemsize
-    assert_allclose(fit_coef, coef, rtol=1e-6)
+    np.testing.assert_allclose(fit_coef, coef, rtol=1e-6)
 
 
 @pytest.mark.parametrize("solver", GLM_SOLVERS)
@@ -756,7 +257,7 @@ def test_glm_identity_regression_categorical_data(solver, offset, convert_x_fn):
     np.testing.assert_almost_equal(X.toarray() if hasattr(X, "toarray") else X, x_mat)
     res = glm.fit(X, y, offset=offset)
 
-    assert_allclose(res.coef_, coef, rtol=1e-6)
+    np.testing.assert_allclose(res.coef_, coef, rtol=1e-6)
 
 
 @pytest.mark.parametrize(
@@ -797,7 +298,7 @@ def test_glm_log_regression(family, solver, tol, fit_intercept, offset):
         fit_coef = np.concatenate([np.atleast_1d(res.intercept_), res.coef_])
     else:
         fit_coef = res.coef_
-    assert_allclose(fit_coef, coef, rtol=8e-6)
+    np.testing.assert_allclose(fit_coef, coef, rtol=8e-6)
 
 
 @pytest.mark.filterwarnings("ignore:The line search algorithm")
@@ -814,7 +315,7 @@ def test_normal_ridge_comparison(n_samples, n_features, solver, use_offset):
     """
     alpha = 1.0
     n_predict = 10
-    X, y, _ = make_regression(
+    X, y, _ = skl.datasets.make_regression(
         n_samples=n_samples + n_predict,
         n_features=n_features,
         n_informative=n_features - 2,
@@ -837,7 +338,10 @@ def test_normal_ridge_comparison(n_samples, n_features, solver, use_offset):
         ridge_params = {"solver": "sag", "max_iter": 10000, "tol": 1e-9}
 
     # GLM has 1/(2*n) * Loss + 1/2*L2, Ridge has Loss + L2
-    ridge = Ridge(alpha=alpha * n_samples, random_state=42, **ridge_params)
+    ridge = skl.linear_model.Ridge(
+        alpha=alpha * n_samples, random_state=42, **ridge_params
+    )
+
     ridge.fit(X, y if offset is None else y - offset)
 
     glm = GeneralizedLinearRegressor(
@@ -853,9 +357,9 @@ def test_normal_ridge_comparison(n_samples, n_features, solver, use_offset):
     )
     glm.fit(X, y, offset=offset)
     assert glm.coef_.shape == (X.shape[1],)
-    assert_allclose(glm.coef_, ridge.coef_, rtol=5e-5)
-    assert_allclose(glm.intercept_, ridge.intercept_, rtol=1e-5)
-    assert_allclose(glm.predict(T), ridge.predict(T), rtol=1e-4)
+    np.testing.assert_allclose(glm.coef_, ridge.coef_, rtol=5e-5)
+    np.testing.assert_allclose(glm.intercept_, ridge.intercept_, rtol=1e-5)
+    np.testing.assert_allclose(glm.predict(T), ridge.predict(T), rtol=1e-4)
 
 
 @pytest.mark.parametrize(
@@ -921,11 +425,13 @@ def test_poisson_ridge(solver, tol, scale_predictors, use_sparse):
     def check(G):
         G.fit(X, y)
         if scale_predictors:
-            assert_allclose(G.intercept_, -0.21002571120839675, rtol=1e-5)
-            assert_allclose(G.coef_, [0.16472093, 0.27051971], rtol=1e-5)
+            np.testing.assert_allclose(G.intercept_, -0.21002571120839675, rtol=1e-5)
+            np.testing.assert_allclose(G.coef_, [0.16472093, 0.27051971], rtol=1e-5)
         else:
-            assert_allclose(G.intercept_, -0.12889386979, rtol=1e-5)
-            assert_allclose(G.coef_, [0.29019207995, 0.03741173122], rtol=1e-5)
+            np.testing.assert_allclose(G.intercept_, -0.12889386979, rtol=1e-5)
+            np.testing.assert_allclose(
+                G.coef_, [0.29019207995, 0.03741173122], rtol=1e-5
+            )
 
     check(glm)
 
@@ -976,8 +482,8 @@ def test_poisson_ridge_bounded(scale_predictors):
     glm.fit(X, y)
 
     # These correct values come from glmnet.
-    assert_allclose(glm.intercept_, -0.13568186971946633, rtol=1e-5)
-    assert_allclose(glm.coef_, [0.1, 0.1], rtol=1e-5)
+    np.testing.assert_allclose(glm.intercept_, -0.13568186971946633, rtol=1e-5)
+    np.testing.assert_allclose(glm.coef_, [0.1, 0.1], rtol=1e-5)
 
 
 @pytest.mark.parametrize("scale_predictors", [True, False])
@@ -1013,8 +519,8 @@ def test_poisson_ridge_ineq_constrained(scale_predictors):
     glm.fit(X, y)
 
     # These correct values come from glmnet.
-    assert_allclose(glm.intercept_, -0.13568186971946633, rtol=1e-5)
-    assert_allclose(glm.coef_, [0.1, 0.1], rtol=1e-5)
+    np.testing.assert_allclose(glm.intercept_, -0.13568186971946633, rtol=1e-5)
+    np.testing.assert_allclose(glm.coef_, [0.1, 0.1], rtol=1e-5)
 
 
 def test_normal_enet():
@@ -1041,23 +547,19 @@ def test_normal_enet():
     )
     glm.fit(X, y)
 
-    enet = ElasticNet(
-        alpha=alpha,
-        l1_ratio=l1_ratio,
-        fit_intercept=True,
-        tol=1e-8,
-        copy_X=True,
+    enet = skl.linear_model.ElasticNet(
+        alpha=alpha, l1_ratio=l1_ratio, fit_intercept=True, tol=1e-8, copy_X=True
     )
     enet.fit(X, y)
 
-    assert_allclose(glm.intercept_, enet.intercept_, rtol=2e-7)
-    assert_allclose(glm.coef_, enet.coef_, rtol=5e-5)
+    np.testing.assert_allclose(glm.intercept_, enet.intercept_, rtol=2e-7)
+    np.testing.assert_allclose(glm.coef_, enet.coef_, rtol=5e-5)
 
     # 2. test normal enet on sparse data
     X = sparse.csc_matrix(X)
     glm.fit(X, y)
-    assert_allclose(glm.intercept_, enet.intercept_, rtol=2e-7)
-    assert_allclose(glm.coef_, enet.coef_, rtol=5e-5)
+    np.testing.assert_allclose(glm.intercept_, enet.intercept_, rtol=2e-7)
+    np.testing.assert_allclose(glm.coef_, enet.coef_, rtol=5e-5)
 
 
 def test_poisson_enet():
@@ -1092,8 +594,8 @@ def test_poisson_enet():
         random_state=rng,
     )
     glm.fit(X, y)
-    assert_allclose(glm.intercept_, glmnet_intercept, rtol=2e-6)
-    assert_allclose(glm.coef_, glmnet_coef, rtol=2e-7)
+    np.testing.assert_allclose(glm.intercept_, glmnet_intercept, rtol=2e-6)
+    np.testing.assert_allclose(glm.coef_, glmnet_coef, rtol=2e-7)
 
     # test results with general optimization procedure
     def obj(coef):
@@ -1115,9 +617,9 @@ def test_poisson_enet():
         tol=1e-10,
         options={"maxiter": 1000, "disp": False},
     )
-    assert_allclose(glm.intercept_, res.x[0], rtol=5e-5)
-    assert_allclose(glm.coef_, res.x[1:], rtol=1e-5, atol=1e-9)
-    assert_allclose(
+    np.testing.assert_allclose(glm.intercept_, res.x[0], rtol=5e-5)
+    np.testing.assert_allclose(glm.coef_, res.x[1:], rtol=1e-5, atol=1e-9)
+    np.testing.assert_allclose(
         obj(np.concatenate(([glm.intercept_], glm.coef_))), res.fun, rtol=1e-8
     )
 
@@ -1133,8 +635,8 @@ def test_poisson_enet():
         selection="cyclic",
     )
     glm.fit(X, y)
-    assert_allclose(glm.intercept_, glmnet_intercept, rtol=1e-4)
-    assert_allclose(glm.coef_, glmnet_coef, rtol=1e-4)
+    np.testing.assert_allclose(glm.intercept_, glmnet_intercept, rtol=1e-4)
+    np.testing.assert_allclose(glm.coef_, glmnet_coef, rtol=1e-4)
 
     # check warm_start, therefore start with different alpha
     glm = GeneralizedLinearRegressor(
@@ -1153,8 +655,8 @@ def test_poisson_enet():
     glm.alpha = 1
     X = sparse.csr_matrix(X)
     glm.fit(X, y)
-    assert_allclose(glm.intercept_, glmnet_intercept, rtol=1e-4)
-    assert_allclose(glm.coef_, glmnet_coef, rtol=1e-4)
+    np.testing.assert_allclose(glm.intercept_, glmnet_intercept, rtol=1e-4)
+    np.testing.assert_allclose(glm.coef_, glmnet_coef, rtol=1e-4)
 
 
 def test_binomial_cloglog_enet():
@@ -1196,8 +698,8 @@ def test_binomial_cloglog_enet():
     # might be closer to the truth than glmnet
     # In the case of unregularized results, we certainly are closer
     # to both statsmodels and stats::glm than glmnet is.
-    assert_allclose(glm.intercept_, glmnet_intercept, rtol=1e-3)
-    assert_allclose(glm.coef_, glmnet_coef, rtol=1e-3)
+    np.testing.assert_allclose(glm.intercept_, glmnet_intercept, rtol=1e-3)
+    np.testing.assert_allclose(glm.coef_, glmnet_coef, rtol=1e-3)
 
     # same for start_params='zero' and selection='cyclic'
     # with reduced precision
@@ -1211,8 +713,8 @@ def test_binomial_cloglog_enet():
         selection="cyclic",
     )
     glm.fit(X, y)
-    assert_allclose(glm.intercept_, glmnet_intercept, rtol=1e-3)
-    assert_allclose(glm.coef_, glmnet_coef, rtol=1e-3)
+    np.testing.assert_allclose(glm.intercept_, glmnet_intercept, rtol=1e-3)
+    np.testing.assert_allclose(glm.coef_, glmnet_coef, rtol=1e-3)
 
     # check warm_start, therefore start with different alpha
     glm = GeneralizedLinearRegressor(
@@ -1231,8 +733,8 @@ def test_binomial_cloglog_enet():
     glm.alpha = 1
     X = sparse.csr_matrix(X)
     glm.fit(X, y)
-    assert_allclose(glm.intercept_, glmnet_intercept, rtol=1e-3)
-    assert_allclose(glm.coef_, glmnet_coef, rtol=1e-3)
+    np.testing.assert_allclose(glm.intercept_, glmnet_intercept, rtol=1e-3)
+    np.testing.assert_allclose(glm.coef_, glmnet_coef, rtol=1e-3)
 
 
 @pytest.mark.parametrize("solver", ["irls-cd", "irls-ls"])
@@ -1243,7 +745,7 @@ def test_binomial_cloglog_unregularized(solver):
     """
     n_samples = 500
     rng = np.random.RandomState(42)
-    X, y = make_classification(
+    X, y = skl.datasets.make_classification(
         n_samples=n_samples,
         n_classes=2,
         n_features=6,
@@ -1266,8 +768,8 @@ def test_binomial_cloglog_unregularized(solver):
     )
     glum_glm.fit(X, y)
 
-    assert_allclose(glum_glm.intercept_, sm_fit.params[0], rtol=2e-5)
-    assert_allclose(glum_glm.coef_, sm_fit.params[1:], rtol=2e-5)
+    np.testing.assert_allclose(glum_glm.intercept_, sm_fit.params[0], rtol=2e-5)
+    np.testing.assert_allclose(glum_glm.coef_, sm_fit.params[1:], rtol=2e-5)
 
 
 def test_inv_gaussian_log_enet():
@@ -1305,8 +807,8 @@ def test_inv_gaussian_log_enet():
         random_state=rng,
     )
     glm.fit(X, y)
-    assert_allclose(glm.intercept_, glmnet_intercept, rtol=1e-3)
-    assert_allclose(glm.coef_, glmnet_coef, rtol=1e-3)
+    np.testing.assert_allclose(glm.intercept_, glmnet_intercept, rtol=1e-3)
+    np.testing.assert_allclose(glm.coef_, glmnet_coef, rtol=1e-3)
 
     # same for start_params='zero' and selection='cyclic'
     # with reduced precision
@@ -1320,8 +822,8 @@ def test_inv_gaussian_log_enet():
         selection="cyclic",
     )
     glm.fit(X, y)
-    assert_allclose(glm.intercept_, glmnet_intercept, rtol=1e-3)
-    assert_allclose(glm.coef_, glmnet_coef, rtol=1e-3)
+    np.testing.assert_allclose(glm.intercept_, glmnet_intercept, rtol=1e-3)
+    np.testing.assert_allclose(glm.coef_, glmnet_coef, rtol=1e-3)
 
     # check warm_start, therefore start with different alpha
     glm = GeneralizedLinearRegressor(
@@ -1340,8 +842,8 @@ def test_inv_gaussian_log_enet():
     glm.alpha = 1
     X = sparse.csr_matrix(X)
     glm.fit(X, y)
-    assert_allclose(glm.intercept_, glmnet_intercept, rtol=1e-3)
-    assert_allclose(glm.coef_, glmnet_coef, rtol=1e-3)
+    np.testing.assert_allclose(glm.intercept_, glmnet_intercept, rtol=1e-3)
+    np.testing.assert_allclose(glm.coef_, glmnet_coef, rtol=1e-3)
 
 
 @pytest.mark.parametrize("alpha", [0.01, 0.1, 1, 10])
@@ -1353,7 +855,7 @@ def test_binomial_enet(alpha):
     l1_ratio = 0.5
     n_samples = 500
     rng = np.random.RandomState(42)
-    X, y = make_classification(
+    X, y = skl.datasets.make_classification(
         n_samples=n_samples,
         n_classes=2,
         n_features=6,
@@ -1362,7 +864,7 @@ def test_binomial_enet(alpha):
         n_repeated=0,
         random_state=rng,
     )
-    log = LogisticRegression(
+    log = skl.linear_model.LogisticRegression(
         penalty="elasticnet",
         random_state=rng,
         fit_intercept=False,
@@ -1385,8 +887,8 @@ def test_binomial_enet(alpha):
         gradient_tol=1e-7,
     )
     glm.fit(X, y)
-    assert_allclose(log.intercept_[0], glm.intercept_, rtol=1e-6)
-    assert_allclose(log.coef_[0, :], glm.coef_, rtol=5.1e-6)
+    np.testing.assert_allclose(log.intercept_[0], glm.intercept_, rtol=1e-6)
+    np.testing.assert_allclose(log.coef_[0, :], glm.coef_, rtol=5.1e-6)
 
 
 @pytest.mark.parametrize(
@@ -1416,75 +918,12 @@ def test_solver_equivalence(params, use_offset, regression_data):
 
     est_2.fit(X, y, offset=offset)
 
-    assert_allclose(est_2.intercept_, est_ref.intercept_, rtol=1e-4)
-    assert_allclose(est_2.coef_, est_ref.coef_, rtol=1e-4)
-    assert_allclose(
-        mean_absolute_error(est_2.predict(X), y),
-        mean_absolute_error(est_ref.predict(X), y),
+    np.testing.assert_allclose(est_2.intercept_, est_ref.intercept_, rtol=1e-4)
+    np.testing.assert_allclose(est_2.coef_, est_ref.coef_, rtol=1e-4)
+    np.testing.assert_allclose(
+        skl.metrics.mean_absolute_error(est_2.predict(X), y),
+        skl.metrics.mean_absolute_error(est_ref.predict(X), y),
         rtol=1e-4,
-    )
-
-
-# TODO: different distributions
-# Specify rtol since some are more accurate than others
-@pytest.mark.parametrize(
-    "params",
-    [
-        {"solver": "irls-ls", "rtol": 1e-6},
-        {"solver": "lbfgs", "rtol": 2e-4},
-        {"solver": "trust-constr", "rtol": 2e-4},
-        {"solver": "irls-cd", "selection": "cyclic", "rtol": 2e-5},
-        {"solver": "irls-cd", "selection": "random", "rtol": 6e-5},
-    ],
-    ids=lambda params: ", ".join(f"{key}={val}" for key, val in params.items()),
-)
-@pytest.mark.parametrize("use_offset", [False, True])
-def test_solver_equivalence_cv(params, use_offset):
-    n_alphas = 3
-    n_samples = 100
-    n_features = 10
-    gradient_tol = 1e-5
-
-    X, y = make_regression(n_samples=n_samples, n_features=n_features, random_state=2)
-    if use_offset:
-        np.random.seed(0)
-        offset = np.random.random(len(y))
-    else:
-        offset = None
-
-    est_ref = GeneralizedLinearRegressorCV(
-        random_state=2,
-        n_alphas=n_alphas,
-        gradient_tol=gradient_tol,
-        min_alpha_ratio=1e-3,
-    )
-    est_ref.fit(X, y, offset=offset)
-
-    est_2 = (
-        GeneralizedLinearRegressorCV(
-            n_alphas=n_alphas,
-            max_iter=1000,
-            gradient_tol=gradient_tol,
-            **{k: v for k, v in params.items() if k != "rtol"},
-            min_alpha_ratio=1e-3,
-        )
-        .set_params(random_state=2)
-        .fit(X, y, offset=offset)
-    )
-
-    def _assert_all_close(x, y):
-        return assert_allclose(x, y, rtol=params["rtol"], atol=1e-7)
-
-    _assert_all_close(est_2.alphas_, est_ref.alphas_)
-    _assert_all_close(est_2.alpha_, est_ref.alpha_)
-    _assert_all_close(est_2.l1_ratio_, est_ref.l1_ratio_)
-    _assert_all_close(est_2.coef_path_, est_ref.coef_path_)
-    _assert_all_close(est_2.deviance_path_, est_ref.deviance_path_)
-    _assert_all_close(est_2.intercept_, est_ref.intercept_)
-    _assert_all_close(est_2.coef_, est_ref.coef_)
-    _assert_all_close(
-        mean_absolute_error(est_2.predict(X), y),
-        mean_absolute_error(est_ref.predict(X), y),
     )
 
 
@@ -1495,7 +934,7 @@ def test_convergence_warning(solver, regression_data):
     est = GeneralizedLinearRegressor(
         solver=solver, random_state=2, max_iter=1, gradient_tol=1e-20
     )
-    with pytest.warns(ConvergenceWarning):
+    with pytest.warns(skl.exceptions.ConvergenceWarning):
         est.fit(X, y)
 
 
@@ -1550,77 +989,24 @@ def test_standardize(use_sparse, scale_predictors):
         true_std = np.sqrt(0.34)
         np.testing.assert_almost_equal(col_stds, true_std * col_mults)
 
-    intercept_standardized = 0.0
-    coef_standardized = (
+    interceptstandardized = 0.0
+    coefstandardized = (
         np.ones_like(col_means) if col_stds is None else copy.copy(col_stds)
     )
-    intercept, coef = _unstandardize(
+    intercept, coef = unstandardize(
         col_means,
         col_stds,
-        intercept_standardized,
-        coef_standardized,
+        interceptstandardized,
+        coefstandardized,
     )
     np.testing.assert_almost_equal(intercept, -(NC + 1) * NC / 2)
     if scale_predictors:
         np.testing.assert_almost_equal(coef, 1.0)
 
 
-@pytest.mark.parametrize("estimator, kwargs", estimators)
-def test_check_estimator(estimator, kwargs):
-    check_estimator(estimator(**kwargs))
-
-
-@pytest.mark.parametrize(
-    "estimator",
-    [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV],
-)
-def test_clonable(estimator):
-    clone(estimator())
-
-
-@pytest.mark.parametrize(
-    "link, distribution, tol",
-    [
-        (IdentityLink(), NormalDistribution(), 1e-4),
-        (LogLink(), PoissonDistribution(), 1e-4),
-        (LogLink(), GammaDistribution(), 1e-4),
-        (LogLink(), TweedieDistribution(1.5), 1e-4),
-        (LogLink(), TweedieDistribution(4.5), 1e-4),
-        (LogLink(), NormalDistribution(), 1e-4),
-        (LogLink(), InverseGaussianDistribution(), 1e-4),
-        (LogLink(), NegativeBinomialDistribution(), 1e-2),
-        (LogitLink(), BinomialDistribution(), 1e-2),
-        (IdentityLink(), GeneralizedHyperbolicSecant(), 1e-1),
-    ],
-)
-@pytest.mark.parametrize("offset", [None, np.array([0.3, -0.1, 0, 0.1]), 0.1])
-def test_get_best_intercept(
-    link: Link, distribution: ExponentialDispersionModel, tol: float, offset
-):
-    y = np.array([1, 1, 1, 2], dtype=np.float64)
-    if isinstance(distribution, BinomialDistribution):
-        y -= 1
-
-    sample_weight = np.array([0.1, 0.2, 5, 1])
-    best_intercept = guess_intercept(y, sample_weight, link, distribution, offset)
-    assert np.isfinite(best_intercept)
-
-    def _get_dev(intercept):
-        eta = intercept if offset is None else offset + intercept
-        mu = link.inverse(eta)
-        assert np.isfinite(mu).all()
-        return distribution.deviance(y, mu, sample_weight)
-
-    obj = _get_dev(best_intercept)
-    obj_low = _get_dev(best_intercept - tol)
-    obj_high = _get_dev(best_intercept + tol)
-    assert obj < obj_low
-    assert obj < obj_high
-
-
 @pytest.mark.parametrize("tol", [1e-2, 1e-4, 1e-6])
 def test_step_size_tolerance(tol):
-    X, y = make_regression(
+    X, y = skl.datasets.make_regression(
         n_samples=100,
         n_features=5,
         noise=0.5,
@@ -1643,8 +1029,8 @@ def test_step_size_tolerance(tol):
 
     baseline = build_glm(1e-10)
     glm = build_glm(tol)
-    assert_allclose(baseline.intercept_, glm.intercept_, atol=tol)
-    assert_allclose(baseline.coef_, glm.coef_, atol=tol)
+    np.testing.assert_allclose(baseline.intercept_, glm.intercept_, atol=tol)
+    np.testing.assert_allclose(baseline.coef_, glm.coef_, atol=tol)
 
 
 def test_alpha_search(regression_data):
@@ -1669,8 +1055,8 @@ def test_alpha_search(regression_data):
     )
     mdl_path.fit(X=X, y=y)
 
-    assert_allclose(mdl_path.coef_, mdl_no_path.coef_)
-    assert_allclose(mdl_path.intercept_, mdl_no_path.intercept_)
+    np.testing.assert_allclose(mdl_path.coef_, mdl_no_path.coef_)
+    np.testing.assert_allclose(mdl_path.intercept_, mdl_no_path.intercept_)
 
 
 @pytest.mark.parametrize("alpha, alpha_index", [(0.5, 0), (0.75, 1), (None, 1)])
@@ -1791,6 +1177,7 @@ def test_column_with_stddev_zero():
     model = GeneralizedLinearRegressor(
         family="poisson", fit_intercept=False, scale_predictors=False
     ).fit(X, y)  # noqa: F841
+
     model = GeneralizedLinearRegressor(family="poisson").fit(X, y)  # noqa: F841
 
 
@@ -2757,9 +2144,9 @@ def test_information_criteria(regression_data):
 
     llf = regressor.family_instance.log_likelihood(y, regressor.predict(X))
     nobs, df = X.shape[0], X.shape[1] + 1
-    sm_aic = eval_measures.aic(llf, nobs, df)
-    sm_bic = eval_measures.bic(llf, nobs, df)
-    sm_aicc = eval_measures.aicc(llf, nobs, df)
+    sm_aic = statsmodels.tools.eval_measures.aic(llf, nobs, df)
+    sm_bic = statsmodels.tools.eval_measures.bic(llf, nobs, df)
+    sm_aicc = statsmodels.tools.eval_measures.aicc(llf, nobs, df)
 
     assert np.allclose(
         [sm_aic, sm_aicc, sm_bic],
@@ -3013,313 +2400,6 @@ def test_store_covariance_matrix_cv(
         new_covariance_matrix,
         stored_covariance_matrix,
     )
-
-
-@pytest.mark.parametrize(
-    "input, expected",
-    [
-        pytest.param(
-            "y ~ x1 + x2",
-            (["y"], ["1", "x1", "x2"]),
-            id="implicit_intercept",
-        ),
-        pytest.param(
-            "y ~ x1 + x2 + 1",
-            (["y"], ["1", "x1", "x2"]),
-            id="explicit_intercept",
-        ),
-        pytest.param(
-            "y ~ x1 + x2 - 1",
-            (["y"], ["x1", "x2"]),
-            id="no_intercept",
-        ),
-        pytest.param(
-            "y ~ ",
-            (["y"], ["1"]),
-            id="empty_rhs",
-        ),
-    ],
-)
-def test_parse_formula(input, expected):
-    lhs_exp, rhs_exp = expected
-    lhs, rhs = _parse_formula(input)
-    assert list(lhs) == lhs_exp
-    assert list(rhs) == rhs_exp
-
-    formula = Formula(input)
-    lhs, rhs = _parse_formula(formula)
-    assert list(lhs) == lhs_exp
-    assert list(rhs) == rhs_exp
-
-
-@pytest.mark.parametrize(
-    "input, error",
-    [
-        pytest.param("y1 + y2 ~ x1 + x2", ValueError, id="multiple_lhs"),
-        pytest.param([["y"], ["x1", "x2"]], TypeError, id="wrong_type"),
-    ],
-)
-def test_parse_formula_invalid(input, error):
-    with pytest.raises(error):
-        _parse_formula(input)
-
-
-@pytest.fixture
-def get_mixed_data():
-    nrow = 10
-    np.random.seed(0)
-    return pd.DataFrame(
-        {
-            "y": np.random.rand(nrow),
-            "x1": np.random.rand(nrow),
-            "x2": np.random.rand(nrow),
-            "c1": np.random.choice(["a", "b", "c"], nrow),
-            "c2": np.random.choice(["d", "e"], nrow),
-        }
-    )
-
-
-@pytest.mark.parametrize(
-    "formula",
-    [
-        pytest.param("y ~ x1 + x2", id="numeric"),
-        pytest.param("y ~ c1", id="categorical"),
-        pytest.param("y ~ c1 * c2", id="categorical_interaction"),
-        pytest.param("y ~ x1 + x2 + c1 + c2", id="numeric_categorical"),
-        pytest.param("y ~ x1 * c1 * c2", id="numeric_categorical_interaction"),
-    ],
-)
-@pytest.mark.parametrize(
-    "drop_first", [True, False], ids=["drop_first", "no_drop_first"]
-)
-@pytest.mark.parametrize(
-    "fit_intercept", [True, False], ids=["intercept", "no_intercept"]
-)
-def test_formula(get_mixed_data, formula, drop_first, fit_intercept):
-    """Model with formula and model with externally constructed model matrix should
-    match.
-    """
-    data = get_mixed_data
-
-    model_formula = GeneralizedLinearRegressor(
-        family="normal",
-        drop_first=drop_first,
-        formula=formula,
-        fit_intercept=fit_intercept,
-        categorical_format="{name}[T.{category}]",
-        alpha=1.0,
-    ).fit(data)
-
-    if fit_intercept:
-        # full rank check must consider presence of intercept
-        y_ext, X_ext = formulaic.model_matrix(
-            formula,
-            data,
-            ensure_full_rank=drop_first,
-            materializer=formulaic.materializers.PandasMaterializer,
-        )
-        X_ext = X_ext.drop(columns="Intercept")
-    else:
-        y_ext, X_ext = formulaic.model_matrix(
-            formula + "-1",
-            data,
-            ensure_full_rank=drop_first,
-            materializer=formulaic.materializers.PandasMaterializer,
-        )
-    y_ext = y_ext.iloc[:, 0]
-
-    model_ext = GeneralizedLinearRegressor(
-        family="normal",
-        drop_first=drop_first,
-        fit_intercept=fit_intercept,
-        categorical_format="{name}[T.{category}]",
-        alpha=1.0,
-    ).fit(X_ext, y_ext)
-
-    np.testing.assert_almost_equal(model_ext.coef_, model_formula.coef_)
-
-
-def test_formula_explicit_intercept(get_mixed_data):
-    data = get_mixed_data
-
-    with pytest.raises(ValueError, match="The formula sets the intercept to False"):
-        GeneralizedLinearRegressor(
-            family="normal",
-            formula="y ~ x1 - 1",
-            fit_intercept=True,
-        ).fit(data)
-
-
-@pytest.mark.parametrize(
-    "formula, feature_names, term_names",
-    [
-        pytest.param("y ~ x1 + x2", ["x1", "x2"], ["x1", "x2"], id="numeric"),
-        pytest.param(
-            "y ~ c1", ["c1[T.a]", "c1[T.b]", "c1[T.c]"], 3 * ["c1"], id="categorical"
-        ),
-        pytest.param(
-            "y ~ x1 : c1",
-            ["x1:c1[T.a]", "x1:c1[T.b]", "x1:c1[T.c]"],
-            3 * ["x1:c1"],
-            id="interaction",
-        ),
-        pytest.param(
-            "y ~ poly(x1, 3)",
-            ["poly(x1, 3)[1]", "poly(x1, 3)[2]", "poly(x1, 3)[3]"],
-            3 * ["poly(x1, 3)"],
-            id="function",
-        ),
-    ],
-)
-def test_formula_names_formulaic_style(
-    get_mixed_data, formula, feature_names, term_names
-):
-    data = get_mixed_data
-    model_formula = GeneralizedLinearRegressor(
-        family="normal",
-        drop_first=False,
-        formula=formula,
-        categorical_format="{name}[T.{category}]",
-        interaction_separator=":",
-        alpha=1.0,
-    ).fit(data)
-
-    np.testing.assert_array_equal(model_formula.feature_names_, feature_names)
-    np.testing.assert_array_equal(model_formula.term_names_, term_names)
-
-
-@pytest.mark.parametrize(
-    "formula, feature_names, term_names",
-    [
-        pytest.param("y ~ x1 + x2", ["x1", "x2"], ["x1", "x2"], id="numeric"),
-        pytest.param(
-            "y ~ c1", ["c1__a", "c1__b", "c1__c"], 3 * ["c1"], id="categorical"
-        ),
-        pytest.param(
-            "y ~ x1 : c1",
-            ["x1__x__c1__a", "x1__x__c1__b", "x1__x__c1__c"],
-            3 * ["x1:c1"],
-            id="interaction",
-        ),
-        pytest.param(
-            "y ~ poly(x1, 3)",
-            ["poly(x1, 3)[1]", "poly(x1, 3)[2]", "poly(x1, 3)[3]"],
-            3 * ["poly(x1, 3)"],
-            id="function",
-        ),
-    ],
-)
-def test_formula_names_old_glum_style(
-    get_mixed_data, formula, feature_names, term_names
-):
-    data = get_mixed_data
-    model_formula = GeneralizedLinearRegressor(
-        family="normal",
-        drop_first=False,
-        formula=formula,
-        categorical_format="{name}__{category}",
-        interaction_separator="__x__",
-        alpha=1.0,
-    ).fit(data)
-
-    np.testing.assert_array_equal(model_formula.feature_names_, feature_names)
-    np.testing.assert_array_equal(model_formula.term_names_, term_names)
-
-
-@pytest.mark.parametrize(
-    "formula",
-    [
-        pytest.param("y ~ x1 + x2", id="numeric"),
-        pytest.param("y ~ c1", id="categorical"),
-        pytest.param("y ~ c1 * c2", id="categorical_interaction"),
-    ],
-)
-@pytest.mark.parametrize(
-    "fit_intercept", [True, False], ids=["intercept", "no_intercept"]
-)
-def test_formula_against_smf(get_mixed_data, formula, fit_intercept):
-    data = get_mixed_data
-    model_formula = GeneralizedLinearRegressor(
-        family="normal",
-        drop_first=True,
-        formula=formula,
-        fit_intercept=fit_intercept,
-    ).fit(data)
-
-    if fit_intercept:
-        beta_formula = np.concatenate([[model_formula.intercept_], model_formula.coef_])
-    else:
-        beta_formula = model_formula.coef_
-
-    formula_smf = formula + "- 1" if not fit_intercept else formula
-    model_smf = smf.glm(formula_smf, data, family=sm.families.Gaussian()).fit()
-
-    np.testing.assert_almost_equal(beta_formula, model_smf.params)
-
-
-def test_formula_context(get_mixed_data):
-    data = get_mixed_data
-    x_context = np.arange(len(data), dtype=float)  # noqa: F841
-    formula = "y ~ x1 + x2 + x_context"
-
-    model_formula = GeneralizedLinearRegressor(
-        family="normal",
-        drop_first=True,
-        formula=formula,
-        fit_intercept=True,
-    )
-    # default is to add nothing to context
-    with pytest.raises(formulaic.errors.FactorEvaluationError):
-        model_formula.fit(data)
-
-    # set context to 0 to capture calling scope
-    model_formula = GeneralizedLinearRegressor(
-        family="normal",
-        drop_first=True,
-        formula=formula,
-        fit_intercept=True,
-    ).fit(data, context=0)
-
-    model_smf = smf.glm(formula, data, family=sm.families.Gaussian()).fit()
-
-    np.testing.assert_almost_equal(
-        np.concatenate([[model_formula.intercept_], model_formula.coef_]),
-        model_smf.params,
-    )
-    np.testing.assert_almost_equal(
-        model_formula.predict(data, context=0), model_smf.predict(data)
-    )
-
-
-@pytest.mark.parametrize(
-    "formula",
-    [
-        pytest.param("y ~ x1 + x2", id="numeric"),
-        pytest.param("y ~ c1", id="categorical"),
-        pytest.param("y ~ c1 * c2", id="categorical_interaction"),
-    ],
-)
-@pytest.mark.parametrize(
-    "fit_intercept", [True, False], ids=["intercept", "no_intercept"]
-)
-def test_formula_predict(get_mixed_data, formula, fit_intercept):
-    data = get_mixed_data
-    data_unseen = data.copy()
-    data_unseen.loc[data_unseen["c1"] == "b", "c1"] = "c"
-    model_formula = GeneralizedLinearRegressor(
-        family="normal",
-        drop_first=True,
-        formula=formula,
-        fit_intercept=fit_intercept,
-    ).fit(data)
-
-    formula_smf = formula + "- 1" if not fit_intercept else formula
-    model_smf = smf.glm(formula_smf, data, family=sm.families.Gaussian()).fit()
-
-    yhat_formula = model_formula.predict(data_unseen)
-    yhat_smf = model_smf.predict(data_unseen)
-
-    np.testing.assert_almost_equal(yhat_formula, yhat_smf)
 
 
 @pytest.mark.parametrize("cat_missing_method", ["fail", "zero", "convert"])
