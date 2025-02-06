@@ -14,6 +14,10 @@ Changelog
 
 - Fixed a bug where :meth:`glum.GeneralizedLinearRegressor.fit` would raise a ``dtype`` mismatch error if fit with ``alpha_search=True``.
 
+**Other changes:
+
+- Lower absolute tolerance when matching the ``alpha`` argument in :meth:`glum.GeneralizedLinearRegressor.predict` to the ``alphas`` used in training when ``alpha_search=True``.
+
 3.0.2 - 2024-06-25
 ------------------
 

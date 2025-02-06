@@ -1279,7 +1279,8 @@ class GeneralizedLinearRegressorBase(BaseEstimator, RegressorMixin):
         if not self.alpha_search:
             raise ValueError
         # `np.isclose` because comparing floats is difficult
-        isclose = np.isclose(self._alphas, alpha)
+        atol = 100.0 * np.finfo(alpha.dtype).eps
+        isclose = np.isclose(self._alphas, alpha, atol=atol)
         if np.sum(isclose) == 1:
             return np.argmax(isclose)  # cf. stackoverflow.com/a/61117770
         raise IndexError(
