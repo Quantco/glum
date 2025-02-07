@@ -16,8 +16,8 @@ from glum._distribution import (
     NormalDistribution,
     PoissonDistribution,
 )
+from glum._glm import GeneralizedLinearRegressor
 from glum._glm_cv import GeneralizedLinearRegressorCV
-from glum._glm_regressor import GeneralizedLinearRegressor
 from glum._linalg import is_pos_semidef
 from glum._link import IdentityLink, LogitLink, LogLink
 

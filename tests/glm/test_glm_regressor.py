@@ -21,8 +21,8 @@ from glum._distribution import (
     PoissonDistribution,
     TweedieDistribution,
 )
+from glum._glm import GeneralizedLinearRegressor
 from glum._glm_cv import GeneralizedLinearRegressorCV
-from glum._glm_regressor import GeneralizedLinearRegressor
 from glum._link import LogitLink, LogLink
 from glum._utils import unstandardize
 

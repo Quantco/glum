@@ -10,8 +10,8 @@ from git_root import git_root
 from scipy import sparse
 
 from glum._distribution import TweedieDistribution
+from glum._glm import GeneralizedLinearRegressor
 from glum._glm_cv import GeneralizedLinearRegressorCV
-from glum._glm_regressor import GeneralizedLinearRegressor
 from glum_benchmarks.data import simulate_glm_data
 
 distributions_to_test = ["normal", "poisson", "gamma", "tweedie_p=1.5", "binomial"]
