@@ -6,7 +6,7 @@ import statsmodels.api as sm
 import statsmodels.formula.api as smf
 
 from glum._formula import parse_formula
-from glum._glm_regressor import GeneralizedLinearRegressor
+from glum._glm import GeneralizedLinearRegressor
 
 
 @pytest.fixture
