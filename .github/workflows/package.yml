@@ -55,7 +55,7 @@ jobs:
           GIT_DESCRIBE_NUMBER="$(git rev-list --count ${GIT_DESCRIBE_TAG}..HEAD || echo UNKNOWN)"
           echo GIT_DESCRIBE_NUMBER=$GIT_DESCRIBE_NUMBER >> $GITHUB_OUTPUT
 
-      - uses: prefix-dev/rattler-build-action@b1147fbfc554014f7b152296deeab0de1789f05d
+      - uses: prefix-dev/rattler-build-action@b1147fbfc554014f7b152296deeab0de1789f05d # v0.2.30
         with:
           recipe-path: conda.recipe/recipe.yaml
           build-args: -m .ci_support/${{ matrix.variant-file }}.yaml ${{ matrix.rattler-build-args }}
