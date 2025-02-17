@@ -41,8 +41,26 @@ jobs:
       #     CONDA_BUILD_SYSROOT:
       #       - "${CONDA_BUILD_SYSROOT}"
       #     EOF
+      - name: Get git metadata
+        id: git-metadata
+        shell: bash
+        run: |
+          if [ -f .git/shallow ]; then
+            git fetch --prune --unshallow
+          fi
+          GIT_DESCRIBE_TAG="$(git describe --tags --abbrev=0 || echo UNKNOWN)"
+          echo GIT_DESCRIBE_TAG=${GIT_DESCRIBE_TAG} >> $GITHUB_OUTPUT
+          GIT_DESCRIBE_HASH=g"$(git rev-parse --short HEAD || echo UNKNOWN)"
+          echo GIT_DESCRIBE_HASH=${GIT_DESCRIBE_HASH} >> $GITHUB_OUTPUT
+          GIT_DESCRIBE_NUMBER="$(git rev-list --count ${GIT_DESCRIBE_TAG}..HEAD || echo UNKNOWN)"
+          echo GIT_DESCRIBE_NUMBER=$GIT_DESCRIBE_NUMBER >> $GITHUB_OUTPUT
+
       - uses: prefix-dev/rattler-build-action@b1147fbfc554014f7b152296deeab0de1789f05d
         with:
           recipe-path: conda.recipe/recipe.yaml
           build-args: -m .ci_support/${{ matrix.variant-file }}.yaml ${{ matrix.rattler-build-args }}
           artifact-name: package-${{ matrix.variant-file }}
+        env:
+          GIT_DESCRIBE_TAG: ${{ steps.git-metadata.outputs.GIT_DESCRIBE_TAG }}
+          GIT_DESCRIBE_HASH: ${{ steps.git-metadata.outputs.GIT_DESCRIBE_HASH }}
+          GIT_DESCRIBE_NUMBER: ${{ steps.git-metadata.outputs.GIT_DESCRIBE_NUMBER }}
