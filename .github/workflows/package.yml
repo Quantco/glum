@@ -20,27 +20,18 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { variant-file: linux_64_python3.9.____cpython,   os: ubuntu-latest,  rattler-build-args: '' }
-          - { variant-file: linux_64_python3.13.____cpython,  os: ubuntu-latest,  rattler-build-args: '' }
-          - { variant-file: osx_64_python3.10.____cpython,    os: macos-latest,   rattler-build-args: '' }
-          - { variant-file: osx_arm64_python3.9.____cpython,  os: macos-latest,   rattler-build-args: '' }
-          - { variant-file: osx_arm64_python3.13.____cpython, os: macos-latest,   rattler-build-args: '' }
-          - { variant-file: win_64_python3.9.____cpython,     os: windows-latest, rattler-build-args: '' }
-          - { variant-file: win_64_python3.13.____cpython,    os: windows-latest, rattler-build-args: '' }
+          - { variant-file: linux_64_python3.9.____cpython,   target-platform: linux-64,  os: ubuntu-latest,  rattler-build-args: '' }
+          - { variant-file: linux_64_python3.13.____cpython,  target-platform: linux-64,  os: ubuntu-latest,  rattler-build-args: '' }
+          - { variant-file: osx_64_python3.10.____cpython,    target-platform: osx-64,    os: macos-latest,   rattler-build-args: '' }
+          - { variant-file: osx_arm64_python3.9.____cpython,  target-platform: osx-arm64, os: macos-latest,   rattler-build-args: '' }
+          - { variant-file: osx_arm64_python3.13.____cpython, target-platform: osx-arm64, os: macos-latest,   rattler-build-args: '' }
+          - { variant-file: win_64_python3.9.____cpython,     target-platform: win-64,    os: windows-latest, rattler-build-args: '' }
+          - { variant-file: win_64_python3.13.____cpython,    target-platform: win-64,    os: windows-latest, rattler-build-args: '' }
     steps:
       - name: Checkout branch
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      # - name: Patch conda build configuration
-      #   # use the latest macOS SDK when cross-compiling for arm64
-      #   if: startsWith(matrix.variant-file, 'osx_arm64')
-      #   run: |
-      #     CONDA_BUILD_SYSROOT="$(xcrun --sdk macosx --show-sdk-path)"
-      #     cat <<EOF >> ".ci_support/${{ matrix.variant-file }}.yaml"
-      #     CONDA_BUILD_SYSROOT:
-      #       - "${CONDA_BUILD_SYSROOT}"
-      #     EOF
       - name: Get git metadata
         id: git-metadata
         shell: bash
@@ -58,7 +49,7 @@ jobs:
       - uses: prefix-dev/rattler-build-action@b1147fbfc554014f7b152296deeab0de1789f05d # v0.2.30
         with:
           recipe-path: conda.recipe/recipe.yaml
-          build-args: -m .ci_support/${{ matrix.variant-file }}.yaml ${{ matrix.rattler-build-args }}
+          build-args: -m .ci_support/${{ matrix.variant-file }}.yaml --target-platform ${{ matrix.target-platform }} ${{ matrix.rattler-build-args }}
           artifact-name: package-${{ matrix.variant-file }}
         env:
           GIT_DESCRIBE_TAG: ${{ steps.git-metadata.outputs.GIT_DESCRIBE_TAG }}
