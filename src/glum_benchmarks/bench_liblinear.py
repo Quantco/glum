@@ -92,7 +92,7 @@ def liblinear_bench(
         solver="liblinear",
     )
 
-    fit_args = dict(
+    fit_args = dict(  # type: ignore
         X=X,
         y=dat["y"].astype(np.int64).copy(),
         sample_weight=dat.get("sample_weight"),
