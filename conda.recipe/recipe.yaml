@@ -1,0 +1,64 @@
+context:
+  name: glum
+  version: ${{ env.get('GIT_DESCRIBE_TAG') | trim('v') }}${{ ('.post' + env.get('GIT_DESCRIBE_NUMBER') + '+' + env.get('GIT_DESCRIBE_HASH')) if env.get('GIT_DESCRIBE_NUMBER', default='0') != '0' }}
+
+package:
+  name: glum
+  version: ${{ version }}
+
+source:
+  path: ../
+
+build:
+  number: 0
+  script: python -m pip install . -vv
+
+requirements:
+  build:
+    - if: build_platform != target_platform
+      then:
+        - python
+        - cross-python_${{ target_platform }}
+        - cython
+        - numpy
+    - ${{ compiler("c") }}
+    - ${{ stdlib("c") }}
+    - ${{ compiler("cxx") }}
+    - if: osx
+      then:
+        - llvm-openmp
+    - if: linux
+      then:
+        - libgomp
+  host:
+    - python
+    - cython
+    - if: osx
+      then:
+        - llvm-openmp
+    - numpy
+    - pip
+    - scikit-learn >=0.23
+    - setuptools
+    - setuptools-scm
+  run:
+    - python
+    - formulaic >=0.6
+    - joblib
+    - numexpr
+    - packaging
+    - pandas
+    - scikit-learn >=0.23
+    - scipy
+    - tabmat >=4.0.0
+
+tests:
+  - python:
+      pip_check: true
+      imports:
+        - glum
+
+about:
+  homepage: https://github.com/Quantco/glum
+  license: BSD-3-Clause
+  license_file: LICENSE
