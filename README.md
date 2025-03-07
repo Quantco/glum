@@ -6,6 +6,7 @@
 [![Conda-forge](https://img.shields.io/conda/vn/conda-forge/glum?logoColor=white&logo=conda-forge)](https://anaconda.org/conda-forge/glum)
 [![PypiVersion](https://img.shields.io/pypi/v/glum.svg?logo=pypi&logoColor=white)](https://pypi.org/project/glum)
 [![PythonVersion](https://img.shields.io/pypi/pyversions/glum?logoColor=white&logo=python)](https://pypi.org/project/glum)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.14991108.svg)](https://doi.org/10.5281/zenodo.14991108)
 
 
 [Documentation](https://glum.readthedocs.io/en/latest/)
