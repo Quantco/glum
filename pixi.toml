@@ -48,14 +48,14 @@ setuptools-scm = ">=8.1"
 [host-dependencies]
 python = ">=3.9"
 pip = "*"
-setuptools = "*"
+setuptools = ">=61"
 wheel = "*"
 
 [dependencies]
 formulaic = "*"
 numexpr = "*"
 packaging = "*"
-pandas = ">=1.1"
+pandas = ">=1.4"
 pyarrow = "*"
 scikit-learn = ">=0.23"
 scipy = "*"
@@ -153,7 +153,7 @@ python = "3.13.*"
 
 [feature.oldies.dependencies]
 formulaic = "0.6.*"
-pandas = "1.2.*"
+pandas = "1.4.*"
 python = "3.9.*"
 scikit-learn = "0.24.*"
 scipy = "1.7.*"
