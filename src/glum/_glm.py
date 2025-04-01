@@ -655,7 +655,7 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         if not self.alpha_search:
             raise ValueError
         # find closest index
-        idx = np.argmin(np.abs(self._alphas - alpha))
+        idx = np.argmin(np.abs(np.asarray(self._alphas) - alpha))
         # make sure it's close enough, rely only on relative tolerance
         if np.isclose(self._alphas[idx], alpha, atol=0):
             return idx
