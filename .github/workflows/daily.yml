@@ -25,7 +25,7 @@ jobs:
       - name: Checkout branch
         uses: actions/checkout@v4
       - name: Set up pixi
-        uses: prefix-dev/setup-pixi@2970de4ad95fecdf1c3173999267d5b28c01853e
+        uses: prefix-dev/setup-pixi@00ff9955aafc3069179be56a98a299a34332d59b
         with:
           environments: ${{ matrix.environment }}
       - name: Update dependencies
