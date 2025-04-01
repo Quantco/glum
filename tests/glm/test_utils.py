@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from glum._util import _add_missing_categories, _align_df_categories
+from glum._utils import add_missing_categories, align_df_categories
 
 
 @pytest.fixture()
@@ -40,7 +40,7 @@ def test_align_df_categories_numeric(df):
     )
 
     pd.testing.assert_frame_equal(
-        _align_df_categories(df, dtypes, has_missing_category, missing_method), expected
+        align_df_categories(df, dtypes, has_missing_category, missing_method), expected
     )
 
 
@@ -61,7 +61,7 @@ def test_align_df_categories_categorical(df):
     )
 
     pd.testing.assert_frame_equal(
-        _align_df_categories(df, dtypes, has_missing_category, missing_method),
+        align_df_categories(df, dtypes, has_missing_category, missing_method),
         expected,
     )
 
@@ -85,7 +85,7 @@ def test_align_df_categories_excess_columns(df):
     )
 
     pd.testing.assert_frame_equal(
-        _align_df_categories(df, dtypes, has_missing_category, missing_method), expected
+        align_df_categories(df, dtypes, has_missing_category, missing_method), expected
     )
 
 
@@ -108,7 +108,7 @@ def test_align_df_categories_missing_columns(df):
     )
 
     pd.testing.assert_frame_equal(
-        _align_df_categories(df, dtypes, has_missing_category, missing_method), expected
+        align_df_categories(df, dtypes, has_missing_category, missing_method), expected
     )
 
 
@@ -131,7 +131,7 @@ def test_align_df_categories_convert(df, has_missings):
 
     if has_missings:
         pd.testing.assert_frame_equal(
-            _align_df_categories(
+            align_df_categories(
                 df[["x5", "x6", "x7", "x8"]],
                 dtypes,
                 has_missing_category,
@@ -141,7 +141,7 @@ def test_align_df_categories_convert(df, has_missings):
         )
     else:
         with pytest.raises(ValueError, match="contains unseen categories"):
-            _align_df_categories(
+            align_df_categories(
                 df[["x5", "x6", "x7", "x8"]],
                 dtypes,
                 has_missing_category,
@@ -155,7 +155,7 @@ def test_align_df_categories_raise_on_unseen(df):
     missing_method = "fail"
 
     with pytest.raises(ValueError, match="contains unseen categories"):
-        _align_df_categories(
+        align_df_categories(
             df,
             dtypes,
             has_missing_category,
@@ -165,7 +165,7 @@ def test_align_df_categories_raise_on_unseen(df):
 
 def test_align_df_categories_not_df():
     with pytest.raises(TypeError):
-        _align_df_categories(np.array([[0], [1]]), {"x0": np.float64}, {}, "fail")
+        align_df_categories(np.array([[0], [1]]), {"x0": np.float64}, {}, "fail")
 
 
 @pytest.fixture()
@@ -206,7 +206,7 @@ def test_add_missing_categories(df_na):
     )
 
     pd.testing.assert_frame_equal(
-        _add_missing_categories(
+        add_missing_categories(
             df=df_na,
             dtypes=dtypes,
             feature_names=feature_names,
@@ -238,7 +238,7 @@ def test_raise_on_existing_missing(df_na):
     df.loc[df.cat_na.isna(), "cat_na"] = "(M)"
 
     with pytest.raises(ValueError):
-        _add_missing_categories(
+        add_missing_categories(
             df=df,
             dtypes=dtypes,
             feature_names=feature_names,

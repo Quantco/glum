@@ -35,8 +35,8 @@ from ._functions import (
     tweedie_log_likelihood,
     tweedie_log_rowwise_gradient_hessian,
 )
+from ._linalg import _safe_lin_pred, _safe_sandwich_dot
 from ._link import IdentityLink, Link, LogitLink, LogLink
-from ._util import _safe_lin_pred, _safe_sandwich_dot
 
 
 class ExponentialDispersionModel(metaclass=ABCMeta):
@@ -671,8 +671,8 @@ class TweedieDistribution(ExponentialDispersionModel):
             f = gamma_log_rowwise_gradient_hessian
         elif 1 < self.power < 2 and isinstance(link, LogLink):
             f = partial(tweedie_log_rowwise_gradient_hessian, p=self.power)
-        elif self.power == 3:
-            f = partial(inv_gaussian_log_rowwise_gradient_hessian, p=self.power)
+        elif self.power == 3 and isinstance(link, LogLink):
+            f = inv_gaussian_log_rowwise_gradient_hessian
 
         if f is not None:
             return f(y, sample_weight, eta, mu, gradient_rows, hessian_rows)
@@ -703,7 +703,7 @@ class TweedieDistribution(ExponentialDispersionModel):
         elif 1 < self.power < 2 and isinstance(link, LogLink):
             f = partial(tweedie_log_eta_mu_deviance, p=self.power)
         elif self.power == 3 and isinstance(link, LogLink):
-            f = partial(inv_gaussian_log_eta_mu_deviance, p=self.power)
+            f = inv_gaussian_log_eta_mu_deviance
 
         if f is not None:
             return f(cur_eta, X_dot_d, y, sample_weight, eta_out, mu_out, factor)
@@ -796,10 +796,10 @@ class NormalDistribution(ExponentialDispersionModel):
         return TweedieDistribution(0)
 
     def unit_variance(self, mu) -> np.ndarray:  # noqa D
-        return 1 if np.isscalar(mu) else np.ones_like(mu)
+        return 1 if np.isscalar(mu) else np.ones_like(mu)  # type: ignore
 
     def unit_variance_derivative(self, mu) -> np.ndarray:  # noqa D
-        return 0 if np.isscalar(mu) else np.zeros_like(mu)
+        return 0 if np.isscalar(mu) else np.zeros_like(mu)  # type: ignore
 
     def deviance(self, y, mu, sample_weight=None) -> float:  # noqa D
         y, mu, sample_weight = _as_float_arrays(y, mu, sample_weight)
@@ -912,7 +912,7 @@ class PoissonDistribution(ExponentialDispersionModel):
         return mu
 
     def unit_variance_derivative(self, mu) -> np.ndarray:  # noqa D
-        return 1.0 if np.isscalar(mu) else np.ones_like(mu)
+        return 1.0 if np.isscalar(mu) else np.ones_like(mu)  # type: ignore
 
     def deviance(self, y, mu, sample_weight=None) -> float:  # noqa D
         y, mu, sample_weight = _as_float_arrays(y, mu, sample_weight)
@@ -1153,6 +1153,11 @@ class InverseGaussianDistribution(ExponentialDispersionModel):
     def _rowwise_gradient_hessian(
         self, link, y, sample_weight, eta, mu, gradient_rows, hessian_rows
     ):
+        if isinstance(link, LogLink):
+            return inv_gaussian_log_rowwise_gradient_hessian(
+                y, sample_weight, eta, mu, gradient_rows, hessian_rows
+            )
+
         return super()._rowwise_gradient_hessian(
             link, y, sample_weight, eta, mu, gradient_rows, hessian_rows
         )
@@ -1169,8 +1174,8 @@ class InverseGaussianDistribution(ExponentialDispersionModel):
         mu_out,
     ):
         if isinstance(link, LogLink):
-            return tweedie_log_eta_mu_deviance(
-                cur_eta, X_dot_d, y, sample_weight, eta_out, mu_out, factor, p=3.0
+            return inv_gaussian_log_eta_mu_deviance(
+                cur_eta, X_dot_d, y, sample_weight, eta_out, mu_out, factor
             )
 
         return super()._eta_mu_deviance(
@@ -1492,6 +1497,62 @@ class NegativeBinomialDistribution(ExponentialDispersionModel):
         )
 
 
+def get_one_over_variance(
+    distribution: ExponentialDispersionModel,
+    link: Link,
+    mu,
+    eta,
+    dispersion: float,
+    sample_weight,
+):
+    """Get one over the variance.
+
+    For Tweedie: ``sigma_inv = sample_weight / (mu ** p)`` during optimization,
+    because ``phi = 1``.
+
+    For binomial with logit link: simplifies to
+    ``variance = phi / ( sample_weight * (exp(eta) + 2 + exp(-eta)))``,
+    more numerically accurate.
+    """
+    if isinstance(distribution, BinomialDistribution) and isinstance(link, LogitLink):
+        max_float_for_exp = np.log(np.finfo(eta.dtype).max / 10)
+        if np.any(np.abs(eta) > max_float_for_exp):
+            eta = np.clip(eta, -max_float_for_exp, max_float_for_exp)  # type: ignore
+        return sample_weight * (np.exp(eta) + 2 + np.exp(-eta)) / dispersion
+    return 1.0 / distribution.variance(
+        mu, dispersion=dispersion, sample_weight=sample_weight
+    )
+
+
+def _as_float_arrays(*args):
+    """Convert to a float array, passing ``None`` through, and broadcast."""
+    never_broadcast = {}  # type: ignore
+    maybe_broadcast = {}
+    always_broadcast = {}
+
+    for ix, arg in enumerate(args):
+        if isinstance(arg, (int, float)):
+            maybe_broadcast[ix] = np.array([arg], dtype="float")
+        elif arg is None:
+            never_broadcast[ix] = None
+        else:
+            always_broadcast[ix] = np.asanyarray(arg, dtype="float")
+
+    if always_broadcast and maybe_broadcast:
+        to_broadcast = {**always_broadcast, **maybe_broadcast}
+        _broadcast = np.broadcast_arrays(*to_broadcast.values())
+        broadcast = dict(zip(to_broadcast.keys(), _broadcast))
+    elif always_broadcast:
+        _broadcast = np.broadcast_arrays(*always_broadcast.values())
+        broadcast = dict(zip(always_broadcast.keys(), _broadcast))
+    else:
+        broadcast = maybe_broadcast  # possibly `{}`
+
+    out = {**never_broadcast, **broadcast}
+
+    return [out[ix] for ix in range(len(args))]
+
+
 def guess_intercept(
     y,
     sample_weight,
@@ -1510,6 +1571,9 @@ def guess_intercept(
     If the distribution and corresponding link are something else, we use the
     Tweedie or normal solution, depending on the link function.
     """
+    if (not isinstance(link, IdentityLink)) and (len(np.unique(y)) == 1):
+        raise ValueError("No variation in `y`. Coefficients can't be estimated.")
+
     avg_y = np.average(y, weights=sample_weight)
 
     if isinstance(link, IdentityLink):
@@ -1569,59 +1633,3 @@ def guess_intercept(
 
     else:
         return link.link(y.dot(sample_weight))
-
-
-def get_one_over_variance(
-    distribution: ExponentialDispersionModel,
-    link: Link,
-    mu,
-    eta,
-    dispersion: float,
-    sample_weight,
-):
-    """Get one over the variance.
-
-    For Tweedie: ``sigma_inv = sample_weight / (mu ** p)`` during optimization,
-    because ``phi = 1``.
-
-    For Binomial with Logit link: Simplifies to
-    ``variance = phi / ( sample_weight * (exp(eta) + 2 + exp(-eta)))``.
-    More numerically accurate.
-    """
-    if isinstance(distribution, BinomialDistribution) and isinstance(link, LogitLink):
-        max_float_for_exp = np.log(np.finfo(eta.dtype).max / 10)
-        if np.any(np.abs(eta) > max_float_for_exp):
-            eta = np.clip(eta, -max_float_for_exp, max_float_for_exp)  # type: ignore
-        return sample_weight * (np.exp(eta) + 2 + np.exp(-eta)) / dispersion
-    return 1.0 / distribution.variance(
-        mu, dispersion=dispersion, sample_weight=sample_weight
-    )
-
-
-def _as_float_arrays(*args):
-    """Convert to a float array, passing ``None`` through, and broadcast."""
-    never_broadcast = {}  # type: ignore
-    maybe_broadcast = {}
-    always_broadcast = {}
-
-    for ix, arg in enumerate(args):
-        if isinstance(arg, (int, float)):
-            maybe_broadcast[ix] = np.array([arg], dtype="float")
-        elif arg is None:
-            never_broadcast[ix] = None
-        else:
-            always_broadcast[ix] = np.asanyarray(arg, dtype="float")
-
-    if always_broadcast and maybe_broadcast:
-        to_broadcast = {**always_broadcast, **maybe_broadcast}
-        _broadcast = np.broadcast_arrays(*to_broadcast.values())
-        broadcast = dict(zip(to_broadcast.keys(), _broadcast))
-    elif always_broadcast:
-        _broadcast = np.broadcast_arrays(*always_broadcast.values())
-        broadcast = dict(zip(always_broadcast.keys(), _broadcast))
-    else:
-        broadcast = maybe_broadcast  # possibly `{}`
-
-    out = {**never_broadcast, **broadcast}
-
-    return [out[ix] for ix in range(len(args))]

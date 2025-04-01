@@ -7,12 +7,41 @@
 Changelog
 =========
 
-3.0.3 - unreleased
+3.1.2 - 2025-01-30
 ------------------
 
-**Bug fix:
+**Other changes:**
+
+- Linux-aarch64 wheels are now uploaded to PyPI.
+
+
+3.1.1 - 2025-01-13
+------------------
+
+**Bug fix:**
+
+- Fixed a bug where :meth:`~glum.TweedieDistribution._rowwise_gradient_hessian` and :meth:`~glum.TweedieDistribution._eta_mu_deviance` would call functions with wrong arguments in the ``p = 3`` case.
+- Fixed :class:`glum.InverseGaussianDistribution` not using the optimized gradient, Hessian and deviance implementations, as well as those derivatives having the wrong sign.
+
+**Other changes:**
+
+- Build and test with Python 3.13 in CI.
+
+
+3.1.0 - 2024-11-11
+------------------
+
+**New features:**
+
+- New argument ``max_inner_iter`` for classes :class:`~glum.GeneralizedLinearRegressor` and :class:`~glum.GeneralizedLinearRegressorCV` to control the maximum number of iterations of the inner solver in the IRLS-CD algorithm.
+- New fitted attributes ``col_means_`` and ``col_stds_`` for classes :class:`~glum.GeneralizedLinearRegressor` and :class:`~glum.GeneralizedLinearRegressorCV`.
+- :class:`~glum.GeneralizedLinearRegressor` now prints more informative logs when fitting with ``alpha_search=True`` and ``verbose=True``.
+
+**Bug fixes:**
 
 - Fixed a bug where :meth:`glum.GeneralizedLinearRegressor.fit` would raise a ``dtype`` mismatch error if fit with ``alpha_search=True``.
+- Use data type (``float64`` or ``float32``) dependent precision in solvers.
+
 
 **Other changes:
 
@@ -31,6 +60,7 @@ Changelog
 - Moved the linting and formatting to ruff.
 - Removed libblas MKL from the development environment.
 - Replaced deprecated 'oldest-supported-numpy' dependency with 'numpy' to support 2.0 release.
+
 
 3.0.1 - 2024-05-23
 ------------------
@@ -113,6 +143,10 @@ Changelog
 
 2.5.1 - 2023-05-19
 ------------------
+
+**Other changes:**
+
+- Better error message when the number of input features is different between the fit and predict methods.
 
 **Bug fix:**
 

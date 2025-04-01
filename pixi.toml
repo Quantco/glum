@@ -13,8 +13,8 @@ store-benchmark-golden-master = "python tests/glm/test_benchmark_golden_master.p
 
 [feature.docs.tasks]
 make-docs = "cd docs && make html"
-serve-docs = { cmd = "python -m http.server --directory docs/_build/html", depends_on = ["make-docs"] }
-readthedocs = { cmd = "rm -rf $READTHEDOCS_OUTPUT/html && cp -r docs/_build/html $READTHEDOCS_OUTPUT/html", depends_on = ["make-docs"] }
+serve-docs = { cmd = "python -m http.server --directory docs/_build/html", depends-on = ["make-docs"] }
+readthedocs = { cmd = "rm -rf $READTHEDOCS_OUTPUT/html && cp -r docs/_build/html $READTHEDOCS_OUTPUT/html", depends-on = ["make-docs"] }
 
 [feature.benchmark.tasks]
 glm-benchmarks-run = "glm_benchmarks_run"
@@ -35,7 +35,6 @@ cmd = """
     PRE_WHEELS="https://pypi.anaconda.org/scientific-python-nightly-wheels/simple/"
     && pip install --pre --no-deps --only-binary :all: --upgrade --timeout=60 -i $PRE_WHEELS pandas
     && pip install --pre --no-deps --only-binary :all: --upgrade --timeout=60 -i $PRE_WHEELS scikit-learn
-    && pip install --pre --no-deps --only-binary :all: --upgrade --timeout=60 -i $PRE_WHEELS scipy
     && pip install --pre --no-deps --only-binary :all: --upgrade --timeout=60 -i https://pypi.fury.io/arrow-nightlies/ pyarrow
     && pip install --no-use-pep517 --no-deps git+https://github.com/Quantco/tabmat
 """
@@ -49,12 +48,14 @@ setuptools-scm = ">=8.1"
 [host-dependencies]
 python = ">=3.9"
 pip = "*"
+setuptools = ">=61"
+wheel = "*"
 
 [dependencies]
 formulaic = "*"
 numexpr = "*"
 packaging = "*"
-pandas = ">=1.1"
+pandas = ">=1.4"
 pyarrow = "*"
 scikit-learn = ">=0.23"
 scipy = "*"
@@ -90,6 +91,7 @@ memory_profiler = "*"
 [feature.lint.dependencies]
 cython-lint = "*"
 pre-commit = "*"
+pre-commit-hooks = "*"
 ruff = "*"
 
 [feature.docs.dependencies]
@@ -100,7 +102,7 @@ make = "*"
 matplotlib-base = "*"
 nbclassic = ">=0.2.8"
 nbsphinx = ">=0.8.3"
-sphinx = ">=3.5.3"
+sphinx = ">=3.5.3,!=8.2"
 sphinx_rtd_theme = "*"
 sphinxcontrib-apidoc = "*"
 sphinxext-altair = "*"
@@ -110,6 +112,7 @@ altair = "*" # used in docs/tutorials/rossman
 dask-ml = ">=2022.5.27" # used in tutorials rossman and insurance
 jupyterlab = "*"
 libpysal = "*" # used in docs/tutorials/regularization_housing_data
+lifelines = "*" # used in docs/tutorials/cox_model
 openml = "*" # used for downloading datasets in the tutorials.
 shapely = "*" # used in docs/tutorials/regularization_housing_data
 
@@ -130,6 +133,7 @@ cxx-compiler = "*"
 cython = "!=3.0.4"
 make = "*"
 mako = "*"
+narwhals = ">=1.4.1"
 pip = "*"
 setuptools-scm = "*"
 xsimd = "<11|>12.1"
@@ -144,10 +148,12 @@ python = "3.10.*"
 python = "3.11.*"
 [feature.py312.dependencies]
 python = "3.12.*"
+[feature.py313.dependencies]
+python = "3.13.*"
 
 [feature.oldies.dependencies]
 formulaic = "0.6.*"
-pandas = "1.2.*"
+pandas = "1.4.*"
 python = "3.9.*"
 scikit-learn = "0.24.*"
 scipy = "1.7.*"
@@ -161,7 +167,8 @@ py39 = ["py39", "test"]
 py310 = ["py310", "test"]
 py311 = ["py311", "test"]
 py312 = ["py312", "test"]
+py313 = ["py313", "test"]
 oldies = ["oldies", "test"]
 lint = { features = ["lint"], no-default-feature = true}
-nightly = ["py312", "build-tabmat", "test"]
+nightly = ["py313", "build-tabmat", "test"]
 glum-tabmat = { features = ["no-tabmat", "build-tabmat", "dev", "test"], no-default-feature = true}

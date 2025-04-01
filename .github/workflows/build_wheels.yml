@@ -2,6 +2,11 @@ name: Build and upload to PyPI
 
 on:
   pull_request:
+  push:
+    branches:
+      - "main"
+    tags:
+      - "*"
   release:
     types:
       - published
@@ -12,14 +17,14 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-20.04, macos-12, windows-2022]
+        os: [ubuntu-22.04, ubuntu-22.04-arm, windows-2022, macos-13, macos-14]
 
     steps:
       - uses: actions/checkout@v4
+      - name: Set up micromamba
+        uses: mamba-org/setup-micromamba@0dea6379afdaffa5d528b3d1dabc45da37f443fc
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2.21.0
-        env:
-          CIBW_ARCHS_MACOS: x86_64 arm64
+        uses: pypa/cibuildwheel@v2.23.2
       - uses: actions/upload-artifact@v4
         with:
           path: ./wheelhouse/*.whl
@@ -47,7 +52,7 @@ jobs:
     if: github.event_name == 'release' && github.event.action == 'published'
     needs: [build_wheels, build_sdist]
     runs-on: ubuntu-latest
-    environment: 
+    environment:
       name: test_release
       url: https://test.pypi.org/p/glum
     permissions:
@@ -57,7 +62,7 @@ jobs:
         with:
           merge-multiple: true
           path: dist
-      - uses: pypa/gh-action-pypi-publish@v1.10.1
+      - uses: pypa/gh-action-pypi-publish@v1.12.4
         with:
           repository-url: https://test.pypi.org/legacy/
 
@@ -65,7 +70,7 @@ jobs:
     if: github.event_name == 'release' && github.event.action == 'published'
     needs: [build_wheels, build_sdist, upload_testpypi]
     runs-on: ubuntu-latest
-    environment: 
+    environment:
       name: release
       url: https://pypi.org/p/glum
     permissions:
@@ -75,4 +80,4 @@ jobs:
         with:
           path: dist
           merge-multiple: true
-      - uses: pypa/gh-action-pypi-publish@v1.10.1
+      - uses: pypa/gh-action-pypi-publish@v1.12.4

@@ -15,8 +15,8 @@ from glum._distribution import (
     TweedieDistribution,
 )
 from glum._glm import GeneralizedLinearRegressor, get_family
+from glum._linalg import _safe_sandwich_dot
 from glum._link import IdentityLink, LogitLink, LogLink, TweedieLink
-from glum._util import _safe_sandwich_dot
 
 
 @pytest.mark.parametrize(
@@ -170,6 +170,7 @@ def test_deviance_zero(family, chk_values):
         (InverseGaussianDistribution(), LogLink()),
         (TweedieDistribution(power=1.5), LogLink()),
         (TweedieDistribution(power=2.5), LogLink()),
+        (TweedieDistribution(power=3), LogLink()),
         (BinomialDistribution(), LogitLink()),
         (TweedieDistribution(power=1.5), TweedieLink(1.5)),
         (TweedieDistribution(power=2.5), TweedieLink(2.5)),
@@ -228,6 +229,7 @@ def test_gradients(family, link):
         (GammaDistribution(), LogLink(), True),
         (InverseGaussianDistribution(), LogLink(), False),
         (TweedieDistribution(power=1.5), LogLink(), True),
+        (TweedieDistribution(power=3), LogLink(), False),
         (TweedieDistribution(power=4.5), LogLink(), False),
         (NegativeBinomialDistribution(theta=1.0), LogLink(), False),
     ],

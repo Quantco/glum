@@ -10,4 +10,3 @@ else
 fi
 
 conda create -n build -c $CONDA_CHANNEL 'llvm-openmp=11'
-

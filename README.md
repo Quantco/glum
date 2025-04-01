@@ -1,10 +1,12 @@
 # glum
 
-[![CI](https://github.com/Quantco/glm_benchmarks/workflows/CI/badge.svg)](https://github.com/Quantco/glum/actions)
+[![CI](https://github.com/Quantco/glum/actions/workflows/ci.yml/badge.svg)](https://github.com/Quantco/glum/actions)
+[![Daily runs](https://github.com/Quantco/glum/actions/workflows/daily.yml/badge.svg)](https://github.com/Quantco/glum/actions/workflows/daily.yml)
 [![Docs](https://readthedocs.org/projects/pip/badge/?version=latest&style=flat)](https://glum.readthedocs.io/)
 [![Conda-forge](https://img.shields.io/conda/vn/conda-forge/glum?logoColor=white&logo=conda-forge)](https://anaconda.org/conda-forge/glum)
 [![PypiVersion](https://img.shields.io/pypi/v/glum.svg?logo=pypi&logoColor=white)](https://pypi.org/project/glum)
 [![PythonVersion](https://img.shields.io/pypi/pyversions/glum?logoColor=white&logo=python)](https://pypi.org/project/glum)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.14991108.svg)](https://doi.org/10.5281/zenodo.14991108)
 
 
 [Documentation](https://glum.readthedocs.io/en/latest/)
@@ -32,15 +34,18 @@ Why did we choose the name `glum`? We wanted a name that had the letters GLM and
 # A classic example predicting housing prices
 
 ```python
+>>> import pandas as pd
 >>> from sklearn.datasets import fetch_openml
 >>> from glum import GeneralizedLinearRegressor
 >>>
 >>> # This dataset contains house sale prices for King County, which includes
 >>> # Seattle. It includes homes sold between May 2014 and May 2015.
->>> house_data = fetch_openml(name="house_sales", version=3, as_frame=True)
+>>> # The full version of this dataset can be found at:
+>>> # https://www.openml.org/search?type=data&status=active&id=42092
+>>> house_data = pd.read_parquet("data/housing.parquet")
 >>>
 >>> # Use only select features
->>> X = house_data.data[
+>>> X = house_data[
 ...     [
 ...         "bedrooms",
 ...         "bathrooms",
@@ -58,7 +63,7 @@ Why did we choose the name `glum`? We wanted a name that had the letters GLM and
 >>>
 >>> # Model whether a house had an above or below median price via a Binomial
 >>> # distribution. We'll be doing L1-regularized logistic regression.
->>> price = house_data.target
+>>> price = house_data["price"]
 >>> y = (price < price.median()).values.astype(int)
 >>> model = GeneralizedLinearRegressor(
 ...     family='binomial',
@@ -87,7 +92,7 @@ n_iter
 ...     alpha=0.001,
 ...     formula="bedrooms + np.log(bathrooms + 1) + bs(sqft_living, 3) + C(waterfront)"
 ... )
->>> _ = model_formula.fit(X=house_data.data, y=y)
+>>> _ = model_formula.fit(X=house_data, y=y)
 
 ```
 

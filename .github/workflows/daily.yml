@@ -19,17 +19,19 @@ jobs:
         include:
           - environment: 'nightly'
             NOTE: 'Nightly Builds' # run once with nightlies
-          - environment: 'py312'
-            NOTE: 'Python 3.12' # run once with normal dependencies
+          - environment: 'py313'
+            NOTE: 'Python 3.13' # run once with normal dependencies
     steps:
       - name: Checkout branch
         uses: actions/checkout@v4
       - name: Set up pixi
-        uses: prefix-dev/setup-pixi@992a3081e2f87829e0fff9fb29f4fe6a5d1e80a2
+        uses: prefix-dev/setup-pixi@00ff9955aafc3069179be56a98a299a34332d59b
         with:
           environments: ${{ matrix.environment }}
+      - name: Update dependencies
+        run: pixi update -e ${{ matrix.environment }}
       - name: Install nightlies
-        if: matrix.NOTE == 'Nightly Builds'
+        if: matrix.environment == 'nightly'
         run: pixi run -e ${{ matrix.environment }} install-nightlies
       - name: Install repository
         run: pixi run -e ${{ matrix.environment }} postinstall
@@ -42,6 +44,8 @@ jobs:
         run: |
           mkdir ../temp
           cp README.md ../temp
+          mkdir ../temp/data
+          cp data/housing.parquet ../temp/data
           cd ../temp
           pixi run --manifest-path ../glum/pixi.toml -e ${{ matrix.environment }} python -m doctest -v README.md
 

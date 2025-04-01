@@ -161,7 +161,7 @@ Now, we define our GLM using the `GeneralizedLinearRegressor` class from `glum`.
 
 See the `GeneralizedLinearRegressor` class [API documentation](https://glum.readthedocs.io/en/latest/api/modules.html) for more details.
 
-*Note*: `glum` also supported a cross validation model GeneralizedLinearRegressorCV. However, because cross validation requires fitting many models, it is much slower and we don’t demonstrate it in this tutorial.
+*Note*: `glum` also supported a cross validation model GeneralizedLinearRegressorCV. However, because cross validation requires fitting many models, it is much slower and we don't demonstrate it in this tutorial.
 
 ```python
 f_glm1 = GeneralizedLinearRegressor(family='poisson', alpha_search=True, l1_ratio=1, fit_intercept=True)
