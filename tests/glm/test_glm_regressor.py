@@ -1060,14 +1060,14 @@ def test_alpha_search(regression_data):
 
 
 @pytest.mark.parametrize(
-    "alpha, alpha_index", [(0.5, 0), (0.75, 1), (2e-9, 2), (1e-9, 3)]
+    "alpha, alpha_index", [(0.5, 0), (0.75, 1), (2e-9, 2), (1e-9, 3), (0, 4)]
 )
 def test_predict_scalar(regression_data, alpha, alpha_index):
     X, y = regression_data
     offset = np.ones_like(y)
 
     estimator = GeneralizedLinearRegressor(
-        alpha=[0.5, 0.75, 2e-9, 1e-9], alpha_search=True
+        alpha=[0.5, 0.75, 2e-9, 1e-9, 0], alpha_search=True
     )
     estimator.fit(X, y)
 
