@@ -43,6 +43,10 @@ Changelog
 - Use data type (``float64`` or ``float32``) dependent precision in solvers.
 
 
+**Other changes:
+
+- Lower absolute tolerance when matching the ``alpha`` argument in :meth:`glum.GeneralizedLinearRegressor.predict` to the ``alphas`` used in training when ``alpha_search=True``.
+
 3.0.2 - 2024-06-25
 ------------------
 
