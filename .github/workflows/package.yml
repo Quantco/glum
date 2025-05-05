@@ -22,11 +22,6 @@ jobs:
         include:
           - { variant-file: linux_64_python3.9.____cpython,   target-platform: linux-64,  os: ubuntu-latest,  rattler-build-args: '' }
           - { variant-file: linux_64_python3.13.____cpython,  target-platform: linux-64,  os: ubuntu-latest,  rattler-build-args: '' }
-          - { variant-file: osx_64_python3.10.____cpython,    target-platform: osx-64,    os: macos-latest,   rattler-build-args: '' }
-          - { variant-file: osx_arm64_python3.9.____cpython,  target-platform: osx-arm64, os: macos-latest,   rattler-build-args: '' }
-          - { variant-file: osx_arm64_python3.13.____cpython, target-platform: osx-arm64, os: macos-latest,   rattler-build-args: '' }
-          - { variant-file: win_64_python3.9.____cpython,     target-platform: win-64,    os: windows-latest, rattler-build-args: '' }
-          - { variant-file: win_64_python3.13.____cpython,    target-platform: win-64,    os: windows-latest, rattler-build-args: '' }
     steps:
       - name: Checkout branch
         uses: actions/checkout@v4
@@ -49,7 +44,7 @@ jobs:
       - uses: prefix-dev/rattler-build-action@4dde8467e2d88336edd3817c6d74477625df3191 # v0.2.33
         with:
           recipe-path: conda.recipe/recipe.yaml
-          build-args: -m .ci_support/${{ matrix.variant-file }}.yaml --target-platform ${{ matrix.target-platform }} ${{ matrix.rattler-build-args }}
+          build-args: -m .ci_support/${{ matrix.variant-file }}.yaml --target-platform ${{ matrix.target-platform }} ${{ matrix.rattler-build-args }} --verbose --debug
           artifact-name: package-${{ matrix.variant-file }}
         env:
           GIT_DESCRIBE_TAG: ${{ steps.git-metadata.outputs.GIT_DESCRIBE_TAG }}
