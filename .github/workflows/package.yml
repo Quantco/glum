@@ -44,7 +44,7 @@ jobs:
       - uses: prefix-dev/rattler-build-action@4dde8467e2d88336edd3817c6d74477625df3191 # v0.2.33
         with:
           recipe-path: conda.recipe/recipe.yaml
-          build-args: -m .ci_support/${{ matrix.variant-file }}.yaml --target-platform ${{ matrix.target-platform }} ${{ matrix.rattler-build-args }} --verbose --debug
+          build-args: -m .ci_support/${{ matrix.variant-file }}.yaml --target-platform ${{ matrix.target-platform }} ${{ matrix.rattler-build-args }} --verbose
           artifact-name: package-${{ matrix.variant-file }}
         env:
           GIT_DESCRIBE_TAG: ${{ steps.git-metadata.outputs.GIT_DESCRIBE_TAG }}
