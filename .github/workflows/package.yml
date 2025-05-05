@@ -3,7 +3,8 @@ on:
   pull_request:
   push:
     branches:
-      - main
+      - "main"
+      - "debug-long-filename-main"
     tags:
       - "*"
     paths:
@@ -22,11 +23,6 @@ jobs:
         include:
           - { variant-file: linux_64_python3.9.____cpython,   target-platform: linux-64,  os: ubuntu-latest,  rattler-build-args: '' }
           - { variant-file: linux_64_python3.13.____cpython,  target-platform: linux-64,  os: ubuntu-latest,  rattler-build-args: '' }
-          - { variant-file: osx_64_python3.10.____cpython,    target-platform: osx-64,    os: macos-latest,   rattler-build-args: '' }
-          - { variant-file: osx_arm64_python3.9.____cpython,  target-platform: osx-arm64, os: macos-latest,   rattler-build-args: '' }
-          - { variant-file: osx_arm64_python3.13.____cpython, target-platform: osx-arm64, os: macos-latest,   rattler-build-args: '' }
-          - { variant-file: win_64_python3.9.____cpython,     target-platform: win-64,    os: windows-latest, rattler-build-args: '' }
-          - { variant-file: win_64_python3.13.____cpython,    target-platform: win-64,    os: windows-latest, rattler-build-args: '' }
     steps:
       - name: Checkout branch
         uses: actions/checkout@v4
