@@ -7,10 +7,9 @@
 # License: BSD 3 clause
 #         Substantial modifications by Ben Thompson <t.ben.thompson@gmail.com>
 #
-from libc.math cimport fabs
+from libc.math cimport INFINITY, fabs
 cimport numpy as np
 import numpy as np
-from libc.math cimport INFINITY
 
 from cython cimport floating
 from cython.parallel import prange
