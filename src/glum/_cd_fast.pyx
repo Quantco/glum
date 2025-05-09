@@ -10,7 +10,7 @@
 from libc.math cimport fabs
 cimport numpy as np
 import numpy as np
-from numpy.math cimport INFINITY
+from libc.math cimport INFINITY
 
 from cython cimport floating
 from cython.parallel import prange
