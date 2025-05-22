@@ -543,7 +543,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             _stype = ["csc"]
         else:
             _stype = ["csc", "csr"]
-
+        
         def _fit_path(
             self,
             train_idx,
@@ -571,6 +571,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
                 y[test_idx],
                 sample_weight[test_idx],
             )
+            # test weights need to sum to 1 too, else deviance is not properly scaled
+            w_test /= w_test.sum()
 
             if offset is not None:
                 offset_train = offset[train_idx]
@@ -667,8 +669,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
                 )
                 deviance_path_ = [_get_deviance(_coef) for _coef in coef_path_]
 
-            return intercept_path_, coef_path_, deviance_path_
-
+            return intercept_path_, coef_path_, deviance_path_, train_idx
+        
         jobs = (
             joblib.delayed(_fit_path)(
                 self,
@@ -705,6 +707,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             [elmt[2] for elmt in paths_data],
             (cv.get_n_splits(), len(l1_ratio), len(alphas[0])),
         )
+
+        self.train_indices_ = [elmt[3] for elmt in paths_data]
 
         avg_deviance = self.deviance_path_.mean(axis=0)  # type: ignore
 
