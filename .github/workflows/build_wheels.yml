@@ -24,7 +24,7 @@ jobs:
       - name: Set up micromamba
         uses: mamba-org/setup-micromamba@b09ef9b599704322748535812ca03efb2625677b
       - name: Build wheels
-        uses: pypa/cibuildwheel@5f22145df44122af0f5a201f93cf0207171beca7 # v3.0.0
+        uses: pypa/cibuildwheel@9e4e50bd76b3190f55304387e333f6234823ea9b # v3.1.2
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           path: ./wheelhouse/*.whl
