@@ -108,7 +108,8 @@ def test_formula(get_mixed_data, formula, drop_first, fit_intercept):
         # full rank check must consider presence of intercept
         y_ext, X_ext = formulaic.model_matrix(
             formula,
-            data,
+            # casting to category until formulaic supports pandas 3 str dtype
+            data.astype({"c1": "category", "c2": "category"}),
             ensure_full_rank=drop_first,
             materializer=formulaic.materializers.PandasMaterializer,
         )
@@ -116,7 +117,8 @@ def test_formula(get_mixed_data, formula, drop_first, fit_intercept):
     else:
         y_ext, X_ext = formulaic.model_matrix(
             formula + "-1",
-            data,
+            # casting to category until formulaic supports pandas 3 str dtype
+            data.astype({"c1": "category", "c2": "category"}),
             ensure_full_rank=drop_first,
             materializer=formulaic.materializers.PandasMaterializer,
         )
