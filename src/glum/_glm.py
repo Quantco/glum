@@ -281,6 +281,9 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
                 self, "categorical_format", "{name}__{category}"
             ),
             cat_missing_method=cat_missing_method_after_alignment,
+            # setting object_as_cat to True allows us to bypass issues with the
+            # new str dtype in pandas 3
+            object_as_cat=True,
         )
 
         return X
@@ -1827,6 +1830,9 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
                     ),
                     cat_missing_method=getattr(self, "cat_missing_method", "fail"),
                     cat_missing_name=getattr(self, "cat_missing_name", "(MISSING)"),
+                    # setting object_as_cat to True allows us to bypass issues with the
+                    # new str dtype in pandas 3
+                    object_as_cat=True,
                 )
 
         if y is None:

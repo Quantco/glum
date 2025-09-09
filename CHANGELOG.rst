@@ -7,6 +7,15 @@
 Changelog
 =========
 
+3.1.3 - 2025-09-09
+------------------
+
+**Bug fix**
+
+- To support the new ``str`` dtype in Pandas (which will become the default in Pandas 3.0), we now set ``object_as_cat`` to ``True`` when constructing the ``tabmat`` matrix.
+
+
+
 3.1.2 - 2025-01-30
 ------------------
 
