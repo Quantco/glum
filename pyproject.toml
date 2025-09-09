@@ -53,7 +53,7 @@ skip = [
   "*-manylinux_i686",
   "*-musllinux_*",
   "cp38*",
-  "cp314t*"
+  "cp314t-win*"
 ]
 test-requires = ["pytest", "pytest-xdist"]
 
