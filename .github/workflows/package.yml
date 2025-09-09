@@ -20,13 +20,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { variant-file: linux_64_python3.9.____cpython,   target-platform: linux-64,  os: ubuntu-latest,  rattler-build-args: '' }
-          - { variant-file: linux_64_python3.13.____cpython,  target-platform: linux-64,  os: ubuntu-latest,  rattler-build-args: '' }
-          - { variant-file: osx_64_python3.10.____cpython,    target-platform: osx-64,    os: macos-latest,   rattler-build-args: '' }
-          - { variant-file: osx_arm64_python3.9.____cpython,  target-platform: osx-arm64, os: macos-latest,   rattler-build-args: '' }
-          - { variant-file: osx_arm64_python3.13.____cpython, target-platform: osx-arm64, os: macos-latest,   rattler-build-args: '' }
-          - { variant-file: win_64_python3.9.____cpython,     target-platform: win-64,    os: windows-latest, rattler-build-args: '' }
-          - { variant-file: win_64_python3.13.____cpython,    target-platform: win-64,    os: windows-latest, rattler-build-args: '' }
+          - { variant-file: linux_64_numpy2.0python3.10.____cpython,  target-platform: linux-64,  os: ubuntu-latest,  rattler-build-args: '' }
+          - { variant-file: linux_64_numpy2python3.13.____cp313,      target-platform: linux-64,  os: ubuntu-latest,  rattler-build-args: '' }
+          - { variant-file: osx_64_numpy2.0python3.10.____cpython,    target-platform: osx-64,    os: macos-latest,   rattler-build-args: '' }
+          - { variant-file: osx_arm64_numpy2.0python3.10.____cpython, target-platform: osx-arm64, os: macos-latest,   rattler-build-args: '' }
+          - { variant-file: osx_arm64_numpy2python3.13.____cp313,     target-platform: osx-arm64, os: macos-latest,   rattler-build-args: '' }
+          - { variant-file: win_64_numpy2.0python3.10.____cpython,    target-platform: win-64,    os: windows-latest, rattler-build-args: '' }
+          - { variant-file: win_64_numpy2python3.13.____cp313,        target-platform: win-64,    os: windows-latest, rattler-build-args: '' }
     steps:
       - name: Checkout branch
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
