@@ -56,6 +56,7 @@ skip = [
   "cp36*",
   "cp37*",
   "cp38*",
+  "cp314t*"
 ]
 test-requires = ["pytest", "pytest-xdist"]
 
