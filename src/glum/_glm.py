@@ -3035,11 +3035,11 @@ def setup_p2(
         P2 = typing.cast(np.ndarray, P2)
         if P2.ndim == 1:
             P2 = np.asarray(P2)
-            if P2.shape[0] != n_features:
+            if P2.shape[0] != n_features:  # type: ignore
                 raise ValueError(
                     "P2 should be a 1d array of shape X.shape[1] (either before or "
                     "after categorical expansion); "
-                    f"got (P2.shape={P2.shape})."
+                    f"got (P2.shape={P2.shape})."  # type: ignore
                 )
             if sparse.issparse(X):
                 P2 = _setup_sparse_p2(P2)
@@ -3054,17 +3054,17 @@ def setup_p2(
             )
 
     # P1 and P2 are now for sure copies
-    P2 = alpha * (1 - l1_ratio) * P2
+    P2 = alpha * (1 - l1_ratio) * P2  # type: ignore
     # one only ever needs the symmetrized L2 penalty matrix 1/2 (P2 + P2')
     # reason: w' P2 w = (w' P2 w)', i.e. it is symmetric
-    if P2.ndim == 2:
+    if P2.ndim == 2:  # type: ignore
         if sparse.issparse(P2):
             if sparse.isspmatrix_csc(P2):
-                P2 = 0.5 * (P2 + P2.transpose()).tocsc()
+                P2 = 0.5 * (P2 + P2.transpose()).tocsc()  # type: ignore
             else:
-                P2 = 0.5 * (P2 + P2.transpose()).tocsr()
+                P2 = 0.5 * (P2 + P2.transpose()).tocsr()  # type: ignore
         else:
-            P2 = 0.5 * (P2 + P2.T)
+            P2 = 0.5 * (P2 + P2.T)  # type: ignore
     return P2
 
 
