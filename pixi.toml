@@ -4,7 +4,7 @@ channels = ["conda-forge"]
 platforms = ["linux-64", "osx-arm64", "win-64"]
 
 [tasks]
-postinstall = "pip install --no-use-pep517 --no-build-isolation --no-deps --disable-pip-version-check -e ."
+postinstall = "pip install --no-build-isolation --no-deps --disable-pip-version-check -e ."
 
 [feature.test.tasks]
 test = "pytest tests/glm --doctest-modules src/glum"
@@ -26,8 +26,8 @@ pre-commit-run = "pre-commit run -a"
 
 [feature.no-tabmat.tasks.postinstall-glum-tabmat]
 cmd = """
-pip install --no-use-pep517 --no-build-isolation --no-deps --disable-pip-version-check -e ../tabmat
-&& pip install --no-use-pep517 --no-build-isolation --no-deps --disable-pip-version-check -e .
+pip install --no-build-isolation --no-deps --disable-pip-version-check -e ../tabmat
+&& pip install --no-build-isolation --no-deps --disable-pip-version-check -e .
 """
 
 [feature.build-tabmat.tasks.install-nightlies]
@@ -37,7 +37,7 @@ cmd = """
     && pip install --pre --no-deps --only-binary :all: --upgrade --timeout=60 -i $PRE_WHEELS scikit-learn
     && pip install --pre --no-deps --only-binary :all: --upgrade --timeout=60 -i $PRE_WHEELS statsmodels
     && pip install --pre --no-deps --only-binary :all: --upgrade --timeout=60 -i https://pypi.fury.io/arrow-nightlies/ pyarrow
-    && pip install --no-use-pep517 --no-deps git+https://github.com/Quantco/tabmat
+    && pip install --no-build-isolation --no-deps git+https://github.com/Quantco/tabmat
 """
 
 [build-dependencies]
