@@ -51,11 +51,9 @@ ignore_missing_imports = true
 skip = [
   "*-win32",
   "*-manylinux_i686",
-  "pp*",
   "*-musllinux_*",
-  "cp36*",
-  "cp37*",
   "cp38*",
+  "cp314t-win*"
 ]
 test-requires = ["pytest", "pytest-xdist"]
 

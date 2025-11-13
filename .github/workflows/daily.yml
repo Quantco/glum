@@ -23,9 +23,9 @@ jobs:
             NOTE: 'Python 3.13' # run once with normal dependencies
     steps:
       - name: Checkout branch
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - name: Set up pixi
-        uses: prefix-dev/setup-pixi@00ff9955aafc3069179be56a98a299a34332d59b
+        uses: prefix-dev/setup-pixi@28eb668aafebd9dede9d97c4ba1cd9989a4d0004
         with:
           environments: ${{ matrix.environment }}
       - name: Update dependencies
@@ -50,7 +50,7 @@ jobs:
           pixi run --manifest-path ../glum/pixi.toml -e ${{ matrix.environment }} python -m doctest -v README.md
 
       - name: Issue on failure
-        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         if: ${{ failure() && github.ref == 'refs/heads/main' }}
         with:
           script: |

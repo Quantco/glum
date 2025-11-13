@@ -20,9 +20,9 @@ jobs:
       PRE_COMMIT_USE_MICROMAMBA: 1
     steps:
       - name: Checkout branch
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - name: Set up pixi
-        uses: prefix-dev/setup-pixi@8eaba7c61d661f73d558b0b477156b7b62667fa4 # v0.8.4
+        uses: prefix-dev/setup-pixi@28eb668aafebd9dede9d97c4ba1cd9989a4d0004 # v0.9.2
         with:
           environments: lint default
       - name: pre-commit
@@ -47,9 +47,9 @@ jobs:
           - { os: ubuntu-latest, environment: 'nightly' }
     steps:
       - name: Checkout branch
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - name: Set up pixi
-        uses: prefix-dev/setup-pixi@00ff9955aafc3069179be56a98a299a34332d59b
+        uses: prefix-dev/setup-pixi@28eb668aafebd9dede9d97c4ba1cd9989a4d0004
         with:
           environments: ${{ matrix.environment }}
       - name: Update dependencies
