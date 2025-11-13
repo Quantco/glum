@@ -150,3 +150,6 @@ pkgs/*
 # pixi environments
 .pixi
 *.egg-info
+
+# rattler build artifacts
+output/
