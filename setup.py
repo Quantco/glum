@@ -56,7 +56,6 @@ ext_modules = [
 setup(
     name="glum",
     use_scm_version={"version_scheme": "post-release"},
-    setup_requires=["setuptools_scm"],
     description="High performance Python GLMs with all the features!",
     long_description=long_description,
     long_description_content_type="text/markdown",
