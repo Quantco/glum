@@ -4,7 +4,7 @@ import time
 import typing
 import warnings
 from collections.abc import Iterable, Mapping, Sequence
-from typing import Any, Optional, Union
+from typing import Any, Optional, Union, cast
 
 import formulaic
 import narwhals.stable.v2 as nw
@@ -1764,7 +1764,7 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         drop_first = getattr(self, "drop_first", False)
 
         if nw.dependencies.is_into_dataframe(X):
-            if hasattr(self, "formula") and self.formula is not None:
+            if getattr(self, "formula", None) is not None:
                 lhs, rhs = parse_formula(
                     self.formula, include_intercept=self.fit_intercept
                 )
@@ -1818,11 +1818,11 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
             else:
                 # Maybe TODO: expand categorical penalties with formulas
 
-                X = nw.from_native(X)
+                X = cast(nw.DataFrame, nw.from_native(X))  # avoid inferring `Never`
 
                 self._categorical_levels_ = {
                     col: X[col].cat.get_categories().to_list()
-                    for col, dtype in X.schema
+                    for col, dtype in X.schema.items()
                     if isinstance(dtype, (nw.Categorical, nw.Enum))
                 }
 
@@ -1832,7 +1832,10 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
                     for col in self.categorical_levels_
                 }
 
-                if any(X.dtypes == "category"):
+                if any(
+                    isinstance(dtype, (nw.Categorical, nw.Enum))
+                    for dtype in X.schema.values()
+                ):
                     P1 = expand_categorical_penalties(
                         self.P1, X, drop_first, self.has_missing_category_
                     )
