@@ -45,6 +45,7 @@ requirements:
     - python
     - formulaic >=0.6
     - joblib
+    - narwhals >=2.0.0
     - numexpr
     - packaging
     - pandas
