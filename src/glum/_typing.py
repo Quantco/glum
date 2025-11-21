@@ -25,6 +25,13 @@ ShapedArrayLike = Union[
     VectorLike,
 ]
 
+ShapedArrayLikeConverted = Union[
+    tm.MatrixBase,
+    tm.StandardizedMatrix,
+    scipy.sparse.spmatrix,
+    VectorLike,
+]
+
 
 class WaldTestResult(NamedTuple):
     test_statistic: float

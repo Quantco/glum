@@ -40,7 +40,13 @@ from ._solvers import (
     _least_squares_solver,
     _trust_constr_solver,
 )
-from ._typing import ArrayLike, ShapedArrayLike, VectorLike, WaldTestResult
+from ._typing import (
+    ArrayLike,
+    ShapedArrayLike,
+    ShapedArrayLikeConverted,
+    VectorLike,
+    WaldTestResult,
+)
 from ._utils import (
     add_missing_categories,
     align_df_categories,
@@ -272,7 +278,7 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
 
         df = nw.from_native(df)
 
-        if hasattr(self, "feature_dtypes_"):
+        if hasattr(self, "categorical_levels_"):
             df = align_df_categories(
                 df,
                 self.categorical_levels_,
@@ -825,6 +831,7 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         """
         if nw.dependencies.is_into_dataframe(X):
             X = self._convert_from_df(X, context=capture_context(context))
+        X = cast(ShapedArrayLikeConverted, X)
 
         eta = self.linear_predictor(
             X, offset=offset, alpha_index=alpha_index, alpha=alpha, context=context
@@ -1468,8 +1475,8 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
                 y = self.y_model_spec_.get_model_matrix(X).toarray().ravel()
                 # This has to go first because X is modified in the next line
 
-        if nw.dependencies.is_into_dataframe(X):
-            X = self._convert_from_df(X, context=capture_context(context))
+            if nw.dependencies.is_into_dataframe(X):
+                X = self._convert_from_df(X, context=capture_context(context))
 
             X, y = check_X_y_tabmat_compliant(
                 X,
@@ -1582,8 +1589,8 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
     def score(
         self,
         X: ShapedArrayLike,
-        y: ShapedArrayLike,
-        sample_weight: Optional[ArrayLike] = None,
+        y: VectorLike,
+        sample_weight: Optional[VectorLike] = None,
         offset: Optional[ArrayLike] = None,
         *,
         context: Optional[Union[int, Mapping[str, Any]]] = None,
@@ -1740,7 +1747,7 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
     def _set_up_and_check_fit_args(
         self,
         X: ArrayLike,
-        y: Optional[ArrayLike],
+        y: Optional[VectorLike],
         sample_weight: Optional[VectorLike],
         offset: Optional[VectorLike],
         force_all_finite,
@@ -1865,7 +1872,7 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
                     "The X matrix is noncontiguous and copy_X = False."
                     "To fix this, either set copy_X = None or pass a contiguous matrix."
                 )
-            X = X.copy()
+            X = X.copy()  # TODO: not all dataframes can be copied like this
 
         if (
             not isinstance(X, tm.CategoricalMatrix)
@@ -2696,8 +2703,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
 
     def _compute_information_criteria(
         self,
-        X: ShapedArrayLike,
-        y: ShapedArrayLike,
+        X: ShapedArrayLikeConverted,
+        y: VectorLike,
         sample_weight: Optional[ArrayLike] = None,
         context: Optional[Mapping[str, Any]] = None,
     ):
@@ -2756,7 +2763,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     def aic(
         self,
         X: ArrayLike,
-        y: ArrayLike,
+        y: VectorLike,
         sample_weight: Optional[ArrayLike] = None,
         *,
         context: Optional[Union[int, Mapping[str, Any]]] = None,
@@ -2793,7 +2800,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     def aicc(
         self,
         X: ArrayLike,
-        y: ArrayLike,
+        y: VectorLike,
         sample_weight: Optional[ArrayLike] = None,
         *,
         context: Optional[Union[int, Mapping[str, Any]]] = None,
@@ -2838,7 +2845,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     def bic(
         self,
         X: ArrayLike,
-        y: ArrayLike,
+        y: VectorLike,
         sample_weight: Optional[ArrayLike] = None,
         *,
         context: Optional[Union[int, Mapping[str, Any]]] = None,
@@ -2877,7 +2884,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         self,
         crit: str,
         X: ArrayLike,
-        y: ArrayLike,
+        y: VectorLike,
         sample_weight: Optional[ArrayLike] = None,
         context: Optional[Union[int, Mapping[str, Any]]] = None,
     ):

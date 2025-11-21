@@ -4,7 +4,6 @@ from typing import Any, Optional, Union
 
 import narwhals.stable.v2 as nw
 import numpy as np
-import pandas as pd
 import tabmat as tm
 from scipy import sparse
 
@@ -29,7 +28,9 @@ def align_df_categories(
     changed_dtypes: dict[str, nw.Series] = {}
 
     for column, levels in categorical_levels.items():
-        if not isinstance(df[column].dtype, (nw.Enum)):
+        if column not in df.schema:
+            continue
+        elif not isinstance(df[column].dtype, (nw.Enum)):
             _logger.info(f"Casting {column} to Enum (categorical).")
         elif df[column].cat.get_categories().to_list() != levels:
             _logger.info(f"Aligning categories of {column}.")
