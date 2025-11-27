@@ -136,16 +136,6 @@ def expand_categorical_penalties(
         return penalty
 
 
-def is_contiguous(X) -> bool:
-    if isinstance(X, np.ndarray):
-        return X.flags["C_CONTIGUOUS"] or X.flags["F_CONTIGUOUS"]
-    elif isinstance(X, nw.DataFrame):
-        return is_contiguous(X.to_numpy())
-    else:
-        # If not a numpy array or pandas data frame, we assume it is contiguous.
-        return True
-
-
 def safe_toarray(X) -> np.ndarray:
     """Return a numpy array."""
     if sparse.issparse(X):

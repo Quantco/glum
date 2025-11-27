@@ -52,7 +52,6 @@ from ._utils import (
     add_missing_categories,
     align_df_categories,
     expand_categorical_penalties,
-    is_contiguous,
     safe_toarray,
     standardize,
     standardize_warm_start,
@@ -1881,14 +1880,6 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
                 f"Unless using a two-sided formula, {self.__class__.__name__} "
                 "requires y to be passed, but the target y is None."
             )
-
-        if not is_contiguous(X):
-            if self.copy_X is not None and not self.copy_X:
-                raise ValueError(
-                    "The X matrix is noncontiguous and copy_X = False."
-                    "To fix this, either set copy_X = None or pass a contiguous matrix."
-                )
-            X = X.copy()  # TODO: not all dataframes can be copied like this
 
         if (
             not isinstance(X, tm.CategoricalMatrix)
