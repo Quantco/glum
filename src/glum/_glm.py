@@ -16,6 +16,7 @@ import sklearn as skl
 import tabmat as tm
 from narwhals.typing import IntoDataFrame
 from scipy import linalg, sparse, stats
+from typing_extensions import deprecated
 
 from ._distribution import (
     BinomialDistribution,
@@ -187,12 +188,23 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         if hasattr(self, "_categorical_levels_"):
             return self._categorical_levels_
         if hasattr(self, "feature_dtypes_"):
+            # Compatibility with pickled models
             return {
                 col: dtype.categories.tolist()
                 for col, dtype in self.feature_dtypes_.items()
                 if isinstance(dtype, pd.CategoricalDtype)
             }
         raise AttributeError("No categorical levels stored.")
+
+    @property
+    @deprecated("Use `categorical_levels_` instead.")
+    def feature_dtypes_(self) -> dict[str, Any]:
+        return self._feature_dtypes_
+
+    @feature_dtypes_.setter
+    @deprecated("Use `categorical_levels_` instead.")
+    def feature_dtypes_(self, value: dict[str, Any]) -> None:
+        self._feature_dtypes_ = value
 
     def _get_start_coef(
         self,
@@ -1824,6 +1836,10 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
 
             else:
                 # Maybe TODO: expand categorical penalties with formulas
+
+                # Backwards compatibility
+                if isinstance(X, pd.DataFrame):
+                    self.feature_dtypes_ = X.dtypes.to_dict()
 
                 X = cast(nw.DataFrame, nw.from_native(X))  # avoid inferring `Never`
 
