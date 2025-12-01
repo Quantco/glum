@@ -29,7 +29,7 @@ jobs:
           - { variant-file: win_64_numpy2python3.13.____cp313,        target-platform: win-64,    os: windows-latest, rattler-build-args: '' }
     steps:
       - name: Checkout branch
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
         with:
           fetch-depth: 0
       - name: Get git metadata
