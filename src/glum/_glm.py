@@ -2192,8 +2192,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         option exists mainly for compatibility with other scikit-learn
         estimators. If ``False``, ``X`` will not be copied and there will be an
         error if you pass an ``X`` in the wrong format, such as providing
-        integer ``X`` and float ``y``. If ``None``, ``X`` will not be copied
-        unless it is in the wrong format.
+        integer ``X`` and float ``y`` (only guaranteed for numpy arrays and pandas data
+        frames). If ``None``, ``X`` will not be copied unless it is in the wrong format.
 
     check_input : bool, optional (default=True)
         Whether to bypass several checks on input: ``y`` values in range of
