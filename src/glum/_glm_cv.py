@@ -348,7 +348,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         start_params: Optional[np.ndarray] = None,
         selection: str = "cyclic",
         random_state=None,
-        copy_X: bool = True,
+        copy_X: Optional[bool] = None,
         check_input: bool = True,
         verbose=0,
         scale_predictors: bool = False,
