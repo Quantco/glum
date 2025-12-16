@@ -4,6 +4,7 @@ from typing import Any, Optional, Union
 
 import narwhals.stable.v2 as nw
 import numpy as np
+import pandas as pd
 import tabmat as tm
 from scipy import sparse
 
@@ -134,6 +135,16 @@ def expand_categorical_penalties(
 
     else:
         return penalty
+
+
+def is_contiguous(X) -> bool:
+    if isinstance(X, np.ndarray):
+        return X.flags["C_CONTIGUOUS"] or X.flags["F_CONTIGUOUS"]
+    elif isinstance(X, pd.DataFrame):
+        return is_contiguous(X.values)
+    else:
+        # If not a numpy array or pandas data frame, we assume it is contiguous.
+        return True
 
 
 def safe_toarray(X) -> np.ndarray:

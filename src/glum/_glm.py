@@ -52,6 +52,7 @@ from ._utils import (
     add_missing_categories,
     align_df_categories,
     expand_categorical_penalties,
+    is_contiguous,
     safe_toarray,
     standardize,
     standardize_warm_start,
@@ -1835,6 +1836,13 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
 
             else:
                 # Maybe TODO: expand categorical penalties with formulas
+
+                if not is_contiguous(X) and self.copy_X is False:
+                    raise ValueError(
+                        "The X matrix is noncontiguous and copy_X = False. "
+                        "To fix this, either set copy_X = None "
+                        "or pass a contiguous matrix."
+                    )
 
                 # Backwards compatibility
                 if isinstance(X, pd.DataFrame):

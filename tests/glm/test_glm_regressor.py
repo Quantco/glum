@@ -1214,17 +1214,17 @@ def test_alpha_path(scale_predictors, fit_intercept, P1):
 
 
 def test_passing_noncontiguous_as_X():
-    X = np.random.rand(100, 4)
+    X = np.asfortranarray(np.random.rand(100, 4))
     y = np.random.rand(100)
 
     baseline = GeneralizedLinearRegressor(family="normal", fit_intercept=False).fit(
-        X[:, :2].copy(), y
+        X[2:, :].copy(), y[2:]
     )
     np_view = GeneralizedLinearRegressor(family="normal", fit_intercept=False).fit(
-        X[:, :2], y
+        X[2:, :], y[2:]
     )
     pd_view = GeneralizedLinearRegressor(family="normal", fit_intercept=False).fit(
-        pd.DataFrame(X).iloc[:, :2], y
+        pd.DataFrame(X).iloc[2:, :], y[2:]
     )
     np.testing.assert_almost_equal(baseline.coef_, np_view.coef_)
     np.testing.assert_almost_equal(baseline.coef_, pd_view.coef_)
