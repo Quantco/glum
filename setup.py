@@ -65,7 +65,6 @@ setup(
     license="BSD",
     classifiers=[  # Optional
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
@@ -78,7 +77,7 @@ setup(
             ["glum"] if os.environ.get("CONDA_BUILD") else ["glum", "glum_benchmarks"]
         ),
     ),
-    python_requires=">=3.9",
+    python_requires=">=3.10",
     install_requires=[
         "joblib",
         "numexpr",
@@ -87,7 +86,7 @@ setup(
         "scikit-learn>=0.23",
         "scipy",
         "formulaic>=0.6",
-        "tabmat>=4.0.0",
+        "tabmat>=4.1.5",
     ],
     entry_points=(
         None

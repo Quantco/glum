@@ -47,7 +47,7 @@ cython = "*"
 setuptools-scm = ">=8.1"
 
 [host-dependencies]
-python = ">=3.9"
+python = ">=3.10"
 pip = "*"
 setuptools = ">=61"
 wheel = "*"
@@ -61,7 +61,7 @@ pandas = ">=1.4"
 pyarrow = "*"
 scikit-learn = ">=0.23"
 scipy = "*"
-tabmat = ">=4.0.0"
+tabmat = ">=4.1.5"
 tqdm = "*"
 
 [feature.no-tabmat.dependencies]
@@ -143,8 +143,6 @@ xsimd = "<11|>12.1"
 [feature.build-tabmat.target.unix.dependencies]
 jemalloc-local = "*"
 
-[feature.py39.dependencies]
-python = "3.9.*"
 [feature.py310.dependencies]
 python = "3.10.*"
 [feature.py311.dependencies]
@@ -158,16 +156,15 @@ python = "3.13.*"
 formulaic = "0.6.*"
 narwhals = "2.0.*"
 pandas = "1.4.*"
-python = "3.9.*"
-scikit-learn = "0.24.*"
+python = "3.10.*"
+scikit-learn = "==1.1.0"
 scipy = "1.7.*"
-tabmat = "4.0.*"
+tabmat = "==4.1.5"
 
 [environments]
 default = ["dev", "test"]
 docs = ["docs", "tutorial"]
 benchmark = ["benchmark"]
-py39 = ["py39", "test"]
 py310 = ["py310", "test"]
 py311 = ["py311", "test"]
 py312 = ["py312", "test"]
