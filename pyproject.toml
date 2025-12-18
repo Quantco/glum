@@ -10,7 +10,7 @@ requires = [
 
 [tool.ruff]
 line-length = 88
-target-version = "py310"
+target-version = "py39"
 exclude = ["src/glum_benchmarks/orig_sklearn_fork/"]
 
 [tool.ruff.lint]
