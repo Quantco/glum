@@ -49,10 +49,12 @@ requirements:
     - numexpr
     - numpy >=1.24
     - packaging
-    - pandas
+    - pandas >=1.4
+    - pyarrow
     - scikit-learn >=1.1.0
     - scipy >=1.8.0
     - tabmat >=4.1.5
+    - tqdm
 
 tests:
   - python:
