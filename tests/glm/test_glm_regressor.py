@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 import sklearn as skl
+import sklearn.datasets
 import statsmodels.api as sm
 import statsmodels.tools
 import tabmat as tm
@@ -48,7 +49,7 @@ def get_small_x_y(
 
 @pytest.fixture(scope="module")
 def regression_data():
-    X, y = skl.datasets.make_regression(
+    X, y = sklearn.datasets.make_regression(
         n_samples=107, n_features=10, n_informative=80, noise=0.5, random_state=2
     )
     return X, y
@@ -315,7 +316,7 @@ def test_normal_ridge_comparison(n_samples, n_features, solver, use_offset):
     """
     alpha = 1.0
     n_predict = 10
-    X, y, _ = skl.datasets.make_regression(
+    X, y, _ = sklearn.datasets.make_regression(
         n_samples=n_samples + n_predict,
         n_features=n_features,
         n_informative=n_features - 2,
@@ -745,7 +746,7 @@ def test_binomial_cloglog_unregularized(solver):
     """
     n_samples = 500
     rng = np.random.RandomState(42)
-    X, y = skl.datasets.make_classification(
+    X, y = sklearn.datasets.make_classification(
         n_samples=n_samples,
         n_classes=2,
         n_features=6,
@@ -855,7 +856,7 @@ def test_binomial_enet(alpha):
     l1_ratio = 0.5
     n_samples = 500
     rng = np.random.RandomState(42)
-    X, y = skl.datasets.make_classification(
+    X, y = sklearn.datasets.make_classification(
         n_samples=n_samples,
         n_classes=2,
         n_features=6,
@@ -1006,7 +1007,7 @@ def test_standardize(use_sparse, scale_predictors):
 
 @pytest.mark.parametrize("tol", [1e-2, 1e-4, 1e-6])
 def test_step_size_tolerance(tol):
-    X, y = skl.datasets.make_regression(
+    X, y = sklearn.datasets.make_regression(
         n_samples=100,
         n_features=5,
         noise=0.5,
