@@ -167,6 +167,36 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         tags.input_tags.sparse = True
         return tags
 
+    def __setstate__(self, state):
+        """Handle unpickling of models from older versions. Only goes back to 3.0.0.
+
+        This method ensures backwards compatibility when loading pickled models
+        that used `feature_dtypes_` instead of `_categorical_levels_`, and models
+        that are missing attributes added in later versions.
+        """
+        self.__dict__.update(state)
+
+        # Migrate from old feature_dtypes_ to new _categorical_levels_
+        if "feature_dtypes_" in state and "_categorical_levels_" not in state:
+            # Extract categorical levels from feature_dtypes_
+            self._categorical_levels_ = {
+                col: dtype.categories.tolist()
+                for col, dtype in state["feature_dtypes_"].items()
+                if isinstance(dtype, pd.CategoricalDtype)
+            }
+            # Keep feature_dtypes_ for the deprecated property
+            self._feature_dtypes_ = state["feature_dtypes_"]
+
+        # Set default values for attributes that may be missing in old models
+        # This handles models pickled with older versions of glum 3.x
+        attribute_defaults = {
+            "max_inner_iter": 100000,
+        }
+
+        for attr, default_value in attribute_defaults.items():
+            if not hasattr(self, attr):
+                setattr(self, attr, default_value)
+
     @property
     def family_instance(self) -> ExponentialDispersionModel:
         """Return an :class:`~glum._distribution.ExponentialDispersionModel`."""
