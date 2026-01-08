@@ -2,6 +2,7 @@ from typing import Any, Union
 
 import numpy as np
 import pandas as pd
+import polars as pl
 import pytest
 import sklearn as skl
 import sklearn.utils.estimator_checks
@@ -307,14 +308,19 @@ def test_positive_semidefinite():
     assert is_pos_semidef(sparse.eye(2))
 
 
-def test_P1_P2_expansion_with_categoricals():
+@pytest.mark.parametrize("namespace", ["pandas", "polars"])
+def test_P1_P2_expansion_with_categoricals(namespace):
     rng = np.random.default_rng(42)
-    X = pd.DataFrame(
+    X_pd = pd.DataFrame(
         data={
             "dense": np.linspace(0, 10, 60),
-            "cat": pd.Categorical(rng.integers(5, size=60)),
+            "cat": pd.Categorical([f"cat_{i}" for i in rng.integers(5, size=60)]),
         }
     )
+    if namespace == "pandas":
+        X = X_pd
+    else:
+        X = pl.from_pandas(X_pd)
     y = rng.normal(size=60)
 
     mdl1 = GeneralizedLinearRegressor(
@@ -339,14 +345,21 @@ def test_P1_P2_expansion_with_categoricals():
     np.testing.assert_allclose(mdl1.coef_, mdl2.coef_)
 
 
-def test_P1_P2_expansion_with_categoricals_missings():
+@pytest.mark.parametrize("namespace", ["pandas", "polars"])
+def test_P1_P2_expansion_with_categoricals_missings(namespace):
     rng = np.random.default_rng(42)
-    X = pd.DataFrame(
+    X_pd = pd.DataFrame(
         data={
             "dense": np.linspace(0, 10, 60),
-            "cat": pd.Categorical(rng.integers(5, size=60)).remove_categories(0),
+            "cat": pd.Categorical(
+                [f"cat_{i}" for i in rng.integers(5, size=60)]
+            ).remove_categories("cat_0"),
         }
     )
+    if namespace == "pandas":
+        X = X_pd
+    else:
+        X = pl.from_pandas(X_pd)
     y = rng.normal(size=60)
 
     mdl1 = GeneralizedLinearRegressor(
