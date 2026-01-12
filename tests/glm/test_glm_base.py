@@ -392,6 +392,50 @@ def test_P1_P2_expansion_with_categoricals_missings(namespace):
     np.testing.assert_allclose(mdl1.coef_, mdl3.coef_)
 
 
+@pytest.mark.parametrize("namespace", ["pandas", "polars"])
+def test_P1_P2_expansion_with_unused_categories(namespace):
+    """Test that penalty expansion includes unused categories."""
+    rng = np.random.default_rng(42)
+
+    values = rng.choice(["cat_1", "cat_2", "cat_3", "cat_4"], size=60)
+    categories = ["unused", "cat_1", "cat_2", "cat_3", "cat_4"]
+    X_pd = pd.DataFrame(
+        data={
+            "dense": np.linspace(0, 10, 60),
+            "cat": pd.Categorical(
+                values=values,
+                categories=categories,
+            ),
+        }
+    )
+
+    if namespace == "pandas":
+        X = X_pd
+    else:
+        # For polars, convert to Enum with explicit categories
+        X_pl = pl.from_pandas(X_pd)
+        X_pl = X_pl.with_columns(pl.col("cat").cast(pl.Enum(categories)))
+        X = X_pl
+
+    y = rng.normal(size=60)
+
+    mdl1 = GeneralizedLinearRegressor(
+        l1_ratio=0.01,
+        P1=[1, 2, 2, 2, 2, 2],
+        P2=[2, 1, 1, 1, 1, 1],
+    )
+    mdl1.fit(X, y)
+
+    mdl2 = GeneralizedLinearRegressor(
+        l1_ratio=0.01,
+        P1=[1, 2],
+        P2=[2, 1],
+    )
+    mdl2.fit(X, y)
+
+    np.testing.assert_allclose(mdl1.coef_, mdl2.coef_, rtol=1e-6, atol=1e-14)
+
+
 @pytest.mark.parametrize(
     "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
 )

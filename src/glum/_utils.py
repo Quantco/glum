@@ -136,14 +136,18 @@ def expand_categorical_penalties(
             )
 
         expanded_penalty = []  # type: ignore
+        backend = nw.get_native_namespace(X).__name__
 
         for element, (column, dt) in zip(penalty, X.schema.items()):
             if isinstance(dt, (nw.Enum, nw.Categorical)):
-                length = (
-                    len(X[column].unique().drop_nulls())
-                    + has_missing_category[column]
-                    - drop_first
-                )
+                # For Polars Categorical (not Enum), avoid .cat.get_categories()
+                # due to string cache issues. Enum is safe to use.
+                if backend == "polars" and isinstance(dt, nw.Categorical):
+                    num_categories = len(X[column].unique().drop_nulls())
+                else:
+                    num_categories = len(X[column].cat.get_categories())
+
+                length = num_categories + has_missing_category[column] - drop_first
                 expanded_penalty.extend(element for _ in range(length))
             else:
                 expanded_penalty.append(element)
