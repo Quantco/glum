@@ -31,7 +31,7 @@ def align_df_categories(
     for column, levels in categorical_levels.items():
         if column not in df.schema:
             continue
-        elif not isinstance(df[column].dtype, (nw.Enum)):
+        elif not isinstance(df[column].dtype, nw.Enum):
             _logger.info(f"Casting {column} to Enum (categorical).")
         elif df[column].cat.get_categories().to_list() != levels:
             _logger.info(f"Aligning categories of {column}.")
@@ -72,11 +72,28 @@ def add_missing_categories(
 
     changed_dtypes: dict[str, nw.Series] = {}
 
+    # We only allow Enum on Polars, due to the global string cache for Categorical.
+    # xref: https://github.com/narwhals-dev/narwhals/issues/3097
+    allowed_dtypes = (
+        (nw.Enum,)
+        if nw.get_native_namespace(df).__name__ == "polars"
+        else (
+            nw.Enum,
+            nw.Categorical,
+        )
+    )
+
     for column in categorical_levels:
         if (
             categorical_format.format(name=column, category=cat_missing_name)
             in feature_names
         ):
+            if not isinstance(df[column].dtype, allowed_dtypes):
+                raise TypeError(
+                    f"Column {column} must be of type "
+                    f"{' or '.join(dtype.__name__ for dtype in allowed_dtypes)}."
+                )
+
             if cat_missing_name in df[column].cat.get_categories():
                 raise ValueError(
                     f"Missing category {cat_missing_name} already exists in {column}."
@@ -123,7 +140,7 @@ def expand_categorical_penalties(
         for element, (column, dt) in zip(penalty, X.schema.items()):
             if isinstance(dt, (nw.Enum, nw.Categorical)):
                 length = (
-                    len(X[column].cat.get_categories())
+                    len(X[column].unique().drop_nulls())
                     + has_missing_category[column]
                     - drop_first
                 )
