@@ -87,7 +87,7 @@ def test_sample_weights_validation(estimator, kwargs):
     sample_weight = [0, 0]
     X = [[0], [1]]
     y = [1, 2]
-    with pytest.raises(ValueError, match="must have at least one positive element"):
+    with pytest.raises(ValueError, match="must not all be zero"):
         glm.fit(X, y, sample_weight)
 
     # 5. 1d but with a negative value
