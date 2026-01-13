@@ -212,6 +212,6 @@ def check_weights(
     if np.any(sample_weight < 0):  # type: ignore
         raise ValueError("Sample weights must be non-negative.")
     if np.sum(sample_weight) == 0:  # type: ignore
-        raise ValueError("Sample weights must have at least one positive element.")
+        raise ValueError("Sample weights must not all be zero.")
 
     return sample_weight  # type: ignore
