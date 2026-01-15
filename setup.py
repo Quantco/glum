@@ -79,7 +79,7 @@ setup(
     ),
     python_requires=">=3.10",
     install_requires=[
-        "formulaic>=0.6",
+        "formulaic>=1.2.0",
         "joblib",
         "narwhals>=2.0.0",
         "numexpr",

@@ -43,7 +43,7 @@ requirements:
     - setuptools-scm
   run:
     - python
-    - formulaic >=0.6
+    - formulaic >=1.2.0
     - joblib
     - narwhals >=2.0.0
     - numexpr
@@ -53,7 +53,7 @@ requirements:
     - pyarrow
     - scikit-learn >=1.1.0
     - scipy >=1.8.0
-    - tabmat >=4.1.5
+    - tabmat >=4.2.0
     - tqdm
 
 tests:
