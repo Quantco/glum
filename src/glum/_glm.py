@@ -217,11 +217,11 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
     def categorical_levels_(self) -> dict[str, list[str]]:
         if hasattr(self, "_categorical_levels_"):
             return self._categorical_levels_
-        if hasattr(self, "feature_dtypes_"):
-            # Compatibility with pickled models
+        if hasattr(self, "_feature_dtypes_"):
+            # Compatibility with pickled models that stored feature_dtypes_
             return {
                 col: dtype.categories.tolist()
-                for col, dtype in self.feature_dtypes_.items()
+                for col, dtype in self._feature_dtypes_.items()
                 if isinstance(dtype, pd.CategoricalDtype)
             }
         raise AttributeError("No categorical levels stored.")
