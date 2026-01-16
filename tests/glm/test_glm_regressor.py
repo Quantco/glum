@@ -4,8 +4,10 @@ from typing import Any, Optional, Union
 
 import numpy as np
 import pandas as pd
+import polars as pl
 import pytest
 import sklearn as skl
+import sklearn.datasets
 import statsmodels.api as sm
 import statsmodels.tools
 import tabmat as tm
@@ -48,7 +50,7 @@ def get_small_x_y(
 
 @pytest.fixture(scope="module")
 def regression_data():
-    X, y = skl.datasets.make_regression(
+    X, y = sklearn.datasets.make_regression(
         n_samples=107, n_features=10, n_informative=80, noise=0.5, random_state=2
     )
     return X, y
@@ -315,7 +317,7 @@ def test_normal_ridge_comparison(n_samples, n_features, solver, use_offset):
     """
     alpha = 1.0
     n_predict = 10
-    X, y, _ = skl.datasets.make_regression(
+    X, y, _ = sklearn.datasets.make_regression(
         n_samples=n_samples + n_predict,
         n_features=n_features,
         n_informative=n_features - 2,
@@ -745,7 +747,7 @@ def test_binomial_cloglog_unregularized(solver):
     """
     n_samples = 500
     rng = np.random.RandomState(42)
-    X, y = skl.datasets.make_classification(
+    X, y = sklearn.datasets.make_classification(
         n_samples=n_samples,
         n_classes=2,
         n_features=6,
@@ -855,7 +857,7 @@ def test_binomial_enet(alpha):
     l1_ratio = 0.5
     n_samples = 500
     rng = np.random.RandomState(42)
-    X, y = skl.datasets.make_classification(
+    X, y = sklearn.datasets.make_classification(
         n_samples=n_samples,
         n_classes=2,
         n_features=6,
@@ -1006,7 +1008,7 @@ def test_standardize(use_sparse, scale_predictors):
 
 @pytest.mark.parametrize("tol", [1e-2, 1e-4, 1e-6])
 def test_step_size_tolerance(tol):
-    X, y = skl.datasets.make_regression(
+    X, y = sklearn.datasets.make_regression(
         n_samples=100,
         n_features=5,
         noise=0.5,
@@ -1214,20 +1216,24 @@ def test_alpha_path(scale_predictors, fit_intercept, P1):
 
 
 def test_passing_noncontiguous_as_X():
-    X = np.random.rand(100, 4)
+    X = np.asfortranarray(np.random.rand(100, 4))
     y = np.random.rand(100)
 
     baseline = GeneralizedLinearRegressor(family="normal", fit_intercept=False).fit(
-        X[:, :2].copy(), y
+        X[2:, :].copy(), y[2:]
     )
     np_view = GeneralizedLinearRegressor(family="normal", fit_intercept=False).fit(
-        X[:, :2], y
+        X[2:, :], y[2:]
     )
     pd_view = GeneralizedLinearRegressor(family="normal", fit_intercept=False).fit(
-        pd.DataFrame(X).iloc[:, :2], y
+        pd.DataFrame(X).iloc[2:, :], y[2:]
+    )
+    pl_view = GeneralizedLinearRegressor(family="normal", fit_intercept=False).fit(
+        pl.DataFrame(X)[2:, :], y[2:]
     )
     np.testing.assert_almost_equal(baseline.coef_, np_view.coef_)
     np.testing.assert_almost_equal(baseline.coef_, pd_view.coef_)
+    np.testing.assert_almost_equal(baseline.coef_, pl_view.coef_)
 
 
 @pytest.mark.parametrize(
@@ -1247,6 +1253,17 @@ def test_passing_noncontiguous_as_X():
                 }
             ),
             np.array(["x1__0", "x1__1", "x1__2", "x1__3", "x1__4", "x2__2"]),
+        ),
+        (
+            pl.DataFrame({"x1": np.arange(5), "x2": 2}),
+            np.array(["x1", "x2"]),
+        ),
+        (
+            pl.DataFrame(
+                {"x1": ["0", "1", "2", "3", "4"], "x2": 2},
+                schema={"x1": pl.Categorical, "x2": pl.Int64},
+            ),
+            np.array(["x1__0", "x1__1", "x1__2", "x1__3", "x1__4", "x2"]),
         ),
         (
             tm.SplitMatrix(
@@ -1296,6 +1313,17 @@ def test_feature_names_underscores(X, feature_names):
             np.array(["x1[0]", "x1[1]", "x1[2]", "x1[3]", "x1[4]", "x2[2]"]),
         ),
         (
+            pl.DataFrame({"x1": np.arange(5), "x2": 2}),
+            np.array(["x1", "x2"]),
+        ),
+        (
+            pl.DataFrame(
+                {"x1": ["0", "1", "2", "3", "4"], "x2": 2},
+                schema={"x1": pl.Categorical, "x2": pl.Int64},
+            ),
+            np.array(["x1[0]", "x1[1]", "x1[2]", "x1[3]", "x1[4]", "x2"]),
+        ),
+        (
             tm.SplitMatrix(
                 [
                     tm.CategoricalMatrix(
@@ -1339,6 +1367,17 @@ def test_feature_names_brackets(X, feature_names):
                     "x1": pd.Categorical(np.arange(5)),
                     "x2": pd.Categorical([2, 2, 2, 2, 2]),
                 }
+            ),
+            np.array(["x1", "x1", "x1", "x1", "x1", "x2"]),
+        ),
+        (
+            pl.DataFrame({"x1": np.arange(5), "x2": 2}),
+            np.array(["x1", "x2"]),
+        ),
+        (
+            pl.DataFrame(
+                {"x1": ["0", "1", "2", "3", "4"], "x2": 2},
+                schema={"x1": pl.Categorical, "x2": pl.Int64},
             ),
             np.array(["x1", "x1", "x1", "x1", "x1", "x2"]),
         ),
@@ -1391,19 +1430,40 @@ def test_feature_dtypes(X, dtypes):
         (500, 500),
     ],
 )
-def test_categorical_types(k, n):
-    np.random.seed(12345)
-    categories = np.arange(k)
-    group = np.random.choice(categories, size=n)
-    y = group / k + np.random.uniform(size=n)
+@pytest.mark.parametrize("namespace", ["pandas", "polars"])
+def test_categorical_types(k, n, namespace):
+    """Test categorical types vs one-hot encoding equivalence.
 
-    # use categorical types
-    X_cat = pd.DataFrame({"group": pd.Categorical(group, categories=categories)})
+    For pandas: tests pd.Categorical vs one-hot encoding.
+    For polars: tests pl.Enum vs one-hot encoding.
+    """
+    np.random.seed(12345)
+    categories = [f"cat_{i}" for i in range(k)]
+    group = np.random.choice(categories, size=n)
+    # Create numeric mapping for y generation
+    cat_to_num = {cat: i for i, cat in enumerate(categories)}
+    y = np.array([cat_to_num[g] for g in group]) / k + np.random.uniform(size=n)
+
+    if namespace == "pandas":
+        # use categorical types
+        X_cat = pd.DataFrame({"group": pd.Categorical(group, categories=categories)})
+
+        # use one-hot encoding
+        X_oh = pd.get_dummies(X_cat, dtype=float)
+
+    else:  # polars
+        # use enum types
+        X_cat = pl.DataFrame({"group": group}).with_columns(
+            pl.col("group").cast(pl.Enum(categories))
+        )
+
+        # use one-hot encoding
+        X_cat_pd = pd.DataFrame({"group": pd.Categorical(group, categories=categories)})
+        X_oh = pl.from_pandas(pd.get_dummies(X_cat_pd, dtype=float))
+
     model_cat = GeneralizedLinearRegressor(family="poisson", alpha=1.0).fit(X_cat, y)
     pred_cat = model_cat.predict(X_cat)
 
-    # use one-hot encoding
-    X_oh = pd.get_dummies(X_cat, dtype=float)
     model_oh = GeneralizedLinearRegressor(family="poisson", alpha=1.0).fit(X_oh, y)
     pred_oh = model_oh.predict(X_oh)
 

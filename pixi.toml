@@ -47,20 +47,22 @@ cython = "*"
 setuptools-scm = ">=8.1"
 
 [host-dependencies]
-python = ">=3.9"
+python = ">=3.10"
 pip = "*"
 setuptools = ">=61"
 wheel = "*"
 
 [dependencies]
-formulaic = "*"
+formulaic = ">=1.2.0"
+narwhals = ">=2.0.0"
 numexpr = "*"
+numpy = ">=1.24"
 packaging = "*"
 pandas = ">=1.4"
 pyarrow = "*"
-scikit-learn = ">=0.23"
-scipy = "*"
-tabmat = ">=4.0.0"
+scikit-learn = ">=1.1.0"
+scipy = ">=1.8.0"
+tabmat = ">=4.2.0"
 tqdm = "*"
 
 [feature.no-tabmat.dependencies]
@@ -77,6 +79,7 @@ attrs = "*"
 click = "*"
 git_root = "*"
 mypy = "*"
+polars = "*"
 psutil = "*"
 pytest = "*"
 pytest-xdist = "*"
@@ -134,15 +137,13 @@ cxx-compiler = "*"
 cython = "!=3.0.4"
 make = "*"
 mako = "*"
-narwhals = ">=1.4.1"
+narwhals = ">=2.0.0"
 pip = "*"
 setuptools-scm = "*"
 xsimd = "<11|>12.1"
 [feature.build-tabmat.target.unix.dependencies]
 jemalloc-local = "*"
 
-[feature.py39.dependencies]
-python = "3.9.*"
 [feature.py310.dependencies]
 python = "3.10.*"
 [feature.py311.dependencies]
@@ -153,18 +154,19 @@ python = "3.12.*"
 python = "3.13.*"
 
 [feature.oldies.dependencies]
-formulaic = "0.6.*"
+formulaic = "1.2.*"
+narwhals = "2.0.*"
+numpy = "1.24.*"
 pandas = "1.4.*"
-python = "3.9.*"
-scikit-learn = "0.24.*"
-scipy = "1.7.*"
-tabmat = "4.0.*"
+python = "3.10.*"
+scikit-learn = "==1.1.0"
+scipy = "1.8.*"
+tabmat = "==4.2.0"
 
 [environments]
 default = ["dev", "test"]
 docs = ["docs", "tutorial"]
 benchmark = ["benchmark"]
-py39 = ["py39", "test"]
 py310 = ["py310", "test"]
 py311 = ["py311", "test"]
 py312 = ["py312", "test"]

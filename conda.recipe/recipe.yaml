@@ -36,21 +36,25 @@ requirements:
     - if: osx
       then:
         - llvm-openmp
-    - numpy
+    - numpy >=1.24
     - pip
-    - scikit-learn >=0.23
+    - scikit-learn >=1.1.0
     - setuptools
     - setuptools-scm
   run:
     - python
-    - formulaic >=0.6
+    - formulaic >=1.2.0
     - joblib
+    - narwhals >=2.0.0
     - numexpr
+    - numpy >=1.24
     - packaging
-    - pandas
-    - scikit-learn >=0.23
-    - scipy
-    - tabmat >=4.0.0
+    - pandas >=1.4
+    - pyarrow
+    - scikit-learn >=1.1.0
+    - scipy >=1.8.0
+    - tabmat >=4.2.0
+    - tqdm
 
 tests:
   - python:

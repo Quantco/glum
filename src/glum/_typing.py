@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import scipy.sparse
 import tabmat as tm
+from narwhals.typing import IntoDataFrame
 
 VectorLike = Union[np.ndarray, pd.api.extensions.ExtensionArray, pd.Index, pd.Series]
 
@@ -11,7 +12,7 @@ ArrayLike = Union[
     list,
     tm.MatrixBase,
     tm.StandardizedMatrix,
-    pd.DataFrame,
+    IntoDataFrame,
     scipy.sparse.spmatrix,
     VectorLike,
 ]
@@ -19,7 +20,14 @@ ArrayLike = Union[
 ShapedArrayLike = Union[
     tm.MatrixBase,
     tm.StandardizedMatrix,
-    pd.DataFrame,
+    IntoDataFrame,
+    scipy.sparse.spmatrix,
+    VectorLike,
+]
+
+ShapedArrayLikeConverted = Union[
+    tm.MatrixBase,
+    tm.StandardizedMatrix,
     scipy.sparse.spmatrix,
     VectorLike,
 ]

@@ -4,6 +4,8 @@ import json
 import warnings
 
 import numpy as np
+import pandas as pd
+import polars as pl
 import pytest
 import tabmat as mx
 from git_root import git_root
@@ -27,6 +29,30 @@ link_map = {
 }
 
 
+def _pandas_to_polars(df):
+    """Convert pandas DataFrame to polars, preserving categorical ordering.
+
+    Converts pandas Categorical columns to polars Enum with the same category ordering.
+    """
+    if not isinstance(df, pd.DataFrame):
+        return df
+
+    # Identify categorical columns and their categories
+    cat_columns = {}
+    for col in df.columns:
+        if isinstance(df[col].dtype, pd.CategoricalDtype):
+            cat_columns[col] = df[col].cat.categories.tolist()
+
+    # Convert to polars
+    df_pl = pl.from_pandas(df)
+
+    # Cast categorical columns to Enum with correct ordering
+    for col, categories in cat_columns.items():
+        df_pl = df_pl.with_columns(pl.col(col).cast(pl.Enum(categories)))
+
+    return df_pl
+
+
 def _make_P2():
     rand = np.random.default_rng(1)
     a = rand.uniform(size=(30, 30)) - 0.5  # centered uniform distribution
@@ -34,10 +60,15 @@ def _make_P2():
     return P2
 
 
-@pytest.fixture(scope="module")
-def data_all():
-    return {
-        dist: simulate_glm_data(
+@pytest.fixture(
+    params=["pandas", "polars"],
+    scope="module",
+)
+def data_all(request):
+    namespace = request.param
+    data = {}
+    for dist in distributions_to_test:
+        data_dist = simulate_glm_data(
             family=dist,
             link=link_map[dist],
             n_rows=5000,
@@ -48,8 +79,10 @@ def data_all():
             ohe_categorical=True,
             drop_first=False,
         )
-        for dist in distributions_to_test
-    }
+        if namespace == "polars":
+            data_dist["X"] = _pandas_to_polars(data_dist["X"])
+        data[dist] = data_dist
+    return data
 
 
 @pytest.fixture(

@@ -4,16 +4,19 @@ import time
 import typing
 import warnings
 from collections.abc import Iterable, Mapping, Sequence
-from typing import Any, Optional, Union
+from typing import Any, Optional, Union, cast
 
 import formulaic
+import narwhals.stable.v2 as nw
 import numpy as np
 import packaging.version
 import pandas as pd
 import scipy.sparse as sps
 import sklearn as skl
 import tabmat as tm
+from narwhals.typing import IntoDataFrame
 from scipy import linalg, sparse, stats
+from typing_extensions import deprecated
 
 from ._distribution import (
     BinomialDistribution,
@@ -38,7 +41,13 @@ from ._solvers import (
     _least_squares_solver,
     _trust_constr_solver,
 )
-from ._typing import ArrayLike, ShapedArrayLike, VectorLike, WaldTestResult
+from ._typing import (
+    ArrayLike,
+    ShapedArrayLike,
+    ShapedArrayLikeConverted,
+    VectorLike,
+    WaldTestResult,
+)
 from ._utils import (
     add_missing_categories,
     align_df_categories,
@@ -158,6 +167,36 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         tags.input_tags.sparse = True
         return tags
 
+    def __setstate__(self, state):
+        """Handle unpickling of models from older versions. Only goes back to 3.0.0.
+
+        This method ensures backwards compatibility when loading pickled models
+        that used `feature_dtypes_` instead of `_categorical_levels_`, and models
+        that are missing attributes added in later versions.
+        """
+        self.__dict__.update(state)
+
+        # Migrate from old feature_dtypes_ to new _categorical_levels_
+        if "feature_dtypes_" in state and "_categorical_levels_" not in state:
+            # Extract categorical levels from feature_dtypes_
+            self._categorical_levels_ = {
+                col: dtype.categories.tolist()
+                for col, dtype in state["feature_dtypes_"].items()
+                if isinstance(dtype, pd.CategoricalDtype)
+            }
+            # Keep feature_dtypes_ for the deprecated property
+            self._feature_dtypes_ = state["feature_dtypes_"]
+
+        # Set default values for attributes that may be missing in old models
+        # This handles models pickled with older versions of glum 3.x
+        attribute_defaults = {
+            "max_inner_iter": 100000,
+        }
+
+        for attr, default_value in attribute_defaults.items():
+            if not hasattr(self, attr):
+                setattr(self, attr, default_value)
+
     @property
     def family_instance(self) -> ExponentialDispersionModel:
         """Return an :class:`~glum._distribution.ExponentialDispersionModel`."""
@@ -173,6 +212,29 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
             return self._link_instance
         else:
             return get_link(self.link, self.family_instance)
+
+    @property
+    def categorical_levels_(self) -> dict[str, list[str]]:
+        if hasattr(self, "_categorical_levels_"):
+            return self._categorical_levels_
+        if hasattr(self, "_feature_dtypes_"):
+            # Compatibility with pickled models that stored feature_dtypes_
+            return {
+                col: dtype.categories.tolist()
+                for col, dtype in self._feature_dtypes_.items()
+                if isinstance(dtype, pd.CategoricalDtype)
+            }
+        raise AttributeError("No categorical levels stored.")
+
+    @property
+    @deprecated("Use `categorical_levels_` instead.")
+    def feature_dtypes_(self) -> dict[str, Any]:
+        return self._feature_dtypes_
+
+    @feature_dtypes_.setter
+    @deprecated("Use `categorical_levels_` instead.")
+    def feature_dtypes_(self, value: dict[str, Any]) -> None:
+        self._feature_dtypes_ = value
 
     def _get_start_coef(
         self,
@@ -245,9 +307,9 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
 
         return coef
 
-    def _convert_from_pandas(
+    def _convert_from_df(
         self,
-        df: pd.DataFrame,
+        df: IntoDataFrame,
         context: Optional[Mapping[str, Any]] = None,
     ) -> tm.MatrixBase:
         """Convert a pandas data frame to a tabmat matrix."""
@@ -256,17 +318,19 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
 
         cat_missing_method_after_alignment = getattr(self, "cat_missing_method", "fail")
 
-        if hasattr(self, "feature_dtypes_"):
+        df = nw.from_native(df)
+
+        if hasattr(self, "categorical_levels_"):
             df = align_df_categories(
                 df,
-                self.feature_dtypes_,
+                self.categorical_levels_,
                 getattr(self, "has_missing_category_", {}),
                 cat_missing_method_after_alignment,
             )
             if cat_missing_method_after_alignment == "convert":
                 df = add_missing_categories(
                     df=df,
-                    dtypes=self.feature_dtypes_,
+                    categorical_levels=self.categorical_levels_,
                     feature_names=self.feature_names_,
                     cat_missing_name=self.cat_missing_name,
                     categorical_format=self.categorical_format,
@@ -274,7 +338,7 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
                 # there should be no missing categories after this
                 cat_missing_method_after_alignment = "fail"
 
-        X = tm.from_pandas(
+        X = tm.from_df(
             df,
             drop_first=self.drop_first,
             categorical_format=getattr(  # convention prior to v3
@@ -718,8 +782,8 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         elif alpha is not None:
             alpha_index = [self._find_alpha_index(a) for a in alpha]  # type: ignore
 
-        if isinstance(X, pd.DataFrame):
-            X = self._convert_from_pandas(X, context=capture_context(context))
+        if nw.dependencies.is_into_dataframe(X):
+            X = self._convert_from_df(X, context=capture_context(context))
 
         X = check_array_tabmat_compliant(
             X,
@@ -807,8 +871,9 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         array, shape (n_samples, n_alphas)
             Predicted values times ``sample_weight``.
         """
-        if isinstance(X, pd.DataFrame):
-            X = self._convert_from_pandas(X, context=capture_context(context))
+        if nw.dependencies.is_into_dataframe(X):
+            X = self._convert_from_df(X, context=capture_context(context))
+        X = cast(ShapedArrayLikeConverted, X)
 
         eta = self.linear_predictor(
             X, offset=offset, alpha_index=alpha_index, alpha=alpha, context=context
@@ -1452,8 +1517,8 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
                 y = self.y_model_spec_.get_model_matrix(X).toarray().ravel()
                 # This has to go first because X is modified in the next line
 
-            if isinstance(X, pd.DataFrame):
-                X = self._convert_from_pandas(X, context=capture_context(context))
+            if nw.dependencies.is_into_dataframe(X):
+                X = self._convert_from_df(X, context=capture_context(context))
 
             X, y = check_X_y_tabmat_compliant(
                 X,
@@ -1566,8 +1631,8 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
     def score(
         self,
         X: ShapedArrayLike,
-        y: ShapedArrayLike,
-        sample_weight: Optional[ArrayLike] = None,
+        y: VectorLike,
+        sample_weight: Optional[VectorLike] = None,
         offset: Optional[ArrayLike] = None,
         *,
         context: Optional[Union[int, Mapping[str, Any]]] = None,
@@ -1724,7 +1789,7 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
     def _set_up_and_check_fit_args(
         self,
         X: ArrayLike,
-        y: Optional[ArrayLike],
+        y: Optional[VectorLike],
         sample_weight: Optional[VectorLike],
         offset: Optional[VectorLike],
         force_all_finite,
@@ -1747,8 +1812,8 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         copy_X = self._should_copy_X()
         drop_first = getattr(self, "drop_first", False)
 
-        if isinstance(X, pd.DataFrame):
-            if hasattr(self, "formula") and self.formula is not None:
+        if nw.dependencies.is_into_dataframe(X):
+            if getattr(self, "formula", None) is not None:
                 lhs, rhs = parse_formula(
                     self.formula, include_intercept=self.fit_intercept
                 )
@@ -1802,16 +1867,35 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
             else:
                 # Maybe TODO: expand categorical penalties with formulas
 
-                self.feature_dtypes_ = X.dtypes.to_dict()
+                if not is_contiguous(X) and self.copy_X is False:
+                    raise ValueError(
+                        "The X matrix is noncontiguous and copy_X = False. "
+                        "To fix this, either set copy_X = None "
+                        "or pass a contiguous matrix."
+                    )
+
+                # Backwards compatibility
+                if isinstance(X, pd.DataFrame):
+                    self.feature_dtypes_ = X.dtypes.to_dict()
+
+                X = cast(nw.DataFrame, nw.from_native(X))  # avoid inferring `Never`
+
+                self._categorical_levels_ = {
+                    col: X[col].cat.get_categories().to_list()
+                    for col, dtype in X.schema.items()
+                    if isinstance(dtype, (nw.Categorical, nw.Enum))
+                }
 
                 self.has_missing_category_ = {
                     col: (getattr(self, "cat_missing_method", "fail") == "convert")
-                    and X[col].isna().any()
-                    for col, dtype in self.feature_dtypes_.items()
-                    if isinstance(dtype, pd.CategoricalDtype)
+                    and X[col].is_null().any()
+                    for col in self.categorical_levels_
                 }
 
-                if any(X.dtypes == "category"):
+                if any(
+                    isinstance(dtype, (nw.Categorical, nw.Enum))
+                    for dtype in X.schema.values()
+                ):
                     P1 = expand_categorical_penalties(
                         self.P1, X, drop_first, self.has_missing_category_
                     )
@@ -1819,7 +1903,7 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
                         self.P2, X, drop_first, self.has_missing_category_
                     )
 
-                X = tm.from_pandas(
+                X = tm.from_df(
                     X,
                     drop_first=drop_first,
                     categorical_format=getattr(  # convention prior to v3
@@ -1834,14 +1918,6 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
                 f"Unless using a two-sided formula, {self.__class__.__name__} "
                 "requires y to be passed, but the target y is None."
             )
-
-        if not is_contiguous(X):
-            if self.copy_X is not None and not self.copy_X:
-                raise ValueError(
-                    "The X matrix is noncontiguous and copy_X = False."
-                    "To fix this, either set copy_X = None or pass a contiguous matrix."
-                )
-            X = X.copy()
 
         if (
             not isinstance(X, tm.CategoricalMatrix)
@@ -2146,8 +2222,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         option exists mainly for compatibility with other scikit-learn
         estimators. If ``False``, ``X`` will not be copied and there will be an
         error if you pass an ``X`` in the wrong format, such as providing
-        integer ``X`` and float ``y``. If ``None``, ``X`` will not be copied
-        unless it is in the wrong format.
+        integer ``X`` and float ``y`` (only guaranteed for numpy arrays and pandas data
+        frames). If ``None``, ``X`` will not be copied unless it is in the wrong format.
 
     check_input : bool, optional (default=True)
         Whether to bypass several checks on input: ``y`` values in range of
@@ -2672,8 +2748,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
 
     def _compute_information_criteria(
         self,
-        X: ShapedArrayLike,
-        y: ShapedArrayLike,
+        X: ShapedArrayLikeConverted,
+        y: VectorLike,
         sample_weight: Optional[ArrayLike] = None,
         context: Optional[Mapping[str, Any]] = None,
     ):
@@ -2732,7 +2808,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     def aic(
         self,
         X: ArrayLike,
-        y: ArrayLike,
+        y: VectorLike,
         sample_weight: Optional[ArrayLike] = None,
         *,
         context: Optional[Union[int, Mapping[str, Any]]] = None,
@@ -2769,7 +2845,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     def aicc(
         self,
         X: ArrayLike,
-        y: ArrayLike,
+        y: VectorLike,
         sample_weight: Optional[ArrayLike] = None,
         *,
         context: Optional[Union[int, Mapping[str, Any]]] = None,
@@ -2814,7 +2890,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     def bic(
         self,
         X: ArrayLike,
-        y: ArrayLike,
+        y: VectorLike,
         sample_weight: Optional[ArrayLike] = None,
         *,
         context: Optional[Union[int, Mapping[str, Any]]] = None,
@@ -2853,7 +2929,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         self,
         crit: str,
         X: ArrayLike,
-        y: ArrayLike,
+        y: VectorLike,
         sample_weight: Optional[ArrayLike] = None,
         context: Optional[Union[int, Mapping[str, Any]]] = None,
     ):

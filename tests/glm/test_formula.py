@@ -1,6 +1,9 @@
+from typing import Literal
+
 import formulaic
 import numpy as np
 import pandas as pd
+import polars as pl
 import pytest
 import statsmodels.api as sm
 import statsmodels.formula.api as smf
@@ -10,18 +13,28 @@ from glum._glm import GeneralizedLinearRegressor
 
 
 @pytest.fixture
-def get_mixed_data():
+def get_mixed_data(namespace: Literal["pandas", "polars"]):
     nrow = 10
     np.random.seed(0)
-    return pd.DataFrame(
+    df = pd.DataFrame(
         {
             "y": np.random.rand(nrow),
             "x1": np.random.rand(nrow),
             "x2": np.random.rand(nrow),
-            "c1": np.random.choice(["a", "b", "c"], nrow),
-            "c2": np.random.choice(["d", "e"], nrow),
+            "c1": pd.Categorical(np.random.choice(["a", "b", "c"], nrow)),
+            "c2": pd.Categorical(np.random.choice(["d", "e"], nrow)),
         }
     )
+    if namespace == "pandas":
+        return df
+    elif namespace == "polars":
+        return pl.from_pandas(df).with_columns(
+            # We need this otherwise category order is not preserved by formulaic
+            pl.col("c1").cast(pl.Enum(["a", "b", "c"])),
+            pl.col("c2").cast(pl.Enum(["d", "e"])),
+        )
+    else:
+        raise ValueError(f"Unknown namespace: {namespace}")
 
 
 @pytest.mark.parametrize(
@@ -89,7 +102,8 @@ def test_parse_formula_invalid(input, error):
 @pytest.mark.parametrize(
     "fit_intercept", [True, False], ids=["intercept", "no_intercept"]
 )
-def test_formula(get_mixed_data, formula, drop_first, fit_intercept):
+@pytest.mark.parametrize("namespace", ["pandas", "polars"])
+def test_formula(get_mixed_data, formula, drop_first, fit_intercept, namespace):
     """Model with formula and model with externally constructed model matrix should
     match.
     """
@@ -108,19 +122,24 @@ def test_formula(get_mixed_data, formula, drop_first, fit_intercept):
         # full rank check must consider presence of intercept
         y_ext, X_ext = formulaic.model_matrix(
             formula,
-            data.astype({"c1": "category", "c2": "category"}),
+            data,
             ensure_full_rank=drop_first,
-            materializer=formulaic.materializers.PandasMaterializer,
         )
-        X_ext = X_ext.drop(columns="Intercept")
+        if namespace == "pandas":
+            X_ext = X_ext.drop(columns="Intercept")
+        elif namespace == "polars":
+            X_ext = X_ext.drop("Intercept")
     else:
         y_ext, X_ext = formulaic.model_matrix(
             formula + "-1",
-            data.astype({"c1": "category", "c2": "category"}),
+            data,
             ensure_full_rank=drop_first,
-            materializer=formulaic.materializers.PandasMaterializer,
         )
-    y_ext = y_ext.iloc[:, 0]
+
+    if namespace == "pandas":
+        y_ext = y_ext.iloc[:, 0]
+    elif namespace == "polars":
+        y_ext = y_ext.to_series()
 
     model_ext = GeneralizedLinearRegressor(
         family="normal",
@@ -133,7 +152,8 @@ def test_formula(get_mixed_data, formula, drop_first, fit_intercept):
     np.testing.assert_almost_equal(model_ext.coef_, model_formula.coef_)
 
 
-def test_formula_explicit_intercept(get_mixed_data):
+@pytest.mark.parametrize("namespace", ["pandas", "polars"])
+def test_formula_explicit_intercept(get_mixed_data, namespace):
     data = get_mixed_data
 
     with pytest.raises(ValueError, match="The formula sets the intercept to False"):
@@ -165,8 +185,9 @@ def test_formula_explicit_intercept(get_mixed_data):
         ),
     ],
 )
+@pytest.mark.parametrize("namespace", ["pandas", "polars"])
 def test_formula_names_formulaic_style(
-    get_mixed_data, formula, feature_names, term_names
+    get_mixed_data, formula, feature_names, term_names, namespace
 ):
     data = get_mixed_data
     model_formula = GeneralizedLinearRegressor(
@@ -203,8 +224,9 @@ def test_formula_names_formulaic_style(
         ),
     ],
 )
+@pytest.mark.parametrize("namespace", ["pandas", "polars"])
 def test_formula_names_old_glum_style(
-    get_mixed_data, formula, feature_names, term_names
+    get_mixed_data, formula, feature_names, term_names, namespace
 ):
     data = get_mixed_data
     model_formula = GeneralizedLinearRegressor(
@@ -231,7 +253,9 @@ def test_formula_names_old_glum_style(
 @pytest.mark.parametrize(
     "fit_intercept", [True, False], ids=["intercept", "no_intercept"]
 )
-def test_formula_against_smf(get_mixed_data, formula, fit_intercept):
+@pytest.mark.parametrize("namespace", ["pandas"])
+def test_formula_against_smf(get_mixed_data, formula, fit_intercept, namespace):
+    # Only test with pandas since statsmodels doesn't support polars
     data = get_mixed_data
     model_formula = GeneralizedLinearRegressor(
         family="normal",
@@ -251,7 +275,9 @@ def test_formula_against_smf(get_mixed_data, formula, fit_intercept):
     np.testing.assert_almost_equal(beta_formula, model_smf.params)
 
 
-def test_formula_context(get_mixed_data):
+@pytest.mark.parametrize("namespace", ["pandas"])
+def test_formula_context(get_mixed_data, namespace):
+    # Only test with pandas since statsmodels doesn't support polars
     data = get_mixed_data
     x_context = np.arange(len(data), dtype=float)  # noqa: F841
     formula = "y ~ x1 + x2 + x_context"
@@ -296,7 +322,9 @@ def test_formula_context(get_mixed_data):
 @pytest.mark.parametrize(
     "fit_intercept", [True, False], ids=["intercept", "no_intercept"]
 )
-def test_formula_predict(get_mixed_data, formula, fit_intercept):
+@pytest.mark.parametrize("namespace", ["pandas"])
+def test_formula_predict(get_mixed_data, formula, fit_intercept, namespace):
+    # Only test with pandas since statsmodels doesn't support polars
     data = get_mixed_data
     data_unseen = data.copy()
     data_unseen.loc[data_unseen["c1"] == "b", "c1"] = "c"
