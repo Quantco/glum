@@ -122,9 +122,15 @@ attrs = "*"
 click = "*"
 git_root = "*"
 openjdk = "*"
+python = ">=3.9,<3.10" # skglm requires Python <3.10
+r-base = "*"
+rpy2 = "*"
 
 [feature.benchmark.pypi-dependencies]
-h2o = "*"
+celer = "*"
+h2o = "*"   # Latest version from PyPI
+skglm = "*"
+
 [feature.benchmark.target.win-64.dependencies]
 blas = { build = "*mkl" }
 [feature.benchmark.target.linux-64.dependencies]
