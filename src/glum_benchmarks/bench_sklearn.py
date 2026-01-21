@@ -1,0 +1,124 @@
+import warnings
+from typing import Any, Optional, Union
+
+import numpy as np
+from scipy import sparse as sps
+from sklearn.linear_model import ElasticNet, LogisticRegression, TweedieRegressor
+
+from .util import benchmark_convergence_tolerance, runtime
+
+# TODO: Standardize features?
+# TODO: Add cv for logistic and elastic net
+# TODO: Design decision: do we set precompute = True for elastic net?
+
+
+def _build_and_fit(model_args, fit_args):
+    """Build and fit a sklearn regressor."""
+    model_class = model_args.pop("_model_class")
+    reg = model_class(**model_args)
+    return reg.fit(**fit_args)
+
+
+def sklearn_bench(
+    dat: dict[str, Union[np.ndarray, sps.spmatrix]],
+    distribution: str,
+    alpha: float,
+    l1_ratio: float,
+    iterations: int,
+    cv: bool,
+    reg_multiplier: Optional[float] = None,
+    **kwargs,
+):
+    """
+    Benchmark scikit-learn GLM regressors.
+
+    Parameters
+    ----------
+    dat
+    distribution
+    alpha
+    l1_ratio
+    iterations
+    cv
+    reg_multiplier
+    kwargs
+
+    Returns
+    -------
+    Dict of
+    """
+
+    result: dict[str, Any] = {}
+    reg_strength = alpha if reg_multiplier is None else alpha * reg_multiplier
+
+    if "offset" in dat.keys():
+        warnings.warn("sklearn doesn't support offset, skipping this problem.")
+        return result
+
+    if distribution == "gaussian":
+        model_args = {
+            "_model_class": ElasticNet,
+            "alpha": reg_strength,
+            "l1_ratio": l1_ratio,
+            "fit_intercept": True,
+            "max_iter": 1000,
+            "tol": benchmark_convergence_tolerance,
+        }
+    elif distribution == "binomial":
+        C_value = 1.0 / reg_strength if reg_strength > 0 else 1e10
+
+        model_args = {
+            "_model_class": LogisticRegression,
+            "C": C_value,
+            "solver": "saga",
+            "l1_ratio": l1_ratio,
+            "fit_intercept": True,
+            "max_iter": 1000,
+            "tol": benchmark_convergence_tolerance,
+        }
+    else:
+        if "tweedie" in distribution:
+            power = float(distribution.split("-p=")[1])
+        elif distribution == "poisson":
+            power = 1.0
+        elif distribution == "gamma":
+            power = 2.0
+
+        if l1_ratio > 0:
+            warnings.warn(
+                f"sklearn doesn't support elastic net for {distribution}, skipping."
+            )
+            return result
+
+        model_args = {
+            "_model_class": TweedieRegressor,
+            "power": power,
+            "alpha": reg_strength,
+            "fit_intercept": True,
+            "max_iter": 1000,
+            "tol": benchmark_convergence_tolerance,
+            "solver": "newton-cholesky",
+        }
+
+    fit_args = {"X": dat["X"], "y": dat["y"]}
+
+    if "sample_weight" in dat.keys():
+        fit_args["sample_weight"] = dat["sample_weight"]
+
+    try:
+        result["runtime"], m = runtime(_build_and_fit, iterations, model_args, fit_args)
+    except ValueError as e:
+        warnings.warn(f"Problem failed with this error: {e}")
+        return result
+
+    # Extract results (handle LogisticRegression's different output format)
+    if distribution == "binomial":
+        result["intercept"] = m.intercept_[0] if m.intercept_.ndim > 0 else m.intercept_
+        result["coef"] = m.coef_.ravel()
+        result["n_iter"] = m.n_iter_[0] if hasattr(m.n_iter_, "__len__") else m.n_iter_
+    else:
+        result["intercept"] = m.intercept_
+        result["coef"] = m.coef_
+        result["n_iter"] = m.n_iter_ if hasattr(m, "n_iter_") else None
+
+    return result

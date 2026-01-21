@@ -29,6 +29,41 @@ try:
 except ImportError:
     LIBLINEAR_INSTALLED = False
 
+try:
+    from .bench_r_glmnet import r_glmnet_bench  # isort:skip
+
+    R_GLMNET_INSTALLED = True
+except ImportError:
+    R_GLMNET_INSTALLED = False
+
+try:
+    from .bench_sklearn import sklearn_bench  # isort:skip
+
+    SKLEARN_INSTALLED = True
+except ImportError:
+    SKLEARN_INSTALLED = False
+
+try:
+    from .bench_statsmodels import statsmodels_bench  # isort:skip
+
+    STATSMODELS_INSTALLED = True
+except ImportError:
+    STATSMODELS_INSTALLED = False
+
+try:
+    from .bench_skglm import skglm_bench  # isort:skip
+
+    SKGLM_INSTALLED = True
+except ImportError:
+    SKGLM_INSTALLED = False
+
+try:
+    from .bench_celer import celer_bench  # isort:skip
+
+    CELER_INSTALLED = True
+except ImportError:
+    CELER_INSTALLED = False
+
 
 @click.command()
 @click.option(
@@ -187,6 +222,21 @@ def get_all_libraries() -> dict[str, Any]:
 
     if LIBLINEAR_INSTALLED:
         all_libraries["liblinear"] = liblinear_bench
+
+    if R_GLMNET_INSTALLED:
+        all_libraries["r-glmnet"] = r_glmnet_bench
+
+    if SKLEARN_INSTALLED:
+        all_libraries["sklearn"] = sklearn_bench
+
+    if STATSMODELS_INSTALLED:
+        all_libraries["statsmodels"] = statsmodels_bench
+
+    if SKGLM_INSTALLED:
+        all_libraries["skglm"] = skglm_bench
+
+    if CELER_INSTALLED:
+        all_libraries["celer"] = celer_bench
 
     return all_libraries
 
