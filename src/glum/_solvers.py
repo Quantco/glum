@@ -217,13 +217,13 @@ def build_hessian_delta(
         return delta
 
     if P2.ndim == 1:
-        idiag = np.arange(start=idx, stop=delta.shape[0])
+        idiag = np.arange(idx, int(delta.shape[0]))
         delta[(idiag, idiag)] += P2[active_cols_non_intercept]
     else:
         if sparse.issparse(P2):
             is_diagonal = P2.nnz == P2.shape[0] and (P2.data == P2.diagonal()).all()
             if is_diagonal:
-                idiag = np.arange(start=idx, stop=delta.shape[0])
+                idiag = np.arange(idx, int(delta.shape[0]))
                 delta[(idiag, idiag)] += P2.data[active_cols_non_intercept]
             else:
                 delta[idx:, idx:] += P2.toarray()[

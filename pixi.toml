@@ -1,24 +1,28 @@
-[project]
-name = "glum"
+[workspace]
 channels = ["conda-forge"]
+name = "glum"
 platforms = ["linux-64", "osx-arm64", "win-64"]
 
 [tasks]
 postinstall = "pip install --no-build-isolation --no-deps --disable-pip-version-check -e ."
 
 [feature.test.tasks]
-test = "pytest tests/glm --doctest-modules src/glum"
-store-golden-master = "python tests/glm/test_golden_master.py"
 store-benchmark-golden-master = "python tests/glm/test_benchmark_golden_master.py"
+store-golden-master = "python tests/glm/test_golden_master.py"
+test = "pytest tests/glm --doctest-modules src/glum"
 
 [feature.docs.tasks]
 make-docs = "cd docs && make html"
-serve-docs = { cmd = "python -m http.server --directory docs/_build/html", depends-on = ["make-docs"] }
-readthedocs = { cmd = "rm -rf $READTHEDOCS_OUTPUT/html && cp -r docs/_build/html $READTHEDOCS_OUTPUT/html", depends-on = ["make-docs"] }
+readthedocs = { cmd = "rm -rf $READTHEDOCS_OUTPUT/html && cp -r docs/_build/html $READTHEDOCS_OUTPUT/html", depends-on = [
+    "make-docs",
+] }
+serve-docs = { cmd = "python -m http.server --directory docs/_build/html", depends-on = [
+    "make-docs",
+] }
 
 [feature.benchmark.tasks]
-glm-benchmarks-run = "glm_benchmarks_run"
 glm-benchmarks-analyze = "glm_benchmarks_analyze"
+glm-benchmarks-run = "glm_benchmarks_run"
 
 [feature.lint.tasks]
 pre-commit-install = "pre-commit install"
@@ -40,28 +44,24 @@ cmd = """
     && pip install --no-build-isolation --no-deps git+https://github.com/Quantco/tabmat
 """
 
-[build-dependencies]
+[dependencies]
 c-compiler = "*"
 cxx-compiler = "*"
 cython = "*"
-setuptools-scm = ">=8.1"
-
-[host-dependencies]
-python = ">=3.9"
-pip = "*"
-setuptools = ">=61"
-wheel = "*"
-
-[dependencies]
 formulaic = "*"
 numexpr = "*"
 packaging = "*"
 pandas = ">=1.4"
+pip = "*"
 pyarrow = "*"
+python = ">=3.9"
 scikit-learn = ">=0.23"
 scipy = "*"
+setuptools = ">=61"
+setuptools-scm = ">=8.1"
 tabmat = ">=4.0.0"
 tqdm = "*"
+wheel = "*"
 
 [feature.no-tabmat.dependencies]
 formulaic = "*"
@@ -109,13 +109,13 @@ sphinxcontrib-apidoc = "*"
 sphinxext-altair = "*"
 
 [feature.tutorial.dependencies]
-altair = "*" # used in docs/tutorials/rossman
+altair = "*"            # used in docs/tutorials/rossman
 dask-ml = ">=2022.5.27" # used in tutorials rossman and insurance
 jupyterlab = "*"
-libpysal = "*" # used in docs/tutorials/regularization_housing_data
-lifelines = "*" # used in docs/tutorials/cox_model
-openml = "*" # used for downloading datasets in the tutorials.
-shapely = "*" # used in docs/tutorials/regularization_housing_data
+libpysal = "*"          # used in docs/tutorials/regularization_housing_data
+lifelines = "*"         # used in docs/tutorials/cox_model
+openml = "*"            # used for downloading datasets in the tutorials.
+shapely = "*"           # used in docs/tutorials/regularization_housing_data
 
 [feature.benchmark.dependencies]
 attrs = "*"
@@ -161,15 +161,20 @@ scipy = "1.7.*"
 tabmat = "4.0.*"
 
 [environments]
+benchmark = ["benchmark"]
 default = ["dev", "test"]
 docs = ["docs", "tutorial"]
-benchmark = ["benchmark"]
-py39 = ["py39", "test"]
+glum-tabmat = { features = [
+    "build-tabmat",
+    "dev",
+    "no-tabmat",
+    "test",
+], no-default-feature = true }
+lint = { features = ["lint"], no-default-feature = true }
+nightly = ["build-tabmat", "py313", "test"]
+oldies = ["oldies", "test"]
 py310 = ["py310", "test"]
 py311 = ["py311", "test"]
 py312 = ["py312", "test"]
 py313 = ["py313", "test"]
-oldies = ["oldies", "test"]
-lint = { features = ["lint"], no-default-feature = true}
-nightly = ["py313", "build-tabmat", "test"]
-glum-tabmat = { features = ["no-tabmat", "build-tabmat", "dev", "test"], no-default-feature = true}
+py39 = ["py39", "test"]

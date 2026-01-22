@@ -1188,7 +1188,9 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
             num_restrictions = len(R_indices)
             if num_restrictions == 0:
                 raise ValueError(f"term {term} is not in the model")
-            R_current = np.zeros((num_restrictions, len(beta)), dtype=np.float64)
+            R_current: np.ndarray = np.zeros(
+                (num_restrictions, len(beta)), dtype=np.float64
+            )
             R_current[np.arange(num_restrictions), R_indices] = 1.0
             R_list.append(R_current)
 
