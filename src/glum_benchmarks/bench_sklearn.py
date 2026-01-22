@@ -3,13 +3,17 @@ from typing import Any, Optional, Union
 
 import numpy as np
 from scipy import sparse as sps
-from sklearn.linear_model import ElasticNet, LogisticRegression, TweedieRegressor
+from sklearn.linear_model import (
+    ElasticNet,
+    LogisticRegression,
+    TweedieRegressor,
+)
 
 from .util import benchmark_convergence_tolerance, runtime
 
-# TODO: Standardize features?
 # TODO: Add cv for logistic and elastic net
-# TODO: Design decision: do we set precompute = True for elastic net?
+# TODO: Design decision: do we set precompute = True ?
+# TODO: Design decision: do we set copy_X = True ?
 
 
 def _build_and_fit(model_args, fit_args):
@@ -55,6 +59,8 @@ def sklearn_bench(
         warnings.warn("sklearn doesn't support offset, skipping this problem.")
         return result
 
+    n_samples = dat["X"].shape[0]
+
     if distribution == "gaussian":
         model_args = {
             "_model_class": ElasticNet,
@@ -65,17 +71,34 @@ def sklearn_bench(
             "tol": benchmark_convergence_tolerance,
         }
     elif distribution == "binomial":
-        C_value = 1.0 / reg_strength if reg_strength > 0 else 1e10
+        # sklearn's LogisticRegression uses C = 1/lambda where lambda is the
+        # regularization strength. However, sklearn does NOT scale the regularization
+        # by n_samples, while glum's objective is: mean(loss) + alpha * penalty.
+        # To match glum's objective, we need: C = 1 / (alpha * n_samples)
+        C_value = 1.0 / (reg_strength * n_samples) if reg_strength > 0 else 1e10
+        # Determine penalty type based on l1_ratio
+        # Penalty is deprecated but we use it here as we run on sk learn 1.6.1 due
+        # to the fact that h2o-py requires Python <3.10
+        if l1_ratio == 0.0:
+            penalty = "l2"
+        elif l1_ratio == 1.0:
+            penalty = "l1"
+        else:
+            penalty = "elasticnet"
 
         model_args = {
             "_model_class": LogisticRegression,
             "C": C_value,
-            "solver": "saga",
-            "l1_ratio": l1_ratio,
+            "penalty": penalty,
+            # Use lbfgs for L2 (faster and more reliable), saga for L1/elasticnet
+            "solver": "lbfgs" if penalty == "l2" else "saga",
             "fit_intercept": True,
             "max_iter": 1000,
             "tol": benchmark_convergence_tolerance,
         }
+        # Only pass l1_ratio for elastic net
+        if penalty == "elasticnet":
+            model_args["l1_ratio"] = l1_ratio
     else:
         if "tweedie" in distribution:
             power = float(distribution.split("-p=")[1])
@@ -84,9 +107,10 @@ def sklearn_bench(
         elif distribution == "gamma":
             power = 2.0
 
+        # sklearn's TweedieRegressor only supports L2 regularization
         if l1_ratio > 0:
             warnings.warn(
-                f"sklearn doesn't support elastic net for {distribution}, skipping."
+                f"sklearn only supports L2 regularization for {distribution}, skipping."
             )
             return result
 
@@ -111,7 +135,6 @@ def sklearn_bench(
         warnings.warn(f"Problem failed with this error: {e}")
         return result
 
-    # Extract results (handle LogisticRegression's different output format)
     if distribution == "binomial":
         result["intercept"] = m.intercept_[0] if m.intercept_.ndim > 0 else m.intercept_
         result["coef"] = m.coef_.ravel()

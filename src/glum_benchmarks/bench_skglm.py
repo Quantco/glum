@@ -10,11 +10,11 @@ from skglm.solvers import AndersonCD, ProxNewton
 
 from .util import benchmark_convergence_tolerance, runtime
 
-# TODO: For p = 1.5 Tweedie, add custom datafit
+# TODO: For Tweedie (p = 1.5), add custom datafit
+# TODO: For CV the found alpha values differ significantly from glum
 
 
 def _build_and_fit(model_args, fit_args, cv: bool):
-    """Internal helper to switch between standard and CV estimators."""
     if cv:
         return GeneralizedLinearEstimatorCV(**model_args).fit(**fit_args)
     return GeneralizedLinearEstimator(**model_args).fit(**fit_args)
@@ -84,7 +84,8 @@ def skglm_bench(
     }
 
     if cv:
-        model_args.update({"cv": 5, "n_alphas": 100, "n_jobs": -1})
+        # Same CV parameters as glum
+        model_args.update({"cv": 5, "n_alphas": 100, "n_jobs": 1})
 
     # Data Conversion
     X = (
