@@ -44,13 +44,6 @@ except ImportError:
     SKLEARN_INSTALLED = False
 
 try:
-    from .bench_statsmodels import statsmodels_bench  # isort:skip
-
-    STATSMODELS_INSTALLED = True
-except ImportError:
-    STATSMODELS_INSTALLED = False
-
-try:
     from .bench_skglm import skglm_bench  # isort:skip
 
     SKGLM_INSTALLED = True
@@ -228,9 +221,6 @@ def get_all_libraries() -> dict[str, Any]:
 
     if SKLEARN_INSTALLED:
         all_libraries["sklearn"] = sklearn_bench
-
-    if STATSMODELS_INSTALLED:
-        all_libraries["statsmodels"] = statsmodels_bench
 
     if SKGLM_INSTALLED:
         all_libraries["skglm"] = skglm_bench

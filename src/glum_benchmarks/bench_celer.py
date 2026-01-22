@@ -7,12 +7,10 @@ from scipy import sparse as sps
 
 from .util import benchmark_convergence_tolerance, runtime
 
-# TODO: Add weights
-# TODO: ADD CV
-# TODO: Different results (due to objective function?)
+# TODO: For CV the found alpha values differ significantly from glum
 
 
-def _build_and_fit(model_args, fit_args, cv: bool):
+def _build_and_fit(model_args, fit_args):
     model_class = model_args.pop("_model_class")
     reg = model_class(**model_args)
     return reg.fit(**fit_args)
@@ -29,8 +27,10 @@ def celer_bench(
     **kwargs,
 ):
     result: dict[str, Any] = {}
+    fit_args = {"X": dat["X"], "y": dat["y"]}
     reg_strength = alpha if reg_multiplier is None else alpha * reg_multiplier
 
+    # LogisticRegression doesnt support fitting an intercept yet, so we also skip it
     if distribution not in ["gaussian"]:
         warnings.warn(f"Celer doesn't support {distribution}, skipping.")
         return {}
@@ -40,8 +40,7 @@ def celer_bench(
         return {}
 
     if "sample_weight" in dat:
-        warnings.warn("Celer sample_weight not implemented in benchmark, skipping.")
-        return {}
+        fit_args.update({"sample_weight": dat["sample_weight"]})
 
     if distribution == "gaussian":
         if l1_ratio == 0.0:
@@ -65,12 +64,8 @@ def celer_bench(
     if not cv:
         model_args["alpha"] = reg_strength
 
-    fit_args = {"X": dat["X"], "y": dat["y"]}
-
     try:
-        result["runtime"], m = runtime(
-            _build_and_fit, iterations, model_args, fit_args, cv
-        )
+        result["runtime"], m = runtime(_build_and_fit, iterations, model_args, fit_args)
     except Exception as e:
         warnings.warn(f"Celer failed: {e}")
         return {}
