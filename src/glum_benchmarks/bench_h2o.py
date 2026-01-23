@@ -75,6 +75,16 @@ def h2o_bench(
 
     train_h2o = h2o.H2OFrame(train_mat)
 
+    # Determine the y column index (it's right after X columns)
+    n_extra_cols = int(use_weights) + int("offset" in dat.keys())
+    y_col_idx = -(1 + n_extra_cols)
+    y_col = train_h2o.col_names[y_col_idx]
+
+    # For binomial, convert target to categorical
+    if distribution == "binomial":
+        # Round to int and convert to factor (h2o requires 0/1 int for binomial)
+        train_h2o[y_col] = train_h2o[y_col].round().ascharacter().asfactor()
+
     tweedie = "tweedie" in distribution
 
     model_args = dict(
@@ -88,6 +98,8 @@ def h2o_bench(
         objective_epsilon=benchmark_convergence_tolerance,
         beta_epsilon=benchmark_convergence_tolerance,
         gradient_epsilon=benchmark_convergence_tolerance,
+        max_iterations=1000,
+        gainslift_bins=0,
     )
     if cv:
         model_args["lambda_search"] = True
@@ -102,22 +114,24 @@ def h2o_bench(
 
     if use_weights:
         train_args = dict(
-            x=train_h2o.col_names[:-2],
-            y=train_h2o.col_names[-2],
+            x=train_h2o.col_names[:y_col_idx],
+            y=y_col,
             training_frame=train_h2o,
-            weights_column=train_h2o.col_names[-1],
+            weights_column=train_h2o.col_names[y_col_idx + 1],
         )
+        if "offset" in dat.keys():
+            train_args["offset_column"] = train_h2o.col_names[-1]
     elif "offset" in dat.keys():
         train_args = dict(
-            x=train_h2o.col_names[:-2],
-            y=train_h2o.col_names[-2],
+            x=train_h2o.col_names[:y_col_idx],
+            y=y_col,
             training_frame=train_h2o,
             offset_column=train_h2o.col_names[-1],
         )
     else:
         train_args = dict(
             x=train_h2o.col_names[:-1],
-            y=train_h2o.col_names[-1],
+            y=y_col,
             training_frame=train_h2o,
         )
 
@@ -125,13 +139,13 @@ def h2o_bench(
     # un-standardize
     standardized_intercept = m.coef()["Intercept"]
 
+    # Number of X columns (excluding y, weights, offset)
+    n_x_cols = train_mat.shape[1] - (1 + n_extra_cols)
     standardized_coefs = np.array(
         [
             # h2o automatically removes zero-variance columns; impute to 1
             m.coef().get(f"C{i + 1}", 0)
-            for i in range(
-                train_mat.shape[1] - (2 if use_weights or "offset" in dat.keys() else 1)
-            )
+            for i in range(n_x_cols)
         ]
     )
     if cv:
