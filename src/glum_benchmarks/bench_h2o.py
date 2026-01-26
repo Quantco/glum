@@ -30,7 +30,6 @@ def h2o_bench(
     alpha: float,
     l1_ratio: float,
     iterations: int,
-    cv: bool,
     reg_multiplier: Optional[float] = None,
     **kwargs,
 ):
@@ -44,7 +43,6 @@ def h2o_bench(
     alpha
     l1_ratio
     iterations
-    cv
     reg_multiplier
     kwargs
 
@@ -101,9 +99,6 @@ def h2o_bench(
         max_iterations=1000,
         gainslift_bins=0,
     )
-    if cv:
-        model_args["lambda_search"] = True
-        model_args["nfolds"] = 5
 
     if tweedie:
         p = float(distribution.split("=")[-1])
@@ -148,12 +143,9 @@ def h2o_bench(
             for i in range(n_x_cols)
         ]
     )
-    if cv:
-        result["best_alpha"] = m._model_json["output"]["lambda_best"]
-        result["n_alphas"] = m.parms["nlambdas"]["actual_value"]
 
     result["intercept"] = standardized_intercept
     result["coef"] = standardized_coefs
 
-    result["n_iter"] = m.score_history().iloc[-1]["iteration" if cv else "iterations"]
+    result["n_iter"] = m.score_history().iloc[-1]["iterations"]
     return result
