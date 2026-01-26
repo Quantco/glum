@@ -41,7 +41,7 @@ def celer_bench(
 
     if distribution == "gaussian":
         if l1_ratio == 0.0:
-            warnings.warn("Celer doesn't support Ridge (l1_ratio=0), skipping.")
+            warnings.warn("Celer doesn't support Ridge Regression, skipping.")
             return {}
         elif l1_ratio < 1.0:
             model_class = ElasticNet
