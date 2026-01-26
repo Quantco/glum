@@ -13,7 +13,6 @@ from .util import benchmark_convergence_tolerance, runtime
 
 # TODO: Add cv for logistic and elastic net
 # TODO: Design decision: do we set precompute = True ?
-# TODO: Design decision: do we set copy_X = True ?
 
 
 def _build_and_fit(model_args, fit_args):
@@ -69,6 +68,7 @@ def sklearn_bench(
             "fit_intercept": True,
             "max_iter": 1000,
             "tol": benchmark_convergence_tolerance,
+            "precompute": True,
         }
     elif distribution == "binomial":
         # sklearn's LogisticRegression uses C = 1/lambda where lambda is the
