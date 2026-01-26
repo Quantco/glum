@@ -121,8 +121,10 @@ shapely = "*"           # used in docs/tutorials/regularization_housing_data
 attrs = "*"
 click = "*"
 git_root = "*"
-h2o-py = "*"
 openjdk = "*"
+
+[feature.benchmark.pypi-dependencies]
+h2o = "*"
 [feature.benchmark.target.win-64.dependencies]
 blas = { build = "*mkl" }
 [feature.benchmark.target.linux-64.dependencies]

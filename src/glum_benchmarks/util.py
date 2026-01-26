@@ -109,7 +109,8 @@ def get_obj_val(
 
     zeros = np.zeros(dat["X"].shape[0])
     y = dat["y"].astype(coefs.dtype)  # type: ignore
-    weights = dat.get("weights", np.ones_like(y)).astype(coefs.dtype)  # type: ignore
+    weights = dat.get("sample_weight", dat.get("weights", np.ones_like(y)))
+    weights = weights.astype(coefs.dtype)
     weights /= weights.sum()
     P1 = l1_ratio * alpha * np.ones_like(coefs)
     P2 = (1 - l1_ratio) * alpha * np.ones_like(coefs)
