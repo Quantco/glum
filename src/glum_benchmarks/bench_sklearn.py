@@ -11,7 +11,6 @@ from sklearn.linear_model import (
 
 from .util import benchmark_convergence_tolerance, runtime
 
-# TODO: Add cv for logistic and elastic net
 # TODO: Design decision: do we set precompute = True ?
 
 
@@ -28,7 +27,6 @@ def sklearn_bench(
     alpha: float,
     l1_ratio: float,
     iterations: int,
-    cv: bool,
     reg_multiplier: Optional[float] = None,
     **kwargs,
 ):
@@ -42,7 +40,6 @@ def sklearn_bench(
     alpha
     l1_ratio
     iterations
-    cv
     reg_multiplier
     kwargs
 

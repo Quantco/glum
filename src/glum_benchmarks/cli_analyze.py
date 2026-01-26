@@ -75,9 +75,6 @@ def cli_analyze(
     ]
     problem_id_cols = ["problem_name", "num_rows", "regularization_strength", "offset"]
     res_df = res_df.set_index(problem_id_cols).sort_values("library_name").sort_index()
-    if params.cv:
-        for col in ["max_alpha", "min_alpha"]:
-            res_df[col] = res_df[col].astype(float)
 
     res_df["rel_obj_val"] = (
         res_df[["obj_val"]] - res_df.groupby(level=[0, 1, 2, 3])[["obj_val"]].min()
@@ -101,16 +98,11 @@ def cli_analyze(
                 "single_precision",
                 "n_iter",
                 "runtime",
+                "intercept",
+                "num_nonzero_coef",
+                "obj_val",
+                "rel_obj_val",
             ]
-            if res_df["cv"].any():
-                cols_to_show += ["n_alphas", "max_alpha", "min_alpha", "best_alpha"]
-            else:
-                cols_to_show += [
-                    "intercept",
-                    "num_nonzero_coef",
-                    "obj_val",
-                    "rel_obj_val",
-                ]
         if "library_name" not in cols_to_show:
             cols_to_show.insert(0, "library_name")
         print(res_df[cols_to_show])
@@ -152,13 +144,6 @@ def _extract_dict_results_to_pd_series(
 
     formatted: dict[str, Any] = params.__dict__
     items_to_use_from_results = ["n_iter", "runtime", "intercept"]
-    if params.cv:
-        items_to_use_from_results += [
-            "n_alphas",
-            "max_alpha",
-            "min_alpha",
-            "best_alpha",
-        ]
     formatted.update(
         {k: v for k, v in results.items() if k in items_to_use_from_results}
     )

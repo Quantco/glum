@@ -172,7 +172,6 @@ def execute_problem_library(
         alpha=params.regularization_strength,
         l1_ratio=P.l1_ratio,
         iterations=iterations,
-        cv=params.cv,
         diagnostics_level=diagnostics_level,
         reg_multiplier=reg_multiplier,
         hessian_approx=params.hessian_approx,

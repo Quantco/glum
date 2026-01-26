@@ -70,7 +70,6 @@ df.drop(
         "offset",
         "threads",
         "single_precision",
-        "cv",
         "hessian_approx",
         "diagnostics_level",
     ],
@@ -81,11 +80,19 @@ df["distribution"] = (
     df["problem_name"].str.split("-").apply(lambda x: x[-2] if "5" in x[-1] else x[-1])
 )
 
+# Remove duplicates (keep last run if same problem was run multiple times)
+df = df.drop_duplicates(subset=["problem_name", "library_name"], keep="last")
+
 # %%
 # %config InlineBackend.figure_format='retina'
 
 # %%
-for prob_name in ["narrow-insurance", "intermediate-insurance", "intermediate-housing"]:
+for prob_name in [
+    "narrow-insurance",
+    "intermediate-insurance",
+    "intermediate-housing",
+    "wide-insurance",
+]:
     for reg in ["l2", "lasso"]:
         plot_df = (
             df[

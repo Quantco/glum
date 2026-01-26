@@ -111,11 +111,14 @@ def load_data(
             + cat_indices_in_expanded_arr,
         )
     elif storage == "sparse":
-        X = csc_matrix(pd.concat(mat_parts, axis=1, ignore_index=True))
+        dtype = np.float32 if single_precision else np.float64
+        X = csc_matrix(pd.concat(mat_parts, axis=1, ignore_index=True).astype(dtype))
     elif storage.startswith("split"):
         threshold = float(storage.split("split")[1])
+        dtype = np.float32 if single_precision else np.float64
         X = tm.from_csc(
-            csc_matrix(pd.concat(mat_parts, axis=1, ignore_index=True)), threshold
+            csc_matrix(pd.concat(mat_parts, axis=1, ignore_index=True).astype(dtype)),
+            threshold,
         )
     else:  # Fall back to using a dense matrix.
         X = pd.concat(mat_parts, axis=1, ignore_index=True)
