@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 import tabmat as tm
 from scipy import sparse as sps
+from scipy.sparse import csc_matrix
 
 from glum import GeneralizedLinearRegressor, TweedieDistribution
 from glum._solvers import eta_mu_objective
@@ -431,3 +432,45 @@ def get_tweedie_p(distribution: str) -> float:
         return 0
     else:
         raise ValueError("Not a Tweedie distribution.")
+
+
+def _standardize_features(
+    X: Union[np.ndarray, pd.DataFrame, csc_matrix, tm.MatrixBase],
+    single_precision: bool = False,
+) -> Union[np.ndarray, csc_matrix, tm.MatrixBase]:
+    """
+    Standardize features by scaling to unit L2 norm per column.
+
+    For consistency across sparse/dense, we use L2 norm scaling (no centering).
+    This ensures all benchmark libraries start with the same pre-processed data.
+    """
+    dtype = np.float32 if single_precision else np.float64
+
+    if isinstance(X, pd.DataFrame):
+        X = X.values.astype(dtype)
+
+    if isinstance(X, np.ndarray):
+        # Dense: scale columns to unit L2 norm
+        X = np.asarray(X, dtype=dtype)
+        col_norms = np.linalg.norm(X, axis=0)
+        col_norms[col_norms == 0] = 1.0
+        return X / col_norms
+
+    elif isinstance(X, csc_matrix):
+        # Sparse: scale columns to unit L2 norm
+        X = X.astype(dtype)
+        col_norms = np.sqrt(X.power(2).sum(axis=0)).A1
+        col_norms[col_norms == 0] = 1.0
+        from scipy.sparse import diags
+
+        return X @ diags(1.0 / col_norms)
+
+    elif isinstance(X, tm.MatrixBase):
+        # tabmat matrices: skip standardization
+        # glum handles tabmat well, and StandardizedMatrix has compatibility issues
+        # with some benchmark libraries
+        return X
+
+    else:
+        # Unknown type, return as-is
+        return X

@@ -10,8 +10,6 @@ from skglm.solvers import AndersonCD, ProxNewton
 
 from .util import benchmark_convergence_tolerance, runtime
 
-# TODO: Keep the data conversion? Runtime/2 for binomial
-
 
 def _build_and_fit(model_args, fit_args):
     return GeneralizedLinearEstimator(**model_args).fit(**fit_args)
