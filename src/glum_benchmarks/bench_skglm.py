@@ -1,5 +1,5 @@
 import warnings
-from typing import Any, Optional, Union
+from typing import Any, Optional, Union, cast
 
 import numpy as np
 from scipy import sparse as sps
@@ -10,8 +10,8 @@ from skglm.solvers import AndersonCD, ProxNewton
 
 from .util import benchmark_convergence_tolerance, runtime
 
-# TODO: For Tweedie (p = 1.5), add custom datafit
 # TODO: For CV the found alpha values differ significantly from glum
+# TODO: Keep the data conversion? Runtime/2 for binomial
 
 
 def _build_and_fit(model_args, fit_args, cv: bool):
@@ -37,6 +37,10 @@ def skglm_bench(
         warnings.warn("skglm doesn't support offsets, skipping.")
         return result
 
+    if "tweedie" in distribution:
+        warnings.warn("skglm doesn't support Tweedie, skipping.")
+        return result
+
     DATAFITS = {
         "gaussian": Quadratic(),
         "poisson": Poisson(),
@@ -44,38 +48,30 @@ def skglm_bench(
         "gamma": Gamma(),
     }
 
-    if distribution not in DATAFITS:
-        warnings.warn(f"skglm doesn't support {distribution}, skipping.")
-        return {}
-
-    # For CV, alpha is determined internally, for non-CV, use reg_strength
-    # We use L1_plus_L2(l1_ratio=0) for pure L2 to ensure prox_1d is available
-    p_alpha = 1.0 if cv else reg_strength
-    if l1_ratio == 1:
-        penalty = L1(alpha=p_alpha)
-    else:
-        penalty = L1_plus_L2(alpha=p_alpha, l1_ratio=l1_ratio)
-
-    # ProxNewton is required for Poisson/Gamma or smooth L2 problems.
-    if distribution in ["poisson", "gamma"] or l1_ratio == 0:
-        solver = ProxNewton(
-            tol=benchmark_convergence_tolerance, fit_intercept=True, max_iter=1000
-        )
-    else:
-        solver = AndersonCD(
-            tol=benchmark_convergence_tolerance, fit_intercept=True, max_iter=1000
-        )
-
-    # Sample Weights currently only supported for Gaussian
-    if "sample_weight" in dat:
+    if "sample_weight" in dat.keys():
         if distribution == "gaussian":
             weights = np.asarray(dat["sample_weight"], dtype=np.float64)
             datafit = WeightedQuadratic(weights)
         else:
-            warnings.warn(f"Weighted {distribution} not natively supported, skipping.")
-            return {}
+            warnings.warn(f"skglm doesn't support Weighted {distribution}, skipping.")
+            return result
     else:
         datafit = DATAFITS[distribution]
+
+    # For CV, alpha is determined internally, for non-CV, use reg_strength
+    p_alpha = 1.0 if cv else reg_strength
+    if l1_ratio == 1:
+        penalty = L1(alpha=p_alpha)
+    else:
+        # We use L1_plus_L2(l1_ratio=0) for pure L2 to ensure prox_1d is available
+        penalty = L1_plus_L2(alpha=p_alpha, l1_ratio=l1_ratio)
+
+    # ProxNewton is required for Poisson/Gamma or L2 problems
+    solver_tol = 1.0 if cv else benchmark_convergence_tolerance
+    if distribution in ["poisson", "gamma"] or l1_ratio == 0:
+        solver = ProxNewton(tol=solver_tol, fit_intercept=True, max_iter=1000)
+    else:
+        solver = AndersonCD(tol=solver_tol, fit_intercept=True, max_iter=1000)
 
     model_args = {
         "datafit": datafit,
@@ -85,28 +81,17 @@ def skglm_bench(
 
     if cv:
         # Same CV parameters as glum
-        model_args.update({"cv": 5, "n_alphas": 100, "n_jobs": 1})
+        model_args.update({"cv": 5, "n_alphas": 100, "eps": 1e-6, "n_jobs": 1})
 
-    # Data Conversion
-    X = (
-        dat["X"]
-        if sps.issparse(dat["X"])
-        else np.ascontiguousarray(dat["X"], dtype=np.float64)
-    )
+    # Data Conversion optimized for Coordinate Descent
+    X_raw = dat["X"]
+    if sps.issparse(X_raw):
+        X = cast(sps.spmatrix, X_raw).tocsc()
+    else:
+        X = np.asfortranarray(X_raw, dtype=np.float64)
+
     y = np.asarray(dat["y"], dtype=np.float64).ravel()
     fit_args = {"X": X, "y": y}
-
-    # Numba Warm-up: Fit on a tiny subset to trigger JIT compilation before measurement
-    try:
-        warmup_df = (
-            WeightedQuadratic(weights[:10]) if "sample_weight" in dat else datafit
-        )
-        warmup_model = GeneralizedLinearEstimator(
-            datafit=warmup_df, penalty=penalty, solver=solver
-        )
-        warmup_model.fit(X[:10], y[:10])
-    except Exception:
-        pass
 
     try:
         result["runtime"], m = runtime(
