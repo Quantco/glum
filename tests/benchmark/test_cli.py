@@ -16,7 +16,7 @@ from glum_benchmarks.util import BenchmarkParams, benchmark_params_cli, defaults
     "cli_options, expected_params",
     [
         ([], {}),
-        (["--num_rows", "1000", "--cv", "True"], {"num_rows": 1000, "cv": True}),
+        (["--num_rows", "1000"], {"num_rows": 1000}),
     ],
 )
 def test_make_params(cli_options: list[str], expected_params: dict[str, Any]):
@@ -95,7 +95,6 @@ def test_correct_problems_run():
                     "storage",
                     "threads",
                     "single_precision",
-                    "cv",
                     "hessian_approx",
                     "diagnostics_level",
                 ]
@@ -109,14 +108,14 @@ def test_correct_problems_run():
     n_threads = os.environ.get("OMP_NUM_THREADS", os.cpu_count())
 
     expected_problems_run_2 = [
-        f"narrow-insurance-weights-l2-gamma_zeros_20_dense_{n_threads}_False_1000.0_Fals"
-        "e_0.0_basic.pkl",
+        f"narrow-insurance-weights-l2-gamma_zeros_20_dense_{n_threads}_False_1000.0"
+        "_0.0_basic.pkl",
         f"narrow-insurance-weights-l2-gamma_glum_20_dense_{n_threads}_False_10"
-        "00.0_False_0.0_basic.pkl",
+        "00.0_0.0_basic.pkl",
         f"wide-insurance-no-weights-net-poisson_zeros_20_dense_{n_threads}_False_1000.0"
-        "_False_0.0_basic.pkl",
+        "_0.0_basic.pkl",
         f"wide-insurance-no-weights-net-poisson_glum_20_dense_{n_threads}_False"
-        "_1000.0_False_0.0_basic.pkl",
+        "_1000.0_0.0_basic.pkl",
     ]
 
     assert sorted(problems_run) == sorted(expected_problems_run)

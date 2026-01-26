@@ -19,7 +19,6 @@ def liblinear_bench(
     alpha: float,
     l1_ratio: float,
     iterations: int,
-    cv: bool,
     reg_multiplier: Optional[float] = None,
     **kwargs,
 ) -> dict[str, Any]:
@@ -33,7 +32,6 @@ def liblinear_bench(
     alpha
     l1_ratio
     iterations
-    cv
     reg_multiplier
     kwargs
 
@@ -68,10 +66,6 @@ def liblinear_bench(
 
     if "offset" in dat.keys():
         warnings.warn("liblinear does not support offsets")
-        return result
-
-    if cv:
-        warnings.warn("liblinear does not yet support CV")
         return result
 
     model_args = dict(

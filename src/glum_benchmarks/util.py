@@ -199,7 +199,6 @@ class BenchmarkParams:
         threads: Optional[int] = None,
         single_precision: Optional[bool] = None,
         regularization_strength: Optional[float] = None,
-        cv: Optional[bool] = None,
         hessian_approx: Optional[float] = None,
         diagnostics_level: Optional[str] = None,
     ):
@@ -210,7 +209,6 @@ class BenchmarkParams:
         self.threads = threads
         self.single_precision = single_precision
         self.regularization_strength = regularization_strength
-        self.cv = cv
         self.hessian_approx = hessian_approx
         self.diagnostics_level = diagnostics_level
 
@@ -222,7 +220,6 @@ class BenchmarkParams:
         "threads",
         "single_precision",
         "regularization_strength",
-        "cv",
         "hessian_approx",
         "diagnostics_level",
     ]
@@ -265,7 +262,6 @@ defaults = dict(
     num_rows=None,
     regularization_strength=None,
     storage="dense",
-    cv=False,
     single_precision=False,
     hessian_approx=0.0,
     diagnostics_level="basic",
@@ -317,7 +313,6 @@ def benchmark_params_cli(func: Callable) -> Callable:
         help="Specify the number of threads. If not set, it will use OMP_NUM_THREADS. "
         "If that's not set either, it will default to os.cpu_count().",
     )
-    @click.option("--cv", type=bool, help="Cross-validation")
     @click.option("--single_precision", type=bool, help="Whether to use 32-bit data")
     @click.option(
         "--regularization_strength",
@@ -343,7 +338,6 @@ def benchmark_params_cli(func: Callable) -> Callable:
         num_rows: Optional[int],
         storage: Optional[str],
         threads: Optional[int],
-        cv: Optional[bool],
         single_precision: Optional[bool],
         regularization_strength: Optional[float],
         hessian_approx: Optional[float],
@@ -359,7 +353,6 @@ def benchmark_params_cli(func: Callable) -> Callable:
             threads,
             single_precision,
             regularization_strength,
-            cv,
             hessian_approx,
             diagnostics_level,
         )

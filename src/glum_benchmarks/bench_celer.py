@@ -2,12 +2,10 @@ import warnings
 from typing import Any, Optional, Union
 
 import numpy as np
-from celer import ElasticNet, ElasticNetCV, Lasso, LassoCV
+from celer import ElasticNet, Lasso
 from scipy import sparse as sps
 
 from .util import benchmark_convergence_tolerance, runtime
-
-# TODO: For CV the found alpha values differ significantly from glum
 
 
 def _build_and_fit(model_args, fit_args):
@@ -22,7 +20,6 @@ def celer_bench(
     alpha: float,
     l1_ratio: float,
     iterations: int,
-    cv: bool,
     reg_multiplier: Optional[float] = None,
     **kwargs,
 ):
@@ -47,22 +44,20 @@ def celer_bench(
             warnings.warn("Celer doesn't support Ridge (l1_ratio=0), skipping.")
             return {}
         elif l1_ratio < 1.0:
-            model_class = ElasticNetCV if cv else ElasticNet
+            model_class = ElasticNet
         else:
-            model_class = LassoCV if cv else Lasso
+            model_class = Lasso
 
     model_args = {
         "_model_class": model_class,
         "tol": benchmark_convergence_tolerance,
         "fit_intercept": True,
         "max_iter": 1000,
+        "alpha": reg_strength,
     }
 
-    if model_class in (ElasticNet, ElasticNetCV):
+    if model_class == ElasticNet:
         model_args["l1_ratio"] = l1_ratio
-
-    if not cv:
-        model_args["alpha"] = reg_strength
 
     try:
         result["runtime"], m = runtime(_build_and_fit, iterations, model_args, fit_args)
@@ -73,11 +68,5 @@ def celer_bench(
     result["intercept"] = np.array(m.intercept_).ravel()[0]
     result["coef"] = np.array(m.coef_).ravel()
     result["n_iter"] = getattr(m, "n_iter_", None)
-
-    if cv:
-        result["best_alpha"] = m.alpha_
-        result["n_alphas"] = len(m.alphas_)
-        result["max_alpha"] = m.alphas_.max()
-        result["min_alpha"] = m.alphas_.min()
 
     return result

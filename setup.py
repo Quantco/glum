@@ -96,6 +96,7 @@ setup(
         [console_scripts]
         glm_benchmarks_run = glum_benchmarks.cli_run:cli_run
         glm_benchmarks_analyze = glum_benchmarks.cli_analyze:cli_analyze
+        glm_benchmarks_plot = glum_benchmarks.cli_plot:cli_plot
     """
     ),
     ext_modules=cythonize(
