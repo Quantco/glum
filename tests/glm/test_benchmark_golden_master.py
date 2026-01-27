@@ -128,7 +128,9 @@ def exec(Pn):
         print("Running", Pn)
 
     result, _ = execute_problem_library(
-        params, **{k: v for k, v in bench_cfg.items() if k in execute_args}
+        params,
+        standardize=False,  # Don't standardize for golden master tests
+        **{k: v for k, v in bench_cfg.items() if k in execute_args},
     )
     return result, params
 
