@@ -20,6 +20,8 @@ from .data import (
 from .util import cache_location, exposure_and_offset_to_weights, get_tweedie_p
 
 # TODO: Add a second regularization strength (would double the number of problems)
+# TODO: Skip the Gaussian Ridge Regression as those have a closed form solution
+# and can be solved immediately by e.g. sklearn
 
 joblib_memory = Memory(cache_location, verbose=0)
 

@@ -125,10 +125,11 @@ def _extract_dict_results_to_pd_series(
     assert params.problem_name is not None
 
     coefs = results["coef"]
-    if results["n_iter"] is not None:
+    if results["n_iter"] is not None and results["n_iter"] > 0:
         runtime_per_iter = results["runtime"] / results["n_iter"]
     else:
-        runtime_per_iter = None
+        # n_iter=0 means immediate convergence or closed-form solution
+        runtime_per_iter = results["runtime"]
     l1_norm = np.sum(np.abs(coefs))  # type: ignore
     l2_norm = np.sum(coefs**2)  # type: ignore
     num_nonzero_coef = np.sum(np.abs(coefs) > 1e-8)  # type: ignore

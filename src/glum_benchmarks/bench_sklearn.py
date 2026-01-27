@@ -5,13 +5,13 @@ import numpy as np
 from scipy import sparse as sps
 from sklearn.linear_model import (
     ElasticNet,
+    Lasso,
     LogisticRegression,
+    Ridge,
     TweedieRegressor,
 )
 
 from .util import benchmark_convergence_tolerance, runtime
-
-# TODO: Design decision: do we set precompute = True ?
 
 
 def _build_and_fit(model_args, fit_args):
@@ -58,15 +58,38 @@ def sklearn_bench(
     n_samples = dat["X"].shape[0]
 
     if distribution == "gaussian":
-        model_args = {
-            "_model_class": ElasticNet,
-            "alpha": reg_strength,
-            "l1_ratio": l1_ratio,
-            "fit_intercept": True,
-            "max_iter": 1000,
-            "tol": benchmark_convergence_tolerance,
-            "precompute": True,
-        }
+        if l1_ratio == 0.0:
+            # Pure L2 (Ridge): use closed-form solution
+            # sklearn's Ridge uses alpha directly but with sum(loss) not mean(loss)
+            model_args = {
+                "_model_class": Ridge,
+                "alpha": reg_strength * n_samples,
+                "fit_intercept": True,
+                "max_iter": 1000,
+                "tol": benchmark_convergence_tolerance,
+                "solver": "auto",
+            }
+        elif l1_ratio == 1.0:
+            # Pure L1 (Lasso)
+            model_args = {
+                "_model_class": Lasso,
+                "alpha": reg_strength * n_samples,
+                "fit_intercept": True,
+                "max_iter": 1000,
+                "tol": benchmark_convergence_tolerance,
+                "precompute": True,
+            }
+        else:
+            # Elastic Net: mixed L1/L2
+            model_args = {
+                "_model_class": ElasticNet,
+                "alpha": reg_strength,
+                "l1_ratio": l1_ratio,
+                "fit_intercept": True,
+                "max_iter": 1000,
+                "tol": benchmark_convergence_tolerance,
+                "precompute": True,
+            }
     elif distribution == "binomial":
         # sklearn's LogisticRegression uses C = 1/lambda where lambda is the
         # regularization strength. However, sklearn does NOT scale the regularization
@@ -139,6 +162,8 @@ def sklearn_bench(
     else:
         result["intercept"] = m.intercept_
         result["coef"] = m.coef_
-        result["n_iter"] = m.n_iter_ if hasattr(m, "n_iter_") else None
+        # Ridge has n_iter_=None (closed-form), treat as 0 iterations (direct solve)
+        n_iter = getattr(m, "n_iter_", None)
+        result["n_iter"] = 0 if n_iter is None else n_iter
 
     return result
