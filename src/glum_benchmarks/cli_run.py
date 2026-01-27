@@ -8,6 +8,7 @@ from glum_benchmarks.bench_glum import glum_bench
 from glum_benchmarks.problems import Problem, get_all_problems
 from glum_benchmarks.util import (
     BenchmarkParams,
+    _standardize_features,
     benchmark_params_cli,
     clear_cache,
     defaults,
@@ -124,6 +125,7 @@ def execute_problem_library(
     params: BenchmarkParams,
     iterations: int = 1,
     diagnostics_level: str = "basic",
+    standardize: bool = True,
     **kwargs,
 ):
     """
@@ -134,6 +136,8 @@ def execute_problem_library(
     params
     iterations
     diagnostics_level
+    standardize
+        Whether to standardize features before fitting. Default True for benchmarks.
     kwargs
 
     Returns
@@ -154,6 +158,11 @@ def execute_problem_library(
         storage=params.storage,
         single_precision=params.single_precision,
     )
+
+    # Standardize features for better convergence across all libraries
+    if standardize:
+        dat["X"] = _standardize_features(dat["X"], params.single_precision or False)
+
     os.environ["OMP_NUM_THREADS"] = str(params.threads)
 
     if params.regularization_strength is None:

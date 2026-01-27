@@ -17,12 +17,7 @@ from .data import (
     generate_real_insurance_dataset,
     generate_wide_insurance_dataset,
 )
-from .util import (
-    _standardize_features,
-    cache_location,
-    exposure_and_offset_to_weights,
-    get_tweedie_p,
-)
+from .util import cache_location, exposure_and_offset_to_weights, get_tweedie_p
 
 # TODO: Add a second regularization strength (would double the number of problems)
 
@@ -129,10 +124,6 @@ def load_data(
         )
     else:  # Fall back to using a dense matrix.
         X = pd.concat(mat_parts, axis=1, ignore_index=True)
-
-    # Step 4b) Standardize features (center and scale to unit variance)
-    # This ensures all libraries start with the same pre-processed data
-    X = _standardize_features(X, single_precision)
 
     # Step 5) Handle weights or offsets if needed.
     if data_setup == "weights":

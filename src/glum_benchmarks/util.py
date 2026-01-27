@@ -437,7 +437,7 @@ def get_tweedie_p(distribution: str) -> float:
 def _standardize_features(
     X: Union[np.ndarray, pd.DataFrame, csc_matrix, tm.MatrixBase],
     single_precision: bool = False,
-) -> Union[np.ndarray, csc_matrix, tm.MatrixBase]:
+) -> Union[np.ndarray, pd.DataFrame, csc_matrix, tm.MatrixBase]:
     """
     Standardize features by scaling to unit L2 norm per column.
 
@@ -447,7 +447,11 @@ def _standardize_features(
     dtype = np.float32 if single_precision else np.float64
 
     if isinstance(X, pd.DataFrame):
-        X = X.values.astype(dtype)
+        # Preserve DataFrame type
+        X_arr = X.values.astype(dtype)
+        col_norms = np.linalg.norm(X_arr, axis=0)
+        col_norms[col_norms == 0] = 1.0
+        return pd.DataFrame(X_arr / col_norms, columns=X.columns, index=X.index)
 
     if isinstance(X, np.ndarray):
         # Dense: scale columns to unit L2 norm
@@ -467,8 +471,8 @@ def _standardize_features(
 
     elif isinstance(X, tm.MatrixBase):
         # tabmat matrices: skip standardization
-        # glum handles tabmat well, and StandardizedMatrix has compatibility issues
-        # with some benchmark libraries
+        # glum is the only library that can use tabmat directly, and it handles
+        # standardization internally. Other libraries would need conversion anyway.
         return X
 
     else:
