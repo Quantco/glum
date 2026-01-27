@@ -58,8 +58,9 @@ def skglm_bench(
         # We use L1_plus_L2(l1_ratio=0) for pure L2 to ensure prox_1d is available
         penalty = L1_plus_L2(alpha=reg_strength, l1_ratio=l1_ratio)
 
-    # ProxNewton is required for Poisson/Gamma or L2 problems
-    if distribution in ["poisson", "gamma"] or l1_ratio == 0:
+    # ProxNewton is faster for non-Gaussian distributions (Poisson, Gamma, Binomial)
+    # and required for L2 problems. AndersonCD is better for Gaussian.
+    if distribution in ["poisson", "gamma", "binomial"] or l1_ratio == 0:
         solver = ProxNewton(
             tol=benchmark_convergence_tolerance, fit_intercept=True, max_iter=1000
         )
@@ -82,6 +83,11 @@ def skglm_bench(
         X = np.asfortranarray(X_raw, dtype=np.float64)
 
     y = np.asarray(dat["y"], dtype=np.float64).ravel()
+
+    # skglm's Logistic datafit expects labels in {-1, 1}, not {0, 1}
+    if distribution == "binomial":
+        y = 2 * y - 1
+
     fit_args = {"X": X, "y": y}
 
     try:
