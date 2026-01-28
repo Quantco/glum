@@ -8,7 +8,7 @@ import pandas as pd
 from h2o.estimators.glm import H2OGeneralizedLinearEstimator
 from scipy import sparse as sps
 
-from .util import benchmark_convergence_tolerance, runtime
+from glum_benchmarks.util import benchmark_convergence_tolerance, runtime
 
 
 def _build_and_fit(model_args, train_args):
@@ -62,21 +62,10 @@ def h2o_bench(
     h2o.init(nthreads=int(os.environ.get("OMP_NUM_THREADS", os.cpu_count())))  # type: ignore
 
     train_mat = _hstack_sparse_or_dense((dat["X"], dat["y"][:, np.newaxis]))
-
-    use_weights = "sample_weight" in dat.keys()
-    if use_weights:
-        train_mat = _hstack_sparse_or_dense(
-            (train_mat, dat["sample_weight"][:, np.newaxis])
-        )
-    if "offset" in dat.keys():
-        train_mat = _hstack_sparse_or_dense((train_mat, dat["offset"][:, np.newaxis]))
-
     train_h2o = h2o.H2OFrame(train_mat)
 
-    # Determine the y column index (it's right after X columns)
-    n_extra_cols = int(use_weights) + int("offset" in dat.keys())
-    y_col_idx = -(1 + n_extra_cols)
-    y_col = train_h2o.col_names[y_col_idx]
+    # y column is the last column
+    y_col = train_h2o.col_names[-1]
 
     # For binomial, convert target to categorical
     if distribution == "binomial":
@@ -107,35 +96,18 @@ def h2o_bench(
     if "gamma" in distribution:
         model_args["link"] = "Log"
 
-    if use_weights:
-        train_args = dict(
-            x=train_h2o.col_names[:y_col_idx],
-            y=y_col,
-            training_frame=train_h2o,
-            weights_column=train_h2o.col_names[y_col_idx + 1],
-        )
-        if "offset" in dat.keys():
-            train_args["offset_column"] = train_h2o.col_names[-1]
-    elif "offset" in dat.keys():
-        train_args = dict(
-            x=train_h2o.col_names[:y_col_idx],
-            y=y_col,
-            training_frame=train_h2o,
-            offset_column=train_h2o.col_names[-1],
-        )
-    else:
-        train_args = dict(
-            x=train_h2o.col_names[:-1],
-            y=y_col,
-            training_frame=train_h2o,
-        )
+    train_args = dict(
+        x=train_h2o.col_names[:-1],
+        y=y_col,
+        training_frame=train_h2o,
+    )
 
     result["runtime"], m = runtime(_build_and_fit, iterations, model_args, train_args)
     # un-standardize
     standardized_intercept = m.coef()["Intercept"]
 
-    # Number of X columns (excluding y, weights, offset)
-    n_x_cols = train_mat.shape[1] - (1 + n_extra_cols)
+    # Number of X columns (excluding y)
+    n_x_cols = train_mat.shape[1] - 1
     standardized_coefs = np.array(
         [
             # h2o automatically removes zero-variance columns; impute to 1

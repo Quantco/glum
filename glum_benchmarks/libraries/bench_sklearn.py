@@ -11,7 +11,7 @@ from sklearn.linear_model import (
     TweedieRegressor,
 )
 
-from .util import benchmark_convergence_tolerance, runtime
+from glum_benchmarks.util import benchmark_convergence_tolerance, runtime
 
 
 def _build_and_fit(model_args, fit_args):
@@ -50,10 +50,6 @@ def sklearn_bench(
 
     result: dict[str, Any] = {}
     reg_strength = alpha if reg_multiplier is None else alpha * reg_multiplier
-
-    if "offset" in dat.keys():
-        warnings.warn("sklearn doesn't support offset, skipping this problem.")
-        return result
 
     n_samples = dat["X"].shape[0]
 

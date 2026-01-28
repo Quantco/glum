@@ -6,8 +6,11 @@ import pandas as pd
 from scipy import sparse as sps
 
 from glum import GeneralizedLinearRegressor
-
-from .util import benchmark_convergence_tolerance, get_sklearn_family, runtime
+from glum_benchmarks.util import (
+    benchmark_convergence_tolerance,
+    get_sklearn_family,
+    runtime,
+)
 
 random_seed = 110
 

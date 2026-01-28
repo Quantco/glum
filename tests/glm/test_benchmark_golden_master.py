@@ -6,9 +6,8 @@ import numpy as np
 import pytest
 from git_root import git_root
 
-from glum_benchmarks.cli_run import execute_problem_library
 from glum_benchmarks.problems import Problem, get_all_problems
-from glum_benchmarks.util import BenchmarkParams, get_obj_val
+from glum_benchmarks.util import BenchmarkParams, execute_problem_library, get_obj_val
 
 bench_cfg = dict(num_rows=10000, regularization_strength=0.1, diagnostics_level="none")
 

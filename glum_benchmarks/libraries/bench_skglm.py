@@ -4,11 +4,11 @@ from typing import Any, Optional, Union, cast
 import numpy as np
 from scipy import sparse as sps
 from skglm import GeneralizedLinearEstimator
-from skglm.datafits import Gamma, Logistic, Poisson, Quadratic, WeightedQuadratic
+from skglm.datafits import Gamma, Logistic, Poisson, Quadratic
 from skglm.penalties import L1, L1_plus_L2
 from skglm.solvers import AndersonCD, ProxNewton
 
-from .util import benchmark_convergence_tolerance, runtime
+from glum_benchmarks.util import benchmark_convergence_tolerance, runtime
 
 
 def _build_and_fit(model_args, fit_args):
@@ -27,10 +27,6 @@ def skglm_bench(
     result: dict[str, Any] = {}
     reg_strength = alpha if reg_multiplier is None else alpha * reg_multiplier
 
-    if "offset" in dat:
-        warnings.warn("skglm doesn't support offsets, skipping.")
-        return result
-
     if "tweedie" in distribution:
         warnings.warn("skglm doesn't support Tweedie, skipping.")
         return result
@@ -42,15 +38,7 @@ def skglm_bench(
         "gamma": Gamma(),
     }
 
-    if "sample_weight" in dat.keys():
-        if distribution == "gaussian":
-            weights = np.asarray(dat["sample_weight"], dtype=np.float64)
-            datafit = WeightedQuadratic(weights)
-        else:
-            warnings.warn(f"skglm doesn't support Weighted {distribution}, skipping.")
-            return result
-    else:
-        datafit = DATAFITS[distribution]
+    datafit = DATAFITS[distribution]
 
     if l1_ratio == 1:
         penalty = L1(alpha=reg_strength)

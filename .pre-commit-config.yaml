@@ -41,7 +41,7 @@ repos:
       - id: mypy
         name: mypy
         entry: pixi run -e default mypy
-        exclude: (^tests/|^src/glum_benchmarks/orig_sklearn_fork/)
+        exclude: ^tests/
         language: system
         types: [python]
         require_serial: true

@@ -5,7 +5,7 @@ import numpy as np
 from celer import ElasticNet, Lasso
 from scipy import sparse as sps
 
-from .util import benchmark_convergence_tolerance, runtime
+from glum_benchmarks.util import benchmark_convergence_tolerance, runtime
 
 
 def _build_and_fit(model_args, fit_args):
@@ -31,13 +31,6 @@ def celer_bench(
     if distribution not in ["gaussian"]:
         warnings.warn(f"Celer doesn't support {distribution}, skipping.")
         return {}
-
-    if "offset" in dat:
-        warnings.warn("Celer doesn't support offsets, skipping.")
-        return {}
-
-    if "sample_weight" in dat:
-        fit_args.update({"sample_weight": dat["sample_weight"]})
 
     if distribution == "gaussian":
         if l1_ratio == 0.0:
