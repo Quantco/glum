@@ -100,7 +100,10 @@ def generate_housing_dataset(
 
     y, exposure = compute_y_exposure(df, distribution)
 
-    return df, y, exposure
+    # Drop target columns to avoid data leakage
+    X = df.drop(columns=["price", "above_median_price"])
+
+    return X, y, exposure
 
 
 if __name__ == "__main__":
