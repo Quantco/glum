@@ -20,8 +20,8 @@ from .data import (
 from .util import cache_location, exposure_and_offset_to_weights, get_tweedie_p
 
 # TODO: Add a second regularization strength (would double the number of problems)
-# TODO: Skip the Gaussian Ridge Regression as those have a closed form solution
-# and can be solved immediately by e.g. sklearn
+# TODO: Implement closed form solution for l2-gaussian and put a note in the results
+# TODO: Add glm_data problems?
 
 joblib_memory = Memory(cache_location, verbose=0)
 
@@ -44,10 +44,9 @@ def load_data(
     ],
     num_rows: Optional[int] = None,
     storage: str = "dense",
-    single_precision: bool = False,
     noise: Optional[float] = None,
     distribution: str = "poisson",
-    data_setup: str = "weights",
+    data_setup: str = "no-weights",
 ) -> dict[str, np.ndarray]:
     """
     Load the data.
@@ -56,20 +55,12 @@ def load_data(
     rescaling the target variable, it is appropriate to pass what is modeled as an
     'exposure' as a weight. Everywhere else, exposures will be referred to as weights.
     """
-    # TODO: add a weights_and_offset option
     # Step 1) Load the data.
     if data_setup not in ["weights", "offset", "no-weights"]:
         raise NotImplementedError
     X_in, y, exposure = loader_func(num_rows, noise, distribution)
 
-    # Step 2) Convert to needed precision level.
-    if single_precision:
-        X_in = X_in.astype(np.float32)
-        y = y.astype(np.float32)
-        if exposure is not None:
-            exposure = exposure.astype(np.float32)
-
-    # Step 3) One hot encode columns if we are not using CategoricalMatrix
+    # Step 2) One hot encode columns if we are not using CategoricalMatrix
     def transform_col(i: int, dtype) -> Union[pd.DataFrame, tm.CategoricalMatrix]:
         if dtype.name == "category":
             if storage == "cat":
@@ -81,10 +72,9 @@ def load_data(
     # TODO: add a threshold for the number of categories needed to make a categorical
     #  matrix
 
-    # Step 4) Convert the matrix to the appropriate storage type.
+    # Step 3) Convert the matrix to the appropriate storage type.
     if storage == "auto":
-        dtype = np.float32 if single_precision else np.float64
-        X = tm.from_pandas(X_in, dtype, sparse_threshold=0.1, cat_threshold=3)
+        X = tm.from_pandas(X_in, np.float64, sparse_threshold=0.1, cat_threshold=3)
     elif storage == "cat":
         cat_indices_in_expanded_arr: list[np.ndarray] = []
         dense_indices_in_expanded_arr: list[int] = []
@@ -115,13 +105,15 @@ def load_data(
             + cat_indices_in_expanded_arr,
         )
     elif storage == "sparse":
-        dtype = np.float32 if single_precision else np.float64
-        X = csc_matrix(pd.concat(mat_parts, axis=1, ignore_index=True).astype(dtype))
+        X = csc_matrix(
+            pd.concat(mat_parts, axis=1, ignore_index=True).astype(np.float64)
+        )
     elif storage.startswith("split"):
         threshold = float(storage.split("split")[1])
-        dtype = np.float32 if single_precision else np.float64
         X = tm.from_csc(
-            csc_matrix(pd.concat(mat_parts, axis=1, ignore_index=True).astype(dtype)),
+            csc_matrix(
+                pd.concat(mat_parts, axis=1, ignore_index=True).astype(np.float64)
+            ),
             threshold,
         )
     else:  # Fall back to using a dense matrix.

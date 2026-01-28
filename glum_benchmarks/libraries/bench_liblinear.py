@@ -6,7 +6,7 @@ import pandas as pd
 from scipy import sparse as sps
 from sklearn.linear_model import LogisticRegression
 
-from .util import benchmark_convergence_tolerance, runtime
+from glum_benchmarks.util import benchmark_convergence_tolerance, runtime
 
 
 def _build_and_fit(model_args, train_args):
@@ -64,10 +64,6 @@ def liblinear_bench(
         )
         return result
 
-    if "offset" in dat.keys():
-        warnings.warn("liblinear does not support offsets")
-        return result
-
     model_args = dict(
         l1_ratio=sklearn_l1_ratio,
         tol=benchmark_convergence_tolerance,
@@ -90,7 +86,6 @@ def liblinear_bench(
     fit_args = dict(  # type: ignore
         X=X,
         y=dat["y"].astype(np.int64).copy(),
-        sample_weight=dat.get("sample_weight"),
     )
 
     result["runtime"], m = runtime(_build_and_fit, iterations, model_args, fit_args)

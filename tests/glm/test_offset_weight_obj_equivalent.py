@@ -1,8 +1,7 @@
 import numpy as np
 import pytest
 
-from glum_benchmarks.cli_run import get_all_problems
-from glum_benchmarks.problems import Problem
+from glum_benchmarks.problems import Problem, get_all_problems
 from glum_benchmarks.util import (
     BenchmarkParams,
     exposure_and_offset_to_weights,
@@ -37,7 +36,7 @@ def test_offset_solution_matches_weights_solution(
 ):
     params = BenchmarkParams(
         problem_name=Pn,
-        library_name="sklearn-fork",
+        library_name="glum",
         # storage=storage,
         **bench_cfg,
     )

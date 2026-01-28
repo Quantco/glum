@@ -1,5 +1,10 @@
-# Project-specific
-benchmark_output/
+# Benchmark outputs, only track docs/results.csv
+glum_benchmarks/results/*
+!glum_benchmarks/results/docs/
+!glum_benchmarks/results/docs/**
+glum_benchmarks/results/docs/*
+!glum_benchmarks/results/docs/results.csv
+glum_benchmarks/.cache/
 
 # Files created by templating
 dense.cpp
@@ -136,9 +141,6 @@ mlruns
 # others
 *.pdf
 *.lprof
-
-# GLM_BENCHMARKS_CACHE
-cache
 
 # pkgs
 pkgs/*

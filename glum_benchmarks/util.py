@@ -1,11 +1,7 @@
-import glob
 import os
-import shutil
 import time
-from functools import reduce
-from typing import Callable, Optional, Union
+from typing import Optional, Union
 
-import click
 import numpy as np
 import pandas as pd
 import tabmat as tm
@@ -198,7 +194,6 @@ class BenchmarkParams:
         num_rows: Optional[int] = None,
         storage: Optional[str] = None,
         threads: Optional[int] = None,
-        single_precision: Optional[bool] = None,
         regularization_strength: Optional[float] = None,
         hessian_approx: Optional[float] = None,
         diagnostics_level: Optional[str] = None,
@@ -208,7 +203,6 @@ class BenchmarkParams:
         self.num_rows = num_rows
         self.storage = storage
         self.threads = threads
-        self.single_precision = single_precision
         self.regularization_strength = regularization_strength
         self.hessian_approx = hessian_approx
         self.diagnostics_level = diagnostics_level
@@ -219,7 +213,6 @@ class BenchmarkParams:
         "num_rows",
         "storage",
         "threads",
-        "single_precision",
         "regularization_strength",
         "hessian_approx",
         "diagnostics_level",
@@ -263,114 +256,17 @@ defaults = dict(
     num_rows=None,
     regularization_strength=None,
     storage="dense",
-    single_precision=False,
     hessian_approx=0.0,
     diagnostics_level="basic",
 )
 
 
-def benchmark_params_cli(func: Callable) -> Callable:
-    """
-    Decorate a function so that options given via click CLI get mapped into a \
-    BenchmarkParams instance.
-
-    Parameters
-    ----------
-    func
-
-    Returns
-    -------
-    Callable:
-        wrapped function that takes a BenchmarkParams instance as an argument.
-
-    """
-
-    @click.option(
-        "--problem_name",
-        type=str,
-        help="Specify a comma-separated list of benchmark problems you want to run. "
-        "Leaving this blank will default to running all problems.",
-    )
-    @click.option(
-        "--library_name",
-        help="Specify a comma-separated list of libraries to benchmark. Leaving this "
-        "blank will default to running all problems.",
-    )
-    @click.option(
-        "--num_rows",
-        type=int,
-        help="Pass an integer number of rows. This is useful for testing and "
-        "development. The default is to use the full dataset.",
-    )
-    @click.option(
-        "--storage",
-        type=str,
-        help="Specify the storage format. Currently supported: dense, sparse. Leaving "
-        "this black will default to dense.",
-    )
-    @click.option(
-        "--threads",
-        type=int,
-        help="Specify the number of threads. If not set, it will use OMP_NUM_THREADS. "
-        "If that's not set either, it will default to os.cpu_count().",
-    )
-    @click.option("--single_precision", type=bool, help="Whether to use 32-bit data")
-    @click.option(
-        "--regularization_strength",
-        type=float,
-        help="Regularization strength. Set to None to use the default value of the "
-        "problem.",
-    )
-    @click.option(
-        "--hessian_approx",
-        type=float,
-        help="Threshold for dropping rows in the IRLS approximate Hessian update.",
-    )
-    @click.option(
-        "--diagnostics_level",
-        type=str,
-        help="Choose 'basic' for brief glum diagnostics or 'full' for more "
-        "extensive diagnostics. Any other string will result in no diagnostic "
-        "output at all.",
-    )
-    def wrapped_func(
-        problem_name: Optional[str],
-        library_name: Optional[str],
-        num_rows: Optional[int],
-        storage: Optional[str],
-        threads: Optional[int],
-        single_precision: Optional[bool],
-        regularization_strength: Optional[float],
-        hessian_approx: Optional[float],
-        diagnostics_level: Optional[str],
-        *args,
-        **kwargs,
-    ):
-        params = BenchmarkParams(
-            problem_name,
-            library_name,
-            num_rows,
-            storage,
-            threads,
-            single_precision,
-            regularization_strength,
-            hessian_approx,
-            diagnostics_level,
-        )
-        return func(params, *args, **kwargs)
-
-    return wrapped_func
-
-
-@click.command()
-@benchmark_params_cli
-def _get_params(params: BenchmarkParams):
-    _get_params.out = params  # type: ignore
-
-
 def get_params_from_fname(fname: str) -> BenchmarkParams:
     """
     Map file name to a BenchmarkParams instance.
+
+    File names are formatted as:
+    problem_library_numrows_storage_threads_reg_hessian_diag.pkl
 
     Parameters
     ----------
@@ -379,35 +275,29 @@ def get_params_from_fname(fname: str) -> BenchmarkParams:
     Returns
     -------
     BenchmarkParams
-
     """
-    cli_list = reduce(
-        lambda x, y: x + y,
-        [
-            ["--" + elt[0], elt[1]]
-            for elt in zip(BenchmarkParams.param_names, fname.strip(".pkl").split("_"))
-            if elt[1] != "None"
-        ],
-    )
-    _get_params(cli_list, standalone_mode=False)
-    return _get_params.out  # type: ignore
+    parts = fname.replace(".pkl", "").split("_")
 
+    # Parse each part, converting "None" strings to actual None
+    def parse_value(value: str, dtype=str):
+        if value == "None":
+            return None
+        if dtype is int:
+            return int(value)
+        if dtype is float:
+            return float(value)
+        return value
 
-def _get_size_of_cache_directory():
-    return sum(
-        os.path.getsize(x) for x in glob.glob(f"{cache_location}/**", recursive=True)
-    )
+    # Map parts to parameter names with appropriate types
+    # Order matches BenchmarkParams.param_names
+    param_types = [str, str, int, str, int, float, float, str]
 
+    kwargs = {}
+    for i, (name, dtype) in enumerate(zip(BenchmarkParams.param_names, param_types)):
+        if i < len(parts):
+            kwargs[name] = parse_value(parts[i], dtype)
 
-def clear_cache(force=False):
-    """Clear the cache directory if its size exceeds a threshold."""
-    if cache_location is None:
-        return
-
-    cache_size_limit = float(os.environ.get("GLM_BENCHMARKS_CACHE_SIZE_LIMIT", 1024**3))
-
-    if force or _get_size_of_cache_directory() > cache_size_limit:
-        shutil.rmtree(cache_location)
+    return BenchmarkParams(**kwargs)
 
 
 def get_tweedie_p(distribution: str) -> float:
@@ -436,7 +326,6 @@ def get_tweedie_p(distribution: str) -> float:
 
 def _standardize_features(
     X: Union[np.ndarray, pd.DataFrame, csc_matrix, tm.MatrixBase],
-    single_precision: bool = False,
 ) -> Union[np.ndarray, pd.DataFrame, csc_matrix, tm.MatrixBase]:
     """
     Standardize features by scaling to unit L2 norm per column.
@@ -444,7 +333,7 @@ def _standardize_features(
     For consistency across sparse/dense, we use L2 norm scaling (no centering).
     This ensures all benchmark libraries start with the same pre-processed data.
     """
-    dtype = np.float32 if single_precision else np.float64
+    dtype = np.float64
 
     if isinstance(X, pd.DataFrame):
         # Preserve DataFrame type
@@ -478,3 +367,125 @@ def _standardize_features(
     else:
         # Unknown type, return as-is
         return X
+
+
+def get_all_libraries() -> dict:
+    """
+    Get the names of all available libraries and the functions to benchmark them.
+
+    Libraries with missing dependencies are excluded from the result.
+
+    Returns
+    -------
+    dict
+        Mapping of library name to benchmark function.
+    """
+    from glum_benchmarks.libraries import (
+        celer_bench,
+        glum_bench,
+        h2o_bench,
+        liblinear_bench,
+        skglm_bench,
+        sklearn_bench,
+        zeros_bench,
+    )
+
+    all_libraries = {
+        "glum": glum_bench,
+        "zeros": zeros_bench,
+        "celer": celer_bench,
+        "h2o": h2o_bench,
+        "liblinear": liblinear_bench,
+        "skglm": skglm_bench,
+        "sklearn": sklearn_bench,
+    }
+
+    # Filter out libraries that aren't available (None due to missing deps)
+    return {k: v for k, v in all_libraries.items() if v is not None}
+
+
+def execute_problem_library(
+    params: BenchmarkParams,
+    iterations: int = 1,
+    diagnostics_level: str = "basic",
+    standardize: bool = True,
+    **kwargs,
+):
+    """
+    Run the benchmark problem specified by 'params', 'iterations' times.
+
+    Parameters
+    ----------
+    params
+    iterations
+    diagnostics_level
+    standardize
+        Whether to standardize features before fitting. Default True for benchmarks.
+    kwargs
+
+    Returns
+    -------
+    Tuple: Result data on this run, and the regularization applied
+    """
+    from glum_benchmarks.problems import get_all_problems
+
+    assert params.problem_name is not None
+    assert params.library_name is not None
+    P = get_all_problems()[params.problem_name]
+    L = get_all_libraries()[params.library_name]
+
+    for k in params.param_names:
+        if getattr(params, k) is None:
+            params.update_params(**{k: defaults[k]})
+
+    dat = P.data_loader(
+        num_rows=params.num_rows,
+        storage=params.storage,
+    )
+
+    # Standardize features for better convergence across all libraries
+    if standardize:
+        dat["X"] = _standardize_features(dat["X"])
+
+    os.environ["OMP_NUM_THREADS"] = str(params.threads)
+
+    if params.regularization_strength is None:
+        params.regularization_strength = P.regularization_strength
+
+    # Weights have been multiplied by exposure. The new sum of weights
+    # should influence the objective function (in order to keep everything comparable
+    # to the "weights instead of offset" setup), but this will get undone by weight
+    # normalization. So instead divide the penalty by the new weight sum divided by
+    # the old weight sum
+    reg_multiplier = (
+        1 / dat["sample_weight"].mean() if "sample_weight" in dat.keys() else None
+    )
+
+    result = L(
+        dat,
+        distribution=P.distribution,
+        alpha=params.regularization_strength,
+        l1_ratio=P.l1_ratio,
+        iterations=iterations,
+        diagnostics_level=diagnostics_level,
+        reg_multiplier=reg_multiplier,
+        hessian_approx=params.hessian_approx,
+        **kwargs,
+    )
+
+    if len(result) > 0:
+        # Use best_alpha from CV if available, otherwise use regularization_strength
+        alpha_for_obj = result.get("best_alpha", P.regularization_strength)
+        obj_val = get_obj_val(
+            dat,
+            P.distribution,
+            alpha_for_obj,
+            P.l1_ratio,
+            result["intercept"],
+            result["coef"],
+        )
+
+        result["obj_val"] = obj_val
+        result["num_rows"] = dat["y"].shape[0]
+
+    return result, params.regularization_strength

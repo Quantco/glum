@@ -72,12 +72,7 @@ setup(
         "Programming Language :: Python :: 3.13",
     ],
     package_dir={"": "src"},
-    packages=find_packages(
-        where="src",
-        include=(
-            ["glum"] if os.environ.get("CONDA_BUILD") else ["glum", "glum_benchmarks"]
-        ),
-    ),
+    packages=find_packages(where="src", include=["glum"]),
     python_requires=">=3.9",
     install_requires=[
         "joblib",
@@ -89,16 +84,7 @@ setup(
         "formulaic>=0.6",
         "tabmat>=4.0.0",
     ],
-    entry_points=(
-        None
-        if os.environ.get("CONDA_BUILD")
-        else """
-        [console_scripts]
-        glm_benchmarks_run = glum_benchmarks.cli_run:cli_run
-        glm_benchmarks_analyze = glum_benchmarks.cli_analyze:cli_analyze
-        glm_benchmarks_plot = glum_benchmarks.cli_plot:cli_plot
-    """
-    ),
+    entry_points=None,
     ext_modules=cythonize(
         ext_modules,
         annotate=False,
