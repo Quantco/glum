@@ -11,16 +11,16 @@ Configuration:
     steps to run (RUN_BENCHMARKS, ANALYZE_RESULTS, GENERATE_PLOTS).
 
 Output:
-    - glum_benchmarks/results/pickles/: Pickle files with detailed results
-    - glum_benchmarks/results/figures/: PNG plots comparing library performance
-    - glum_benchmarks/results/results.csv: Summary CSV for reproducibility
+    - glum_benchmarks/results/RUN_NAME/pickles/: Pickle files with detailed results
+    - glum_benchmarks/results/RUN_NAME/figures/: PNG plots comparing library performance
+    - glum_benchmarks/results/RUN_NAME/results.csv: Summary CSV for reproducibility
 """
 
 from __future__ import annotations
 
-import os
 import pickle
 import shutil
+import warnings
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -37,6 +37,7 @@ from glum_benchmarks.util import (
 
 # TODO: Rerun the benchmarks
 # TODO: update README and the documentation
+# TODO: Rework plotting
 
 # CONFIGURATION
 
@@ -49,22 +50,14 @@ RUN_BENCHMARKS = True  # Run the benchmarks (can be slow)
 ANALYZE_RESULTS = True  # Analyze and print results (writes CSV_FILE)
 GENERATE_PLOTS = True  # Generate comparison plots (reads from CSV_FILE and writes PNGs)
 
-# Output directories (relative to this file)
-# Change RUN_NAME to separate different benchmark runs, e.g.:
-#   RUN_NAME = "housing_lasso"
-#   RUN_NAME = "insurance_full"
-# Note: Only "docs" folder has its CSV tracked in git (for documentation)
+
+# Change RUN_NAME to separate different benchmark runs into different folders.
 _SCRIPT_DIR = Path(__file__).parent
 RUN_NAME = "docs"  # Subfolder name within results/ ("docs" CSV is git-tracked)
 RESULTS_DIR = _SCRIPT_DIR / "results" / RUN_NAME
 PICKLE_DIR = RESULTS_DIR / "pickles"
 FIGURE_DIR = RESULTS_DIR / "figures"
 CSV_FILE = RESULTS_DIR / "results.csv"
-
-# Cache settings (shared across all runs)
-DATA_CACHE_DIR = _SCRIPT_DIR / ".cache"  # Where to store the data cache
-CACHE_DATA = True  # Cache data loading across library runs
-CLEAR_DATA_CACHE = False  # Clear data cache before running
 CLEAR_OUTPUT = True  # Clear pickle output directory before running
 
 # Libraries to benchmark: "glum", "sklearn", "h2o", "liblinear",
@@ -107,6 +100,10 @@ def get_problems_to_run() -> list[str]:
     selected = []
 
     for name in all_problems.keys():
+        # Only benchmark "-no-weights" problems (skip offset and weighted variants)
+        if "-no-weights-" not in name:
+            continue
+
         # Filter by dataset
         if DATASETS is not None:
             if not any(d in name for d in DATASETS):
@@ -143,6 +140,7 @@ def run_single_benchmark(
     result, _ = execute_problem_library(
         params,
         iterations=ITERATIONS,
+        diagnostics_level=None,
         standardize=STANDARDIZE,
     )
 
@@ -151,17 +149,10 @@ def run_single_benchmark(
 
 def run_all_benchmarks():
     """Run all configured benchmarks."""
-    # Set up data caching
-    if CACHE_DATA:
-        os.environ["GLM_BENCHMARKS_CACHE"] = str(DATA_CACHE_DIR.absolute())
-        if CLEAR_DATA_CACHE and DATA_CACHE_DIR.exists():
-            print(f"Clearing data cache: {DATA_CACHE_DIR}")
-            shutil.rmtree(DATA_CACHE_DIR)
-
     # Set up output directory
-    if CLEAR_OUTPUT and PICKLE_DIR.exists():
-        print(f"Clearing output directory: {PICKLE_DIR}")
-        shutil.rmtree(PICKLE_DIR)
+    if CLEAR_OUTPUT and RESULTS_DIR.exists():
+        print(f"Clearing output directory: {RESULTS_DIR}")
+        shutil.rmtree(RESULTS_DIR)
     PICKLE_DIR.mkdir(parents=True, exist_ok=True)
 
     problems = get_problems_to_run()
@@ -178,10 +169,22 @@ def run_all_benchmarks():
     for problem_name in problems:
         for library_name in libraries:
             current += 1
-            print(f"[{current}/{total}] {library_name} / {problem_name}", end=" ")
+            print(
+                f"[{current}/{total}] {library_name} / {problem_name}",
+                end=" ",
+                flush=True,
+            )
 
             try:
-                result, params = run_single_benchmark(problem_name, library_name)
+                # Capture warnings to display after the result
+                with warnings.catch_warnings(record=True) as caught_warnings:
+                    warnings.simplefilter("always")
+                    # Ignore deprecation warnings from third-party libraries
+                    warnings.filterwarnings(
+                        "ignore",
+                        message=".*asyncio.iscoroutinefunction.*",
+                    )
+                    result, params = run_single_benchmark(problem_name, library_name)
 
                 # Save result
                 fname = params.get_result_fname() + ".pkl"
@@ -191,7 +194,11 @@ def run_all_benchmarks():
                 if len(result) > 0 and "runtime" in result:
                     print(f"-> {result['runtime']:.4f}s")
                 else:
-                    print("-> (no result)")
+                    print("-> (skipped)")
+
+                # Print captured warnings
+                for w in caught_warnings:
+                    print(f"{w.message}")
 
             except Exception as e:
                 print(f"-> ERROR: {e}")
@@ -331,18 +338,43 @@ def plot_results():
 
     FIGURE_DIR.mkdir(exist_ok=True)
 
-    # Extract distribution and regularization from problem name
+    # Extract distribution, regularization and dataset from problem_name
+    # Format: {dataset}-no-weights-{regularization}-{distribution}
+    # where dataset is 2 parts, regularization is 1 part (lasso/l2/net)
+    # and distribution may contain hyphens (e.g., "tweedie-p=1.5")
     df = df.copy()
-    df["distribution"] = df["problem_name"].apply(lambda x: x.split("-")[-1])
-    df["regularization"] = df["problem_name"].apply(
-        lambda x: "lasso" if "lasso" in x else "l2"
-    )
-    df["dataset"] = df["problem_name"].apply(
-        lambda x: "-".join(x.split("-")[:-3])  # e.g., "intermediate-housing-no"
+
+    def parse_problem_name(name):
+        """Parse problem name into (dataset, regularization, distribution)."""
+        parts = name.split("-")
+        dataset = "-".join(parts[:2])
+        reg = parts[4]
+        dist = "-".join(parts[5:])
+        return dataset, reg, dist
+
+    parsed = df["problem_name"].apply(parse_problem_name)
+    df["dataset"] = parsed.apply(lambda x: x[0])
+    reg_map = {"lasso": "lasso", "l2": "ridge", "net": "elastic-net"}
+    df["regularization"] = parsed.apply(lambda x: reg_map.get(x[1], x[1]))
+    df["distribution"] = parsed.apply(lambda x: x[2])
+
+    # Drop duplicates (keep latest result for each unique combo)
+    # Use all derived columns to ensure no duplicates in pivot
+    df = df.drop_duplicates(
+        subset=["dataset", "regularization", "distribution", "library_name"],
+        keep="last",
     )
 
-    # Drop duplicates (keep latest result for each problem/library combo)
-    df = df.drop_duplicates(subset=["problem_name", "library_name"], keep="last")
+    # Ensure library colors are consistent across plots
+    colors = {
+        "glum": "#a6cee3",
+        "h2o": "#fdbf6f",
+        "glmnet": "#b15928",
+        "sklearn": "#b15928",
+        "liblinear": "#33a02c",
+        "skglm": "#fb9a99",
+        "celer": "#cab2d6",
+    }
 
     # Generate one plot per dataset/regularization combo
     for dataset in df["dataset"].unique():
@@ -359,15 +391,59 @@ def plot_results():
                 values="runtime",
             ).fillna(0)
 
-            # Create bar chart
-            fig, ax = plt.subplots(figsize=(10, 5))
-            pivot.plot(kind="bar", ax=ax)
+            # Calculate y-axis limit (10x fastest runtime)
+            min_runtime = pivot.values[pivot.values > 0].min()
+            y_max = min_runtime * 10
 
-            reg_label = "Lasso" if reg == "lasso" else "Ridge"
-            ax.set_title(f"{dataset.replace('-', ' ').title()} - {reg_label}")
-            ax.set_ylabel("Runtime (s)")
-            ax.set_xlabel("Distribution")
-            ax.legend(title="Library", bbox_to_anchor=(1.02, 1), loc="upper left")
+            # Get colors for the libraries in this plot
+            plot_colors = [colors.get(lib, "#999999") for lib in pivot.columns]
+
+            # Create bar chart with clipped bars and annotations
+            fig, ax = plt.subplots(figsize=(10, 5))
+            pivot_clipped = pivot.clip(upper=y_max)
+            pivot_clipped.plot(kind="bar", ax=ax, color=plot_colors)
+
+            # Add annotations for clipped bars (show original value on bar with arrow)
+            n_dists = len(pivot.index)
+            bars = ax.patches
+            for i, dist in enumerate(pivot.index):
+                for j, lib in enumerate(pivot.columns):
+                    original_val = pivot.loc[dist, lib]
+                    if original_val > y_max:
+                        bar_idx = j * n_dists + i
+                        bar = bars[bar_idx]
+                        x = bar.get_x() + bar.get_width() / 2
+                        # Number on the bar
+                        ax.text(
+                            x,
+                            y_max * 0.75,
+                            f"{original_val:.4f}",
+                            ha="center",
+                            va="center",
+                            fontsize=9,
+                            fontweight="bold",
+                            rotation=90,
+                        )
+                        # Arrow starting inside bar, pointing up to top of bar
+                        ax.annotate(
+                            "",
+                            xy=(x, y_max),
+                            xytext=(x, y_max * 0.88),
+                            arrowprops=dict(arrowstyle="->", color="black", lw=1.5),
+                        )
+
+            ax.set_ylim(0, y_max * 1.08)
+            reg_label = reg.replace("-", " ").title().replace(" ", "-")
+            # Title with hyphens like in the example
+            title_dataset = dataset.replace(" ", "-").title()
+            ax.set_title(f"{title_dataset}-{reg_label}")
+            ax.set_ylabel("run time (s)")
+            ax.set_xlabel("")  # No x-label, distribution names are self-explanatory
+            ax.legend(title="", bbox_to_anchor=(1.02, 1), loc="upper left")
+            # Capitalize x-tick labels
+            ax.set_xticklabels(
+                [label.get_text().title() for label in ax.get_xticklabels()]
+            )
             plt.xticks(rotation=45, ha="right")
             plt.tight_layout()
 
@@ -381,16 +457,51 @@ def plot_results():
             if "glum" in pivot.columns:
                 pivot_norm = pivot.div(pivot["glum"], axis=0)
 
-                fig, ax = plt.subplots(figsize=(10, 5))
-                pivot_norm.plot(kind="bar", ax=ax)
+                # Limit to 10x glum (so y_max = 10)
+                norm_y_max = 10.0
+                pivot_norm_clipped = pivot_norm.clip(upper=norm_y_max)
 
-                ax.set_title(
-                    f"{dataset.replace('-', ' ').title()} - {reg_label} (normalized)"
-                )
-                ax.set_ylabel("Runtime relative to glum (1.0 = glum)")
-                ax.set_xlabel("Distribution")
+                fig, ax = plt.subplots(figsize=(10, 5))
+                pivot_norm_clipped.plot(kind="bar", ax=ax, color=plot_colors)
+
+                # Add annotations for clipped bars (show original value on bar)
+                n_dists = len(pivot_norm.index)
+                bars = ax.patches
+                for i, dist in enumerate(pivot_norm.index):
+                    for j, lib in enumerate(pivot_norm.columns):
+                        original_val = pivot_norm.loc[dist, lib]
+                        if original_val > norm_y_max:
+                            bar_idx = j * n_dists + i
+                            bar = bars[bar_idx]
+                            x = bar.get_x() + bar.get_width() / 2
+                            # Number on the bar
+                            ax.text(
+                                x,
+                                norm_y_max * 0.75,
+                                f"{original_val:.1f}x",
+                                ha="center",
+                                va="center",
+                                fontsize=9,
+                                fontweight="bold",
+                                rotation=90,
+                            )
+                            # Arrow starting inside bar, pointing up to top of bar
+                            ax.annotate(
+                                "",
+                                xy=(x, norm_y_max),
+                                xytext=(x, norm_y_max * 0.88),
+                                arrowprops=dict(arrowstyle="->", color="black", lw=1.5),
+                            )
+
+                ax.set_ylim(0, norm_y_max * 1.08)
+                ax.set_title(f"{title_dataset}-{reg_label} (normalized)")
+                ax.set_ylabel("run time relative to glum")
+                ax.set_xlabel("")
                 ax.axhline(y=1.0, color="gray", linestyle="--", linewidth=1, alpha=0.7)
-                ax.legend(title="Library", bbox_to_anchor=(1.02, 1), loc="upper left")
+                ax.legend(title="", bbox_to_anchor=(1.02, 1), loc="upper left")
+                ax.set_xticklabels(
+                    [label.get_text().title() for label in ax.get_xticklabels()]
+                )
                 plt.xticks(rotation=45, ha="right")
                 plt.tight_layout()
 
@@ -401,17 +512,6 @@ def plot_results():
 
 
 def main():
-    """Run benchmarks, analyze, and plot based on configuration.
-
-    Workflow:
-        1. RUN_BENCHMARKS: Execute benchmarks, save pickle files to PICKLE_DIR
-        2. ANALYZE_RESULTS: Analyze pickles, print summary, write CSV_FILE
-        3. GENERATE_PLOTS: Read CSV_FILE, generate figures to FIGURE_DIR
-
-    You can run steps independently:
-        - Run benchmarks once, then regenerate figures later from CSV
-        - Commit CSV to repo for reproducibility
-    """
     if RUN_BENCHMARKS:
         run_all_benchmarks()
 

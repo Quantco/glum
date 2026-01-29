@@ -1,3 +1,4 @@
+import logging
 import os
 import warnings
 from typing import Optional, Union
@@ -9,6 +10,9 @@ from h2o.estimators.glm import H2OGeneralizedLinearEstimator
 from scipy import sparse as sps
 
 from glum_benchmarks.util import benchmark_convergence_tolerance, runtime
+
+# Suppress H2O's "Closing connection" messages at exit
+logging.getLogger("h2o").setLevel(logging.WARNING)
 
 
 def _build_and_fit(model_args, train_args):
@@ -59,7 +63,11 @@ def h2o_bench(
         )
         return result
 
-    h2o.init(nthreads=int(os.environ.get("OMP_NUM_THREADS", os.cpu_count())))  # type: ignore
+    h2o.init(
+        nthreads=int(os.environ.get("OMP_NUM_THREADS", os.cpu_count())),  # type: ignore
+        verbose=False,
+    )
+    h2o.no_progress()  # Suppress progress bars
 
     train_mat = _hstack_sparse_or_dense((dat["X"], dat["y"][:, np.newaxis]))
     train_h2o = h2o.H2OFrame(train_mat)

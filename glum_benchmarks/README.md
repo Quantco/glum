@@ -66,12 +66,11 @@ Results are organized by `RUN_NAME` (default: `"docs"`):
 
 ```
 glum_benchmarks/
-├── results/
-│   └── docs/              # RUN_NAME = "docs"
-│       ├── pickles/       # Step 1 output (gitignored)
-│       ├── figures/       # Step 3 output (gitignored)
-│       └── results.csv    # Step 2 output (tracked for docs/)
-└── .cache/                # Shared data cache (gitignored)
+└── results/
+    └── docs/              # RUN_NAME = "docs"
+        ├── pickles/       # Step 1 output (gitignored)
+        ├── figures/       # Step 3 output (gitignored)
+        └── results.csv    # Step 2 output (tracked for docs/)
 ```
 
 Only `results/docs/results.csv` is tracked in git. Change `RUN_NAME` for experiments.
@@ -96,9 +95,7 @@ The script is pre-configured for the documentation benchmark run.
 | `STANDARDIZE`      | Whether to standardize features before fitting |
 | `ITERATIONS`       | Runs per benchmark (>=2 required for skglm)    |
 | `NUM_ROWS`         | Limit rows per dataset (`None` = full dataset) |
-| `CACHE_DATA`       | Cache data loading in `.cache/`                |
-| `CLEAR_DATA_CACHE` | Clear data cache before running                |
-| `CLEAR_OUTPUT`     | Clear pickles before running                   |
+| `CLEAR_OUTPUT`     | Clear entire `RUN_NAME` directory before running |
 
 See `problems.py` for available datasets and problem definitions.
 
