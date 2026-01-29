@@ -35,9 +35,8 @@ from glum_benchmarks.util import (
     get_params_from_fname,
 )
 
-# TODO: Rerun the benchmarks
-# TODO: update README and the documentation
-# TODO: Rework plotting
+# TODO: update README and documentation
+# TODO: improve plotting to handle "not converged" and "doesnt supported" cases better
 
 # CONFIGURATION
 

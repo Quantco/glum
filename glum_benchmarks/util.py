@@ -407,7 +407,7 @@ def get_all_libraries() -> dict:
 def execute_problem_library(
     params: BenchmarkParams,
     iterations: int = 1,
-    diagnostics_level: str = "basic",
+    diagnostics_level: Optional[str] = "basic",
     standardize: bool = True,
     **kwargs,
 ):

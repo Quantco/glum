@@ -19,7 +19,6 @@ from .data import (
 )
 from .util import cache_location, exposure_and_offset_to_weights, get_tweedie_p
 
-# TODO: Add a second regularization strength (would double the number of problems)
 # TODO: Implement closed form solution for l2-gaussian and put a note in the results
 # TODO: Add glm_data problems?
 
