@@ -14,11 +14,9 @@ from sklearn.linear_model import (
 from glum_benchmarks.util import benchmark_convergence_tolerance, runtime
 
 
-def _build_and_fit(model_args, fit_args):
+def _build_and_fit(model_class, model_args, fit_args):
     """Build and fit a sklearn regressor."""
-    model_class = model_args.pop("_model_class")
-    reg = model_class(**model_args)
-    return reg.fit(**fit_args)
+    return model_class(**model_args).fit(**fit_args)
 
 
 def sklearn_bench(
@@ -52,13 +50,14 @@ def sklearn_bench(
     reg_strength = alpha if reg_multiplier is None else alpha * reg_multiplier
 
     n_samples = dat["X"].shape[0]
+    model_class = None
 
     if distribution == "gaussian":
         if l1_ratio == 0.0:
             # Pure L2 (Ridge): use closed-form solution
             # sklearn's Ridge uses alpha directly but with sum(loss) not mean(loss)
+            model_class = Ridge
             model_args = {
-                "_model_class": Ridge,
                 "alpha": reg_strength * n_samples,
                 "fit_intercept": True,
                 "max_iter": 1000,
@@ -67,8 +66,8 @@ def sklearn_bench(
             }
         elif l1_ratio == 1.0:
             # Pure L1 (Lasso)
+            model_class = Lasso
             model_args = {
-                "_model_class": Lasso,
                 "alpha": reg_strength * n_samples,
                 "fit_intercept": True,
                 "max_iter": 1000,
@@ -77,8 +76,8 @@ def sklearn_bench(
             }
         else:
             # Elastic Net: mixed L1/L2
+            model_class = ElasticNet
             model_args = {
-                "_model_class": ElasticNet,
                 "alpha": reg_strength,
                 "l1_ratio": l1_ratio,
                 "fit_intercept": True,
@@ -89,32 +88,21 @@ def sklearn_bench(
     elif distribution == "binomial":
         # sklearn's LogisticRegression uses C = 1/lambda where lambda is the
         # regularization strength. However, sklearn does NOT scale the regularization
-        # by n_samples, while glum's objective is: mean(loss) + alpha * penalty.
+        # by n_samples, while glum's objective is: mean(loss) + alpha * reg_term.
         # To match glum's objective, we need: C = 1 / (alpha * n_samples)
         C_value = 1.0 / (reg_strength * n_samples) if reg_strength > 0 else 1e10
-        # Determine penalty type based on l1_ratio
-        # Penalty is deprecated but we use it here as we run on sk learn 1.6.1 due
-        # to the fact that h2o-py requires Python <3.10
-        if l1_ratio == 0.0:
-            penalty = "l2"
-        elif l1_ratio == 1.0:
-            penalty = "l1"
-        else:
-            penalty = "elasticnet"
+        # Use lbfgs for L2 (faster and more reliable), saga for L1/elasticnet
+        solver = "lbfgs" if l1_ratio == 0.0 else "saga"
 
+        model_class = LogisticRegression
         model_args = {
-            "_model_class": LogisticRegression,
             "C": C_value,
-            "penalty": penalty,
-            # Use lbfgs for L2 (faster and more reliable), saga for L1/elasticnet
-            "solver": "lbfgs" if penalty == "l2" else "saga",
+            "l1_ratio": l1_ratio,
+            "solver": solver,
             "fit_intercept": True,
             "max_iter": 1000,
             "tol": benchmark_convergence_tolerance,
         }
-        # Only pass l1_ratio for elastic net
-        if penalty == "elasticnet":
-            model_args["l1_ratio"] = l1_ratio
     else:
         if "tweedie" in distribution:
             power = float(distribution.split("-p=")[1])
@@ -130,8 +118,8 @@ def sklearn_bench(
             )
             return result
 
+        model_class = TweedieRegressor
         model_args = {
-            "_model_class": TweedieRegressor,
             "power": power,
             "alpha": reg_strength,
             "fit_intercept": True,
@@ -146,7 +134,9 @@ def sklearn_bench(
         fit_args["sample_weight"] = dat["sample_weight"]
 
     try:
-        result["runtime"], m = runtime(_build_and_fit, iterations, model_args, fit_args)
+        result["runtime"], m = runtime(
+            _build_and_fit, iterations, model_class, model_args, fit_args
+        )
     except ValueError as e:
         warnings.warn(f"Problem failed with this error: {e}")
         return result

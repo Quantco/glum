@@ -8,10 +8,8 @@ from scipy import sparse as sps
 from glum_benchmarks.util import benchmark_convergence_tolerance, runtime
 
 
-def _build_and_fit(model_args, fit_args):
-    model_class = model_args.pop("_model_class")
-    reg = model_class(**model_args)
-    return reg.fit(**fit_args)
+def _build_and_fit(model_class, model_args, fit_args):
+    return model_class(**model_args).fit(**fit_args)
 
 
 def celer_bench(
@@ -42,7 +40,6 @@ def celer_bench(
             model_class = Lasso
 
     model_args = {
-        "_model_class": model_class,
         "tol": benchmark_convergence_tolerance,
         "fit_intercept": True,
         "max_iter": 1000,
@@ -53,7 +50,9 @@ def celer_bench(
         model_args["l1_ratio"] = l1_ratio
 
     try:
-        result["runtime"], m = runtime(_build_and_fit, iterations, model_args, fit_args)
+        result["runtime"], m = runtime(
+            _build_and_fit, iterations, model_class, model_args, fit_args
+        )
     except Exception as e:
         warnings.warn(f"Celer failed: {e}")
         return {}
