@@ -6,7 +6,11 @@ import pandas as pd
 from scipy import sparse as sps
 from sklearn.linear_model import LogisticRegression
 
-from glum_benchmarks.util import benchmark_convergence_tolerance, runtime
+from glum_benchmarks.util import (
+    _standardize_features,
+    benchmark_convergence_tolerance,
+    runtime,
+)
 
 
 def _build_and_fit(model_args, train_args):
@@ -20,6 +24,8 @@ def liblinear_bench(
     l1_ratio: float,
     iterations: int,
     reg_multiplier: Optional[float] = None,
+    standardize: bool = True,
+    max_iter: int = 1000,
     **kwargs,
 ) -> dict[str, Any]:
     """
@@ -33,6 +39,7 @@ def liblinear_bench(
     l1_ratio
     iterations
     reg_multiplier
+    standardize
     kwargs
 
     Returns
@@ -40,6 +47,11 @@ def liblinear_bench(
     dict
 
     """
+    # Standardize features if requested
+    if standardize:
+        dat = dat.copy()
+        dat["X"] = _standardize_features(dat["X"])
+
     result: dict = {}
 
     X = dat["X"]
@@ -80,7 +92,7 @@ def liblinear_bench(
         # sklearn.linear_model.LogisticRegression.html
         intercept_scaling=1e3,
         solver="liblinear",
-        max_iter=1000,
+        max_iter=max_iter,
     )
 
     fit_args = dict(  # type: ignore

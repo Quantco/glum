@@ -1,9 +1,10 @@
-# Benchmark outputs, only track docs/results.csv
+# Benchmark outputs, only track docs/results.csv and docs/config.yaml
 glum_benchmarks/results/*
 !glum_benchmarks/results/docs/
 !glum_benchmarks/results/docs/**
 glum_benchmarks/results/docs/*
 !glum_benchmarks/results/docs/results.csv
+!glum_benchmarks/results/docs/config.yaml
 glum_benchmarks/.cache/
 
 # Files created by templating

@@ -8,7 +8,11 @@ from skglm.datafits import Gamma, Logistic, Poisson, Quadratic
 from skglm.penalties import L1, L1_plus_L2
 from skglm.solvers import AndersonCD, ProxNewton
 
-from glum_benchmarks.util import benchmark_convergence_tolerance, runtime
+from glum_benchmarks.util import (
+    _standardize_features,
+    benchmark_convergence_tolerance,
+    runtime,
+)
 
 
 def _build_and_fit(model_args, fit_args):
@@ -22,8 +26,15 @@ def skglm_bench(
     l1_ratio: float,
     iterations: int,
     reg_multiplier: Optional[float] = None,
+    standardize: bool = True,
+    max_iter: int = 1000,
     **kwargs,
 ):
+    # Standardize features if requested
+    if standardize:
+        dat = dat.copy()
+        dat["X"] = _standardize_features(dat["X"])
+
     result: dict[str, Any] = {}
     reg_strength = alpha if reg_multiplier is None else alpha * reg_multiplier
 
@@ -50,11 +61,11 @@ def skglm_bench(
     # and required for L2 problems. AndersonCD is better for Gaussian.
     if distribution in ["poisson", "gamma", "binomial"] or l1_ratio == 0:
         solver = ProxNewton(
-            tol=benchmark_convergence_tolerance, fit_intercept=True, max_iter=1000
+            tol=benchmark_convergence_tolerance, fit_intercept=True, max_iter=max_iter
         )
     else:
         solver = AndersonCD(
-            tol=benchmark_convergence_tolerance, fit_intercept=True, max_iter=1000
+            tol=benchmark_convergence_tolerance, fit_intercept=True, max_iter=max_iter
         )
 
     model_args = {
