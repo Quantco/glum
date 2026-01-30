@@ -285,6 +285,9 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
 
         return X
 
+    # expose the method as public so can create predictions outside of class
+    convert_from_pandas = _convert_from_pandas
+    
     def _set_up_for_fit(self, y: np.ndarray) -> None:
         #######################################################################
         # 1. input validation                                                 #
