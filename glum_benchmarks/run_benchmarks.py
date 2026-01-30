@@ -6,9 +6,9 @@ Usage:
     pixi run -e benchmark run-benchmarks
 
 Configuration:
-    Edit the CONFIGURATION section below to select which libraries, datasets,
-    regularizations, and distributions to benchmark. You can also control which
-    steps to run (RUN_BENCHMARKS, ANALYZE_RESULTS, GENERATE_PLOTS).
+    Edit config.yaml to select which libraries, datasets, regularizations,
+    and distributions to benchmark. You can also control which steps to run
+    (run_benchmarks, analyze_results, generate_plots).
 
 Output:
     - glum_benchmarks/results/RUN_NAME/pickles/: Pickle files with detailed results
@@ -21,11 +21,14 @@ from __future__ import annotations
 import pickle
 import shutil
 import warnings
+from dataclasses import dataclass
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import yaml
+from matplotlib.patches import Patch
 
 from glum_benchmarks.problems import get_all_problems
 from glum_benchmarks.util import (
@@ -36,64 +39,77 @@ from glum_benchmarks.util import (
 )
 
 # TODO: update README and documentation
-# TODO: improve plotting to handle "not converged" and "doesnt supported" cases better
-
-# CONFIGURATION
-
-# Keep as-is to run the same benchmark suite as in the documentation. In particular
-# if you just want to update the benchmark results,
-# you do not need to change anything here.
-
-# Steps to run
-RUN_BENCHMARKS = True  # Run the benchmarks (can be slow)
-ANALYZE_RESULTS = True  # Analyze and print results (writes CSV_FILE)
-GENERATE_PLOTS = True  # Generate comparison plots (reads from CSV_FILE and writes PNGs)
+# TODO: improve plotting to handle "not converged" and "not supported" cases better
 
 
-# Change RUN_NAME to separate different benchmark runs into different folders.
-_SCRIPT_DIR = Path(__file__).parent
-RUN_NAME = "docs"  # Subfolder name within results/ ("docs" CSV is git-tracked)
-RESULTS_DIR = _SCRIPT_DIR / "results" / RUN_NAME
-PICKLE_DIR = RESULTS_DIR / "pickles"
-FIGURE_DIR = RESULTS_DIR / "figures"
-CSV_FILE = RESULTS_DIR / "results.csv"
-CLEAR_OUTPUT = True  # Clear pickle output directory before running
+@dataclass
+class BenchmarkConfig:
+    """Configuration for benchmark runs."""
 
-# Libraries to benchmark: "glum", "sklearn", "h2o", "liblinear",
-# "skglm", "celer", "zeros"
-LIBRARIES = [
-    "glum",
-    "sklearn",
-    "h2o",
-    "liblinear",
-    "skglm",
-    "celer",
-]
+    # Steps to run
+    run_benchmarks: bool
+    analyze_results: bool
+    generate_plots: bool
 
-# Datasets to run: "intermediate-housing", "intermediate-insurance",
-# "narrow-insurance", "wide-insurance"
-DATASETS = [
-    "intermediate-housing",
-    "intermediate-insurance",
-    "narrow-insurance",
-    "wide-insurance",
-]
+    # Output settings
+    run_name: str
+    clear_output: bool
 
-# Regularization types to include: "lasso", "l2", "net"
-REGULARIZATIONS = ["lasso", "l2"]
+    # Problem selection
+    libraries: list[str]
+    datasets: list[str]
+    regularizations: list[str]
+    distributions: list[str]
 
-# Distributions to include: "gaussian", "gamma", "binomial", "poisson", "tweedie-p=1.5"
-DISTRIBUTIONS = ["gaussian", "gamma", "binomial", "poisson", "tweedie-p=1.5"]
+    # Benchmark settings
+    num_threads: int
+    reg_strength: float
+    standardize: bool
+    iterations: int
+    num_rows: int | None
+    max_iter: int
 
-# Benchmark settings
-NUM_THREADS = 16
-REG_STRENGTH = 0.001
-STANDARDIZE = True
-ITERATIONS = 2  # Run each benchmark N times, report minimum runtime (>=2 for skglm)
-NUM_ROWS = None  # None = use full dataset, or set an int for quick test runs
+    # Derived paths (computed after init)
+    script_dir: Path
+    results_dir: Path
+    pickle_dir: Path
+    figure_dir: Path
+    csv_file: Path
+
+    @classmethod
+    def from_yaml(cls, yaml_path: Path) -> BenchmarkConfig:
+        """Load configuration from YAML file."""
+        with open(yaml_path) as f:
+            data = yaml.safe_load(f)
+
+        script_dir = yaml_path.parent
+        results_dir = script_dir / "results" / data["run_name"]
+
+        return cls(
+            run_benchmarks=data["run_benchmarks"],
+            analyze_results=data["analyze_results"],
+            generate_plots=data["generate_plots"],
+            run_name=data["run_name"],
+            clear_output=data["clear_output"],
+            libraries=data["libraries"],
+            datasets=data["datasets"],
+            regularizations=data["regularizations"],
+            distributions=data["distributions"],
+            num_threads=data["num_threads"],
+            reg_strength=data["reg_strength"],
+            standardize=data["standardize"],
+            iterations=data["iterations"],
+            num_rows=data["num_rows"],
+            max_iter=data["max_iter"],
+            script_dir=script_dir,
+            results_dir=results_dir,
+            pickle_dir=results_dir / "pickles",
+            figure_dir=results_dir / "figures",
+            csv_file=results_dir / "results.csv",
+        )
 
 
-def get_problems_to_run() -> list[str]:
+def get_problems_to_run(config: BenchmarkConfig) -> list[str]:
     """Get list of problem names matching the configuration."""
     all_problems = get_all_problems()
     selected = []
@@ -104,18 +120,18 @@ def get_problems_to_run() -> list[str]:
             continue
 
         # Filter by dataset
-        if DATASETS is not None:
-            if not any(d in name for d in DATASETS):
+        if config.datasets is not None:
+            if not any(d in name for d in config.datasets):
                 continue
 
         # Filter by regularization
-        if REGULARIZATIONS is not None:
-            if not any(reg in name for reg in REGULARIZATIONS):
+        if config.regularizations is not None:
+            if not any(reg in name for reg in config.regularizations):
                 continue
 
         # Filter by distribution
-        if DISTRIBUTIONS is not None:
-            if not any(dist in name for dist in DISTRIBUTIONS):
+        if config.distributions is not None:
+            if not any(dist in name for dist in config.distributions):
                 continue
 
         selected.append(name)
@@ -124,39 +140,44 @@ def get_problems_to_run() -> list[str]:
 
 
 def run_single_benchmark(
-    problem_name: str, library_name: str
+    problem_name: str, library_name: str, config: BenchmarkConfig
 ) -> tuple[dict, BenchmarkParams]:
     """Run a single benchmark and return results."""
+    # Use "auto" storage for glum (enables categorical algorithm via tabmat)
+    # Use "dense" for other libraries
+    storage = "auto" if library_name == "glum" else "dense"
+
     params = BenchmarkParams(
         problem_name=problem_name,
         library_name=library_name,
-        num_rows=NUM_ROWS,
-        storage="dense",
-        threads=NUM_THREADS,
-        regularization_strength=REG_STRENGTH,
+        num_rows=config.num_rows,
+        storage=storage,
+        threads=config.num_threads,
+        regularization_strength=config.reg_strength,
     )
 
     result, _ = execute_problem_library(
         params,
-        iterations=ITERATIONS,
+        iterations=config.iterations,
         diagnostics_level=None,
-        standardize=STANDARDIZE,
+        standardize=config.standardize,
+        max_iter=config.max_iter,
     )
 
     return result, params
 
 
-def run_all_benchmarks():
+def run_all_benchmarks(config: BenchmarkConfig):
     """Run all configured benchmarks."""
     # Set up output directory
-    if CLEAR_OUTPUT and RESULTS_DIR.exists():
-        print(f"Clearing output directory: {RESULTS_DIR}")
-        shutil.rmtree(RESULTS_DIR)
-    PICKLE_DIR.mkdir(parents=True, exist_ok=True)
+    if config.clear_output and config.results_dir.exists():
+        print(f"Clearing output directory: {config.results_dir}")
+        shutil.rmtree(config.results_dir)
+    config.pickle_dir.mkdir(parents=True, exist_ok=True)
 
-    problems = get_problems_to_run()
+    problems = get_problems_to_run(config)
     available = get_all_libraries()
-    libraries = [lib for lib in LIBRARIES if lib in available]
+    libraries = [lib for lib in config.libraries if lib in available]
 
     print(f"Problems: {len(problems)}")
     print(f"Libraries: {libraries}")
@@ -183,11 +204,13 @@ def run_all_benchmarks():
                         "ignore",
                         message=".*asyncio.iscoroutinefunction.*",
                     )
-                    result, params = run_single_benchmark(problem_name, library_name)
+                    result, params = run_single_benchmark(
+                        problem_name, library_name, config
+                    )
 
                 # Save result
                 fname = params.get_result_fname() + ".pkl"
-                with open(PICKLE_DIR / fname, "wb") as f:
+                with open(config.pickle_dir / fname, "wb") as f:
                     pickle.dump(result, f)
 
                 if len(result) > 0 and "runtime" in result:
@@ -203,7 +226,7 @@ def run_all_benchmarks():
                 print(f"-> ERROR: {e}")
 
 
-def analyze_results() -> pd.DataFrame:
+def analyze_results(config: BenchmarkConfig) -> pd.DataFrame:
     """Analyze benchmark results and print summary."""
     print()
     print("=" * 60)
@@ -216,7 +239,7 @@ def analyze_results() -> pd.DataFrame:
 
     results = []
 
-    for fname in PICKLE_DIR.glob("*.pkl"):
+    for fname in config.pickle_dir.glob("*.pkl"):
         with open(fname, "rb") as f:
             data = pickle.load(f)
 
@@ -249,6 +272,11 @@ def analyze_results() -> pd.DataFrame:
             else params.regularization_strength
         )
 
+        # Check convergence (n_iter < max_iter means converged)
+        converged = True
+        if n_iter is not None and n_iter >= config.max_iter:
+            converged = False
+
         results.append(
             {
                 "problem_name": params.problem_name,
@@ -258,6 +286,7 @@ def analyze_results() -> pd.DataFrame:
                 "storage": params.storage,
                 "threads": params.threads,
                 "n_iter": n_iter,
+                "converged": converged,
                 "runtime": runtime,
                 "runtime per iter": runtime_per_iter,
                 "intercept": data.get("intercept"),
@@ -305,14 +334,14 @@ def analyze_results() -> pd.DataFrame:
         print(df[cols_to_show])
 
     # Export to CSV for figure generation and reproducibility
-    CSV_FILE.parent.mkdir(parents=True, exist_ok=True)
-    df.reset_index().to_csv(CSV_FILE, index=False)
-    print(f"\nExported results to: {CSV_FILE}")
+    config.csv_file.parent.mkdir(parents=True, exist_ok=True)
+    df.reset_index().to_csv(config.csv_file, index=False)
+    print(f"\nExported results to: {config.csv_file}")
 
     return df.reset_index()
 
 
-def plot_results():
+def plot_results(config: BenchmarkConfig):
     """Generate benchmark comparison plots from CSV file.
 
     Reads from CSV_FILE, which allows regenerating figures without
@@ -323,19 +352,22 @@ def plot_results():
     print("GENERATING PLOTS")
     print("=" * 60)
 
-    if not CSV_FILE.exists():
-        print(f"CSV file not found: {CSV_FILE}")
+    if not config.csv_file.exists():
+        print(f"CSV file not found: {config.csv_file}")
         print("Run ANALYZE_RESULTS first to generate the CSV.")
         return
 
-    df = pd.read_csv(CSV_FILE)
-    print(f"Reading results from: {CSV_FILE}")
+    df = pd.read_csv(config.csv_file)
+    print(f"Reading results from: {config.csv_file}")
+
+    if df["converged"].dtype == object:  # string type from CSV
+        df["converged"] = df["converged"] == "True"
 
     if df.empty:
         print("No data to plot!")
         return
 
-    FIGURE_DIR.mkdir(exist_ok=True)
+    config.figure_dir.mkdir(exist_ok=True)
 
     # Extract distribution, regularization and dataset from problem_name
     # Format: {dataset}-no-weights-{regularization}-{distribution}
@@ -384,11 +416,26 @@ def plot_results():
                 continue
 
             # Pivot for plotting
-            pivot = subset.pivot(
+            pivot_raw = subset.pivot(
                 index="distribution",
                 columns="library_name",
                 values="runtime",
-            ).fillna(0)
+            )
+            # Track which cells are unsupported (NaN) before filling
+            unsupported = pivot_raw.isna()
+            pivot = pivot_raw.fillna(0)
+
+            # Track which cells did not converge
+            pivot_converged = (
+                subset.pivot(
+                    index="distribution",
+                    columns="library_name",
+                    values="converged",
+                )
+                .fillna(True)
+                .astype(bool)
+            )
+            not_converged = ~pivot_converged
 
             # Calculate y-axis limit (10x fastest runtime)
             min_runtime = pivot.values[pivot.values > 0].min()
@@ -402,13 +449,73 @@ def plot_results():
             pivot_clipped = pivot.clip(upper=y_max)
             pivot_clipped.plot(kind="bar", ax=ax, color=plot_colors)
 
-            # Add annotations for clipped bars (show original value on bar with arrow)
+            # Draw hatched bars for unsupported library/distribution combos
             n_dists = len(pivot.index)
             bars = ax.patches
             for i, dist in enumerate(pivot.index):
                 for j, lib in enumerate(pivot.columns):
+                    if unsupported.loc[dist, lib]:
+                        bar_idx = j * n_dists + i
+                        bar = bars[bar_idx]
+                        x = bar.get_x()
+                        width = bar.get_width()
+                        lib_color = colors.get(lib, "#999999")
+                        # Draw bar with library color + hatch pattern
+                        ax.bar(
+                            x + width / 2,
+                            y_max,
+                            width=width,
+                            color="white",
+                            edgecolor=lib_color,
+                            linewidth=2,
+                            hatch="//",
+                        )
+                        # Add "N/A" label
+                        ax.text(
+                            x + width / 2,
+                            y_max / 2,
+                            "N/A",
+                            ha="center",
+                            va="center",
+                            fontsize=8,
+                            color="#666666",
+                            fontweight="bold",
+                        )
+                    # Add hatch overlay for non-converged results (keep the runtime bar)
+                    elif not_converged.loc[dist, lib]:
+                        bar_idx = j * n_dists + i
+                        bar = bars[bar_idx]
+                        x = bar.get_x()
+                        width = bar.get_width()
+                        bar_height = min(pivot.loc[dist, lib], y_max)
+                        # Overlay hatch pattern on existing bar
+                        ax.bar(
+                            x + width / 2,
+                            bar_height,
+                            width=width,
+                            color="none",
+                            edgecolor="black",
+                            linewidth=0.5,
+                            hatch="//",
+                            alpha=0.5,
+                        )
+                        # Add "NC" (not converged) label at top of bar
+                        ax.text(
+                            x + width / 2,
+                            bar_height + y_max * 0.02,
+                            "NC",
+                            ha="center",
+                            va="bottom",
+                            fontsize=7,
+                            color="#cc0000",
+                            fontweight="bold",
+                        )
+
+            # Add annotations for clipped bars (show original value on bar with arrow)
+            for i, dist in enumerate(pivot.index):
+                for j, lib in enumerate(pivot.columns):
                     original_val = pivot.loc[dist, lib]
-                    if original_val > y_max:
+                    if original_val > y_max and not unsupported.loc[dist, lib]:
                         bar_idx = j * n_dists + i
                         bar = bars[bar_idx]
                         x = bar.get_x() + bar.get_width() / 2
@@ -438,7 +545,15 @@ def plot_results():
             ax.set_title(f"{title_dataset}-{reg_label}")
             ax.set_ylabel("run time (s)")
             ax.set_xlabel("")  # No x-label, distribution names are self-explanatory
-            ax.legend(title="", bbox_to_anchor=(1.02, 1), loc="upper left")
+            # Add custom legend entries for N/A and NC
+            handles, labels = ax.get_legend_handles_labels()
+            handles.append(Patch(facecolor="white", edgecolor="gray", hatch="//"))
+            labels.append("N/A (not supported)")
+            handles.append(Patch(facecolor="white", edgecolor="black", hatch="//"))
+            labels.append("NC (not converged)")
+            ax.legend(
+                handles, labels, title="", bbox_to_anchor=(1.02, 1), loc="upper left"
+            )
             # Capitalize x-tick labels
             ax.set_xticklabels(
                 [label.get_text().title() for label in ax.get_xticklabels()]
@@ -448,7 +563,7 @@ def plot_results():
 
             # Save
             fname = f"{dataset}-{reg}"
-            plt.savefig(FIGURE_DIR / f"{fname}.png", dpi=300)
+            plt.savefig(config.figure_dir / f"{fname}.png", dpi=300)
             plt.close()
             print(f"Saved: {fname}.png")
 
@@ -463,13 +578,73 @@ def plot_results():
                 fig, ax = plt.subplots(figsize=(10, 5))
                 pivot_norm_clipped.plot(kind="bar", ax=ax, color=plot_colors)
 
-                # Add annotations for clipped bars (show original value on bar)
+                # Draw hatched bars for unsupported library/distribution combos
                 n_dists = len(pivot_norm.index)
                 bars = ax.patches
                 for i, dist in enumerate(pivot_norm.index):
                     for j, lib in enumerate(pivot_norm.columns):
+                        if unsupported.loc[dist, lib]:
+                            bar_idx = j * n_dists + i
+                            bar = bars[bar_idx]
+                            x = bar.get_x()
+                            width = bar.get_width()
+                            lib_color = colors.get(lib, "#999999")
+                            # Draw bar with library color + hatch pattern
+                            ax.bar(
+                                x + width / 2,
+                                norm_y_max,
+                                width=width,
+                                color="white",
+                                edgecolor=lib_color,
+                                linewidth=2,
+                                hatch="//",
+                            )
+                            # Add "N/A" label
+                            ax.text(
+                                x + width / 2,
+                                norm_y_max / 2,
+                                "N/A",
+                                ha="center",
+                                va="center",
+                                fontsize=8,
+                                color="#666666",
+                                fontweight="bold",
+                            )
+                        # Add hatch overlay for non-converged results
+                        elif not_converged.loc[dist, lib]:
+                            bar_idx = j * n_dists + i
+                            bar = bars[bar_idx]
+                            x = bar.get_x()
+                            width = bar.get_width()
+                            bar_height = min(pivot_norm.loc[dist, lib], norm_y_max)
+                            # Overlay hatch pattern on existing bar
+                            ax.bar(
+                                x + width / 2,
+                                bar_height,
+                                width=width,
+                                color="none",
+                                edgecolor="black",
+                                linewidth=0.5,
+                                hatch="//",
+                                alpha=0.5,
+                            )
+                            # Add "NC" (not converged) label at top of bar
+                            ax.text(
+                                x + width / 2,
+                                bar_height + norm_y_max * 0.02,
+                                "NC",
+                                ha="center",
+                                va="bottom",
+                                fontsize=7,
+                                color="#cc0000",
+                                fontweight="bold",
+                            )
+
+                # Add annotations for clipped bars (show original value on bar)
+                for i, dist in enumerate(pivot_norm.index):
+                    for j, lib in enumerate(pivot_norm.columns):
                         original_val = pivot_norm.loc[dist, lib]
-                        if original_val > norm_y_max:
+                        if original_val > norm_y_max and not unsupported.loc[dist, lib]:
                             bar_idx = j * n_dists + i
                             bar = bars[bar_idx]
                             x = bar.get_x() + bar.get_width() / 2
@@ -497,37 +672,69 @@ def plot_results():
                 ax.set_ylabel("run time relative to glum")
                 ax.set_xlabel("")
                 ax.axhline(y=1.0, color="gray", linestyle="--", linewidth=1, alpha=0.7)
-                ax.legend(title="", bbox_to_anchor=(1.02, 1), loc="upper left")
-                ax.set_xticklabels(
-                    [label.get_text().title() for label in ax.get_xticklabels()]
+                # Add custom legend entries for N/A and NC
+                handles, labels = ax.get_legend_handles_labels()
+                handles.append(Patch(facecolor="white", edgecolor="gray", hatch="//"))
+                labels.append("N/A (not supported)")
+                handles.append(Patch(facecolor="white", edgecolor="black", hatch="//"))
+                labels.append("NC (not converged)")
+                ax.legend(
+                    handles,
+                    labels,
+                    title="",
+                    bbox_to_anchor=(1.02, 1),
+                    loc="upper left",
                 )
+                # X-tick labels: show distribution name + glum runtime
+                new_labels = []
+                for dist in pivot.index:
+                    glum_runtime = pivot.loc[dist, "glum"]
+                    if glum_runtime > 0:
+                        new_labels.append(
+                            f"{dist.title()}\n(glum = {glum_runtime:.3f}s)"
+                        )
+                    else:
+                        new_labels.append(dist.title())
+                ax.set_xticklabels(new_labels)
                 plt.xticks(rotation=45, ha="right")
                 plt.tight_layout()
 
                 fname_norm = f"{dataset}-{reg}-normalized"
-                plt.savefig(FIGURE_DIR / f"{fname_norm}.png", dpi=300)
+                plt.savefig(config.figure_dir / f"{fname_norm}.png", dpi=300)
                 plt.close()
                 print(f"Saved: {fname_norm}.png")
 
 
 def main():
-    if RUN_BENCHMARKS:
-        run_all_benchmarks()
+    # Load configuration
+    script_dir = Path(__file__).parent
+    config_file = script_dir / "config.yaml"
+    config = BenchmarkConfig.from_yaml(config_file)
 
-    if ANALYZE_RESULTS:
-        analyze_results()
+    # Run benchmark steps
+    if config.run_benchmarks:
+        run_all_benchmarks(config)
 
-    if GENERATE_PLOTS:
-        plot_results()
+    if config.analyze_results:
+        analyze_results(config)
 
+    if config.generate_plots:
+        plot_results(config)
+
+    # Print summary
     print()
     print("=" * 60)
     print("DONE")
     print("=" * 60)
-    if RUN_BENCHMARKS or ANALYZE_RESULTS:
-        print(f"Results saved to: {RESULTS_DIR}/")
-    if GENERATE_PLOTS:
-        print(f"Figures saved to: {FIGURE_DIR}/")
+    if config.run_benchmarks or config.analyze_results:
+        print(f"Results saved to: {config.results_dir}/")
+    if config.generate_plots:
+        print(f"Figures saved to: {config.figure_dir}/")
+
+    # Snapshot config for reproducibility
+    config.results_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(config_file, config.results_dir / "config.yaml")
+    print(f"Config snapshot saved to: {config.results_dir / 'config.yaml'}")
 
 
 if __name__ == "__main__":

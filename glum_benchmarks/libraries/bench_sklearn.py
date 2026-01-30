@@ -11,7 +11,11 @@ from sklearn.linear_model import (
     TweedieRegressor,
 )
 
-from glum_benchmarks.util import benchmark_convergence_tolerance, runtime
+from glum_benchmarks.util import (
+    _standardize_features,
+    benchmark_convergence_tolerance,
+    runtime,
+)
 
 
 def _build_and_fit(model_class, model_args, fit_args):
@@ -26,6 +30,8 @@ def sklearn_bench(
     l1_ratio: float,
     iterations: int,
     reg_multiplier: Optional[float] = None,
+    standardize: bool = True,
+    max_iter: int = 1000,
     **kwargs,
 ):
     """
@@ -39,12 +45,17 @@ def sklearn_bench(
     l1_ratio
     iterations
     reg_multiplier
+    standardize
     kwargs
 
     Returns
     -------
     Dict of
     """
+    # Standardize features if requested
+    if standardize:
+        dat = dat.copy()
+        dat["X"] = _standardize_features(dat["X"])
 
     result: dict[str, Any] = {}
     reg_strength = alpha if reg_multiplier is None else alpha * reg_multiplier
@@ -60,7 +71,7 @@ def sklearn_bench(
             model_args = {
                 "alpha": reg_strength * n_samples,
                 "fit_intercept": True,
-                "max_iter": 1000,
+                "max_iter": max_iter,
                 "tol": benchmark_convergence_tolerance,
                 "solver": "auto",
             }
@@ -70,7 +81,7 @@ def sklearn_bench(
             model_args = {
                 "alpha": reg_strength * n_samples,
                 "fit_intercept": True,
-                "max_iter": 1000,
+                "max_iter": max_iter,
                 "tol": benchmark_convergence_tolerance,
                 "precompute": True,
             }
@@ -81,7 +92,7 @@ def sklearn_bench(
                 "alpha": reg_strength,
                 "l1_ratio": l1_ratio,
                 "fit_intercept": True,
-                "max_iter": 1000,
+                "max_iter": max_iter,
                 "tol": benchmark_convergence_tolerance,
                 "precompute": True,
             }
@@ -100,7 +111,7 @@ def sklearn_bench(
             "l1_ratio": l1_ratio,
             "solver": solver,
             "fit_intercept": True,
-            "max_iter": 1000,
+            "max_iter": max_iter,
             "tol": benchmark_convergence_tolerance,
         }
     else:
@@ -123,7 +134,7 @@ def sklearn_bench(
             "power": power,
             "alpha": reg_strength,
             "fit_intercept": True,
-            "max_iter": 1000,
+            "max_iter": max_iter,
             "tol": benchmark_convergence_tolerance,
             "solver": "newton-cholesky",
         }

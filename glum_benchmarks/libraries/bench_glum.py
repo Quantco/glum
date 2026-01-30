@@ -28,6 +28,7 @@ def glum_bench(
     diagnostics_level: str = "basic",
     reg_multiplier: Optional[float] = None,
     hessian_approx: float = 0.0,
+    max_iter: int = 1000,
     **kwargs,
 ):
     """
@@ -44,6 +45,7 @@ def glum_bench(
     reg_multiplier
     hessian_approx
     kwargs
+        Note: glum handles standardization internally via scale_predictors.
 
     Returns
     -------
@@ -62,7 +64,7 @@ def glum_bench(
     model_args = dict(
         family=get_sklearn_family(distribution),
         l1_ratio=l1_ratio,
-        max_iter=1000,
+        max_iter=max_iter,
         random_state=random_seed,
         copy_X=False,
         selection="cyclic",

@@ -443,10 +443,6 @@ def execute_problem_library(
         storage=params.storage,
     )
 
-    # Standardize features for better convergence across all libraries
-    if standardize:
-        dat["X"] = _standardize_features(dat["X"])
-
     os.environ["OMP_NUM_THREADS"] = str(params.threads)
 
     if params.regularization_strength is None:
@@ -470,6 +466,7 @@ def execute_problem_library(
         diagnostics_level=diagnostics_level,
         reg_multiplier=reg_multiplier,
         hessian_approx=params.hessian_approx,
+        standardize=standardize,
         **kwargs,
     )
 

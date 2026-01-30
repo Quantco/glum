@@ -5,7 +5,11 @@ import numpy as np
 from celer import ElasticNet, Lasso
 from scipy import sparse as sps
 
-from glum_benchmarks.util import benchmark_convergence_tolerance, runtime
+from glum_benchmarks.util import (
+    _standardize_features,
+    benchmark_convergence_tolerance,
+    runtime,
+)
 
 
 def _build_and_fit(model_class, model_args, fit_args):
@@ -19,13 +23,20 @@ def celer_bench(
     l1_ratio: float,
     iterations: int,
     reg_multiplier: Optional[float] = None,
+    standardize: bool = True,
+    max_iter: int = 1000,
     **kwargs,
 ):
+    # Standardize features if requested
+    if standardize:
+        dat = dat.copy()
+        dat["X"] = _standardize_features(dat["X"])
+
     result: dict[str, Any] = {}
     fit_args = {"X": dat["X"], "y": dat["y"]}
     reg_strength = alpha if reg_multiplier is None else alpha * reg_multiplier
 
-    # LogisticRegression doesnt support fitting an intercept yet, so we also skip it
+    # LogisticRegression doesn't support fitting an intercept yet, so we also skip it
     if distribution not in ["gaussian"]:
         warnings.warn(f"Celer doesn't support {distribution}, skipping.")
         return {}
@@ -42,7 +53,7 @@ def celer_bench(
     model_args = {
         "tol": benchmark_convergence_tolerance,
         "fit_intercept": True,
-        "max_iter": 1000,
+        "max_iter": max_iter,
         "alpha": reg_strength,
     }
 

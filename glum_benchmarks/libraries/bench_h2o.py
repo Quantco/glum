@@ -9,7 +9,11 @@ import pandas as pd
 from h2o.estimators.glm import H2OGeneralizedLinearEstimator
 from scipy import sparse as sps
 
-from glum_benchmarks.util import benchmark_convergence_tolerance, runtime
+from glum_benchmarks.util import (
+    _standardize_features,
+    benchmark_convergence_tolerance,
+    runtime,
+)
 
 # Suppress H2O's "Closing connection" messages at exit
 logging.getLogger("h2o").setLevel(logging.WARNING)
@@ -35,6 +39,8 @@ def h2o_bench(
     l1_ratio: float,
     iterations: int,
     reg_multiplier: Optional[float] = None,
+    standardize: bool = True,
+    max_iter: int = 1000,
     **kwargs,
 ):
     """
@@ -48,12 +54,18 @@ def h2o_bench(
     l1_ratio
     iterations
     reg_multiplier
+    standardize
     kwargs
 
     Returns
     -------
     dict of data about this run
     """
+    # Standardize features if requested
+    if standardize:
+        dat = dat.copy()
+        dat["X"] = _standardize_features(dat["X"])
+
     result: dict = {}
 
     if not isinstance(dat["X"], (np.ndarray, sps.spmatrix, pd.DataFrame)):
@@ -93,7 +105,7 @@ def h2o_bench(
         objective_epsilon=benchmark_convergence_tolerance,
         beta_epsilon=benchmark_convergence_tolerance,
         gradient_epsilon=benchmark_convergence_tolerance,
-        max_iterations=1000,
+        max_iterations=max_iter,
         gainslift_bins=0,
     )
 
