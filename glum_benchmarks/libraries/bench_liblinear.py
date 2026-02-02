@@ -6,7 +6,11 @@ import pandas as pd
 from scipy import sparse as sps
 from sklearn.linear_model import LogisticRegression
 
-from .util import benchmark_convergence_tolerance, runtime
+from glum_benchmarks.util import (
+    _standardize_features,
+    benchmark_convergence_tolerance,
+    runtime,
+)
 
 
 def _build_and_fit(model_args, train_args):
@@ -19,8 +23,9 @@ def liblinear_bench(
     alpha: float,
     l1_ratio: float,
     iterations: int,
-    cv: bool,
     reg_multiplier: Optional[float] = None,
+    standardize: bool = True,
+    max_iter: int = 1000,
     **kwargs,
 ) -> dict[str, Any]:
     """
@@ -33,8 +38,8 @@ def liblinear_bench(
     alpha
     l1_ratio
     iterations
-    cv
     reg_multiplier
+    standardize
     kwargs
 
     Returns
@@ -42,6 +47,11 @@ def liblinear_bench(
     dict
 
     """
+    # Standardize features if requested
+    if standardize:
+        dat = dat.copy()
+        dat["X"] = _standardize_features(dat["X"])
+
     result: dict = {}
 
     X = dat["X"]
@@ -66,14 +76,6 @@ def liblinear_bench(
         )
         return result
 
-    if "offset" in dat.keys():
-        warnings.warn("liblinear does not support offsets")
-        return result
-
-    if cv:
-        warnings.warn("liblinear does not yet support CV")
-        return result
-
     model_args = dict(
         l1_ratio=sklearn_l1_ratio,
         tol=benchmark_convergence_tolerance,
@@ -90,13 +92,12 @@ def liblinear_bench(
         # sklearn.linear_model.LogisticRegression.html
         intercept_scaling=1e3,
         solver="liblinear",
-        max_iter=1000,
+        max_iter=max_iter,
     )
 
     fit_args = dict(  # type: ignore
         X=X,
         y=dat["y"].astype(np.int64).copy(),
-        sample_weight=dat.get("sample_weight"),
     )
 
     result["runtime"], m = runtime(_build_and_fit, iterations, model_args, fit_args)

@@ -1616,7 +1616,7 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         sample_weight = check_weights(sample_weight, y.shape[0], y.dtype)
 
         mu = self.predict(X, offset=offset, context=context)
-        y_mean = np.average(y, weights=sample_weight)
+        y_mean: float = np.average(y, weights=sample_weight)
 
         dev = self.family_instance.deviance(y, mu, sample_weight=sample_weight)
         dev_null = self.family_instance.deviance(y, y_mean, sample_weight=sample_weight)
@@ -2861,10 +2861,10 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     ):
         skl.utils.validation.check_is_fitted(self, "coef_")
 
-        context = capture_context(context)
+        context_: Optional[Mapping[str, Any]] = capture_context(context)
 
         if not hasattr(self, "_info_criteria"):
-            self._compute_information_criteria(X, y, sample_weight, context=context)
+            self._compute_information_criteria(X, y, sample_weight, context=context_)
 
         if (
             self.alpha is None or (self.alpha is not None and self.alpha > 0)

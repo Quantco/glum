@@ -1,3 +1,4 @@
+import logging
 import os
 import warnings
 from typing import Optional, Union
@@ -8,7 +9,14 @@ import pandas as pd
 from h2o.estimators.glm import H2OGeneralizedLinearEstimator
 from scipy import sparse as sps
 
-from .util import benchmark_convergence_tolerance, runtime
+from glum_benchmarks.util import (
+    _standardize_features,
+    benchmark_convergence_tolerance,
+    runtime,
+)
+
+# Suppress H2O's "Closing connection" messages at exit
+logging.getLogger("h2o").setLevel(logging.WARNING)
 
 
 def _build_and_fit(model_args, train_args):
@@ -30,8 +38,9 @@ def h2o_bench(
     alpha: float,
     l1_ratio: float,
     iterations: int,
-    cv: bool,
     reg_multiplier: Optional[float] = None,
+    standardize: bool = True,
+    max_iter: int = 1000,
     **kwargs,
 ):
     """
@@ -44,14 +53,19 @@ def h2o_bench(
     alpha
     l1_ratio
     iterations
-    cv
     reg_multiplier
+    standardize
     kwargs
 
     Returns
     -------
     dict of data about this run
     """
+    # Standardize features if requested
+    if standardize:
+        dat = dat.copy()
+        dat["X"] = _standardize_features(dat["X"])
+
     result: dict = {}
 
     if not isinstance(dat["X"], (np.ndarray, sps.spmatrix, pd.DataFrame)):
@@ -61,24 +75,17 @@ def h2o_bench(
         )
         return result
 
-    h2o.init(nthreads=int(os.environ.get("OMP_NUM_THREADS", os.cpu_count())))  # type: ignore
+    h2o.init(
+        nthreads=int(os.environ.get("OMP_NUM_THREADS", os.cpu_count())),  # type: ignore
+        verbose=False,
+    )
+    h2o.no_progress()  # Suppress progress bars
 
     train_mat = _hstack_sparse_or_dense((dat["X"], dat["y"][:, np.newaxis]))
-
-    use_weights = "sample_weight" in dat.keys()
-    if use_weights:
-        train_mat = _hstack_sparse_or_dense(
-            (train_mat, dat["sample_weight"][:, np.newaxis])
-        )
-    if "offset" in dat.keys():
-        train_mat = _hstack_sparse_or_dense((train_mat, dat["offset"][:, np.newaxis]))
-
     train_h2o = h2o.H2OFrame(train_mat)
 
-    # Determine the y column index (it's right after X columns)
-    n_extra_cols = int(use_weights) + int("offset" in dat.keys())
-    y_col_idx = -(1 + n_extra_cols)
-    y_col = train_h2o.col_names[y_col_idx]
+    # y column is the last column
+    y_col = train_h2o.col_names[-1]
 
     # For binomial, convert target to categorical
     if distribution == "binomial":
@@ -98,12 +105,9 @@ def h2o_bench(
         objective_epsilon=benchmark_convergence_tolerance,
         beta_epsilon=benchmark_convergence_tolerance,
         gradient_epsilon=benchmark_convergence_tolerance,
-        max_iterations=1000,
+        max_iterations=max_iter,
         gainslift_bins=0,
     )
-    if cv:
-        model_args["lambda_search"] = True
-        model_args["nfolds"] = 5
 
     if tweedie:
         p = float(distribution.split("=")[-1])
@@ -112,35 +116,18 @@ def h2o_bench(
     if "gamma" in distribution:
         model_args["link"] = "Log"
 
-    if use_weights:
-        train_args = dict(
-            x=train_h2o.col_names[:y_col_idx],
-            y=y_col,
-            training_frame=train_h2o,
-            weights_column=train_h2o.col_names[y_col_idx + 1],
-        )
-        if "offset" in dat.keys():
-            train_args["offset_column"] = train_h2o.col_names[-1]
-    elif "offset" in dat.keys():
-        train_args = dict(
-            x=train_h2o.col_names[:y_col_idx],
-            y=y_col,
-            training_frame=train_h2o,
-            offset_column=train_h2o.col_names[-1],
-        )
-    else:
-        train_args = dict(
-            x=train_h2o.col_names[:-1],
-            y=y_col,
-            training_frame=train_h2o,
-        )
+    train_args = dict(
+        x=train_h2o.col_names[:-1],
+        y=y_col,
+        training_frame=train_h2o,
+    )
 
     result["runtime"], m = runtime(_build_and_fit, iterations, model_args, train_args)
     # un-standardize
     standardized_intercept = m.coef()["Intercept"]
 
-    # Number of X columns (excluding y, weights, offset)
-    n_x_cols = train_mat.shape[1] - (1 + n_extra_cols)
+    # Number of X columns (excluding y)
+    n_x_cols = train_mat.shape[1] - 1
     standardized_coefs = np.array(
         [
             # h2o automatically removes zero-variance columns; impute to 1
@@ -148,12 +135,9 @@ def h2o_bench(
             for i in range(n_x_cols)
         ]
     )
-    if cv:
-        result["best_alpha"] = m._model_json["output"]["lambda_best"]
-        result["n_alphas"] = m.parms["nlambdas"]["actual_value"]
 
     result["intercept"] = standardized_intercept
     result["coef"] = standardized_coefs
 
-    result["n_iter"] = m.score_history().iloc[-1]["iteration" if cv else "iterations"]
+    result["n_iter"] = m.score_history().iloc[-1]["iterations"]
     return result

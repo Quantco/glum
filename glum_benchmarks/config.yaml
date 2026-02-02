@@ -1,0 +1,52 @@
+# Benchmark Configuration
+# Edit this file to configure which benchmarks to run and how to run them
+
+# Steps to run
+run_benchmarks: true # Run the benchmarks (can be slow)
+analyze_results: true # Analyze and print results (writes CSV)
+generate_plots: true # Generate comparison plots (reads CSV and writes PNGs)
+
+# Output settings
+run_name: "docs" # Subfolder name within results/ ("docs" CSV is git-tracked)
+clear_output: true # Clear entire run_name directory before running
+
+# Libraries to benchmark
+# Available: "glum", "sklearn", "h2o", "liblinear", "skglm", "celer", "zeros"
+libraries:
+  - glum
+  - sklearn
+  - h2o
+  - liblinear
+  - skglm
+  - celer
+
+# Datasets to run
+# Available: "intermediate-housing", "intermediate-insurance", "narrow-insurance", "wide-insurance"
+datasets:
+  - intermediate-insurance
+  - intermediate-housing
+  - narrow-insurance
+  - wide-insurance
+
+# Regularization types to include
+# Available: "lasso", "l2", "net"
+regularizations:
+  - lasso
+  - l2
+
+# Distributions to include
+# Available: "gaussian", "gamma", "binomial", "poisson", "tweedie-p=1.5"
+distributions:
+  - gaussian
+  - gamma
+  - binomial
+  - poisson
+  - tweedie-p=1.5
+
+# Benchmark settings
+standardize: true # Whether to standardize features before fitting
+iterations: 2 # Run each benchmark N times, report minimum (>=2 for skglm)
+reg_strength: 0.001 # Regularization strength (alpha)
+num_threads: 16 # Number of threads for parallel execution
+num_rows: null # Limit rows per dataset (null = full dataset)
+max_iter: 1000 # Maximum iterations (for convergence detection)
