@@ -10,7 +10,6 @@ from h2o.estimators.glm import H2OGeneralizedLinearEstimator
 from scipy import sparse as sps
 
 from glum_benchmarks.util import (
-    _standardize_features,
     benchmark_convergence_tolerance,
     runtime,
 )
@@ -40,7 +39,6 @@ def h2o_bench(
     iterations: int,
     reg_multiplier: Optional[float] = None,
     standardize: bool = True,
-    max_iter: int = 1000,
     **kwargs,
 ):
     """
@@ -61,10 +59,6 @@ def h2o_bench(
     -------
     dict of data about this run
     """
-    # Standardize features if requested
-    if standardize:
-        dat = dat.copy()
-        dat["X"] = _standardize_features(dat["X"])
 
     result: dict = {}
 
@@ -100,12 +94,11 @@ def h2o_bench(
         family="tweedie" if tweedie else distribution,
         alpha=l1_ratio,
         lambda_=alpha if reg_multiplier is None else alpha * reg_multiplier,
-        standardize=False,
+        standardize=standardize,  # Let h2o handle standardization internally
         solver="IRLSM",
         objective_epsilon=benchmark_convergence_tolerance,
         beta_epsilon=benchmark_convergence_tolerance,
         gradient_epsilon=benchmark_convergence_tolerance,
-        max_iterations=max_iter,
         gainslift_bins=0,
     )
 
@@ -140,4 +133,6 @@ def h2o_bench(
     result["coef"] = standardized_coefs
 
     result["n_iter"] = m.score_history().iloc[-1]["iterations"]
+    # h2o default max_iterations is very high, but we can get actual from params
+    result["max_iter"] = m.actual_params.get("max_iterations", 100)
     return result

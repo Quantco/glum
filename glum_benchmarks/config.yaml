@@ -5,48 +5,61 @@
 run_benchmarks: true # Run the benchmarks (can be slow)
 analyze_results: true # Analyze and print results (writes CSV)
 generate_plots: true # Generate comparison plots (reads CSV and writes PNGs)
+update_docs: false # Copy figures to docs/_static and update benchmarks.rst and README.md
+
+# Figures to include in docs/README (null = use defaults)
+# Default for docs: all figures
+# Default for readme: first non-normalized figure only
+# Available: null, or list of figure filenames in the format "<dataset>-<distribution>.png"
+# Example: intermediate-insurance-gaussian.png
+docs_figures: null
+readme_figures: null
 
 # Output settings
 run_name: "docs" # Subfolder name within results/ ("docs" CSV is git-tracked)
-clear_output: true # Clear entire run_name directory before running
-
-# Libraries to benchmark
-# Available: "glum", "sklearn", "h2o", "liblinear", "skglm", "celer", "zeros"
-libraries:
-  - glum
-  - sklearn
-  - h2o
-  - liblinear
-  - skglm
-  - celer
-
-# Datasets to run
-# Available: "intermediate-housing", "intermediate-insurance", "narrow-insurance", "wide-insurance"
-datasets:
-  - intermediate-insurance
-  - intermediate-housing
-  - narrow-insurance
-  - wide-insurance
-
-# Regularization types to include
-# Available: "lasso", "l2", "net"
-regularizations:
-  - lasso
-  - l2
-
-# Distributions to include
-# Available: "gaussian", "gamma", "binomial", "poisson", "tweedie-p=1.5"
-distributions:
-  - gaussian
-  - gamma
-  - binomial
-  - poisson
-  - tweedie-p=1.5
+clear_output: True # Clear entire run_name directory before running
 
 # Benchmark settings
 standardize: true # Whether to standardize features before fitting
 iterations: 2 # Run each benchmark N times, report minimum (>=2 for skglm)
-reg_strength: 0.001 # Regularization strength (alpha)
 num_threads: 16 # Number of threads for parallel execution
 num_rows: null # Limit rows per dataset (null = full dataset)
-max_iter: 1000 # Maximum iterations (for convergence detection)
+timeout: 100 # Timeout in seconds per benchmark run (reports as "not converged" if exceeded)
+
+# Storage format per library ("dense", "sparse", or "auto")
+storage:
+  glum: auto # Auto selects best format
+  h2o: sparse # Better performance with sparse
+  celer: sparse # Optimized for sparse matrices
+  sklearn: dense # Can use either, configure as needed
+  skglm: dense # Can use either, configure as needed
+
+# PARAMETER GRID
+# Each entry specifies a parameter set. Within each entry, the Cartesian
+# product is computed. Across entries, results are unioned (not crossed).
+#
+# Available values:
+#   libraries: ["glum", "sklearn", "h2o", "skglm", "celer", "zeros"]
+#   datasets: ["intermediate-housing", "intermediate-insurance", "narrow-insurance", "wide-insurance","square-simulated"]
+#   regularizations: ["lasso", "l2", "net"]
+#   reg_strengths: [0.0001, 0.001, 0.01]
+#   distributions: ["gaussian", "gamma", "binomial", "poisson", "tweedie-p=1.5"]
+#
+# Use null (or omit) for any field to use its default value. Default refers to using all available values.
+#
+# Example: Run all regularizations for gaussian, but only lasso for gamma:
+#   param_grid:
+#     - distributions: [gaussian]
+#       regularizations: [lasso, l2, net]
+#     - distributions: [gamma]
+#       regularizations: [lasso]
+
+param_grid:
+     - distributions: [gaussian]
+       datasets: ["intermediate-housing"]
+       regularizations: [lasso, l2]
+       libraries: [glum, celer]
+     - distributions: [gamma]
+       datasets: ["intermediate-insurance"]
+       regularizations: [lasso]
+       libraries: [glum, h2o]

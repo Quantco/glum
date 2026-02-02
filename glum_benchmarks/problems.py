@@ -15,12 +15,10 @@ from .data import (
     generate_intermediate_insurance_dataset,
     generate_narrow_insurance_dataset,
     generate_real_insurance_dataset,
+    generate_square_dataset,
     generate_wide_insurance_dataset,
 )
 from .util import cache_location, exposure_and_offset_to_weights, get_tweedie_p
-
-# TODO: Implement closed form solution for l2-gaussian and put a note in the results
-# TODO: Add glm_data problems?
 
 joblib_memory = Memory(cache_location, verbose=0)
 
@@ -172,6 +170,12 @@ def get_all_problems() -> dict[str, Problem]:
     if os.path.isfile(git_root("data", "X.parquet")):
         insurance_load_funcs["real-insurance"] = generate_real_insurance_dataset
 
+    # Simulated datasets (square: n_rows ≈ n_cols)
+    simulated_distributions = ["gaussian", "poisson", "gamma", "binomial"]
+    simulated_load_funcs = {
+        "square-simulated": generate_square_dataset,
+    }
+
     problems = {}
     for penalty_str, l1_ratio in [("l2", 0.0), ("net", 0.5), ("lasso", 1.0)]:
         # Add housing problems
@@ -202,5 +206,18 @@ def get_all_problems() -> dict[str, Problem]:
                         regularization_strength=regularization_strength,
                         l1_ratio=l1_ratio,
                     )
+        # Add simulated problems
+        for distribution in simulated_distributions:
+            suffix = penalty_str + "-" + distribution
+            dist = distribution
+            for problem_name, load_fn in simulated_load_funcs.items():
+                problems["-".join((problem_name, "no-weights", suffix))] = Problem(
+                    data_loader=partial(
+                        load_data, load_fn, distribution=dist, data_setup="no-weights"
+                    ),
+                    distribution=distribution,
+                    regularization_strength=regularization_strength,
+                    l1_ratio=l1_ratio,
+                )
 
     return problems

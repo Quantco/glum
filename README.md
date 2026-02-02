@@ -24,8 +24,10 @@ The goal of `glum` is to be at least as feature-complete as existing GLM librari
 
 This repo also includes tools for benchmarking GLM implementations in the `glum_benchmarks` module. For details on the benchmarking, [see here](src/glum_benchmarks/README.md). Although the performance of `glum` relative to `glmnet` and `h2o` depends on the specific problem, we find that when N >> K (there are more observations than predictors), it is consistently much faster for a wide range of problems.
 
+<!-- BENCHMARK_FIGURES_START -->
 ![Performance benchmarks](docs/_static/headline_benchmark.png#gh-light-mode-only)
 ![Performance benchmarks](docs/_static/headline_benchmark_dark.png#gh-dark-mode-only)
+<!-- BENCHMARK_FIGURES_END -->
 
 For more information on `glum`, including tutorials and API reference, please see [the documentation](https://glum.readthedocs.io/en/latest/).
 

@@ -1,4 +1,5 @@
 from functools import partial
+from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -149,3 +150,58 @@ def simulate_glm_data(
         "coefs": coefs,
     }
     return data
+
+
+def generate_square_dataset(
+    num_rows: Optional[int] = None,
+    _noise=None,  # unused, required by load_data signature
+    distribution: str = "poisson",
+) -> tuple[pd.DataFrame, np.ndarray, np.ndarray]:
+    """Generate a square dataset where n_rows = n_cols.
+
+    Parameters
+    ----------
+    num_rows
+        Number of rows (and columns). Defaults to 500.
+    _noise
+        Unused, present to match load_data signature.
+    distribution
+        The GLM family: "gaussian", "poisson", "gamma", or "binomial".
+
+    Returns
+    -------
+    tuple[pd.DataFrame, np.ndarray, np.ndarray]
+        (X, y, exposure) where X is square.
+    """
+    n = num_rows if num_rows is not None else 5000
+    rand = np.random.default_rng(42)
+
+    # Generate standardized features
+    X = pd.DataFrame(
+        data=rand.normal(0, 1, size=(n, n)),
+        columns=[f"x{i}" for i in range(n)],
+    )
+
+    # Sparse coefficients (~10% non-zero)
+    coefs = rand.choice([0] * 9 + [1], size=n) * rand.normal(0, 1, size=n)
+
+    # Linear predictor
+    eta = X.to_numpy() @ coefs
+
+    # Generate y based on distribution
+    if distribution == "gaussian":
+        y = eta + rand.normal(0, 1, size=n)
+    elif distribution == "poisson":
+        mu = np.exp(np.clip(eta, -5, 5))  # Clamp to avoid overflow
+        y = rand.poisson(mu)
+    elif distribution == "gamma":
+        mu = np.exp(np.clip(eta, -5, 5))
+        y = rand.gamma(shape=1.0, scale=mu)
+    elif distribution == "binomial":
+        p = 1 / (1 + np.exp(-eta))  # Logistic
+        y = rand.binomial(1, p)
+    else:
+        raise ValueError(f"Unknown distribution: {distribution}")
+
+    exposure = np.ones(n)
+    return X, y, exposure

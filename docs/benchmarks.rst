@@ -9,6 +9,8 @@ Note that glum was originally developed to solve problems where N >> K (number o
 
 If a bar goes out of the range of the chart, the exact runtime is printed on the bar with an arrow indicating that the bar is truncated.
 
+.. BENCHMARK_FIGURES_START
+
 .. image:: _static/narrow-insurance-l2.png
    :width: 700
 .. image:: _static/narrow-insurance-lasso.png
@@ -28,3 +30,5 @@ Note that the ``r-glmnet`` result for the ``wide-insurance-ridge`` Poisson bench
    :width: 700
 .. image:: _static/intermediate-housing-lasso.png
    :width: 700
+
+.. BENCHMARK_FIGURES_END

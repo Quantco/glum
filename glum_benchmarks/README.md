@@ -7,7 +7,6 @@ Python module to benchmark GLM implementations.
 - [glum](https://github.com/Quantco/glum) - High-performance GLMs with L1/L2 regularization
 - [scikit-learn](https://scikit-learn.org/) - Machine learning in Python
 - [H2O](https://h2o.ai/) - Distributed machine learning platform
-- [LIBLINEAR](https://www.csie.ntu.edu.tw/~cjlin/liblinear/) - Linear classification library
 - [skglm](https://contrib.scikit-learn.org/skglm/) - Fast sklearn-compatible GLM solvers
 - [celer](https://mathurinm.github.io/celer/) - Fast Lasso solver with dual extrapolation
 
@@ -57,7 +56,7 @@ generate_plots: true
 
 ```yaml
 run_benchmarks: false
-analyze_results: true   # Rebuild CSV from existing pickles
+analyze_results: true # Rebuild CSV from existing pickles
 generate_plots: true
 ```
 
@@ -91,23 +90,51 @@ For the `docs` run, both `results.csv` and `config.yaml` are tracked in git. Cha
 
 Edit `config.yaml` to customize benchmark parameters.
 
-| Option            | Description                                      |
-| ----------------- | ------------------------------------------------ |
-| `run_benchmarks`  | Run Step 1 (execute benchmarks)                  |
-| `analyze_results` | Run Step 2 (analyze pickles, write CSV)          |
-| `generate_plots`  | Run Step 3 (generate figures from CSV)           |
-| `run_name`        | Subfolder in `results/`                          |
-| `libraries`       | Which libraries to benchmark                     |
-| `datasets`        | Which datasets to run                            |
-| `regularizations` | Regularization types                             |
-| `distributions`   | Distribution families                            |
-| `num_threads`     | Number of threads for parallel execution         |
-| `reg_strength`    | Regularization strength (alpha)                  |
-| `standardize`     | Whether to standardize features before fitting   |
-| `iterations`      | Runs per benchmark (>=2 required for skglm)      |
-| `num_rows`        | Limit rows per dataset (`null` = full dataset)   |
-| `max_iter`        | Maximum iterations (for convergence detection)   |
-| `clear_output`    | Clear entire `run_name` directory before running |
+### General Options
+
+| Option            | Description                                       |
+| ----------------- | ------------------------------------------------- |
+| `run_benchmarks`  | Run Step 1 (execute benchmarks)                   |
+| `analyze_results` | Run Step 2 (analyze pickles, write CSV)           |
+| `generate_plots`  | Run Step 3 (generate figures from CSV)            |
+| `update_docs`     | Copy figures to docs and update documentation     |
+| `run_name`        | Subfolder in `results/` (`"docs"` is git-tracked) |
+| `clear_output`    | Clear entire `run_name` directory before running  |
+
+### Benchmark Settings
+
+| Option        | Description                                    |
+| ------------- | ---------------------------------------------- |
+| `standardize` | Whether to standardize features before fitting |
+| `iterations`  | Runs per benchmark (>=2 required for skglm)    |
+| `num_threads` | Number of threads for parallel execution       |
+| `num_rows`    | Limit rows per dataset (`null` = full dataset) |
+| `timeout`     | Timeout in seconds per benchmark run           |
+
+### Parameter Grid
+
+The `param_grid` section defines which benchmark combinations to run using a sklearn-style parameter grid:
+
+```yaml
+param_grid:
+  - libraries: ["glum", "sklearn"]
+    datasets: ["intermediate-insurance"]
+    regularizations: ["lasso", "l2"]
+    distributions: ["gaussian", "poisson"]
+    reg_strengths: [0.001]
+```
+
+Each entry computes a Cartesian product. Multiple entries are unioned (not crossed).
+
+**Available values:**
+
+- `libraries`: `["glum", "sklearn", "h2o", "skglm", "celer", "zeros"]`
+- `datasets`: `["intermediate-housing", "intermediate-insurance", "narrow-insurance", "wide-insurance", "square-simulated"]`
+- `regularizations`: `["lasso", "l2", "net"]`
+- `distributions`: `["gaussian", "gamma", "binomial", "poisson", "tweedie-p=1.5"]`
+- `reg_strengths`: `[0.0001, 0.001, 0.01]`
+
+When an entry is omitted or set to `null` all available values are taken --> if you want to run all combinations possiblem, just leave the `param_grid` entry empty.
 
 See `problems.py` for available datasets and problem definitions.
 

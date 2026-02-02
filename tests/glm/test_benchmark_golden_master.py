@@ -32,13 +32,17 @@ def expected_all():
         return json.load(fh)
 
 
+# Filter out simulated datasets which are for benchmarking only
+_gm_test_problems = {k: v for k, v in all_test_problems.items() if "simulated" not in k}
+
+
 @pytest.mark.parametrize(
     ["Pn", "P"],
     [
         x if "wide" not in x[0] else pytest.param(x[0], x[1], marks=pytest.mark.slow)
-        for x in all_test_problems.items()
+        for x in _gm_test_problems.items()
     ],  # mark the "wide" problems as "slow" so that we can call pytest -m "not slow"
-    ids=all_test_problems.keys(),
+    ids=_gm_test_problems.keys(),
 )
 def test_gm_benchmarks(Pn: str, P: Problem, expected_all: dict):
     result, params = exec(Pn)
