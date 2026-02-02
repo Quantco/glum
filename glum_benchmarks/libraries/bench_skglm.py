@@ -10,6 +10,7 @@ from skglm.solvers import AndersonCD, ProxNewton
 
 from glum_benchmarks.util import (
     _standardize_features,
+    _unstandardize_coefficients,
     benchmark_convergence_tolerance,
     runtime,
 )
@@ -27,13 +28,14 @@ def skglm_bench(
     iterations: int,
     reg_multiplier: Optional[float] = None,
     standardize: bool = True,
-    max_iter: int = 1000,
     **kwargs,
 ):
     # Standardize features if requested
+    scaler = None
+    scaled_indices = None
     if standardize:
         dat = dat.copy()
-        dat["X"] = _standardize_features(dat["X"])
+        dat["X"], scaler, scaled_indices = _standardize_features(dat["X"])
 
     result: dict[str, Any] = {}
     reg_strength = alpha if reg_multiplier is None else alpha * reg_multiplier
@@ -60,13 +62,9 @@ def skglm_bench(
     # ProxNewton is faster for non-Gaussian distributions (Poisson, Gamma, Binomial)
     # and required for L2 problems. AndersonCD is better for Gaussian.
     if distribution in ["poisson", "gamma", "binomial"] or l1_ratio == 0:
-        solver = ProxNewton(
-            tol=benchmark_convergence_tolerance, fit_intercept=True, max_iter=max_iter
-        )
+        solver = ProxNewton(tol=benchmark_convergence_tolerance, fit_intercept=True)
     else:
-        solver = AndersonCD(
-            tol=benchmark_convergence_tolerance, fit_intercept=True, max_iter=max_iter
-        )
+        solver = AndersonCD(tol=benchmark_convergence_tolerance, fit_intercept=True)
 
     model_args = {
         "datafit": datafit,
@@ -95,8 +93,14 @@ def skglm_bench(
         warnings.warn(f"skglm failed: {e}")
         return {}
 
-    result["intercept"] = np.array(m.intercept_).ravel()[0]
-    result["coef"] = np.array(m.coef_).ravel()
+    intercept = np.array(m.intercept_).ravel()[0]
+    coef = np.array(m.coef_).ravel()
+
+    # Unstandardize coefficients to match original data scale
+    result["intercept"], result["coef"] = _unstandardize_coefficients(
+        intercept, coef, scaler, scaled_indices
+    )
     result["n_iter"] = getattr(m, "n_iter_", None)
+    result["max_iter"] = solver.max_iter  # For convergence detection
 
     return result

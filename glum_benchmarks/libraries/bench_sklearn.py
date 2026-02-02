@@ -13,6 +13,7 @@ from sklearn.linear_model import (
 
 from glum_benchmarks.util import (
     _standardize_features,
+    _unstandardize_coefficients,
     benchmark_convergence_tolerance,
     runtime,
 )
@@ -31,7 +32,6 @@ def sklearn_bench(
     iterations: int,
     reg_multiplier: Optional[float] = None,
     standardize: bool = True,
-    max_iter: int = 1000,
     **kwargs,
 ):
     """
@@ -46,6 +46,7 @@ def sklearn_bench(
     iterations
     reg_multiplier
     standardize
+        If True, standardize continuous features using sklearn's StandardScaler.
     kwargs
 
     Returns
@@ -53,9 +54,11 @@ def sklearn_bench(
     Dict of
     """
     # Standardize features if requested
+    scaler = None
+    scaled_indices = None
     if standardize:
         dat = dat.copy()
-        dat["X"] = _standardize_features(dat["X"])
+        dat["X"], scaler, scaled_indices = _standardize_features(dat["X"])
 
     result: dict[str, Any] = {}
     reg_strength = alpha if reg_multiplier is None else alpha * reg_multiplier
@@ -66,12 +69,10 @@ def sklearn_bench(
     if distribution == "gaussian":
         if l1_ratio == 0.0:
             # Pure L2 (Ridge): use closed-form solution
-            # sklearn's Ridge uses alpha directly but with sum(loss) not mean(loss)
             model_class = Ridge
             model_args = {
                 "alpha": reg_strength * n_samples,
                 "fit_intercept": True,
-                "max_iter": max_iter,
                 "tol": benchmark_convergence_tolerance,
                 "solver": "auto",
             }
@@ -81,18 +82,16 @@ def sklearn_bench(
             model_args = {
                 "alpha": reg_strength * n_samples,
                 "fit_intercept": True,
-                "max_iter": max_iter,
                 "tol": benchmark_convergence_tolerance,
                 "precompute": True,
             }
         else:
-            # Elastic Net: mixed L1/L2
+            # Scale by n_samples to match glum's objective
             model_class = ElasticNet
             model_args = {
-                "alpha": reg_strength,
+                "alpha": reg_strength * n_samples,
                 "l1_ratio": l1_ratio,
                 "fit_intercept": True,
-                "max_iter": max_iter,
                 "tol": benchmark_convergence_tolerance,
                 "precompute": True,
             }
@@ -111,7 +110,6 @@ def sklearn_bench(
             "l1_ratio": l1_ratio,
             "solver": solver,
             "fit_intercept": True,
-            "max_iter": max_iter,
             "tol": benchmark_convergence_tolerance,
         }
     else:
@@ -134,7 +132,6 @@ def sklearn_bench(
             "power": power,
             "alpha": reg_strength,
             "fit_intercept": True,
-            "max_iter": max_iter,
             "tol": benchmark_convergence_tolerance,
             "solver": "newton-cholesky",
         }
@@ -153,14 +150,22 @@ def sklearn_bench(
         return result
 
     if distribution == "binomial":
-        result["intercept"] = m.intercept_[0] if m.intercept_.ndim > 0 else m.intercept_
-        result["coef"] = m.coef_.ravel()
-        result["n_iter"] = m.n_iter_[0] if hasattr(m.n_iter_, "__len__") else m.n_iter_
+        intercept = m.intercept_[0] if m.intercept_.ndim > 0 else m.intercept_
+        coef = m.coef_.ravel()
+        n_iter = m.n_iter_[0] if hasattr(m.n_iter_, "__len__") else m.n_iter_
     else:
-        result["intercept"] = m.intercept_
-        result["coef"] = m.coef_
+        intercept = m.intercept_
+        coef = m.coef_
         # Ridge has n_iter_=None (closed-form), treat as 0 iterations (direct solve)
         n_iter = getattr(m, "n_iter_", None)
-        result["n_iter"] = 0 if n_iter is None else n_iter
+        n_iter = 0 if n_iter is None else n_iter
+
+    # Unstandardize coefficients to match original data scale
+    result["intercept"], result["coef"] = _unstandardize_coefficients(
+        intercept, coef, scaler, scaled_indices
+    )
+    result["n_iter"] = n_iter
+    # For convergence detection: get max_iter from model
+    result["max_iter"] = getattr(m, "max_iter", None)
 
     return result

@@ -28,7 +28,7 @@ def glum_bench(
     diagnostics_level: str = "basic",
     reg_multiplier: Optional[float] = None,
     hessian_approx: float = 0.0,
-    max_iter: int = 1000,
+    standardize: bool = True,
     **kwargs,
 ):
     """
@@ -44,8 +44,8 @@ def glum_bench(
     diagnostics_level
     reg_multiplier
     hessian_approx
+    standardize
     kwargs
-        Note: glum handles standardization internally via scale_predictors.
 
     Returns
     -------
@@ -64,7 +64,6 @@ def glum_bench(
     model_args = dict(
         family=get_sklearn_family(distribution),
         l1_ratio=l1_ratio,
-        max_iter=max_iter,
         random_state=random_seed,
         copy_X=False,
         selection="cyclic",
@@ -72,6 +71,7 @@ def glum_bench(
         step_size_tol=0.01 * benchmark_convergence_tolerance,
         force_all_finite=False,
         hessian_approx=hessian_approx,
+        scale_predictors=standardize,
         verbose=False,
     )
 
@@ -85,6 +85,7 @@ def glum_bench(
     result["intercept"] = m.intercept_
     result["coef"] = m.coef_
     result["n_iter"] = m.n_iter_
+    result["max_iter"] = m.max_iter  # For convergence detection
 
     with pd.option_context(
         "display.expand_frame_repr",

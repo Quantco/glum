@@ -7,6 +7,7 @@ import pandas as pd
 import tabmat as tm
 from scipy import sparse as sps
 from scipy.sparse import csc_matrix
+from sklearn.preprocessing import StandardScaler
 
 from glum import GeneralizedLinearRegressor, TweedieDistribution
 from glum._solvers import eta_mu_objective
@@ -326,47 +327,98 @@ def get_tweedie_p(distribution: str) -> float:
 
 def _standardize_features(
     X: Union[np.ndarray, pd.DataFrame, csc_matrix, tm.MatrixBase],
-) -> Union[np.ndarray, pd.DataFrame, csc_matrix, tm.MatrixBase]:
+) -> tuple[
+    Union[np.ndarray, pd.DataFrame, csc_matrix, tm.MatrixBase],
+    Optional[StandardScaler],
+    Optional[np.ndarray],
+]:
     """
-    Standardize features by scaling to unit L2 norm per column.
+    Standardize only numerical columns using StandardScaler.
 
-    For consistency across sparse/dense, we use L2 norm scaling (no centering).
-    This ensures all benchmark libraries start with the same pre-processed data.
+    For dense data: mean=0, std=1
+    For sparse data: std=1 only (with_mean=False to preserve sparsity)
+
+    Returns
+    -------
+    X_scaled : array-like
+        The scaled feature matrix.
+    scaler : StandardScaler or None
+        The fitted scaler (for later unstandardization).
+    scaled_indices : ndarray or None
+        Indices of the columns that were scaled (for DataFrames with mixed types).
+        None if all columns were scaled or no scaling was performed.
     """
-    dtype = np.float64
-
     if isinstance(X, pd.DataFrame):
-        # Preserve DataFrame type
-        X_arr = X.values.astype(dtype)
-        col_norms = np.linalg.norm(X_arr, axis=0)
-        col_norms[col_norms == 0] = 1.0
-        return pd.DataFrame(X_arr / col_norms, columns=X.columns, index=X.index)
+        # Identify numerical columns
+        numerical_cols = X.select_dtypes(include=["number"]).columns
+        # Get the integer indices of numerical columns
+        scaled_indices = np.array([X.columns.get_loc(c) for c in numerical_cols])
+        scaler = StandardScaler()
+        X_scaled = X.copy()
+        X_scaled[numerical_cols] = scaler.fit_transform(X[numerical_cols])
+        return X_scaled, scaler, scaled_indices
 
-    if isinstance(X, np.ndarray):
-        # Dense: scale columns to unit L2 norm
-        X = np.asarray(X, dtype=dtype)
-        col_norms = np.linalg.norm(X, axis=0)
-        col_norms[col_norms == 0] = 1.0
-        return X / col_norms
+    if sps.issparse(X):
+        # For sparse matrices, we can only scale (not center) to preserve sparsity
+        scaler = StandardScaler(with_mean=False)
+        X_scaled = scaler.fit_transform(X)
+        return X_scaled, scaler, None  # All columns scaled
 
-    elif isinstance(X, csc_matrix):
-        # Sparse: scale columns to unit L2 norm
-        X = X.astype(dtype)
-        col_norms = np.sqrt(X.power(2).sum(axis=0)).A1
-        col_norms[col_norms == 0] = 1.0
-        from scipy.sparse import diags
+    # Fallback: return unchanged for other types (tabmat)
+    return X, None, None
 
-        return X @ diags(1.0 / col_norms)
 
-    elif isinstance(X, tm.MatrixBase):
-        # tabmat matrices: skip standardization
-        # glum is the only library that can use tabmat directly, and it handles
-        # standardization internally. Other libraries would need conversion anyway.
-        return X
+def _unstandardize_coefficients(
+    intercept: float,
+    coef: np.ndarray,
+    scaler: Optional[StandardScaler],
+    scaled_indices: Optional[np.ndarray] = None,
+) -> tuple[float, np.ndarray]:
+    """
+    Unstandardize coefficients to match the original (unscaled) data.
 
+    This reverses the StandardScaler transformation so coefficients can be
+    compared with libraries that handle standardization internally (glum, h2o).
+
+    Parameters
+    ----------
+    intercept : float
+        The intercept from the fitted model.
+    coef : ndarray
+        The coefficients from the fitted model.
+    scaler : StandardScaler or None
+        The scaler used to standardize features.
+    scaled_indices : ndarray or None
+        Indices of the columns that were scaled. If None, assumes all columns
+        were scaled (or no scaling was performed if scaler is also None).
+    """
+    if scaler is None:
+        return intercept, coef
+
+    scale = scaler.scale_
+    coef_original = coef.copy()
+
+    if scaled_indices is not None:
+        # Only unstandardize the coefficients corresponding to scaled columns
+        coef_original[scaled_indices] = coef[scaled_indices] / scale
+
+        # intercept_original = intercept_scaled - sum(mean / scale * coef_scaled)
+        if scaler.with_mean and scaler.mean_ is not None:
+            intercept_original = intercept - np.dot(
+                scaler.mean_ / scale, coef[scaled_indices]
+            )
+        else:
+            intercept_original = intercept
     else:
-        # Unknown type, return as-is
-        return X
+        # All columns were scaled
+        coef_original = coef / scale
+
+        if scaler.with_mean and scaler.mean_ is not None:
+            intercept_original = intercept - np.dot(scaler.mean_ / scale, coef)
+        else:
+            intercept_original = intercept
+
+    return intercept_original, coef_original
 
 
 def get_all_libraries() -> dict:
@@ -384,7 +436,6 @@ def get_all_libraries() -> dict:
         celer_bench,
         glum_bench,
         h2o_bench,
-        liblinear_bench,
         skglm_bench,
         sklearn_bench,
         zeros_bench,
@@ -395,7 +446,6 @@ def get_all_libraries() -> dict:
         "zeros": zeros_bench,
         "celer": celer_bench,
         "h2o": h2o_bench,
-        "liblinear": liblinear_bench,
         "skglm": skglm_bench,
         "sklearn": sklearn_bench,
     }

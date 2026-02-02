@@ -7,6 +7,7 @@ from scipy import sparse as sps
 
 from glum_benchmarks.util import (
     _standardize_features,
+    _unstandardize_coefficients,
     benchmark_convergence_tolerance,
     runtime,
 )
@@ -24,17 +25,19 @@ def celer_bench(
     iterations: int,
     reg_multiplier: Optional[float] = None,
     standardize: bool = True,
-    max_iter: int = 1000,
     **kwargs,
 ):
     # Standardize features if requested
+    scaler = None
+    scaled_indices = None
     if standardize:
         dat = dat.copy()
-        dat["X"] = _standardize_features(dat["X"])
+        dat["X"], scaler, scaled_indices = _standardize_features(dat["X"])
 
     result: dict[str, Any] = {}
     fit_args = {"X": dat["X"], "y": dat["y"]}
     reg_strength = alpha if reg_multiplier is None else alpha * reg_multiplier
+    n_samples = dat["X"].shape[0]
 
     # LogisticRegression doesn't support fitting an intercept yet, so we also skip it
     if distribution not in ["gaussian"]:
@@ -50,11 +53,12 @@ def celer_bench(
         else:
             model_class = Lasso
 
+    # Celer uses same alpha convention as sklearn Lasso/ElasticNet
+    # Scale by n_samples to match glum's objective
     model_args = {
         "tol": benchmark_convergence_tolerance,
         "fit_intercept": True,
-        "max_iter": max_iter,
-        "alpha": reg_strength,
+        "alpha": reg_strength * n_samples,
     }
 
     if model_class == ElasticNet:
@@ -68,8 +72,14 @@ def celer_bench(
         warnings.warn(f"Celer failed: {e}")
         return {}
 
-    result["intercept"] = np.array(m.intercept_).ravel()[0]
-    result["coef"] = np.array(m.coef_).ravel()
+    intercept = np.array(m.intercept_).ravel()[0]
+    coef = np.array(m.coef_).ravel()
+
+    # Unstandardize coefficients to match original data scale
+    result["intercept"], result["coef"] = _unstandardize_coefficients(
+        intercept, coef, scaler, scaled_indices
+    )
     result["n_iter"] = getattr(m, "n_iter_", None)
+    result["max_iter"] = m.max_iter  # For convergence detection
 
     return result
