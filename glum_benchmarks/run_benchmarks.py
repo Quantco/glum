@@ -23,8 +23,6 @@ import pickle
 import re
 import shutil
 import warnings
-from concurrent.futures import ThreadPoolExecutor
-from concurrent.futures import TimeoutError as FuturesTimeoutError
 from contextlib import nullcontext
 from itertools import product
 from pathlib import Path
@@ -332,22 +330,18 @@ def run_single_benchmark(
         regularization_strength=reg_strength,
     )
 
-    # Use ThreadPoolExecutor for cross-platform timeout support
-    # Note: We don't use the context manager because its __exit__ waits for
-    # the thread to complete, which defeats the purpose of the timeout.
-    executor = ThreadPoolExecutor(max_workers=1)
-    future = executor.submit(
-        execute_problem_library,
-        params,
-        iterations=config.iterations,
-        diagnostics_level=None,
-        standardize=config.standardize,
-    )
+    # Pass timeout to execute_problem_library for per-iteration timeout handling
     try:
-        result, _ = future.result(timeout=config.timeout)
+        result, _ = execute_problem_library(
+            params,
+            iterations=config.iterations,
+            diagnostics_level=None,
+            standardize=config.standardize,
+            timeout=config.timeout,
+        )
         result["timed_out"] = False
-    except FuturesTimeoutError:
-        # Return timeout result
+    except TimeoutError:
+        # All iterations timed out
         result = {
             "runtime": float(config.timeout),
             "timed_out": True,
@@ -355,9 +349,6 @@ def run_single_benchmark(
             "coef": None,
             "n_iter": None,
         }
-    # Shutdown without waiting for the thread to finish
-    # The thread will continue in the background but we move on
-    executor.shutdown(wait=False, cancel_futures=True)
 
     return result, params
 

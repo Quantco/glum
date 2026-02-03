@@ -1,4 +1,5 @@
 import os
+import signal
 import time
 from typing import Optional, Union
 
@@ -16,29 +17,60 @@ benchmark_convergence_tolerance = 1e-4
 cache_location = os.environ.get("GLM_BENCHMARKS_CACHE", None)
 
 
-def runtime(f, iterations, *args, **kwargs):
+def runtime(f, iterations, *args, timeout=None, **kwargs):
     """
-    Measure how long it tales to run function f.
+    Measure how long it takes to run function f.
 
     Parameters
     ----------
     f: function
-    iterations
+    iterations: int
+        Number of times to run the function
     args: Passed to f
+    timeout: float, optional
+        Timeout in seconds for each iteration.
     kwargs: Passed to f
 
     Returns
     -------
-    Tuple: (Minimimum runtime across iterations, output of f)
+    Tuple: (Minimum runtime across successful iterations, output frombest iteration)
+        If all iterations timeout, raises TimeoutError.
 
     """
-    rs = []
-    for _ in range(iterations):
-        start = time.time()
-        out = f(*args, **kwargs)
-        end = time.time()
-        rs.append(end - start)
-    return np.min(rs), out
+    successful_runs = []  # (runtime, output) pairs
+
+    for i in range(iterations):
+        # Set up timeout for this iteration if requested
+        if timeout is not None:
+
+            def _iter_timeout_handler(signum, frame):
+                raise TimeoutError(f"Iteration {i + 1} exceeded {timeout}s timeout")
+
+            old_handler = signal.signal(signal.SIGALRM, _iter_timeout_handler)
+            signal.alarm(int(timeout))
+
+        try:
+            start = time.time()
+            out = f(*args, **kwargs)
+            end = time.time()
+            runtime_val = end - start
+            successful_runs.append((runtime_val, out))
+        except TimeoutError:
+            # This iteration timed out, continue to next iteration
+            pass
+        finally:
+            # Cancel alarm and restore handler
+            if timeout is not None:
+                signal.alarm(0)
+                signal.signal(signal.SIGALRM, old_handler)
+
+    if not successful_runs:
+        # All iterations timed out
+        raise TimeoutError(f"All {iterations} iterations exceeded {timeout}s timeout")
+
+    # Return the run with minimum runtime
+    min_runtime, min_output = min(successful_runs, key=lambda x: x[0])
+    return min_runtime, min_output
 
 
 def get_sklearn_family(distribution):
@@ -459,6 +491,7 @@ def execute_problem_library(
     iterations: int = 1,
     diagnostics_level: Optional[str] = "basic",
     standardize: bool = True,
+    timeout: Optional[float] = None,
     **kwargs,
 ):
     """
@@ -517,6 +550,7 @@ def execute_problem_library(
         reg_multiplier=reg_multiplier,
         hessian_approx=params.hessian_approx,
         standardize=standardize,
+        timeout=timeout,
         **kwargs,
     )
 

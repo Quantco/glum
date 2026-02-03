@@ -1,14 +1,14 @@
 # glum_benchmarks
 
-Python module to benchmark GLM implementations.
+Module to benchmark glum against similar libraries.
 
 ## Benchmarked Libraries
 
-- [glum](https://github.com/Quantco/glum) - High-performance GLMs with L1/L2 regularization
-- [scikit-learn](https://scikit-learn.org/) - Machine learning in Python
-- [H2O](https://h2o.ai/) - Distributed machine learning platform
-- [skglm](https://contrib.scikit-learn.org/skglm/) - Fast sklearn-compatible GLM solvers
-- [celer](https://mathurinm.github.io/celer/) - Fast Lasso solver with dual extrapolation
+- [glum](https://github.com/Quantco/glum)
+- [scikit-learn](https://scikit-learn.org/)
+- [H2O](https://h2o.ai/)
+- [skglm](https://contrib.scikit-learn.org/skglm/)
+- [celer](https://mathurinm.github.io/celer/)
 
 ## Running the benchmarks
 
@@ -16,7 +16,7 @@ Python module to benchmark GLM implementations.
 pixi run -e benchmark run-benchmarks
 ```
 
-The benchmark script runs in three steps that can be controlled independently.
+The benchmark script runs in four steps that can be controlled independently.
 
 ### Step 1: Run Benchmarks (`run_benchmarks`)
 
@@ -42,6 +42,16 @@ Creates comparison charts from the CSV produced by Step 2.
 - **Output:** PNG files in `results/<run_name>/figures/`
 - **Set `generate_plots: false`** in config.yaml to skip
 
+### Step 4: Update documentation and README (`update_docs`)
+
+Copies figures to `docs/_static/` and updates figure references in documentation files.
+
+- **Input:** PNG files from `results/<run_name>/figures/`
+- **Output:** Copies to `docs/_static/` + updates `docs/benchmarks.rst` and `README.md`
+- **Set `update_docs: false`** in config.yaml to skip
+
+Use `docs_figures` and `readme_figures` in config.yaml to control which figures are included (default: all figures for docs, first non-normalized figure for README).
+
 ### Workflow examples
 
 **Full run (default):**
@@ -50,6 +60,7 @@ Creates comparison charts from the CSV produced by Step 2.
 run_benchmarks: true
 analyze_results: true
 generate_plots: true
+update_docs: false # Set to true to update docs/_static and documentation
 ```
 
 **Regenerate plots without re-running benchmarks:**
@@ -58,14 +69,16 @@ generate_plots: true
 run_benchmarks: false
 analyze_results: true # Rebuild CSV from existing pickles
 generate_plots: true
+update_docs: false
 ```
 
-**Run benchmarks and analyze results without creating figures:**
+**Update documentation with existing figures:**
 
 ```yaml
-run_benchmarks: true
-analyze_results: true
+run_benchmarks: false
+analyze_results: false
 generate_plots: false
+update_docs: true # Only copy figures and update docs
 ```
 
 ## Output structure
@@ -92,24 +105,33 @@ Edit `config.yaml` to customize benchmark parameters.
 
 ### General Options
 
-| Option            | Description                                       |
-| ----------------- | ------------------------------------------------- |
-| `run_benchmarks`  | Run Step 1 (execute benchmarks)                   |
-| `analyze_results` | Run Step 2 (analyze pickles, write CSV)           |
-| `generate_plots`  | Run Step 3 (generate figures from CSV)            |
-| `update_docs`     | Copy figures to docs and update documentation     |
-| `run_name`        | Subfolder in `results/` (`"docs"` is git-tracked) |
-| `clear_output`    | Clear entire `run_name` directory before running  |
+| Option            | Description                                        |
+| ----------------- | -------------------------------------------------- |
+| `run_benchmarks`  | Run Step 1 (execute benchmarks)                    |
+| `analyze_results` | Run Step 2 (analyze pickles, write CSV)            |
+| `generate_plots`  | Run Step 3 (generate figures from CSV)             |
+| `update_docs`     | Run Step 4 (copy figures to docs and update files) |
+| `docs_figures`    | List of figures for docs (null = all)              |
+| `readme_figures`  | List of figures for README (null = first figure)   |
+| `run_name`        | Subfolder in `results/` (`"docs"` is git-tracked)  |
+| `clear_output`    | Clear entire `run_name` directory before running   |
 
 ### Benchmark Settings
 
-| Option        | Description                                    |
-| ------------- | ---------------------------------------------- |
-| `standardize` | Whether to standardize features before fitting |
-| `iterations`  | Runs per benchmark (>=2 required for skglm)    |
-| `num_threads` | Number of threads for parallel execution       |
-| `num_rows`    | Limit rows per dataset (`null` = full dataset) |
-| `timeout`     | Timeout in seconds per benchmark run           |
+| Option        | Description                                                                  |
+| ------------- | ---------------------------------------------------------------------------- |
+| `standardize` | Whether to standardize features (glum/h2o: internal, others: StandardScaler) |
+| `iterations`  | Runs per benchmark (>=2 required for skglm)                                  |
+| `num_threads` | Number of threads for parallel execution                                     |
+| `num_rows`    | Limit rows per dataset (`null` = full dataset)                               |
+| `timeout`     | Timeout in seconds (benchmarks timing out are marked "not converged")        |
+| `storage`     | Storage format per library: `{"glum": "auto", "sklearn": "dense", ...}`      |
+
+**Notes:**
+
+- **Standardization**: glum and h2o handle scaling internally. sklearn, skglm, and celer use `StandardScaler`. Only numerical columns are scaled (categorical/one-hot columns are not).
+- **Convergence**: A benchmark is marked "not converged" if it either (1) hits the timeout, or (2) reaches the library's internal `max_iter` limit.
+- **Storage formats**: `"auto"`, `"dense"`, or `"sparse"`. Configured per library for optimal performance.
 
 ### Parameter Grid
 
@@ -134,7 +156,7 @@ Each entry computes a Cartesian product. Multiple entries are unioned (not cross
 - `distributions`: `["gaussian", "gamma", "binomial", "poisson", "tweedie-p=1.5"]`
 - `reg_strengths`: `[0.0001, 0.001, 0.01]`
 
-When an entry is omitted or set to `null` all available values are taken --> if you want to run all combinations possiblem, just leave the `param_grid` entry empty.
+When an entry is omitted or set to `null` all available values are taken --> if you want to run all combinations possible, just leave the `param_grid` entry empty.
 
 See `problems.py` for available datasets and problem definitions.
 

@@ -39,6 +39,7 @@ def h2o_bench(
     iterations: int,
     reg_multiplier: Optional[float] = None,
     standardize: bool = True,
+    timeout: Optional[float] = None,
     **kwargs,
 ):
     """
@@ -115,7 +116,9 @@ def h2o_bench(
         training_frame=train_h2o,
     )
 
-    result["runtime"], m = runtime(_build_and_fit, iterations, model_args, train_args)
+    result["runtime"], m = runtime(
+        _build_and_fit, iterations, model_args, train_args, timeout=timeout
+    )
     # un-standardize
     standardized_intercept = m.coef()["Intercept"]
 
