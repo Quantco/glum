@@ -28,6 +28,7 @@ def skglm_bench(
     iterations: int,
     reg_multiplier: Optional[float] = None,
     standardize: bool = True,
+    timeout: Optional[float] = None,
     **kwargs,
 ):
     # Standardize features if requested
@@ -88,7 +89,12 @@ def skglm_bench(
     fit_args = {"X": X, "y": y}
 
     try:
-        result["runtime"], m = runtime(_build_and_fit, iterations, model_args, fit_args)
+        result["runtime"], m = runtime(
+            _build_and_fit, iterations, model_args, fit_args, timeout=timeout
+        )
+    except TimeoutError:
+        # Re-raise TimeoutError to allow proper timeout handling at higher level
+        raise
     except Exception as e:
         warnings.warn(f"skglm failed: {e}")
         return {}

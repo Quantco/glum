@@ -25,6 +25,7 @@ def celer_bench(
     iterations: int,
     reg_multiplier: Optional[float] = None,
     standardize: bool = True,
+    timeout: Optional[float] = None,
     **kwargs,
 ):
     # Standardize features if requested
@@ -66,8 +67,16 @@ def celer_bench(
 
     try:
         result["runtime"], m = runtime(
-            _build_and_fit, iterations, model_class, model_args, fit_args
+            _build_and_fit,
+            iterations,
+            model_class,
+            model_args,
+            fit_args,
+            timeout=timeout,
         )
+    except TimeoutError:
+        # Re-raise TimeoutError to allow proper timeout handling at higher level
+        raise
     except Exception as e:
         warnings.warn(f"Celer failed: {e}")
         return {}

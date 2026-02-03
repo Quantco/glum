@@ -29,6 +29,7 @@ def glum_bench(
     reg_multiplier: Optional[float] = None,
     hessian_approx: float = 0.0,
     standardize: bool = True,
+    timeout: Optional[float] = None,
     **kwargs,
 ):
     """
@@ -77,7 +78,9 @@ def glum_bench(
 
     model_args["alpha"] = alpha if reg_multiplier is None else alpha * reg_multiplier
 
-    result["runtime"], m = runtime(_build_and_fit, iterations, model_args, fit_args)
+    result["runtime"], m = runtime(
+        _build_and_fit, iterations, model_args, fit_args, timeout=timeout
+    )
 
     # Just check that predict works here... This doesn't take very long.
     m.predict(**{k: v for k, v in fit_args.items() if k != "y"})

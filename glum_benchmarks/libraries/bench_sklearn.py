@@ -32,6 +32,7 @@ def sklearn_bench(
     iterations: int,
     reg_multiplier: Optional[float] = None,
     standardize: bool = True,
+    timeout: Optional[float] = None,
     **kwargs,
 ):
     """
@@ -143,7 +144,12 @@ def sklearn_bench(
 
     try:
         result["runtime"], m = runtime(
-            _build_and_fit, iterations, model_class, model_args, fit_args
+            _build_and_fit,
+            iterations,
+            model_class,
+            model_args,
+            fit_args,
+            timeout=timeout,
         )
     except ValueError as e:
         warnings.warn(f"Problem failed with this error: {e}")
