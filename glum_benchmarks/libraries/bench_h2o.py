@@ -37,7 +37,6 @@ def h2o_bench(
     alpha: float,
     l1_ratio: float,
     iterations: int,
-    reg_multiplier: Optional[float] = None,
     standardize: bool = True,
     timeout: Optional[float] = None,
     **kwargs,
@@ -52,7 +51,6 @@ def h2o_bench(
     alpha
     l1_ratio
     iterations
-    reg_multiplier
     standardize
     kwargs
 
@@ -91,10 +89,9 @@ def h2o_bench(
 
     model_args = dict(
         model_id="glm",
-        # not sure if this is right
         family="tweedie" if tweedie else distribution,
         alpha=l1_ratio,
-        lambda_=alpha if reg_multiplier is None else alpha * reg_multiplier,
+        lambda_=alpha,
         standardize=standardize,  # Let h2o handle standardization internally
         solver="IRLSM",
         objective_epsilon=benchmark_convergence_tolerance,
@@ -136,6 +133,5 @@ def h2o_bench(
     result["coef"] = standardized_coefs
 
     result["n_iter"] = m.score_history().iloc[-1]["iterations"]
-    # h2o default max_iterations is very high, but we can get actual from params
     result["max_iter"] = m.actual_params.get("max_iterations", 100)
     return result

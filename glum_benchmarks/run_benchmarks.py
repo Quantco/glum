@@ -8,7 +8,7 @@ Usage:
 Configuration:
     Edit config.yaml to configure which benchmarks to run. Use param_grid to
     specify combinations of libraries, datasets, regularizations, distributions,
-    and reg_strengths. You can also control which steps to run (run_benchmarks,
+    and alphas. You can also control which steps to run (run_benchmarks,
     analyze_results, generate_plots, update_docs).
 
 Output:
@@ -54,19 +54,20 @@ from glum_benchmarks.util import (
 # TODO: Determine optimal storage type for each library for a fair comparison
 
 # Type aliases for configuration options
-Library = Literal["glum", "sklearn", "h2o", "skglm", "celer", "zeros"]
+Library = Literal["glum", "sklearn", "h2o", "skglm", "celer", "zeros", "glmnet"]
 Dataset = Literal[
     "intermediate-insurance",
     "intermediate-housing",
     "narrow-insurance",
     "wide-insurance",
     "square-simulated",
+    "categorical-simulated",
 ]
 Regularization = Literal["lasso", "l2", "net"]
-RegStrength = float  # Valid values: 0.0001, 0.001, 0.01
-REG_STRENGTH_VALUES = (0.0001, 0.001, 0.01)
+Alpha = float  # Valid values: 0.0001, 0.001, 0.01
+ALPHA_VALUES = (0.001, 0.01, 0.1)
 Distribution = Literal["gaussian", "gamma", "binomial", "poisson", "tweedie-p=1.5"]
-StorageFormat = Literal["auto", "dense", "sparse"]
+StorageFormat = Literal["auto", "dense", "sparse", "cat"]
 
 
 class ParamGridEntry(BaseModel):
@@ -87,8 +88,8 @@ class ParamGridEntry(BaseModel):
     regularizations: list[Regularization] | None = Field(
         default=None, description="Regularization types (None = all)"
     )
-    reg_strengths: list[RegStrength] | None = Field(
-        default=None, description="Regularization strengths (None = all)"
+    alphas: list[Alpha] | None = Field(
+        default=None, description="Per-observation alpha values (None = all)"
     )
     distributions: list[Distribution] | None = Field(
         default=None, description="Distributions (None = all)"
@@ -244,12 +245,12 @@ def _parse_problem_name(name: str) -> tuple[str, str, str]:
 def get_benchmark_combinations(
     config: BenchmarkConfig,
 ) -> list[tuple[str, str, float]]:
-    """Get list of (problem_name, library, reg_strength) tuples to benchmark.
+    """Get list of (problem_name, library, alpha) tuples to benchmark.
 
     Cartesian product within each entry, union across entries.
 
     Returns:
-        List of (problem_name, library_name, reg_strength) tuples to run.
+        List of (problem_name, library_name, alpha) tuples to run.
     """
 
     all_problems = get_all_problems()
@@ -268,7 +269,7 @@ def get_benchmark_combinations(
     all_datasets = sorted({_parse_problem_name(n)[0] for n in base_problems})
     all_regs = sorted({_parse_problem_name(n)[1] for n in base_problems})
     all_dists = sorted({_parse_problem_name(n)[2] for n in base_problems})
-    all_reg_strengths = list(REG_STRENGTH_VALUES)
+    all_alphas = list(ALPHA_VALUES)
 
     combinations: set[tuple[str, str, float]] = set()
 
@@ -282,25 +283,25 @@ def get_benchmark_combinations(
         datasets = entry.datasets if entry.datasets else all_datasets
         regs = entry.regularizations if entry.regularizations else all_regs
         dists = entry.distributions if entry.distributions else all_dists
-        strengths = entry.reg_strengths if entry.reg_strengths else all_reg_strengths
+        alphas = entry.alphas if entry.alphas else all_alphas
 
         print(f"Parameter Set {i}:")
         print(f"  Libraries: {libraries}")
         print(f"  Datasets: {datasets}")
         print(f"  Regularizations: {regs}")
         print(f"  Distributions: {dists}")
-        print(f"  Reg strengths: {strengths}")
+        print(f"  Alphas: {alphas}")
         print()
 
         # Cartesian product within this entry
-        for lib, dataset, reg, dist, strength in product(
-            libraries, datasets, regs, dists, strengths
+        for lib, dataset, reg, dist, alpha in product(
+            libraries, datasets, regs, dists, alphas
         ):
             key = (dataset, reg, dist)
             if key in problem_lookup:
                 # Only add if library is actually available
                 if lib in available_libraries:
-                    combinations.add((problem_lookup[key], lib, strength))
+                    combinations.add((problem_lookup[key], lib, alpha))
 
     print(f"Total benchmark runs: {len(combinations)}")
     print("=" * 70)
@@ -310,7 +311,7 @@ def get_benchmark_combinations(
 
 
 def run_single_benchmark(
-    problem_name: str, library_name: str, reg_strength: float, config: BenchmarkConfig
+    problem_name: str, library_name: str, alpha: float, config: BenchmarkConfig
 ) -> tuple[dict, BenchmarkParams]:
     """Run a single benchmark and return results.
 
@@ -327,7 +328,7 @@ def run_single_benchmark(
         num_rows=config.num_rows,
         storage=storage,
         threads=config.num_threads,
-        regularization_strength=reg_strength,
+        alpha=alpha,
     )
 
     # Pass timeout to execute_problem_library for per-iteration timeout handling
@@ -361,15 +362,15 @@ def run_all_benchmarks(config: BenchmarkConfig):
         shutil.rmtree(config.results_dir)
     config.pickle_dir.mkdir(parents=True, exist_ok=True)
 
-    # Get benchmark combinations (problem, library, reg_strength) from param_grid
+    # Get benchmark combinations (problem, library, alpha) from param_grid
     combinations = get_benchmark_combinations(config)
 
     total = len(combinations)
     current = 0
 
-    for problem_name, library_name, reg_strength in combinations:
+    for problem_name, library_name, alpha in combinations:
         current += 1
-        label = f"{library_name} / {problem_name} (α={reg_strength})"
+        label = f"{library_name} / {problem_name} (α={alpha})"
         print(f"[{current}/{total}] {label}", end=" ", flush=True)
 
         try:
@@ -382,7 +383,7 @@ def run_all_benchmarks(config: BenchmarkConfig):
                     message=".*asyncio.iscoroutinefunction.*",
                 )
                 result, params = run_single_benchmark(
-                    problem_name, library_name, reg_strength, config
+                    problem_name, library_name, alpha, config
                 )
 
             # Save result
@@ -457,11 +458,7 @@ def analyze_results(config: BenchmarkConfig) -> pd.DataFrame:
             num_nonzero_coef = 0
 
         # Get regularization strength from params or problem default
-        reg_strength = (
-            problem.regularization_strength
-            if params.regularization_strength is None
-            else params.regularization_strength
-        )
+        alpha = problem.alpha if params.alpha is None else params.alpha
 
         # Check convergence:
         # 1. timed_out=True means we hit the benchmark timeout
@@ -477,7 +474,7 @@ def analyze_results(config: BenchmarkConfig) -> pd.DataFrame:
                 "problem_name": params.problem_name,
                 "library_name": params.library_name,
                 "num_rows": data.get("num_rows"),
-                "regularization_strength": reg_strength,
+                "alpha": alpha,
                 "storage": params.storage,
                 "threads": params.threads,
                 "n_iter": n_iter,
@@ -499,11 +496,13 @@ def analyze_results(config: BenchmarkConfig) -> pd.DataFrame:
     df = pd.DataFrame(results)
 
     # Format: set index and sort
-    problem_id_cols = ["problem_name", "num_rows", "regularization_strength"]
+    problem_id_cols = ["problem_name", "num_rows", "alpha"]
     df = df.set_index(problem_id_cols).sort_values("library_name").sort_index()
 
-    # Calculate relative objective value (how far from best)
-    df["rel_obj_val"] = df[["obj_val"]] - df.groupby(level=[0, 1, 2])[["obj_val"]].min()
+    # Calculate relative objective value (how far from best).
+    # Use transform to preserve alignment when index has duplicates.
+    best_obj = df.groupby(level=[0, 1, 2])["obj_val"].transform("min")
+    df["rel_obj_val"] = df["obj_val"] - best_obj
 
     # Display columns
     cols_to_show = [
@@ -717,7 +716,7 @@ def plot_results(config: BenchmarkConfig):
 
     # Create a combined regularization column (type + strength)
     df["reg_combo"] = df.apply(
-        lambda row: f"{row['regularization']} (α={row['regularization_strength']})",
+        lambda row: f"{row['regularization']} (α={row['alpha']})",
         axis=1,
     )
 
@@ -727,7 +726,7 @@ def plot_results(config: BenchmarkConfig):
             "dataset",
             "distribution",
             "regularization",
-            "regularization_strength",
+            "alpha",
             "library_name",
         ],
         keep="last",
@@ -738,7 +737,7 @@ def plot_results(config: BenchmarkConfig):
         "glum": "#a6cee3",
         "h2o": "#fdbf6f",
         "glmnet": "#b15928",
-        "sklearn": "#b15928",
+        "sklearn": "#1f78b4",
         "skglm": "#33a02c",
         "celer": "#fb9a99",
     }

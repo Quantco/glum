@@ -29,7 +29,7 @@ class TestProblems:
         for name, problem in problems.items():
             assert hasattr(problem, "data_loader")
             assert hasattr(problem, "distribution")
-            assert hasattr(problem, "regularization_strength")
+            assert hasattr(problem, "alpha")
 
 
 class TestLibraries:
@@ -54,7 +54,7 @@ class TestBenchmarkParams:
             num_rows=100,
             storage="dense",
             threads=1,
-            regularization_strength=0.01,
+            alpha=0.01,
         )
         assert params.problem_name == "test-problem"
         assert params.library_name == "glum"
@@ -66,7 +66,7 @@ class TestBenchmarkParams:
             num_rows=100,
             storage="dense",
             threads=1,
-            regularization_strength=0.01,
+            alpha=0.01,
         )
         fname = params.get_result_fname()
         assert "test-problem" in fname
@@ -80,7 +80,7 @@ class TestBenchmarkParams:
             num_rows=1000,
             storage="dense",
             threads=4,
-            regularization_strength=0.001,
+            alpha=0.001,
         )
         fname = params.get_result_fname() + ".pkl"
         recovered = get_params_from_fname(fname)
@@ -108,7 +108,7 @@ class TestExecuteProblem:
             num_rows=100,  # Small for speed
             storage="dense",
             threads=1,
-            regularization_strength=0.1,
+            alpha=0.1,
         )
 
         result, _ = execute_problem_library(params, iterations=1)

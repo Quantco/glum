@@ -29,20 +29,21 @@ timeout: 100 # Timeout in seconds per benchmark run (reports as "not converged" 
 # Storage format per library ("dense", "sparse", or "auto")
 storage:
   glum: auto # Auto selects best format
-  h2o: sparse # Better performance with sparse
+  sklearn: dense # Can use either
+  h2o: sparse # Optimized for sparse matrices
   celer: sparse # Optimized for sparse matrices
-  sklearn: dense # Can use either, configure as needed
-  skglm: dense # Can use either, configure as needed
+  skglm: sparse # Faster for dense matrices
+  glmnet: sparse # R glmnet supports sparse matrices
 
 # PARAMETER GRID
 # Each entry specifies a parameter set. Within each entry, the Cartesian
 # product is computed. Across entries, results are unioned (not crossed).
 #
 # Available values:
-#   libraries: ["glum", "sklearn", "h2o", "skglm", "celer", "zeros"]
+#   libraries: ["glum", "sklearn", "h2o", "skglm", "celer", "zeros", "glmnet"]
 #   datasets: ["intermediate-housing", "intermediate-insurance", "narrow-insurance", "wide-insurance","square-simulated"]
 #   regularizations: ["lasso", "l2", "net"]
-#   reg_strengths: [0.0001, 0.001, 0.01]
+#   alphas: [0.0001, 0.001, 0.01]
 #   distributions: ["gaussian", "gamma", "binomial", "poisson", "tweedie-p=1.5"]
 #
 # Use null (or omit) for any field to use its default value. Default refers to using all available values.

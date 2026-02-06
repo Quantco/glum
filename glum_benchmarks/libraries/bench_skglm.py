@@ -1,5 +1,5 @@
 import warnings
-from typing import Any, Optional, Union, cast
+from typing import Any, Optional, Union
 
 import numpy as np
 from scipy import sparse as sps
@@ -26,7 +26,6 @@ def skglm_bench(
     alpha: float,
     l1_ratio: float,
     iterations: int,
-    reg_multiplier: Optional[float] = None,
     standardize: bool = True,
     timeout: Optional[float] = None,
     **kwargs,
@@ -39,8 +38,6 @@ def skglm_bench(
         dat["X"], scaler, scaled_indices = _standardize_features(dat["X"])
 
     result: dict[str, Any] = {}
-    reg_strength = alpha if reg_multiplier is None else alpha * reg_multiplier
-
     if "tweedie" in distribution:
         warnings.warn("skglm doesn't support Tweedie, skipping.")
         return result
@@ -55,10 +52,10 @@ def skglm_bench(
     datafit = DATAFITS[distribution]
 
     if l1_ratio == 1:
-        penalty = L1(alpha=reg_strength)
+        penalty = L1(alpha=alpha)
     else:
-        # We use L1_plus_L2(l1_ratio=0) for pure L2 to ensure prox_1d is available
-        penalty = L1_plus_L2(alpha=reg_strength, l1_ratio=l1_ratio)
+        # We use L1_plus_L2 (l1_ratio=0) for pure L2 to ensure prox_1d is available
+        penalty = L1_plus_L2(alpha=alpha, l1_ratio=l1_ratio)
 
     # ProxNewton is faster for non-Gaussian distributions (Poisson, Gamma, Binomial)
     # and required for L2 problems. AndersonCD is better for Gaussian.
@@ -73,20 +70,11 @@ def skglm_bench(
         "solver": solver,
     }
 
-    # Data Conversion optimized for Coordinate Descent
-    X_raw = dat["X"]
-    if sps.issparse(X_raw):
-        X = cast(sps.spmatrix, X_raw).tocsc()
-    else:
-        X = np.asfortranarray(X_raw, dtype=np.float64)
-
-    y = np.asarray(dat["y"], dtype=np.float64).ravel()
+    fit_args = {"X": dat["X"], "y": dat["y"]}
 
     # skglm's Logistic datafit expects labels in {-1, 1}, not {0, 1}
     if distribution == "binomial":
-        y = 2 * y - 1
-
-    fit_args = {"X": X, "y": y}
+        fit_args["y"] = 2 * fit_args["y"] - 1
 
     try:
         result["runtime"], m = runtime(
@@ -102,10 +90,15 @@ def skglm_bench(
     intercept = np.array(m.intercept_).ravel()[0]
     coef = np.array(m.coef_).ravel()
 
-    # Unstandardize coefficients to match original data scale
-    result["intercept"], result["coef"] = _unstandardize_coefficients(
-        intercept, coef, scaler, scaled_indices
-    )
+    if standardize:
+        # Unstandardize coefficients to match original data scale
+        result["intercept"], result["coef"] = _unstandardize_coefficients(
+            intercept, coef, scaler, scaled_indices
+        )
+    else:
+        result["intercept"] = intercept
+        result["coef"] = coef
+
     result["n_iter"] = getattr(m, "n_iter_", None)
     result["max_iter"] = solver.max_iter  # For convergence detection
 

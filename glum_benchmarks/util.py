@@ -33,7 +33,7 @@ def runtime(f, iterations, *args, timeout=None, **kwargs):
 
     Returns
     -------
-    Tuple: (Minimum runtime across successful iterations, output frombest iteration)
+    Tuple: (Minimum runtime across successful iterations, output from fastest iteration)
         If all iterations timeout, raises TimeoutError.
 
     """
@@ -227,7 +227,7 @@ class BenchmarkParams:
         num_rows: Optional[int] = None,
         storage: Optional[str] = None,
         threads: Optional[int] = None,
-        regularization_strength: Optional[float] = None,
+        alpha: Optional[float] = None,
         hessian_approx: Optional[float] = None,
         diagnostics_level: Optional[str] = None,
     ):
@@ -236,7 +236,7 @@ class BenchmarkParams:
         self.num_rows = num_rows
         self.storage = storage
         self.threads = threads
-        self.regularization_strength = regularization_strength
+        self.alpha = alpha
         self.hessian_approx = hessian_approx
         self.diagnostics_level = diagnostics_level
 
@@ -246,7 +246,7 @@ class BenchmarkParams:
         "num_rows",
         "storage",
         "threads",
-        "regularization_strength",
+        "alpha",
         "hessian_approx",
         "diagnostics_level",
     ]
@@ -287,7 +287,7 @@ defaults = dict(
     problem_name=None,
     library_name=None,
     num_rows=None,
-    regularization_strength=None,
+    alpha=None,
     storage="dense",
     hessian_approx=0.0,
     diagnostics_level="basic",
@@ -299,7 +299,7 @@ def get_params_from_fname(fname: str) -> BenchmarkParams:
     Map file name to a BenchmarkParams instance.
 
     File names are formatted as:
-    problem_library_numrows_storage_threads_reg_hessian_diag.pkl
+    problem_library_numrows_storage_threads_alpha_hessian_diag.pkl
 
     Parameters
     ----------
@@ -391,10 +391,10 @@ def _standardize_features(
         return X_scaled, scaler, scaled_indices
 
     if sps.issparse(X):
-        # For sparse matrices, we can only scale (not center) to preserve sparsity
+        # For sparse matrices, use with_mean=False to preserve sparsity
         scaler = StandardScaler(with_mean=False)
         X_scaled = scaler.fit_transform(X)
-        return X_scaled, scaler, None  # All columns scaled
+        return X_scaled, scaler, None
 
     # Fallback: return unchanged for other types (tabmat)
     return X, None, None
@@ -466,6 +466,7 @@ def get_all_libraries() -> dict:
     """
     from glum_benchmarks.libraries import (
         celer_bench,
+        glmnet_bench,
         glum_bench,
         h2o_bench,
         skglm_bench,
@@ -478,6 +479,7 @@ def get_all_libraries() -> dict:
         "zeros": zeros_bench,
         "celer": celer_bench,
         "h2o": h2o_bench,
+        "glmnet": glmnet_bench,
         "skglm": skglm_bench,
         "sklearn": sklearn_bench,
     }
@@ -508,7 +510,7 @@ def execute_problem_library(
 
     Returns
     -------
-    Tuple: Result data on this run, and the regularization applied
+    Tuple: Result data on this run, and the alpha applied
     """
     from glum_benchmarks.problems import get_all_problems
 
@@ -528,26 +530,22 @@ def execute_problem_library(
 
     os.environ["OMP_NUM_THREADS"] = str(params.threads)
 
-    if params.regularization_strength is None:
-        params.regularization_strength = P.regularization_strength
+    if params.alpha is None:
+        params.alpha = P.alpha
 
-    # Weights have been multiplied by exposure. The new sum of weights
-    # should influence the objective function (in order to keep everything comparable
-    # to the "weights instead of offset" setup), but this will get undone by weight
-    # normalization. So instead divide the penalty by the new weight sum divided by
-    # the old weight sum
-    reg_multiplier = (
-        1 / dat["sample_weight"].mean() if "sample_weight" in dat.keys() else None
+    alpha = (
+        params.alpha / np.asarray(dat["sample_weight"]).mean()
+        if "sample_weight" in dat
+        else params.alpha
     )
 
     result = L(
         dat,
         distribution=P.distribution,
-        alpha=params.regularization_strength,
+        alpha=alpha,
         l1_ratio=P.l1_ratio,
         iterations=iterations,
         diagnostics_level=diagnostics_level,
-        reg_multiplier=reg_multiplier,
         hessian_approx=params.hessian_approx,
         standardize=standardize,
         timeout=timeout,
@@ -555,8 +553,13 @@ def execute_problem_library(
     )
 
     if len(result) > 0:
-        # Use best_alpha from CV if available, otherwise use regularization_strength
-        alpha_for_obj = result.get("best_alpha", P.regularization_strength)
+        # Use best_alpha from CV if available, otherwise use base alpha
+        alpha_for_obj = result.get("best_alpha", P.alpha)
+        alpha_for_obj = (
+            alpha_for_obj / np.asarray(dat["sample_weight"]).mean()
+            if "sample_weight" in dat
+            else alpha_for_obj
+        )
         obj_val = get_obj_val(
             dat,
             P.distribution,
@@ -569,4 +572,4 @@ def execute_problem_library(
         result["obj_val"] = obj_val
         result["num_rows"] = dat["y"].shape[0]
 
-    return result, params.regularization_strength
+    return result, params.alpha
