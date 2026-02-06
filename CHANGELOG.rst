@@ -7,6 +7,14 @@
 Changelog
 =========
 
+3.1.3 - unreleased
+------------------
+
+**Other changes:**
+
+- We disabled fast math to avoid invalid results (e.g., when dividing by zero).
+
+
 3.1.2 - 2025-01-30
 ------------------
 
