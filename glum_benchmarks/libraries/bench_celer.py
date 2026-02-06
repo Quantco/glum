@@ -23,7 +23,6 @@ def celer_bench(
     alpha: float,
     l1_ratio: float,
     iterations: int,
-    reg_multiplier: Optional[float] = None,
     standardize: bool = True,
     timeout: Optional[float] = None,
     **kwargs,
@@ -37,8 +36,6 @@ def celer_bench(
 
     result: dict[str, Any] = {}
     fit_args = {"X": dat["X"], "y": dat["y"]}
-    reg_strength = alpha if reg_multiplier is None else alpha * reg_multiplier
-    n_samples = dat["X"].shape[0]
 
     # LogisticRegression doesn't support fitting an intercept yet, so we also skip it
     if distribution not in ["gaussian"]:
@@ -54,12 +51,10 @@ def celer_bench(
         else:
             model_class = Lasso
 
-    # Celer uses same alpha convention as sklearn Lasso/ElasticNet
-    # Scale by n_samples to match glum's objective
     model_args = {
         "tol": benchmark_convergence_tolerance,
         "fit_intercept": True,
-        "alpha": reg_strength * n_samples,
+        "alpha": alpha,
     }
 
     if model_class == ElasticNet:
@@ -84,10 +79,15 @@ def celer_bench(
     intercept = np.array(m.intercept_).ravel()[0]
     coef = np.array(m.coef_).ravel()
 
-    # Unstandardize coefficients to match original data scale
-    result["intercept"], result["coef"] = _unstandardize_coefficients(
-        intercept, coef, scaler, scaled_indices
-    )
+    if standardize:
+        # Unstandardize coefficients to match original data scale
+        result["intercept"], result["coef"] = _unstandardize_coefficients(
+            intercept, coef, scaler, scaled_indices
+        )
+    else:
+        result["intercept"] = intercept
+        result["coef"] = coef
+
     result["n_iter"] = getattr(m, "n_iter_", None)
     result["max_iter"] = m.max_iter  # For convergence detection
 

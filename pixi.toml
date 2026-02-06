@@ -126,6 +126,7 @@ pydantic = "*"
 pytest = "*"
 "ruamel.yaml" = "*"
 r-base = "*"
+r-glmnet = "*"
 rpy2 = "*"
 skglm = "*"
 

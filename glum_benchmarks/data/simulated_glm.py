@@ -5,7 +5,16 @@ import numpy as np
 import pandas as pd
 import scipy.sparse as sps
 
+from glum._distribution import TweedieDistribution
 from glum._glm import get_family, get_link
+
+
+def _resolve_family(family: str):
+    """Convert benchmark family strings like 'tweedie_p=1.5' to glum family objects."""
+    if "tweedie" in family and "=" in family:
+        p = float(family.split("=")[1])
+        return TweedieDistribution(p)
+    return get_family(family)
 
 
 def tweedie_rv(mu, sigma2=1, p=1.5):
@@ -29,6 +38,30 @@ def tweedie_rv(mu, sigma2=1, p=1.5):
     return out
 
 
+def _gamma_rv(mu, rand: np.random._generator.Generator, shape: float = 2.0):
+    """Generate gamma random variates with specified mean.
+
+    Parameters
+    ----------
+    mu : array-like
+        The desired mean values. Must be positive.
+    rand : np.random.Generator
+        Random number generator.
+    shape : float
+        Shape parameter (k). Higher values give less variance. Default 2.0.
+
+    Returns
+    -------
+    array
+        Gamma random variates with E[y] = mu.
+    """
+    mu = np.asarray(mu)
+    scale = mu / shape
+    y = rand.gamma(shape, scale)
+    # Ensure strictly positive (gamma GLM requires y > 0)
+    return np.maximum(y, np.finfo(float).eps)
+
+
 def _get_family_rv(family, rand: np.random._generator.Generator):
     family_rv = {
         "poisson": rand.poisson,
@@ -50,7 +83,7 @@ def _get_family_rv(family, rand: np.random._generator.Generator):
         )
 
 
-def simulate_glm_data(
+def simulate_mixed_data(
     family: str = "poisson",
     link: str = "auto",
     n_rows: int = 5000,
@@ -116,6 +149,9 @@ def simulate_glm_data(
         np.arange(categorical_levels), size=(n_rows, categorical_features)
     )
     X_cat = pd.DataFrame(data=fixed_effects, columns=cat_feature_names)
+    # Convert categorical columns to dtype 'category'
+    for col in X_cat.columns:
+        X_cat[col] = X_cat[col].astype("category")
     X_cat_ohe = pd.get_dummies(
         X_cat, columns=cat_feature_names, drop_first=drop_first, dtype=float
     )
@@ -130,7 +166,7 @@ def simulate_glm_data(
 
     intercept = intercept
 
-    link_inst = get_link(link=link, family=get_family("poisson"))
+    link_inst = get_link(link=link, family=_resolve_family(family))
     family_rv = _get_family_rv(family, rand)
 
     y = family_rv(link_inst.inverse(intercept + X.to_numpy() @ coefs.to_numpy()))
@@ -152,7 +188,7 @@ def simulate_glm_data(
     return data
 
 
-def generate_square_dataset(
+def simulate_square_dataset(
     num_rows: Optional[int] = None,
     _noise=None,  # unused, required by load_data signature
     distribution: str = "poisson",
@@ -188,20 +224,74 @@ def generate_square_dataset(
     # Linear predictor
     eta = X.to_numpy() @ coefs
 
-    # Generate y based on distribution
-    if distribution == "gaussian":
-        y = eta + rand.normal(0, 1, size=n)
-    elif distribution == "poisson":
-        mu = np.exp(np.clip(eta, -5, 5))  # Clamp to avoid overflow
-        y = rand.poisson(mu)
-    elif distribution == "gamma":
-        mu = np.exp(np.clip(eta, -5, 5))
-        y = rand.gamma(shape=1.0, scale=mu)
-    elif distribution == "binomial":
-        p = 1 / (1 + np.exp(-eta))  # Logistic
-        y = rand.binomial(1, p)
+    # Map distribution names (_get_family_rv uses "normal" not "gaussian")
+    family = "normal" if distribution == "gaussian" else distribution
+
+    # Get the link function for the distribution
+    family_inst = _resolve_family(family)
+    link_inst = get_link(link="auto", family=family_inst)
+
+    # Compute mu using the inverse link
+    mu = link_inst.inverse(np.clip(eta, -5, 5))
+
+    # Generate y based on distribution using the family's random variate generator.
+    # Use improved gamma parameterization for benchmarks.
+    if family == "gamma":
+        y = _gamma_rv(mu, rand=rand)
     else:
-        raise ValueError(f"Unknown distribution: {distribution}")
+        family_rv = _get_family_rv(family, rand)
+        y = family_rv(mu)
 
     exposure = np.ones(n)
     return X, y, exposure
+
+
+def simulate_categorical_dataset(
+    num_rows: Optional[int] = None,
+    _noise=None,  # unused, required by load_data signature
+    distribution: str = "gaussian",
+    categorical_ratio: float = 0.9,
+) -> tuple[pd.DataFrame, np.ndarray, np.ndarray]:
+    """Generate a dataset with a high-cardinality categorical feature.
+
+    This creates a dataset with a single high-cardinality categorical
+    feature (stored as categorical values, not one-hot encoded).
+
+    Parameters
+    ----------
+    num_rows
+        Number of rows. Defaults to 5000.
+    _noise
+        Unused, present to match load_data signature.
+    distribution
+        The GLM family: "gaussian", "poisson", "gamma", or "binomial".
+    categorical_ratio
+        Controls the number of categorical levels relative to rows.
+        Default 0.9 means ~0.9 * n levels for the categorical feature.
+
+    Returns
+    -------
+    tuple[pd.DataFrame, np.ndarray, np.ndarray]
+        (X, y, exposure) where X has dense columns and one categorical column.
+    """
+    n = num_rows if num_rows is not None else 1000
+
+    # Number of categorical levels (creates this many one-hot columns)
+    n_cat_levels = int(n * categorical_ratio)
+
+    # Map distribution names (simulate_mixed_data uses "normal" not "gaussian")
+    family = "normal" if distribution == "gaussian" else distribution
+
+    data = simulate_mixed_data(
+        family=family,
+        link="auto",
+        n_rows=n,
+        dense_features=5,
+        sparse_features=0,
+        categorical_features=1,
+        categorical_levels=n_cat_levels,
+        ohe_categorical=False,
+    )
+
+    exposure = np.ones(n)
+    return data["X"], data["y"], exposure

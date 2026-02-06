@@ -26,7 +26,6 @@ def glum_bench(
     l1_ratio: float,
     iterations: int,
     diagnostics_level: str = "basic",
-    reg_multiplier: Optional[float] = None,
     hessian_approx: float = 0.0,
     standardize: bool = True,
     timeout: Optional[float] = None,
@@ -43,7 +42,6 @@ def glum_bench(
     l1_ratio
     iterations
     diagnostics_level
-    reg_multiplier
     hessian_approx
     standardize
     kwargs
@@ -76,7 +74,7 @@ def glum_bench(
         verbose=False,
     )
 
-    model_args["alpha"] = alpha if reg_multiplier is None else alpha * reg_multiplier
+    model_args["alpha"] = alpha
 
     result["runtime"], m = runtime(
         _build_and_fit, iterations, model_args, fit_args, timeout=timeout

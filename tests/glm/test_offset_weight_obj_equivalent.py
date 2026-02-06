@@ -17,7 +17,7 @@ all_test_problems_offset = {
 
 bench_cfg = dict(
     num_rows=10000,
-    regularization_strength=0.1,
+    alpha=0.1,
     storage="dense",
 )
 
@@ -60,20 +60,20 @@ def test_offset_solution_matches_weights_solution(
 
     def get_obj_val_(dat, coefs):
         if "weights" in dat.keys():
-            reg_multiplier = dat["weights"].mean()
+            weight_multiplier = dat["weights"].mean()
         else:
-            reg_multiplier = 1
+            weight_multiplier = 1
 
         res = get_obj_val(
             dat,
             P.distribution,
-            P.regularization_strength / reg_multiplier,
+            P.alpha / weight_multiplier,
             P.l1_ratio,
             coefs[0],
             coefs[1:],
         )
         if "weights" in dat.keys():
-            res *= reg_multiplier
+            res *= weight_multiplier
         return res
 
     offset_result = get_obj_val_(dat, coefs)

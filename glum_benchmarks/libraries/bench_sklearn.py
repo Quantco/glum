@@ -30,7 +30,6 @@ def sklearn_bench(
     alpha: float,
     l1_ratio: float,
     iterations: int,
-    reg_multiplier: Optional[float] = None,
     standardize: bool = True,
     timeout: Optional[float] = None,
     **kwargs,
@@ -45,7 +44,6 @@ def sklearn_bench(
     alpha
     l1_ratio
     iterations
-    reg_multiplier
     standardize
         If True, standardize continuous features using sklearn's StandardScaler.
     kwargs
@@ -62,48 +60,46 @@ def sklearn_bench(
         dat["X"], scaler, scaled_indices = _standardize_features(dat["X"])
 
     result: dict[str, Any] = {}
-    reg_strength = alpha if reg_multiplier is None else alpha * reg_multiplier
-
     n_samples = dat["X"].shape[0]
     model_class = None
 
     if distribution == "gaussian":
         if l1_ratio == 0.0:
-            # Pure L2 (Ridge): use closed-form solution
+            # Pure L2 (Ridge): sklearn uses sum-of-squared-errors loss while glum
+            # uses mean-squared-error loss. To get the same optimal coefficients,
+            # we scale alpha by n_samples to compensate for the 1/n factor in glum.
             model_class = Ridge
             model_args = {
-                "alpha": reg_strength * n_samples,
+                "alpha": alpha * n_samples,
                 "fit_intercept": True,
                 "tol": benchmark_convergence_tolerance,
                 "solver": "auto",
             }
         elif l1_ratio == 1.0:
-            # Pure L1 (Lasso)
+            # Pure L1
             model_class = Lasso
             model_args = {
-                "alpha": reg_strength * n_samples,
+                "alpha": alpha,
                 "fit_intercept": True,
                 "tol": benchmark_convergence_tolerance,
                 "precompute": True,
             }
         else:
-            # Scale by n_samples to match glum's objective
             model_class = ElasticNet
             model_args = {
-                "alpha": reg_strength * n_samples,
+                "alpha": alpha,
                 "l1_ratio": l1_ratio,
                 "fit_intercept": True,
                 "tol": benchmark_convergence_tolerance,
                 "precompute": True,
             }
     elif distribution == "binomial":
-        # sklearn's LogisticRegression uses C = 1/lambda where lambda is the
-        # regularization strength. However, sklearn does NOT scale the regularization
-        # by n_samples, while glum's objective is: mean(loss) + alpha * reg_term.
-        # To match glum's objective, we need: C = 1 / (alpha * n_samples)
-        C_value = 1.0 / (reg_strength * n_samples) if reg_strength > 0 else 1e10
-        # Use lbfgs for L2 (faster and more reliable), saga for L1/elasticnet
-        solver = "lbfgs" if l1_ratio == 0.0 else "saga"
+        # # sklearn uses sum(loss), glum uses mean(loss), so C = 1 / (alpha * n_samples)
+        C_value = 1.0 / (alpha * n_samples) if alpha > 0 else 1e10
+
+        # Newton-Cholesky is best choice for n_samples >> n_features
+        # For saga to work, we need to scale the features
+        solver = "newton-cholesky" if l1_ratio == 0.0 else "saga"
 
         model_class = LogisticRegression
         model_args = {
@@ -128,19 +124,18 @@ def sklearn_bench(
             )
             return result
 
+        # Use Newton-Cholesky as it is best choice for n_samples >> n_features and
+        # one-hot encoded categorical features
         model_class = TweedieRegressor
         model_args = {
             "power": power,
-            "alpha": reg_strength,
+            "alpha": alpha,
             "fit_intercept": True,
             "tol": benchmark_convergence_tolerance,
             "solver": "newton-cholesky",
         }
 
     fit_args = {"X": dat["X"], "y": dat["y"]}
-
-    if "sample_weight" in dat.keys():
-        fit_args["sample_weight"] = dat["sample_weight"]
 
     try:
         result["runtime"], m = runtime(
@@ -166,10 +161,14 @@ def sklearn_bench(
         n_iter = getattr(m, "n_iter_", None)
         n_iter = 0 if n_iter is None else n_iter
 
-    # Unstandardize coefficients to match original data scale
-    result["intercept"], result["coef"] = _unstandardize_coefficients(
-        intercept, coef, scaler, scaled_indices
-    )
+    # Unstandardize coefficients if we standardized the features
+    if standardize and scaler is not None:
+        result["intercept"], result["coef"] = _unstandardize_coefficients(
+            intercept, coef, scaler, scaled_indices
+        )
+    else:
+        result["intercept"] = intercept
+        result["coef"] = coef
     result["n_iter"] = n_iter
     # For convergence detection: get max_iter from model
     result["max_iter"] = getattr(m, "max_iter", None)

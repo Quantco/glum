@@ -15,8 +15,9 @@ from .data import (
     generate_intermediate_insurance_dataset,
     generate_narrow_insurance_dataset,
     generate_real_insurance_dataset,
-    generate_square_dataset,
     generate_wide_insurance_dataset,
+    simulate_categorical_dataset,
+    simulate_square_dataset,
 )
 from .util import cache_location, exposure_and_offset_to_weights, get_tweedie_p
 
@@ -29,7 +30,7 @@ class Problem:
 
     data_loader = attr.ib(type=Callable)
     distribution = attr.ib(type=str)
-    regularization_strength = attr.ib(type=float)
+    alpha = attr.ib(type=float)
     l1_ratio = attr.ib(type=float)
 
 
@@ -148,7 +149,7 @@ def get_all_problems() -> dict[str, Problem]:
     Dict mapping problem names to Problem instances.
 
     """
-    regularization_strength = 0.001
+    alpha = 0.001
 
     housing_distributions = ["gaussian", "gamma", "binomial"]
     housing_load_funcs = {
@@ -173,7 +174,7 @@ def get_all_problems() -> dict[str, Problem]:
     # Simulated datasets (square: n_rows ≈ n_cols)
     simulated_distributions = ["gaussian", "poisson", "gamma", "binomial"]
     simulated_load_funcs = {
-        "square-simulated": generate_square_dataset,
+        "square-simulated": simulate_square_dataset,
     }
 
     problems = {}
@@ -189,7 +190,7 @@ def get_all_problems() -> dict[str, Problem]:
                             load_data, load_fn, distribution=dist, data_setup=data_setup
                         ),
                         distribution=distribution,
-                        regularization_strength=regularization_strength,
+                        alpha=alpha,
                         l1_ratio=l1_ratio,
                     )
         # Add insurance problems
@@ -203,7 +204,7 @@ def get_all_problems() -> dict[str, Problem]:
                             load_data, load_fn, distribution=dist, data_setup=data_setup
                         ),
                         distribution=distribution,
-                        regularization_strength=regularization_strength,
+                        alpha=alpha,
                         l1_ratio=l1_ratio,
                     )
         # Add simulated problems
@@ -216,8 +217,25 @@ def get_all_problems() -> dict[str, Problem]:
                         load_data, load_fn, distribution=dist, data_setup="no-weights"
                     ),
                     distribution=distribution,
-                    regularization_strength=regularization_strength,
+                    alpha=alpha,
                     l1_ratio=l1_ratio,
                 )
+
+        # Add categorical-simulated problems
+        for distribution in simulated_distributions:
+            suffix = penalty_str + "-" + distribution
+            problems["-".join(("categorical-simulated", "no-weights", suffix))] = (
+                Problem(
+                    data_loader=partial(
+                        load_data,
+                        simulate_categorical_dataset,
+                        distribution=distribution,
+                        data_setup="no-weights",
+                    ),
+                    distribution=distribution,
+                    alpha=alpha,
+                    l1_ratio=l1_ratio,
+                )
+            )
 
     return problems

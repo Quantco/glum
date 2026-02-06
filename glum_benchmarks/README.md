@@ -9,6 +9,7 @@ Module to benchmark glum against similar libraries.
 - [H2O](https://h2o.ai/)
 - [skglm](https://contrib.scikit-learn.org/skglm/)
 - [celer](https://mathurinm.github.io/celer/)
+- [glmnet (R)](https://cran.r-project.org/package=glmnet)
 
 ## Running the benchmarks
 
@@ -130,6 +131,7 @@ Edit `config.yaml` to customize benchmark parameters.
 **Notes:**
 
 - **Standardization**: glum and h2o handle scaling internally. sklearn, skglm, and celer use `StandardScaler`. Only numerical columns are scaled (categorical/one-hot columns are not).
+- **glmnet dependency**: R + `glmnet` are required for the `glmnet` benchmark (via `rpy2`). If missing, the benchmark is skipped.
 - **Convergence**: A benchmark is marked "not converged" if it either (1) hits the timeout, or (2) reaches the library's internal `max_iter` limit.
 - **Storage formats**: `"auto"`, `"dense"`, or `"sparse"`. Configured per library for optimal performance.
 
@@ -143,20 +145,22 @@ param_grid:
     datasets: ["intermediate-insurance"]
     regularizations: ["lasso", "l2"]
     distributions: ["gaussian", "poisson"]
-    reg_strengths: [0.001]
+    alphas: [0.001]
 ```
 
 Each entry computes a Cartesian product. Multiple entries are unioned (not crossed).
 
 **Available values:**
 
-- `libraries`: `["glum", "sklearn", "h2o", "skglm", "celer", "zeros"]`
+- `libraries`: `["glum", "sklearn", "h2o", "skglm", "celer", "zeros", "glmnet"]`
 - `datasets`: `["intermediate-housing", "intermediate-insurance", "narrow-insurance", "wide-insurance", "square-simulated"]`
 - `regularizations`: `["lasso", "l2", "net"]`
 - `distributions`: `["gaussian", "gamma", "binomial", "poisson", "tweedie-p=1.5"]`
-- `reg_strengths`: `[0.0001, 0.001, 0.01]`
+- `alphas`: `[0.0001, 0.001, 0.01]`
 
 When an entry is omitted or set to `null` all available values are taken --> if you want to run all combinations possible, just leave the `param_grid` entry empty.
+
+**Alpha note:** `alphas` are per-observation values for unweighted data, when weights are present, the benchmark runner adjusts internally to keep the penalty comparable.
 
 See `problems.py` for available datasets and problem definitions.
 

@@ -25,11 +25,17 @@ try:
 except ImportError:
     sklearn_bench = None  # type: ignore
 
+try:
+    from .bench_glmnet import glmnet_bench
+except ImportError:
+    glmnet_bench = None  # type: ignore
+
 __all__ = [
     "celer_bench",
     "glum_bench",
     "h2o_bench",
     "skglm_bench",
     "sklearn_bench",
+    "glmnet_bench",
     "zeros_bench",
 ]
