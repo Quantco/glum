@@ -106,7 +106,7 @@ setup(
             "initializedcheck": False,
             "nonecheck": False,
             "cdivision": True,
-            "cpower": True,
+            "cpow": True,
             "legacy_implicit_noexcept": True,
         },
     ),
