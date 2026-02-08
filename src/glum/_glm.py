@@ -413,22 +413,19 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         feature_gradient = np.abs(-0.5 * dev_der[intercept_offset:])
 
         if np.all(P1_no_alpha == 0):
-            # Pure ridge (no L1 penalty). Use a small default divisor
-            # to compute a data-dependent alpha_max.
-            max_grad: float = np.max(feature_gradient)
-            if max_grad == 0:
-                # Default to prevent computing log(0).
-                alpha_max = 10.0
-            else:
-                alpha_max = max_grad / 0.001
-            return _make_grid(alpha_max)
+            # Pure ridge (no L1 penalty). Divide by a small default
+            # divisor to get a data-dependent alpha_max, matching glmnet.
+            alpha_max: float = np.max(feature_gradient) / 0.001
+        else:
+            l1_regularized_mask = P1_no_alpha > 0
+            alpha_max = np.max(
+                feature_gradient[l1_regularized_mask] / P1_no_alpha[l1_regularized_mask]
+            )
 
-        l1_regularized_mask = P1_no_alpha > 0
-        alpha_max = np.max(
-            feature_gradient[l1_regularized_mask] / P1_no_alpha[l1_regularized_mask]
-        )
+        # Fallback when gradient is zero (e.g. X is constant after centering).
         if alpha_max == 0:
             alpha_max = 10.0
+
         return _make_grid(alpha_max)
 
     def _solve(
