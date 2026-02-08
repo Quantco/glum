@@ -352,9 +352,9 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         If some features have L1 regularization, the maximum alpha is the lowest
         alpha such that no l1-regularized coefficients are nonzero.
 
-        If all features do not have L1 regularization (pure ridge), compute a
-        data-dependent maximum alpha using the null model gradient divided by a
-        small default divisor (0.001) because coefficients are never exactly zero.
+        If all features do not have L1 regularization (ridge), the maximum alpha is
+        such that coefficients are close to, but not exactly, zero, or whatever is
+        specified by the input parameters ``min_alpha_ratio`` and ``n_alphas``.
 
         ``min_alpha_ratio`` governs the length of the path. When ``None``, the
         default is ``1e-6`` if ``n_samples >= n_features``, else ``1e-2``.
