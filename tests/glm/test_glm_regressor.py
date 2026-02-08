@@ -1185,21 +1185,22 @@ def test_column_with_stddev_zero():
     model = GeneralizedLinearRegressor(family="poisson").fit(X, y)  # noqa: F841
 
 
+@pytest.mark.parametrize("l1_ratio", [1, 0])
 @pytest.mark.parametrize("scale_predictors", [True, False])
 @pytest.mark.parametrize("fit_intercept", [True, False])
 @pytest.mark.parametrize("P1", ["identity", np.array([2, 1, 0.5, 0.1, 0.01])])
-def test_alpha_path(scale_predictors, fit_intercept, P1):
+def test_alpha_path(l1_ratio, scale_predictors, fit_intercept, P1):
     """Test regularization path."""
     if scale_predictors and not fit_intercept:
         return
     np.random.seed(1234)
-    y = np.random.choice([1, 2, 3, 4], size=100)
+    y = np.random.choice([1, 2, 3, 4], size=100).astype(float)
     X = np.random.randn(100, 5) * np.array([1, 5, 10, 25, 100])
 
     model = GeneralizedLinearRegressor(
         family="poisson",
         alpha_search=True,
-        l1_ratio=1,
+        l1_ratio=l1_ratio,
         n_alphas=10,
         scale_predictors=scale_predictors,
         fit_intercept=fit_intercept,
@@ -1207,10 +1208,14 @@ def test_alpha_path(scale_predictors, fit_intercept, P1):
     )
     model.fit(X=X, y=y)
 
-    # maximum alpha result in all zero coefficients
-    np.testing.assert_almost_equal(model.coef_path_[0], 0)
-    # next alpha gives at least one non-zero coefficient
-    assert np.any(model.coef_path_[1] > 0)
+    if l1_ratio == 1:
+        # Lasso: maximum alpha results in all zero coefficients
+        np.testing.assert_almost_equal(model.coef_path_[0], 0)
+        # next alpha gives at least one non-zero coefficient
+        assert np.any(model.coef_path_[1] > 0)
+    else:
+        # Ridge: coefficients at alpha_max should be near zero.
+        np.testing.assert_allclose(model.coef_path_[0, 1:], 0, atol=1e-2)
 
 
 def test_passing_noncontiguous_as_X():
