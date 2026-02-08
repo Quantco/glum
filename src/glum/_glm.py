@@ -388,10 +388,8 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
             )
 
         # Compute the null model gradient.
-        # Compute the null model gradient.
         if self.fit_intercept:
             intercept_offset = 1
-            coef = np.zeros(n_features + 1, dtype=X.dtype)
             coef = np.zeros(n_features + 1, dtype=X.dtype)
             coef[0] = guess_intercept(
                 y=y,
@@ -401,7 +399,6 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
             )
         else:
             intercept_offset = 0
-            coef = np.zeros(n_features, dtype=X.dtype)
             coef = np.zeros(n_features, dtype=X.dtype)
 
         _, dev_der = self._family_instance._mu_deviance_derivative(
@@ -416,9 +413,8 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         feature_gradient = np.abs(-0.5 * dev_der[intercept_offset:])
 
         if np.all(P1_no_alpha == 0):
-            # Pure ridge (no L1 penalty). Use a small surrogate divisor
-            # to compute a data-dependent alpha_max, matching glmnet's
-            # behavior.
+            # Pure ridge (no L1 penalty). Use a small default divisor
+            # to compute a data-dependent alpha_max.
             max_grad: float = np.max(feature_gradient)
             if max_grad == 0:
                 # Default to prevent computing log(0).
