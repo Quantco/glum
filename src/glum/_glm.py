@@ -387,7 +387,6 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
                 dtype=X.dtype,
             )
 
-        # Compute the null model gradient.
         if self.fit_intercept:
             intercept_offset = 1
             coef = np.zeros(n_features + 1, dtype=X.dtype)
