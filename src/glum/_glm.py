@@ -422,7 +422,6 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
                 feature_gradient[l1_regularized_mask] / P1_no_alpha[l1_regularized_mask]
             )
 
-        # Fallback when gradient is zero (e.g. X is constant after centering).
         if alpha_max == 0:
             alpha_max = 10.0
 
