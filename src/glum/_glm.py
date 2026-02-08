@@ -354,7 +354,7 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
 
         If all features do not have L1 regularization (pure ridge), compute a
         data-dependent maximum alpha using the null model gradient divided by a
-        small default divisor (0.001), matching glmnet's behavior.
+        small default divisor (0.001) because coefficients are never exactly zero.
 
         ``min_alpha_ratio`` governs the length of the path. When ``None``, the
         default is ``1e-6`` if ``n_samples >= n_features``, else ``1e-2``.
@@ -413,8 +413,8 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         feature_gradient = np.abs(-0.5 * dev_der[intercept_offset:])
 
         if np.all(P1_no_alpha == 0):
-            # Pure ridge (no L1 penalty). Divide by a small default
-            # divisor to get a data-dependent alpha_max, matching glmnet.
+            # Pure ridge: start at small default divisor because coefficients are
+            # never exactly zero.
             alpha_max: float = np.max(feature_gradient) / 0.001
         else:
             l1_regularized_mask = P1_no_alpha > 0
@@ -2107,7 +2107,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         3. If ``min_alpha_ratio`` is set, create a path where the ratio of
            ``min_alpha / max_alpha = min_alpha_ratio``.
         4. If none of the above parameters are set, use a ``min_alpha_ratio`` of
-           ``1e-6`` if ``n_samples >= n_features``, else ``1e-2``.
            ``1e-6`` if ``n_samples >= n_features``, else ``1e-2``.
 
     alphas : DEPRECATED. Use ``alpha`` instead.
