@@ -412,8 +412,7 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         feature_gradient = np.abs(-0.5 * dev_der[intercept_offset:])
 
         if np.all(P1_no_alpha == 0):
-            # Pure ridge: start at small default divisor because coefficients are
-            # never exactly zero.
+            # Ridge: start at small value because coefficients are never exactly zero.
             alpha_max: float = np.max(feature_gradient) / 0.001
         else:
             l1_regularized_mask = P1_no_alpha > 0
