@@ -362,14 +362,10 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         """
         n_samples = X.shape[0]
         n_features = X.shape[1]
-        n_samples = X.shape[0]
-        n_features = X.shape[1]
 
         def _make_grid(max_alpha: float) -> np.ndarray:
             if self.min_alpha is None:
                 if self.min_alpha_ratio is None:
-                    _min_alpha_ratio = 1e-6 if n_samples >= n_features else 1e-2
-                    min_alpha = max_alpha * _min_alpha_ratio
                     _min_alpha_ratio = 1e-6 if n_samples >= n_features else 1e-2
                     min_alpha = max_alpha * _min_alpha_ratio
                 else:
@@ -420,10 +416,10 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         feature_gradient = np.abs(-0.5 * dev_der[intercept_offset:])
 
         if np.all(P1_no_alpha == 0):
-            # Pure ridge (no L1 penalty). Divide the max gradient by a
-            # small default divisor to get a data-dependent alpha_max,
-            # matching glmnet's behavior.
-            max_grad = np.max(feature_gradient)
+            # Pure ridge (no L1 penalty). Use a small surrogate divisor
+            # to compute a data-dependent alpha_max, matching glmnet's
+            # behavior.
+            max_grad: float = np.max(feature_gradient)
             if max_grad == 0:
                 # Default to prevent computing log(0).
                 alpha_max = 10.0
@@ -433,11 +429,10 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
 
         l1_regularized_mask = P1_no_alpha > 0
         alpha_max = np.max(
-            feature_gradient[l1_regularized_mask]
-            / P1_no_alpha[l1_regularized_mask]
-            feature_gradient[l1_regularized_mask]
-            / P1_no_alpha[l1_regularized_mask]
+            feature_gradient[l1_regularized_mask] / P1_no_alpha[l1_regularized_mask]
         )
+        if alpha_max == 0:
+            alpha_max = 10.0
         return _make_grid(alpha_max)
 
     def _solve(

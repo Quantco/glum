@@ -1215,7 +1215,6 @@ def test_alpha_path(l1_ratio, scale_predictors, fit_intercept, P1):
         assert np.any(model.coef_path_[1] > 0)
     else:
         # Ridge: all feature coefficients at alpha_max should be near zero.
-        # coef_path_ does not include the intercept (that's intercept_path_).
         np.testing.assert_allclose(model.coef_path_[0], 0, atol=1e-2)
 
 
