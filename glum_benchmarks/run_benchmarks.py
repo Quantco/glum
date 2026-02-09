@@ -49,9 +49,6 @@ from glum_benchmarks.util import (
 )
 
 # TODO: Update README and documentation
-# TODO: Implement closed form solution for l2-gaussian and put a note in the results
-# TODO: Scaling
-# TODO: Determine optimal storage type for each library for a fair comparison
 
 # Type aliases for configuration options
 Library = Literal["glum", "sklearn", "h2o", "skglm", "celer", "zeros", "glmnet"]
@@ -67,7 +64,7 @@ Regularization = Literal["lasso", "l2", "net"]
 Alpha = float  # Valid values: 0.0001, 0.001, 0.01
 ALPHA_VALUES = (0.001, 0.01, 0.1)
 Distribution = Literal["gaussian", "gamma", "binomial", "poisson", "tweedie-p=1.5"]
-StorageFormat = Literal["auto", "dense", "sparse", "cat", "csr", "csc"]
+StorageFormat = Literal["auto", "dense", "cat", "csr", "csc"]
 StandardizeMethod = Literal["pre", "internal", "none"]
 
 

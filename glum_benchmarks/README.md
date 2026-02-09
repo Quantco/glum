@@ -121,19 +121,18 @@ Edit `config.yaml` to customize benchmark parameters.
 
 | Option        | Description                                                                  |
 | ------------- | ---------------------------------------------------------------------------- |
-| `standardize` | Whether to standardize features (glum/h2o: internal, others: StandardScaler) |
+| `standardize` | Standardization strategy per library (`pre`, `internal`, `none`)             |
 | `iterations`  | Runs per benchmark (>=2 required for skglm)                                  |
 | `num_threads` | Number of threads for parallel execution                                     |
 | `num_rows`    | Limit rows per dataset (`null` = full dataset)                               |
 | `timeout`     | Timeout in seconds (benchmarks timing out are marked "not converged")        |
-| `storage`     | Storage format per library: `{"glum": "auto", "sklearn": "dense", ...}`      |
+| `storage`     | Storage format per library: (`auto`, `dense`, `cat`, `csr`, `csc`)           |
 
 **Notes:**
 
-- **Standardization**: glum and h2o handle scaling internally. sklearn, skglm, and celer use `StandardScaler`. Only numerical columns are scaled (categorical/one-hot columns are not).
+- **Standardization**: `pre` standardizes continuous columns in the data loader before OHE/format conversion; `internal` delegates to the library; `none` skips scaling.
 - **glmnet dependency**: R + `glmnet` are required for the `glmnet` benchmark (via `rpy2`). If missing, the benchmark is skipped.
 - **Convergence**: A benchmark is marked "not converged" if it either (1) hits the timeout, or (2) reaches the library's internal `max_iter` limit.
-- **Storage formats**: `"auto"`, `"dense"`, or `"sparse"`. Configured per library for optimal performance.
 
 ### Parameter Grid
 
@@ -153,7 +152,7 @@ Each entry computes a Cartesian product. Multiple entries are unioned (not cross
 **Available values:**
 
 - `libraries`: `["glum", "sklearn", "h2o", "skglm", "celer", "zeros", "glmnet"]`
-- `datasets`: `["intermediate-housing", "intermediate-insurance", "narrow-insurance", "wide-insurance", "square-simulated"]`
+- `datasets`: `["intermediate-housing", "intermediate-insurance", "narrow-insurance", "wide-insurance", "square-simulated", "categorical-simulated"]`
 - `regularizations`: `["lasso", "l2", "net"]`
 - `distributions`: `["gaussian", "gamma", "binomial", "poisson", "tweedie-p=1.5"]`
 - `alphas`: `[0.0001, 0.001, 0.01]`
