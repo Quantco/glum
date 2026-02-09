@@ -190,7 +190,7 @@ def simulate_mixed_data(
 
 def simulate_square_dataset(
     num_rows: Optional[int] = None,
-    _noise=None,  # unused, required by load_data signature
+    noise: Optional[float] = None,  # unused, required by load_data signature
     distribution: str = "poisson",
 ) -> tuple[pd.DataFrame, np.ndarray, np.ndarray]:
     """Generate a square dataset where n_rows = n_cols.
@@ -199,7 +199,7 @@ def simulate_square_dataset(
     ----------
     num_rows
         Number of rows (and columns). Defaults to 500.
-    _noise
+    noise
         Unused, present to match load_data signature.
     distribution
         The GLM family: "gaussian", "poisson", "gamma", or "binomial".
@@ -248,7 +248,7 @@ def simulate_square_dataset(
 
 def simulate_categorical_dataset(
     num_rows: Optional[int] = None,
-    _noise=None,  # unused, required by load_data signature
+    noise: Optional[float] = None,  # unused, required by load_data signature
     distribution: str = "gaussian",
     categorical_ratio: float = 0.9,
 ) -> tuple[pd.DataFrame, np.ndarray, np.ndarray]:
@@ -261,7 +261,7 @@ def simulate_categorical_dataset(
     ----------
     num_rows
         Number of rows. Defaults to 5000.
-    _noise
+    noise
         Unused, present to match load_data signature.
     distribution
         The GLM family: "gaussian", "poisson", "gamma", or "binomial".
