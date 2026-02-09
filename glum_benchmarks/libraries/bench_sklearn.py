@@ -12,8 +12,6 @@ from sklearn.linear_model import (
 )
 
 from glum_benchmarks.util import (
-    _standardize_features,
-    _unstandardize_coefficients,
     benchmark_convergence_tolerance,
     runtime,
 )
@@ -30,7 +28,6 @@ def sklearn_bench(
     alpha: float,
     l1_ratio: float,
     iterations: int,
-    standardize: bool = True,
     timeout: Optional[float] = None,
     **kwargs,
 ):
@@ -44,21 +41,12 @@ def sklearn_bench(
     alpha
     l1_ratio
     iterations
-    standardize
-        If True, standardize continuous features using sklearn's StandardScaler.
     kwargs
 
     Returns
     -------
     Dict of
     """
-    # Standardize features if requested
-    scaler = None
-    scaled_indices = None
-    if standardize:
-        dat = dat.copy()
-        dat["X"], scaler, scaled_indices = _standardize_features(dat["X"])
-
     result: dict[str, Any] = {}
     n_samples = dat["X"].shape[0]
     model_class = None
@@ -161,14 +149,8 @@ def sklearn_bench(
         n_iter = getattr(m, "n_iter_", None)
         n_iter = 0 if n_iter is None else n_iter
 
-    # Unstandardize coefficients if we standardized the features
-    if standardize and scaler is not None:
-        result["intercept"], result["coef"] = _unstandardize_coefficients(
-            intercept, coef, scaler, scaled_indices
-        )
-    else:
-        result["intercept"] = intercept
-        result["coef"] = coef
+    result["intercept"] = intercept
+    result["coef"] = coef
     result["n_iter"] = n_iter
     # For convergence detection: get max_iter from model
     result["max_iter"] = getattr(m, "max_iter", None)

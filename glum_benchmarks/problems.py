@@ -8,7 +8,8 @@ import pandas as pd
 import tabmat as tm
 from git_root import git_root
 from joblib import Memory
-from scipy.sparse import csc_matrix
+from scipy.sparse import csc_matrix, csr_matrix
+from sklearn.preprocessing import StandardScaler
 
 from .data import (
     generate_housing_dataset,
@@ -45,6 +46,7 @@ def load_data(
     noise: Optional[float] = None,
     distribution: str = "poisson",
     data_setup: str = "no-weights",
+    standardize: bool = False,
 ) -> dict[str, np.ndarray]:
     """
     Load the data.
@@ -58,12 +60,28 @@ def load_data(
         raise NotImplementedError
     X_in, y, exposure = loader_func(num_rows, noise, distribution)
 
+    # Step 1.5) Standardize continuous columns BEFORE OHE/format conversion.
+    # At this point we still have dtype information, so we can reliably
+    # distinguish continuous columns from categoricals.
+    if standardize:
+        X_in = X_in.copy()  # wichtig wegen joblib / in-place
+
+        continuous_cols = [
+            c
+            for c in X_in.select_dtypes(include=[np.number]).columns
+            if X_in[c].nunique(dropna=False) > 2
+        ]
+
+        if continuous_cols:
+            scaler = StandardScaler()
+            X_in[continuous_cols] = scaler.fit_transform(X_in[continuous_cols])
+
     # Step 2) One hot encode columns if we are not using CategoricalMatrix
     def transform_col(i: int, dtype) -> Union[pd.DataFrame, tm.CategoricalMatrix]:
         if dtype.name == "category":
             if storage == "cat":
                 return tm.CategoricalMatrix(X_in.iloc[:, i])
-            return pd.get_dummies(X_in.iloc[:, i], drop_first=False)
+            return pd.get_dummies(X_in.iloc[:, i], drop_first=True)
         return X_in.iloc[:, [i]]
 
     mat_parts = [transform_col(i, dtype) for i, dtype in enumerate(X_in.dtypes)]
@@ -102,9 +120,13 @@ def load_data(
             indices=[np.array(dense_indices_in_expanded_arr)]
             + cat_indices_in_expanded_arr,
         )
-    elif storage == "sparse":
+    elif storage == "csr":
+        X = csr_matrix(
+            pd.concat(mat_parts, axis=1, ignore_index=True).to_numpy(dtype=np.float64)
+        )
+    elif storage == "csc":
         X = csc_matrix(
-            pd.concat(mat_parts, axis=1, ignore_index=True).astype(np.float64)
+            pd.concat(mat_parts, axis=1, ignore_index=True).to_numpy(dtype=np.float64)
         )
     elif storage.startswith("split"):
         threshold = float(storage.split("split")[1])

@@ -7,8 +7,6 @@ import numpy as np
 import pandas as pd
 import tabmat as tm
 from scipy import sparse as sps
-from scipy.sparse import csc_matrix
-from sklearn.preprocessing import StandardScaler
 
 from glum import GeneralizedLinearRegressor, TweedieDistribution
 from glum._solvers import eta_mu_objective
@@ -357,102 +355,6 @@ def get_tweedie_p(distribution: str) -> float:
         raise ValueError("Not a Tweedie distribution.")
 
 
-def _standardize_features(
-    X: Union[np.ndarray, pd.DataFrame, csc_matrix, tm.MatrixBase],
-) -> tuple[
-    Union[np.ndarray, pd.DataFrame, csc_matrix, tm.MatrixBase],
-    Optional[StandardScaler],
-    Optional[np.ndarray],
-]:
-    """
-    Standardize only numerical columns using StandardScaler.
-
-    For dense data: mean=0, std=1
-    For sparse data: std=1 only (with_mean=False to preserve sparsity)
-
-    Returns
-    -------
-    X_scaled : array-like
-        The scaled feature matrix.
-    scaler : StandardScaler or None
-        The fitted scaler (for later unstandardization).
-    scaled_indices : ndarray or None
-        Indices of the columns that were scaled (for DataFrames with mixed types).
-        None if all columns were scaled or no scaling was performed.
-    """
-    if isinstance(X, pd.DataFrame):
-        # Identify numerical columns
-        numerical_cols = X.select_dtypes(include=["number"]).columns
-        # Get the integer indices of numerical columns
-        scaled_indices = np.array([X.columns.get_loc(c) for c in numerical_cols])
-        scaler = StandardScaler()
-        X_scaled = X.copy()
-        X_scaled[numerical_cols] = scaler.fit_transform(X[numerical_cols])
-        return X_scaled, scaler, scaled_indices
-
-    if sps.issparse(X):
-        # For sparse matrices, use with_mean=False to preserve sparsity
-        scaler = StandardScaler(with_mean=False)
-        X_scaled = scaler.fit_transform(X)
-        return X_scaled, scaler, None
-
-    # Fallback: return unchanged for other types (tabmat)
-    return X, None, None
-
-
-def _unstandardize_coefficients(
-    intercept: float,
-    coef: np.ndarray,
-    scaler: Optional[StandardScaler],
-    scaled_indices: Optional[np.ndarray] = None,
-) -> tuple[float, np.ndarray]:
-    """
-    Unstandardize coefficients to match the original (unscaled) data.
-
-    This reverses the StandardScaler transformation so coefficients can be
-    compared with libraries that handle standardization internally (glum, h2o).
-
-    Parameters
-    ----------
-    intercept : float
-        The intercept from the fitted model.
-    coef : ndarray
-        The coefficients from the fitted model.
-    scaler : StandardScaler or None
-        The scaler used to standardize features.
-    scaled_indices : ndarray or None
-        Indices of the columns that were scaled. If None, assumes all columns
-        were scaled (or no scaling was performed if scaler is also None).
-    """
-    if scaler is None:
-        return intercept, coef
-
-    scale = scaler.scale_
-    coef_original = coef.copy()
-
-    if scaled_indices is not None:
-        # Only unstandardize the coefficients corresponding to scaled columns
-        coef_original[scaled_indices] = coef[scaled_indices] / scale
-
-        # intercept_original = intercept_scaled - sum(mean / scale * coef_scaled)
-        if scaler.with_mean and scaler.mean_ is not None:
-            intercept_original = intercept - np.dot(
-                scaler.mean_ / scale, coef[scaled_indices]
-            )
-        else:
-            intercept_original = intercept
-    else:
-        # All columns were scaled
-        coef_original = coef / scale
-
-        if scaler.with_mean and scaler.mean_ is not None:
-            intercept_original = intercept - np.dot(scaler.mean_ / scale, coef)
-        else:
-            intercept_original = intercept
-
-    return intercept_original, coef_original
-
-
 def get_all_libraries() -> dict:
     """
     Get the names of all available libraries and the functions to benchmark them.
@@ -492,6 +394,7 @@ def execute_problem_library(
     params: BenchmarkParams,
     iterations: int = 1,
     diagnostics_level: Optional[str] = "basic",
+    pre_standardize: bool = False,
     standardize: bool = True,
     timeout: Optional[float] = None,
     **kwargs,
@@ -504,8 +407,12 @@ def execute_problem_library(
     params
     iterations
     diagnostics_level
+    pre_standardize
+        Whether to pre-standardize continuous features in the data loader,
+        before OHE and format conversion.
     standardize
-        Whether to standardize features before fitting. Default True for benchmarks.
+        Whether to pass a standardize flag to the library function. Can be used for
+        libraries that handle standardization internally (e.g. glum, h2o, glmnet).
     kwargs
 
     Returns
@@ -526,6 +433,7 @@ def execute_problem_library(
     dat = P.data_loader(
         num_rows=params.num_rows,
         storage=params.storage,
+        standardize=pre_standardize,
     )
 
     os.environ["OMP_NUM_THREADS"] = str(params.threads)

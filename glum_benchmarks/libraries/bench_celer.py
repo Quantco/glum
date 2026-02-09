@@ -6,8 +6,6 @@ from celer import ElasticNet, Lasso
 from scipy import sparse as sps
 
 from glum_benchmarks.util import (
-    _standardize_features,
-    _unstandardize_coefficients,
     benchmark_convergence_tolerance,
     runtime,
 )
@@ -23,17 +21,9 @@ def celer_bench(
     alpha: float,
     l1_ratio: float,
     iterations: int,
-    standardize: bool = True,
     timeout: Optional[float] = None,
     **kwargs,
 ):
-    # Standardize features if requested
-    scaler = None
-    scaled_indices = None
-    if standardize:
-        dat = dat.copy()
-        dat["X"], scaler, scaled_indices = _standardize_features(dat["X"])
-
     result: dict[str, Any] = {}
     fit_args = {"X": dat["X"], "y": dat["y"]}
 
@@ -76,17 +66,8 @@ def celer_bench(
         warnings.warn(f"Celer failed: {e}")
         return {}
 
-    intercept = np.array(m.intercept_).ravel()[0]
-    coef = np.array(m.coef_).ravel()
-
-    if standardize:
-        # Unstandardize coefficients to match original data scale
-        result["intercept"], result["coef"] = _unstandardize_coefficients(
-            intercept, coef, scaler, scaled_indices
-        )
-    else:
-        result["intercept"] = intercept
-        result["coef"] = coef
+    result["intercept"] = np.array(m.intercept_).ravel()[0]
+    result["coef"] = np.array(m.coef_).ravel()
 
     result["n_iter"] = getattr(m, "n_iter_", None)
     result["max_iter"] = m.max_iter  # For convergence detection

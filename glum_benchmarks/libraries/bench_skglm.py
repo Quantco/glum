@@ -9,8 +9,6 @@ from skglm.penalties import L1, L1_plus_L2
 from skglm.solvers import AndersonCD, ProxNewton
 
 from glum_benchmarks.util import (
-    _standardize_features,
-    _unstandardize_coefficients,
     benchmark_convergence_tolerance,
     runtime,
 )
@@ -26,17 +24,9 @@ def skglm_bench(
     alpha: float,
     l1_ratio: float,
     iterations: int,
-    standardize: bool = True,
     timeout: Optional[float] = None,
     **kwargs,
 ):
-    # Standardize features if requested
-    scaler = None
-    scaled_indices = None
-    if standardize:
-        dat = dat.copy()
-        dat["X"], scaler, scaled_indices = _standardize_features(dat["X"])
-
     result: dict[str, Any] = {}
     if "tweedie" in distribution:
         warnings.warn("skglm doesn't support Tweedie, skipping.")
@@ -87,17 +77,8 @@ def skglm_bench(
         warnings.warn(f"skglm failed: {e}")
         return {}
 
-    intercept = np.array(m.intercept_).ravel()[0]
-    coef = np.array(m.coef_).ravel()
-
-    if standardize:
-        # Unstandardize coefficients to match original data scale
-        result["intercept"], result["coef"] = _unstandardize_coefficients(
-            intercept, coef, scaler, scaled_indices
-        )
-    else:
-        result["intercept"] = intercept
-        result["coef"] = coef
+    result["intercept"] = np.array(m.intercept_).ravel()[0]
+    result["coef"] = np.array(m.coef_).ravel()
 
     result["n_iter"] = getattr(m, "n_iter_", None)
     result["max_iter"] = solver.max_iter  # For convergence detection
