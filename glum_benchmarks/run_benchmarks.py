@@ -67,7 +67,8 @@ Regularization = Literal["lasso", "l2", "net"]
 Alpha = float  # Valid values: 0.0001, 0.001, 0.01
 ALPHA_VALUES = (0.001, 0.01, 0.1)
 Distribution = Literal["gaussian", "gamma", "binomial", "poisson", "tweedie-p=1.5"]
-StorageFormat = Literal["auto", "dense", "sparse", "cat"]
+StorageFormat = Literal["auto", "dense", "sparse", "cat", "csr", "csc"]
+StandardizeMethod = Literal["pre", "internal", "none"]
 
 
 class ParamGridEntry(BaseModel):
@@ -148,8 +149,14 @@ class BenchmarkConfig(BaseModel):
     num_threads: int = Field(
         default=16, ge=1, description="Number of threads for parallel execution"
     )
-    standardize: bool = Field(
-        default=True, description="Whether to standardize before fitting"
+    standardize: dict[Library, StandardizeMethod] = Field(
+        default_factory=dict,
+        description=(
+            "Standardization approach per library: "
+            "'pre' = pre-standardize in data loader, "
+            "'internal' = library handles internally, "
+            "'none' = no standardization"
+        ),
     )
     iterations: int = Field(
         default=2, ge=1, description="Run each benchmark N times, report minimum"
@@ -318,9 +325,14 @@ def run_single_benchmark(
     If the benchmark exceeds the configured timeout, returns a result with
     runtime=timeout and timed_out=True.
     """
-    # Get library-specific storage from config, default to "dense"
+    # Get library-specific settings from config
     lib_key: Library = library_name  # type: ignore[assignment]
     storage = config.storage.get(lib_key, "dense")
+    std_method = config.standardize.get(lib_key, "none")
+
+    # Derive standardization flags per library
+    pre_standardize = std_method == "pre"
+    library_standardize = std_method == "internal"
 
     params = BenchmarkParams(
         problem_name=problem_name,
@@ -337,7 +349,8 @@ def run_single_benchmark(
             params,
             iterations=config.iterations,
             diagnostics_level=None,
-            standardize=config.standardize,
+            pre_standardize=pre_standardize,
+            standardize=library_standardize,
             timeout=config.timeout,
         )
         result["timed_out"] = False

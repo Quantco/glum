@@ -7,8 +7,10 @@ import numpy as np
 import pandas as pd
 from scipy import sparse as sps
 
+from glum_benchmarks.util import benchmark_convergence_tolerance
 
-def _setup_and_fit(X_np, y, distribution, l1_ratio, alpha, standardize, thresh):
+
+def _setup_and_fit(X_np, y, distribution, l1_ratio, alpha, standardize):
     """
     Run in a child process: set up R/glmnet, fit, return results.
 
@@ -27,7 +29,7 @@ def _setup_and_fit(X_np, y, distribution, l1_ratio, alpha, standardize, thresh):
         ro.r(f'suppressPackageStartupMessages(library("{pkg}"))')
 
     glmnet_pkg = importr("glmnet")
-    ro.r["glmnet.control"](epsnr=1e-15)
+    ro.r["glmnet.control"](epsnr=benchmark_convergence_tolerance * 10.0)
 
     # Build R family object
     if distribution in ("gaussian", "binomial", "poisson"):
@@ -66,7 +68,7 @@ def _setup_and_fit(X_np, y, distribution, l1_ratio, alpha, standardize, thresh):
         alpha=l1_ratio,
         intercept=True,
         standardize=standardize,
-        thresh=thresh,
+        thresh=benchmark_convergence_tolerance,
         **{"lambda": lambda_vec},
     )
     fit_runtime = time.time() - start
@@ -157,12 +159,7 @@ def glmnet_bench(
 
     y = np.asarray(dat["y"], dtype=float).ravel()
 
-    # glmnet's thresh is a *relative* convergence criterion (scaled internally
-    # by the null deviance).  We use a fixed tight value so glmnet actually
-    # converges to the same quality as the other libraries.
-    thresh = 1e-12
-
-    fit_args = (X, y, distribution, l1_ratio, alpha, standardize, thresh)
+    fit_args = (X, y, distribution, l1_ratio, alpha, standardize)
 
     # Run iterations, keeping the fastest.
     # The child process times data conversion + glmnet() (excludes R startup).

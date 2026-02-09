@@ -20,20 +20,33 @@ run_name: "docs" # Subfolder name within results/ ("docs" CSV is git-tracked)
 clear_output: True # Clear entire run_name directory before running
 
 # Benchmark settings
-standardize: true # Whether to standardize features before fitting
 iterations: 2 # Run each benchmark N times, report minimum (>=2 for skglm)
 num_threads: 16 # Number of threads for parallel execution
 num_rows: null # Limit rows per dataset (null = full dataset)
 timeout: 100 # Timeout in seconds per benchmark run (reports as "not converged" if exceeded)
 
+# Standardization approach per library:
+#   "pre"      = pre-standardize continuous features in data loader (before OHE/format
+#                conversion). Only continuous columns are scaled.
+#   "internal" = library handles standardization internally (e.g. glum's scale_predictors)
+#   "none"     = no standardization
+# TODO: we might want to ommit this as a config option and just do the scaling in the data loader as a default
+standardize:
+  glum: pre   # glum handles via scale_predictors
+  sklearn: pre     # pre-standardize in data loader
+  h2o: pre    # h2o handles via standardize param
+  celer: pre       # pre-standardize in data loader
+  skglm: pre       # pre-standardize in data loader
+  glmnet: pre # R glmnet handles via standardize param
+
 # Storage format per library ("dense", "sparse", or "auto")
 storage:
   glum: auto # Auto selects best format
-  sklearn: dense # Can use either
-  h2o: sparse # Optimized for sparse matrices
-  celer: sparse # Optimized for sparse matrices
-  skglm: sparse # Faster for dense matrices
-  glmnet: sparse # R glmnet supports sparse matrices
+  sklearn: csr
+  h2o: csr
+  celer: csc
+  skglm: csc
+  glmnet: csc # R glmnet supports sparse matrices
 
 # PARAMETER GRID
 # Each entry specifies a parameter set. Within each entry, the Cartesian
