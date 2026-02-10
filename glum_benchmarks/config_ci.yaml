@@ -7,7 +7,7 @@ update_docs: false
 run_name: "ci"
 clear_output: true
 
-iterations: 10
+iterations: 20
 num_threads: 1
 timeout: 60
 
@@ -29,7 +29,7 @@ param_grid:
     distributions: [gaussian, gamma]
     alphas: [0.001]
   - libraries: [glum]
-    datasets: ["intermediate-insurance"]
+    datasets: ["intermediate-insurance", "wide-insurance"]
     regularizations: [l2, lasso, net]
     distributions: [poisson, gamma, tweedie-p=1.5]
     alphas: [0.01]
