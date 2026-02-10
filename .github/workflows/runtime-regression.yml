@@ -1,0 +1,115 @@
+name: Runtime Regression
+
+on:
+  push:
+    # This can be refined later, for now like that, so I can test it easily.
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  runtime-regression:
+    name: Runtime regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+      HEAD_SHA: ${{ github.sha }}
+      OMP_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+      OPENBLAS_NUM_THREADS: "1"
+      NUMEXPR_NUM_THREADS: "1"
+      PYTHONHASHSEED: "0"
+      GLM_BENCHMARKS_RUNTIME_AGGREGATION: "trimmed_mean"
+      GLM_BENCHMARKS_RUNTIME_TRIM_RATIO: "0.2"
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+      - name: Ensure base commit is available
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Push events for the first commit can have an all-zero "before" SHA.
+          if [[ "$BASE_SHA" =~ ^0+$ ]]; then
+            BASE_SHA="$(git rev-parse "$HEAD_SHA^")"
+            echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
+          fi
+          git fetch --no-tags --prune origin "$BASE_SHA" || true
+      - name: Set up pixi
+        uses: prefix-dev/setup-pixi@a0af7a228712d6121d37aba47adf55c1332c9c2e
+        with:
+          environments: benchmark
+      - name: Run benchmarks (base vs head) and compare
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ROOT="$PWD"
+          mkdir -p "$ROOT/glum_benchmarks/results"
+          BASE_WT="$(mktemp -d /tmp/glum-base-XXXXXX)"
+          HEAD_WT="$(mktemp -d /tmp/glum-head-XXXXXX)"
+
+          cleanup() {
+            git worktree remove --force "$BASE_WT" >/dev/null 2>&1 || true
+            git worktree remove --force "$HEAD_WT" >/dev/null 2>&1 || true
+            rm -rf "$BASE_WT" "$HEAD_WT" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          git worktree add --detach "$BASE_WT" "$BASE_SHA"
+          git worktree add --detach "$HEAD_WT" "$HEAD_SHA"
+
+          run_ref () {
+            local wt="$1"
+            local run_name="$2"
+            local warmup_run_name="warmup-${run_name}"
+            local cache_dir="$ROOT/glum_benchmarks/results/cache-${run_name}"
+            cd "$wt"
+            pixi run -e benchmark python -m pip install \
+              --no-build-isolation --no-deps --disable-pip-version-check \
+              -e .
+
+            # Warmup pass (discarded) to reduce first-run bias without changing benchmark logic.
+            GLM_BENCHMARKS_CACHE="$cache_dir" PYTHONPATH="$ROOT" pixi run -e benchmark python "$ROOT/glum_benchmarks/run_benchmarks.py" \
+              --config "$ROOT/glum_benchmarks/config_ci.yaml" \
+              --run-name "$warmup_run_name"
+            rm -rf "$ROOT/glum_benchmarks/results/$warmup_run_name"
+
+            # Measured pass
+            GLM_BENCHMARKS_CACHE="$cache_dir" PYTHONPATH="$ROOT" pixi run -e benchmark python "$ROOT/glum_benchmarks/run_benchmarks.py" \
+              --config "$ROOT/glum_benchmarks/config_ci.yaml" \
+              --run-name "$run_name"
+          }
+
+          run_ref "$BASE_WT" "ci-base"
+          run_ref "$HEAD_WT" "ci-head"
+
+          cd "$ROOT"
+          PYTHONPATH="$ROOT" pixi run -e benchmark python glum_benchmarks/compare_results.py \
+            --base glum_benchmarks/results/ci-base/results.csv \
+            --head glum_benchmarks/results/ci-head/results.csv \
+            --config glum_benchmarks/config_ci.yaml \
+            --summary-out glum_benchmarks/results/ci_runtime_summary.md
+      - name: Publish summary
+        if: always()
+        run: |
+          echo "## Runtime regression summary" >> "$GITHUB_STEP_SUMMARY"
+          if [ -f glum_benchmarks/results/ci_runtime_summary.md ]; then
+            cat glum_benchmarks/results/ci_runtime_summary.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "_No summary produced (benchmark step failed early)_" >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Upload runtime artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-runtime-regression
+          if-no-files-found: warn
+          path: |
+            glum_benchmarks/results/ci_runtime_summary.md
+            glum_benchmarks/results/ci-base/**/*
+            glum_benchmarks/results/ci-head/**/*
