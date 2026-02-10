@@ -7,7 +7,7 @@ update_docs: false
 run_name: "ci"
 clear_output: true
 
-iterations: 15
+iterations: 10
 num_threads: 1
 timeout: 60
 
