@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib
 from pathlib import Path
 from typing import Any
 
@@ -45,7 +46,7 @@ def main() -> int:
     )
     merged = merged.sort_values("delta_ratio", ascending=False)
 
-    regressed_count = int(merged["regressed"].sum())
+    regressed_count = sum(bool(flag) for flag in merged["regressed"].to_list())
     lines = [
         "## Runtime Regression Summary",
         "",
@@ -58,8 +59,8 @@ def main() -> int:
     ]
     for row in merged.to_dict(orient="records"):
         row_template = (
-            "| {case} | {base:.4f} | {head:.4f} | "
-            "{delta:+.4f} | {pct:+.2f}% | {regressed} |"
+            "| {case} | {base:.4f} | {head:.4f} | {delta:+.4f} | "
+            "{pct:+.2f}% | {regressed} |"
         )
         lines.append(
             row_template.format(
@@ -73,7 +74,45 @@ def main() -> int:
         )
     lines.append("")
     summary = "\n".join(lines)
-    print(summary)
+
+    rich_console = None
+    rich_table = None
+    try:
+        rich_console = importlib.import_module("rich.console")
+        rich_table = importlib.import_module("rich.table")
+    except ModuleNotFoundError:
+        pass
+
+    if rich_console is not None and rich_table is not None:
+        console = rich_console.Console()
+        console.print(
+            (
+                f"Thresholds: rel > {max_rel:.1%}, abs > {max_abs:.3f}s, "
+                f"allowed={max_cases}, detected={regressed_count}"
+            ),
+            style="bold",
+        )
+        table = rich_table.Table(show_header=True, header_style="bold magenta")
+        table.add_column("Case")
+        table.add_column("Base (s)", justify="right")
+        table.add_column("Head (s)", justify="right")
+        table.add_column("Delta (s)", justify="right")
+        table.add_column("Delta (%)", justify="right")
+        table.add_column("Regressed", justify="center")
+        for row in merged.to_dict(orient="records"):
+            regressed = bool(row["regressed"])
+            table.add_row(
+                f"{row['problem_name']} / {row['library_name']}",
+                f"{float(row['runtime_base']):.4f}",
+                f"{float(row['runtime_head']):.4f}",
+                f"{float(row['delta_sec']):+.4f}",
+                f"{100.0 * float(row['delta_ratio']):+.2f}%",
+                "yes" if regressed else "no",
+                style="red" if regressed else None,
+            )
+        console.print(table)
+    else:
+        print(summary)
 
     summary_out = Path(args.summary_out)
     summary_out.parent.mkdir(parents=True, exist_ok=True)
