@@ -267,6 +267,7 @@ def get_benchmark_combinations(
 
     all_problems = get_all_problems()
     available_libraries = list(get_all_libraries())
+    default_libraries = [lib for lib in available_libraries if lib != "zeros"]
 
     # Filter to "-no-weights-" problems only
     base_problems = [name for name in all_problems.keys() if "-no-weights-" in name]
@@ -291,7 +292,7 @@ def get_benchmark_combinations(
     print("=" * 70)
     for i, entry in enumerate(config.param_grid, 1):
         # Use entry values or defaults (all)
-        libraries = entry.libraries if entry.libraries else available_libraries
+        libraries = entry.libraries if entry.libraries else default_libraries
         datasets = entry.datasets if entry.datasets else all_datasets
         regs = entry.regularizations if entry.regularizations else all_regs
         dists = entry.distributions if entry.distributions else all_dists

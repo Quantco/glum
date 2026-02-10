@@ -59,7 +59,8 @@ storage:
 #   alphas: [0.001, 0.01, 0.1]
 #   distributions: ["gaussian", "gamma", "binomial", "poisson", "tweedie-p=1.5"]
 #
-# Use null for any field (or omit) to use its default value. Default refers to using all available values.
+# Use null for any field (or omit) to use its default value.
+# For libraries, default means all available EXCEPT "zeros" (include it explicitly if needed).
 #
 # Example: Run all regularizations for gaussian, but only lasso for gamma:
 #   param_grid:
