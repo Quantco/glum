@@ -188,38 +188,50 @@ def simulate_mixed_data(
     return data
 
 
-def simulate_square_dataset(
+def simulate_glm_dataset(
     num_rows: Optional[int] = None,
     noise: Optional[float] = None,  # unused, required by load_data signature
     distribution: str = "poisson",
+    k_over_n_ratio: Optional[float] = 1.0,
 ) -> tuple[pd.DataFrame, np.ndarray, np.ndarray]:
-    """Generate a square dataset where n_rows = n_cols.
+    """Generate a simulated GLM dataset with configurable K/N ratio.
 
     Parameters
     ----------
     num_rows
-        Number of rows (and columns). Defaults to 500.
+        Number of rows. Defaults to 5000.
     noise
         Unused, present to match load_data signature.
     distribution
         The GLM family: "gaussian", "poisson", "gamma", or "binomial".
+    k_over_n_ratio
+        Ratio of number of features to number of rows (K/N).
+        - 1.0 gives a square design matrix
+        - > 1.0 gives high-dimensional data (K > N)
+        - < 1.0 gives low-dimensional data (K < N)
 
     Returns
     -------
     tuple[pd.DataFrame, np.ndarray, np.ndarray]
-        (X, y, exposure) where X is square.
+        (X, y, exposure).
     """
-    n = num_rows if num_rows is not None else 5000
+    n_rows = num_rows if num_rows is not None else 5000
+    ratio = 1.0 if k_over_n_ratio is None else float(k_over_n_ratio)
+    if ratio <= 0:
+        raise ValueError("k_over_n_ratio must be > 0.")
+    n_features = max(1, int(round(n_rows * ratio)))
     rand = np.random.default_rng(42)
 
     # Generate standardized features
     X = pd.DataFrame(
-        data=rand.normal(0, 1, size=(n, n)),
-        columns=[f"x{i}" for i in range(n)],
+        data=rand.normal(0, 1, size=(n_rows, n_features)),
+        columns=[f"x{i}" for i in range(n_features)],
     )
 
     # Sparse coefficients (~10% non-zero)
-    coefs = rand.choice([0] * 9 + [1], size=n) * rand.normal(0, 1, size=n)
+    coefs = rand.choice([0] * 9 + [1], size=n_features) * rand.normal(
+        0, 1, size=n_features
+    )
 
     # Linear predictor
     eta = X.to_numpy() @ coefs
@@ -242,7 +254,7 @@ def simulate_square_dataset(
         family_rv = _get_family_rv(family, rand)
         y = family_rv(mu)
 
-    exposure = np.ones(n)
+    exposure = np.ones(n_rows)
     return X, y, exposure
 
 

@@ -1,6 +1,7 @@
+import inspect
 import os
 from functools import partial
-from typing import Callable, Optional, Union
+from typing import Any, Callable, Optional, Union, cast
 
 import attr
 import numpy as np
@@ -18,7 +19,7 @@ from .data import (
     generate_real_insurance_dataset,
     generate_wide_insurance_dataset,
     simulate_categorical_dataset,
-    simulate_square_dataset,
+    simulate_glm_dataset,
 )
 from .util import cache_location, exposure_and_offset_to_weights, get_tweedie_p
 
@@ -47,6 +48,7 @@ def load_data(
     distribution: str = "poisson",
     data_setup: str = "no-weights",
     standardize: bool = False,
+    k_over_n_ratio: Optional[float] = None,
 ) -> dict[str, np.ndarray]:
     """
     Load the data.
@@ -58,7 +60,10 @@ def load_data(
     # Step 1) Load the data.
     if data_setup not in ["weights", "offset", "no-weights"]:
         raise NotImplementedError
-    X_in, y, exposure = loader_func(num_rows, noise, distribution)
+    loader_kwargs = dict(num_rows=num_rows, noise=noise, distribution=distribution)
+    if "k_over_n_ratio" in inspect.signature(loader_func).parameters:
+        loader_kwargs["k_over_n_ratio"] = k_over_n_ratio
+    X_in, y, exposure = cast(Any, loader_func)(**loader_kwargs)
 
     # Step 1.5) Standardize continuous columns BEFORE OHE/format conversion.
     # At this point we still have dtype information, so we can reliably
@@ -193,10 +198,10 @@ def get_all_problems() -> dict[str, Problem]:
     if os.path.isfile(git_root("data", "X.parquet")):
         insurance_load_funcs["real-insurance"] = generate_real_insurance_dataset
 
-    # Simulated datasets (square: n_rows ≈ n_cols)
+    # Simulated dataset with configurable K/N ratio.
     simulated_distributions = ["gaussian", "poisson", "gamma", "binomial"]
     simulated_load_funcs = {
-        "square-simulated": simulate_square_dataset,
+        "simulated-glm": simulate_glm_dataset,
     }
 
     problems = {}

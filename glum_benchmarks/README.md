@@ -119,14 +119,15 @@ Edit `config.yaml` to customize benchmark parameters.
 
 ### Benchmark Settings
 
-| Option        | Description                                                                  |
-| ------------- | ---------------------------------------------------------------------------- |
-| `standardize` | Standardization strategy per library (`pre`, `internal`, `none`)             |
-| `iterations`  | Runs per benchmark (>=2 required for skglm)                                  |
-| `num_threads` | Number of threads for parallel execution                                     |
-| `num_rows`    | Limit rows per dataset (`null` = full dataset)                               |
-| `timeout`     | Timeout in seconds (benchmarks timing out are marked "not converged")        |
-| `storage`     | Storage format per library: (`auto`, `dense`, `cat`, `csr`, `csc`)           |
+| Option           | Description                                                                  |
+| -------------    | ---------------------------------------------------------------------------- |
+| `standardize`    | Standardization strategy per library (`pre`, `internal`, `none`)             |
+| `iterations`     | Runs per benchmark (>=2 required for skglm)                                  |
+| `num_threads`    | Number of threads for parallel execution                                     |
+| `num_rows`       | Limit rows per dataset (`null` = full dataset)                               |
+| `k_over_n_ratio` | Feature/row ratio (K/N) for `simulated-glm` (`>1` gives `K>N`)               |
+| `timeout`        | Timeout in seconds (benchmarks timing out are marked "not converged")        |
+| `storage`        | Storage format per library: (`auto`, `dense`, `cat`, `csr`, `csc`)           |
 
 **Notes:**
 
@@ -152,7 +153,7 @@ Each entry computes a Cartesian product. Multiple entries are unioned (not cross
 **Available values:**
 
 - `libraries`: `["glum", "sklearn", "h2o", "skglm", "celer", "zeros", "glmnet"]`
-- `datasets`: `["intermediate-housing", "intermediate-insurance", "narrow-insurance", "wide-insurance", "square-simulated", "categorical-simulated"]`
+- `datasets`: `["intermediate-housing", "intermediate-insurance", "narrow-insurance", "wide-insurance", "simulated-glm", "categorical-simulated"]`
 - `regularizations`: `["lasso", "l2", "net"]`
 - `distributions`: `["gaussian", "gamma", "binomial", "poisson", "tweedie-p=1.5"]`
 - `alphas`: `[0.0001, 0.001, 0.01]`

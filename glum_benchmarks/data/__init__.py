@@ -8,8 +8,8 @@ from .create_insurance import (
 )
 from .simulated_glm import (
     simulate_categorical_dataset,
+    simulate_glm_dataset,
     simulate_mixed_data,
-    simulate_square_dataset,
 )
 
 __all__ = [
@@ -19,8 +19,8 @@ __all__ = [
     "generate_real_insurance_dataset",
     "create_insurance_raw_data",
     "simulate_categorical_dataset",
+    "simulate_glm_dataset",
     "simulate_mixed_data",
-    "simulate_square_dataset",
     "generate_housing_dataset",
     "create_housing_raw_data",
 ]
