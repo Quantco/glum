@@ -31,7 +31,8 @@ def runtime(f, iterations, *args, timeout=None, **kwargs):
 
     Returns
     -------
-    Tuple: (Minimum runtime across successful iterations, output from fastest iteration)
+    Tuple: (Aggregated runtime across successful iterations, representative output)
+        Default aggregation is the minimum runtime (backward compatible).
         If all iterations timeout, raises TimeoutError.
 
     """
@@ -66,9 +67,34 @@ def runtime(f, iterations, *args, timeout=None, **kwargs):
         # All iterations timed out
         raise TimeoutError(f"All {iterations} iterations exceeded {timeout}s timeout")
 
-    # Return the run with minimum runtime
-    min_runtime, min_output = min(successful_runs, key=lambda x: x[0])
-    return min_runtime, min_output
+    aggregation = os.environ.get("GLM_BENCHMARKS_RUNTIME_AGGREGATION", "min").lower()
+    trim_ratio = float(os.environ.get("GLM_BENCHMARKS_RUNTIME_TRIM_RATIO", "0.2"))
+
+    runtimes = np.array([r for r, _ in successful_runs], dtype=float)
+    n = int(len(runtimes))
+    agg_runtime: float
+    agg_output = successful_runs[0][1]
+
+    if aggregation == "min":
+        agg_runtime, agg_output = min(successful_runs, key=lambda x: x[0])
+    elif aggregation == "trimmed_mean":
+        k = int(n * trim_ratio)
+        k = min(k, (n - 1) // 2)
+        runtimes_sorted = np.sort(runtimes)
+        trimmed = runtimes_sorted[k : n - k]
+        agg_runtime = float(trimmed.mean())
+    else:
+        raise ValueError(
+            "Unsupported GLM_BENCHMARKS_RUNTIME_AGGREGATION="
+            f"{aggregation!r}. Use one of: min, trimmed_mean."
+        )
+
+    # Keep output deterministic for non-min aggregations: pick run closest to aggregate.
+    if aggregation != "min":
+        closest_idx = int(np.argmin(np.abs(runtimes - agg_runtime)))
+        agg_output = successful_runs[closest_idx][1]
+
+    return agg_runtime, agg_output
 
 
 def get_sklearn_family(distribution):
