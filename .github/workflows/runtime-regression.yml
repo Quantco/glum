@@ -2,7 +2,8 @@ name: Runtime Regression
 
 on:
   push:
-    # This can be refined later, for now like that, so I can test it easily.
+    branches:
+      - main
   pull_request:
 
 concurrency:
