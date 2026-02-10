@@ -223,6 +223,7 @@ class BenchmarkParams:
         problem_name: Optional[str] = None,
         library_name: Optional[str] = None,
         num_rows: Optional[int] = None,
+        k_over_n_ratio: Optional[float] = None,
         storage: Optional[str] = None,
         threads: Optional[int] = None,
         alpha: Optional[float] = None,
@@ -232,6 +233,7 @@ class BenchmarkParams:
         self.problem_name = problem_name
         self.library_name = library_name
         self.num_rows = num_rows
+        self.k_over_n_ratio = k_over_n_ratio
         self.storage = storage
         self.threads = threads
         self.alpha = alpha
@@ -242,6 +244,7 @@ class BenchmarkParams:
         "problem_name",
         "library_name",
         "num_rows",
+        "k_over_n_ratio",
         "storage",
         "threads",
         "alpha",
@@ -285,6 +288,7 @@ defaults = dict(
     problem_name=None,
     library_name=None,
     num_rows=None,
+    k_over_n_ratio=1.0,
     alpha=None,
     storage="dense",
     hessian_approx=0.0,
@@ -321,7 +325,7 @@ def get_params_from_fname(fname: str) -> BenchmarkParams:
 
     # Map parts to parameter names with appropriate types
     # Order matches BenchmarkParams.param_names
-    param_types = [str, str, int, str, int, float, float, str]
+    param_types = [str, str, int, float, str, int, float, float, str]
 
     kwargs = {}
     for i, (name, dtype) in enumerate(zip(BenchmarkParams.param_names, param_types)):
@@ -432,6 +436,7 @@ def execute_problem_library(
 
     dat = P.data_loader(
         num_rows=params.num_rows,
+        k_over_n_ratio=params.k_over_n_ratio,
         storage=params.storage,
         standardize=pre_standardize,
     )

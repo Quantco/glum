@@ -23,6 +23,7 @@ clear_output: True # Clear entire run_name directory before running
 iterations: 2 # Run each benchmark N times, report minimum (>=2 for skglm)
 num_threads: 16 # Number of threads for parallel execution
 num_rows: null # Limit rows per dataset (null = full dataset)
+k_over_n_ratio: 0.5 # K/N ratio for simulated-glm only (>1: K>N, <1: K<N)
 timeout: 100 # Timeout in seconds per benchmark run (reports as "not converged" if exceeded)
 
 # Standardization approach per library:
@@ -53,7 +54,7 @@ storage:
 #
 # Available values:
 #   libraries: ["glum", "sklearn", "h2o", "skglm", "celer", "zeros", "glmnet"]
-#   datasets: ["intermediate-housing", "intermediate-insurance", "narrow-insurance", "wide-insurance","square-simulated", "categorical-simulated"]
+#   datasets: ["intermediate-housing", "intermediate-insurance", "narrow-insurance", "wide-insurance","simulated-glm", "categorical-simulated"]
 #   regularizations: ["lasso", "l2", "net"]
 #   alphas: [0.001, 0.01, 0.1]
 #   distributions: ["gaussian", "gamma", "binomial", "poisson", "tweedie-p=1.5"]

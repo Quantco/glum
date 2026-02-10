@@ -57,7 +57,7 @@ Dataset = Literal[
     "intermediate-housing",
     "narrow-insurance",
     "wide-insurance",
-    "square-simulated",
+    "simulated-glm",
     "categorical-simulated",
 ]
 Regularization = Literal["lasso", "l2", "net"]
@@ -160,6 +160,14 @@ class BenchmarkConfig(BaseModel):
     )
     num_rows: int | None = Field(
         default=None, ge=1, description="Limit rows per dataset (None = full dataset)"
+    )
+    k_over_n_ratio: float = Field(
+        default=1.0,
+        gt=0,
+        description=(
+            "Feature-to-row ratio (K/N) for simulated-glm dataset. "
+            "Values >1 give K>N; values <1 give K<N."
+        ),
     )
     timeout: int = Field(
         default=100, ge=1, description="Timeout in seconds per benchmark run"
@@ -335,6 +343,7 @@ def run_single_benchmark(
         problem_name=problem_name,
         library_name=library_name,
         num_rows=config.num_rows,
+        k_over_n_ratio=config.k_over_n_ratio,
         storage=storage,
         threads=config.num_threads,
         alpha=alpha,
