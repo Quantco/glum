@@ -7,11 +7,12 @@
 Changelog
 =========
 
-UNRELEASED
-----------
+3.1.3 - unreleased
+------------------
 
 **Other changes:**
 
+- We disabled fast math to avoid invalid results (e.g., when dividing by zero).
 - The default ``alpha_max`` for the regularization path in the pure ridge case (``l1_ratio=0``) is now computed from the null model gradient, matching glmnet's behavior. Previously it was hardcoded to 10.
 - When ``min_alpha_ratio`` is not set and ``n_samples < n_features``, the default is now ``1e-2`` instead of ``1e-6``, matching glmnet's convention.
 

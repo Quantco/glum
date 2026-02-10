@@ -20,7 +20,6 @@ elif sys.platform == "darwin":
         "-Xpreprocessor",
         "-fopenmp",
         "-O3",
-        "-ffast-math",
         "--std=c++17",
     ]
     extra_link_args = ["-lomp"]
@@ -29,7 +28,6 @@ else:
     extra_compile_args = [
         "-fopenmp",
         "-O3",
-        "-ffast-math",
         "--std=c++17",
     ]
     extra_link_args = ["-fopenmp"]
@@ -108,6 +106,7 @@ setup(
             "initializedcheck": False,
             "nonecheck": False,
             "cdivision": True,
+            "cpow": True,
             "legacy_implicit_noexcept": True,
         },
     ),
