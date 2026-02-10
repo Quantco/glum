@@ -19,6 +19,7 @@ Output:
 
 from __future__ import annotations
 
+import argparse
 import pickle
 import re
 import shutil
@@ -114,6 +115,15 @@ class BenchmarkConfig(BaseModel):
     update_docs: bool = Field(
         default=False,
         description="Whether to copy figures to docs/_static and update benchmarks.rst",
+    )
+    max_rel_slowdown: float | None = Field(
+        default=None, description="Optional runtime regression threshold metadata."
+    )
+    max_abs_slowdown_sec: float | None = Field(
+        default=None, description="Optional runtime regression threshold metadata."
+    )
+    max_regressed_cases: int | None = Field(
+        default=None, description="Optional runtime regression threshold metadata."
     )
     docs_figures: list[str] | None = Field(
         default=None,
@@ -1042,10 +1052,27 @@ def update_docs(config: BenchmarkConfig):
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Run glum benchmark pipeline.")
+    parser.add_argument(
+        "--config",
+        default=None,
+        help="Path to benchmark config YAML (default: glum_benchmarks/config.yaml).",
+    )
+    parser.add_argument(
+        "--run-name",
+        default=None,
+        help="Optional run_name override.",
+    )
+    args = parser.parse_args()
+
     # Load configuration
     script_dir = Path(__file__).parent
-    config_file = script_dir / "config.yaml"
+    config_file = (
+        Path(args.config).resolve() if args.config else script_dir / "config.yaml"
+    )
     config = BenchmarkConfig.from_yaml(config_file)
+    if args.run_name is not None:
+        config.run_name = args.run_name
 
     # Run benchmark steps
     if config.run_benchmarks:
