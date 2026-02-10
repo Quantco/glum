@@ -39,9 +39,15 @@ jobs:
             BASE_SHA="$(git rev-parse "$HEAD_SHA^")"
             echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
           fi
-          git fetch --no-tags --prune origin "$BASE_SHA" || true
+          if ! git fetch --no-tags --prune origin "$BASE_SHA"; then
+            echo "Failed to fetch BASE_SHA=$BASE_SHA from origin." >&2
+          fi
+          if ! git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
+            echo "BASE_SHA $BASE_SHA is not available locally after fetch." >&2
+            exit 1
+          fi
       - name: Set up pixi
-        uses: prefix-dev/setup-pixi@a0af7a228712d6121d37aba47adf55c1332c9c2e
+        uses: prefix-dev/setup-pixi@a0af7a228712d6121d37aba47adf55c1332c9c2e # v0.9.4
         with:
           environments: benchmark
       - name: Run benchmarks (base vs head) and compare
@@ -106,7 +112,7 @@ jobs:
           fi
       - name: Upload runtime artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: ci-runtime-regression
           if-no-files-found: warn

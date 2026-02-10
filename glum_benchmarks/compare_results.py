@@ -8,6 +8,7 @@ import importlib
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pandas as pd
 from ruamel.yaml import YAML
 
@@ -40,7 +41,13 @@ def main() -> int:
     keys = ["problem_name", "library_name", "num_rows", "alpha"]
     merged = base.merge(head, on=keys, suffixes=("_base", "_head"), how="inner")
     merged["delta_sec"] = merged["runtime_head"] - merged["runtime_base"]
-    merged["delta_ratio"] = merged["delta_sec"] / merged["runtime_base"]
+    base_runtime = merged["runtime_base"].astype(float)
+    delta_sec = merged["delta_sec"].astype(float)
+    merged["delta_ratio"] = np.where(
+        base_runtime != 0.0,
+        delta_sec / base_runtime,
+        np.where(delta_sec > 0.0, np.inf, np.where(delta_sec < 0.0, -np.inf, 0.0)),
+    )
     merged["regressed"] = (merged["delta_ratio"] > max_rel) & (
         merged["delta_sec"] > max_abs
     )
@@ -81,6 +88,7 @@ def main() -> int:
         rich_console = importlib.import_module("rich.console")
         rich_table = importlib.import_module("rich.table")
     except ModuleNotFoundError:
+        # `rich` is optional; fall back to plain text summary output below.
         pass
 
     if rich_console is not None and rich_table is not None:
