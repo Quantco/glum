@@ -158,7 +158,7 @@ Each entry computes a Cartesian product. Multiple entries are unioned (not cross
 - `distributions`: `["gaussian", "gamma", "binomial", "poisson", "tweedie-p=1.5"]`
 - `alphas`: `[0.0001, 0.001, 0.01]`
 
-When an entry is omitted or set to `null` all available values are taken --> if you want to run all combinations possible, just leave the `param_grid` entry empty.
+When an entry is omitted or set to `null`, all available values are used. For `libraries`, the default excludes `zeros` (include it explicitly if you want it). If you want to run all default combinations, leave the `param_grid` entry empty.
 
 **Alpha note:** `alphas` are per-observation values for unweighted data, when weights are present, the benchmark runner adjusts internally to keep the penalty comparable.
 
