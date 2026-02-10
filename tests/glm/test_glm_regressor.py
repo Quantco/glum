@@ -1185,7 +1185,7 @@ def test_column_with_stddev_zero():
     model = GeneralizedLinearRegressor(family="poisson").fit(X, y)  # noqa: F841
 
 
-@pytest.mark.parametrize("l1_ratio", [1, 0])
+@pytest.mark.parametrize("l1_ratio", [1, 0.5, 0])
 @pytest.mark.parametrize("scale_predictors", [True, False])
 @pytest.mark.parametrize("fit_intercept", [True, False])
 @pytest.mark.parametrize("P1", ["identity", np.array([2, 1, 0.5, 0.1, 0.01])])
@@ -1208,13 +1208,13 @@ def test_alpha_path(l1_ratio, scale_predictors, fit_intercept, P1):
     )
     model.fit(X=X, y=y)
 
-    if l1_ratio == 1:
-        # Lasso: maximum alpha results in all zero coefficients
+    if l1_ratio > 0:
+        # Lasso or elastic net: maximum alpha results in all zero coefficients.
         np.testing.assert_almost_equal(model.coef_path_[0], 0)
         # next alpha gives at least one non-zero coefficient
         assert np.any(model.coef_path_[1] > 0)
     else:
-        # Ridge: all feature coefficients at alpha_max should be near zero.
+        # Ridge: maximum alpha results in near zero coefficients.
         np.testing.assert_allclose(model.coef_path_[0], 0, atol=1e-2)
 
 
