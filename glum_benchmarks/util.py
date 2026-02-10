@@ -41,8 +41,8 @@ def runtime(f, iterations, *args, timeout=None, **kwargs):
 
     Returns
     -------
-    Tuple: (Median runtime after warmup, output from the run closest to
-        the median runtime)
+    Tuple: (Aggregated runtime across successful iterations, representative output)
+        Default aggregation is the minimum runtime (backward compatible).
         If all iterations timeout, raises TimeoutError.
 
     """
@@ -78,18 +78,37 @@ def runtime(f, iterations, *args, timeout=None, **kwargs):
         # All iterations timed out
         raise TimeoutError(f"All {iterations} iterations exceeded {timeout}s timeout")
 
-    # Discard the first successful iteration (warmup)
-    if len(successful_runs) > 1:
-        measured_runs = successful_runs[1:]
-    else:
-        # If only the warmup succeeded use it as a fallback
-        measured_runs = successful_runs
+    # Backward-compatible default; can be overridden in CI via env vars.
+    aggregation = os.environ.get("GLM_BENCHMARKS_RUNTIME_AGGREGATION", "min").lower()
+    trim_ratio = float(os.environ.get("GLM_BENCHMARKS_RUNTIME_TRIM_RATIO", "0.2"))
 
-    # Return the run closest to the median runtime
-    runtimes = [r[0] for r in measured_runs]
-    median_runtime = statistics.median(runtimes)
-    closest_run = min(measured_runs, key=lambda x: abs(x[0] - median_runtime))
-    return closest_run[0], closest_run[1]
+    if aggregation == "min":
+        min_runtime, min_output, _ = min(successful_runs, key=lambda x: x[0])
+        return min_runtime, min_output
+
+    runtimes = np.array([r for r, _, _ in successful_runs], dtype=float)
+
+    if aggregation == "trimmed_mean":
+        n = len(runtimes)
+        k = int(n * trim_ratio)
+        k = min(k, (n - 1) // 2)
+        runtimes_sorted = np.sort(runtimes)
+        trimmed = runtimes_sorted[k : n - k]
+        agg_runtime = float(trimmed.mean())
+    elif aggregation == "mean":
+        agg_runtime = float(runtimes.mean())
+    elif aggregation == "median":
+        agg_runtime = float(np.median(runtimes))
+    else:
+        raise ValueError(
+            "Unsupported GLM_BENCHMARKS_RUNTIME_AGGREGATION="
+            f"{aggregation!r}. Use one of: min, trimmed_mean, mean, median."
+        )
+
+    # Keep output deterministic: pick run closest to aggregated runtime.
+    closest_idx = int(np.argmin(np.abs(runtimes - agg_runtime)))
+    agg_output = successful_runs[closest_idx][1]
+    return agg_runtime, agg_output
 
 
 def get_sklearn_family(distribution):
