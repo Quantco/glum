@@ -1216,7 +1216,6 @@ def test_alpha_path(l1_ratio, scale_predictors, fit_intercept, P1):
     assert np.any(model.coef_path_[1] > 0)
 
 
-
 def test_passing_noncontiguous_as_X():
     X = np.random.rand(100, 4)
     y = np.random.rand(100)
