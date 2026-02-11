@@ -1,5 +1,5 @@
 import copy
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Any, Optional, Union
 
 import formulaic
@@ -416,21 +416,21 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
 
     def linear_predictor(
         self,
-        X,
-        offset=None,
+        X: ArrayLike,
+        offset: Optional[ArrayLike] = None,
         *,
-        alpha_index=None,
-        alpha=None,
-        context=None,
+        alpha_index: Optional[Union[int, Sequence[int]]] = None,
+        alpha: Optional[Union[float, Sequence[float]]] = None,
+        context: Optional[Union[int, Mapping[str, Any]]] = None,
     ):
         """Compute the linear predictor, ``X * coef_ + intercept_``.
 
-        When neither ``alpha_index`` nor ``alpha`` are given, prediction uses the
-        best CV-selected ``(l1_ratio_, alpha_)``.
+        When neither ``alpha_index`` nor ``alpha`` are given, prediction uses
+        the best CV-selected ``(l1_ratio_, alpha_)``.
 
-        When either ``alpha_index`` or ``alpha`` are specified, predictions come
-        from the full-data refit path (computed over the entire alpha grid for the
-        best ``l1_ratio_``).
+        When either ``alpha_index`` or ``alpha`` are specified, predictions
+        come from the full-data refit path (computed over the entire alpha
+        grid for the best ``l1_ratio_``).
 
         Parameters
         ----------
@@ -438,21 +438,25 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             Observations.
 
         offset : array-like, shape (n_samples,), optional (default=None)
+            Offset added to the linear predictor.
 
-        alpha_index : int or list[int], optional (default=None)
-            Index into the alpha path from the full-data refit.
+        alpha_index : int or sequence of int, optional (default=None)
+            Index (or indices) into the alpha path from the full-data refit.
+            Incompatible with ``alpha``.
 
-        alpha : float or list[float], optional (default=None)
+        alpha : float or sequence of float, optional (default=None)
             Alpha value(s) to predict at. Resolved to the closest index on
-            the refit alpha path.
+            the refit alpha path. Incompatible with ``alpha_index``.
 
-        context : optional
+        context : int or mapping, optional (default=None)
             Passed through to formula evaluation.
 
         Returns
         -------
-        array, shape (n_samples,) or (n_samples, n_alphas)
-            The linear predictor.
+        np.ndarray
+            Shape ``(n_samples,)`` when no ``alpha_index`` / ``alpha`` is
+            given or when a scalar is passed. Shape
+            ``(n_samples, len(alpha_index))`` when a sequence is passed.
         """
         if (alpha is not None) and (alpha_index is not None):
             raise ValueError("Please specify at most one of {alpha_index, alpha}.")
@@ -460,22 +464,20 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         if alpha_index is None and alpha is None:
             return super().linear_predictor(X, offset, context=context)
 
-        # Resolve into a list of alpha indices.
+        # Resolve alpha → alpha_index.
         if alpha is not None:
-            scalar = np.isscalar(alpha)
             alpha_index = [self._find_alpha_index(a) for a in np.atleast_1d(alpha)]
-        else:
-            scalar = np.isscalar(alpha_index)
-            alpha_index = np.atleast_1d(alpha_index)  # type: ignore[arg-type]
+            if np.isscalar(alpha):
+                alpha_index = alpha_index[0]
 
-        xb = self._predict_along_alpha_path(
+        return self._predict_along_alpha_path(
             X,
             offset,
-            coef=self._refit_coef_path[alpha_index],
-            intercept=self._refit_intercept_path[alpha_index],  # type: ignore[index]
+            alpha_index=alpha_index,
+            coef_path=self._refit_coef_path,
+            intercept_path=self._refit_intercept_path,
             context=context,
         )
-        return xb.squeeze() if scalar else xb
 
     def _validate_hyperparameters(self) -> None:
         if self.alphas is not None and np.any(np.asarray(self.alphas) < 0):

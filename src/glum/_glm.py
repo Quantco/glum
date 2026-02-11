@@ -654,12 +654,8 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
 
         return df[keep_cols]
 
-    def _find_alpha_index(self, alpha):
-        if alpha is None:
-            return None
-        # find closest index
-        idx = np.argmin(np.abs(np.asarray(self._alphas) - alpha))
-        # make sure it's close enough, rely only on relative tolerance
+    def _find_alpha_index(self, alpha: float) -> int:
+        idx = int(np.argmin(np.abs(np.asarray(self._alphas) - alpha)))
         if np.isclose(self._alphas[idx], alpha, atol=0):
             return idx
         raise IndexError(
@@ -678,8 +674,9 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
     ):
         """Compute the linear predictor, ``X * coef_ + intercept_``.
 
-        If ``alpha_search`` is ``True``, but ``alpha_index`` and ``alpha`` are
-        both ``None``, we use the last alpha value ``self._alphas[-1]``.
+        When ``alpha_index`` and ``alpha`` are both ``None``, the prediction
+        uses the coefficients from the last alpha (i.e. ``self.coef_`` /
+        ``self.intercept_``).
 
         Parameters
         ----------
@@ -690,16 +687,18 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
             corresponding prediction will be ``numpy.nan``.
 
         offset : array-like, shape (n_samples,), optional (default=None)
+            Offset added to the linear predictor.
 
-        alpha_index : int or list[int], optional (default=None)
-            Sets the index of the alpha(s) to use in case ``alpha_search`` is
-            ``True``. Incompatible with ``alpha`` (see below).
+        alpha_index : int or sequence of int, optional (default=None)
+            Index (or indices) into the fitted alpha path. Only valid when
+            ``alpha_search`` is ``True``. Incompatible with ``alpha``.
 
-        alpha : float or list[float], optional (default=None)
-            Sets the alpha(s) to use in case ``alpha_search`` is ``True``.
-            Incompatible with ``alpha_index`` (see above).
+        alpha : float or sequence of float, optional (default=None)
+            Alpha value(s) to predict at, resolved to the closest index on
+            the fitted alpha path. Only valid when ``alpha_search`` is
+            ``True``. Incompatible with ``alpha_index``.
 
-        context : Optional[Union[int, Mapping[str, Any]]], default=None
+        context : int or mapping, optional (default=None)
             The context to add to the evaluation context of the formula with,
             e.g., custom transforms. If an integer, the context is taken from
             the stack frame of the caller at the given depth. Otherwise, a
@@ -709,8 +708,10 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
 
         Returns
         -------
-        array, shape (n_samples, n_alphas)
-            The linear predictor.
+        np.ndarray
+            Shape ``(n_samples,)`` when no ``alpha_index`` / ``alpha`` is
+            given or when a scalar is passed. Shape
+            ``(n_samples, len(alpha_index))`` when a sequence is passed.
         """
         skl.utils.validation.check_is_fitted(self, "coef_")
 
@@ -720,33 +721,72 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
             if not self.alpha_search:
                 raise ValueError("Cannot use 'alpha' when 'alpha_search' is False.")
             if np.isscalar(alpha):
-                alpha_index = self._find_alpha_index(alpha)
+                alpha_index = self._find_alpha_index(alpha)  # type: ignore[arg-type]
             else:
                 alpha_index = [self._find_alpha_index(a) for a in alpha]  # type: ignore
 
         if alpha_index is None:
             return self._predict_along_alpha_path(
-                X, offset, coef=self.coef_, intercept=self.intercept_, context=context
+                X,
+                offset,
+                coef_path=self.coef_,
+                intercept_path=self.intercept_,
+                context=context,
             )
 
-        scalar = np.isscalar(alpha_index)
-        alpha_index = np.atleast_1d(alpha_index)  # type: ignore[arg-type]
-        xb = self._predict_along_alpha_path(
+        return self._predict_along_alpha_path(
             X,
             offset,
-            coef=self.coef_path_[alpha_index],  # type: ignore
-            intercept=self.intercept_path_[alpha_index],  # type: ignore
+            alpha_index=alpha_index,
+            coef_path=self.coef_path_,
+            intercept_path=self.intercept_path_,
             context=context,
         )
-        return xb.squeeze() if scalar else xb
 
-    def _predict_along_alpha_path(self, X, offset, coef, intercept, context=None):
+    def _predict_along_alpha_path(
+        self,
+        X: ArrayLike,
+        offset: Optional[ArrayLike],
+        coef_path: np.ndarray,
+        intercept_path: Union[np.ndarray, float],
+        alpha_index: Optional[Union[int, Sequence[int]]] = None,
+        context: Optional[Union[int, Mapping[str, Any]]] = None,
+    ) -> np.ndarray:
         """Compute ``X @ coef + intercept`` after validating ``X``.
+
+        When ``alpha_index`` is ``None``, ``coef_path`` and ``intercept_path``
+        are used directly (expected shapes: ``(n_features,)`` and scalar).
+        Otherwise they are indexed by ``alpha_index``; a scalar index returns
+        a 1-D result, a sequence of indices returns a 2-D result.
 
         Parameters
         ----------
-        coef : array, shape (n_features,) or (n_alphas, n_features)
-        intercept : float or array, shape (n_alphas,)
+        X : array-like, shape (n_samples, n_features)
+            Observations.
+
+        offset : array-like, shape (n_samples,), optional
+            Offset added to the linear predictor.
+
+        coef_path : np.ndarray, shape (n_alphas, n_features) or (n_features,)
+            Coefficient array. When ``alpha_index`` is ``None`` this is used
+            as-is; otherwise it is indexed along the first axis.
+
+        intercept_path : np.ndarray or float
+            Intercept array of shape ``(n_alphas,)`` or a scalar. Indexed in
+            the same way as ``coef_path``.
+
+        alpha_index : int or sequence of int, optional (default=None)
+            Index (or indices) into the first axis of ``coef_path`` /
+            ``intercept_path``.
+
+        context : int or mapping, optional (default=None)
+            Passed through to formula evaluation.
+
+        Returns
+        -------
+        np.ndarray
+            Shape ``(n_samples,)`` when ``alpha_index`` is ``None`` or a
+            scalar int, ``(n_samples, len(alpha_index))`` otherwise.
         """
         if isinstance(X, pd.DataFrame):
             X = self._convert_from_pandas(X, context=capture_context(context))
@@ -767,14 +807,21 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
                 f"is expecting {self.n_features_in_} features as input."
             )
 
+        if alpha_index is None:
+            coef = coef_path
+            intercept = intercept_path
+        else:
+            scalar = np.isscalar(alpha_index)
+            alpha_index = np.atleast_1d(alpha_index)  # type: ignore[arg-type]
+            coef = coef_path[alpha_index]  # type: ignore
+            intercept = intercept_path[alpha_index]  # type: ignore
+
         xb = X @ coef.T + intercept
         if offset is not None:
-            xb += (
-                np.asanyarray(offset)
-                if xb.ndim == 1
-                else np.asanyarray(offset)[:, np.newaxis]
-            )
-        return xb
+            offset = np.asanyarray(offset)
+            xb += offset if xb.ndim == 1 else offset[:, np.newaxis]  # type: ignore[call-overload]
+
+        return xb.squeeze() if alpha_index is None or scalar else xb
 
     def predict(
         self,
