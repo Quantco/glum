@@ -38,6 +38,9 @@ from pydantic import (
     Field,
     model_validator,
 )
+from rich import box
+from rich.console import Console
+from rich.table import Table
 from ruamel.yaml import YAML
 
 from glum_benchmarks.problems import get_all_problems
@@ -49,6 +52,8 @@ from glum_benchmarks.util import (
 )
 
 # TODO: Update README and documentation
+
+_RICH_CONSOLE = Console()
 
 # Type aliases for configuration options
 Library = Literal["glum", "sklearn", "h2o", "skglm", "celer", "zeros", "glmnet"]
@@ -88,6 +93,12 @@ class ParamGridEntry(BaseModel):
     )
     alphas: list[Alpha] | None = Field(
         default=None, description="Per-observation alpha values (None = all)"
+    )
+    k_over_n_ratios: list[float] | None = Field(
+        default=None,
+        description=(
+            "Feature-to-row ratios (K/N) for simulated-glm. Ignored for other datasets."
+        ),
     )
     distributions: list[Distribution] | None = Field(
         default=None, description="Distributions (None = all)"
@@ -160,14 +171,6 @@ class BenchmarkConfig(BaseModel):
     )
     num_rows: int | None = Field(
         default=None, ge=1, description="Limit rows per dataset (None = full dataset)"
-    )
-    k_over_n_ratio: float = Field(
-        default=1.0,
-        gt=0,
-        description=(
-            "Feature-to-row ratio (K/N) for simulated-glm dataset. "
-            "Values >1 give K>N; values <1 give K<N."
-        ),
     )
     timeout: int = Field(
         default=100, ge=1, description="Timeout in seconds per benchmark run"
@@ -256,13 +259,13 @@ def _parse_problem_name(name: str) -> tuple[str, str, str]:
 
 def get_benchmark_combinations(
     config: BenchmarkConfig,
-) -> list[tuple[str, str, float]]:
-    """Get list of (problem_name, library, alpha) tuples to benchmark.
+) -> list[tuple[str, str, float, float]]:
+    """Get list of (problem_name, library, alpha, k_over_n_ratio) tuples.
 
     Cartesian product within each entry, union across entries.
 
     Returns:
-        List of (problem_name, library_name, alpha) tuples to run.
+        List of (problem_name, library_name, alpha, k_over_n_ratio) tuples to run.
     """
 
     all_problems = get_all_problems()
@@ -284,7 +287,7 @@ def get_benchmark_combinations(
     all_dists = sorted({_parse_problem_name(n)[2] for n in base_problems})
     all_alphas = list(ALPHA_VALUES)
 
-    combinations: set[tuple[str, str, float]] = set()
+    combinations: set[tuple[str, str, float, float]] = set()
 
     # Print configuration per parameter grid entry
     print("=" * 70)
@@ -297,6 +300,9 @@ def get_benchmark_combinations(
         regs = entry.regularizations if entry.regularizations else all_regs
         dists = entry.distributions if entry.distributions else all_dists
         alphas = entry.alphas if entry.alphas else all_alphas
+        k_over_n_ratios = (
+            entry.k_over_n_ratios if entry.k_over_n_ratios is not None else [1.0]
+        )
 
         print(f"Parameter Set {i}:")
         print(f"  Libraries: {libraries}")
@@ -304,6 +310,7 @@ def get_benchmark_combinations(
         print(f"  Regularizations: {regs}")
         print(f"  Distributions: {dists}")
         print(f"  Alphas: {alphas}")
+        print(f"  K/N ratios (simulated-glm): {k_over_n_ratios}")
         print()
 
         # Cartesian product within this entry
@@ -314,7 +321,13 @@ def get_benchmark_combinations(
             if key in problem_lookup:
                 # Only add if library is actually available
                 if lib in available_libraries:
-                    combinations.add((problem_lookup[key], lib, alpha))
+                    ratios_for_dataset = (
+                        k_over_n_ratios if dataset == "simulated-glm" else [1.0]
+                    )
+                    for k_over_n_ratio in ratios_for_dataset:
+                        combinations.add(
+                            (problem_lookup[key], lib, alpha, k_over_n_ratio)
+                        )
 
     print(f"Total benchmark runs: {len(combinations)}")
     print("=" * 70)
@@ -324,7 +337,11 @@ def get_benchmark_combinations(
 
 
 def run_single_benchmark(
-    problem_name: str, library_name: str, alpha: float, config: BenchmarkConfig
+    problem_name: str,
+    library_name: str,
+    alpha: float,
+    k_over_n_ratio: float,
+    config: BenchmarkConfig,
 ) -> tuple[dict, BenchmarkParams]:
     """Run a single benchmark and return results.
 
@@ -344,7 +361,7 @@ def run_single_benchmark(
         problem_name=problem_name,
         library_name=library_name,
         num_rows=config.num_rows,
-        k_over_n_ratio=config.k_over_n_ratio,
+        k_over_n_ratio=k_over_n_ratio,
         storage=storage,
         threads=config.num_threads,
         alpha=alpha,
@@ -382,15 +399,21 @@ def run_all_benchmarks(config: BenchmarkConfig):
         shutil.rmtree(config.results_dir)
     config.pickle_dir.mkdir(parents=True, exist_ok=True)
 
-    # Get benchmark combinations (problem, library, alpha) from param_grid
+    # Get benchmark combinations (problem, library, alpha, k_over_n_ratio)
+    # from param_grid.
     combinations = get_benchmark_combinations(config)
 
     total = len(combinations)
     current = 0
 
-    for problem_name, library_name, alpha in combinations:
+    for problem_name, library_name, alpha, k_over_n_ratio in combinations:
         current += 1
-        label = f"{library_name} / {problem_name} (α={alpha})"
+        ratio_label = (
+            f", K/N={k_over_n_ratio:g}"
+            if problem_name.startswith("simulated-glm-")
+            else ""
+        )
+        label = f"{library_name} / {problem_name} (α={alpha}{ratio_label})"
         print(f"[{current}/{total}] {label}", end=" ", flush=True)
 
         try:
@@ -403,7 +426,7 @@ def run_all_benchmarks(config: BenchmarkConfig):
                     message=".*asyncio.iscoroutinefunction.*",
                 )
                 result, params = run_single_benchmark(
-                    problem_name, library_name, alpha, config
+                    problem_name, library_name, alpha, k_over_n_ratio, config
                 )
 
             # Save result
@@ -494,6 +517,7 @@ def analyze_results(config: BenchmarkConfig) -> pd.DataFrame:
                 "problem_name": params.problem_name,
                 "library_name": params.library_name,
                 "num_rows": data.get("num_rows"),
+                "k_over_n_ratio": params.k_over_n_ratio,
                 "alpha": alpha,
                 "storage": params.storage,
                 "threads": params.threads,
@@ -516,7 +540,7 @@ def analyze_results(config: BenchmarkConfig) -> pd.DataFrame:
     df = pd.DataFrame(results)
 
     # Format: set index and sort
-    problem_id_cols = ["problem_name", "num_rows", "alpha"]
+    problem_id_cols = ["problem_name", "num_rows", "k_over_n_ratio", "alpha"]
     df = df.set_index(problem_id_cols).sort_values("library_name").sort_index()
 
     # Calculate relative objective value (how far from best).
@@ -537,15 +561,13 @@ def analyze_results(config: BenchmarkConfig) -> pd.DataFrame:
         "rel_obj_val",
     ]
 
-    with pd.option_context(
-        "display.expand_frame_repr",
-        False,
-        "display.max_columns",
-        None,
-        "display.max_rows",
-        None,
-    ):
-        print(df[cols_to_show])
+    # Group by each problem key: problem_name + alpha + num_rows.
+    table_df = df.loc[:, cols_to_show].reset_index()
+    _print_dataframe_table(
+        table_df,
+        title="Benchmark summary",
+        group_by=["problem_name", "alpha", "num_rows", "k_over_n_ratio"],
+    )
 
     # Export to CSV for figure generation and reproducibility
     config.csv_file.parent.mkdir(parents=True, exist_ok=True)
@@ -553,6 +575,73 @@ def analyze_results(config: BenchmarkConfig) -> pd.DataFrame:
     print(f"\nExported results to: {config.csv_file}")
 
     return df.reset_index()
+
+
+def _print_dataframe_table(
+    df: pd.DataFrame,
+    *,
+    title: str,
+    max_rows: int | None = None,
+    group_by: list[str] | None = None,
+) -> None:
+    """Print a DataFrame as a rich table."""
+    rows = df.copy() if max_rows is None else df.head(max_rows).copy()
+    grouping_cols = [column for column in (group_by or []) if column in rows.columns]
+    if grouping_cols:
+        sort_cols = grouping_cols + [c for c in ["library_name"] if c in rows.columns]
+        rows = rows.sort_values(sort_cols, kind="mergesort")
+
+    def format_cell(value: object) -> str:
+        is_na = pd.isna(value)
+        if isinstance(is_na, (bool, np.bool_)) and is_na:
+            return ""
+        if isinstance(value, float):
+            return f"{value:.6g}"
+        return str(value)
+
+    def render_table(table_df: pd.DataFrame, table_title: str) -> None:
+        table = Table(
+            title=table_title,
+            box=box.SIMPLE_HEAVY,
+            header_style="bold cyan",
+            row_styles=["", "dim"],
+            show_lines=False,
+        )
+        for column in table_df.columns:
+            justify = (
+                "right" if pd.api.types.is_numeric_dtype(table_df[column]) else "left"
+            )
+            table.add_column(str(column), justify=justify, overflow="fold")
+
+        for row in table_df.itertuples(index=False, name=None):
+            table.add_row(*[format_cell(value) for value in row])
+
+        _RICH_CONSOLE.print(table)
+
+    if not grouping_cols:
+        render_table(rows, title)
+    else:
+        value_cols = [column for column in rows.columns if column not in grouping_cols]
+        for group_values, group_df in rows.groupby(
+            grouping_cols, sort=False, dropna=False
+        ):
+            if not isinstance(group_values, tuple):
+                group_values = (group_values,)
+            group_items = dict(zip(grouping_cols, group_values))
+            problem_name = str(group_items.get("problem_name", ""))
+            is_simulated_glm = problem_name.startswith("simulated-glm-")
+            group_label_parts = []
+            for column, value in zip(grouping_cols, group_values):
+                if column == "k_over_n_ratio" and not is_simulated_glm:
+                    continue
+                group_label_parts.append(f"{column}={format_cell(value)}")
+            group_label = ", ".join(group_label_parts)
+            if not isinstance(group_df, pd.DataFrame):
+                continue
+            render_table(group_df.loc[:, value_cols], f"{title} - {group_label}")
+
+    if max_rows is not None and len(df) > max_rows:
+        _RICH_CONSOLE.print(f"[dim]Showing first {max_rows} of {len(df)} rows.[/dim]")
 
 
 def _render_bar_chart(
@@ -741,16 +830,16 @@ def plot_results(config: BenchmarkConfig):
     )
 
     # Drop duplicates (keep latest result for each unique combo)
-    df = df.drop_duplicates(
-        subset=[
-            "dataset",
-            "distribution",
-            "regularization",
-            "alpha",
-            "library_name",
-        ],
-        keep="last",
-    )
+    dedupe_cols = [
+        "dataset",
+        "distribution",
+        "regularization",
+        "alpha",
+        "library_name",
+    ]
+    if "k_over_n_ratio" in df.columns:
+        dedupe_cols.append("k_over_n_ratio")
+    df = df.drop_duplicates(subset=dedupe_cols, keep="last")
 
     # Ensure library colors are consistent across plots
     colors = {
@@ -762,70 +851,74 @@ def plot_results(config: BenchmarkConfig):
         "celer": "#fb9a99",
     }
 
-    # Generate one plot per dataset/distribution combo
+    # Generate one plot per dataset/distribution combo. For simulated-glm,
+    # split plots by K/N ratio so each figure shows a single ratio.
     for dataset in df["dataset"].unique():
         for dist in df["distribution"].unique():
-            subset = df[(df["dataset"] == dataset) & (df["distribution"] == dist)]
-
-            if subset.empty:
+            base_subset = df[(df["dataset"] == dataset) & (df["distribution"] == dist)]
+            if base_subset.empty:
                 continue
 
-            print(f"  Plotting {dataset}-{dist}: {len(subset)} rows")
-            print(f"    reg_combos: {subset['reg_combo'].unique().tolist()}")
-
-            # Pivot for plotting: reg_combo on x-axis, libraries as bars
-            pivot_raw = subset.pivot(
-                index="reg_combo",
-                columns="library_name",
-                values="runtime",
+            split_by_ratio = (
+                dataset == "simulated-glm" and "k_over_n_ratio" in df.columns
             )
-            # Track which cells are unsupported (NaN) before filling
-            unsupported = pivot_raw.isna()
-            pivot = pivot_raw.fillna(0)
+            ratio_groups = (
+                base_subset.groupby("k_over_n_ratio", sort=True, dropna=False)
+                if split_by_ratio
+                else [(None, base_subset)]
+            )
 
-            # Track which cells did not converge
-            pivot_converged = (
-                subset.pivot(
+            for ratio_value, subset in ratio_groups:
+                if subset.empty:
+                    continue
+
+                ratio_suffix = ""
+                ratio_title_suffix = ""
+                if split_by_ratio:
+                    ratio_text = f"{float(ratio_value):g}"
+                    ratio_suffix = f"-k-over-n-{ratio_text}"
+                    ratio_title_suffix = f" (K/N={ratio_text})"
+
+                print(f"  Plotting {dataset}-{dist}{ratio_suffix}: {len(subset)} rows")
+                print(f"    reg_combos: {subset['reg_combo'].unique().tolist()}")
+
+                # Pivot for plotting: reg_combo on x-axis, libraries as bars
+                pivot_raw = subset.pivot(
                     index="reg_combo",
                     columns="library_name",
-                    values="converged",
+                    values="runtime",
                 )
-                .fillna(True)
-                .astype(bool)
-            )
-            not_converged = ~pivot_converged
+                # Track which cells are unsupported (NaN) before filling
+                unsupported = pivot_raw.isna()
+                pivot = pivot_raw.fillna(0)
 
-            # Calculate y-axis limit (10x fastest runtime)
-            min_runtime = pivot.values[pivot.values > 0].min()
-            y_max = min_runtime * 10
+                # Track which cells did not converge
+                pivot_converged = (
+                    subset.pivot(
+                        index="reg_combo",
+                        columns="library_name",
+                        values="converged",
+                    )
+                    .fillna(True)
+                    .astype(bool)
+                )
+                not_converged = ~pivot_converged
 
-            # Title
-            title_dataset = dataset.replace(" ", "-").title()
-            title_dist = dist.replace(" ", "-").title()
-            title = f"{title_dataset}-{title_dist}"
+                # Calculate y-axis limit (10x fastest runtime)
+                min_runtime = pivot.values[pivot.values > 0].min()
+                y_max = min_runtime * 10
 
-            # Determine if this figure needs a dark mode version (for README)
-            fname = f"{dataset}-{dist}"
-            readme_figs = config.readme_figures or []
-            needs_dark = f"{fname}.png" in readme_figs
+                # Title
+                title_dataset = dataset.replace(" ", "-").title()
+                title_dist = dist.replace(" ", "-").title()
+                title = f"{title_dataset}-{title_dist}{ratio_title_suffix}"
 
-            # Generate light mode plot
-            fig = _render_bar_chart(
-                pivot=pivot,
-                unsupported=unsupported,
-                not_converged=not_converged,
-                colors=colors,
-                y_max=y_max,
-                title=title,
-                ylabel="run time (s)",
-                dark_mode=False,
-            )
-            fig.savefig(config.figure_dir / f"{fname}.png", dpi=300)
-            plt.close(fig)
-            print(f"Saved: {fname}.png")
+                # Determine if this figure needs a dark mode version (for README)
+                fname = f"{dataset}-{dist}{ratio_suffix}"
+                readme_figs = config.readme_figures or []
+                needs_dark = f"{fname}.png" in readme_figs
 
-            # Generate dark mode version if needed for README
-            if needs_dark:
+                # Generate light mode plot
                 fig = _render_bar_chart(
                     pivot=pivot,
                     unsupported=unsupported,
@@ -834,48 +927,46 @@ def plot_results(config: BenchmarkConfig):
                     y_max=y_max,
                     title=title,
                     ylabel="run time (s)",
-                    dark_mode=True,
-                )
-                fig.savefig(config.figure_dir / f"{fname}_dark.png", dpi=300)
-                plt.close(fig)
-                print(f"Saved: {fname}_dark.png")
-
-            # Generate normalized plot (glum = 1.0)
-            if "glum" in pivot.columns:
-                pivot_norm = pivot.div(pivot["glum"], axis=0)
-                norm_y_max = 10.0
-
-                # X-tick labels with glum runtime
-                x_labels = []
-                for combo in pivot.index:
-                    glum_runtime = pivot.loc[combo, "glum"]
-                    if glum_runtime > 0:
-                        x_labels.append(f"{combo}\n(glum = {glum_runtime:.3f}s)")
-                    else:
-                        x_labels.append(combo)
-
-                fname_norm = f"{dataset}-{dist}-normalized"
-                needs_dark_norm = f"{fname_norm}.png" in readme_figs
-
-                # Generate light mode normalized plot
-                fig = _render_bar_chart(
-                    pivot=pivot_norm,
-                    unsupported=unsupported,
-                    not_converged=not_converged,
-                    colors=colors,
-                    y_max=norm_y_max,
-                    title=f"{title} (normalized)",
-                    ylabel="run time relative to glum",
                     dark_mode=False,
-                    x_labels=x_labels,
-                    show_baseline=True,
                 )
-                fig.savefig(config.figure_dir / f"{fname_norm}.png", dpi=300)
+                fig.savefig(config.figure_dir / f"{fname}.png", dpi=300)
                 plt.close(fig)
-                print(f"Saved: {fname_norm}.png")
+                print(f"Saved: {fname}.png")
 
                 # Generate dark mode version if needed for README
-                if needs_dark_norm:
+                if needs_dark:
+                    fig = _render_bar_chart(
+                        pivot=pivot,
+                        unsupported=unsupported,
+                        not_converged=not_converged,
+                        colors=colors,
+                        y_max=y_max,
+                        title=title,
+                        ylabel="run time (s)",
+                        dark_mode=True,
+                    )
+                    fig.savefig(config.figure_dir / f"{fname}_dark.png", dpi=300)
+                    plt.close(fig)
+                    print(f"Saved: {fname}_dark.png")
+
+                # Generate normalized plot (glum = 1.0)
+                if "glum" in pivot.columns:
+                    pivot_norm = pivot.div(pivot["glum"], axis=0)
+                    norm_y_max = 10.0
+
+                    # X-tick labels with glum runtime
+                    x_labels = []
+                    for combo in pivot.index:
+                        glum_runtime = pivot.loc[combo, "glum"]
+                        if glum_runtime > 0:
+                            x_labels.append(f"{combo}\n(glum = {glum_runtime:.3f}s)")
+                        else:
+                            x_labels.append(combo)
+
+                    fname_norm = f"{dataset}-{dist}{ratio_suffix}-normalized"
+                    needs_dark_norm = f"{fname_norm}.png" in readme_figs
+
+                    # Generate light mode normalized plot
                     fig = _render_bar_chart(
                         pivot=pivot_norm,
                         unsupported=unsupported,
@@ -884,13 +975,33 @@ def plot_results(config: BenchmarkConfig):
                         y_max=norm_y_max,
                         title=f"{title} (normalized)",
                         ylabel="run time relative to glum",
-                        dark_mode=True,
+                        dark_mode=False,
                         x_labels=x_labels,
                         show_baseline=True,
                     )
-                    fig.savefig(config.figure_dir / f"{fname_norm}_dark.png", dpi=300)
+                    fig.savefig(config.figure_dir / f"{fname_norm}.png", dpi=300)
                     plt.close(fig)
-                    print(f"Saved: {fname_norm}_dark.png")
+                    print(f"Saved: {fname_norm}.png")
+
+                    # Generate dark mode version if needed for README
+                    if needs_dark_norm:
+                        fig = _render_bar_chart(
+                            pivot=pivot_norm,
+                            unsupported=unsupported,
+                            not_converged=not_converged,
+                            colors=colors,
+                            y_max=norm_y_max,
+                            title=f"{title} (normalized)",
+                            ylabel="run time relative to glum",
+                            dark_mode=True,
+                            x_labels=x_labels,
+                            show_baseline=True,
+                        )
+                        fig.savefig(
+                            config.figure_dir / f"{fname_norm}_dark.png", dpi=300
+                        )
+                        plt.close(fig)
+                        print(f"Saved: {fname_norm}_dark.png")
 
 
 # Markers for auto-generated content in docs
