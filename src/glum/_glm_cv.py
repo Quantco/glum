@@ -572,6 +572,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
                 y[test_idx],
                 sample_weight[test_idx],
             )
+            w_test /= w_test.sum()
 
             if offset is not None:
                 offset_train = offset[train_idx]

@@ -75,9 +75,8 @@ def test_normal_elastic_net_comparison(l1_ratio, fit_intercept, convert_x_fn):
     np.testing.assert_allclose(glm.intercept_, elastic_net.intercept_)
     np.testing.assert_allclose(glm.coef_, elastic_net.coef_)
     np.testing.assert_allclose(glm_pred, el_pred)
-    # need to divide mse by number of folds
     np.testing.assert_allclose(
-        np.moveaxis(np.squeeze(glm.deviance_path_), 0, -1), elastic_net.mse_path_ / 5
+        np.moveaxis(np.squeeze(glm.deviance_path_), 0, -1), elastic_net.mse_path_
     )
 
 
