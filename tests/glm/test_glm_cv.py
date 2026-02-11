@@ -235,25 +235,40 @@ def test_formula():
 
 
 def test_cv_predict_with_alpha_index():
-    """Predict should reject alpha_index on a CV estimator."""
+    """Predict with alpha_index should work after full-path refit."""
     np.random.seed(42)
     n_samples, n_features = 100, 5
+    n_alphas = 5
     X = np.random.randn(n_samples, n_features)
     y = X @ np.array([1, 0.5, -0.5, 0, 0]) + np.random.randn(n_samples) * 0.1
 
     model = GeneralizedLinearRegressorCV(
         l1_ratio=0.5,
-        n_alphas=5,
+        n_alphas=n_alphas,
         min_alpha_ratio=1e-2,
     ).fit(X, y)
+
+    # coef_path_ should be 2D (n_alphas, n_features) from the full-data refit.
+    assert model.coef_path_.shape == (n_alphas, n_features)
+    assert model.intercept_path_.shape == (n_alphas,)
+
+    # Per-fold paths should be stored under cv_coef_path_ / cv_intercept_path_.
+    assert model.cv_coef_path_.ndim == 4
+    assert model.cv_intercept_path_.ndim == 4
 
     # Default predict (no alpha_index) should work — uses coef_ from refit.
     pred_default = model.predict(X)
     assert pred_default.shape == (n_samples,)
 
-    # alpha_index and alpha are not supported on CV estimators.
-    with pytest.raises(NotImplementedError, match="not supported"):
-        model.predict(X, alpha_index=0)
+    # Scalar alpha_index should return 1D predictions.
+    pred_0 = model.predict(X, alpha_index=0)
+    assert pred_0.shape == (n_samples,)
 
-    with pytest.raises(NotImplementedError, match="not supported"):
-        model.predict(X, alpha=model.alpha_)
+    # List alpha_index should return 2D predictions (n_samples, n_indices).
+    pred_multi = model.predict(X, alpha_index=[0, 1])
+    assert pred_multi.shape == (n_samples, 2)
+
+    # alpha keyword should also work.
+    pred_alpha = model.predict(X, alpha=model.alpha_)
+    assert pred_alpha.shape == (n_samples,)
+    np.testing.assert_allclose(pred_alpha, pred_default)
