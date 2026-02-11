@@ -26,7 +26,7 @@ import warnings
 from contextlib import nullcontext
 from itertools import product
 from pathlib import Path
-from typing import Literal
+from typing import Literal, cast
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -71,6 +71,18 @@ ALPHA_VALUES = (0.001, 0.01, 0.1)
 Distribution = Literal["gaussian", "gamma", "binomial", "poisson", "tweedie-p=1.5"]
 StorageFormat = Literal["auto", "dense", "cat", "csr", "csc"]
 StandardizeMethod = Literal["pre", "internal", "none"]
+
+# Internal benchmark-only distribution restrictions by dataset.
+# This is intentionally not config-exposed, so test suites that rely on
+# get_all_problems() remain unaffected.
+ALLOWED_DISTRIBUTIONS_BY_DATASET: dict[Dataset, set[Distribution]] = {
+    "intermediate-housing": {"gaussian", "gamma"},
+    "intermediate-insurance": {"gamma", "poisson", "tweedie-p=1.5"},
+    "narrow-insurance": {"gamma", "poisson", "tweedie-p=1.5"},
+    "wide-insurance": {"gamma", "poisson", "tweedie-p=1.5"},
+    "simulated-glm": {"binomial", "gaussian", "gamma", "poisson"},
+    "categorical-simulated": {"binomial", "gamma", "poisson"},
+}
 
 
 class ParamGridEntry(BaseModel):
@@ -286,6 +298,7 @@ def get_benchmark_combinations(
     all_regs = sorted({_parse_problem_name(n)[1] for n in base_problems})
     all_dists = sorted({_parse_problem_name(n)[2] for n in base_problems})
     all_alphas = list(ALPHA_VALUES)
+    allowed_dist_by_dataset = ALLOWED_DISTRIBUTIONS_BY_DATASET
 
     combinations: set[tuple[str, str, float, float]] = set()
 
@@ -317,6 +330,12 @@ def get_benchmark_combinations(
         for lib, dataset, reg, dist, alpha in product(
             libraries, datasets, regs, dists, alphas
         ):
+            dataset_dist_allowlist = allowed_dist_by_dataset.get(cast(Dataset, dataset))
+            if (
+                dataset_dist_allowlist is not None
+                and dist not in dataset_dist_allowlist
+            ):
+                continue
             key = (dataset, reg, dist)
             if key in problem_lookup:
                 # Only add if library is actually available

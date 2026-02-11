@@ -178,14 +178,16 @@ def get_all_problems() -> dict[str, Problem]:
     """
     alpha = 0.001
 
-    housing_distributions = ["gaussian", "gamma"]
+    housing_distributions = ["gaussian", "gamma", "binomial"]
     housing_load_funcs = {
         "intermediate-housing": generate_housing_dataset,
     }
 
     insurance_distributions = [
+        "gaussian",
         "poisson",
         "gamma",
+        "binomial",
         "tweedie-p=1.5",
     ]
     insurance_load_funcs = {
