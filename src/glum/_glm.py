@@ -462,7 +462,7 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
                 self.diagnostics_ = None
                 return coef
             except linalg.LinAlgError:
-                # Fall back to the IRLS path for singular/ill-conditioned OLS systems.
+                # Fall back to the standard IRLS path when direct solve fails.
                 pass
 
         fixed_inner_tol = None
@@ -563,15 +563,23 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         P2,
         offset: Optional[np.ndarray],
     ) -> np.ndarray:
+        # Preserve sklearn-style random_state validation side effect even though
+        # the closed-form path does not consume an RNG.
         skl.utils.check_random_state(self.random_state)
         y_minus_offset = y if offset is None else (y - offset)
         weighted_y = sample_weight * y_minus_offset
         is_sparse_p2 = sparse.issparse(P2)
         if is_sparse_p2:
             has_l2_penalty = np.any(P2.data != 0)
+            # Detect "diagonal sparse" and handle without densifying
+            is_diag_p2 = sparse.isspmatrix_dia(P2) or (
+                sparse.isspmatrix(P2)
+                and (P2.nnz <= P2.shape[0])
+                and np.all(P2.tocoo().row == P2.tocoo().col)
+            )
         else:
             has_l2_penalty = np.any(P2 != 0)
-        is_diag_p2 = (not is_sparse_p2) and getattr(P2, "ndim", 0) == 1
+            is_diag_p2 = getattr(P2, "ndim", 0) == 1
 
         if self.fit_intercept:
             hessian = _safe_sandwich_dot(X, sample_weight, intercept=True)
@@ -580,14 +588,16 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
             rhs[1:] = X.transpose_matvec(weighted_y)
             if has_l2_penalty and is_diag_p2:
                 diag_idx = np.arange(1, hessian.shape[0])
-                hessian[(diag_idx, diag_idx)] += P2
+                diag = P2 if not is_sparse_p2 else P2.diagonal()
+                hessian[(diag_idx, diag_idx)] += diag
             elif has_l2_penalty:
                 hessian[1:, 1:] += safe_toarray(P2)
         else:
             hessian = _safe_sandwich_dot(X, sample_weight)
             rhs = X.transpose_matvec(weighted_y)
             if has_l2_penalty and is_diag_p2:
-                hessian[np.diag_indices_from(hessian)] += P2
+                diag = P2 if not is_sparse_p2 else P2.diagonal()
+                hessian[np.diag_indices_from(hessian)] += diag
             elif has_l2_penalty:
                 hessian += safe_toarray(P2)
 
