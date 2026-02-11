@@ -10,6 +10,10 @@ Changelog
 3.1.3 - unreleased
 ------------------
 
+**Other changes:**
+
+- Use a closed-form solution for Gaussian (identity-link) models (ridge and OLS), with automatic fallback to the iterative solver for singular systems.
+
 **Bug fix:**
 
 - Fixed ``deviance_path_`` in :class:`~glum.GeneralizedLinearRegressorCV` being scaled down by a factor of ``n_folds`` because test fold weights were not normalized to sum to 1.

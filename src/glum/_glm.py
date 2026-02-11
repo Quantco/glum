@@ -28,7 +28,7 @@ from ._distribution import (
     guess_intercept,
 )
 from ._formula import capture_context, parse_formula
-from ._linalg import is_pos_semidef
+from ._linalg import _safe_sandwich_dot, is_pos_semidef
 from ._link import CloglogLink, IdentityLink, Link, LogitLink, LogLink, TweedieLink
 from ._solvers import (
     IRLSData,
@@ -443,6 +443,28 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         Must be run after running :func:`_set_up_for_fit`. Sets
         ``self.coef_`` and ``self.intercept_``.
         """
+        if (
+            self.solver == "auto"
+            and self._solver == "irls-ls"
+            and self.verbose == 0
+            and isinstance(self._family_instance, NormalDistribution)
+            and isinstance(self._link_instance, IdentityLink)
+            and np.all(P1 == 0)
+            and lower_bounds is None
+            and upper_bounds is None
+            and A_ineq is None
+            and b_ineq is None
+        ):
+            try:
+                coef = self._closed_form_gaussian(X, y, sample_weight, P2, offset)
+                self.n_iter_ = 1
+                self._n_cycles = 1
+                self.diagnostics_ = None
+                return coef
+            except linalg.LinAlgError:
+                # Fall back to the IRLS path for singular/ill-conditioned OLS systems.
+                pass
+
         fixed_inner_tol = None
         if (
             isinstance(self._family_instance, NormalDistribution)
@@ -532,6 +554,45 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
                 b_ineq=b_ineq,
             )
         return coef
+
+    def _closed_form_gaussian(
+        self,
+        X: Union[tm.MatrixBase, tm.StandardizedMatrix],
+        y: np.ndarray,
+        sample_weight: np.ndarray,
+        P2,
+        offset: Optional[np.ndarray],
+    ) -> np.ndarray:
+        skl.utils.check_random_state(self.random_state)
+        y_minus_offset = y if offset is None else (y - offset)
+        weighted_y = sample_weight * y_minus_offset
+        is_sparse_p2 = sparse.issparse(P2)
+        if is_sparse_p2:
+            has_l2_penalty = np.any(P2.data != 0)
+        else:
+            has_l2_penalty = np.any(P2 != 0)
+        is_diag_p2 = (not is_sparse_p2) and getattr(P2, "ndim", 0) == 1
+
+        if self.fit_intercept:
+            hessian = _safe_sandwich_dot(X, sample_weight, intercept=True)
+            rhs = np.empty(X.shape[1] + 1, dtype=X.dtype)
+            rhs[0] = weighted_y.sum()
+            rhs[1:] = X.transpose_matvec(weighted_y)
+            if has_l2_penalty and is_diag_p2:
+                diag_idx = np.arange(1, hessian.shape[0])
+                hessian[(diag_idx, diag_idx)] += P2
+            elif has_l2_penalty:
+                hessian[1:, 1:] += safe_toarray(P2)
+        else:
+            hessian = _safe_sandwich_dot(X, sample_weight)
+            rhs = X.transpose_matvec(weighted_y)
+            if has_l2_penalty and is_diag_p2:
+                hessian[np.diag_indices_from(hessian)] += P2
+            elif has_l2_penalty:
+                hessian += safe_toarray(P2)
+
+        assume_a = "pos" if has_l2_penalty else "sym"
+        return linalg.solve(hessian, rhs, assume_a=assume_a)
 
     def _solve_regularization_path(
         self,
