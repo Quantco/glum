@@ -12,6 +12,10 @@ Changelog
 
 **Other changes:**
 
+- Use a closed-form solution for Gaussian (identity-link) models (ridge and OLS), with automatic fallback to the iterative solver for singular systems.
+
+**Other changes:**
+
 - We disabled fast math to avoid invalid results (e.g., when dividing by zero).
 
 
