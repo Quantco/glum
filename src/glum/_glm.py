@@ -675,8 +675,7 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         """Compute the linear predictor, ``X * coef_ + intercept_``.
 
         When ``alpha_index`` and ``alpha`` are both ``None``, the prediction
-        uses the coefficients from the last alpha (i.e. ``self.coef_`` /
-        ``self.intercept_``).
+        uses the coefficients from the last alpha.
 
         Parameters
         ----------
@@ -752,42 +751,6 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         alpha_index: Optional[Union[int, Sequence[int]]] = None,
         context: Optional[Union[int, Mapping[str, Any]]] = None,
     ) -> np.ndarray:
-        """Compute ``X @ coef + intercept`` after validating ``X``.
-
-        When ``alpha_index`` is ``None``, ``coef_path`` and ``intercept_path``
-        are used directly (expected shapes: ``(n_features,)`` and scalar).
-        Otherwise they are indexed by ``alpha_index``; a scalar index returns
-        a 1-D result, a sequence of indices returns a 2-D result.
-
-        Parameters
-        ----------
-        X : array-like, shape (n_samples, n_features)
-            Observations.
-
-        offset : array-like, shape (n_samples,), optional
-            Offset added to the linear predictor.
-
-        coef_path : np.ndarray, shape (n_alphas, n_features) or (n_features,)
-            Coefficient array. When ``alpha_index`` is ``None`` this is used
-            as-is; otherwise it is indexed along the first axis.
-
-        intercept_path : np.ndarray or float
-            Intercept array of shape ``(n_alphas,)`` or a scalar. Indexed in
-            the same way as ``coef_path``.
-
-        alpha_index : int or sequence of int, optional (default=None)
-            Index (or indices) into the first axis of ``coef_path`` /
-            ``intercept_path``.
-
-        context : int or mapping, optional (default=None)
-            Passed through to formula evaluation.
-
-        Returns
-        -------
-        np.ndarray
-            Shape ``(n_samples,)`` when ``alpha_index`` is ``None`` or a
-            scalar int, ``(n_samples, len(alpha_index))`` otherwise.
-        """
         if isinstance(X, pd.DataFrame):
             X = self._convert_from_pandas(X, context=capture_context(context))
 
@@ -869,8 +832,10 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
 
         Returns
         -------
-        array, shape (n_samples, n_alphas)
-            Predicted values times ``sample_weight``.
+        np.ndarray
+            Shape ``(n_samples,)`` when no ``alpha_index`` / ``alpha`` is
+            given or when a scalar is passed. Shape
+            ``(n_samples, len(alpha_index))`` when a sequence is passed.
         """
         if isinstance(X, pd.DataFrame):
             X = self._convert_from_pandas(X, context=capture_context(context))
