@@ -30,8 +30,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
 
     Cross-validated regression via a Generalized Linear Model (GLM) with
     penalties. For more on GLMs and on these parameters, see the documentation
-    for :class:`GeneralizedLinearRegressor`. CV conventions follow
-    :class:`sklearn.linear_model.LassoCV`.
+    for :class:`GeneralizedLinearRegressor`.
 
     Parameters
     ----------
@@ -396,7 +395,6 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             step_size_tol=step_size_tol,
             hessian_approx=hessian_approx,
             warm_start=warm_start,
-            alpha_search=True,
             n_alphas=n_alphas,
             min_alpha_ratio=min_alpha_ratio,
             min_alpha=min_alpha,
@@ -434,11 +432,10 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         """Compute the linear predictor, ``X * coef_ + intercept_``.
 
         Unlike the base class, when neither ``alpha_index`` nor ``alpha`` is
-        given the prediction uses ``coef_`` / ``intercept_`` corresponding to
-        the CV-selected best ``(l1_ratio_, alpha_)`` — **not** the last value
-        on the alpha path.
+        given the prediction uses the CV-selected best ``(l1_ratio_, alpha_)``
+        — not the last value on the alpha path.
 
-        When ``alpha_index`` or ``alpha`` *is* specified, predictions come from
+        When ``alpha_index`` or ``alpha`` is specified, predictions come from
         the full-data refit path (computed over the entire alpha grid for the
         best ``l1_ratio_``).
 
@@ -465,12 +462,12 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             The linear predictor.
         """
         if (alpha is not None) and (alpha_index is not None):
-            raise ValueError("Please specify only one of {alpha_index, alpha}.")
+            raise ValueError("Please specify at most one of {alpha_index, alpha}.")
 
         if alpha_index is None and alpha is None:
             return super().linear_predictor(X, offset, context=context)
 
-        # Resolve into a list of indices.
+        # Resolve into a list of alpha indices.
         if alpha is not None:
             scalar = np.isscalar(alpha)
             alpha_index = [self._find_alpha_index(a) for a in np.atleast_1d(alpha)]

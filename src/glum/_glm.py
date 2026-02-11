@@ -657,8 +657,6 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
     def _find_alpha_index(self, alpha):
         if alpha is None:
             return None
-        if not self.alpha_search:
-            raise ValueError
         # find closest index
         idx = np.argmin(np.abs(np.asarray(self._alphas) - alpha))
         # make sure it's close enough, rely only on relative tolerance
@@ -718,10 +716,13 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
 
         if (alpha is not None) and (alpha_index is not None):
             raise ValueError("Please specify only one of {alpha_index, alpha}.")
-        elif np.isscalar(alpha):  # `None` doesn't qualify
-            alpha_index = self._find_alpha_index(alpha)
         elif alpha is not None:
-            alpha_index = [self._find_alpha_index(a) for a in alpha]  # type: ignore
+            if not self.alpha_search:
+                raise ValueError("Cannot use 'alpha' when 'alpha_search' is False.")
+            if np.isscalar(alpha):
+                alpha_index = self._find_alpha_index(alpha)
+            else:
+                alpha_index = [self._find_alpha_index(a) for a in alpha]  # type: ignore
 
         if isinstance(X, pd.DataFrame):
             X = self._convert_from_pandas(X, context=capture_context(context))
