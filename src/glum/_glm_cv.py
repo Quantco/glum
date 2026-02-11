@@ -467,13 +467,14 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         if alpha_index is None and alpha is None:
             return super().linear_predictor(X, offset, context=context)
 
-        # Resolve alpha → alpha_index
+        # Resolve alpha / alpha_index into a list of indices.
         if (alpha is not None) and (alpha_index is not None):
             raise ValueError("Please specify only one of {alpha_index, alpha}.")
-        elif np.isscalar(alpha):
-            alpha_index = self._find_alpha_index(alpha)
-        elif alpha is not None:
+        scalar = np.isscalar(alpha_index) or np.isscalar(alpha)
+        if alpha is not None:
+            alpha = np.atleast_1d(alpha)
             alpha_index = [self._find_alpha_index(a) for a in alpha]
+        alpha_index = np.atleast_1d(alpha_index)  # type: ignore[arg-type]
 
         if isinstance(X, pd.DataFrame):
             X = self._convert_from_pandas(X, context=capture_context(context))
@@ -494,25 +495,16 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
                 f"is expecting {self.n_features_in_} features as input."
             )
 
-        if np.isscalar(alpha_index):
-            xb = (
-                X @ self._refit_coef_path[alpha_index]
-                + self._refit_intercept_path[alpha_index]  # type: ignore[index]
-            )
-            if offset is not None:
-                xb += offset
-        else:
-            xb = np.stack(
-                [
-                    X @ self._refit_coef_path[idx] + self._refit_intercept_path[idx]  # type: ignore[index]
-                    for idx in alpha_index
-                ],
-                axis=1,
-            )
-            if offset is not None:
-                xb += np.asanyarray(offset)[:, np.newaxis]
+        xb = np.column_stack(
+            [
+                X @ self._refit_coef_path[idx] + self._refit_intercept_path[idx]  # type: ignore[index]
+                for idx in alpha_index
+            ]
+        )
+        if offset is not None:
+            xb += np.asanyarray(offset)[:, np.newaxis]
 
-        return xb
+        return xb.squeeze() if scalar else xb
 
     def _validate_hyperparameters(self) -> None:
         if self.alphas is not None and np.any(np.asarray(self.alphas) < 0):
