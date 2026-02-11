@@ -411,6 +411,14 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             cat_missing_name=cat_missing_name,
         )
 
+    def linear_predictor(self, X, offset=None, *, alpha_index=None, alpha=None, **kw):
+        if alpha_index is not None or alpha is not None:
+            raise NotImplementedError(
+                "'alpha_index' and 'alpha' are not supported for "
+                "GeneralizedLinearRegressorCV."
+            )
+        return super().linear_predictor(X, offset, **kw)
+
     def _validate_hyperparameters(self) -> None:
         if self.alphas is not None and np.any(np.asarray(self.alphas) < 0):
             raise ValueError

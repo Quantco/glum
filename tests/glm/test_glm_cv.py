@@ -234,8 +234,8 @@ def test_formula():
     )
 
 
-def test_cv_linear_predictor_with_alpha_index():
-    """Test that linear_predictor works with alpha_index on a CV estimator."""
+def test_cv_predict_with_alpha_index():
+    """Predict should reject alpha_index on a CV estimator."""
     np.random.seed(42)
     n_samples, n_features = 100, 5
     X = np.random.randn(n_samples, n_features)
@@ -251,11 +251,9 @@ def test_cv_linear_predictor_with_alpha_index():
     pred_default = model.predict(X)
     assert pred_default.shape == (n_samples,)
 
-    # predict with alpha_index should return predictions at that alpha.
-    # The result should be (n_samples,) for a scalar alpha_index.
-    pred_at_alpha = model.predict(X, alpha_index=0)
-    assert pred_at_alpha.shape == (n_samples,)
+    # alpha_index and alpha are not supported on CV estimators.
+    with pytest.raises(NotImplementedError, match="not supported"):
+        model.predict(X, alpha_index=0)
 
-    # predict with a list of alpha_index values should return (n_samples, n_alphas).
-    pred_multi = model.predict(X, alpha_index=[0, 1])
-    assert pred_multi.shape == (n_samples, 2)
+    with pytest.raises(NotImplementedError, match="not supported"):
+        model.predict(X, alpha=model.alpha_)
