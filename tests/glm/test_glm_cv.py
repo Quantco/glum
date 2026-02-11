@@ -232,3 +232,30 @@ def test_formula():
     np.testing.assert_array_equal(
         model_pandas.feature_names_, model_formula.feature_names_
     )
+
+
+def test_cv_linear_predictor_with_alpha_index():
+    """Test that linear_predictor works with alpha_index on a CV estimator."""
+    np.random.seed(42)
+    n_samples, n_features = 100, 5
+    X = np.random.randn(n_samples, n_features)
+    y = X @ np.array([1, 0.5, -0.5, 0, 0]) + np.random.randn(n_samples) * 0.1
+
+    model = GeneralizedLinearRegressorCV(
+        l1_ratio=0.5,
+        n_alphas=5,
+        min_alpha_ratio=1e-2,
+    ).fit(X, y)
+
+    # Default predict (no alpha_index) should work — uses coef_ from refit.
+    pred_default = model.predict(X)
+    assert pred_default.shape == (n_samples,)
+
+    # predict with alpha_index should return predictions at that alpha.
+    # The result should be (n_samples,) for a scalar alpha_index.
+    pred_at_alpha = model.predict(X, alpha_index=0)
+    assert pred_at_alpha.shape == (n_samples,)
+
+    # predict with a list of alpha_index values should return (n_samples, n_alphas).
+    pred_multi = model.predict(X, alpha_index=[0, 1])
+    assert pred_multi.shape == (n_samples, 2)
