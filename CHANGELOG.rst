@@ -10,6 +10,10 @@ Changelog
 3.1.3 - unreleased
 ------------------
 
+**Bug fix:**
+
+- Fixed ``deviance_path_`` in :class:`~glum.GeneralizedLinearRegressorCV` being scaled down by a factor of ``n_folds`` because test fold weights were not normalized to sum to 1.
+
 **Other changes:**
 
 - We disabled fast math to avoid invalid results (e.g., when dividing by zero).
