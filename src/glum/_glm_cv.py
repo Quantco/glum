@@ -148,7 +148,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
 
     min_alpha_ratio : float, optional (default=None)
         Length of the path. ``min_alpha_ratio=1e-6`` means that
-        ``min_alpha / max_alpha = 1e-6``. If ``None``, ``1e-6`` is used.
+        ``min_alpha / max_alpha = 1e-6``. If ``None``, ``1e-6`` is used
+        when ``n_samples >= n_features``, else ``1e-2``.
 
     min_alpha : float, optional (default=None)
         Minimum alpha to estimate the model with. The grid will then be created
