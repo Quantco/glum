@@ -159,7 +159,7 @@ Each entry computes a Cartesian product. Multiple entries are unioned (not cross
 - `regularizations`: `["lasso", "l2", "net"]`
 - `distributions`: `["gaussian", "gamma", "binomial", "poisson", "tweedie-p=1.5"]`
 - `alphas`: `[0.0001, 0.001, 0.01]`
-- `k_over_n_ratios`: `[0.5, 0.7, 1.2]` (applies to `simulated-glm` only)
+- `k_over_n_ratios`: any positive float values (e.g., `[0.5, 0.7, 1.2]`, applies to `simulated-glm` only)
 
 When an entry is omitted or set to `null`, all available values are used. For `libraries`, the default excludes `zeros` (include it explicitly if you want it). For `k_over_n_ratios`, the default is `[1.0]` when omitted. If you want to run all default combinations, leave the `param_grid` entry empty.
 

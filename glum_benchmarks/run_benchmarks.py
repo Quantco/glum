@@ -543,10 +543,18 @@ def analyze_results(config: BenchmarkConfig) -> pd.DataFrame:
     problem_id_cols = ["problem_name", "num_rows", "k_over_n_ratio", "alpha"]
     df = df.set_index(problem_id_cols).sort_values("library_name").sort_index()
 
-    # Calculate relative objective value (how far from best).
+    # Calculate objective gaps within each
+    # (problem_name, num_rows, k_over_n_ratio, alpha) group.
     # Use transform to preserve alignment when index has duplicates.
-    best_obj = df.groupby(level=[0, 1, 2])["obj_val"].transform("min")
-    df["rel_obj_val"] = df["obj_val"] - best_obj
+    best_obj = df.groupby(level=problem_id_cols)["obj_val"].transform("min")
+    df["obj_gap"] = df["obj_val"] - best_obj
+
+    # rel_obj_val is a true relative gap from best objective:
+    # (obj_val - best_obj) / abs(best_obj)
+    # If best_obj is exactly 0, mark rows as NaN except exact ties, which are 0.
+    safe_denom = best_obj.abs().replace(0, np.nan)
+    df["rel_obj_val"] = df["obj_gap"] / safe_denom
+    df.loc[df["obj_gap"] == 0, "rel_obj_val"] = 0.0
 
     # Display columns
     cols_to_show = [
@@ -558,15 +566,17 @@ def analyze_results(config: BenchmarkConfig) -> pd.DataFrame:
         "intercept",
         "num_nonzero_coef",
         "obj_val",
+        "obj_gap",
         "rel_obj_val",
     ]
 
-    # Group by each problem key: problem_name + alpha + num_rows.
+    # Group by problem_name and k_over_n_ratio so simulated-glm gets one table
+    # per K/N value, while alpha/num_rows remain row values.
     table_df = df.loc[:, cols_to_show].reset_index()
     _print_dataframe_table(
         table_df,
         title="Benchmark summary",
-        group_by=["problem_name", "alpha", "num_rows", "k_over_n_ratio"],
+        group_by=["problem_name", "k_over_n_ratio"],
     )
 
     # Export to CSV for figure generation and reproducibility
@@ -588,7 +598,13 @@ def _print_dataframe_table(
     rows = df.copy() if max_rows is None else df.head(max_rows).copy()
     grouping_cols = [column for column in (group_by or []) if column in rows.columns]
     if grouping_cols:
-        sort_cols = grouping_cols + [c for c in ["library_name"] if c in rows.columns]
+        # Sort comparisons by problem settings first, use library as tie-breaker
+        compare_cols = [
+            c
+            for c in ["alpha", "k_over_n_ratio", "num_rows", "library_name"]
+            if c in rows.columns and c not in grouping_cols
+        ]
+        sort_cols = grouping_cols + compare_cols
         rows = rows.sort_values(sort_cols, kind="mergesort")
 
     def format_cell(value: object) -> str:
