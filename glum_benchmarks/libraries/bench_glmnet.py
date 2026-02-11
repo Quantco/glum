@@ -9,6 +9,8 @@ from scipy import sparse as sps
 
 from glum_benchmarks.util import benchmark_convergence_tolerance
 
+_GLMNET_MAXIT = 100_000
+
 
 def _setup_and_fit(X_np, y, distribution, l1_ratio, alpha, standardize):
     """
@@ -68,6 +70,7 @@ def _setup_and_fit(X_np, y, distribution, l1_ratio, alpha, standardize):
         alpha=l1_ratio,
         intercept=True,
         standardize=standardize,
+        maxit=_GLMNET_MAXIT,
         thresh=benchmark_convergence_tolerance,
         **{"lambda": lambda_vec},
     )
@@ -89,6 +92,7 @@ def _setup_and_fit(X_np, y, distribution, l1_ratio, alpha, standardize):
         "intercept": float(coef_vec[0]),
         "coef": coef_vec[1:],
         "n_iter": n_iter,
+        "max_iter": _GLMNET_MAXIT,
         "fit_runtime": fit_runtime,
     }
 
@@ -187,5 +191,5 @@ def glmnet_bench(
         "intercept": best_result["intercept"],
         "coef": best_result["coef"],
         "n_iter": best_result["n_iter"],
-        "max_iter": None,
+        "max_iter": best_result["max_iter"],
     }
