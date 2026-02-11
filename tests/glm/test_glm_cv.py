@@ -234,7 +234,8 @@ def test_formula():
     )
 
 
-def test_cv_predict_with_alpha_index():
+@pytest.mark.parametrize("l1_ratio", [0.5, [0.2, 0.5, 0.9]])
+def test_cv_predict_with_alpha_index(l1_ratio):
     """Predict with alpha_index should work after full-path refit."""
     np.random.seed(42)
     n_samples, n_features = 100, 5
@@ -243,7 +244,7 @@ def test_cv_predict_with_alpha_index():
     y = X @ np.array([1, 0.5, -0.5, 0, 0]) + np.random.randn(n_samples) * 0.1
 
     model = GeneralizedLinearRegressorCV(
-        l1_ratio=0.5,
+        l1_ratio=l1_ratio,
         n_alphas=n_alphas,
         min_alpha_ratio=1e-2,
     ).fit(X, y)
