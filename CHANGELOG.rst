@@ -13,10 +13,7 @@ Changelog
 **Bug fix:**
 
 - Fixed ``deviance_path_`` in :class:`~glum.GeneralizedLinearRegressorCV` being scaled down by a factor of ``n_folds`` because test fold weights were not normalized to sum to 1.
-
-**New feature:**
-
-- :class:`~glum.GeneralizedLinearRegressorCV` now refits on the full data over the entire alpha path (for the best ``l1_ratio_``), producing 2D ``coef_path_`` and 1D ``intercept_path_`` that are compatible with ``predict(X, alpha_index=...)``. The per-fold paths are available as ``cv_coef_path_`` and ``cv_intercept_path_``.
+- Fixed ``predict(X, alpha_index=...)`` and ``predict(X, alpha=...)`` on :class:`~glum.GeneralizedLinearRegressorCV`, which previously raised an error. The CV estimator now refits on the full data over the entire alpha path for the best ``l1_ratio_``.
 
 **Other changes:**
 

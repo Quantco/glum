@@ -5,11 +5,17 @@ from typing import Any, Optional, Union
 import formulaic
 import joblib
 import numpy as np
+import pandas as pd
 import sklearn as skl
 
 from ._distribution import ExponentialDispersionModel
 from ._formula import capture_context
-from ._glm import GeneralizedLinearRegressorBase, setup_p1, setup_p2
+from ._glm import (
+    GeneralizedLinearRegressorBase,
+    check_array_tabmat_compliant,
+    setup_p1,
+    setup_p2,
+)
 from ._linalg import _safe_lin_pred, is_pos_semidef
 from ._link import Link, LogLink
 from ._typing import ArrayLike
@@ -287,20 +293,13 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         The number of iterations run by the CD solver to reach the specified
         tolerance for the optimal alpha.
 
-    coef_path_ : array, shape (n_alphas, n_features)
+    coef_path_ : array, shape (n_folds, n_l1_ratios, n_alphas, n_features)
         Estimated coefficients for the linear predictor in the GLM at every
-        point along the regularization path, refit on the full data for the
-        best ``l1_ratio_``. Compatible with ``predict(X, alpha_index=...)``.
+        point along the regularization path, per fold.
 
-    intercept_path_ : array, shape (n_alphas,)
+    intercept_path_ : array, shape (n_folds, n_l1_ratios, n_alphas, 1)
         Estimated intercepts at every point along the regularization path,
-        refit on the full data for the best ``l1_ratio_``.
-
-    cv_coef_path_ : array, shape (n_folds, n_l1_ratios, n_alphas, n_features)
-        Per-fold estimated coefficients from cross-validation.
-
-    cv_intercept_path_ : array, shape (n_folds, n_l1_ratios, n_alphas, 1)
-        Per-fold estimated intercepts from cross-validation.
+        per fold.
 
     deviance_path_: array, shape(n_folds, n_alphas)
         Deviance for the test set on each fold, varying alpha.
@@ -422,6 +421,98 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             cat_missing_method=cat_missing_method,
             cat_missing_name=cat_missing_name,
         )
+
+    def linear_predictor(
+        self,
+        X,
+        offset=None,
+        *,
+        alpha_index=None,
+        alpha=None,
+        context=None,
+    ):
+        """Compute the linear predictor, ``X * coef_ + intercept_``.
+
+        Unlike the base class, when neither ``alpha_index`` nor ``alpha`` is
+        given the prediction uses ``coef_`` / ``intercept_`` corresponding to
+        the CV-selected best ``(l1_ratio_, alpha_)`` — **not** the last value
+        on the alpha path.
+
+        When ``alpha_index`` or ``alpha`` *is* specified, predictions come from
+        the full-data refit path (computed over the entire alpha grid for the
+        best ``l1_ratio_``).
+
+        Parameters
+        ----------
+        X : array-like, shape (n_samples, n_features)
+            Observations.
+
+        offset : array-like, shape (n_samples,), optional (default=None)
+
+        alpha_index : int or list[int], optional (default=None)
+            Index into the alpha path from the full-data refit.
+
+        alpha : float or list[float], optional (default=None)
+            Alpha value(s) to predict at. Resolved to the closest index on
+            the refit alpha path.
+
+        context : optional
+            Passed through to formula evaluation.
+
+        Returns
+        -------
+        array, shape (n_samples,) or (n_samples, n_alphas)
+            The linear predictor.
+        """
+        if alpha_index is None and alpha is None:
+            return super().linear_predictor(X, offset, context=context)
+
+        # Resolve alpha → alpha_index
+        if (alpha is not None) and (alpha_index is not None):
+            raise ValueError("Please specify only one of {alpha_index, alpha}.")
+        elif np.isscalar(alpha):
+            alpha_index = self._find_alpha_index(alpha)
+        elif alpha is not None:
+            alpha_index = [self._find_alpha_index(a) for a in alpha]
+
+        if isinstance(X, pd.DataFrame):
+            X = self._convert_from_pandas(X, context=capture_context(context))
+
+        X = check_array_tabmat_compliant(
+            X,
+            accept_sparse=["csr", "csc", "coo"],
+            dtype="numeric",
+            copy=True,
+            ensure_2d=True,
+            allow_nd=False,
+            drop_first=getattr(self, "drop_first", False),
+        )
+
+        if X.shape[1] != self.n_features_in_:
+            raise ValueError(
+                f"X has {X.shape[1]} features, but {self.__class__.__name__} "
+                f"is expecting {self.n_features_in_} features as input."
+            )
+
+        if np.isscalar(alpha_index):
+            xb = (
+                X @ self._refit_coef_path[alpha_index]
+                + self._refit_intercept_path[alpha_index]  # type: ignore[index]
+            )
+            if offset is not None:
+                xb += offset
+        else:
+            xb = np.stack(
+                [
+                    X @ self._refit_coef_path[idx] + self._refit_intercept_path[idx]  # type: ignore[index]
+                    for idx in alpha_index
+                ],
+                axis=1,
+            )
+            if offset is not None:
+                xb += np.asanyarray(offset)[:, np.newaxis]
+
+        return xb
 
     def _validate_hyperparameters(self) -> None:
         if self.alphas is not None and np.any(np.asarray(self.alphas) < 0):
@@ -705,12 +796,12 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
 
         paths_data = joblib.Parallel(n_jobs=self.n_jobs, prefer="processes")(jobs)
 
-        self.cv_intercept_path_ = np.reshape(
+        self.intercept_path_ = np.reshape(
             [elmt[0] for elmt in paths_data],
             (cv.get_n_splits(), len(l1_ratio), len(alphas[0]), -1),
         )
 
-        self.cv_coef_path_ = np.reshape(
+        self.coef_path_ = np.reshape(
             [elmt[1] for elmt in paths_data],
             (cv.get_n_splits(), len(l1_ratio), len(alphas[0]), -1),
         )
@@ -767,6 +858,10 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         else:
             refit_alphas = self.alphas_
 
+        # _solve_regularization_path overwrites self.coef_path_; save and
+        # restore the per-fold paths so the public attribute is unchanged.
+        _cv_coef_path = self.coef_path_
+
         coef = self._solve_regularization_path(
             X=X,
             y=y,
@@ -782,18 +877,20 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             b_ineq=b_ineq,
         )
 
+        self.coef_path_ = _cv_coef_path
+
         if self.fit_intercept:
-            self.intercept_path_, self.coef_path_ = unstandardize(
+            self._refit_intercept_path, self._refit_coef_path = unstandardize(
                 self.col_means_, self.col_stds_, coef[:, 0], coef[:, 1:]
             )
         else:
             # set intercept to zero as the other linear models do
-            self.intercept_path_, self.coef_path_ = unstandardize(
+            self._refit_intercept_path, self._refit_coef_path = unstandardize(
                 self.col_means_, self.col_stds_, np.zeros(coef.shape[0]), coef
             )
 
-        self.coef_ = self.coef_path_[best_alpha]
-        self.intercept_ = self.intercept_path_[best_alpha]  # type: ignore[index]
+        self.coef_ = self._refit_coef_path[best_alpha]
+        self.intercept_ = self._refit_intercept_path[best_alpha]  # type: ignore[index]
         self._alphas = refit_alphas
 
         self.covariance_matrix_ = None

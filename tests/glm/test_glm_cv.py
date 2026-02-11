@@ -248,13 +248,13 @@ def test_cv_predict_with_alpha_index():
         min_alpha_ratio=1e-2,
     ).fit(X, y)
 
-    # coef_path_ should be 2D (n_alphas, n_features) from the full-data refit.
-    assert model.coef_path_.shape == (n_alphas, n_features)
-    assert model.intercept_path_.shape == (n_alphas,)
+    # coef_path_ / intercept_path_ retain per-fold shapes (backward compat).
+    assert model.coef_path_.ndim == 4
+    assert model.intercept_path_.ndim == 4
 
-    # Per-fold paths should be stored under cv_coef_path_ / cv_intercept_path_.
-    assert model.cv_coef_path_.ndim == 4
-    assert model.cv_intercept_path_.ndim == 4
+    # Full-data refit paths are stored privately.
+    assert model._refit_coef_path.shape == (n_alphas, n_features)
+    assert model._refit_intercept_path.shape == (n_alphas,)
 
     # Default predict (no alpha_index) should work — uses coef_ from refit.
     pred_default = model.predict(X)
