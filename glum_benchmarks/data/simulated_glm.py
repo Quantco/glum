@@ -199,7 +199,7 @@ def simulate_glm_dataset(
     Parameters
     ----------
     num_rows
-        Number of rows. Defaults to 5000.
+        Number of rows. Defaults to 1000.
     noise
         Unused, present to match load_data signature.
     distribution
@@ -215,7 +215,7 @@ def simulate_glm_dataset(
     tuple[pd.DataFrame, np.ndarray, np.ndarray]
         (X, y, exposure).
     """
-    n_rows = num_rows if num_rows is not None else 5000
+    n_rows = num_rows if num_rows is not None else 1000
     ratio = 1.0 if k_over_n_ratio is None else float(k_over_n_ratio)
     if ratio <= 0:
         raise ValueError("k_over_n_ratio must be > 0.")
@@ -272,7 +272,7 @@ def simulate_categorical_dataset(
     Parameters
     ----------
     num_rows
-        Number of rows. Defaults to 5000.
+        Number of rows. Defaults to 1000.
     noise
         Unused, present to match load_data signature.
     distribution
