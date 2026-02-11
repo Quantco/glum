@@ -1208,14 +1208,13 @@ def test_alpha_path(l1_ratio, scale_predictors, fit_intercept, P1):
     )
     model.fit(X=X, y=y)
 
-    if l1_ratio > 0:
-        # Lasso or elastic net: maximum alpha results in all zero coefficients.
-        np.testing.assert_almost_equal(model.coef_path_[0], 0)
-        # next alpha gives at least one non-zero coefficient
-        assert np.any(model.coef_path_[1] > 0)
-    else:
-        # Ridge: maximum alpha results in near zero coefficients.
-        np.testing.assert_allclose(model.coef_path_[0], 0, atol=1e-2)
+    # Lasso or elastic net: maximum alpha results in all zero coefficients.
+    # Ridge: coefficients are never exactly zero.
+    atol = 1e-2 if l1_ratio == 0 else 0
+    np.testing.assert_allclose(model.coef_path_[0], 0, atol=atol)
+    # next alpha gives at least one non-zero coefficient
+    assert np.any(model.coef_path_[1] > 0)
+
 
 
 def test_passing_noncontiguous_as_X():
