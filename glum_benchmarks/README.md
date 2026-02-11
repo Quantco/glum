@@ -51,7 +51,7 @@ Copies figures to `docs/_static/` and updates figure references in documentation
 - **Output:** Copies to `docs/_static/` + updates `docs/benchmarks.rst` and `README.md`
 - **Set `update_docs: false`** in config.yaml to skip
 
-Use `docs_figures` and `readme_figures` in config.yaml to control which figures are included (default: all figures for docs, first non-normalized figure for README).
+Use `docs_figures` and `readme_figures` in config.yaml to control which figures are included (default: all figures for docs, first non-normalized figure for README). Figure names are usually `<dataset>-<distribution>.png`. For `simulated-glm` they include the ratio suffix, e.g. `simulated-glm-gaussian-k-over-n-0.7.png`.
 
 ### Workflow examples
 
@@ -125,7 +125,6 @@ Edit `config.yaml` to customize benchmark parameters.
 | `iterations`     | Runs per benchmark (>=2 required for skglm)                                  |
 | `num_threads`    | Number of threads for parallel execution                                     |
 | `num_rows`       | Limit rows per dataset (`null` = full dataset)                               |
-| `k_over_n_ratio` | Feature/row ratio (K/N) for `simulated-glm` (`>1` gives `K>N`)               |
 | `timeout`        | Timeout in seconds (benchmarks timing out are marked "not converged")        |
 | `storage`        | Storage format per library: (`auto`, `dense`, `cat`, `csr`, `csc`)           |
 
@@ -146,6 +145,9 @@ param_grid:
     regularizations: ["lasso", "l2"]
     distributions: ["gaussian", "poisson"]
     alphas: [0.001]
+  - datasets: ["simulated-glm"]
+    distributions: ["gaussian", "poisson"]
+    k_over_n_ratios: [0.5, 0.7, 1.2]
 ```
 
 Each entry computes a Cartesian product. Multiple entries are unioned (not crossed).
@@ -157,8 +159,9 @@ Each entry computes a Cartesian product. Multiple entries are unioned (not cross
 - `regularizations`: `["lasso", "l2", "net"]`
 - `distributions`: `["gaussian", "gamma", "binomial", "poisson", "tweedie-p=1.5"]`
 - `alphas`: `[0.0001, 0.001, 0.01]`
+- `k_over_n_ratios`: `[0.5, 0.7, 1.2]` (applies to `simulated-glm` only)
 
-When an entry is omitted or set to `null`, all available values are used. For `libraries`, the default excludes `zeros` (include it explicitly if you want it). If you want to run all default combinations, leave the `param_grid` entry empty.
+When an entry is omitted or set to `null`, all available values are used. For `libraries`, the default excludes `zeros` (include it explicitly if you want it). For `k_over_n_ratios`, the default is `[1.0]` when omitted. If you want to run all default combinations, leave the `param_grid` entry empty.
 
 **Alpha note:** `alphas` are per-observation values for unweighted data, when weights are present, the benchmark runner adjusts internally to keep the penalty comparable.
 

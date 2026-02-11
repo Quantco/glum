@@ -10,8 +10,11 @@ update_docs: false # Copy figures to docs/_static and update benchmarks.rst and 
 # Figures to include in docs/README (null = use defaults)
 # Default for docs: all figures
 # Default for readme: first non-normalized figure only
-# Available: null, or list of figure filenames in the format "<dataset>-<distribution>.png"
+# Available: null, or list of figure filenames.
+# Standard format: "<dataset>-<distribution>.png"
+# Simulated format with K/N split: "<dataset>-<distribution>-k-over-n-<ratio>.png"
 # Example: intermediate-insurance-gaussian.png
+# Example: simulated-glm-gaussian-k-over-n-0.7.png
 docs_figures: null
 readme_figures: null
 
@@ -23,7 +26,6 @@ clear_output: True # Clear entire run_name directory before running
 iterations: 2 # Run each benchmark N times, report minimum (>=2 for skglm)
 num_threads: 16 # Number of threads for parallel execution
 num_rows: null # Limit rows per dataset (null = full dataset)
-k_over_n_ratio: 0.5 # K/N ratio for simulated-glm only (>1: K>N, <1: K<N)
 timeout: 100 # Timeout in seconds per benchmark run (reports as "not converged" if exceeded)
 
 # Standardization approach per library:
@@ -57,6 +59,7 @@ storage:
 #   datasets: ["intermediate-housing", "intermediate-insurance", "narrow-insurance", "wide-insurance","simulated-glm", "categorical-simulated"]
 #   regularizations: ["lasso", "l2", "net"]
 #   alphas: [0.001, 0.01, 0.1]
+#   k_over_n_ratios: [0.5, 0.7, 1.2]   # only used for dataset "simulated-glm"
 #   distributions: ["gaussian", "gamma", "binomial", "poisson", "tweedie-p=1.5"]
 #
 # Use null for any field (or omit) to use its default value.
@@ -68,6 +71,12 @@ storage:
 #       regularizations: [lasso, l2, net]
 #     - distributions: [gamma]
 #       regularizations: [lasso]
+#
+# Example: Run simulated-glm with multiple K/N ratios in one run:
+#   param_grid:
+#     - datasets: [simulated-glm]
+#       distributions: [gaussian, poisson]
+#       k_over_n_ratios: [0.5, 0.7, 1.2]
 
 param_grid:
      - distributions: [gaussian]

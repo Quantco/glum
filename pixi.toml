@@ -124,10 +124,11 @@ matplotlib-base = "*"
 openjdk = "*"
 pydantic = "*"
 pytest = "*"
-"ruamel.yaml" = "*"
 r-base = "*"
 r-glmnet = "*"
+rich = "*"
 rpy2 = "*"
+"ruamel.yaml" = "*"
 skglm = "*"
 
 [feature.benchmark.pypi-dependencies]
