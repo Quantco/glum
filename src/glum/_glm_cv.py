@@ -464,17 +464,19 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         array, shape (n_samples,) or (n_samples, n_alphas)
             The linear predictor.
         """
+        if (alpha is not None) and (alpha_index is not None):
+            raise ValueError("Please specify only one of {alpha_index, alpha}.")
+
         if alpha_index is None and alpha is None:
             return super().linear_predictor(X, offset, context=context)
 
-        # Resolve alpha / alpha_index into a list of indices.
-        if (alpha is not None) and (alpha_index is not None):
-            raise ValueError("Please specify only one of {alpha_index, alpha}.")
-        scalar = np.isscalar(alpha_index) or np.isscalar(alpha)
+        # Resolve into a list of indices.
         if alpha is not None:
-            alpha = np.atleast_1d(alpha)
-            alpha_index = [self._find_alpha_index(a) for a in alpha]
-        alpha_index = np.atleast_1d(alpha_index)  # type: ignore[arg-type]
+            scalar = np.isscalar(alpha)
+            alpha_index = [self._find_alpha_index(a) for a in np.atleast_1d(alpha)]
+        else:
+            scalar = np.isscalar(alpha_index)
+            alpha_index = np.atleast_1d(alpha_index)  # type: ignore[arg-type]
 
         if isinstance(X, pd.DataFrame):
             X = self._convert_from_pandas(X, context=capture_context(context))
