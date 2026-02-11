@@ -715,7 +715,7 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         skl.utils.validation.check_is_fitted(self, "coef_")
 
         if (alpha is not None) and (alpha_index is not None):
-            raise ValueError("Please specify only one of {alpha_index, alpha}.")
+            raise ValueError("Please specify at most one of {alpha_index, alpha}.")
         elif alpha is not None:
             if not self.alpha_search:
                 raise ValueError("Cannot use 'alpha' when 'alpha_search' is False.")
@@ -724,6 +724,30 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
             else:
                 alpha_index = [self._find_alpha_index(a) for a in alpha]  # type: ignore
 
+        if alpha_index is None:
+            return self._predict_along_alpha_path(
+                X, offset, coef=self.coef_, intercept=self.intercept_, context=context
+            )
+
+        scalar = np.isscalar(alpha_index)
+        alpha_index = np.atleast_1d(alpha_index)  # type: ignore[arg-type]
+        xb = self._predict_along_alpha_path(
+            X,
+            offset,
+            coef=self.coef_path_[alpha_index],  # type: ignore
+            intercept=self.intercept_path_[alpha_index],  # type: ignore
+            context=context,
+        )
+        return xb.squeeze() if scalar else xb
+
+    def _predict_along_alpha_path(self, X, offset, coef, intercept, context=None):
+        """Compute ``X @ coef + intercept`` after validating ``X``.
+
+        Parameters
+        ----------
+        coef : array, shape (n_features,) or (n_alphas, n_features)
+        intercept : float or array, shape (n_alphas,)
+        """
         if isinstance(X, pd.DataFrame):
             X = self._convert_from_pandas(X, context=capture_context(context))
 
@@ -743,25 +767,13 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
                 f"is expecting {self.n_features_in_} features as input."
             )
 
-        if alpha_index is None:
-            xb = X @ self.coef_ + self.intercept_
-            if offset is not None:
-                xb += offset
-        elif np.isscalar(alpha_index):  # `None` doesn't qualify
-            xb = X @ self.coef_path_[alpha_index] + self.intercept_path_[alpha_index]  # type: ignore
-            if offset is not None:
-                xb += offset
-        else:  # hopefully a list or some such
-            xb = np.stack(
-                [
-                    X @ self.coef_path_[idx] + self.intercept_path_[idx]
-                    for idx in alpha_index  # type: ignore
-                ],
-                axis=1,
+        xb = X @ coef.T + intercept
+        if offset is not None:
+            xb += (
+                np.asanyarray(offset)
+                if xb.ndim == 1
+                else np.asanyarray(offset)[:, np.newaxis]
             )
-            if offset is not None:
-                xb += np.asanyarray(offset)[:, np.newaxis]
-
         return xb
 
     def predict(

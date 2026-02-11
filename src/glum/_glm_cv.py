@@ -5,17 +5,11 @@ from typing import Any, Optional, Union
 import formulaic
 import joblib
 import numpy as np
-import pandas as pd
 import sklearn as skl
 
 from ._distribution import ExponentialDispersionModel
 from ._formula import capture_context
-from ._glm import (
-    GeneralizedLinearRegressorBase,
-    check_array_tabmat_compliant,
-    setup_p1,
-    setup_p2,
-)
+from ._glm import GeneralizedLinearRegressorBase, setup_p1, setup_p2
 from ._linalg import _safe_lin_pred, is_pos_semidef
 from ._link import Link, LogLink
 from ._typing import ArrayLike
@@ -474,34 +468,13 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             scalar = np.isscalar(alpha_index)
             alpha_index = np.atleast_1d(alpha_index)  # type: ignore[arg-type]
 
-        if isinstance(X, pd.DataFrame):
-            X = self._convert_from_pandas(X, context=capture_context(context))
-
-        X = check_array_tabmat_compliant(
+        xb = self._predict_along_alpha_path(
             X,
-            accept_sparse=["csr", "csc", "coo"],
-            dtype="numeric",
-            copy=True,
-            ensure_2d=True,
-            allow_nd=False,
-            drop_first=getattr(self, "drop_first", False),
+            offset,
+            coef=self._refit_coef_path[alpha_index],
+            intercept=self._refit_intercept_path[alpha_index],  # type: ignore[index]
+            context=context,
         )
-
-        if X.shape[1] != self.n_features_in_:
-            raise ValueError(
-                f"X has {X.shape[1]} features, but {self.__class__.__name__} "
-                f"is expecting {self.n_features_in_} features as input."
-            )
-
-        xb = np.column_stack(
-            [
-                X @ self._refit_coef_path[idx] + self._refit_intercept_path[idx]  # type: ignore[index]
-                for idx in alpha_index
-            ]
-        )
-        if offset is not None:
-            xb += np.asanyarray(offset)[:, np.newaxis]
-
         return xb.squeeze() if scalar else xb
 
     def _validate_hyperparameters(self) -> None:
