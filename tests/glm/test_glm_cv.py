@@ -294,7 +294,7 @@ def test_match_with_base_class(l1_ratio, scale_factor):
         min_alpha_ratio=1e-3,
     ).fit(X, y)
 
-    # Alpha paths should also match.
+    # Alpha paths should match.
     np.testing.assert_allclose(cv_model.alphas_, base_model._alphas)
 
     # Predictions along the alpha path should also match.
