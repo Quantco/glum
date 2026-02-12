@@ -663,6 +663,20 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
             f"{self._alphas}. Consider specifying the index directly via 'alpha_index'."
         )
 
+    def _resolve_alpha_index(
+        self,
+        alpha_index: Optional[Union[int, Sequence[int]]],
+        alpha: Optional[Union[float, Sequence[float]]],
+    ) -> Optional[Union[int, Sequence[int]]]:
+        """Validate and resolve ``alpha`` / ``alpha_index`` arguments."""
+        if (alpha is not None) and (alpha_index is not None):
+            raise ValueError("Please specify at most one of {alpha_index, alpha}.")
+        if alpha is not None:
+            if np.isscalar(alpha):
+                return self._find_alpha_index(alpha)  # type: ignore[arg-type]
+            return [self._find_alpha_index(a) for a in alpha]  # type: ignore
+        return alpha_index
+
     def linear_predictor(
         self,
         X: ArrayLike,
@@ -674,8 +688,8 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
     ):
         """Compute the linear predictor, ``X * coef_ + intercept_``.
 
-        When ``alpha_index`` and ``alpha`` are both ``None``, the prediction
-        uses the coefficients from the last alpha value ``self._alphas[-1]``.
+        When ``alpha_index`` and ``alpha`` are both ``None``, the predictions
+        are for the coefficients from the last alpha value ``self._alphas[-1]``.
 
         Parameters
         ----------
@@ -698,12 +712,7 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
             ``True``. Incompatible with ``alpha_index``.
 
         context : int or mapping, optional (default=None)
-            The context to add to the evaluation context of the formula with,
-            e.g., custom transforms. If an integer, the context is taken from
-            the stack frame of the caller at the given depth. Otherwise, a
-            mapping from variable names to values is expected. By default,
-            no context is added. Set ``context=0`` to make the calling scope
-            available.
+            Passed through to formula evaluation.
 
         Returns
         -------
@@ -714,18 +723,13 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         """
         skl.utils.validation.check_is_fitted(self, "coef_")
 
-        if (alpha is not None) and (alpha_index is not None):
-            raise ValueError("Please specify at most one of {alpha_index, alpha}.")
-        elif alpha is not None:
-            if not self.alpha_search:
-                raise ValueError("Cannot use 'alpha' when 'alpha_search' is False.")
-            if np.isscalar(alpha):
-                alpha_index = self._find_alpha_index(alpha)  # type: ignore[arg-type]
-            else:
-                alpha_index = [self._find_alpha_index(a) for a in alpha]  # type: ignore
+        if alpha is not None and not self.alpha_search:
+            raise ValueError("Cannot use 'alpha' when 'alpha_search' is False.")
+
+        alpha_index = self._resolve_alpha_index(alpha_index, alpha)
 
         if alpha_index is None:
-            return self._predict_along_alpha_path(
+            return self._compute_linear_predictor(
                 X,
                 offset,
                 coef_path=self.coef_,
@@ -733,7 +737,7 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
                 context=context,
             )
 
-        return self._predict_along_alpha_path(
+        return self._compute_linear_predictor(
             X,
             offset,
             alpha_index=alpha_index,
@@ -742,7 +746,7 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
             context=context,
         )
 
-    def _predict_along_alpha_path(
+    def _compute_linear_predictor(
         self,
         X: ArrayLike,
         offset: Optional[ArrayLike],

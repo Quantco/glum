@@ -236,7 +236,7 @@ def test_formula():
 
 @pytest.mark.parametrize("l1_ratio", [0.5, [0.2, 0.5, 0.9]])
 def test_cv_predict_with_alpha_index(l1_ratio):
-    """Predict with alpha_index should work after full-path refit."""
+    """Predict with alpha_index should work after full-data refit."""
     np.random.seed(42)
     n_samples, n_features = 100, 5
     n_alphas = 5
@@ -249,7 +249,7 @@ def test_cv_predict_with_alpha_index(l1_ratio):
         min_alpha_ratio=1e-2,
     ).fit(X, y)
 
-    # coef_path_ / intercept_path_ have per-fold shapes (backward compatible).
+    # per-fold and per-l1-ratio shapes (backward compatible)
     assert model.coef_path_.ndim == 4
     assert model.intercept_path_.ndim == 4
 
@@ -261,7 +261,7 @@ def test_cv_predict_with_alpha_index(l1_ratio):
     pred_0 = model.predict(X, alpha_index=0)
     assert pred_0.shape == (n_samples,)
 
-    # List alpha_index should return 2D predictions (n_samples, n_indices).
+    # List alpha_index should return 2D predictions (n_samples, len(alpha_index)).
     pred_multi = model.predict(X, alpha_index=[0, 1])
     assert pred_multi.shape == (n_samples, 2)
 
@@ -273,8 +273,8 @@ def test_cv_predict_with_alpha_index(l1_ratio):
 
 @pytest.mark.parametrize("scale_factor", [1.0, 1000.0])
 @pytest.mark.parametrize("l1_ratio", [0.0, 0.5, 1.0])
-def test_cv_alpha_path_and_predict_match_base_class(l1_ratio, scale_factor):
-    """CV alpha path and predictions along it should match the base class."""
+def test_match_with_base_class(l1_ratio, scale_factor):
+    """CV alpha path and predictions along it should match values of the base class."""
     np.random.seed(42)
     n_samples, n_features = 200, 5
     X = np.random.randn(n_samples, n_features)
@@ -294,6 +294,7 @@ def test_cv_alpha_path_and_predict_match_base_class(l1_ratio, scale_factor):
         min_alpha_ratio=1e-3,
     ).fit(X, y)
 
+    # Alpha paths should also match.
     np.testing.assert_allclose(cv_model.alphas_, base_model._alphas)
 
     # Predictions along the alpha path should also match.

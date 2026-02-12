@@ -425,10 +425,10 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
     ):
         """Compute the linear predictor, ``X * coef_ + intercept_``.
 
-        When neither ``alpha_index`` nor ``alpha`` are given, predictions come from the
+        When neither ``alpha_index`` nor ``alpha`` are given, predictions are for the
         best CV-selected ``(l1_ratio_, alpha_)``.
 
-        When either ``alpha_index`` or ``alpha`` are specified, predictions are from the
+        When either ``alpha_index`` or ``alpha`` are specified, predictions are for the
         corresponding alpha values on the full-data refit path for the best
         ``l1_ratio_``.
 
@@ -445,7 +445,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             Incompatible with ``alpha``.
 
         alpha : float or sequence of float, optional (default=None)
-            Alpha value(s) to predict at. Resolved to the closest index on
+            Alpha value(s) to predict at, resolved to the closest index on
             the refit alpha path. Incompatible with ``alpha_index``.
 
         context : int or mapping, optional (default=None)
@@ -458,19 +458,12 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             given or when a scalar is passed. Shape
             ``(n_samples, len(alpha_index))`` when a sequence is passed.
         """
-        if (alpha is not None) and (alpha_index is not None):
-            raise ValueError("Please specify at most one of {alpha_index, alpha}.")
+        alpha_index = self._resolve_alpha_index(alpha_index, alpha)
 
-        if alpha_index is None and alpha is None:
+        if alpha_index is None:
             return super().linear_predictor(X, offset, context=context)
 
-        # Resolve alpha → alpha_index.
-        if alpha is not None:
-            alpha_index = [self._find_alpha_index(a) for a in np.atleast_1d(alpha)]
-            if np.isscalar(alpha):
-                alpha_index = alpha_index[0]
-
-        return self._predict_along_alpha_path(
+        return self._compute_linear_predictor(
             X,
             offset,
             alpha_index=alpha_index,
