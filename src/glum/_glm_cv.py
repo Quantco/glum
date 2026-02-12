@@ -425,12 +425,12 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
     ):
         """Compute the linear predictor, ``X * coef_ + intercept_``.
 
-        When neither ``alpha_index`` nor ``alpha`` are given, we predict from the
+        When neither ``alpha_index`` nor ``alpha`` are given, predictions come from the
         best CV-selected ``(l1_ratio_, alpha_)``.
 
-        When either ``alpha_index`` or ``alpha`` are specified, we predict from the
-        full-data refit path, computed over the entire alpha grid for the
-        best ``l1_ratio_``.
+        When either ``alpha_index`` or ``alpha`` are specified, predictions are from the
+        corresponding alpha values on the full-data refit path for the best
+        ``l1_ratio_``.
 
         Parameters
         ----------
