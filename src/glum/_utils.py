@@ -279,3 +279,29 @@ def _one_over_var_inf_to_val(arr: np.ndarray, val: float) -> np.ndarray:
         one_over = 1 / arr
     one_over[zeros] = val
     return one_over
+
+
+def _closed_form_diagnostics_row(coef: np.ndarray, *, n_iter: int = 1) -> list[dict]:
+    coef_l1 = float(np.sum(np.abs(coef)))
+    coef_l2 = float(np.linalg.norm(coef))
+    return [
+        {
+            "n_iter": n_iter,
+            "convergence": 0.0,
+            "objective_fct": 0.0,  # placeholder (non-NaN)
+            "L1(coef)": coef_l1,
+            "L2(coef)": coef_l2,
+            "L2(step)": 0.0,
+            "first_coef": float(coef[0]) if coef.size else 0.0,
+            "n_coef_updated": 0,
+            "n_active_cols": 0,
+            "n_active_rows": 0,
+            "n_cycles": 1,
+            "n_line_search": 0,
+            "iteration_runtime": 0.0,
+            "build_hessian_runtime": 0.0,
+            "inner_solver_runtime": 0.0,
+            "line_search_runtime": 0.0,
+            "quadratic_update_runtime": 0.0,
+        }
+    ]

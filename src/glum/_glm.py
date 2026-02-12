@@ -28,7 +28,7 @@ from ._distribution import (
     guess_intercept,
 )
 from ._formula import capture_context, parse_formula
-from ._linalg import _safe_sandwich_dot, is_pos_semidef
+from ._linalg import _solve_least_squares_tikhonov, is_pos_semidef
 from ._link import CloglogLink, IdentityLink, Link, LogitLink, LogLink, TweedieLink
 from ._solvers import (
     IRLSData,
@@ -40,6 +40,7 @@ from ._solvers import (
 )
 from ._typing import ArrayLike, ShapedArrayLike, VectorLike, WaldTestResult
 from ._utils import (
+    _closed_form_diagnostics_row,
     add_missing_categories,
     align_df_categories,
     expand_categorical_penalties,
@@ -444,8 +445,7 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         ``self.coef_`` and ``self.intercept_``.
         """
         if (
-            self.solver == "auto"
-            and self._solver == "irls-ls"
+            self._solver == "irls-ls"
             and self.verbose == 0
             and isinstance(self._family_instance, NormalDistribution)
             and isinstance(self._link_instance, IdentityLink)
@@ -456,10 +456,19 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
             and b_ineq is None
         ):
             try:
-                coef = self._closed_form_gaussian(X, y, sample_weight, P2, offset)
+                # Validate random_state even though closed-form path is deterministic.
+                skl.utils.check_random_state(self.random_state)
+                coef = _solve_least_squares_tikhonov(
+                    X=X,
+                    y=y,
+                    sample_weight=sample_weight,
+                    P2=P2,
+                    fit_intercept=self.fit_intercept,
+                    offset=offset,
+                )
                 self.n_iter_ = 1
                 self._n_cycles = 1
-                self.diagnostics_ = None
+                self.diagnostics_ = _closed_form_diagnostics_row(coef=coef, n_iter=1)
                 return coef
             except linalg.LinAlgError:
                 # Fall back to the standard IRLS path when direct solve fails.
@@ -554,55 +563,6 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
                 b_ineq=b_ineq,
             )
         return coef
-
-    def _closed_form_gaussian(
-        self,
-        X: Union[tm.MatrixBase, tm.StandardizedMatrix],
-        y: np.ndarray,
-        sample_weight: np.ndarray,
-        P2,
-        offset: Optional[np.ndarray],
-    ) -> np.ndarray:
-        # Preserve sklearn-style random_state validation side effect even though
-        # the closed-form path does not consume an RNG.
-        skl.utils.check_random_state(self.random_state)
-        y_minus_offset = y if offset is None else (y - offset)
-        weighted_y = sample_weight * y_minus_offset
-        is_sparse_p2 = sparse.issparse(P2)
-        if is_sparse_p2:
-            has_l2_penalty = np.any(P2.data != 0)
-            # Detect "diagonal sparse" and handle without densifying
-            is_diag_p2 = sparse.isspmatrix_dia(P2) or (
-                sparse.isspmatrix(P2)
-                and (P2.nnz <= P2.shape[0])
-                and np.all(P2.tocoo().row == P2.tocoo().col)
-            )
-        else:
-            has_l2_penalty = np.any(P2 != 0)
-            is_diag_p2 = getattr(P2, "ndim", 0) == 1
-
-        if self.fit_intercept:
-            hessian = _safe_sandwich_dot(X, sample_weight, intercept=True)
-            rhs = np.empty(X.shape[1] + 1, dtype=X.dtype)
-            rhs[0] = weighted_y.sum()
-            rhs[1:] = X.transpose_matvec(weighted_y)
-            if has_l2_penalty and is_diag_p2:
-                diag_idx = np.arange(1, hessian.shape[0])
-                diag = P2 if not is_sparse_p2 else P2.diagonal()
-                hessian[(diag_idx, diag_idx)] += diag
-            elif has_l2_penalty:
-                hessian[1:, 1:] += safe_toarray(P2)
-        else:
-            hessian = _safe_sandwich_dot(X, sample_weight)
-            rhs = X.transpose_matvec(weighted_y)
-            if has_l2_penalty and is_diag_p2:
-                diag = P2 if not is_sparse_p2 else P2.diagonal()
-                hessian[np.diag_indices_from(hessian)] += diag
-            elif has_l2_penalty:
-                hessian += safe_toarray(P2)
-
-        assume_a = "pos" if has_l2_penalty else "sym"
-        return linalg.solve(hessian, rhs, assume_a=assume_a)
 
     def _solve_regularization_path(
         self,

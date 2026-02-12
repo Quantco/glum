@@ -236,7 +236,9 @@ def build_hessian_delta(
     return delta
 
 
-def _irls_solver(inner_solver, coef, data) -> tuple[np.ndarray, int, int, list[list]]:
+def _irls_solver(
+    inner_solver, coef, data
+) -> tuple[np.ndarray, int, int, list[dict[str, Any]]]:
     """
     Solve GLM with L1 and L2 penalty by IRLS.
 
