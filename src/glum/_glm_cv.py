@@ -425,12 +425,12 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
     ):
         """Compute the linear predictor, ``X * coef_ + intercept_``.
 
-        When neither ``alpha_index`` nor ``alpha`` are given, prediction uses
-        the best CV-selected ``(l1_ratio_, alpha_)``.
+        When neither ``alpha_index`` nor ``alpha`` are given, we predict from the
+        best CV-selected ``(l1_ratio_, alpha_)``.
 
-        When either ``alpha_index`` or ``alpha`` are specified, predictions
-        come from the full-data refit path (computed over the entire alpha
-        grid for the best ``l1_ratio_``).
+        When either ``alpha_index`` or ``alpha`` are specified, we predict from the
+        full-data refit path, computed over the entire alpha grid for the
+        best ``l1_ratio_``.
 
         Parameters
         ----------
@@ -585,10 +585,30 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
 
         l1_ratio = np.atleast_1d(self.l1_ratio)
 
+        if self._solver == "irls-cd":
+            _stype = ["csc"]
+        else:
+            _stype = ["csc", "csr"]
+
         if self.alphas is None:
-            alphas: Union[np.ndarray, list[np.ndarray]] = [
-                self._get_alpha_path(l1, X, y, sample_weight) for l1 in l1_ratio
-            ]
+            alphas: list[np.ndarray] = []
+            for l1 in l1_ratio:
+                P1_no_alpha = setup_p1(P1, X, X.dtype, 1, l1)
+                P2_no_alpha = setup_p2(P2, X, _stype, X.dtype, 1, l1)
+                X_std, _, _, _, _, _, P1_no_alpha, _ = standardize(
+                    X,
+                    sample_weight,
+                    self._center_predictors,
+                    self.scale_predictors,
+                    None,
+                    None,
+                    None,
+                    P1_no_alpha,
+                    P2_no_alpha,
+                )
+                alphas.append(
+                    self._get_alpha_path(P1_no_alpha, X_std, y, sample_weight, offset)
+                )
         else:
             alphas = np.tile(
                 np.sort(np.asarray(self.alphas, dtype=X.dtype))[::-1],
@@ -607,11 +627,6 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         b_ineq = copy.copy(self.b_ineq)
 
         cv = skl.model_selection.check_cv(self.cv)
-
-        if self._solver == "cd":
-            _stype = ["csc"]
-        else:
-            _stype = ["csc", "csr"]
 
         def _fit_path(
             self,

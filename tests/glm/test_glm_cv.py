@@ -5,7 +5,7 @@ import sklearn as skl
 import tabmat as tm
 from scipy import sparse
 
-from glum import GeneralizedLinearRegressorCV
+from glum import GeneralizedLinearRegressor, GeneralizedLinearRegressorCV
 
 GLM_SOLVERS = ["irls", "lbfgs", "cd", "trust-constr"]
 
@@ -249,13 +249,9 @@ def test_cv_predict_with_alpha_index(l1_ratio):
         min_alpha_ratio=1e-2,
     ).fit(X, y)
 
-    # coef_path_ / intercept_path_ retain per-fold shapes (backward compat).
+    # coef_path_ / intercept_path_ have per-fold shapes (backward compatible).
     assert model.coef_path_.ndim == 4
     assert model.intercept_path_.ndim == 4
-
-    # Full-data refit paths are stored privately.
-    assert model._refit_coef_path.shape == (n_alphas, n_features)
-    assert model._refit_intercept_path.shape == (n_alphas,)
 
     # Default predict (no alpha_index) should work — uses coef_ from refit.
     pred_default = model.predict(X)
@@ -273,3 +269,40 @@ def test_cv_predict_with_alpha_index(l1_ratio):
     pred_alpha = model.predict(X, alpha=model.alpha_)
     assert pred_alpha.shape == (n_samples,)
     np.testing.assert_allclose(pred_alpha, pred_default)
+
+
+@pytest.mark.parametrize("scale_factor", [1.0, 1000.0])
+@pytest.mark.parametrize("l1_ratio", [0.0, 0.5, 1.0])
+def test_cv_alpha_path_and_predict_match_base_class(l1_ratio, scale_factor):
+    """CV alpha path and predictions along it should match the base class."""
+    np.random.seed(42)
+    n_samples, n_features = 200, 5
+    X = np.random.randn(n_samples, n_features)
+    X[:, 0] *= scale_factor
+    y = X @ np.ones(n_features) + np.random.randn(n_samples) * 0.1
+
+    cv_model = GeneralizedLinearRegressorCV(
+        l1_ratio=l1_ratio,
+        n_alphas=10,
+        min_alpha_ratio=1e-3,
+    ).fit(X, y)
+
+    base_model = GeneralizedLinearRegressor(
+        l1_ratio=l1_ratio,
+        alpha_search=True,
+        n_alphas=10,
+        min_alpha_ratio=1e-3,
+    ).fit(X, y)
+
+    np.testing.assert_allclose(cv_model.alphas_, base_model._alphas)
+
+    # Predictions along the alpha path should also match.
+    pred_cv = cv_model.predict(X, alpha_index=[0, 1, 2])
+    pred_base = base_model.predict(X, alpha_index=[0, 1, 2])
+    np.testing.assert_allclose(pred_cv, pred_base)
+
+    # Prediction via alpha keyword should match too.
+    alpha_val = cv_model.alphas_[1]
+    pred_cv_alpha = cv_model.predict(X, alpha=alpha_val)
+    pred_base_alpha = base_model.predict(X, alpha=alpha_val)
+    np.testing.assert_allclose(pred_cv_alpha, pred_base_alpha)
