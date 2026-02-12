@@ -670,7 +670,7 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
     ) -> Optional[Union[int, Sequence[int]]]:
         """Validate and resolve ``alpha`` / ``alpha_index`` arguments."""
         if (alpha is not None) and (alpha_index is not None):
-            raise ValueError("Please specify at most one of {alpha_index, alpha}.")
+            raise ValueError("Please specify at most one of 'alpha_index' and 'alpha'.")
         if alpha is not None:
             if np.isscalar(alpha):
                 return self._find_alpha_index(alpha)  # type: ignore[arg-type]
@@ -729,8 +729,10 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         """
         skl.utils.validation.check_is_fitted(self, "coef_")
 
-        if alpha is not None and not self.alpha_search:
-            raise ValueError("Cannot use 'alpha' when 'alpha_search' is False.")
+        if (alpha is not None or alpha_index is not None) and not self.alpha_search:
+            raise ValueError(
+                "Cannot use 'alpha' or 'alpha_index' when 'alpha_search' is False."
+            )
 
         alpha_index = self._resolve_alpha_index(alpha_index, alpha)
 

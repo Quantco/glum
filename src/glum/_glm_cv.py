@@ -464,6 +464,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             given or when a scalar alpha is passed. Shape
             ``(n_samples, len(alpha_index))`` when a sequence is passed.
         """
+        skl.utils.validation.check_is_fitted(self, "coef_")
+
         alpha_index = self._resolve_alpha_index(alpha_index, alpha)
 
         if alpha_index is None:
