@@ -28,11 +28,12 @@ from ._distribution import (
     guess_intercept,
 )
 from ._formula import capture_context, parse_formula
-from ._linalg import _solve_least_squares_tikhonov, is_pos_semidef
+from ._linalg import is_pos_semidef
 from ._link import CloglogLink, IdentityLink, Link, LogitLink, LogLink, TweedieLink
 from ._solvers import (
     IRLSData,
     _cd_solver,
+    _closed_form_solver,
     _irls_solver,
     _lbfgs_solver,
     _least_squares_solver,
@@ -40,7 +41,6 @@ from ._solvers import (
 )
 from ._typing import ArrayLike, ShapedArrayLike, VectorLike, WaldTestResult
 from ._utils import (
-    _closed_form_diagnostics_row,
     add_missing_categories,
     align_df_categories,
     expand_categorical_penalties,
@@ -310,7 +310,20 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
             if (self.A_ineq is not None) and (self.b_ineq is not None):
                 self._solver = "trust-constr"
             elif (self.lower_bounds is None) and (self.upper_bounds is None):
-                if np.all(np.asarray(self.l1_ratio) == 0):
+                if (
+                    isinstance(self._family_instance, NormalDistribution)
+                    and isinstance(self._link_instance, IdentityLink)
+                    and (
+                        np.all(np.asarray(self.l1_ratio) == 0)
+                        or (
+                            hasattr(self, "alpha")
+                            and self.alpha == 0
+                            and not self.alpha_search
+                        )
+                    )
+                ):
+                    self._solver = "closed-form"
+                elif np.all(np.asarray(self.l1_ratio) == 0):
                     self._solver = "irls-ls"
                 elif (
                     hasattr(self, "alpha") and self.alpha == 0 and not self.alpha_search
@@ -444,35 +457,40 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         Must be run after running :func:`_set_up_for_fit`. Sets
         ``self.coef_`` and ``self.intercept_``.
         """
-        if (
-            self._solver == "irls-ls"
-            and self.verbose == 0
-            and isinstance(self._family_instance, NormalDistribution)
+        can_use_closed_form = (
+            isinstance(self._family_instance, NormalDistribution)
             and isinstance(self._link_instance, IdentityLink)
             and np.all(P1 == 0)
             and lower_bounds is None
             and upper_bounds is None
             and A_ineq is None
             and b_ineq is None
-        ):
-            try:
-                # Validate random_state even though closed-form path is deterministic.
-                skl.utils.check_random_state(self.random_state)
-                coef = _solve_least_squares_tikhonov(
+        )
+        if self._solver == "closed-form":
+            # Raise an error if the closed form solution is not applicable
+            if not can_use_closed_form:
+                raise ValueError(
+                    "solver='closed-form' is only supported for unconstrained "
+                    "Gaussian models with identity link and no L1 regularization."
+                )
+            # Use the closed form solution
+            else:
+                (
+                    coef,
+                    self.n_iter_,
+                    self._n_cycles,
+                    self.diagnostics_,
+                ) = _closed_form_solver(
                     X=X,
                     y=y,
                     sample_weight=sample_weight,
                     P2=P2,
                     fit_intercept=self.fit_intercept,
+                    random_state=self.random_state,
                     offset=offset,
+                    verbose=self.verbose,
                 )
-                self.n_iter_ = 1
-                self._n_cycles = 1
-                self.diagnostics_ = _closed_form_diagnostics_row(coef=coef, n_iter=1)
-                return coef
-            except linalg.LinAlgError:
-                # Fall back to the standard IRLS path when direct solve fails.
-                pass
+            return coef
 
         fixed_inner_tol = None
         if (
@@ -1673,10 +1691,18 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
                 https://github.com/scikit-learn/scikit-learn/pull/9405.
                 """
             )
-        if self.solver not in ["auto", "irls-ls", "lbfgs", "irls-cd", "trust-constr"]:
+        if self.solver not in [
+            "auto",
+            "closed-form",
+            "irls-ls",
+            "lbfgs",
+            "irls-cd",
+            "trust-constr",
+        ]:
             raise ValueError(
                 "GeneralizedLinearRegressor supports only solvers"
-                " 'auto', 'irls-ls', 'lbfgs', 'irls-cd' and 'trust-constr'; "
+                " 'auto', 'closed-form', 'irls-ls', 'lbfgs', 'irls-cd' and"
+                " 'trust-constr'; "
                 f"got (solver={self.solver})."
             )
         if not isinstance(self.max_iter, int) or self.max_iter <= 0:
@@ -2058,11 +2084,15 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
           ``'inverse.gaussian'`` and ``'negative.binomial'``.
         - ``'logit'`` for family ``'binomial'``
 
-    solver : {'auto', 'irls-cd', 'irls-ls', 'lbfgs', 'trust-constr'}, \
+    solver : {'auto', 'closed-form', 'irls-cd', 'irls-ls', 'lbfgs', 'trust-constr'}, \
             optional (default='auto')
         Algorithm to use in the optimization problem:
 
-        - ``'auto'``: ``'irls-ls'`` if ``l1_ratio`` is zero and ``'irls-cd'`` otherwise.
+        - ``'auto'``: ``'closed-form'`` for eligible Gaussian identity-link
+          problems without L1 regularization, ``'irls-ls'`` for other pure-L2
+          cases, and ``'irls-cd'`` otherwise.
+        - ``'closed-form'``: Direct linear solve for eligible Gaussian
+          identity-link problems (ridge/OLS).
         - ``'irls-cd'``: Iteratively reweighted least squares with a coordinate
           descent inner solver. This can deal with L1 as well as L2 penalties.
           Note that in order to avoid unnecessary memory duplication of X in the

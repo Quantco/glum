@@ -928,16 +928,12 @@ def test_solver_equivalence(params, use_offset, regression_data):
 
 
 @pytest.mark.parametrize("solver", GLM_SOLVERS)
-def test_convergence_warning_iterative_case(solver, regression_data):
+def test_convergence_warning(solver, regression_data):
     X, y = regression_data
+
     est = GeneralizedLinearRegressor(
-        solver=solver,
-        verbose=1,
-        max_iter=1,
-        gradient_tol=1e-20,
-        random_state=2,
+        solver=solver, random_state=2, max_iter=1, gradient_tol=1e-20
     )
-    # Warning expected as we use an iterative solver
     with pytest.warns(skl.exceptions.ConvergenceWarning):
         est.fit(X, y)
 
