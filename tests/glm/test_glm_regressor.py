@@ -1112,9 +1112,9 @@ def test_predict_error(regression_data):
         estimator.predict(X, alpha=0.5)
     with pytest.raises(ValueError):
         estimator.predict(X, alpha=[0.5])
-    with pytest.raises(AttributeError):
+    with pytest.raises(ValueError, match="alpha_search"):
         estimator.predict(X, alpha_index=0)
-    with pytest.raises(AttributeError):
+    with pytest.raises(ValueError, match="alpha_search"):
         estimator.predict(X, alpha_index=[0])
 
     estimator.set_params(alpha=[0.5, 0.75], alpha_search=True).fit(X, y)
