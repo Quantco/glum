@@ -675,7 +675,7 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         """Compute the linear predictor, ``X * coef_ + intercept_``.
 
         When ``alpha_index`` and ``alpha`` are both ``None``, the prediction
-        uses the coefficients from the last alpha.
+        uses the coefficients from the last alpha value ``self._alphas[-1]``.
 
         Parameters
         ----------
