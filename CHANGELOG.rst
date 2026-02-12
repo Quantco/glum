@@ -7,12 +7,18 @@
 Changelog
 =========
 
-3.1.3 - unreleased
+3.2.0 - unreleased
 ------------------
 
-**Other changes:**
+**New features:**
 
-- Use a closed-form solution for Gaussian (identity-link) models (ridge and OLS), with automatic fallback to the iterative solver for singular systems.
+- Add a new solver option ``solver="closed-form"`` for Gaussian models with identity link.
+- This uses the analytical normal-equations solution for ridge and OLS problems.
+- Automatically select the closed-form solver when ``solver="auto"`` and the model is an unconstrained Gaussian identity-link problem with no L1 regularization.
+- Fall back to a least-squares solution for singular or ill-conditioned systems.
+
+3.1.3 - unreleased
+------------------
 
 **Bug fix:**
 
