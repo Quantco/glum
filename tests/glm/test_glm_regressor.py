@@ -26,7 +26,7 @@ from glum._glm_cv import GeneralizedLinearRegressorCV
 from glum._link import LogitLink, LogLink
 from glum._utils import unstandardize
 
-GLM_SOLVERS = ["irls-ls", "lbfgs", "irls-cd", "trust-constr"]
+GLM_SOLVERS = ["irls-ls", "lbfgs", "irls-cd", "trust-constr", "closed-form"]
 
 estimators = [
     (GeneralizedLinearRegressor, {"alpha": 1.0}),
@@ -120,7 +120,7 @@ def test_get_diagnostics(
     diagnostics = res.get_formatted_diagnostics(
         full_report=full_report, custom_columns=custom_columns
     )
-    if solver in ("lbfgs", "trust-constr"):
+    if solver in ("lbfgs", "trust-constr", "closed-form"):
         assert diagnostics == "solver does not report diagnostics"
     else:
         assert diagnostics.index.name == "n_iter"
@@ -897,6 +897,7 @@ def test_binomial_enet(alpha):
         {"solver": "irls-ls", "alpha": 1.0},
         {"solver": "lbfgs", "alpha": 1.0},
         {"solver": "trust-constr", "alpha": 1.0},
+        {"solver": "closed-form", "alpha": 1.0},
         {"solver": "irls-cd", "selection": "cyclic", "alpha": 1.0},
         {"solver": "irls-cd", "selection": "random", "alpha": 1.0},
     ],
@@ -934,8 +935,104 @@ def test_convergence_warning(solver, regression_data):
     est = GeneralizedLinearRegressor(
         solver=solver, random_state=2, max_iter=1, gradient_tol=1e-20
     )
-    with pytest.warns(skl.exceptions.ConvergenceWarning):
+    if solver == "closed-form":
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", skl.exceptions.ConvergenceWarning)
+            est.fit(X, y)
+    else:
+        with pytest.warns(skl.exceptions.ConvergenceWarning):
+            est.fit(X, y)
+
+
+def test_closed_form_solver_used_when_requested(regression_data):
+    X, y = regression_data
+    est = GeneralizedLinearRegressor(
+        solver="closed-form",
+        family="normal",
+        link="identity",
+        l1_ratio=0.0,
+        random_state=2,
+    )
+    est.fit(X, y)
+    assert est._solver == "closed-form"
+    assert est.n_iter_ == 1
+    assert est._n_cycles == 1
+    assert est.diagnostics_ is None
+
+
+def test_closed_form_solver_rejects_ineligible_configuration(regression_data):
+    X, y = regression_data
+    est = GeneralizedLinearRegressor(
+        solver="closed-form",
+        family="normal",
+        link="identity",
+        l1_ratio=0.5,
+        alpha=1.0,
+    )
+    with pytest.raises(ValueError, match="solver=closed-form"):
         est.fit(X, y)
+
+
+def test_auto_selects_closed_form_when_eligible(regression_data):
+    X, y = regression_data
+    est = GeneralizedLinearRegressor(
+        solver="auto",
+        family="normal",
+        link="identity",
+        alpha=1.0,
+        l1_ratio=0.0,
+        random_state=2,
+    )
+    est.fit(X, y)
+    assert est._solver == "closed-form"
+
+    ref = GeneralizedLinearRegressor(
+        solver="irls-ls",
+        family="normal",
+        link="identity",
+        alpha=1.0,
+        l1_ratio=0.0,
+        random_state=2,
+    )
+    ref.fit(X, y)
+    np.testing.assert_allclose(est.intercept_, ref.intercept_, rtol=1e-6, atol=1e-8)
+    np.testing.assert_allclose(est.coef_, ref.coef_, rtol=1e-6, atol=1e-8)
+
+
+def test_closed_form_singular_design_matches_irls_ls():
+    X = np.array(
+        [
+            [1.0, 2.0, 1.0],
+            [2.0, 4.0, 1.0],
+            [3.0, 6.0, 1.0],
+            [4.0, 8.0, 1.0],
+            [5.0, 10.0, 1.0],
+        ]
+    )
+    y = np.array([1.2, 2.1, 2.9, 4.2, 5.1])
+
+    est = GeneralizedLinearRegressor(
+        solver="closed-form",
+        family="normal",
+        link="identity",
+        alpha=1.0,
+        l1_ratio=0.0,
+        fit_intercept=False,
+        random_state=2,
+    )
+    ref = GeneralizedLinearRegressor(
+        solver="irls-ls",
+        family="normal",
+        link="identity",
+        alpha=1.0,
+        l1_ratio=0.0,
+        fit_intercept=False,
+        random_state=2,
+    )
+    est.fit(X, y)
+    ref.fit(X, y)
+    np.testing.assert_allclose(est.intercept_, ref.intercept_, rtol=1e-7, atol=1e-9)
+    np.testing.assert_allclose(est.coef_, ref.coef_, rtol=1e-6, atol=1e-8)
 
 
 @pytest.mark.parametrize("use_sparse", [False, True])

@@ -7,7 +7,7 @@ from scipy import sparse
 
 from glum import GeneralizedLinearRegressorCV
 
-GLM_SOLVERS = ["irls", "lbfgs", "cd", "trust-constr"]
+GLM_SOLVERS = ["irls", "lbfgs", "cd", "trust-constr", "closed-form"]
 
 
 @pytest.mark.parametrize("l1_ratio", [0.5, 1, [0.3, 0.6], np.array([0.3, 0.6])])
@@ -133,6 +133,7 @@ def test_normal_ridge_comparison(fit_intercept):
     [
         {"solver": "irls-ls", "rtol": 1e-6},
         {"solver": "lbfgs", "rtol": 2e-4},
+        {"solver": "closed-form", "rtol": 1e-6},
         {"solver": "trust-constr", "rtol": 2e-4},
         {"solver": "irls-cd", "selection": "cyclic", "rtol": 2e-5},
         {"solver": "irls-cd", "selection": "random", "rtol": 6e-5},
