@@ -449,7 +449,13 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             the refit alpha path. Incompatible with ``alpha_index``.
 
         context : int or mapping, optional (default=None)
-            Passed through to formula evaluation.
+            The context to add to the evaluation context of the formula with,
+            e.g., custom transforms. If an integer, the context is taken from
+            the stack frame of the caller at the given depth. Otherwise, a
+            mapping from variable names to values is expected. By default,
+            no context is added. Set ``context=0`` to make the calling scope
+            available.
+
 
         Returns
         -------

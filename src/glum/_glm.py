@@ -712,7 +712,13 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
             ``True``. Incompatible with ``alpha_index``.
 
         context : int or mapping, optional (default=None)
-            Passed through to formula evaluation.
+            The context to add to the evaluation context of the formula with,
+            e.g., custom transforms. If an integer, the context is taken from
+            the stack frame of the caller at the given depth. Otherwise, a
+            mapping from variable names to values is expected. By default,
+            no context is added. Set ``context=0`` to make the calling scope
+            available.
+
 
         Returns
         -------
@@ -728,21 +734,13 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
 
         alpha_index = self._resolve_alpha_index(alpha_index, alpha)
 
-        if alpha_index is None:
-            return self._compute_linear_predictor(
-                X,
-                offset,
-                coef_path=self.coef_,
-                intercept_path=self.intercept_,
-                context=context,
-            )
-
+        use_path = alpha_index is not None
         return self._compute_linear_predictor(
             X,
             offset,
             alpha_index=alpha_index,
-            coef_path=self.coef_path_,
-            intercept_path=self.intercept_path_,
+            coef_path=self.coef_path_ if use_path else self.coef_,
+            intercept_path=self.intercept_path_ if use_path else self.intercept_,
             context=context,
         )
 
