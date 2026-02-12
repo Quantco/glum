@@ -288,11 +288,11 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
 
     coef_path_ : array, shape (n_folds, n_l1_ratios, n_alphas, n_features)
         Estimated coefficients for the linear predictor in the GLM at every
-        point along the regularization path, per fold.
+        point along the regularization path, per fold and and l1_ratio  and and l1_ratio .
 
     intercept_path_ : array, shape (n_folds, n_l1_ratios, n_alphas, 1)
         Estimated intercepts at every point along the regularization path,
-        per fold.
+        per fold and and l1_ratio  and and l1_ratio .
 
     deviance_path_: array, shape(n_folds, n_alphas)
         Deviance for the test set on each fold, varying alpha.
@@ -461,7 +461,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         -------
         np.ndarray
             Shape ``(n_samples,)`` when no ``alpha_index`` / ``alpha`` is
-            given or when a scalar is passed. Shape
+            given or when a scalar alpha is passed. Shape
             ``(n_samples, len(alpha_index))`` when a sequence is passed.
         """
         alpha_index = self._resolve_alpha_index(alpha_index, alpha)

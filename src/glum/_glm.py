@@ -724,7 +724,7 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         -------
         np.ndarray
             Shape ``(n_samples,)`` when no ``alpha_index`` / ``alpha`` is
-            given or when a scalar is passed. Shape
+            given or when a scalar alpha is passed. Shape
             ``(n_samples, len(alpha_index))`` when a sequence is passed.
         """
         skl.utils.validation.check_is_fitted(self, "coef_")
@@ -836,7 +836,7 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         -------
         np.ndarray
             Shape ``(n_samples,)`` when no ``alpha_index`` / ``alpha`` is
-            given or when a scalar is passed. Shape
+            given or when a scalar alpha is passed. Shape
             ``(n_samples, len(alpha_index))`` when a sequence is passed.
         """
         if isinstance(X, pd.DataFrame):
