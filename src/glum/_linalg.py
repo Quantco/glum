@@ -142,4 +142,10 @@ def _solve_least_squares_tikhonov(
     # With nonzero L2 penalty this system is often SPD, so we try the faster
     # Cholesky-oriented path (assume_a="pos"); fallback handles failures.
     assume_a = "pos" if has_l2_penalty else "sym"
-    return linalg.solve(hessian, rhs, assume_a=assume_a)
+    try:
+        coef = linalg.solve(hessian, rhs, assume_a=assume_a)
+    except linalg.LinAlgError:
+        # OLS can be singular / rank-deficient (e.g. collinearity). Use
+        # minimum-norm least squares solution as a robust closed-form fallback.
+        coef = linalg.lstsq(hessian, rhs)[0]
+    return coef
