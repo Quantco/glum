@@ -698,6 +698,7 @@ def _render_bar_chart(
     with style_context:
         plot_colors = [colors.get(lib, "#999999") for lib in pivot.columns]
         pivot_clipped = pivot.clip(upper=y_max)
+        pivot_clipped = pivot_clipped.mask(not_converged, y_max)
 
         fig, ax = plt.subplots(figsize=(10, 5))
         pivot_clipped.plot(kind="bar", ax=ax, color=plot_colors)
@@ -744,7 +745,7 @@ def _render_bar_chart(
                     bar = bars[bar_idx]
                     x = bar.get_x()
                     width = bar.get_width()
-                    bar_height = min(pivot.loc[combo, lib], y_max)
+                    bar_height = y_max
                     ax.bar(
                         x + width / 2,
                         bar_height,
@@ -770,7 +771,11 @@ def _render_bar_chart(
         for i, combo in enumerate(pivot.index):
             for j, lib in enumerate(pivot.columns):
                 original_val = pivot.loc[combo, lib]
-                if original_val > y_max and not unsupported.loc[combo, lib]:
+                if (
+                    original_val > y_max
+                    and not unsupported.loc[combo, lib]
+                    and not not_converged.loc[combo, lib]
+                ):
                     bar_idx = j * n_combos + i
                     bar = bars[bar_idx]
                     x = bar.get_x() + bar.get_width() / 2
