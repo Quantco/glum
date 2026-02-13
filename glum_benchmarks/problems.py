@@ -69,7 +69,7 @@ def load_data(
     # At this point we still have dtype information, so we can reliably
     # distinguish continuous columns from categoricals.
     if standardize:
-        X_in = X_in.copy()  # wichtig wegen joblib / in-place
+        X_in = X_in.copy()
 
         continuous_cols = [
             c

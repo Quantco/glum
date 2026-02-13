@@ -47,6 +47,10 @@ def skglm_bench(
         # We use L1_plus_L2 (l1_ratio=0) for pure L2 to ensure prox_1d is available
         penalty = L1_plus_L2(alpha=alpha, l1_ratio=l1_ratio)
 
+    # Note on GramCD:
+    # In skglm==0.5, GramCD requires datafit=None, but GeneralizedLinearEstimator.fit()
+    # materializes datafit to Quadratic(). This mismatch makes GramCD fail when used via
+    # GeneralizedLinearEstimator, so we route Gaussian through AndersonCD/ProxNewton.
     # ProxNewton is faster for non-Gaussian distributions (Poisson, Gamma, Binomial)
     # and required for L2 problems. AndersonCD is better for Gaussian.
     if distribution in ["poisson", "gamma", "binomial"] or l1_ratio == 0:

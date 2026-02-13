@@ -95,7 +95,9 @@ def run_and_store_golden_master(overwrite, problem_name):
     except FileNotFoundError:
         gm_dict = {}
 
-    for Pn in get_all_problems().keys():
+    # Keep generation aligned with test coverage: benchmark golden master excludes
+    # benchmark-only simulated datasets (including categorical-simulated).
+    for Pn in _gm_test_problems.keys():
         if is_weights_problem_with_offset_match(Pn):
             continue
         if problem_name is not None:
