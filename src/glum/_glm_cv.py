@@ -841,6 +841,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
 
         # _solve_regularization_path overwrites self.coef_path_; save and
         # restore the per-fold paths so the public attribute is unchanged.
+        # It also overwrites n_iter_, _n_cycles, and diagnostics_, but those
+        # just reflect whichever fold ran last, so we let the refit values stand.
         _cv_coef_path = self.coef_path_
 
         coef = self._solve_regularization_path(
