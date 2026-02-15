@@ -13,6 +13,7 @@ Changelog
 **Bug fix:**
 
 - Fixed ``deviance_path_`` in :class:`~glum.GeneralizedLinearRegressorCV` being scaled down by a factor of ``n_folds`` because test fold weights were not normalized to sum to 1.
+- Fixed :class:`~glum.NegativeBinomialDistribution` ``theta`` setter rejecting ``np.number`` types, causing ``dist.theta = dist.theta`` to raise a ``TypeError``.
 
 **Other changes:**
 
