@@ -106,6 +106,13 @@ class ParamGridEntry(BaseModel):
     alphas: list[Alpha] | None = Field(
         default=None, description="Per-observation alpha values (None = all)"
     )
+    num_rows: list[int | None] | None = Field(
+        default=None,
+        description=(
+            "Default is None; None means full dataset. "
+            "Inside the list, null means full dataset."
+        ),
+    )
     k_over_n_ratios: list[float] | None = Field(
         default=None,
         description=(
@@ -180,9 +187,6 @@ class BenchmarkConfig(BaseModel):
     )
     iterations: int = Field(
         default=2, ge=1, description="Run each benchmark N times, report minimum"
-    )
-    num_rows: int | None = Field(
-        default=None, ge=1, description="Limit rows per dataset (None = full dataset)"
     )
     timeout: int = Field(
         default=100, ge=1, description="Timeout in seconds per benchmark run"
@@ -271,13 +275,14 @@ def _parse_problem_name(name: str) -> tuple[str, str, str]:
 
 def get_benchmark_combinations(
     config: BenchmarkConfig,
-) -> list[tuple[str, str, float, float]]:
-    """Get list of (problem_name, library, alpha, k_over_n_ratio) tuples.
+) -> list[tuple[str, str, float, int | None, float]]:
+    """Get list of (problem_name, library, alpha, num_rows, k_over_n_ratio) tuples.
 
     Cartesian product within each entry, union across entries.
 
     Returns:
-        List of (problem_name, library_name, alpha, k_over_n_ratio) tuples to run.
+        List of (problem_name, library_name, alpha, num_rows, k_over_n_ratio)
+        tuples to run.
     """
 
     all_problems = get_all_problems()
@@ -300,7 +305,7 @@ def get_benchmark_combinations(
     all_alphas = list(ALPHA_VALUES)
     allowed_dist_by_dataset = ALLOWED_DISTRIBUTIONS_BY_DATASET
 
-    combinations: set[tuple[str, str, float, float]] = set()
+    combinations: set[tuple[str, str, float, int | None, float]] = set()
 
     # Print configuration per parameter grid entry
     print("=" * 70)
@@ -313,6 +318,7 @@ def get_benchmark_combinations(
         regs = entry.regularizations if entry.regularizations else all_regs
         dists = entry.distributions if entry.distributions else all_dists
         alphas = entry.alphas if entry.alphas else all_alphas
+        num_rows_values = entry.num_rows if entry.num_rows is not None else [None]
         k_over_n_ratios = (
             entry.k_over_n_ratios if entry.k_over_n_ratios is not None else [1.0]
         )
@@ -323,12 +329,13 @@ def get_benchmark_combinations(
         print(f"  Regularizations: {regs}")
         print(f"  Distributions: {dists}")
         print(f"  Alphas: {alphas}")
+        print(f"  num_rows: {num_rows_values}")
         print(f"  K/N ratios (simulated-glm): {k_over_n_ratios}")
         print()
 
         # Cartesian product within this entry
-        for lib, dataset, reg, dist, alpha in product(
-            libraries, datasets, regs, dists, alphas
+        for lib, dataset, reg, dist, alpha, num_rows in product(
+            libraries, datasets, regs, dists, alphas, num_rows_values
         ):
             dataset_dist_allowlist = allowed_dist_by_dataset.get(cast(Dataset, dataset))
             if (
@@ -345,20 +352,30 @@ def get_benchmark_combinations(
                     )
                     for k_over_n_ratio in ratios_for_dataset:
                         combinations.add(
-                            (problem_lookup[key], lib, alpha, k_over_n_ratio)
+                            (problem_lookup[key], lib, alpha, num_rows, k_over_n_ratio)
                         )
 
     print(f"Total benchmark runs: {len(combinations)}")
     print("=" * 70)
     print()
 
-    return sorted(combinations)
+    return sorted(
+        combinations,
+        key=lambda combo: (
+            combo[0],  # problem_name
+            combo[1],  # library_name
+            combo[2],  # alpha
+            -1 if combo[3] is None else combo[3],  # num_rows (None first)
+            combo[4],  # k_over_n_ratio
+        ),
+    )
 
 
 def run_single_benchmark(
     problem_name: str,
     library_name: str,
     alpha: float,
+    num_rows: int | None,
     k_over_n_ratio: float,
     config: BenchmarkConfig,
 ) -> tuple[dict, BenchmarkParams]:
@@ -379,7 +396,7 @@ def run_single_benchmark(
     params = BenchmarkParams(
         problem_name=problem_name,
         library_name=library_name,
-        num_rows=config.num_rows,
+        num_rows=num_rows,
         k_over_n_ratio=k_over_n_ratio,
         storage=storage,
         threads=config.num_threads,
@@ -418,21 +435,24 @@ def run_all_benchmarks(config: BenchmarkConfig):
         shutil.rmtree(config.results_dir)
     config.pickle_dir.mkdir(parents=True, exist_ok=True)
 
-    # Get benchmark combinations (problem, library, alpha, k_over_n_ratio)
+    # Get benchmark combinations (problem, library, alpha, num_rows, k_over_n_ratio)
     # from param_grid.
     combinations = get_benchmark_combinations(config)
 
     total = len(combinations)
     current = 0
 
-    for problem_name, library_name, alpha, k_over_n_ratio in combinations:
+    for problem_name, library_name, alpha, num_rows, k_over_n_ratio in combinations:
         current += 1
+        rows_label = (
+            f", num_rows={num_rows}" if num_rows is not None else ", num_rows=full"
+        )
         ratio_label = (
             f", K/N={k_over_n_ratio:g}"
             if problem_name.startswith("simulated-glm-")
             else ""
         )
-        label = f"{library_name} / {problem_name} (α={alpha}{ratio_label})"
+        label = f"{library_name} / {problem_name} (α={alpha}{rows_label}{ratio_label})"
         print(f"[{current}/{total}] {label}", end=" ", flush=True)
 
         try:
@@ -445,7 +465,12 @@ def run_all_benchmarks(config: BenchmarkConfig):
                     message=".*asyncio.iscoroutinefunction.*",
                 )
                 result, params = run_single_benchmark(
-                    problem_name, library_name, alpha, k_over_n_ratio, config
+                    problem_name,
+                    library_name,
+                    alpha,
+                    num_rows,
+                    k_over_n_ratio,
+                    config,
                 )
 
             # Save result
@@ -1224,10 +1249,11 @@ def main():
         print(f"Docs updated: {config.benchmarks_rst}")
         print(f"README updated: {config.readme_file}")
 
-    # Snapshot config for reproducibility
-    config.results_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(config_file, config.results_dir / "config.yaml")
-    print(f"Config snapshot saved to: {config.results_dir / 'config.yaml'}")
+    # Snapshot config for reproducibility only when new benchmarks are run.
+    if config.run_benchmarks:
+        config.results_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(config_file, config.results_dir / "config.yaml")
+        print(f"Config snapshot saved to: {config.results_dir / 'config.yaml'}")
 
 
 if __name__ == "__main__":
