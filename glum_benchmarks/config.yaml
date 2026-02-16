@@ -25,7 +25,6 @@ clear_output: True # Clear entire run_name directory before running
 # Benchmark settings
 iterations: 2 # Run each benchmark N times, report minimum (>=2 for skglm)
 num_threads: 16 # Number of threads for parallel execution
-num_rows: null # Limit rows per dataset (null = full dataset)
 timeout: 100 # Timeout in seconds per benchmark run (reports as "not converged" if exceeded)
 
 # Standardization approach per library:
@@ -59,11 +58,13 @@ storage:
 #   datasets: ["intermediate-housing", "intermediate-insurance", "narrow-insurance", "wide-insurance","simulated-glm", "categorical-simulated"]
 #   regularizations: ["lasso", "l2", "net"]
 #   alphas: [0.001, 0.01, 0.1]
+#   num_rows: [1000, null]           # null = full dataset
 #   k_over_n_ratios: [0.5, 0.7, 1.2]   # only used for dataset "simulated-glm"
 #   distributions: ["gaussian", "gamma", "binomial", "poisson", "tweedie-p=1.5"]
 #
 # Use null for any field (or omit) to use its default value.
 # For libraries, default means all available EXCEPT "zeros" (include it explicitly if needed).
+# For num_rows in param_grid, default is [null] (full dataset).
 #
 # Example: Run all regularizations for gaussian, but only lasso for gamma:
 #   param_grid:
@@ -76,6 +77,7 @@ storage:
 #   param_grid:
 #     - datasets: [simulated-glm]
 #       distributions: [gaussian, poisson]
+#       num_rows: [1000, 5000]
 #       k_over_n_ratios: [0.5, 0.7, 1.2]
 
 param_grid:

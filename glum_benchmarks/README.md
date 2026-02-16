@@ -119,14 +119,13 @@ Edit `config.yaml` to customize benchmark parameters.
 
 ### Benchmark Settings
 
-| Option           | Description                                                                  |
-| -------------    | ---------------------------------------------------------------------------- |
-| `standardize`    | Standardization strategy per library (`pre`, `internal`, `none`)             |
-| `iterations`     | Runs per benchmark (>=2 required for skglm)                                  |
-| `num_threads`    | Number of threads for parallel execution                                     |
-| `num_rows`       | Limit rows per dataset (`null` = full dataset)                               |
-| `timeout`        | Timeout in seconds (benchmarks timing out are marked "not converged")        |
-| `storage`        | Storage format per library: (`auto`, `dense`, `cat`, `csr`, `csc`)           |
+| Option        | Description                                                           |
+| ------------- | --------------------------------------------------------------------- |
+| `standardize` | Standardization strategy per library (`pre`, `internal`, `none`)      |
+| `iterations`  | Runs per benchmark (>=2 required for skglm)                           |
+| `num_threads` | Number of threads for parallel execution                              |
+| `timeout`     | Timeout in seconds (benchmarks timing out are marked "not converged") |
+| `storage`     | Storage format per library: (`auto`, `dense`, `cat`, `csr`, `csc`)    |
 
 **Notes:**
 
@@ -147,6 +146,7 @@ param_grid:
     alphas: [0.001]
   - datasets: ["simulated-glm"]
     distributions: ["gaussian", "poisson"]
+    num_rows: [1000, 5000]
     k_over_n_ratios: [0.5, 0.7, 1.2]
 ```
 
@@ -159,9 +159,10 @@ Each entry computes a Cartesian product. Multiple entries are unioned (not cross
 - `regularizations`: `["lasso", "l2", "net"]`
 - `distributions`: `["gaussian", "gamma", "binomial", "poisson", "tweedie-p=1.5"]`
 - `alphas`: `[0.0001, 0.001, 0.01]`
+- `num_rows`: list of row limits, where `null` means full dataset (e.g., `[1000, null]`)
 - `k_over_n_ratios`: any positive float values (e.g., `[0.5, 0.7, 1.2]`, applies to `simulated-glm` only)
 
-When an entry is omitted or set to `null`, all available values are used. For `libraries`, the default excludes `zeros` (include it explicitly if you want it). For `k_over_n_ratios`, the default is `[1.0]` when omitted. If you want to run all default combinations, leave the `param_grid` entry empty.
+When an entry is omitted or set to `null`, all available values are used. For `libraries`, the default excludes `zeros` (include it explicitly if you want it). For `k_over_n_ratios`, the default is `[1.0]` when omitted. For `num_rows`, the default is `[null]` (full dataset). If you want to run all default combinations, leave the `param_grid` entry empty.
 
 **Alpha note:** `alphas` are per-observation values for unweighted data, when weights are present, the benchmark runner adjusts internally to keep the penalty comparable.
 
