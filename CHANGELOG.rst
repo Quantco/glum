@@ -10,9 +10,16 @@ Changelog
 3.1.3 - unreleased
 ------------------
 
+**Bug fix:**
+
+- Fixed ``deviance_path_`` in :class:`~glum.GeneralizedLinearRegressorCV` being scaled down by a factor of ``n_folds`` because test fold weights were not normalized to sum to 1.
+- Fixed :class:`~glum.NegativeBinomialDistribution` ``theta`` setter rejecting ``np.number`` types, causing ``dist.theta = dist.theta`` to raise a ``TypeError``.
+
 **Other changes:**
 
 - We disabled fast math to avoid invalid results (e.g., when dividing by zero).
+- The default ``alpha_max`` for the regularization path in the pure ridge case (``l1_ratio=0``) is now computed from the null model gradient, matching glmnet's behavior. Previously it was hardcoded to 10.
+- When ``min_alpha_ratio`` is not set and ``n_samples < n_features``, the default is now ``1e-2`` instead of ``1e-6``, matching glmnet's convention.
 
 
 3.1.2 - 2025-01-30

@@ -352,19 +352,22 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         If some features have L1 regularization, the maximum alpha is the lowest
         alpha such that no l1-regularized coefficients are nonzero.
 
-        If all features do not have L1 regularization, use the
-        :class:`sklearn.linear_model.RidgeCV` default path ``[10, 1, 0.1]`` or
-        whatever is specified by the input parameters ``min_alpha_ratio`` and
-        ``n_alphas``.
+        If all features do not have L1 regularization (ridge), the maximum alpha is
+        such that coefficients are close to, but not exactly, zero, or whatever is
+        specified by the input parameters ``min_alpha_ratio`` and ``n_alphas``.
 
-        ``min_alpha_ratio`` governs the length of the path, with ``1e-6`` as the
-        default. Smaller values will lead to a longer path.
+        ``min_alpha_ratio`` governs the length of the path. When ``None``, the
+        default is ``1e-6`` if ``n_samples >= n_features``, else ``1e-2``.
+        Smaller values will lead to a longer path.
         """
+        n_samples = X.shape[0]
+        n_features = X.shape[1]
 
         def _make_grid(max_alpha: float) -> np.ndarray:
             if self.min_alpha is None:
                 if self.min_alpha_ratio is None:
-                    min_alpha = max_alpha * 1e-6
+                    _min_alpha_ratio = 1e-6 if n_samples >= n_features else 1e-2
+                    min_alpha = max_alpha * _min_alpha_ratio
                 else:
                     min_alpha = max_alpha * self.min_alpha_ratio
             else:
@@ -384,13 +387,9 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
                 dtype=X.dtype,
             )
 
-        if np.all(P1_no_alpha == 0):
-            alpha_max = 10
-            return _make_grid(alpha_max)
-
         if self.fit_intercept:
             intercept_offset = 1
-            coef = np.zeros(X.shape[1] + 1, dtype=X.dtype)
+            coef = np.zeros(n_features + 1, dtype=X.dtype)
             coef[0] = guess_intercept(
                 y=y,
                 sample_weight=w,
@@ -399,7 +398,7 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
             )
         else:
             intercept_offset = 0
-            coef = np.zeros(X.shape[1], dtype=X.dtype)
+            coef = np.zeros(n_features, dtype=X.dtype)
 
         _, dev_der = self._family_instance._mu_deviance_derivative(
             coef=coef,
@@ -410,14 +409,20 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
             offset=offset,
         )
 
-        l1_regularized_mask = P1_no_alpha > 0
-        alpha_max = np.max(
-            np.abs(
-                -0.5
-                * dev_der[intercept_offset:][l1_regularized_mask]
-                / P1_no_alpha[l1_regularized_mask]
+        feature_gradient = np.abs(-0.5 * dev_der[intercept_offset:])
+
+        if np.all(P1_no_alpha == 0):
+            # Ridge: start at small value because coefficients are never exactly zero.
+            alpha_max: float = np.max(feature_gradient) / 0.001
+        else:
+            l1_regularized_mask = P1_no_alpha > 0
+            alpha_max = np.max(
+                feature_gradient[l1_regularized_mask] / P1_no_alpha[l1_regularized_mask]
             )
-        )
+
+        if alpha_max == 0:
+            alpha_max = 10.0
+
         return _make_grid(alpha_max)
 
     def _solve(
@@ -2099,7 +2104,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         3. If ``min_alpha_ratio`` is set, create a path where the ratio of
            ``min_alpha / max_alpha = min_alpha_ratio``.
         4. If none of the above parameters are set, use a ``min_alpha_ratio`` of
-           ``1e-6``.
+           ``1e-6`` if ``n_samples >= n_features``, else ``1e-2``.
 
     alphas : DEPRECATED. Use ``alpha`` instead.
 
@@ -2108,7 +2113,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
 
     min_alpha_ratio : float, optional (default=None)
         Length of the path. ``min_alpha_ratio=1e-6`` means that
-        ``min_alpha / max_alpha = 1e-6``. If ``None``, ``1e-6`` is used.
+        ``min_alpha / max_alpha = 1e-6``. If ``None``, ``1e-6`` is used
+        when ``n_samples >= n_features``, else ``1e-2``.
 
     min_alpha : float, optional (default=None)
         Minimum alpha to estimate the model with. The grid will then be created
