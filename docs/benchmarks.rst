@@ -83,7 +83,7 @@ For ``simulated-glm`` we reduce N from 10 000 to 1 000 for K/N = 1 and K/N = 2 i
      - Columns (OHE)
      - Source
    * - (wide-insurance, poisson), (wide-insurance, tweedie)
-     - (678 013, 9)
+     - (600 000, 9)
      - 8
      - 1
      - 322
