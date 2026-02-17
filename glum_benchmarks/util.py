@@ -1,5 +1,6 @@
 import os
 import signal
+import statistics
 import time
 from typing import Optional, Union
 
@@ -19,11 +20,20 @@ def runtime(f, iterations, *args, timeout=None, **kwargs):
     """
     Measure how long it takes to run function f.
 
+    When iterations >= 2, the first iteration is treated as warmup and
+    discarded. The median runtime of the remaining iterations is reported.
+    This avoids JIT/cache warmup effects and is more robust to outliers
+    than the minimum.
+
+    When iterations == 1 (e.g. in tests), the single run is returned
+    directly with no warmup discard.
+
     Parameters
     ----------
     f: function
     iterations: int
-        Number of times to run the function
+        Total number of times to run the function. Use >= 2 for
+        benchmarking (1 warmup + measured runs). Use 1 for tests.
     args: Passed to f
     timeout: float, optional
         Timeout in seconds for each iteration.
@@ -31,11 +41,13 @@ def runtime(f, iterations, *args, timeout=None, **kwargs):
 
     Returns
     -------
-    Tuple: (Minimum runtime across successful iterations, output from fastest iteration)
+    Tuple: (Median runtime after warmup, output from the run closest to
+        the median runtime)
         If all iterations timeout, raises TimeoutError.
 
     """
-    successful_runs = []  # (runtime, output) pairs
+
+    successful_runs = []  # (runtime, output, iteration_index) tuples
 
     for i in range(iterations):
         # Set up timeout for this iteration if requested
@@ -52,7 +64,7 @@ def runtime(f, iterations, *args, timeout=None, **kwargs):
             out = f(*args, **kwargs)
             end = time.time()
             runtime_val = end - start
-            successful_runs.append((runtime_val, out))
+            successful_runs.append((runtime_val, out, i))
         except TimeoutError:
             # This iteration timed out, continue to next iteration
             pass
@@ -66,9 +78,18 @@ def runtime(f, iterations, *args, timeout=None, **kwargs):
         # All iterations timed out
         raise TimeoutError(f"All {iterations} iterations exceeded {timeout}s timeout")
 
-    # Return the run with minimum runtime
-    min_runtime, min_output = min(successful_runs, key=lambda x: x[0])
-    return min_runtime, min_output
+    # Discard the first successful iteration (warmup)
+    if len(successful_runs) > 1:
+        measured_runs = successful_runs[1:]
+    else:
+        # If only the warmup succeeded use it as a fallback
+        measured_runs = successful_runs
+
+    # Return the run closest to the median runtime
+    runtimes = [r[0] for r in measured_runs]
+    median_runtime = statistics.median(runtimes)
+    closest_run = min(measured_runs, key=lambda x: abs(x[0] - median_runtime))
+    return closest_run[0], closest_run[1]
 
 
 def get_sklearn_family(distribution):
@@ -398,7 +419,6 @@ def execute_problem_library(
     params: BenchmarkParams,
     iterations: int = 1,
     diagnostics_level: Optional[str] = "basic",
-    pre_standardize: bool = False,
     standardize: bool = True,
     timeout: Optional[float] = None,
     **kwargs,
@@ -406,17 +426,17 @@ def execute_problem_library(
     """
     Run the benchmark problem specified by 'params', 'iterations' times.
 
+    By default, continuous features are pre-standardized in the data loader
+    before OHE and format conversion. Pass ``standardize=False`` to skip
+    (e.g. for golden master tests).
+
     Parameters
     ----------
     params
     iterations
     diagnostics_level
-    pre_standardize
-        Whether to pre-standardize continuous features in the data loader,
-        before OHE and format conversion.
     standardize
-        Whether to pass a standardize flag to the library function. Can be used for
-        libraries that handle standardization internally (e.g. glum, h2o, glmnet).
+        Whether to pre-standardize continuous features in the data loader.
     kwargs
 
     Returns
@@ -438,7 +458,7 @@ def execute_problem_library(
         num_rows=params.num_rows,
         k_over_n_ratio=params.k_over_n_ratio,
         storage=params.storage,
-        standardize=pre_standardize,
+        standardize=standardize,
     )
 
     os.environ["OMP_NUM_THREADS"] = str(params.threads)
@@ -460,7 +480,6 @@ def execute_problem_library(
         iterations=iterations,
         diagnostics_level=diagnostics_level,
         hessian_approx=params.hessian_approx,
-        standardize=standardize,
         timeout=timeout,
         **kwargs,
     )

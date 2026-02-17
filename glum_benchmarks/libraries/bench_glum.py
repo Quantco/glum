@@ -27,7 +27,6 @@ def glum_bench(
     iterations: int,
     diagnostics_level: str = "basic",
     hessian_approx: float = 0.0,
-    standardize: bool = True,
     timeout: Optional[float] = None,
     **kwargs,
 ):
@@ -43,7 +42,6 @@ def glum_bench(
     iterations
     diagnostics_level
     hessian_approx
-    standardize
     kwargs
 
     Returns
@@ -70,7 +68,6 @@ def glum_bench(
         step_size_tol=0.01 * benchmark_convergence_tolerance,
         force_all_finite=False,
         hessian_approx=hessian_approx,
-        scale_predictors=standardize,
         verbose=False,
     )
 

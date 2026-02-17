@@ -47,11 +47,15 @@ def load_data(
     noise: Optional[float] = None,
     distribution: str = "poisson",
     data_setup: str = "no-weights",
-    standardize: bool = False,
+    standardize: bool = True,
     k_over_n_ratio: Optional[float] = None,
 ) -> dict[str, np.ndarray]:
     """
     Load the data.
+
+    By default, continuous features are pre-standardized before OHE and
+    format conversion. Pass ``standardize=False`` to skip (e.g. for
+    golden master tests that compare against stored coefficients).
 
     A note about weights and exposures: Due to the way we have set up this problem, by
     rescaling the target variable, it is appropriate to pass what is modeled as an

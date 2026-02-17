@@ -37,7 +37,6 @@ def h2o_bench(
     alpha: float,
     l1_ratio: float,
     iterations: int,
-    standardize: bool = True,
     timeout: Optional[float] = None,
     **kwargs,
 ):
@@ -51,7 +50,6 @@ def h2o_bench(
     alpha
     l1_ratio
     iterations
-    standardize
     kwargs
 
     Returns
@@ -92,7 +90,6 @@ def h2o_bench(
         family="tweedie" if tweedie else distribution,
         alpha=l1_ratio,
         lambda_=alpha,
-        standardize=standardize,  # Let h2o handle standardization internally
         solver="IRLSM",
         objective_epsilon=benchmark_convergence_tolerance,
         beta_epsilon=benchmark_convergence_tolerance,

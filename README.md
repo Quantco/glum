@@ -13,7 +13,7 @@
 
 Generalized linear models (GLM) are a core statistical tool that include many common methods like least-squares regression, Poisson regression and logistic regression as special cases. At QuantCo, we have used GLMs in e-commerce pricing, insurance claims prediction and more. We have developed `glum`, a fast Python-first GLM library. The development was based on [a fork of scikit-learn](https://github.com/scikit-learn/scikit-learn/pull/9405), so it has a scikit-learn-like API. We are thankful for the starting point provided by Christian Lorentzen in that PR!
 
-The goal of `glum` is to be at least as feature-complete as existing GLM libraries like `glmnet` or `h2o`. It supports
+We believe that for GLM development, broad support for distributions, regularization, and statistical inference, along with fast formula-based specification, is key. `glum` supports
 
 * Built-in cross validation for optimal regularization, efficiently exploiting a “regularization path”
 * L1 regularization, which produces sparse and easily interpretable solutions
@@ -22,11 +22,11 @@ The goal of `glum` is to be at least as feature-complete as existing GLM librari
 * Normal, Poisson, logistic, gamma, and Tweedie distributions, plus varied and customizable link functions
 * Box constraints, linear inequality constraints, sample weights, offsets
 
-This repo also includes tools for benchmarking GLM implementations in the `glum_benchmarks` module. For details on the benchmarking, [see here](src/glum_benchmarks/README.md). Although the performance of `glum` relative to `glmnet` and `h2o` depends on the specific problem, we find that when N >> K (there are more observations than predictors), it is consistently much faster for a wide range of problems.
+Performance also matters, so we conducted extensive benchmarks against other modern libraries. Although performance depends on the specific problem, we find that when N >> K (there are more observations than predictors), `glum` is consistently much faster for a wide range of problems. This repo includes the benchmarking tools in the `glum_benchmarks` module. For details, [see here](glum_benchmarks/README.md).
 
 <!-- BENCHMARK_FIGURES_START -->
-![Performance benchmarks](docs/_static/headline_benchmark.png#gh-light-mode-only)
-![Performance benchmarks](docs/_static/headline_benchmark_dark.png#gh-dark-mode-only)
+<img src="docs/_static/wide-insurance-gamma-normalized.png#gh-light-mode-only" alt="Benchmark results" width="600">
+<img src="docs/_static/wide-insurance-gamma-normalized_dark.png#gh-dark-mode-only" alt="Benchmark results" width="600">
 <!-- BENCHMARK_FIGURES_END -->
 
 For more information on `glum`, including tutorials and API reference, please see [the documentation](https://glum.readthedocs.io/en/latest/).

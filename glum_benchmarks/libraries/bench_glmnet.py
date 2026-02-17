@@ -12,7 +12,7 @@ from glum_benchmarks.util import benchmark_convergence_tolerance
 _GLMNET_MAXIT = 100_000
 
 
-def _setup_and_fit(X_np, y, distribution, l1_ratio, alpha, standardize):
+def _setup_and_fit(X_np, y, distribution, l1_ratio, alpha):
     """
     Run in a child process: set up R/glmnet, fit, return results.
 
@@ -69,7 +69,7 @@ def _setup_and_fit(X_np, y, distribution, l1_ratio, alpha, standardize):
         family=family,
         alpha=l1_ratio,
         intercept=True,
-        standardize=standardize,
+        standardize=False,  # Data is pre-standardized in the data loader
         maxit=_GLMNET_MAXIT,
         thresh=benchmark_convergence_tolerance,
         **{"lambda": lambda_vec},
@@ -137,7 +137,6 @@ def glmnet_bench(
     alpha: float,
     l1_ratio: float,
     iterations: int,
-    standardize: bool = True,
     timeout: Optional[float] = None,
     **kwargs,
 ):
@@ -163,7 +162,7 @@ def glmnet_bench(
 
     y = np.asarray(dat["y"], dtype=float).ravel()
 
-    fit_args = (X, y, distribution, l1_ratio, alpha, standardize)
+    fit_args = (X, y, distribution, l1_ratio, alpha)
 
     # Run iterations, keeping the fastest.
     # The child process times data conversion + glmnet() (excludes R startup).

@@ -13,8 +13,12 @@ Welcome to glum's documentation!
 
 ``glum`` was also built with performance in mind. The following figure shows the runtime of a realistic example using an insurance dataset. For more details and other benchmarks, see the :doc:`Benchmarks<benchmarks>` section.
 
-.. image:: _static/headline_benchmark.png
+.. BENCHMARK_FIGURES_START
+
+.. image:: _static/wide-insurance-gamma-normalized.png
    :width: 600
+
+.. BENCHMARK_FIGURES_END
 
 We suggest visiting the :doc:`Installation<install>` and :doc:`Getting Started<getting_started/getting_started>` sections first.
 
@@ -24,7 +28,7 @@ We suggest visiting the :doc:`Installation<install>` and :doc:`Getting Started<g
    Installation <install.rst>
    Getting Started <getting_started/getting_started.ipynb>
    Motivation <motivation.rst>
-   Benchmarks vs glmnet/H2O <benchmarks.rst>
+   Benchmarks <benchmarks.rst>
 
 .. toctree::
    :maxdepth: 2
