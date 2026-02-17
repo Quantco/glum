@@ -121,15 +121,14 @@ Edit `config.yaml` to customize benchmark parameters.
 
 | Option        | Description                                                           |
 | ------------- | --------------------------------------------------------------------- |
-| `standardize` | Standardization strategy per library (`pre`, `internal`, `none`)      |
-| `iterations`  | Runs per benchmark (>=2 required for skglm)                           |
+| `iterations`  | Runs per benchmark (>=2; first is warmup, median of rest reported)    |
 | `num_threads` | Number of threads for parallel execution                              |
 | `timeout`     | Timeout in seconds (benchmarks timing out are marked "not converged") |
 | `storage`     | Storage format per library: (`auto`, `dense`, `cat`, `csr`, `csc`)    |
 
 **Notes:**
 
-- **Standardization**: `pre` standardizes continuous columns in the data loader before OHE/format conversion; `internal` delegates to the library; `none` skips scaling.
+- **Standardization**: Continuous features are always pre-standardized in the data loader before OHE/format conversion. Libraries are told not to standardize again internally.
 - **glmnet dependency**: R + `glmnet` are required for the `glmnet` benchmark (via `rpy2`). If missing, the benchmark is skipped.
 - **Convergence**: A benchmark is marked "not converged" if it either (1) hits the timeout, or (2) reaches the library's internal `max_iter` limit.
 
