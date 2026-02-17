@@ -7,6 +7,13 @@
 Changelog
 =========
 
+3.2.0 - unreleased
+------------------
+
+**New features:**
+
+- Add ``solver="closed-form"`` for Gaussian identity-link models, using an analytical normal-equations solution for ridge/OLS, auto-selecting it under ``solver="auto"`` for unconstrained no-L1 cases, and falling back to least-squares for singular or ill-conditioned systems.
+
 3.1.3 - unreleased
 ------------------
 

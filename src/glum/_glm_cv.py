@@ -82,11 +82,15 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
           ``'inverse.gaussian'`` and ``'negative.binomial'``.
         - ``'logit'`` for family ``'binomial'``
 
-    solver : {'auto', 'irls-cd', 'irls-ls', 'lbfgs', 'trust-constr'}, \
+    solver : {'auto', 'closed-form', 'irls-cd', 'irls-ls', 'lbfgs', 'trust-constr'}, \
             optional (default='auto')
         Algorithm to use in the optimization problem:
 
-        - ``'auto'``: ``'irls-ls'`` if ``l1_ratio`` is zero and ``'irls-cd'`` otherwise.
+        - ``'auto'``: ``'closed-form'`` for eligible Gaussian identity-link
+          problems without L1 regularization, ``'irls-ls'`` for other pure-L2
+          cases, and ``'irls-cd'`` otherwise.
+        - ``'closed-form'``: Direct linear solve for eligible Gaussian
+          identity-link problems (ridge/OLS/WLS).
         - ``'irls-cd'``: Iteratively reweighted least squares with a coordinate
           descent inner solver. This can deal with L1 as well as L2 penalties.
           Note that in order to avoid unnecessary memory duplication of X in the

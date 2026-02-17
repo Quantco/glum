@@ -1,4 +1,5 @@
 import functools
+import sys
 import time
 import warnings
 from dataclasses import InitVar, dataclass
@@ -17,7 +18,7 @@ from ._cd_fast import (
     identify_active_rows,
 )
 from ._distribution import ExponentialDispersionModel, get_one_over_variance
-from ._linalg import _safe_lin_pred, _safe_sandwich_dot
+from ._linalg import _safe_lin_pred, _safe_sandwich_dot, _solve_least_squares_tikhonov
 from ._link import Link
 
 
@@ -351,6 +352,33 @@ def _irls_solver(inner_solver, coef, data) -> tuple[np.ndarray, int, int, list[l
             ConvergenceWarning,
         )
     return state.coef, state.n_iter, state.n_cycles, state.diagnostics
+
+
+def _closed_form_solver(
+    X,
+    y: np.ndarray,
+    sample_weight: np.ndarray,
+    P2,
+    fit_intercept: bool,
+    random_state: Union[None, int, np.random.RandomState],
+    offset: Optional[np.ndarray] = None,
+    verbose: int = 0,
+) -> tuple[np.ndarray, int, int, None]:
+    """Direct Gaussian identity-link solve for ridge/OLS/WLS."""
+    # Preserve sklearn-style random_state validation side effect even though
+    # this solver path is deterministic.
+    check_random_state(random_state)
+    coef = _solve_least_squares_tikhonov(
+        X=X,
+        y=y,
+        sample_weight=sample_weight,
+        P2=P2,
+        fit_intercept=fit_intercept,
+        offset=offset,
+    )
+    if verbose > 0:
+        print("Iteration 1: closed-form Gaussian solve.", file=sys.stderr)
+    return coef, 1, 1, None
 
 
 class ProgressBar:
