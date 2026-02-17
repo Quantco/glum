@@ -90,7 +90,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
           problems without L1 regularization, ``'irls-ls'`` for other pure-L2
           cases, and ``'irls-cd'`` otherwise.
         - ``'closed-form'``: Direct linear solve for eligible Gaussian
-          identity-link problems (ridge/OLS).
+          identity-link problems (ridge/OLS/WLS).
         - ``'irls-cd'``: Iteratively reweighted least squares with a coordinate
           descent inner solver. This can deal with L1 as well as L2 penalties.
           Note that in order to avoid unnecessary memory duplication of X in the

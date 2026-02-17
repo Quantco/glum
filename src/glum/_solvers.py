@@ -364,7 +364,7 @@ def _closed_form_solver(
     offset: Optional[np.ndarray] = None,
     verbose: int = 0,
 ) -> tuple[np.ndarray, int, int, None]:
-    """Direct Gaussian identity-link solve for ridge/OLS."""
+    """Direct Gaussian identity-link solve for ridge/OLS/WLS."""
     # Preserve sklearn-style random_state validation side effect even though
     # this solver path is deterministic.
     check_random_state(random_state)

@@ -467,13 +467,11 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
             and b_ineq is None
         )
         if self._solver == "closed-form":
-            # Raise an error if the closed form solution is not applicable
             if not can_use_closed_form:
                 raise ValueError(
                     "solver='closed-form' is only supported for unconstrained "
                     "Gaussian models with identity link and no L1 regularization."
                 )
-            # Use the closed form solution
             else:
                 (
                     coef,
@@ -2092,7 +2090,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
           problems without L1 regularization, ``'irls-ls'`` for other pure-L2
           cases, and ``'irls-cd'`` otherwise.
         - ``'closed-form'``: Direct linear solve for eligible Gaussian
-          identity-link problems (ridge/OLS).
+          identity-link problems (ridge/OLS/WLS).
         - ``'irls-cd'``: Iteratively reweighted least squares with a coordinate
           descent inner solver. This can deal with L1 as well as L2 penalties.
           Note that in order to avoid unnecessary memory duplication of X in the
