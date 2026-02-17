@@ -7,6 +7,8 @@ Welcome to glum's documentation!
 * L1 and elastic net regularization, which produce sparse and easily interpretable solutions
 * L2 regularization, including variable matrix-valued (Tikhonov) penalties, which are useful in modeling correlated effects
 * Normal, Poisson, logistic, gamma, and Tweedie distributions, plus varied and customizable link functions
+* Built-in formula-based model specification using ``formulaic``
+* Classical statistical inference for unregularized models
 * Dispersion and standard errors
 * Box and linear inequality constraints, sample weights, offsets.
 * A scikit-learn-like API to fit smoothly into existing workflows.
