@@ -43,7 +43,7 @@ def test_offset_solution_matches_weights_solution(
 
     tweedie_p = get_tweedie_p(P.distribution)
 
-    dat = P.data_loader(num_rows=params.num_rows)
+    dat = P.data_loader(num_rows=params.num_rows, standardize=False)
     weights_dat = {"X": dat["X"]}
     weights_dat["y"], weights_dat["weights"] = exposure_and_offset_to_weights(
         tweedie_p, dat["y"], offset=dat["offset"]
