@@ -20,6 +20,8 @@ We believe that for GLM development, broad support for distributions, regulariza
 * L2 regularization, including variable matrix-valued (Tikhonov) penalties, which are useful in modeling correlated effects
 * Elastic net regularization
 * Normal, Poisson, logistic, gamma, and Tweedie distributions, plus varied and customizable link functions
+* Built-in formula-based model specification using `formulaic`
+* Classical statistical inference for unregularized models
 * Box constraints, linear inequality constraints, sample weights, offsets
 
 Performance also matters, so we conducted extensive benchmarks against other modern libraries. Although performance depends on the specific problem, we find that when N >> K (there are more observations than predictors), `glum` is consistently much faster for a wide range of problems. This repo includes the benchmarking tools in the `glum_benchmarks` module. For details, [see here](glum_benchmarks/README.md).

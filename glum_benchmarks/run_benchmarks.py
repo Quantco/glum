@@ -51,8 +51,6 @@ from glum_benchmarks.util import (
     get_params_from_fname,
 )
 
-# TODO: Update README and documentation
-
 _RICH_CONSOLE = Console()
 
 # Type aliases for configuration options
