@@ -1,5 +1,5 @@
 import copy
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Any, Optional, Union
 
 import formulaic
@@ -24,8 +24,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
 
     Cross-validated regression via a Generalized Linear Model (GLM) with
     penalties. For more on GLMs and on these parameters, see the documentation
-    for :class:`GeneralizedLinearRegressor`. CV conventions follow
-    :class:`sklearn.linear_model.LassoCV`.
+    for :class:`GeneralizedLinearRegressor`.
 
     Parameters
     ----------
@@ -289,7 +288,11 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
 
     coef_path_ : array, shape (n_folds, n_l1_ratios, n_alphas, n_features)
         Estimated coefficients for the linear predictor in the GLM at every
-        point along the regularization path.
+        point along the regularization path, per fold and l1_ratio.
+
+    intercept_path_ : array, shape (n_folds, n_l1_ratios, n_alphas, 1)
+        Estimated intercepts at every point along the regularization path,
+        per fold and l1_ratio.
 
     deviance_path_: array, shape(n_folds, n_alphas)
         Deviance for the test set on each fold, varying alpha.
@@ -411,6 +414,72 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             cat_missing_name=cat_missing_name,
         )
 
+    def linear_predictor(
+        self,
+        X: ArrayLike,
+        offset: Optional[ArrayLike] = None,
+        *,
+        alpha_index: Optional[Union[int, Sequence[int]]] = None,
+        alpha: Optional[Union[float, Sequence[float]]] = None,
+        context: Optional[Union[int, Mapping[str, Any]]] = None,
+    ):
+        """Compute the linear predictor, ``X * coef_ + intercept_``.
+
+        When neither ``alpha_index`` nor ``alpha`` are given, predictions are for the
+        best CV-selected ``(l1_ratio_, alpha_)``.
+
+        When either ``alpha_index`` or ``alpha`` are specified, predictions are for the
+        corresponding alpha values on the full-data refit path for the best
+        ``l1_ratio_``.
+
+        Parameters
+        ----------
+        X : array-like, shape (n_samples, n_features)
+            Observations.
+
+        offset : array-like, shape (n_samples,), optional (default=None)
+            Offset added to the linear predictor.
+
+        alpha_index : int or sequence of int, optional (default=None)
+            Index (or indices) into the alpha path from the full-data refit.
+            Incompatible with ``alpha``.
+
+        alpha : float or sequence of float, optional (default=None)
+            Alpha value(s) to predict at, resolved to the closest index on
+            the refit alpha path. Incompatible with ``alpha_index``.
+
+        context : int or mapping, optional (default=None)
+            The context to add to the evaluation context of the formula with,
+            e.g., custom transforms. If an integer, the context is taken from
+            the stack frame of the caller at the given depth. Otherwise, a
+            mapping from variable names to values is expected. By default,
+            no context is added. Set ``context=0`` to make the calling scope
+            available.
+
+
+        Returns
+        -------
+        np.ndarray
+            Shape ``(n_samples,)`` when no ``alpha_index`` / ``alpha`` is
+            given or when a scalar alpha is passed. Shape
+            ``(n_samples, len(alpha_index))`` when a sequence is passed.
+        """
+        skl.utils.validation.check_is_fitted(self, "coef_")
+
+        alpha_index = self._resolve_alpha_index(alpha_index, alpha)
+
+        if alpha_index is None:
+            return super().linear_predictor(X, offset, context=context)
+
+        return self._compute_linear_predictor(
+            X,
+            offset,
+            alpha_index=alpha_index,
+            coef_path=self._refit_coef_path,
+            intercept_path=self._refit_intercept_path,
+            context=context,
+        )
+
     def _validate_hyperparameters(self) -> None:
         if self.alphas is not None and np.any(np.asarray(self.alphas) < 0):
             raise ValueError
@@ -517,10 +586,30 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
 
         l1_ratio = np.atleast_1d(self.l1_ratio)
 
+        if self._solver == "irls-cd":
+            _stype = ["csc"]
+        else:
+            _stype = ["csc", "csr"]
+
         if self.alphas is None:
-            alphas: Union[np.ndarray, list[np.ndarray]] = [
-                self._get_alpha_path(l1, X, y, sample_weight) for l1 in l1_ratio
-            ]
+            alphas: list[np.ndarray] = []
+            for l1 in l1_ratio:
+                P1_no_alpha = setup_p1(P1, X, X.dtype, 1, l1)
+                P2_no_alpha = setup_p2(P2, X, _stype, X.dtype, 1, l1)
+                X_std, _, _, _, _, _, P1_no_alpha, _ = standardize(
+                    X,
+                    sample_weight,
+                    self._center_predictors,
+                    self.scale_predictors,
+                    None,
+                    None,
+                    None,
+                    P1_no_alpha,
+                    P2_no_alpha,
+                )
+                alphas.append(
+                    self._get_alpha_path(P1_no_alpha, X_std, y, sample_weight, offset)
+                )
         else:
             alphas = np.tile(
                 np.sort(np.asarray(self.alphas, dtype=X.dtype))[::-1],
@@ -539,11 +628,6 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         b_ineq = copy.copy(self.b_ineq)
 
         cv = skl.model_selection.check_cv(self.cv)
-
-        if self._solver == "cd":
-            _stype = ["csc"]
-        else:
-            _stype = ["csc", "csr"]
 
         def _fit_path(
             self,
@@ -721,10 +805,10 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             self.l1_ratio_ = l1_ratio[best_l1]
             self.alpha_ = self.alphas_[best_alpha]
 
-        P1 = setup_p1(P1, X, X.dtype, self.alpha_, self.l1_ratio_)  # type: ignore
-        P2 = setup_p2(P2, X, _stype, X.dtype, self.alpha_, self.l1_ratio_)  # type: ignore
+        P1_no_alpha = setup_p1(P1, X, X.dtype, 1, self.l1_ratio_)  # type: ignore
+        P2_no_alpha = setup_p2(P2, X, _stype, X.dtype, 1, self.l1_ratio_)  # type: ignore
 
-        # Refit with full data and best alpha and lambda
+        # Refit with full data along the entire alpha path for best l1_ratio
         (
             X,
             self.col_means_,
@@ -732,8 +816,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             lower_bounds,
             upper_bounds,
             A_ineq,
-            P1,
-            P2,
+            P1_no_alpha,
+            P2_no_alpha,
         ) = standardize(
             X,
             sample_weight,
@@ -742,20 +826,32 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             lower_bounds,
             upper_bounds,
             A_ineq,
-            P1,
-            P2,
+            P1_no_alpha,
+            P2_no_alpha,
         )
 
         coef = self._get_start_coef(
             X, y, sample_weight, offset, self.col_means_, self.col_stds_, dtype=X.dtype
         )
 
-        coef = self._solve(
+        if len(l1_ratio) > 1:
+            refit_alphas = self.alphas_[best_l1]
+        else:
+            refit_alphas = self.alphas_
+
+        # _solve_regularization_path overwrites self.coef_path_; save and
+        # restore the per-fold paths so the public attribute is unchanged.
+        # It also overwrites n_iter_, _n_cycles, and diagnostics_, but those
+        # just reflect whichever fold ran last, so we let the refit values stand.
+        _cv_coef_path = self.coef_path_
+
+        coef = self._solve_regularization_path(
             X=X,
             y=y,
             sample_weight=sample_weight,
-            P2=P2,
-            P1=P1,  # type: ignore
+            alphas=refit_alphas,
+            P2_no_alpha=P2_no_alpha,
+            P1_no_alpha=P1_no_alpha,  # type: ignore
             coef=coef,
             offset=offset,
             lower_bounds=lower_bounds,
@@ -764,15 +860,21 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             b_ineq=b_ineq,
         )
 
+        self.coef_path_ = _cv_coef_path
+
         if self.fit_intercept:
-            self.intercept_, self.coef_ = unstandardize(
-                self.col_means_, self.col_stds_, coef[0], coef[1:]
+            self._refit_intercept_path, self._refit_coef_path = unstandardize(
+                self.col_means_, self.col_stds_, coef[:, 0], coef[:, 1:]
             )
         else:
             # set intercept to zero as the other linear models do
-            self.intercept_, self.coef_ = unstandardize(
-                self.col_means_, self.col_stds_, 0.0, coef
+            self._refit_intercept_path, self._refit_coef_path = unstandardize(
+                self.col_means_, self.col_stds_, np.zeros(coef.shape[0]), coef
             )
+
+        self.coef_ = self._refit_coef_path[best_alpha]
+        self.intercept_ = self._refit_intercept_path[best_alpha]  # type: ignore[index]
+        self._alphas = refit_alphas
 
         self.covariance_matrix_ = None
         if store_covariance_matrix:
