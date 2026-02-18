@@ -98,6 +98,17 @@ def test_negative_binomial_distribution_alpha():
         dist.theta = 1j
 
 
+def test_distribution_parameter_reassignment():
+    """Test that distribution parameters can be reassigned to themselves."""
+    dist = NegativeBinomialDistribution(theta=1.5)
+    dist.theta = dist.theta
+    assert dist.theta == 1.5
+
+    dist2 = TweedieDistribution(power=1.5)
+    dist2.power = dist2.power
+    assert dist2.power == 1.5
+
+
 def test_negative_binomial_distribution_parsing():
     dist = get_family("negative.binomial")
 

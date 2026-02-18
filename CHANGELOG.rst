@@ -7,14 +7,22 @@
 Changelog
 =========
 
-3.1.3 - unreleased
+3.1.4 - Unreleased
 ------------------
 
-**Bug fix:**
+**Bug fixes:**
 
-- Fixed ``deviance_path_`` in :class:`~glum.GeneralizedLinearRegressorCV` being scaled down by a factor of ``n_folds`` because test fold weights were not normalized to sum to 1.
 - Fixed ``predict(X, alpha_index=...)`` and ``predict(X, alpha=...)`` on :class:`~glum.GeneralizedLinearRegressorCV`, which previously raised an error. The CV estimator now refits on the full data over the entire alpha path for the best ``l1_ratio_``.
 - Fixed alpha path computation in :class:`~glum.GeneralizedLinearRegressorCV`: the alpha grid is now computed from the properly standardized feature matrix and per-feature ``P1`` penalties (matching the base class), and accounts for ``offset`` when present.
+
+
+3.1.3 - 2025-02-18
+------------------
+
+**Bug fixes:**
+
+- Fixed ``deviance_path_`` in :class:`~glum.GeneralizedLinearRegressorCV` being scaled down by a factor of ``n_folds`` because test fold weights were not normalized to sum to 1.
+- Fixed :class:`~glum.NegativeBinomialDistribution` ``theta`` setter rejecting ``np.number`` types, causing ``dist.theta = dist.theta`` to raise a ``TypeError``.
 
 **Other changes:**
 
@@ -34,7 +42,7 @@ Changelog
 3.1.1 - 2025-01-13
 ------------------
 
-**Bug fix:**
+**Bug fixes:**
 
 - Fixed a bug where :meth:`~glum.TweedieDistribution._rowwise_gradient_hessian` and :meth:`~glum.TweedieDistribution._eta_mu_deviance` would call functions with wrong arguments in the ``p = 3`` case.
 - Fixed :class:`glum.InverseGaussianDistribution` not using the optimized gradient, Hessian and deviance implementations, as well as those derivatives having the wrong sign.
