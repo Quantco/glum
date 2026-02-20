@@ -46,6 +46,11 @@ ignore_missing_imports = true
 module = ["sklearn.*"]
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+# pytest source uses Python 3.10+ syntax, but we target 3.9
+module = ["pytest.*", "_pytest.*"]
+follow_imports = "skip"
+
 [tool.cibuildwheel]
 skip = [
   "*-win32",
