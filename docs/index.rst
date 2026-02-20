@@ -8,10 +8,9 @@ Welcome to glum's documentation!
 * L2 regularization, including variable matrix-valued (Tikhonov) penalties, which are useful in modeling correlated effects
 * Normal, Poisson, logistic, gamma, and Tweedie distributions, plus varied and customizable link functions
 * Built-in formula-based model specification using ``formulaic``
-* Classical statistical inference for unregularized models
-* Dispersion and standard errors
-* Box and linear inequality constraints, sample weights, offsets.
-* A scikit-learn-like API to fit smoothly into existing workflows.
+* Classical statistical inference for unregularized models using dispersion and standard errors
+* Box and linear inequality constraints, sample weights, offsets
+* A scikit-learn-like API to fit smoothly into existing workflows
 
 ``glum`` was also built with performance in mind. The following figure shows the runtime of a realistic example using an insurance dataset. For more details and other benchmarks, see the :doc:`Benchmarks<benchmarks>` section.
 
