@@ -730,6 +730,14 @@ def _render_bar_chart(
         nc_text = "#ff6666" if dark_mode else "#cc0000"
         arrow_color = "white" if dark_mode else "black"
 
+        # The edge stroke is centred on the bar boundary, so half the
+        # linewidth extends above the geometric top. Subtract that offset
+        # so hatched bars visually align with the clipped bars at y_max.
+        hatch_lw = 1
+        inv = ax.transData.inverted()
+        lw_px = hatch_lw * fig.dpi / 72.0
+        lw_offset = abs(inv.transform((0, lw_px / 2))[1] - inv.transform((0, 0))[1])
+
         # Draw hatched bars for unsupported library/reg_combo combos
         n_combos = len(pivot.index)
         bars = ax.patches
@@ -743,11 +751,11 @@ def _render_bar_chart(
                     lib_color = colors.get(lib, "#999999")
                     ax.bar(
                         x + width / 2,
-                        y_max,
+                        y_max - lw_offset,
                         width=width,
                         color=na_bg,
                         edgecolor=lib_color,
-                        linewidth=2,
+                        linewidth=hatch_lw,
                         hatch="//",
                     )
                     ax.text(
@@ -765,20 +773,19 @@ def _render_bar_chart(
                     bar = bars[bar_idx]
                     x = bar.get_x()
                     width = bar.get_width()
-                    bar_height = y_max
                     ax.bar(
                         x + width / 2,
-                        bar_height,
+                        y_max - lw_offset,
                         width=width,
                         color="none",
                         edgecolor=nc_edge,
-                        linewidth=0.5,
+                        linewidth=hatch_lw,
                         hatch="//",
                         alpha=0.5,
                     )
                     ax.text(
                         x + width / 2,
-                        bar_height + y_max * 0.02,
+                        y_max + y_max * 0.02,
                         "NC",
                         ha="center",
                         va="bottom",

@@ -129,4 +129,4 @@ For ``simulated-glm`` we reduce N from 10 000 to 1 000 for K/N = 1 and K/N = 2 i
      - 0
      - 2 000
      - 2 000
-     - internally simulated
+     - simulated
