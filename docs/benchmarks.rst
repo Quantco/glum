@@ -7,17 +7,17 @@ Each plot title indicates the dataset and distribution used. For example, "Wide-
 
 For each dataset/distribution pair, we benchmark three regularization types:
 
-- Elastic net: ``elastic-net``
-- L2 (ridge): ``ridge``
-- L1 (lasso): ``lasso``
+- Elastic net (``l1_ratio=0.5``): ``elastic-net``
+- Ridge (``l1_ratio=0.0``): ``ridge``
+- Lasso (``l1_ratio=1.0``): ``lasso``
 
-We evaluate distributions that are typical for each dataset, and adapt the target construction so it matches the expected distributional behavior (for example, poisson benchmarks model claim counts).
+We extract target variables and benchmark them under typical distributions (for example, insurance claim counts using Poisson models).
 
-Runtime plots are reported relative to ``glum``: for each benchmark case, ``glum`` is normalized to 1.0 and other libraries are scaled accordingly. If a bar exceeds the plotting range, the exact runtime is printed on the bar and an arrow indicates truncation.
+Runtime plots are reported relative to ``glum``: for each benchmark case, ``glum``'s runtime is normalized to 1.0 and other libraries are scaled accordingly. If a bar exceeds the plotting range, the exact runtime is printed on the bar and an arrow indicates truncation.
 
 We compare ``glum`` against ``sklearn``, ``skglm``, ``glmnet``, ``h2o`` and ``celer``. As some libraries do not support all benchmark cases, these combinations are shown as ``N/A`` (not supported). If a library does not converge (either it reaches ``max_iter`` or exceeds the 100s timeout), it is shown as ``NC`` (not converged) at the maximum bar height.
 
-``glum`` was originally developed for settings with N >> K (many more observations than predictors), which is representative of the ``wide-insurance`` benchmark (including high-cardinality categorical features). For insurance data, we evaluate gamma, poisson, and tweedie distributions.
+``glum`` was developed for settings with N >> K (many more observations than predictors, except for high-cardinality categorical ones), which is representative of the ``wide-insurance`` benchmark. For insurance data, we evaluate gamma, Poisson, and Tweedie distributions.
 
 .. BENCHMARK_FIGURES_START
 
@@ -32,7 +32,7 @@ We compare ``glum`` against ``sklearn``, ``skglm``, ``glmnet``, ``h2o`` and ``ce
 
 .. BENCHMARK_FIGURES_END
 
-To showcase ``glum’s`` performance on another dataset, we also report results for ``intermediate-housing``, which has N >> K and only numerical (no categorical) features. For this dataset, we benchmark gamma and gaussian, which are the most meaningful distributions.
+To showcase ``glum’s`` performance on another dataset, we also report results for ``intermediate-housing``, which has N >> K and only numerical (no categorical) features. For this dataset, we benchmark gamma and Gaussian distributions.
 
 .. BENCHMARK_FIGURES_START
 
@@ -68,7 +68,7 @@ For K/N = 2, we include an unnormalized runtime plot, because in the normalized 
 
 .. BENCHMARK_FIGURES_END
 
-In the following table more information about the used datasets can be found. For "Wide-Insurance-Gamma" we use oversampling with replacement (and some noise on top) in order to get reasonably big N, as after the filtering for ``ClaimAmountCut > 0`` only ~25,000 rows are left. This is also the reason why the number of columns after one-hot-encoding is smaller compared to the other distributions on this dataset (some category levels only exist in the dropped rows).
+In the following table more information about the used datasets can be found. After filtering for ``ClaimAmountCut > 0`` in the "Wide-Insurance-Gamma" dataset, only about 25,000 rows are left. We, therefore, artificially increase the dataset by sampling with replacement and adding noise. The filter is also why the number of columns after one-hot-encoding is smaller compared to the other distributions on this dataset because some category levels only exist in the dropped rows.
 
 For ``simulated-glm`` we reduce N from 10 000 to 1 000 for K/N = 1 and K/N = 2 in order to speed things up (with N = 10 000 nearly no library converges within the 100s limit).
 
@@ -105,25 +105,25 @@ For ``simulated-glm`` we reduce N from 10 000 to 1 000 for K/N = 1 and K/N = 2 i
      - 0
      - 100
      - 100
-     - internally simulated
+     - simulated
    * - (simulated-glm, gaussian) with K/N = 0.1
      - (10 000, 1 000)
      - 0
      - 1 000
      - 1 000
-     - internally simulated
+     - simulated
    * - (simulated-glm, gaussian) with K/N = 0.5
      - (10 000, 5 000)
      - 0
      - 5 000
      - 5 000
-     - internally simulated
+     - simulated
    * - (simulated-glm, gaussian) with K/N = 1
      - (1 000, 1 000)
      - 0
      - 1 000
      - 1 000
-     - internally simulated
+     - simulated
    * - (simulated-glm, gaussian) with K/N = 2
      - (1 000, 2 000)
      - 0
