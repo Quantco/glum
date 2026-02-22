@@ -13,11 +13,11 @@ For each dataset/distribution pair, we benchmark three regularization types:
 
 We extract target variables and benchmark them under typical distributions (for example, insurance claim counts using Poisson models).
 
-Runtime plots are reported relative to ``glum``: for each benchmark case, ``glum``'s runtime is normalized to 1.0 and other libraries are scaled accordingly. If a bar exceeds the plotting range, the exact runtime is printed on the bar and an arrow indicates truncation.
+Runtime plots are reported relative to ``glum``: for each benchmark case, ``glum``'s runtime is normalized to 1.0 and other libraries' runtimes are scaled accordingly. If a bar exceeds the plotting range, the exact runtime is printed on the bar and an arrow indicates truncation.
 
 We compare ``glum`` against ``sklearn``, ``skglm``, ``glmnet``, ``h2o`` and ``celer``. As some libraries do not support all benchmark cases, these combinations are shown as ``N/A`` (not supported). If a library does not converge (either it reaches ``max_iter`` or exceeds the 100s timeout), it is shown as ``NC`` (not converged) at the maximum bar height.
 
-``glum`` was developed for settings with N >> K (many more observations than predictors, except for high-cardinality categorical ones), which is representative of the ``wide-insurance`` benchmark. For insurance data, we evaluate gamma, Poisson, and Tweedie distributions.
+glum was designed for settings with N >> K —that is, many more observations than predictors, apart from high-cardinality categorical features. This regime is well illustrated by the wide-insurance benchmark. For insurance data, we evaluate gamma, Poisson, and Tweedie distributions.
 
 .. BENCHMARK_FIGURES_START
 
