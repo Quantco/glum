@@ -11,7 +11,6 @@ requires = [
 [tool.ruff]
 line-length = 88
 target-version = "py39"
-exclude = ["src/glum_benchmarks/orig_sklearn_fork/"]
 
 [tool.ruff.lint]
 ignore = ["E731", "N802", "N803", "N806"]
@@ -32,10 +31,10 @@ select = [
 known-first-party = ["glum", "glum_benchmarks"]
 
 [tool.mypy]
-python_version = '3.9'
+python_version = "3.9"
 exclude = [
-  "tests/",
-  "src/glum_benchmarks/orig_sklearn_fork/",
+  "^tests/",
+  "^\\.pixi/",
 ]
 no_implicit_optional = false
 check_untyped_defs = true
@@ -46,6 +45,11 @@ ignore_missing_imports = true
 # https://github.com/scikit-learn/scikit-learn/issues/16705
 module = ["sklearn.*"]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# pytest source uses Python 3.10+ syntax, but we target 3.9
+module = ["pytest.*", "_pytest.*"]
+follow_imports = "skip"
 
 [tool.cibuildwheel]
 skip = [

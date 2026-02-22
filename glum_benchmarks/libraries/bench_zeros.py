@@ -5,7 +5,7 @@ from scipy import sparse as sps
 
 
 def zeros_bench(
-    dat: dict[str, Union[np.ndarray, sps.spmatrix]], *, cv: bool = False, **kwargs
+    dat: dict[str, Union[np.ndarray, sps.spmatrix]], **kwargs
 ) -> dict[str, Any]:
     """
     Run a "benchmark" of how long it takes to return all zero coefficients.
@@ -13,7 +13,6 @@ def zeros_bench(
     Parameters
     ----------
     dat
-    cv
     kwargs
     """
     result = {
@@ -23,6 +22,4 @@ def zeros_bench(
         "coef": np.zeros(dat["X"].shape[1]),
         "n_iter": 1,
     }
-    if cv:
-        result["alpha"] = 0
     return result

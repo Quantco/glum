@@ -7,9 +7,9 @@ platforms = ["linux-64", "osx-arm64", "win-64"]
 postinstall = "pip install --no-build-isolation --no-deps --disable-pip-version-check -e ."
 
 [feature.test.tasks]
-store-benchmark-golden-master = "python tests/glm/test_benchmark_golden_master.py"
-store-golden-master = "python tests/glm/test_golden_master.py"
-test = "pytest tests/glm --doctest-modules src/glum"
+store-benchmark-golden-master = { cmd = "python tests/glm/test_benchmark_golden_master.py", env = { PYTHONPATH = "." } }
+store-golden-master = { cmd = "python tests/glm/test_golden_master.py", env = { PYTHONPATH = "." } }
+test = { cmd = "pytest tests/glm --doctest-modules src/glum", env = { PYTHONPATH = "." } }
 
 [feature.docs.tasks]
 make-docs = "cd docs && make html"
@@ -21,8 +21,8 @@ serve-docs = { cmd = "python -m http.server --directory docs/_build/html", depen
 ] }
 
 [feature.benchmark.tasks]
-glm-benchmarks-analyze = "glm_benchmarks_analyze"
-glm-benchmarks-run = "glm_benchmarks_run"
+run-benchmarks = { cmd = "python glum_benchmarks/run_benchmarks.py", env = { PYTHONPATH = "." } }
+test-benchmarks = { cmd = "pytest glum_benchmarks/tests", env = { PYTHONPATH = "." } }
 
 [feature.lint.tasks]
 pre-commit-install = "pre-commit install"
@@ -119,12 +119,22 @@ shapely = "*"           # used in docs/tutorials/regularization_housing_data
 
 [feature.benchmark.dependencies]
 attrs = "*"
-click = "*"
 git_root = "*"
+matplotlib-base = "*"
 openjdk = "*"
+pydantic = "*"
+pytest = "*"
+r-base = "*"
+r-glmnet = "*"
+rich = "*"
+rpy2 = "*"
+"ruamel.yaml" = "*"
+skglm = "*"
 
 [feature.benchmark.pypi-dependencies]
-h2o = "*"
+celer = "*"
+h2o = "*"   # Latest version from PyPI
+
 [feature.benchmark.target.win-64.dependencies]
 blas = { build = "*mkl" }
 [feature.benchmark.target.linux-64.dependencies]

@@ -12,7 +12,7 @@ import scipy.sparse as sps
 import tabmat as tm
 
 from glum import GeneralizedLinearRegressor
-from glum_benchmarks.cli_run import get_all_problems
+from glum_benchmarks.problems import get_all_problems
 from glum_benchmarks.util import get_sklearn_family, runtime
 
 

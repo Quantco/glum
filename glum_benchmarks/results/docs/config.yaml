@@ -1,0 +1,99 @@
+# Benchmark Configuration
+# Edit this file to configure which benchmarks to run and how to run them
+
+# Steps to run
+run_benchmarks: true # Run the benchmarks (can be slow)
+analyze_results: true # Analyze and print results (writes CSV)
+generate_plots: true # Generate comparison plots (reads CSV and writes PNGs)
+update_docs: true # Copy figures to docs/_static and update benchmarks.rst and README.md
+
+# Figures to include in docs/README (null = use defaults)
+# Default for readme: first non-normalized figure only
+# Default for docs: all figures in a single block
+#
+# Figure name format:
+#   Standard: "<dataset>-<distribution>.png"
+#   Simulated with K/N: "<dataset>-<distribution>-k-over-n-<ratio>.png"
+#   Normalized: append "-normalized" before ".png"
+#
+# docs_figures is a list of lists: each inner list maps to one
+# BENCHMARK_FIGURES_START/END block in benchmarks.rst (in order).
+# Example with 3 blocks:
+#   docs_figures:
+#     - ["wide-insurance-gamma-normalized.png", "wide-insurance-poisson-normalized.png"]
+#     - ["simulated-glm-gaussian-k-over-n-0.01-normalized.png"]
+#     - ["wide-insurance-gamma.png"]
+docs_figures:
+  - ["wide-insurance-poisson-normalized.png", "wide-insurance-gamma-normalized.png", "wide-insurance-tweedie-p=1.5-normalized.png"]
+  - ["intermediate-housing-gamma-normalized.png", "intermediate-housing-gaussian-normalized.png"]
+  - ["simulated-glm-gaussian-k-over-n-0.01-normalized.png", "simulated-glm-gaussian-k-over-n-0.1-normalized.png", "simulated-glm-gaussian-k-over-n-0.5-normalized.png","simulated-glm-gaussian-k-over-n-1-normalized.png", "simulated-glm-gaussian-k-over-n-2.png"]
+readme_figures: ["wide-insurance-gamma-normalized.png"]
+
+# Output settings
+run_name: "docs" # Subfolder name within results/ ("docs" CSV is git-tracked)
+clear_output: True # Clear entire run_name directory before running
+
+# Benchmark settings
+iterations: 5 # Run each benchmark N times; first is warmup, report median of rest (>=2)
+num_threads: 16 # Number of threads for parallel execution
+timeout: 100 # Timeout in seconds per benchmark run (reports as "not converged" if exceeded)
+
+# Storage format per library [auto, dense, cat, csr, csc]
+storage:
+  glum: auto
+  sklearn: csr
+  h2o: csr
+  celer: csc
+  skglm: csc
+  glmnet: csc
+
+# PARAMETER GRID
+# Each entry specifies a parameter set. Within each entry, the Cartesian
+# product is computed. Across entries, results are unioned (not crossed).
+#
+# Available values:
+#   libraries: ["glum", "sklearn", "h2o", "skglm", "celer", "zeros", "glmnet"]
+#   datasets: ["intermediate-housing", "intermediate-insurance", "narrow-insurance", "wide-insurance","simulated-glm", "categorical-simulated"]
+#   regularizations: ["lasso", "l2", "net"]
+#   alphas: [0.001, 0.01, 0.1]
+#   num_rows: [1000, null]           # null = full dataset
+#   k_over_n_ratios: [0.5, 0.7, 1.2]   # only used for dataset "simulated-glm"
+#   distributions: ["gaussian", "gamma", "binomial", "poisson", "tweedie-p=1.5"]
+#
+# Use null for any field (or omit) to use its default value.
+# For libraries, default means all available EXCEPT "zeros" (include it explicitly if needed).
+# For num_rows in param_grid, default is [null] (full dataset).
+#
+# Example: Run all regularizations for gaussian, but only lasso for gamma:
+#   param_grid:
+#     - distributions: [gaussian]
+#       regularizations: [lasso, l2, net]
+#     - distributions: [gamma]
+#       regularizations: [lasso]
+#
+# Example: Run simulated-glm with multiple K/N ratios in one run:
+#   param_grid:
+#     - datasets: [simulated-glm]
+#       distributions: [gaussian, poisson]
+#       num_rows: [1000, 5000]
+#       k_over_n_ratios: [0.5, 0.7, 1.2]
+
+param_grid:
+- datasets: [intermediate-housing]
+  distributions: [gamma, gaussian]
+  alphas: [0.001]
+- datasets: [wide-insurance]
+  distributions: [gamma, poisson, tweedie-p=1.5]
+  alphas: [0.001]
+  num_rows: [600000]
+- datasets: [simulated-glm]
+  alphas: [0.001]
+  num_rows: [10000]
+  k_over_n_ratios: [0.01,0.1,0.5]
+  distributions: [gaussian]
+- datasets: [simulated-glm]
+  regularizations: [lasso, net]
+  alphas: [0.001]
+  num_rows: [1000]
+  k_over_n_ratios: [1,2]
+  distributions: [gaussian]

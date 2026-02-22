@@ -6,11 +6,10 @@ import numpy as np
 import pytest
 from git_root import git_root
 
-from glum_benchmarks.cli_run import execute_problem_library
 from glum_benchmarks.problems import Problem, get_all_problems
-from glum_benchmarks.util import BenchmarkParams, get_obj_val
+from glum_benchmarks.util import BenchmarkParams, execute_problem_library, get_obj_val
 
-bench_cfg = dict(num_rows=10000, regularization_strength=0.1, diagnostics_level="none")
+bench_cfg = dict(num_rows=10000, alpha=0.1, diagnostics_level="none")
 
 all_test_problems = get_all_problems()
 
@@ -33,13 +32,17 @@ def expected_all():
         return json.load(fh)
 
 
+# Filter out simulated datasets which are for benchmarking only
+_gm_test_problems = {k: v for k, v in all_test_problems.items() if "simulated" not in k}
+
+
 @pytest.mark.parametrize(
     ["Pn", "P"],
     [
         x if "wide" not in x[0] else pytest.param(x[0], x[1], marks=pytest.mark.slow)
-        for x in all_test_problems.items()
+        for x in _gm_test_problems.items()
     ],  # mark the "wide" problems as "slow" so that we can call pytest -m "not slow"
-    ids=all_test_problems.keys(),
+    ids=_gm_test_problems.keys(),
 )
 def test_gm_benchmarks(Pn: str, P: Problem, expected_all: dict):
     result, params = exec(Pn)
@@ -61,7 +64,7 @@ def test_gm_benchmarks(Pn: str, P: Problem, expected_all: dict):
         obj_result = get_obj_val(
             dat,
             P.distribution,
-            P.regularization_strength,
+            P.alpha,
             P.l1_ratio,
             all_result[0],
             all_result[1:],
@@ -69,7 +72,7 @@ def test_gm_benchmarks(Pn: str, P: Problem, expected_all: dict):
         expected_result = get_obj_val(
             dat,
             P.distribution,
-            P.regularization_strength,
+            P.alpha,
             P.l1_ratio,
             all_expected[0],
             all_expected[1:],
@@ -92,7 +95,9 @@ def run_and_store_golden_master(overwrite, problem_name):
     except FileNotFoundError:
         gm_dict = {}
 
-    for Pn in get_all_problems().keys():
+    # Keep generation aligned with test coverage: benchmark golden master excludes
+    # benchmark-only simulated datasets (including categorical-simulated).
+    for Pn in _gm_test_problems.keys():
         if is_weights_problem_with_offset_match(Pn):
             continue
         if problem_name is not None:
@@ -128,7 +133,9 @@ def exec(Pn):
         print("Running", Pn)
 
     result, _ = execute_problem_library(
-        params, **{k: v for k, v in bench_cfg.items() if k in execute_args}
+        params,
+        standardize=False,  # Don't standardize for golden master tests
+        **{k: v for k, v in bench_cfg.items() if k in execute_args},
     )
     return result, params
 

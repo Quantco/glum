@@ -7,14 +7,19 @@ Welcome to glum's documentation!
 * L1 and elastic net regularization, which produce sparse and easily interpretable solutions
 * L2 regularization, including variable matrix-valued (Tikhonov) penalties, which are useful in modeling correlated effects
 * Normal, Poisson, logistic, gamma, and Tweedie distributions, plus varied and customizable link functions
-* Dispersion and standard errors
-* Box and linear inequality constraints, sample weights, offsets.
-* A scikit-learn-like API to fit smoothly into existing workflows.
+* Built-in formula-based model specification using ``formulaic``
+* Classical statistical inference for unregularized models using dispersion and standard errors
+* Box and linear inequality constraints, sample weights, offsets
+* A scikit-learn-like API to fit smoothly into existing workflows
 
 ``glum`` was also built with performance in mind. The following figure shows the runtime of a realistic example using an insurance dataset. For more details and other benchmarks, see the :doc:`Benchmarks<benchmarks>` section.
 
-.. image:: _static/headline_benchmark.png
+.. BENCHMARK_FIGURES_START
+
+.. image:: _static/wide-insurance-gamma-normalized.png
    :width: 600
+
+.. BENCHMARK_FIGURES_END
 
 We suggest visiting the :doc:`Installation<install>` and :doc:`Getting Started<getting_started/getting_started>` sections first.
 
@@ -24,7 +29,7 @@ We suggest visiting the :doc:`Installation<install>` and :doc:`Getting Started<g
    Installation <install.rst>
    Getting Started <getting_started/getting_started.ipynb>
    Motivation <motivation.rst>
-   Benchmarks vs glmnet/H2O <benchmarks.rst>
+   Benchmarks <benchmarks.rst>
 
 .. toctree::
    :maxdepth: 2

@@ -1574,7 +1574,7 @@ def guess_intercept(
     if (not isinstance(link, IdentityLink)) and (len(np.unique(y)) == 1):
         raise ValueError("No variation in `y`. Coefficients can't be estimated.")
 
-    avg_y = np.average(y, weights=sample_weight)
+    avg_y: float = np.average(y, weights=sample_weight)
 
     if isinstance(link, IdentityLink):
         # This is only correct for the normal. For other distributions, the
