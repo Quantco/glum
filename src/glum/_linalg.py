@@ -103,7 +103,27 @@ def _solve_least_squares_tikhonov(
     fit_intercept: bool,
     offset: Optional[np.ndarray] = None,
 ) -> np.ndarray:
-    """Solve weighted least squares with optional Tikhonov (L2) penalty."""
+    r"""
+    Solve weighted least squares with optional Tikhonov (L2) penalty.
+
+    Finds :math:`\beta` minimising
+
+    .. math::
+
+        \tfrac{1}{2}
+        (y - X \beta)^\top W (y - X \beta)
+        + \tfrac{1}{2} \beta^\top P_2 \beta
+
+    with :math:`W = \operatorname{diag}(\mathtt{sample\_weight})`, by
+    forming and solving the normal equations
+    :math:`(X^\top W X + P_2)\,\beta = X^\top W y`.
+    With ``fit_intercept=True`` the design matrix is implicitly augmented
+    with a leading column of ones (unpenalised). When ``offset`` is not
+    ``None``, :math:`y` is replaced by :math:`y - \mathtt{offset}`.
+
+    See Hastie, Tibshirani & Friedman (2009), *The Elements of Statistical
+    Learning*, 2nd ed., Springer, Section 3.4.1.
+    """
     y_minus_offset = y if offset is None else (y - offset)
     weighted_y = sample_weight * y_minus_offset
     is_sparse_p2 = sparse.issparse(P2)

@@ -944,7 +944,7 @@ def test_convergence_warning(solver, regression_data):
             est.fit(X, y)
 
 
-def test_closed_form_solver_used_when_requested(regression_data):
+def test_tikhonov_solver_used_when_requested(regression_data):
     X, y = regression_data
     est = GeneralizedLinearRegressor(
         solver="closed-form",
@@ -960,7 +960,7 @@ def test_closed_form_solver_used_when_requested(regression_data):
     assert est.diagnostics_ is None
 
 
-def test_closed_form_solver_rejects_ineligible_configuration(regression_data):
+def test_tikhonov_solver_rejects_ineligible_configuration(regression_data):
     X, y = regression_data
     est = GeneralizedLinearRegressor(
         solver="closed-form",

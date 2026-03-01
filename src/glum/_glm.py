@@ -33,10 +33,10 @@ from ._link import CloglogLink, IdentityLink, Link, LogitLink, LogLink, TweedieL
 from ._solvers import (
     IRLSData,
     _cd_solver,
-    _closed_form_solver,
     _irls_solver,
     _lbfgs_solver,
     _least_squares_solver,
+    _tikhonov_solver,
     _trust_constr_solver,
 )
 from ._typing import ArrayLike, ShapedArrayLike, VectorLike, WaldTestResult
@@ -478,7 +478,7 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
                     self.n_iter_,
                     self._n_cycles,
                     self.diagnostics_,
-                ) = _closed_form_solver(
+                ) = _tikhonov_solver(
                     X=X,
                     y=y,
                     sample_weight=sample_weight,

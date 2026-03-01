@@ -354,7 +354,7 @@ def _irls_solver(inner_solver, coef, data) -> tuple[np.ndarray, int, int, list[l
     return state.coef, state.n_iter, state.n_cycles, state.diagnostics
 
 
-def _closed_form_solver(
+def _tikhonov_solver(
     X,
     y: np.ndarray,
     sample_weight: np.ndarray,
