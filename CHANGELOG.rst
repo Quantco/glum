@@ -7,6 +7,15 @@
 Changelog
 =========
 
+3.1.4 - Unreleased
+------------------
+
+**Bug fixes:**
+
+- Fixed ``predict(X, alpha_index=...)`` and ``predict(X, alpha=...)`` on :class:`~glum.GeneralizedLinearRegressorCV`, which previously raised an error. The CV estimator now refits on the full data over the entire alpha path for the best ``l1_ratio_``.
+- Fixed alpha path computation in :class:`~glum.GeneralizedLinearRegressorCV`: the alpha grid is now computed from the properly standardized feature matrix and per-feature ``P1`` penalties (matching the base class), and accounts for ``offset`` when present.
+
+
 3.1.3 - 2025-02-18
 ------------------
 
