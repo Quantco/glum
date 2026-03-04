@@ -103,26 +103,24 @@ def _solve_least_squares_tikhonov(
     fit_intercept: bool,
     offset: Optional[np.ndarray] = None,
 ) -> np.ndarray:
-    r"""
+    """
     Solve weighted least squares with optional Tikhonov (L2) penalty.
 
-    Finds :math:`\beta` minimising
+    Finds ``beta`` minimising
 
-    .. math::
+        0.5 * (y - X @ beta).T @ W @ (y - X @ beta)
+        + 0.5 * beta.T @ P2 @ beta
 
-        \tfrac{1}{2}
-        (y - X \beta)^\top W (y - X \beta)
-        + \tfrac{1}{2} \beta^\top P_2 \beta
+    with ``W = diag(sample_weight)``, via the closed-form solution
 
-    with :math:`W = \operatorname{diag}(\mathtt{sample\_weight})`, by
-    forming and solving the normal equations
-    :math:`(X^\top W X + P_2)\,\beta = X^\top W y`.
+        beta_hat = inv(X.T @ W @ X + P2) @ X.T @ W @ y
+
     With ``fit_intercept=True`` the design matrix is implicitly augmented
     with a leading column of ones (unpenalised). When ``offset`` is not
-    ``None``, :math:`y` is replaced by :math:`y - \mathtt{offset}`.
+    ``None``, ``y`` is replaced by ``y - offset``.
 
     See Hastie, Tibshirani & Friedman (2009), *The Elements of Statistical
-    Learning*, 2nd ed., Springer, Section 3.4.1.
+    Learning*, 2nd ed., Springer, Section 3.4.1, Eq. 3.44.
     """
     y_minus_offset = y if offset is None else (y - offset)
     weighted_y = sample_weight * y_minus_offset
