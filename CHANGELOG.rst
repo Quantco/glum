@@ -14,12 +14,13 @@ Changelog
 
 - Add ``solver="closed-form"`` for Gaussian identity-link models, using an analytical normal-equations solution for ridge/OLS, auto-selecting it under ``solver="auto"`` for unconstrained no-L1 cases, and falling back to least-squares for singular or ill-conditioned systems.
 
-3.1.3 - unreleased
+3.1.3 - 2025-02-18
 ------------------
 
-**Bug fix:**
+**Bug fixes:**
 
 - Fixed ``deviance_path_`` in :class:`~glum.GeneralizedLinearRegressorCV` being scaled down by a factor of ``n_folds`` because test fold weights were not normalized to sum to 1.
+- Fixed :class:`~glum.NegativeBinomialDistribution` ``theta`` setter rejecting ``np.number`` types, causing ``dist.theta = dist.theta`` to raise a ``TypeError``.
 
 **Other changes:**
 
@@ -39,7 +40,7 @@ Changelog
 3.1.1 - 2025-01-13
 ------------------
 
-**Bug fix:**
+**Bug fixes:**
 
 - Fixed a bug where :meth:`~glum.TweedieDistribution._rowwise_gradient_hessian` and :meth:`~glum.TweedieDistribution._eta_mu_deviance` would call functions with wrong arguments in the ``p = 3`` case.
 - Fixed :class:`glum.InverseGaussianDistribution` not using the optimized gradient, Hessian and deviance implementations, as well as those derivatives having the wrong sign.
