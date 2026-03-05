@@ -21,7 +21,7 @@ from glum._glm_cv import GeneralizedLinearRegressorCV
 from glum._linalg import is_pos_semidef
 from glum._link import IdentityLink, LogitLink, LogLink
 
-GLM_SOLVERS = ["irls-ls", "lbfgs", "irls-cd", "trust-constr"]
+GLM_SOLVERS = ["irls-ls", "lbfgs", "irls-cd", "trust-constr", "closed-form"]
 
 estimators = [
     (GeneralizedLinearRegressor, {"alpha": 1.0}),
@@ -403,6 +403,7 @@ def test_glm_fit_intercept_argument(estimator, fit_intercept):
         ("irls-ls", 0.5),
         ("lbfgs", 0.5),
         ("trust-constr", 0.5),
+        ("closed-form", 0.5),
     ],
 )
 def test_glm_solver_argument(estimator, solver, l1_ratio, y, X):
