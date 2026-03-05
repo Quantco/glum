@@ -482,6 +482,14 @@ def generate_wide_insurance_dataset(
 ) -> tuple[pd.DataFrame, np.ndarray, np.ndarray]:
     """Generate a version of the tutorial data set with many features."""
     df = _read_insurance_data(num_rows, noise, distribution)
+    drop_cols = {
+        "ClaimNb",
+        "ClaimAmountCut",
+        "ClaimNb_pos",
+        "Exposure",
+        "HasClaim",
+        "ClaimAmount",
+    }
     cat_cols = [
         "Area",
         "VehPower",
@@ -501,7 +509,7 @@ def generate_wide_insurance_dataset(
                 lambda x: [
                     elmt
                     for elmt in x.select_dtypes(["number"]).columns
-                    if elmt not in cat_cols
+                    if elmt not in cat_cols and elmt not in drop_cols
                 ],
             ),
             (
