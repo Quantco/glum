@@ -1,6 +1,5 @@
 import os
 import signal
-import statistics
 import time
 from typing import Optional, Union
 
