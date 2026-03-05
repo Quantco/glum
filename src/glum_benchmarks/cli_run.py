@@ -5,7 +5,6 @@ from typing import Any, Optional
 import click
 
 from glum_benchmarks.bench_glum import glum_bench
-from glum_benchmarks.bench_orig_sklearn_fork import orig_sklearn_fork_bench
 from glum_benchmarks.problems import Problem, get_all_problems
 from glum_benchmarks.util import (
     BenchmarkParams,
@@ -29,13 +28,6 @@ try:
     LIBLINEAR_INSTALLED = True
 except ImportError:
     LIBLINEAR_INSTALLED = False
-
-try:
-    from .bench_r_glmnet import r_glmnet_bench  # isort:skip
-
-    R_GLMNET_INSTALLED = True
-except ImportError:
-    R_GLMNET_INSTALLED = False
 
 
 @click.command()
@@ -160,10 +152,12 @@ def execute_problem_library(
     )
     if len(result) > 0:
         result["num_rows"] = dat["y"].shape[0]
+        # Use best_alpha from CV if available, otherwise use regularization_strength
+        alpha_for_obj = result.get("best_alpha", P.regularization_strength)
         obj_val = get_obj_val(
             dat,
             P.distribution,
-            P.regularization_strength,
+            alpha_for_obj,
             P.l1_ratio,
             result["intercept"],
             result["coef"],
@@ -185,7 +179,6 @@ def get_all_libraries() -> dict[str, Any]:
     """
     all_libraries = {
         "glum": glum_bench,
-        "orig-sklearn-fork": orig_sklearn_fork_bench,
         "zeros": zeros_bench,
     }
 
@@ -195,8 +188,6 @@ def get_all_libraries() -> dict[str, Any]:
     if LIBLINEAR_INSTALLED:
         all_libraries["liblinear"] = liblinear_bench
 
-    if R_GLMNET_INSTALLED:
-        all_libraries["r-glmnet"] = r_glmnet_bench
     return all_libraries
 
 

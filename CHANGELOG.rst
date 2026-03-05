@@ -7,6 +7,21 @@
 Changelog
 =========
 
+3.1.3 - 2025-02-18
+------------------
+
+**Bug fixes:**
+
+- Fixed ``deviance_path_`` in :class:`~glum.GeneralizedLinearRegressorCV` being scaled down by a factor of ``n_folds`` because test fold weights were not normalized to sum to 1.
+- Fixed :class:`~glum.NegativeBinomialDistribution` ``theta`` setter rejecting ``np.number`` types, causing ``dist.theta = dist.theta`` to raise a ``TypeError``.
+
+**Other changes:**
+
+- We disabled fast math to avoid invalid results (e.g., when dividing by zero).
+- The default ``alpha_max`` for the regularization path in the pure ridge case (``l1_ratio=0``) is now computed from the null model gradient, matching glmnet's behavior. Previously it was hardcoded to 10.
+- When ``min_alpha_ratio`` is not set and ``n_samples < n_features``, the default is now ``1e-2`` instead of ``1e-6``, matching glmnet's convention.
+
+
 3.1.2 - 2025-01-30
 ------------------
 
@@ -18,7 +33,7 @@ Changelog
 3.1.1 - 2025-01-13
 ------------------
 
-**Bug fix:**
+**Bug fixes:**
 
 - Fixed a bug where :meth:`~glum.TweedieDistribution._rowwise_gradient_hessian` and :meth:`~glum.TweedieDistribution._eta_mu_deviance` would call functions with wrong arguments in the ``p = 3`` case.
 - Fixed :class:`glum.InverseGaussianDistribution` not using the optimized gradient, Hessian and deviance implementations, as well as those derivatives having the wrong sign.

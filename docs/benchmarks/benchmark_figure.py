@@ -42,15 +42,12 @@ for reg in ["l2", "lasso"]:
 n = 500000
 
 # %%
-# run r-glmnet and h2o benchmarks, sparse storage works best.
+# run h2o benchmark, sparse storage works best.
 s = "sparse"
-for lib in ["r-glmnet", "h2o"]:
-    for p in problems:
-        if lib == "r-glmnet" and p == "wide-insurance-no-weights-l2-poisson":
-            continue
-        cmd = base_cmd.format(n=n, s=s, p=p, lib=lib)
-        print(cmd)
-        subprocess.run(cmd.split(" "))
+for p in problems:
+    cmd = base_cmd.format(n=n, s=s, p=p, lib="h2o")
+    print(cmd)
+    subprocess.run(cmd.split(" "))
 
 # run glum benchmarks where auto storage works best.
 lib = "glum"
@@ -100,7 +97,7 @@ for prob_name in ["narrow-insurance", "intermediate-insurance", "intermediate-ho
         )
         plot_df = plot_df.pivot(columns="library_name")
         plot_df.columns = plot_df.columns.get_level_values(1)
-        plot_df = plot_df.sort_index(axis=1).rename(columns={"r-glmnet": "glmnet"})
+        plot_df = plot_df.sort_index(axis=1)
         plot_df.index = [x.title() for x in plot_df.index]
 
         title = prob_name.title() + "-" + ("Lasso" if reg == "lasso" else "Ridge")
@@ -168,7 +165,7 @@ for prob_name in ["wide-insurance"]:
         )
         plot_df = plot_df.pivot(columns="library_name")
         plot_df.columns = plot_df.columns.get_level_values(1)
-        plot_df = plot_df.sort_index(axis=1).rename(columns={"r-glmnet": "glmnet"})
+        plot_df = plot_df.sort_index(axis=1)
         plot_df.index = [x.title() for x in plot_df.index]
 
         title = prob_name.title() + "-" + ("Lasso" if reg == "lasso" else "Ridge")
@@ -236,7 +233,7 @@ plot_df = (
 )
 plot_df = plot_df.pivot(columns="library_name")
 plot_df.columns = plot_df.columns.get_level_values(1)
-plot_df = plot_df.sort_index(axis=1).rename(columns={"r-glmnet": "glmnet"})
+plot_df = plot_df.sort_index(axis=1)
 plot_df.index = [x.title() for x in plot_df.index]
 
 plot_df.plot.bar(

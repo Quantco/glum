@@ -57,9 +57,9 @@ def liblinear_bench(
         return result
 
     if l1_ratio == 1 and alpha > 0:
-        pen = "l1"
+        sklearn_l1_ratio = 1.0
     elif l1_ratio == 0 and alpha > 0:
-        pen = "l2"
+        sklearn_l1_ratio = 0.0
     else:
         warnings.warn(
             "liblinear only supports lasso and ridge regression with positive alpha"
@@ -75,7 +75,7 @@ def liblinear_bench(
         return result
 
     model_args = dict(
-        penalty=pen,
+        l1_ratio=sklearn_l1_ratio,
         tol=benchmark_convergence_tolerance,
         C=(
             1 / (X.shape[0] * alpha)
@@ -90,6 +90,7 @@ def liblinear_bench(
         # sklearn.linear_model.LogisticRegression.html
         intercept_scaling=1e3,
         solver="liblinear",
+        max_iter=1000,
     )
 
     fit_args = dict(  # type: ignore
