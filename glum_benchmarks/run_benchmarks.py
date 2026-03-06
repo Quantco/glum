@@ -19,6 +19,8 @@ Output:
 
 from __future__ import annotations
 
+import argparse
+import os
 import pickle
 import re
 import shutil
@@ -141,6 +143,15 @@ class BenchmarkConfig(BaseModel):
     update_docs: bool = Field(
         default=False,
         description="Whether to copy figures to docs/_static and update benchmarks.rst",
+    )
+    max_rel_slowdown: float | None = Field(
+        default=None, description="Optional runtime regression threshold metadata."
+    )
+    max_abs_slowdown_sec: float | None = Field(
+        default=None, description="Optional runtime regression threshold metadata."
+    )
+    max_regressed_cases: int | None = Field(
+        default=None, description="Optional runtime regression threshold metadata."
     )
     docs_figures: list[list[str]] | None = Field(
         default=None,
@@ -609,14 +620,13 @@ def analyze_results(config: BenchmarkConfig) -> pd.DataFrame:
         "rel_obj_val",
     ]
 
-    # Group by problem_name and k_over_n_ratio so simulated-glm gets one table
-    # per K/N value, while alpha/num_rows remain row values.
-    table_df = df.loc[:, cols_to_show].reset_index()
-    _print_dataframe_table(
-        table_df,
-        title="Benchmark summary",
-        group_by=["problem_name", "k_over_n_ratio"],
-    )
+    if not os.environ.get("CI"):
+        table_df = df.loc[:, cols_to_show].reset_index()
+        _print_dataframe_table(
+            table_df,
+            title="Benchmark summary",
+            group_by=["problem_name", "k_over_n_ratio"],
+        )
 
     # Export to CSV for figure generation and reproducibility
     config.csv_file.parent.mkdir(parents=True, exist_ok=True)
@@ -1279,10 +1289,27 @@ def update_docs(config: BenchmarkConfig):
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Run glum benchmark pipeline.")
+    parser.add_argument(
+        "--config",
+        default=None,
+        help="Path to benchmark config YAML (default: glum_benchmarks/config.yaml).",
+    )
+    parser.add_argument(
+        "--run-name",
+        default=None,
+        help="Optional run_name override.",
+    )
+    args = parser.parse_args()
+
     # Load configuration
     script_dir = Path(__file__).parent
-    config_file = script_dir / "config.yaml"
+    config_file = (
+        Path(args.config).resolve() if args.config else script_dir / "config.yaml"
+    )
     config = BenchmarkConfig.from_yaml(config_file)
+    if args.run_name is not None:
+        config.run_name = args.run_name
 
     # Run benchmark steps
     if config.run_benchmarks:
