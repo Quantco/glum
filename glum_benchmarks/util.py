@@ -1,5 +1,6 @@
 import os
 import signal
+import statistics
 import time
 from typing import Optional, Union
 
@@ -74,15 +75,19 @@ def runtime(f, iterations, *args, timeout=None, **kwargs):
                 signal.signal(signal.SIGALRM, old_handler)
 
     if not successful_runs:
+        # All iterations timed out
         raise TimeoutError(f"All {iterations} iterations exceeded {timeout}s timeout")
 
+    # Discard the first successful iteration (warmup)
     if len(successful_runs) > 1:
         measured_runs = successful_runs[1:]
     else:
+        # If only the warmup succeeded use it as a fallback
         measured_runs = successful_runs
 
-    runtimes = [r for r, _, _ in measured_runs]
-    median_runtime = float(np.median(runtimes))
+    # Return the run closest to the median runtime
+    runtimes = [r[0] for r in measured_runs]
+    median_runtime = statistics.median(runtimes)
     closest_run = min(measured_runs, key=lambda x: abs(x[0] - median_runtime))
     return closest_run[0], closest_run[1]
 
