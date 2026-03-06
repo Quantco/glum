@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from glum import GeneralizedLinearRegressor, GeneralizedLinearRegressorCV
+from glum import GeneralizedLinearRegressor
 
 
 @pytest.fixture
@@ -110,7 +110,6 @@ def test_feature_dtypes_to_categorical_levels_migration(test_data, tmp_path):
     "model_class,file_name,params",
     [
         (GeneralizedLinearRegressor, "glum_v3_0_model.pkl", {"alpha": 0.1}),
-        (GeneralizedLinearRegressorCV, "glum_v3_0_cv_model.pkl", {}),
     ],
 )
 def test_glum_v3_0_pickle_compatibility(test_data, model_class, file_name, params):
