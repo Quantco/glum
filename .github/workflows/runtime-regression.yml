@@ -23,8 +23,6 @@ jobs:
       OPENBLAS_NUM_THREADS: "1"
       NUMEXPR_NUM_THREADS: "1"
       PYTHONHASHSEED: "0"
-      GLM_BENCHMARKS_RUNTIME_AGGREGATION: "trimmed_mean"
-      GLM_BENCHMARKS_RUNTIME_TRIM_RATIO: "0.2"
     steps:
       - name: Checkout branch
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2

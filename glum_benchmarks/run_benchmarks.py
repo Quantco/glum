@@ -195,14 +195,6 @@ class BenchmarkConfig(BaseModel):
             "discarded as warmup and the median of the rest is reported."
         ),
     )
-    k_over_n_ratio: float = Field(
-        default=1.0,
-        gt=0,
-        description=(
-            "Feature-to-row ratio (K/N) for simulated-glm dataset. "
-            "Values >1 give K>N; values <1 give K<N."
-        ),
-    )
     timeout: int = Field(
         default=100, ge=1, description="Timeout in seconds per benchmark run"
     )

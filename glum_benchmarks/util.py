@@ -40,8 +40,8 @@ def runtime(f, iterations, *args, timeout=None, **kwargs):
 
     Returns
     -------
-    Tuple: (Aggregated runtime across successful iterations, representative output)
-        Default aggregation is the minimum runtime (backward compatible).
+    Tuple: (Median runtime after warmup, output from the run closest to
+        the median runtime)
         If all iterations timeout, raises TimeoutError.
 
     """
@@ -74,37 +74,17 @@ def runtime(f, iterations, *args, timeout=None, **kwargs):
                 signal.signal(signal.SIGALRM, old_handler)
 
     if not successful_runs:
-        # All iterations timed out
         raise TimeoutError(f"All {iterations} iterations exceeded {timeout}s timeout")
 
-    aggregation = os.environ.get("GLM_BENCHMARKS_RUNTIME_AGGREGATION", "min").lower()
-    trim_ratio = float(os.environ.get("GLM_BENCHMARKS_RUNTIME_TRIM_RATIO", "0.2"))
-
-    runtimes = np.array([r for r, _, _ in successful_runs], dtype=float)
-    n = int(len(runtimes))
-    agg_runtime: float
-    agg_output = successful_runs[0][1]
-
-    if aggregation == "min":
-        agg_runtime, agg_output, _ = min(successful_runs, key=lambda x: x[0])
-    elif aggregation == "trimmed_mean":
-        k = int(n * trim_ratio)
-        k = min(k, (n - 1) // 2)
-        runtimes_sorted = np.sort(runtimes)
-        trimmed = runtimes_sorted[k : n - k]
-        agg_runtime = float(trimmed.mean())
+    if len(successful_runs) > 1:
+        measured_runs = successful_runs[1:]
     else:
-        raise ValueError(
-            "Unsupported GLM_BENCHMARKS_RUNTIME_AGGREGATION="
-            f"{aggregation!r}. Use one of: min, trimmed_mean."
-        )
+        measured_runs = successful_runs
 
-    # Keep output deterministic for non-min aggregations: pick run closest to aggregate.
-    if aggregation != "min":
-        closest_idx = int(np.argmin(np.abs(runtimes - agg_runtime)))
-        agg_output = successful_runs[closest_idx][1]
-
-    return agg_runtime, agg_output
+    runtimes = [r for r, _, _ in measured_runs]
+    median_runtime = float(np.median(runtimes))
+    closest_run = min(measured_runs, key=lambda x: abs(x[0] - median_runtime))
+    return closest_run[0], closest_run[1]
 
 
 def get_sklearn_family(distribution):

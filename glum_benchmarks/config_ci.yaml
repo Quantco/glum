@@ -11,9 +11,6 @@ iterations: 10
 num_threads: 1
 timeout: 60
 
-standardize:
-  glum: internal
-
 storage:
   glum: auto
 
