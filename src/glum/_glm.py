@@ -39,6 +39,7 @@ from ._solvers import (
     _irls_solver,
     _lbfgs_solver,
     _least_squares_solver,
+    _tikhonov_solver,
     _trust_constr_solver,
 )
 from ._typing import (
@@ -373,7 +374,20 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
             if (self.A_ineq is not None) and (self.b_ineq is not None):
                 self._solver = "trust-constr"
             elif (self.lower_bounds is None) and (self.upper_bounds is None):
-                if np.all(np.asarray(self.l1_ratio) == 0):
+                if (
+                    isinstance(self._family_instance, NormalDistribution)
+                    and isinstance(self._link_instance, IdentityLink)
+                    and (
+                        np.all(np.asarray(self.l1_ratio) == 0)
+                        or (
+                            hasattr(self, "alpha")
+                            and self.alpha == 0
+                            and not self.alpha_search
+                        )
+                    )
+                ):
+                    self._solver = "closed-form"
+                elif np.all(np.asarray(self.l1_ratio) == 0):
                     self._solver = "irls-ls"
                 elif (
                     hasattr(self, "alpha") and self.alpha == 0 and not self.alpha_search
@@ -507,6 +521,39 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         Must be run after running :func:`_set_up_for_fit`. Sets
         ``self.coef_`` and ``self.intercept_``.
         """
+        can_use_closed_form = (
+            isinstance(self._family_instance, NormalDistribution)
+            and isinstance(self._link_instance, IdentityLink)
+            and np.all(P1 == 0)
+            and lower_bounds is None
+            and upper_bounds is None
+            and A_ineq is None
+            and b_ineq is None
+        )
+        if self._solver == "closed-form":
+            if not can_use_closed_form:
+                raise ValueError(
+                    "solver='closed-form' is only supported for unconstrained "
+                    "Gaussian models with identity link and no L1 regularization."
+                )
+            else:
+                (
+                    coef,
+                    self.n_iter_,
+                    self._n_cycles,
+                    self.diagnostics_,
+                ) = _tikhonov_solver(
+                    X=X,
+                    y=y,
+                    sample_weight=sample_weight,
+                    P2=P2,
+                    fit_intercept=self.fit_intercept,
+                    random_state=self.random_state,
+                    offset=offset,
+                    verbose=self.verbose,
+                )
+            return coef
+
         fixed_inner_tol = None
         if (
             isinstance(self._family_instance, NormalDistribution)
@@ -1686,7 +1733,7 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         sample_weight = check_weights(sample_weight, y.shape[0], y.dtype)
 
         mu = self.predict(X, offset=offset, context=context)
-        y_mean = np.average(y, weights=sample_weight)
+        y_mean: float = np.average(y, weights=sample_weight)
 
         dev = self.family_instance.deviance(y, mu, sample_weight=sample_weight)
         dev_null = self.family_instance.deviance(y, y_mean, sample_weight=sample_weight)
@@ -1707,10 +1754,18 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
                 https://github.com/scikit-learn/scikit-learn/pull/9405.
                 """
             )
-        if self.solver not in ["auto", "irls-ls", "lbfgs", "irls-cd", "trust-constr"]:
+        if self.solver not in [
+            "auto",
+            "closed-form",
+            "irls-ls",
+            "lbfgs",
+            "irls-cd",
+            "trust-constr",
+        ]:
             raise ValueError(
                 "GeneralizedLinearRegressor supports only solvers"
-                " 'auto', 'irls-ls', 'lbfgs', 'irls-cd' and 'trust-constr'; "
+                " 'auto', 'closed-form', 'irls-ls', 'lbfgs', 'irls-cd' and"
+                " 'trust-constr'; "
                 f"got (solver={self.solver})."
             )
         if not isinstance(self.max_iter, int) or self.max_iter <= 0:
@@ -2103,11 +2158,15 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
           ``'inverse.gaussian'`` and ``'negative.binomial'``.
         - ``'logit'`` for family ``'binomial'``
 
-    solver : {'auto', 'irls-cd', 'irls-ls', 'lbfgs', 'trust-constr'}, \
+    solver : {'auto', 'closed-form', 'irls-cd', 'irls-ls', 'lbfgs', 'trust-constr'}, \
             optional (default='auto')
         Algorithm to use in the optimization problem:
 
-        - ``'auto'``: ``'irls-ls'`` if ``l1_ratio`` is zero and ``'irls-cd'`` otherwise.
+        - ``'auto'``: ``'closed-form'`` for eligible Gaussian identity-link
+          problems without L1 regularization, ``'irls-ls'`` for other pure-L2
+          cases, and ``'irls-cd'`` otherwise.
+        - ``'closed-form'``: Direct linear solve for eligible Gaussian
+          identity-link problems (ridge/OLS/WLS).
         - ``'irls-cd'``: Iteratively reweighted least squares with a coordinate
           descent inner solver. This can deal with L1 as well as L2 penalties.
           Note that in order to avoid unnecessary memory duplication of X in the
@@ -2943,10 +3002,10 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     ):
         skl.utils.validation.check_is_fitted(self, "coef_")
 
-        context = capture_context(context)
+        context_: Optional[Mapping[str, Any]] = capture_context(context)
 
         if not hasattr(self, "_info_criteria"):
-            self._compute_information_criteria(X, y, sample_weight, context=context)
+            self._compute_information_criteria(X, y, sample_weight, context=context_)
 
         if (
             self.alpha is None or (self.alpha is not None and self.alpha > 0)

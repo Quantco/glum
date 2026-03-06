@@ -5,16 +5,17 @@ import numpy as np
 import pandas as pd
 from scipy import sparse as sps
 
-from glum import GeneralizedLinearRegressor, GeneralizedLinearRegressorCV
-
-from .util import benchmark_convergence_tolerance, get_sklearn_family, runtime
+from glum import GeneralizedLinearRegressor
+from glum_benchmarks.util import (
+    benchmark_convergence_tolerance,
+    get_sklearn_family,
+    runtime,
+)
 
 random_seed = 110
 
 
-def _build_and_fit(model_args, fit_args, cv: bool):
-    if cv:
-        return GeneralizedLinearRegressorCV(**model_args).fit(**fit_args)
+def _build_and_fit(model_args, fit_args):
     return GeneralizedLinearRegressor(**model_args).fit(**fit_args)
 
 
@@ -24,10 +25,9 @@ def glum_bench(
     alpha: float,
     l1_ratio: float,
     iterations: int,
-    cv: bool,
     diagnostics_level: str = "basic",
-    reg_multiplier: Optional[float] = None,
     hessian_approx: float = 0.0,
+    timeout: Optional[float] = None,
     **kwargs,
 ):
     """
@@ -40,9 +40,7 @@ def glum_bench(
     alpha
     l1_ratio
     iterations
-    cv
     diagnostics_level
-    reg_multiplier
     hessian_approx
     kwargs
 
@@ -63,7 +61,6 @@ def glum_bench(
     model_args = dict(
         family=get_sklearn_family(distribution),
         l1_ratio=l1_ratio,
-        max_iter=1000,
         random_state=random_seed,
         copy_X=False,
         selection="cyclic",
@@ -74,25 +71,19 @@ def glum_bench(
         verbose=False,
     )
 
-    if not cv:
-        model_args["alpha"] = (
-            alpha if reg_multiplier is None else alpha * reg_multiplier
-        )
+    model_args["alpha"] = alpha
 
-    result["runtime"], m = runtime(_build_and_fit, iterations, model_args, fit_args, cv)
-    if not cv:
-        # Just check that predict works here... This doesn't take very long.
-        m.predict(**{k: v for k, v in fit_args.items() if k != "y"})
+    result["runtime"], m = runtime(
+        _build_and_fit, iterations, model_args, fit_args, timeout=timeout
+    )
+
+    # Just check that predict works here... This doesn't take very long.
+    m.predict(**{k: v for k, v in fit_args.items() if k != "y"})
 
     result["intercept"] = m.intercept_
     result["coef"] = m.coef_
     result["n_iter"] = m.n_iter_
-    if cv:
-        alphas: np.ndarray = m.alphas_
-        result["n_alphas"] = len(alphas)
-        result["max_alpha"] = alphas.max()
-        result["min_alpha"] = alphas.min()
-        result["best_alpha"] = m.alpha_
+    result["max_iter"] = m.max_iter  # For convergence detection
 
     with pd.option_context(
         "display.expand_frame_repr",
