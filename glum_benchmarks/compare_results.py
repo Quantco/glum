@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from glum_benchmarks.run_benchmarks import BenchmarkConfig
+from glum_benchmarks.config import BenchmarkConfig
 
 
 def main() -> int:
