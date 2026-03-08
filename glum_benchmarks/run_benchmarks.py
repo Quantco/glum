@@ -144,14 +144,16 @@ class BenchmarkConfig(BaseModel):
         default=False,
         description="Whether to copy figures to docs/_static and update benchmarks.rst",
     )
-    max_rel_slowdown: float | None = Field(
-        default=None, description="Optional runtime regression threshold metadata."
+    max_rel_slowdown: float = Field(
+        default=0.15,
+        description="Relative slowdown threshold for regression detection.",
     )
-    max_abs_slowdown_sec: float | None = Field(
-        default=None, description="Optional runtime regression threshold metadata."
+    max_abs_slowdown_sec: float = Field(
+        default=0.05,
+        description="Absolute slowdown threshold (seconds) for regression detection.",
     )
-    max_regressed_cases: int | None = Field(
-        default=None, description="Optional runtime regression threshold metadata."
+    max_regressed_cases: int = Field(
+        default=0, description="Max allowed regressed cases before CI fails."
     )
     docs_figures: list[list[str]] | None = Field(
         default=None,

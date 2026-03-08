@@ -1,16 +1,13 @@
 #!/usr/bin/env python
 """Compare base/head benchmark CSV files and fail on regressions."""
 
-from __future__ import annotations
-
 import argparse
-import importlib
 from pathlib import Path
-from typing import Any
 
 import numpy as np
 import pandas as pd
-from ruamel.yaml import YAML
+
+from glum_benchmarks.run_benchmarks import BenchmarkConfig
 
 
 def main() -> int:
@@ -29,17 +26,21 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    cfg_loaded: Any = YAML(typ="safe", pure=True).load(Path(args.config).read_text())
-    cfg = cfg_loaded if isinstance(cfg_loaded, dict) else {}
-    max_rel = float(cfg.get("max_rel_slowdown", 0.15))
-    max_abs = float(cfg.get("max_abs_slowdown_sec", 0.05))
-    max_cases = int(cfg.get("max_regressed_cases", 0))
+    cfg = BenchmarkConfig.from_yaml(Path(args.config))
+    max_rel = cfg.max_rel_slowdown
+    max_abs = cfg.max_abs_slowdown_sec
+    max_cases = cfg.max_regressed_cases
 
     base = pd.read_csv(Path(args.base))
     head = pd.read_csv(Path(args.head))
 
     keys = ["problem_name", "library_name", "num_rows", "alpha"]
     merged = base.merge(head, on=keys, suffixes=("_base", "_head"), how="inner")
+
+    # delta_sec: absolute slowdow
+    # delta_ratio: relative slowdown
+    # regressed: True when both relative AND absolute thresholds are exceeded,
+    # so tiny absolute differences on fast benchmarks don't trigger failures.
     merged["delta_sec"] = merged["runtime_head"] - merged["runtime_base"]
     base_runtime = merged["runtime_base"].astype(float)
     delta_sec = merged["delta_sec"].astype(float)
@@ -81,46 +82,7 @@ def main() -> int:
         )
     lines.append("")
     summary = "\n".join(lines)
-
-    rich_console = None
-    rich_table = None
-    try:
-        rich_console = importlib.import_module("rich.console")
-        rich_table = importlib.import_module("rich.table")
-    except ModuleNotFoundError:
-        # `rich` is optional; fall back to plain text summary output below.
-        pass
-
-    if rich_console is not None and rich_table is not None:
-        console = rich_console.Console()
-        console.print(
-            (
-                f"Thresholds: rel > {max_rel:.1%}, abs > {max_abs:.3f}s, "
-                f"allowed={max_cases}, detected={regressed_count}"
-            ),
-            style="bold",
-        )
-        table = rich_table.Table(show_header=True, header_style="bold magenta")
-        table.add_column("Case")
-        table.add_column("Base (s)", justify="right")
-        table.add_column("Head (s)", justify="right")
-        table.add_column("Delta (s)", justify="right")
-        table.add_column("Delta (%)", justify="right")
-        table.add_column("Regressed", justify="center")
-        for row in merged.to_dict(orient="records"):
-            regressed = bool(row["regressed"])
-            table.add_row(
-                f"{row['problem_name']} / {row['library_name']}",
-                f"{float(row['runtime_base']):.4f}",
-                f"{float(row['runtime_head']):.4f}",
-                f"{float(row['delta_sec']):+.4f}",
-                f"{100.0 * float(row['delta_ratio']):+.2f}%",
-                "yes" if regressed else "no",
-                style="red" if regressed else None,
-            )
-        console.print(table)
-    else:
-        print(summary)
+    print(summary)
 
     summary_out = Path(args.summary_out)
     summary_out.parent.mkdir(parents=True, exist_ok=True)
