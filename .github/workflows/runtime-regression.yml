@@ -48,6 +48,7 @@ jobs:
         uses: prefix-dev/setup-pixi@a0af7a228712d6121d37aba47adf55c1332c9c2e # v0.9.4
         with:
           environments: benchmark
+          cache: true
       - name: Run benchmarks (base vs head) and compare
         shell: bash
         run: |
@@ -68,29 +69,32 @@ jobs:
           git worktree add --detach "$BASE_WT" "$BASE_SHA"
           git worktree add --detach "$HEAD_WT" "$HEAD_SHA"
 
+          CACHE_DIR="$ROOT/glum_benchmarks/results/cache-ci"
+
           run_ref () {
             local wt="$1"
             local run_name="$2"
-            local warmup_run_name="warmup-${run_name}"
-            local cache_dir="$ROOT/glum_benchmarks/results/cache-${run_name}"
+            local do_warmup="${3:-false}"
             cd "$wt"
             pixi run -e benchmark python -m pip install \
               --no-build-isolation --no-deps --disable-pip-version-check \
               -e .
 
-            # Warmup pass (discarded) to reduce first-run bias without changing benchmark logic.
-            GLM_BENCHMARKS_CACHE="$cache_dir" PYTHONPATH="$ROOT" pixi run -e benchmark python "$ROOT/glum_benchmarks/run_benchmarks.py" \
-              --config "$ROOT/glum_benchmarks/config_ci.yaml" \
-              --run-name "$warmup_run_name"
-            rm -rf "$ROOT/glum_benchmarks/results/$warmup_run_name"
+            if [ "$do_warmup" = "true" ]; then
+              local warmup_run_name="warmup-${run_name}"
+              GLM_BENCHMARKS_CACHE="$CACHE_DIR" PYTHONPATH="$ROOT" pixi run -e benchmark python "$ROOT/glum_benchmarks/run_benchmarks.py" \
+                --config "$ROOT/glum_benchmarks/config_ci.yaml" \
+                --run-name "$warmup_run_name"
+              rm -rf "$ROOT/glum_benchmarks/results/$warmup_run_name"
+            fi
 
             # Measured pass
-            GLM_BENCHMARKS_CACHE="$cache_dir" PYTHONPATH="$ROOT" pixi run -e benchmark python "$ROOT/glum_benchmarks/run_benchmarks.py" \
+            GLM_BENCHMARKS_CACHE="$CACHE_DIR" PYTHONPATH="$ROOT" pixi run -e benchmark python "$ROOT/glum_benchmarks/run_benchmarks.py" \
               --config "$ROOT/glum_benchmarks/config_ci.yaml" \
               --run-name "$run_name"
           }
 
-          run_ref "$BASE_WT" "ci-base"
+          run_ref "$BASE_WT" "ci-base" true
           run_ref "$HEAD_WT" "ci-head"
 
           cd "$ROOT"
