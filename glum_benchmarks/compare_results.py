@@ -37,7 +37,7 @@ def main() -> int:
     keys = ["problem_name", "library_name", "num_rows", "alpha"]
     merged = base.merge(head, on=keys, suffixes=("_base", "_head"), how="inner")
 
-    # delta_sec: absolute slowdow
+    # delta_sec: absolute slowdown
     # delta_ratio: relative slowdown
     # regressed: True when both relative AND absolute thresholds are exceeded,
     # so tiny absolute differences on fast benchmarks don't trigger failures.
