@@ -20,7 +20,6 @@ Output:
 from __future__ import annotations
 
 import argparse
-import os
 import pickle
 import re
 import shutil
@@ -405,13 +404,14 @@ def analyze_results(config: BenchmarkConfig) -> pd.DataFrame:
         "rel_obj_val",
     ]
 
-    if not os.environ.get("CI"):
-        table_df = df.loc[:, cols_to_show].reset_index()
-        _print_dataframe_table(
-            table_df,
-            title="Benchmark summary",
-            group_by=["problem_name", "k_over_n_ratio"],
-        )
+    # Group by problem_name and k_over_n_ratio so simulated-glm gets one table
+    # per K/N value, while alpha/num_rows remain row values.
+    table_df = df.loc[:, cols_to_show].reset_index()
+    _print_dataframe_table(
+        table_df,
+        title="Benchmark summary",
+        group_by=["problem_name", "k_over_n_ratio"],
+    )
 
     # Export to CSV for figure generation and reproducibility
     config.csv_file.parent.mkdir(parents=True, exist_ok=True)

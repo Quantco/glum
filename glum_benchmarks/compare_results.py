@@ -54,39 +54,31 @@ def main() -> int:
     )
     merged = merged.sort_values("delta_ratio", ascending=False)
 
-    regressed_count = sum(bool(flag) for flag in merged["regressed"].to_list())
-    lines = [
-        "## Runtime Regression Summary",
-        "",
-        f"- Thresholds: rel slowdown > {max_rel:.1%} and abs slowdown > {max_abs:.3f}s",
-        f"- Allowed regressed cases: {max_cases}",
-        f"- Detected regressed cases: {regressed_count}",
-        "",
-        "| Case | Base (s) | Head (s) | Delta (s) | Delta (%) | Regressed |",
-        "|---|---:|---:|---:|---:|:---:|",
-    ]
-    for row in merged.to_dict(orient="records"):
-        row_template = (
-            "| {case} | {base:.4f} | {head:.4f} | {delta:+.4f} | "
-            "{pct:+.2f}% | {regressed} |"
-        )
-        lines.append(
-            row_template.format(
-                case=f"{row['problem_name']} / {row['library_name']}",
-                base=float(row["runtime_base"]),
-                head=float(row["runtime_head"]),
-                delta=float(row["delta_sec"]),
-                pct=100.0 * float(row["delta_ratio"]),
-                regressed="yes" if bool(row["regressed"]) else "no",
-            )
-        )
-    lines.append("")
-    summary = "\n".join(lines)
+    regressed_count = merged["regressed"].sum()
+
+    display = pd.DataFrame(
+        {
+            "Case": merged["problem_name"] + " / " + merged["library_name"],
+            "Base (s)": merged["runtime_base"].map("{:.4f}".format),
+            "Head (s)": merged["runtime_head"].map("{:.4f}".format),
+            "Delta (s)": merged["delta_sec"].map("{:+.4f}".format),
+            "Delta (%)": (merged["delta_ratio"] * 100).map("{:+.2f}%".format),
+            "Regressed": merged["regressed"].map({True: "yes", False: "no"}),
+        }
+    )
+    header = (
+        f"## Runtime Regression Summary\n\n"
+        f"- Thresholds: rel > {max_rel:.1%}, abs > {max_abs:.3f}s\n"
+        f"- Allowed regressed cases: {max_cases}\n"
+        f"- Detected regressed cases: {regressed_count}\n"
+    )
+    table = display.to_markdown(index=False)
+    summary = f"{header}\n{table}\n"
     print(summary)
 
     summary_out = Path(args.summary_out)
     summary_out.parent.mkdir(parents=True, exist_ok=True)
-    summary_out.write_text(summary + "\n")
+    summary_out.write_text(summary)
 
     if regressed_count > max_cases:
         print(f"Runtime regression check failed: {regressed_count} regressed case(s).")
