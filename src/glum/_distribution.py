@@ -1390,7 +1390,7 @@ class NegativeBinomialDistribution(ExponentialDispersionModel):
 
     @theta.setter
     def theta(self, theta):
-        if not isinstance(theta, (int, float)):
+        if not isinstance(theta, (int, float, np.number)):
             raise TypeError(f"Theta must be numeric; got {theta}.")
         if not theta > 0:
             raise ValueError(f"Theta must be strictly positive; got was {theta}.")
