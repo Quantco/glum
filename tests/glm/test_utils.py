@@ -1,3 +1,4 @@
+import narwhals.stable.v2 as nw
 import numpy as np
 import pandas as pd
 import pytest
@@ -7,7 +8,7 @@ from glum._utils import add_missing_categories, align_df_categories
 
 @pytest.fixture()
 def df():
-    return pd.DataFrame(
+    _df = pd.DataFrame(
         {
             "x1": np.array([0, 1], dtype="int64"),
             "x2": np.array([0, 1], dtype="bool"),
@@ -19,11 +20,11 @@ def df():
             "x8": pd.Categorical(["a", pd.NA], categories=["b", "a"]),
         }
     )
+    return nw.from_native(_df)
 
 
 def test_align_df_categories_numeric(df):
-    dtypes = {column: np.float64 for column in df}
-    has_missing_category = {column: False for column in df}
+    has_missing_category = {column: False for column in df.columns}
     missing_method = "fail"
 
     expected = pd.DataFrame(
@@ -40,14 +41,15 @@ def test_align_df_categories_numeric(df):
     )
 
     pd.testing.assert_frame_equal(
-        align_df_categories(df, dtypes, has_missing_category, missing_method), expected
+        align_df_categories(df, {}, has_missing_category, missing_method).to_native(),
+        expected,
     )
 
 
 def test_align_df_categories_categorical(df):
     df = df[["x5", "x6", "x7", "x8"]]
-    dtypes = {column: pd.CategoricalDtype(["a", "b"]) for column in df}
-    has_missing_category = {column: False for column in df}
+    categorical_levels = {column: ["a", "b"] for column in df.columns}
+    has_missing_category = {column: False for column in df.columns}
     missing_method = "fail"
 
     expected = pd.DataFrame(
@@ -57,18 +59,19 @@ def test_align_df_categories_categorical(df):
             "x7": pd.Categorical(["a", "b"]),
             "x8": pd.Categorical(["a", pd.NA], categories=["b", "a"]),
         },
-        dtype=pd.CategoricalDtype(["a", "b"]),
+        dtype=pd.CategoricalDtype(["a", "b"], ordered=True),
     )
 
     pd.testing.assert_frame_equal(
-        align_df_categories(df, dtypes, has_missing_category, missing_method),
+        align_df_categories(
+            df, categorical_levels, has_missing_category, missing_method
+        ).to_native(),
         expected,
     )
 
 
 def test_align_df_categories_excess_columns(df):
-    dtypes = {"x1": np.float64}
-    has_missing_category = {column: False for column in df}
+    has_missing_category = {column: False for column in df.columns}
     missing_method = "fail"
 
     expected = pd.DataFrame(
@@ -85,13 +88,13 @@ def test_align_df_categories_excess_columns(df):
     )
 
     pd.testing.assert_frame_equal(
-        align_df_categories(df, dtypes, has_missing_category, missing_method), expected
+        align_df_categories(df, {}, has_missing_category, missing_method).to_native(),
+        expected,
     )
 
 
 def test_align_df_categories_missing_columns(df):
-    dtypes = {"x0": np.float64}
-    has_missing_category = {column: False for column in df}
+    has_missing_category = {column: False for column in df.columns}
     missing_method = "fail"
 
     expected = pd.DataFrame(
@@ -108,15 +111,16 @@ def test_align_df_categories_missing_columns(df):
     )
 
     pd.testing.assert_frame_equal(
-        align_df_categories(df, dtypes, has_missing_category, missing_method), expected
+        align_df_categories(df, {}, has_missing_category, missing_method).to_native(),
+        expected,
     )
 
 
 @pytest.mark.parametrize("has_missings", [False, True])
 def test_align_df_categories_convert(df, has_missings):
     df = df[["x5", "x6", "x7", "x8"]]
-    dtypes = {column: pd.CategoricalDtype(["a", "b"]) for column in df}
-    has_missing_category = {column: has_missings for column in df}
+    categorical_levels = {column: ["a", "b"] for column in df.columns}
+    has_missing_category = {column: has_missings for column in df.columns}
     missing_method = "convert"
 
     expected = pd.DataFrame(
@@ -126,38 +130,38 @@ def test_align_df_categories_convert(df, has_missings):
             "x7": pd.Categorical(["a", "b"]),
             "x8": pd.Categorical(["a", pd.NA], categories=["b", "a"]),
         },
-        dtype=pd.CategoricalDtype(["a", "b"]),
+        dtype=pd.CategoricalDtype(["a", "b"], ordered=True),
     )
 
     if has_missings:
         pd.testing.assert_frame_equal(
             align_df_categories(
                 df[["x5", "x6", "x7", "x8"]],
-                dtypes,
+                categorical_levels,
                 has_missing_category,
                 missing_method,
-            ),
+            ).to_native(),
             expected,
         )
     else:
         with pytest.raises(ValueError, match="contains unseen categories"):
             align_df_categories(
                 df[["x5", "x6", "x7", "x8"]],
-                dtypes,
+                categorical_levels,
                 has_missing_category,
                 missing_method,
             )
 
 
 def test_align_df_categories_raise_on_unseen(df):
-    dtypes = {column: pd.CategoricalDtype(["a", "b"]) for column in df}
-    has_missing_category = {column: False for column in df}
+    categorical_levels = {column: ["a", "b"] for column in df.columns}
+    has_missing_category = {column: False for column in df.columns}
     missing_method = "fail"
 
     with pytest.raises(ValueError, match="contains unseen categories"):
         align_df_categories(
             df,
-            dtypes,
+            categorical_levels,
             has_missing_category,
             missing_method,
         )
@@ -170,7 +174,7 @@ def test_align_df_categories_not_df():
 
 @pytest.fixture()
 def df_na():
-    return pd.DataFrame(
+    df = pd.DataFrame(
         {
             "num": np.array([0, 1], dtype="float64"),
             "cat": pd.Categorical(["a", "b"]),
@@ -178,12 +182,17 @@ def df_na():
             "cat2": pd.Categorical(["a", "b"]),
         }
     )
+    return nw.from_native(df)
 
 
 def test_add_missing_categories(df_na):
     categorical_format = "{name}[{category}]"
     cat_missing_name = "(M)"
-    dtypes = df_na.dtypes
+    categorical_levels = {
+        "cat": ["a", "b", "(M)"],
+        "cat_na": ["a", "(M)"],
+        "cat2": ["a", "b"],
+    }
     feature_names = [
         "num",
         "num[(M)]",
@@ -199,20 +208,26 @@ def test_add_missing_categories(df_na):
     expected = pd.DataFrame(
         {
             "num": np.array([0, 1], dtype="float64"),
-            "cat": pd.Categorical(["a", "b"], categories=["a", "b", "(M)"]),
-            "cat_na": pd.Categorical(["a", "(M)"], categories=["a", "(M)"]),
-            "cat2": pd.Categorical(["a", "b"], categories=["a", "b"]),
+            "cat": pd.Categorical(
+                ["a", "b"], categories=["a", "b", "(M)"], ordered=True
+            ),
+            "cat_na": pd.Categorical(
+                ["a", "(M)"], categories=["a", "(M)"], ordered=True
+            ),
+            "cat2": pd.Categorical(
+                ["a", "b"], categories=["a", "b"]
+            ),  # Note: not ordered as no change was made
         }
     )
 
     pd.testing.assert_frame_equal(
         add_missing_categories(
             df=df_na,
-            dtypes=dtypes,
+            categorical_levels=categorical_levels,
             feature_names=feature_names,
             categorical_format=categorical_format,
             cat_missing_name=cat_missing_name,
-        ),
+        ).to_native(),
         expected,
     )
 
@@ -220,7 +235,11 @@ def test_add_missing_categories(df_na):
 def test_raise_on_existing_missing(df_na):
     categorical_format = "{name}[{category}]"
     cat_missing_name = "(M)"
-    dtypes = df_na.dtypes
+    categorical_levels = {
+        "cat": ["a", "b", "(M)"],
+        "cat_na": ["a", "(M)"],
+        "cat2": ["a", "b"],
+    }
     feature_names = [
         "num",
         "num[(M)]",
@@ -233,14 +252,15 @@ def test_raise_on_existing_missing(df_na):
         "cat2[b]",
     ]
 
-    df = df_na
+    df = df_na.to_native()
     df["cat_na"] = df["cat_na"].cat.add_categories("(M)")
     df.loc[df.cat_na.isna(), "cat_na"] = "(M)"
+    df = nw.from_native(df)
 
     with pytest.raises(ValueError):
         add_missing_categories(
             df=df,
-            dtypes=dtypes,
+            categorical_levels=categorical_levels,
             feature_names=feature_names,
             categorical_format=categorical_format,
             cat_missing_name=cat_missing_name,

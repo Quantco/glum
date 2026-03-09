@@ -1574,7 +1574,7 @@ def guess_intercept(
     if (not isinstance(link, IdentityLink)) and (len(np.unique(y)) == 1):
         raise ValueError("No variation in `y`. Coefficients can't be estimated.")
 
-    avg_y: float = np.average(y, weights=sample_weight)
+    avg_y = np.average(y, weights=sample_weight)
 
     if isinstance(link, IdentityLink):
         # This is only correct for the normal. For other distributions, the
@@ -1585,7 +1585,7 @@ def guess_intercept(
 
         avg_eta = eta if np.isscalar(eta) else np.average(eta, weights=sample_weight)
 
-        return avg_y - avg_eta
+        return avg_y - avg_eta  # type: ignore[operator]
 
     elif isinstance(link, LogLink):
         # This is only correct for Tweedie

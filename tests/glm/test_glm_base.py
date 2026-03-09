@@ -2,6 +2,7 @@ from typing import Any, Union
 
 import numpy as np
 import pandas as pd
+import polars as pl
 import pytest
 import sklearn as skl
 import sklearn.utils.estimator_checks
@@ -307,14 +308,19 @@ def test_positive_semidefinite():
     assert is_pos_semidef(sparse.eye(2))
 
 
-def test_P1_P2_expansion_with_categoricals():
+@pytest.mark.parametrize("namespace", ["pandas", "polars"])
+def test_P1_P2_expansion_with_categoricals(namespace):
     rng = np.random.default_rng(42)
-    X = pd.DataFrame(
+    X_pd = pd.DataFrame(
         data={
             "dense": np.linspace(0, 10, 60),
-            "cat": pd.Categorical(rng.integers(5, size=60)),
+            "cat": pd.Categorical([f"cat_{i}" for i in rng.integers(5, size=60)]),
         }
     )
+    if namespace == "pandas":
+        X = X_pd
+    else:
+        X = pl.from_pandas(X_pd)
     y = rng.normal(size=60)
 
     mdl1 = GeneralizedLinearRegressor(
@@ -339,14 +345,21 @@ def test_P1_P2_expansion_with_categoricals():
     np.testing.assert_allclose(mdl1.coef_, mdl2.coef_)
 
 
-def test_P1_P2_expansion_with_categoricals_missings():
+@pytest.mark.parametrize("namespace", ["pandas", "polars"])
+def test_P1_P2_expansion_with_categoricals_missings(namespace):
     rng = np.random.default_rng(42)
-    X = pd.DataFrame(
+    X_pd = pd.DataFrame(
         data={
             "dense": np.linspace(0, 10, 60),
-            "cat": pd.Categorical(rng.integers(5, size=60)).remove_categories(0),
+            "cat": pd.Categorical(
+                [f"cat_{i}" for i in rng.integers(5, size=60)]
+            ).remove_categories("cat_0"),
         }
     )
+    if namespace == "pandas":
+        X = X_pd
+    else:
+        X = pl.from_pandas(X_pd)
     y = rng.normal(size=60)
 
     mdl1 = GeneralizedLinearRegressor(
@@ -377,6 +390,50 @@ def test_P1_P2_expansion_with_categoricals_missings():
     )
     mdl3.fit(X, y)
     np.testing.assert_allclose(mdl1.coef_, mdl3.coef_)
+
+
+@pytest.mark.parametrize("namespace", ["pandas", "polars"])
+def test_P1_P2_expansion_with_unused_categories(namespace):
+    """Test that penalty expansion includes unused categories."""
+    rng = np.random.default_rng(42)
+
+    values = rng.choice(["cat_1", "cat_2", "cat_3", "cat_4"], size=60)
+    categories = ["unused", "cat_1", "cat_2", "cat_3", "cat_4"]
+    X_pd = pd.DataFrame(
+        data={
+            "dense": np.linspace(0, 10, 60),
+            "cat": pd.Categorical(
+                values=values,
+                categories=categories,
+            ),
+        }
+    )
+
+    if namespace == "pandas":
+        X = X_pd
+    else:
+        # For polars, convert to Enum with explicit categories
+        X_pl = pl.from_pandas(X_pd)
+        X_pl = X_pl.with_columns(pl.col("cat").cast(pl.Enum(categories)))
+        X = X_pl
+
+    y = rng.normal(size=60)
+
+    mdl1 = GeneralizedLinearRegressor(
+        l1_ratio=0.01,
+        P1=[1, 2, 2, 2, 2, 2],
+        P2=[2, 1, 1, 1, 1, 1],
+    )
+    mdl1.fit(X, y)
+
+    mdl2 = GeneralizedLinearRegressor(
+        l1_ratio=0.01,
+        P1=[1, 2],
+        P2=[2, 1],
+    )
+    mdl2.fit(X, y)
+
+    np.testing.assert_allclose(mdl1.coef_, mdl2.coef_, rtol=1e-6, atol=1e-14)
 
 
 @pytest.mark.parametrize(
