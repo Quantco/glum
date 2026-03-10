@@ -185,6 +185,7 @@ def test_solver_equivalence_cv(params, use_offset):
     _assert_all_close(est_2.l1_ratio_, est_ref.l1_ratio_)
     _assert_all_close(est_2.coef_path_, est_ref.coef_path_)
     _assert_all_close(est_2.deviance_path_, est_ref.deviance_path_)
+    _assert_all_close(est_2.train_deviance_path_, est_ref.train_deviance_path_)
     _assert_all_close(est_2.intercept_, est_ref.intercept_)
     _assert_all_close(est_2.coef_, est_ref.coef_)
     _assert_all_close(
@@ -270,6 +271,31 @@ def test_cv_predict_with_alpha_index(l1_ratio):
     pred_alpha = model.predict(X, alpha=model.alpha_)
     assert pred_alpha.shape == (n_samples,)
     np.testing.assert_allclose(pred_alpha, pred_default)
+
+
+@pytest.mark.parametrize("fit_intercept", [False, True])
+def test_train_deviance_path(fit_intercept):
+    """train_deviance_path_ should have the correct shape and train deviance
+    should generally be lower than test deviance."""
+    np.random.seed(42)
+    n_samples, n_features = 200, 5
+    n_alphas = 5
+    X = np.random.randn(n_samples, n_features)
+    y = X @ np.array([1, 0.5, -0.5, 0, 0]) + np.random.randn(n_samples) * 0.1
+
+    model = GeneralizedLinearRegressorCV(
+        l1_ratio=0.5,
+        n_alphas=n_alphas,
+        min_alpha_ratio=1e-2,
+        fit_intercept=fit_intercept,
+    ).fit(X, y)
+
+    assert hasattr(model, "train_deviance_path_")
+    assert model.train_deviance_path_.shape == model.deviance_path_.shape
+
+    avg_train = model.train_deviance_path_.mean(axis=0)
+    avg_test = model.deviance_path_.mean(axis=0)
+    assert np.all(avg_train <= avg_test)
 
 
 @pytest.mark.parametrize("scale_factor", [1.0, 1000.0])
