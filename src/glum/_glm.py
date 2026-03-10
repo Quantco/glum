@@ -890,7 +890,7 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
             intercept = intercept_path
         else:
             scalar = np.isscalar(alpha_index)
-            alpha_index = np.atleast_1d(alpha_index)  # type: ignore[arg-type]
+            alpha_index = np.atleast_1d(alpha_index)  # type: ignore[assignment]
             coef = coef_path[alpha_index]  # type: ignore
             intercept = intercept_path[alpha_index]  # type: ignore
 

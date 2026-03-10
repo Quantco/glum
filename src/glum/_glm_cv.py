@@ -615,7 +615,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
                     self._get_alpha_path(P1_no_alpha, X_std, y, sample_weight, offset)
                 )
         else:
-            alphas = np.tile(
+            alphas = np.tile(  # type: ignore[assignment]
                 np.sort(np.asarray(self.alphas, dtype=X.dtype))[::-1],
                 (len(l1_ratio), 1),
             )
