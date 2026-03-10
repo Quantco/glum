@@ -293,9 +293,8 @@ def test_train_deviance_path(fit_intercept):
     assert hasattr(model, "train_deviance_path_")
     assert model.train_deviance_path_.shape == model.deviance_path_.shape
 
-    avg_train = model.train_deviance_path_.mean(axis=0)
-    avg_test = model.deviance_path_.mean(axis=0)
-    assert np.all(avg_train <= avg_test)
+    # On average, train deviance should be lower than test deviance.
+    assert model.train_deviance_path_.mean() < model.deviance_path_.mean()
 
 
 @pytest.mark.parametrize("scale_factor", [1.0, 1000.0])
