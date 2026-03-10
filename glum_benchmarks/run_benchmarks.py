@@ -1,0 +1,1321 @@
+#!/usr/bin/env python
+"""
+Benchmark runner script for comparing GLM libraries.
+
+Usage:
+    pixi run -e benchmark run-benchmarks
+
+Configuration:
+    Edit config.yaml to configure which benchmarks to run. Use param_grid to
+    specify combinations of libraries, datasets, regularizations, distributions,
+    and alphas. You can also control which steps to run (run_benchmarks,
+    analyze_results, generate_plots, update_docs).
+
+Output:
+    - glum_benchmarks/results/RUN_NAME/pickles/: Pickle files with detailed results
+    - glum_benchmarks/results/RUN_NAME/figures/: PNG plots comparing library performance
+    - glum_benchmarks/results/RUN_NAME/results.csv: Summary CSV for reproducibility
+"""
+
+from __future__ import annotations
+
+import pickle
+import re
+import shutil
+import warnings
+from contextlib import nullcontext
+from itertools import product
+from pathlib import Path
+from typing import Literal, cast
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+from matplotlib.patches import Patch
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    model_validator,
+)
+from rich import box
+from rich.console import Console
+from rich.table import Table
+from ruamel.yaml import YAML
+
+from glum_benchmarks.problems import get_all_problems
+from glum_benchmarks.util import (
+    BenchmarkParams,
+    execute_problem_library,
+    get_all_libraries,
+    get_params_from_fname,
+)
+
+_RICH_CONSOLE = Console()
+
+# Type aliases for configuration options
+Library = Literal["glum", "sklearn", "h2o", "skglm", "celer", "zeros", "glmnet"]
+Dataset = Literal[
+    "intermediate-insurance",
+    "intermediate-housing",
+    "narrow-insurance",
+    "wide-insurance",
+    "simulated-glm",
+    "categorical-simulated",
+]
+Regularization = Literal["lasso", "l2", "net"]
+Alpha = float  # Valid values: 0.0001, 0.001, 0.01
+ALPHA_VALUES = (0.001, 0.01, 0.1)
+Distribution = Literal["gaussian", "gamma", "binomial", "poisson", "tweedie-p=1.5"]
+StorageFormat = Literal["auto", "dense", "cat", "csr", "csc"]
+
+# Internal benchmark-only distribution restrictions by dataset.
+# This is intentionally not config-exposed, so test suites that rely on
+# get_all_problems() remain unaffected.
+ALLOWED_DISTRIBUTIONS_BY_DATASET: dict[Dataset, set[Distribution]] = {
+    "intermediate-housing": {"gaussian", "gamma"},
+    "intermediate-insurance": {"gamma", "poisson", "tweedie-p=1.5"},
+    "narrow-insurance": {"gamma", "poisson", "tweedie-p=1.5"},
+    "wide-insurance": {"gamma", "poisson", "tweedie-p=1.5"},
+    "simulated-glm": {"binomial", "gaussian", "gamma", "poisson"},
+    "categorical-simulated": {"binomial", "gamma", "poisson"},
+}
+
+
+class ParamGridEntry(BaseModel):
+    """A single entry in the parameter grid.
+
+    Each entry specifies a set of parameter values. The Cartesian product
+    is computed within each entry, but entries are unioned (not crossed).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    libraries: list[Library] | None = Field(
+        default=None, description="Libraries to benchmark (None = all)"
+    )
+    datasets: list[Dataset] | None = Field(
+        default=None, description="Datasets to include (None = all)"
+    )
+    regularizations: list[Regularization] | None = Field(
+        default=None, description="Regularization types (None = all)"
+    )
+    alphas: list[Alpha] | None = Field(
+        default=None, description="Per-observation alpha values (None = all)"
+    )
+    num_rows: list[int | None] | None = Field(
+        default=None,
+        description=(
+            "Default is None; None means full dataset. "
+            "Inside the list, null means full dataset."
+        ),
+    )
+    k_over_n_ratios: list[float] | None = Field(
+        default=None,
+        description=(
+            "Feature-to-row ratios (K/N) for simulated-glm. Ignored for other datasets."
+        ),
+    )
+    distributions: list[Distribution] | None = Field(
+        default=None, description="Distributions (None = all)"
+    )
+
+
+class BenchmarkConfig(BaseModel):
+    """Configuration for benchmark runs."""
+
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        extra="forbid",
+        validate_default=True,
+    )
+
+    # Steps to run
+    run_benchmarks: bool = Field(default=True, description="Whether to run benchmarks")
+    analyze_results: bool = Field(
+        default=True, description="Whether to analyze and print results to CSV"
+    )
+    generate_plots: bool = Field(
+        default=True, description="Whether to generate comparison plots"
+    )
+    update_docs: bool = Field(
+        default=False,
+        description="Whether to copy figures to docs/_static and update benchmarks.rst",
+    )
+    docs_figures: list[list[str]] | None = Field(
+        default=None,
+        description=(
+            "Figure groups for docs/benchmarks.rst. Each inner list maps to one "
+            "BENCHMARK_FIGURES_START/END block (in order). None = all figures in "
+            "a single block."
+        ),
+    )
+    readme_figures: list[str] | None = Field(
+        default=None,
+        description="Figure names to include in README.md (None = first figure only)",
+    )
+
+    # Output settings
+    run_name: str = Field(
+        default="docs", description="Subfolder name within results/ directory"
+    )
+    clear_output: bool = Field(
+        default=True, description="Clear entire run_name directory before running"
+    )
+
+    # Parameter grid for benchmark selection
+    # Each entry in the list specifies a parameter set.
+    # Within each entry: Cartesian product of the lists.
+    # Across entries: Union (not product).
+    param_grid: list[ParamGridEntry] = Field(
+        default_factory=lambda: [ParamGridEntry()],
+        description="List of parameter sets. Each entry defines a Cartesian product, "
+        "entries are unioned. Default runs all combinations.",
+    )
+
+    # Benchmark settings
+    num_threads: int = Field(
+        default=16, ge=1, description="Number of threads for parallel execution"
+    )
+    iterations: int = Field(
+        default=3,
+        ge=1,
+        description=(
+            "Run each benchmark N times. When >= 2, the first iteration is "
+            "discarded as warmup and the median of the rest is reported."
+        ),
+    )
+    timeout: int = Field(
+        default=100, ge=1, description="Timeout in seconds per benchmark run"
+    )
+    storage: dict[Library, StorageFormat] = Field(
+        default_factory=dict,
+        description="Storage format per library (missing libraries default to 'dense')",
+    )
+
+    # Path for computing derived paths
+    script_dir: Path = Field(
+        default=Path("."),
+        description="Directory containing config.yaml",
+    )
+
+    @property
+    def results_dir(self) -> Path:
+        """Directory for all results."""
+        return self.script_dir / "results" / self.run_name
+
+    @property
+    def pickle_dir(self) -> Path:
+        """Directory for pickle files."""
+        return self.results_dir / "pickles"
+
+    @property
+    def figure_dir(self) -> Path:
+        """Directory for generated figures."""
+        return self.results_dir / "figures"
+
+    @property
+    def csv_file(self) -> Path:
+        """Path to results CSV file."""
+        return self.results_dir / "results.csv"
+
+    @property
+    def docs_static_dir(self) -> Path:
+        """Directory for docs static files (figures)."""
+        return self.script_dir.parent / "docs" / "_static"
+
+    @property
+    def index_rst(self) -> Path:
+        """Path to index.rst docs file."""
+        return self.script_dir.parent / "docs" / "index.rst"
+
+    @property
+    def benchmarks_rst(self) -> Path:
+        """Path to benchmarks.rst docs file."""
+        return self.script_dir.parent / "docs" / "benchmarks.rst"
+
+    @property
+    def readme_file(self) -> Path:
+        """Path to README.md file."""
+        return self.script_dir.parent / "README.md"
+
+    @model_validator(mode="after")
+    def validate_config(self) -> BenchmarkConfig:
+        """Validate cross-field constraints."""
+        # Ensure run_name is not empty
+        if not self.run_name or not self.run_name.strip():
+            raise ValueError("run_name cannot be empty")
+        return self
+
+    @classmethod
+    def from_yaml(cls, yaml_path: Path) -> BenchmarkConfig:
+        """Load configuration from YAML file."""
+        yaml = YAML(typ="safe", pure=True)
+        with open(yaml_path) as f:
+            data = yaml.load(f)
+
+        # Add script_dir for path computation
+        data["script_dir"] = yaml_path.parent
+
+        return cls.model_validate(data)
+
+
+def _parse_problem_name(name: str) -> tuple[str, str, str]:
+    """Parse problem name into (dataset, regularization, distribution).
+
+    Problem name format: {dataset}-no-weights-{regularization}-{distribution}
+    where dataset is 2 parts (e.g., "intermediate-insurance"),
+    regularization is 1 part (lasso/l2/net),
+    and distribution may contain hyphens (e.g., "tweedie-p=1.5").
+    """
+    parts = name.split("-")
+    dataset = "-".join(parts[:2])
+    reg = parts[4]
+    dist = "-".join(parts[5:])
+    return dataset, reg, dist
+
+
+def get_benchmark_combinations(
+    config: BenchmarkConfig,
+) -> list[tuple[str, str, float, int | None, float]]:
+    """Get list of (problem_name, library, alpha, num_rows, k_over_n_ratio) tuples.
+
+    Cartesian product within each entry, union across entries.
+
+    Returns:
+        List of (problem_name, library_name, alpha, num_rows, k_over_n_ratio)
+        tuples to run.
+    """
+
+    all_problems = get_all_problems()
+    available_libraries = list(get_all_libraries())
+    default_libraries = [lib for lib in available_libraries if lib != "zeros"]
+
+    # Filter to "-no-weights-" problems only
+    base_problems = [name for name in all_problems.keys() if "-no-weights-" in name]
+
+    # Build a lookup: (dataset, reg, dist) -> problem_name
+    problem_lookup = {}
+    for name in base_problems:
+        dataset, reg, dist = _parse_problem_name(name)
+        problem_lookup[(dataset, reg, dist)] = name
+
+    # Get all valid values for each dimension
+    all_datasets = sorted({_parse_problem_name(n)[0] for n in base_problems})
+    all_regs = sorted({_parse_problem_name(n)[1] for n in base_problems})
+    all_dists = sorted({_parse_problem_name(n)[2] for n in base_problems})
+    all_alphas = list(ALPHA_VALUES)
+    allowed_dist_by_dataset = ALLOWED_DISTRIBUTIONS_BY_DATASET
+
+    combinations: set[tuple[str, str, float, int | None, float]] = set()
+
+    # Print configuration per parameter grid entry
+    print("=" * 70)
+    print("BENCHMARK CONFIGURATION")
+    print("=" * 70)
+    for i, entry in enumerate(config.param_grid, 1):
+        # Use entry values or defaults (all)
+        libraries = entry.libraries if entry.libraries else default_libraries
+        datasets = entry.datasets if entry.datasets else all_datasets
+        regs = entry.regularizations if entry.regularizations else all_regs
+        dists = entry.distributions if entry.distributions else all_dists
+        alphas = entry.alphas if entry.alphas else all_alphas
+        num_rows_values = entry.num_rows if entry.num_rows is not None else [None]
+        k_over_n_ratios = (
+            entry.k_over_n_ratios if entry.k_over_n_ratios is not None else [1.0]
+        )
+
+        print(f"Parameter Set {i}:")
+        print(f"  Libraries: {libraries}")
+        print(f"  Datasets: {datasets}")
+        print(f"  Regularizations: {regs}")
+        print(f"  Distributions: {dists}")
+        print(f"  Alphas: {alphas}")
+        print(f"  num_rows: {num_rows_values}")
+        print(f"  K/N ratios (simulated-glm): {k_over_n_ratios}")
+        print()
+
+        # Cartesian product within this entry
+        for lib, dataset, reg, dist, alpha, num_rows in product(
+            libraries, datasets, regs, dists, alphas, num_rows_values
+        ):
+            dataset_dist_allowlist = allowed_dist_by_dataset.get(cast(Dataset, dataset))
+            if (
+                dataset_dist_allowlist is not None
+                and dist not in dataset_dist_allowlist
+            ):
+                continue
+            key = (dataset, reg, dist)
+            if key in problem_lookup:
+                # Only add if library is actually available
+                if lib in available_libraries:
+                    ratios_for_dataset = (
+                        k_over_n_ratios if dataset == "simulated-glm" else [1.0]
+                    )
+                    for k_over_n_ratio in ratios_for_dataset:
+                        combinations.add(
+                            (problem_lookup[key], lib, alpha, num_rows, k_over_n_ratio)
+                        )
+
+    print(f"Total benchmark runs: {len(combinations)}")
+    print("=" * 70)
+    print()
+
+    return sorted(
+        combinations,
+        key=lambda combo: (
+            combo[0],  # problem_name
+            combo[1],  # library_name
+            combo[2],  # alpha
+            -1 if combo[3] is None else combo[3],  # num_rows (None first)
+            combo[4],  # k_over_n_ratio
+        ),
+    )
+
+
+def run_single_benchmark(
+    problem_name: str,
+    library_name: str,
+    alpha: float,
+    num_rows: int | None,
+    k_over_n_ratio: float,
+    config: BenchmarkConfig,
+) -> tuple[dict, BenchmarkParams]:
+    """Run a single benchmark and return results.
+
+    If the benchmark exceeds the configured timeout, returns a result with
+    runtime=timeout and timed_out=True.
+    """
+    # Get library-specific settings from config
+    lib_key: Library = library_name  # type: ignore[assignment]
+    storage = config.storage.get(lib_key, "dense")
+
+    params = BenchmarkParams(
+        problem_name=problem_name,
+        library_name=library_name,
+        num_rows=num_rows,
+        k_over_n_ratio=k_over_n_ratio,
+        storage=storage,
+        threads=config.num_threads,
+        alpha=alpha,
+    )
+
+    # Pass timeout to execute_problem_library for per-iteration timeout handling
+    try:
+        result, _ = execute_problem_library(
+            params,
+            iterations=config.iterations,
+            diagnostics_level=None,
+            timeout=config.timeout,
+        )
+        result["timed_out"] = False
+    except TimeoutError:
+        # All iterations timed out
+        result = {
+            "runtime": float(config.timeout),
+            "timed_out": True,
+            "intercept": None,
+            "coef": None,
+            "n_iter": None,
+        }
+
+    return result, params
+
+
+def run_all_benchmarks(config: BenchmarkConfig):
+    """Run all configured benchmarks."""
+    # Set up output directory
+    if config.clear_output and config.results_dir.exists():
+        print(f"Clearing output directory: {config.results_dir}")
+        shutil.rmtree(config.results_dir)
+    config.pickle_dir.mkdir(parents=True, exist_ok=True)
+
+    # Get benchmark combinations (problem, library, alpha, num_rows, k_over_n_ratio)
+    # from param_grid.
+    combinations = get_benchmark_combinations(config)
+
+    total = len(combinations)
+    current = 0
+
+    for problem_name, library_name, alpha, num_rows, k_over_n_ratio in combinations:
+        current += 1
+        rows_label = (
+            f", num_rows={num_rows}" if num_rows is not None else ", num_rows=full"
+        )
+        ratio_label = (
+            f", K/N={k_over_n_ratio:g}"
+            if problem_name.startswith("simulated-glm-")
+            else ""
+        )
+        label = f"{library_name} / {problem_name} (α={alpha}{rows_label}{ratio_label})"
+        print(f"[{current}/{total}] {label}", end=" ", flush=True)
+
+        try:
+            # Capture warnings to display after the result
+            with warnings.catch_warnings(record=True) as caught_warnings:
+                warnings.simplefilter("always")
+                # Ignore deprecation warnings from third-party libraries
+                warnings.filterwarnings(
+                    "ignore",
+                    message=".*asyncio.iscoroutinefunction.*",
+                )
+                result, params = run_single_benchmark(
+                    problem_name,
+                    library_name,
+                    alpha,
+                    num_rows,
+                    k_over_n_ratio,
+                    config,
+                )
+
+            # Save result
+            fname = params.get_result_fname() + ".pkl"
+            with open(config.pickle_dir / fname, "wb") as f:
+                pickle.dump(result, f)
+
+            if result.get("timed_out"):
+                print(f"-> TIMEOUT ({config.timeout}s)")
+            elif len(result) > 0 and "runtime" in result:
+                print(f"-> {result['runtime']:.4f}s")
+            else:
+                print("-> (skipped)")
+
+            # Print captured warnings
+            for w in caught_warnings:
+                print(f"  Warning: {w.message}")
+
+        except Exception as e:
+            print(f"-> ERROR: {e}")
+
+
+def analyze_results(config: BenchmarkConfig) -> pd.DataFrame:
+    """Analyze benchmark results and print summary."""
+    print()
+    print("=" * 60)
+    print("ANALYZING RESULTS")
+    print("=" * 60)
+
+    display_precision = 4
+    np.set_printoptions(precision=display_precision, suppress=True)
+    pd.set_option("display.precision", display_precision)
+
+    results = []
+
+    for fname in config.pickle_dir.glob("*.pkl"):
+        with open(fname, "rb") as f:
+            data = pickle.load(f)
+
+        if not data:
+            continue
+
+        params = get_params_from_fname(fname.name)
+        if params.problem_name is None:
+            continue
+        problem = get_all_problems()[params.problem_name]
+
+        # Handle timed out runs (no coef)
+        timed_out = data.get("timed_out", False)
+        coefs = data.get("coef")
+
+        if coefs is None and not timed_out:
+            # Skipped run (not supported by library)
+            continue
+
+        # Calculate runtime per iteration
+        n_iter = data.get("n_iter")
+        runtime = data.get("runtime")
+        if n_iter is not None and n_iter > 0:
+            runtime_per_iter = runtime / n_iter
+        else:
+            runtime_per_iter = runtime
+
+        # Calculate coefficient norms (0 for timed out)
+        if coefs is not None:
+            l1_norm: float = np.sum(np.abs(coefs))
+            l2_norm: float = np.sum(coefs**2)
+            num_nonzero_coef: int = np.sum(np.abs(coefs) > 1e-8)
+        else:
+            l1_norm = 0.0
+            l2_norm = 0.0
+            num_nonzero_coef = 0
+
+        # Get regularization strength from params or problem default
+        alpha = problem.alpha if params.alpha is None else params.alpha
+
+        # Check convergence:
+        # 1. timed_out=True means we hit the benchmark timeout
+        # 2. n_iter >= max_iter means the library hit its internal iteration limit
+        max_iter = data.get("max_iter")
+        hit_max_iter = (
+            n_iter is not None and max_iter is not None and n_iter >= max_iter
+        )
+        converged = not timed_out and not hit_max_iter
+
+        results.append(
+            {
+                "problem_name": params.problem_name,
+                "library_name": params.library_name,
+                "num_rows": data.get("num_rows"),
+                "k_over_n_ratio": params.k_over_n_ratio,
+                "alpha": alpha,
+                "storage": params.storage,
+                "threads": params.threads,
+                "n_iter": n_iter,
+                "converged": converged,
+                "runtime": runtime,
+                "runtime per iter": runtime_per_iter,
+                "intercept": data.get("intercept"),
+                "l1": l1_norm,
+                "l2": l2_norm,
+                "num_nonzero_coef": num_nonzero_coef,
+                "obj_val": data.get("obj_val"),
+            }
+        )
+
+    if not results:
+        print("No results found!")
+        return pd.DataFrame()
+
+    df = pd.DataFrame(results)
+
+    # Format: set index and sort
+    problem_id_cols = ["problem_name", "num_rows", "k_over_n_ratio", "alpha"]
+    df = df.set_index(problem_id_cols).sort_values("library_name").sort_index()
+
+    # Calculate objective gaps within each
+    # (problem_name, num_rows, k_over_n_ratio, alpha) group.
+    # Use transform to preserve alignment when index has duplicates.
+    best_obj = df.groupby(level=problem_id_cols)["obj_val"].transform("min")
+    df["obj_gap"] = df["obj_val"] - best_obj
+
+    # rel_obj_val is a true relative gap from best objective:
+    # (obj_val - best_obj) / abs(best_obj)
+    # If best_obj is exactly 0, mark rows as NaN except exact ties, which are 0.
+    safe_denom = best_obj.abs().replace(0, np.nan)
+    df["rel_obj_val"] = df["obj_gap"] / safe_denom
+    df.loc[df["obj_gap"] == 0, "rel_obj_val"] = 0.0
+
+    # Display columns
+    cols_to_show = [
+        "library_name",
+        "storage",
+        "threads",
+        "n_iter",
+        "runtime",
+        "intercept",
+        "num_nonzero_coef",
+        "obj_val",
+        "obj_gap",
+        "rel_obj_val",
+    ]
+
+    # Group by problem_name and k_over_n_ratio so simulated-glm gets one table
+    # per K/N value, while alpha/num_rows remain row values.
+    table_df = df.loc[:, cols_to_show].reset_index()
+    _print_dataframe_table(
+        table_df,
+        title="Benchmark summary",
+        group_by=["problem_name", "k_over_n_ratio"],
+    )
+
+    # Export to CSV for figure generation and reproducibility
+    config.csv_file.parent.mkdir(parents=True, exist_ok=True)
+    df.reset_index().to_csv(config.csv_file, index=False)
+    print(f"\nExported results to: {config.csv_file}")
+
+    return df.reset_index()
+
+
+def _print_dataframe_table(
+    df: pd.DataFrame,
+    *,
+    title: str,
+    max_rows: int | None = None,
+    group_by: list[str] | None = None,
+) -> None:
+    """Print a DataFrame as a rich table."""
+    rows = df.copy() if max_rows is None else df.head(max_rows).copy()
+    grouping_cols = [column for column in (group_by or []) if column in rows.columns]
+    if grouping_cols:
+        # Sort comparisons by problem settings first, use library as tie-breaker
+        compare_cols = [
+            c
+            for c in ["alpha", "k_over_n_ratio", "num_rows", "library_name"]
+            if c in rows.columns and c not in grouping_cols
+        ]
+        sort_cols = grouping_cols + compare_cols
+        rows = rows.sort_values(sort_cols, kind="mergesort")
+
+    def format_cell(value: object) -> str:
+        is_na = pd.isna(value)
+        if isinstance(is_na, (bool, np.bool_)) and is_na:
+            return ""
+        if isinstance(value, float):
+            return f"{value:.6g}"
+        return str(value)
+
+    def render_table(table_df: pd.DataFrame, table_title: str) -> None:
+        table = Table(
+            title=table_title,
+            box=box.SIMPLE_HEAVY,
+            header_style="bold cyan",
+            row_styles=["", "dim"],
+            show_lines=False,
+        )
+        for column in table_df.columns:
+            justify = (
+                "right" if pd.api.types.is_numeric_dtype(table_df[column]) else "left"
+            )
+            table.add_column(str(column), justify=justify, overflow="fold")
+
+        for row in table_df.itertuples(index=False, name=None):
+            table.add_row(*[format_cell(value) for value in row])
+
+        _RICH_CONSOLE.print(table)
+
+    if not grouping_cols:
+        render_table(rows, title)
+    else:
+        value_cols = [column for column in rows.columns if column not in grouping_cols]
+        for group_values, group_df in rows.groupby(
+            grouping_cols, sort=False, dropna=False
+        ):
+            if not isinstance(group_values, tuple):
+                group_values = (group_values,)
+            group_items = dict(zip(grouping_cols, group_values))
+            problem_name = str(group_items.get("problem_name", ""))
+            is_simulated_glm = problem_name.startswith("simulated-glm-")
+            group_label_parts = []
+            for column, value in zip(grouping_cols, group_values):
+                if column == "k_over_n_ratio" and not is_simulated_glm:
+                    continue
+                group_label_parts.append(f"{column}={format_cell(value)}")
+            group_label = ", ".join(group_label_parts)
+            if not isinstance(group_df, pd.DataFrame):
+                continue
+            render_table(group_df.loc[:, value_cols], f"{title} - {group_label}")
+
+    if max_rows is not None and len(df) > max_rows:
+        _RICH_CONSOLE.print(f"[dim]Showing first {max_rows} of {len(df)} rows.[/dim]")
+
+
+def _render_bar_chart(
+    pivot: pd.DataFrame,
+    unsupported: pd.DataFrame,
+    not_converged: pd.DataFrame,
+    colors: dict,
+    y_max: float,
+    title: str,
+    ylabel: str,
+    dark_mode: bool = False,
+    x_labels: list[str] | None = None,
+    show_baseline: bool = False,
+) -> plt.Figure:
+    """Render a bar chart with support for light/dark mode."""
+    # Apply dark mode style if requested
+    style_context = plt.style.context("dark_background") if dark_mode else nullcontext()
+
+    with style_context:
+        plot_colors = [colors.get(lib, "#999999") for lib in pivot.columns]
+        pivot_clipped = pivot.clip(upper=y_max)
+        pivot_clipped = pivot_clipped.mask(not_converged, y_max)
+
+        fig, ax = plt.subplots(figsize=(10, 5))
+        pivot_clipped.plot(kind="bar", ax=ax, color=plot_colors)
+
+        # Colors for dark mode
+        na_bg = "#1a1a1a" if dark_mode else "white"
+        na_text = "#888888" if dark_mode else "#666666"
+        nc_edge = "white" if dark_mode else "black"
+        nc_text = "#ff6666" if dark_mode else "#cc0000"
+        arrow_color = "white" if dark_mode else "black"
+
+        # The edge stroke is centred on the bar boundary, so half the
+        # linewidth extends above the geometric top. Subtract that offset
+        # so hatched bars visually align with the clipped bars at y_max.
+        hatch_lw = 1
+        inv = ax.transData.inverted()
+        lw_px = hatch_lw * fig.dpi / 72.0
+        lw_offset = abs(inv.transform((0, lw_px / 2))[1] - inv.transform((0, 0))[1])
+
+        # Draw hatched bars for unsupported library/reg_combo combos
+        n_combos = len(pivot.index)
+        bars = ax.patches
+        for i, combo in enumerate(pivot.index):
+            for j, lib in enumerate(pivot.columns):
+                if unsupported.loc[combo, lib]:
+                    bar_idx = j * n_combos + i
+                    bar = bars[bar_idx]
+                    x = bar.get_x()
+                    width = bar.get_width()
+                    lib_color = colors.get(lib, "#999999")
+                    ax.bar(
+                        x + width / 2,
+                        y_max - lw_offset,
+                        width=width,
+                        color=na_bg,
+                        edgecolor=lib_color,
+                        linewidth=hatch_lw,
+                        hatch="//",
+                    )
+                    ax.text(
+                        x + width / 2,
+                        y_max / 2,
+                        "N/A",
+                        ha="center",
+                        va="center",
+                        fontsize=8,
+                        color=na_text,
+                        fontweight="bold",
+                    )
+                elif not_converged.loc[combo, lib]:
+                    bar_idx = j * n_combos + i
+                    bar = bars[bar_idx]
+                    x = bar.get_x()
+                    width = bar.get_width()
+                    ax.bar(
+                        x + width / 2,
+                        y_max - lw_offset,
+                        width=width,
+                        color="none",
+                        edgecolor=nc_edge,
+                        linewidth=hatch_lw,
+                        hatch="//",
+                        alpha=0.5,
+                    )
+                    ax.text(
+                        x + width / 2,
+                        y_max + y_max * 0.02,
+                        "NC",
+                        ha="center",
+                        va="bottom",
+                        fontsize=7,
+                        color=nc_text,
+                        fontweight="bold",
+                    )
+
+        # Add annotations for clipped bars
+        for i, combo in enumerate(pivot.index):
+            for j, lib in enumerate(pivot.columns):
+                original_val = pivot.loc[combo, lib]
+                if (
+                    original_val > y_max
+                    and not unsupported.loc[combo, lib]
+                    and not not_converged.loc[combo, lib]
+                ):
+                    bar_idx = j * n_combos + i
+                    bar = bars[bar_idx]
+                    x = bar.get_x() + bar.get_width() / 2
+                    # Format: use .1f for normalized (ratios), .4f for absolute
+                    fmt = (
+                        f"{original_val:.1f}x"
+                        if show_baseline
+                        else f"{original_val:.4f}"
+                    )
+                    ax.text(
+                        x,
+                        y_max * 0.75,
+                        fmt,
+                        ha="center",
+                        va="center",
+                        fontsize=9,
+                        fontweight="bold",
+                        rotation=90,
+                        color=arrow_color,
+                    )
+                    ax.annotate(
+                        "",
+                        xy=(x, y_max),
+                        xytext=(x, y_max * 0.88),
+                        arrowprops=dict(arrowstyle="->", color=arrow_color, lw=1.5),
+                    )
+
+        ax.set_ylim(0, y_max * 1.08)
+        ax.set_title(title)
+        ax.set_ylabel(ylabel)
+        ax.set_xlabel("")
+
+        if show_baseline:
+            ax.axhline(y=1.0, color="gray", linestyle="--", linewidth=1, alpha=0.7)
+
+        # Legend
+        handles, labels = ax.get_legend_handles_labels()
+        handles.append(Patch(facecolor=na_bg, edgecolor="gray", hatch="//"))
+        labels.append("N/A (not supported)")
+        handles.append(Patch(facecolor=na_bg, edgecolor=nc_edge, hatch="//"))
+        labels.append("NC (not converged)")
+        ax.legend(handles, labels, title="", bbox_to_anchor=(1.02, 1), loc="upper left")
+
+        if x_labels:
+            ax.set_xticklabels(x_labels)
+        plt.xticks(rotation=45, ha="right")
+        plt.tight_layout()
+
+    return fig
+
+
+def plot_results(config: BenchmarkConfig):
+    """Generate benchmark comparison plots from CSV file.
+
+    Reads from CSV_FILE, which allows regenerating figures without
+    re-running benchmarks. The CSV can be committed to the repository.
+    """
+    print()
+    print("=" * 60)
+    print("GENERATING PLOTS")
+    print("=" * 60)
+
+    if not config.csv_file.exists():
+        print(f"CSV file not found: {config.csv_file}")
+        print("Run ANALYZE_RESULTS first to generate the CSV.")
+        return
+
+    df = pd.read_csv(config.csv_file)
+    print(f"Reading results from: {config.csv_file}")
+
+    if df["converged"].dtype == object:  # string type from CSV
+        df["converged"] = df["converged"] == "True"
+
+    if df.empty:
+        print("No data to plot!")
+        return
+
+    config.figure_dir.mkdir(exist_ok=True)
+
+    # Extract distribution, regularization and dataset from problem_name
+    df = df.copy()
+    parsed = df["problem_name"].apply(_parse_problem_name)
+    df["dataset"] = parsed.apply(lambda x: x[0])
+    reg_map = {"lasso": "lasso", "l2": "ridge", "net": "elastic-net"}
+    df["regularization"] = parsed.apply(lambda x: reg_map.get(x[1], x[1]))
+    df["distribution"] = parsed.apply(lambda x: x[2])
+
+    # Create a combined regularization column (type + strength)
+    df["reg_combo"] = df.apply(
+        lambda row: f"{row['regularization']} (α={row['alpha']})",
+        axis=1,
+    )
+
+    # Drop duplicates (keep latest result for each unique combo)
+    dedupe_cols = [
+        "dataset",
+        "distribution",
+        "regularization",
+        "alpha",
+        "library_name",
+    ]
+    if "k_over_n_ratio" in df.columns:
+        dedupe_cols.append("k_over_n_ratio")
+    df = df.drop_duplicates(subset=dedupe_cols, keep="last")
+
+    # Ensure library colors are consistent across plots
+    colors = {
+        "glum": "#a6cee3",
+        "h2o": "#fdbf6f",
+        "glmnet": "#b15928",
+        "sklearn": "#1f78b4",
+        "skglm": "#33a02c",
+        "celer": "#fb9a99",
+    }
+
+    # Generate one plot per dataset/distribution combo. For simulated-glm,
+    # split plots by K/N ratio so each figure shows a single ratio.
+    for dataset in df["dataset"].unique():
+        for dist in df["distribution"].unique():
+            base_subset = df[(df["dataset"] == dataset) & (df["distribution"] == dist)]
+            if base_subset.empty:
+                continue
+
+            split_by_ratio = (
+                dataset == "simulated-glm" and "k_over_n_ratio" in df.columns
+            )
+            ratio_groups = (
+                base_subset.groupby("k_over_n_ratio", sort=True, dropna=False)
+                if split_by_ratio
+                else [(None, base_subset)]
+            )
+
+            for ratio_value, subset in ratio_groups:
+                if subset.empty:
+                    continue
+
+                ratio_suffix = ""
+                ratio_title_suffix = ""
+                if split_by_ratio:
+                    ratio_text = f"{float(ratio_value):g}"
+                    ratio_suffix = f"-k-over-n-{ratio_text}"
+                    ratio_title_suffix = f" (K/N={ratio_text})"
+
+                print(f"  Plotting {dataset}-{dist}{ratio_suffix}: {len(subset)} rows")
+                print(f"    reg_combos: {subset['reg_combo'].unique().tolist()}")
+
+                # Pivot for plotting: reg_combo on x-axis, libraries as bars
+                pivot_raw = subset.pivot(
+                    index="reg_combo",
+                    columns="library_name",
+                    values="runtime",
+                )
+                # Track which cells are unsupported (NaN) before filling
+                unsupported = pivot_raw.isna()
+                pivot = pivot_raw.fillna(0)
+
+                # Track which cells did not converge
+                pivot_converged = (
+                    subset.pivot(
+                        index="reg_combo",
+                        columns="library_name",
+                        values="converged",
+                    )
+                    .fillna(True)
+                    .astype(bool)
+                )
+                not_converged = ~pivot_converged
+
+                # Calculate y-axis limit (10x fastest runtime)
+                min_runtime = pivot.values[pivot.values > 0].min()
+                y_max = min_runtime * 10
+
+                # Title
+                title_dataset = dataset.replace(" ", "-").title()
+                title_dist = dist.replace(" ", "-").title()
+                title = f"{title_dataset}-{title_dist}{ratio_title_suffix}"
+
+                # Determine if this figure needs a dark mode version (for README)
+                fname = f"{dataset}-{dist}{ratio_suffix}"
+                readme_figs = config.readme_figures or []
+                needs_dark = f"{fname}.png" in readme_figs
+
+                # Generate light mode plot
+                fig = _render_bar_chart(
+                    pivot=pivot,
+                    unsupported=unsupported,
+                    not_converged=not_converged,
+                    colors=colors,
+                    y_max=y_max,
+                    title=title,
+                    ylabel="run time (s)",
+                    dark_mode=False,
+                )
+                fig.savefig(config.figure_dir / f"{fname}.png", dpi=300)
+                plt.close(fig)
+                print(f"Saved: {fname}.png")
+
+                # Generate dark mode version if needed for README
+                if needs_dark:
+                    fig = _render_bar_chart(
+                        pivot=pivot,
+                        unsupported=unsupported,
+                        not_converged=not_converged,
+                        colors=colors,
+                        y_max=y_max,
+                        title=title,
+                        ylabel="run time (s)",
+                        dark_mode=True,
+                    )
+                    fig.savefig(config.figure_dir / f"{fname}_dark.png", dpi=300)
+                    plt.close(fig)
+                    print(f"Saved: {fname}_dark.png")
+
+                # Generate normalized plot (glum = 1.0)
+                if "glum" in pivot.columns:
+                    pivot_norm = pivot.div(pivot["glum"], axis=0)
+                    norm_y_max = 10.0
+
+                    # X-tick labels with glum runtime
+                    x_labels = []
+                    for combo in pivot.index:
+                        glum_runtime = pivot.loc[combo, "glum"]
+                        if glum_runtime > 0:
+                            x_labels.append(f"{combo}\n(glum = {glum_runtime:.3f}s)")
+                        else:
+                            x_labels.append(combo)
+
+                    fname_norm = f"{dataset}-{dist}{ratio_suffix}-normalized"
+                    needs_dark_norm = f"{fname_norm}.png" in readme_figs
+
+                    # Generate light mode normalized plot
+                    fig = _render_bar_chart(
+                        pivot=pivot_norm,
+                        unsupported=unsupported,
+                        not_converged=not_converged,
+                        colors=colors,
+                        y_max=norm_y_max,
+                        title=f"{title} (normalized)",
+                        ylabel="run time relative to glum",
+                        dark_mode=False,
+                        x_labels=x_labels,
+                        show_baseline=True,
+                    )
+                    fig.savefig(config.figure_dir / f"{fname_norm}.png", dpi=300)
+                    plt.close(fig)
+                    print(f"Saved: {fname_norm}.png")
+
+                    # Generate dark mode version if needed for README
+                    if needs_dark_norm:
+                        fig = _render_bar_chart(
+                            pivot=pivot_norm,
+                            unsupported=unsupported,
+                            not_converged=not_converged,
+                            colors=colors,
+                            y_max=norm_y_max,
+                            title=f"{title} (normalized)",
+                            ylabel="run time relative to glum",
+                            dark_mode=True,
+                            x_labels=x_labels,
+                            show_baseline=True,
+                        )
+                        fig.savefig(
+                            config.figure_dir / f"{fname_norm}_dark.png", dpi=300
+                        )
+                        plt.close(fig)
+                        print(f"Saved: {fname_norm}_dark.png")
+
+
+# Markers for auto-generated content in docs
+RST_START_MARKER = ".. BENCHMARK_FIGURES_START"
+RST_END_MARKER = ".. BENCHMARK_FIGURES_END"
+MD_START_MARKER = "<!-- BENCHMARK_FIGURES_START -->"
+MD_END_MARKER = "<!-- BENCHMARK_FIGURES_END -->"
+
+
+def update_docs(config: BenchmarkConfig):
+    """Copy figures to docs/_static and update index.rst, benchmarks.rst and README.md.
+
+    Uses marker comments to safely replace only the auto-generated figure
+    references in each file. Figures to include can be specified via
+    docs_figures and readme_figures config options.
+    """
+    print()
+    print("=" * 60)
+    print("UPDATING DOCS")
+    print("=" * 60)
+
+    if not config.figure_dir.exists():
+        print(f"Figure directory not found: {config.figure_dir}")
+        print("Run GENERATE_PLOTS first to create figures.")
+        return
+
+    # Find all generated figures
+    all_figures = sorted(config.figure_dir.glob("*.png"))
+    if not all_figures:
+        print("No figures found to copy.")
+        return
+
+    # Get available figure names (without path)
+    available = {f.name for f in all_figures}
+
+    # Determine which figure groups to use for docs
+    # Each group maps to one BENCHMARK_FIGURES_START/END block in benchmarks.rst
+    if config.docs_figures is not None:
+        docs_figure_groups = []
+        for group in config.docs_figures:
+            valid = [f for f in group if f in available]
+            missing = set(group) - available
+            if missing:
+                print(f"Warning: docs_figures not found: {missing}")
+            docs_figure_groups.append(valid)
+    else:
+        # Default: all generated figures in a single group
+        docs_figure_groups = [sorted(f.name for f in all_figures)]
+
+    # Determine which figures to use for README
+    if config.readme_figures is not None:
+        # Use explicitly specified figures
+        readme_fig_names = [f for f in config.readme_figures if f in available]
+        missing = set(config.readme_figures) - available
+        if missing:
+            print(f"Warning: readme_figures not found: {missing}")
+    else:
+        # Default: first non-normalized figure only
+        non_norm = sorted(f.name for f in all_figures if "normalized" not in f.name)
+        readme_fig_names = [non_norm[0]] if non_norm else []
+
+    # Collect all figures needed for copying
+    all_docs_figs = {f for group in docs_figure_groups for f in group}
+    all_needed = all_docs_figs | set(readme_fig_names)
+
+    # Copy figures to docs/_static
+    config.docs_static_dir.mkdir(parents=True, exist_ok=True)
+    for fig_name in sorted(all_needed):
+        src = config.figure_dir / fig_name
+        dest = config.docs_static_dir / fig_name
+        shutil.copy2(src, dest)
+        print(f"Copied: {fig_name} -> docs/_static/")
+
+    # Update benchmarks.rst
+    # Each figure group replaces one BENCHMARK_FIGURES_START/END block (in order)
+    if any(docs_figure_groups):
+        if config.benchmarks_rst.exists():
+            with open(config.benchmarks_rst) as f:
+                rst_content = f.read()
+
+            block_pattern = re.compile(
+                rf"{re.escape(RST_START_MARKER)}.*?{re.escape(RST_END_MARKER)}",
+                re.DOTALL,
+            )
+            blocks = list(block_pattern.finditer(rst_content))
+
+            if not blocks:
+                print(f"\nNo marker blocks found in {config.benchmarks_rst}")
+                print(f"Add: {RST_START_MARKER} and {RST_END_MARKER}")
+            else:
+                if len(docs_figure_groups) != len(blocks):
+                    print(
+                        f"\nWarning: {len(docs_figure_groups)} figure group(s) in "
+                        f"config but {len(blocks)} marker block(s) in "
+                        f"{config.benchmarks_rst}. "
+                        f"Replacing min({len(docs_figure_groups)}, "
+                        f"{len(blocks)}) blocks."
+                    )
+
+                # Replace blocks from last to first to preserve positions
+                total_figs = 0
+                for group, match in reversed(list(zip(docs_figure_groups, blocks))):
+                    rst_lines = [RST_START_MARKER, ""]
+                    for fig_name in group:
+                        rst_lines.append(f".. image:: _static/{fig_name}")
+                        rst_lines.append("   :width: 700")
+                        rst_lines.append("")
+                    rst_lines.append(RST_END_MARKER)
+                    replacement = "\n".join(rst_lines)
+                    rst_content = (
+                        rst_content[: match.start()]
+                        + replacement
+                        + rst_content[match.end() :]
+                    )
+                    total_figs += len(group)
+
+                with open(config.benchmarks_rst, "w") as f:
+                    f.write(rst_content)
+                print(f"\nUpdated: {config.benchmarks_rst}")
+                print(
+                    f"Replaced {min(len(docs_figure_groups), len(blocks))} block(s) "
+                    f"with {total_figs} total figure references."
+                )
+        else:
+            print(f"\nbenchmarks.rst not found: {config.benchmarks_rst}")
+
+    # Update README.md
+    # Use <img> tags with width for controlled display size and GitHub light/dark mode
+    if readme_fig_names:
+        md_lines = [MD_START_MARKER]
+        for fig_name in readme_fig_names:
+            # Check if dark mode version exists
+            base_name = fig_name.replace(".png", "")
+            dark_name = f"{base_name}_dark.png"
+            dark_exists = (config.figure_dir / dark_name).exists()
+
+            if dark_exists:
+                # Copy dark version too
+                shutil.copy2(
+                    config.figure_dir / dark_name,
+                    config.docs_static_dir / dark_name,
+                )
+                print(f"Copied: {dark_name} -> docs/_static/")
+                light_ref = f"docs/_static/{fig_name}#gh-light-mode-only"
+                dark_ref = f"docs/_static/{dark_name}#gh-dark-mode-only"
+            else:
+                light_ref = f"docs/_static/{fig_name}#gh-light-mode-only"
+                dark_ref = f"docs/_static/{fig_name}#gh-dark-mode-only"
+
+            md_lines.append(
+                f'<img src="{light_ref}" alt="Benchmark results" width="600">'
+            )
+            md_lines.append(
+                f'<img src="{dark_ref}" alt="Benchmark results" width="600">'
+            )
+        md_lines.append(MD_END_MARKER)
+        md_new_content = "\n".join(md_lines)
+
+        if config.readme_file.exists():
+            with open(config.readme_file) as f:
+                md_content = f.read()
+
+            if MD_START_MARKER in md_content and MD_END_MARKER in md_content:
+                pattern = re.compile(
+                    rf"{re.escape(MD_START_MARKER)}.*?{re.escape(MD_END_MARKER)}",
+                    re.DOTALL,
+                )
+                updated_md = pattern.sub(md_new_content, md_content)
+                with open(config.readme_file, "w") as f:
+                    f.write(updated_md)
+                print(f"\nUpdated: {config.readme_file}")
+                print(f"Inserted {len(readme_fig_names)} figure references.")
+            else:
+                print(f"\nMarkers not found in {config.readme_file}")
+                print(f"Add: {MD_START_MARKER} and {MD_END_MARKER}")
+        else:
+            print(f"\nREADME.md not found: {config.readme_file}")
+
+    # Update index.rst (headline figure, same as README)
+    if readme_fig_names:
+        idx_lines = [RST_START_MARKER, ""]
+        for fig_name in readme_fig_names:
+            idx_lines.append(f".. image:: _static/{fig_name}")
+            idx_lines.append("   :width: 600")
+            idx_lines.append("")
+        idx_lines.append(RST_END_MARKER)
+        idx_new_content = "\n".join(idx_lines)
+
+        if config.index_rst.exists():
+            with open(config.index_rst) as f:
+                idx_content = f.read()
+
+            if RST_START_MARKER in idx_content and RST_END_MARKER in idx_content:
+                pattern = re.compile(
+                    rf"{re.escape(RST_START_MARKER)}.*?{re.escape(RST_END_MARKER)}",
+                    re.DOTALL,
+                )
+                updated_idx = pattern.sub(idx_new_content, idx_content)
+                with open(config.index_rst, "w") as f:
+                    f.write(updated_idx)
+                print(f"\nUpdated: {config.index_rst}")
+                print(f"Inserted {len(readme_fig_names)} headline figure(s).")
+            else:
+                print(f"\nMarkers not found in {config.index_rst}")
+                print(f"Add: {RST_START_MARKER} and {RST_END_MARKER}")
+        else:
+            print(f"\nindex.rst not found: {config.index_rst}")
+
+
+def main():
+    # Load configuration
+    script_dir = Path(__file__).parent
+    config_file = script_dir / "config.yaml"
+    config = BenchmarkConfig.from_yaml(config_file)
+
+    # Run benchmark steps
+    if config.run_benchmarks:
+        run_all_benchmarks(config)
+
+    if config.analyze_results:
+        analyze_results(config)
+
+    if config.generate_plots:
+        plot_results(config)
+
+    if config.update_docs:
+        update_docs(config)
+
+    # Print summary
+    print()
+    print("=" * 60)
+    print("DONE")
+    print("=" * 60)
+    if config.run_benchmarks or config.analyze_results:
+        print(f"Results saved to: {config.results_dir}/")
+    if config.generate_plots:
+        print(f"Figures saved to: {config.figure_dir}/")
+    if config.update_docs:
+        print(f"Docs updated: {config.index_rst}, {config.benchmarks_rst}")
+        print(f"README updated: {config.readme_file}")
+
+    # Snapshot config for reproducibility only when new benchmarks are run.
+    if config.run_benchmarks:
+        config.results_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(config_file, config.results_dir / "config.yaml")
+        print(f"Config snapshot saved to: {config.results_dir / 'config.yaml'}")
+
+
+if __name__ == "__main__":
+    main()

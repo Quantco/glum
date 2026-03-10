@@ -2,6 +2,7 @@ import logging
 from collections.abc import Sequence
 from typing import Any, Optional, Union
 
+import narwhals.stable.v2 as nw
 import numpy as np
 import pandas as pd
 import tabmat as tm
@@ -11,50 +12,42 @@ _logger = logging.getLogger(__name__)
 
 
 def align_df_categories(
-    df, dtypes, has_missing_category, cat_missing_method
-) -> pd.DataFrame:
+    df: nw.DataFrame,
+    categorical_levels: dict[str, list[str]],
+    has_missing_category: dict[str, bool],
+    cat_missing_method: str,
+) -> nw.DataFrame:
     """Align data types for prediction.
 
     This function checks that categorical columns have same categories in the
-    same order as specified in ``dtypes``. If an entry has a category not
-    specified in ``dtypes``, it will be set to ``numpy.nan``.
-
-    Parameters
-    ----------
-    df : pandas.DataFrame
-    dtypes : Dict[str, str | type | pandas.core.dtypes.base.ExtensionDtype]
-    has_missing_category : Dict[str, bool]
-    missing_method : str
+    same order as specified in ``categorical_levels``. If an entry has a category not
+    specified in ``categorical_levels``, it will be set to ``numpy.nan``.
     """
-    if not isinstance(df, pd.DataFrame):
-        raise TypeError(f"Expected `pandas.DataFrame'; got {type(df)}.")
+    if not isinstance(df, nw.DataFrame):
+        raise TypeError(f"Expected `narwhals.DataFrame'; got {type(df)}.")
 
-    changed_dtypes = {}
+    changed_dtypes: dict[str, nw.Series] = {}
 
-    categorical_dtypes = [
-        column
-        for column, dtype in dtypes.items()
-        if isinstance(dtype, pd.CategoricalDtype) and (column in df)
-    ]
-
-    for column in categorical_dtypes:
-        if not isinstance(df[column].dtype, pd.CategoricalDtype):
-            _logger.info(f"Casting {column} to categorical.")
-            changed_dtypes[column] = df[column].astype(dtypes[column])
-        elif list(df[column].cat.categories) != list(dtypes[column].categories):
+    for column, levels in categorical_levels.items():
+        if column not in df.schema:
+            continue
+        elif not isinstance(df[column].dtype, nw.Enum):
+            _logger.info(f"Casting {column} to Enum (categorical).")
+        elif df[column].cat.get_categories().to_list() != levels:
             _logger.info(f"Aligning categories of {column}.")
-            changed_dtypes[column] = df[column].cat.set_categories(
-                dtypes[column].categories
-            )
         else:
             continue
 
+        changed_dtypes[column] = df[column].cast(nw.Enum(levels))
+
         if cat_missing_method == "convert" and not has_missing_category[column]:
-            unseen_categories = set(df[column].unique())
-            unseen_categories = unseen_categories - set(dtypes[column].categories)
+            unseen_categories = set(df[column].unique()) - set(
+                categorical_levels[column]
+            )
         else:
-            unseen_categories = set(df[column].dropna().unique())
-            unseen_categories = unseen_categories - set(dtypes[column].categories)
+            unseen_categories = set(df[column].drop_nulls().unique()) - set(
+                categorical_levels[column]
+            )
 
         if unseen_categories:
             raise ValueError(
@@ -62,51 +55,66 @@ def align_df_categories(
             )
 
     if changed_dtypes:
-        df = df.assign(**changed_dtypes)
+        df = df.with_columns(**changed_dtypes)
 
     return df
 
 
 def add_missing_categories(
-    df,
-    dtypes,
+    df: nw.DataFrame,
+    categorical_levels: dict[str, list[str]],
     feature_names: Sequence[str],
     categorical_format: str,
     cat_missing_name: str,
-) -> pd.DataFrame:
-    if not isinstance(df, pd.DataFrame):
-        raise TypeError(f"Expected `pandas.DataFrame'; got {type(df)}.")
+) -> nw.DataFrame:
+    if not isinstance(df, nw.DataFrame):
+        raise TypeError(f"Expected `narwhals.DataFrame'; got {type(df)}.")
 
-    changed_dtypes = {}
+    changed_dtypes: dict[str, nw.Series] = {}
 
-    categorical_dtypes = [
-        column
-        for column, dtype in dtypes.items()
-        if isinstance(dtype, pd.CategoricalDtype) and (column in df)
-    ]
+    # We only allow Enum on Polars, due to the global string cache for Categorical.
+    # xref: https://github.com/narwhals-dev/narwhals/issues/3097
+    allowed_dtypes = (
+        (nw.Enum,)
+        if nw.get_native_namespace(df).__name__ == "polars"
+        else (
+            nw.Enum,
+            nw.Categorical,
+        )
+    )
 
-    for column in categorical_dtypes:
+    for column in categorical_levels:
         if (
             categorical_format.format(name=column, category=cat_missing_name)
             in feature_names
         ):
-            if cat_missing_name in df[column].cat.categories:
+            if not isinstance(df[column].dtype, allowed_dtypes):
+                raise TypeError(
+                    f"Column {column} must be of type "
+                    f"{' or '.join(dtype.__name__ for dtype in allowed_dtypes)}."
+                )
+
+            if cat_missing_name in df[column].cat.get_categories():
                 raise ValueError(
                     f"Missing category {cat_missing_name} already exists in {column}."
                 )
             _logger.info(f"Adding missing category {cat_missing_name} to {column}.")
-            changed_dtypes[column] = df[column].cat.add_categories(cat_missing_name)
-            if df[column].isnull().any():
-                changed_dtypes[column] = changed_dtypes[column].fillna(cat_missing_name)
+            changed_dtypes[column] = df[column].cast(
+                nw.Enum(df[column].cat.get_categories().to_list() + [cat_missing_name])
+            )
+            if df[column].is_null().any():
+                changed_dtypes[column] = changed_dtypes[column].fill_null(
+                    cat_missing_name
+                )
 
     if changed_dtypes:
-        df = df.assign(**changed_dtypes)
+        df = df.with_columns(**changed_dtypes)
 
     return df
 
 
 def expand_categorical_penalties(
-    penalty, X, drop_first, has_missing_category
+    penalty, X: nw.DataFrame, drop_first: bool, has_missing_category: dict[str, bool]
 ) -> Union[np.ndarray, str]:
     """Determine penalty matrices ``P1`` or ``P2`` after expanding categorical columns.
 
@@ -128,10 +136,18 @@ def expand_categorical_penalties(
             )
 
         expanded_penalty = []  # type: ignore
+        backend = nw.get_native_namespace(X).__name__
 
-        for element, (column, dt) in zip(penalty, X.dtypes.items()):
-            if isinstance(dt, pd.CategoricalDtype):
-                length = len(dt.categories) + has_missing_category[column] - drop_first
+        for element, (column, dt) in zip(penalty, X.schema.items()):
+            if isinstance(dt, (nw.Enum, nw.Categorical)):
+                # For Polars Categorical (not Enum), avoid .cat.get_categories()
+                # due to string cache issues. Enum is safe to use.
+                if backend == "polars" and isinstance(dt, nw.Categorical):
+                    num_categories = len(X[column].unique().drop_nulls())
+                else:
+                    num_categories = len(X[column].cat.get_categories())
+
+                length = num_categories + has_missing_category[column] - drop_first
                 expanded_penalty.extend(element for _ in range(length))
             else:
                 expanded_penalty.append(element)

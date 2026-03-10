@@ -81,11 +81,15 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
           ``'inverse.gaussian'`` and ``'negative.binomial'``.
         - ``'logit'`` for family ``'binomial'``
 
-    solver : {'auto', 'irls-cd', 'irls-ls', 'lbfgs', 'trust-constr'}, \
+    solver : {'auto', 'closed-form', 'irls-cd', 'irls-ls', 'lbfgs', 'trust-constr'}, \
             optional (default='auto')
         Algorithm to use in the optimization problem:
 
-        - ``'auto'``: ``'irls-ls'`` if ``l1_ratio`` is zero and ``'irls-cd'`` otherwise.
+        - ``'auto'``: ``'closed-form'`` for eligible Gaussian identity-link
+          problems without L1 regularization, ``'irls-ls'`` for other pure-L2
+          cases, and ``'irls-cd'`` otherwise.
+        - ``'closed-form'``: Direct linear solve for eligible Gaussian
+          identity-link problems (ridge/OLS/WLS).
         - ``'irls-cd'``: Iteratively reweighted least squares with a coordinate
           descent inner solver. This can deal with L1 as well as L2 penalties.
           Note that in order to avoid unnecessary memory duplication of X in the
@@ -188,8 +192,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         option exists mainly for compatibility with other scikit-learn
         estimators. If ``False``, ``X`` will not be copied and there will be an
         error if you pass an ``X`` in the wrong format, such as providing
-        integer ``X`` and float ``y``. If ``None``, ``X`` will not be copied
-        unless it is in the wrong format.
+        integer ``X`` and float ``y`` (only guaranteed for numpy arrays and pandas data
+        frames). If ``None``, ``X`` will not be copied unless it is in the wrong format.
 
     check_input : bool, optional (default=True)
         Whether to bypass several checks on input: ``y`` values in range of
@@ -352,7 +356,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         start_params: Optional[np.ndarray] = None,
         selection: str = "cyclic",
         random_state=None,
-        copy_X: bool = True,
+        copy_X: Optional[bool] = None,
         check_input: bool = True,
         verbose=0,
         scale_predictors: bool = False,

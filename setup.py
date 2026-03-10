@@ -63,39 +63,29 @@ setup(
     license="BSD",
     classifiers=[  # Optional
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
         "Programming Language :: Python :: 3.13",
     ],
     package_dir={"": "src"},
-    packages=find_packages(
-        where="src",
-        include=(
-            ["glum"] if os.environ.get("CONDA_BUILD") else ["glum", "glum_benchmarks"]
-        ),
-    ),
-    python_requires=">=3.9",
+    packages=find_packages(where="src", include=["glum"]),
+    python_requires=">=3.10",
     install_requires=[
+        "formulaic>=1.2.0",
         "joblib",
+        "narwhals>=2.0.0",
         "numexpr",
-        "numpy",
-        "pandas",
-        "scikit-learn>=0.23",
-        "scipy",
-        "formulaic>=0.6",
-        "tabmat>=4.0.0",
+        "numpy>=1.24",
+        "packaging",
+        "pandas>=1.4",
+        "pyarrow",
+        "scikit-learn>=1.1.0",
+        "scipy>=1.8.0",
+        "tabmat>=4.1.5",
+        "tqdm",
     ],
-    entry_points=(
-        None
-        if os.environ.get("CONDA_BUILD")
-        else """
-        [console_scripts]
-        glm_benchmarks_run = glum_benchmarks.cli_run:cli_run
-        glm_benchmarks_analyze = glum_benchmarks.cli_analyze:cli_analyze
-    """
-    ),
+    entry_points=None,
     ext_modules=cythonize(
         ext_modules,
         annotate=False,

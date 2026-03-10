@@ -1,9 +1,9 @@
 import copy
 import typing
 
+import narwhals.stable.v2 as nw
 import numpy as np
 import packaging.version
-import pandas as pd
 import sklearn as skl
 import tabmat as tm
 from scipy import sparse
@@ -20,7 +20,7 @@ else:
 def check_array_tabmat_compliant(mat: ArrayLike, drop_first: bool = False, **kwargs):
     to_copy = kwargs.get("copy", False)
 
-    if isinstance(mat, pd.DataFrame):
+    if nw.dependencies.is_into_dataframe(mat):
         raise RuntimeError("DataFrames should have been converted by this point.")
 
     if isinstance(mat, tm.SplitMatrix):

@@ -22,7 +22,7 @@ jobs:
         include:
           - { variant-file: linux_64_numpy2.0python3.10.____cpython,  target-platform: linux-64,  os: ubuntu-latest,  rattler-build-args: '' }
           - { variant-file: linux_64_numpy2python3.13.____cp313,      target-platform: linux-64,  os: ubuntu-latest,  rattler-build-args: '' }
-          - { variant-file: osx_64_numpy2.0python3.10.____cpython,    target-platform: osx-64,    os: macos-latest,   rattler-build-args: '' }
+          - { variant-file: osx_64_numpy2.0python3.10.____cpython,    target-platform: osx-64,    os: macos-15-intel, rattler-build-args: '' }
           - { variant-file: osx_arm64_numpy2.0python3.10.____cpython, target-platform: osx-arm64, os: macos-latest,   rattler-build-args: '' }
           - { variant-file: osx_arm64_numpy2python3.13.____cp313,     target-platform: osx-arm64, os: macos-latest,   rattler-build-args: '' }
           - { variant-file: win_64_numpy2.0python3.10.____cpython,    target-platform: win-64,    os: windows-latest, rattler-build-args: '' }
@@ -46,7 +46,7 @@ jobs:
           GIT_DESCRIBE_NUMBER="$(git rev-list --count ${GIT_DESCRIBE_TAG}..HEAD || echo UNKNOWN)"
           echo GIT_DESCRIBE_NUMBER=$GIT_DESCRIBE_NUMBER >> $GITHUB_OUTPUT
 
-      - uses: prefix-dev/rattler-build-action@5181e1960c2bbd84537e94b18586475dc1f63309 # v0.2.34
+      - uses: prefix-dev/rattler-build-action@91928848ad1ec2025fb7fdd6c018a88ad31e3609 # v0.2.36
         with:
           recipe-path: conda.recipe/recipe.yaml
           build-args: -m .ci_support/${{ matrix.variant-file }}.yaml --target-platform ${{ matrix.target-platform }} ${{ matrix.rattler-build-args }}

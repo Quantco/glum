@@ -4,6 +4,8 @@ import json
 import warnings
 
 import numpy as np
+import pandas as pd
+import polars as pl
 import pytest
 import tabmat as mx
 from git_root import git_root
@@ -12,7 +14,7 @@ from scipy import sparse
 from glum._distribution import TweedieDistribution
 from glum._glm import GeneralizedLinearRegressor
 from glum._glm_cv import GeneralizedLinearRegressorCV
-from glum_benchmarks.data import simulate_glm_data
+from glum_benchmarks.data import simulate_mixed_data
 
 distributions_to_test = ["normal", "poisson", "gamma", "tweedie_p=1.5", "binomial"]
 custom_family_link = [("normal", "log")]
@@ -27,6 +29,30 @@ link_map = {
 }
 
 
+def _pandas_to_polars(df):
+    """Convert pandas DataFrame to polars, preserving categorical ordering.
+
+    Converts pandas Categorical columns to polars Enum with the same category ordering.
+    """
+    if not isinstance(df, pd.DataFrame):
+        return df
+
+    # Identify categorical columns and their categories
+    cat_columns = {}
+    for col in df.columns:
+        if isinstance(df[col].dtype, pd.CategoricalDtype):
+            cat_columns[col] = df[col].cat.categories.tolist()
+
+    # Convert to polars
+    df_pl = pl.from_pandas(df)
+
+    # Cast categorical columns to Enum with correct ordering
+    for col, categories in cat_columns.items():
+        df_pl = df_pl.with_columns(pl.col(col).cast(pl.Enum(categories)))
+
+    return df_pl
+
+
 def _make_P2():
     rand = np.random.default_rng(1)
     a = rand.uniform(size=(30, 30)) - 0.5  # centered uniform distribution
@@ -34,10 +60,15 @@ def _make_P2():
     return P2
 
 
-@pytest.fixture(scope="module")
-def data_all():
-    return {
-        dist: simulate_glm_data(
+@pytest.fixture(
+    params=["pandas", "polars"],
+    scope="module",
+)
+def data_all(request):
+    namespace = request.param
+    data = {}
+    for dist in distributions_to_test:
+        data_dist = simulate_mixed_data(
             family=dist,
             link=link_map[dist],
             n_rows=5000,
@@ -48,8 +79,10 @@ def data_all():
             ohe_categorical=True,
             drop_first=False,
         )
-        for dist in distributions_to_test
-    }
+        if namespace == "polars":
+            data_dist["X"] = _pandas_to_polars(data_dist["X"])
+        data[dist] = data_dist
+    return data
 
 
 @pytest.fixture(
@@ -69,21 +102,21 @@ def data_all_storage(request):
         }
 
         if request.param == "dense":
-            data_dist = simulate_glm_data(**data_config, ohe_categorical=True)
+            data_dist = simulate_mixed_data(**data_config, ohe_categorical=True)
             data_dist["X"] = mx.DenseMatrix(data_dist["X"])
         elif request.param == "scipy-sparse":
-            data_dist = simulate_glm_data(**data_config, ohe_categorical=True)
+            data_dist = simulate_mixed_data(**data_config, ohe_categorical=True)
             data_dist["X"] = sparse.csc_matrix(data_dist["X"])
         elif request.param == "mkl-sparse":
-            data_dist = simulate_glm_data(**data_config, ohe_categorical=True)
+            data_dist = simulate_mixed_data(**data_config, ohe_categorical=True)
             data_dist["X"] = mx.SparseMatrix(sparse.csc_matrix(data_dist["X"]))
         elif request.param == "split":
-            data_dist = simulate_glm_data(**data_config, ohe_categorical=True)
+            data_dist = simulate_mixed_data(**data_config, ohe_categorical=True)
             data_dist["X"] = mx.csc_to_split(
                 sparse.csc_matrix(data_dist["X"]), threshold=0.1
             )
         elif request.param == "categorical":
-            data_dist = simulate_glm_data(**data_config, ohe_categorical=False)
+            data_dist = simulate_mixed_data(**data_config, ohe_categorical=False)
             dense_X = mx.DenseMatrix(np.ascontiguousarray(data_dist["X"].iloc[:, :10]))
             cat0 = mx.CategoricalMatrix(data_dist["X"]["cat0"])
             cat1 = mx.CategoricalMatrix(data_dist["X"]["cat1"])
@@ -412,7 +445,7 @@ if __name__ == "__main__":
         gm_dict = {}
 
     for dist in distributions_to_test:
-        data = simulate_glm_data(family=dist, link=link_map[dist])
+        data = simulate_mixed_data(family=dist, link=link_map[dist])
         for mdl_param in gm_model_parameters.items():
             for use_weights in [True, False]:
                 for use_offset in [True, False]:
@@ -429,7 +462,7 @@ if __name__ == "__main__":
                     )
 
     for dist in distributions_to_test:
-        data = simulate_glm_data(family=dist, link=link_map[dist])
+        data = simulate_mixed_data(family=dist, link=link_map[dist])
         gm_dict = run_and_store_golden_master(
             distribution=dist,
             model_parameters={
@@ -447,7 +480,7 @@ if __name__ == "__main__":
         )
 
     for dist, link in custom_family_link:
-        data = simulate_glm_data(family=dist, link=link_map[dist])
+        data = simulate_mixed_data(family=dist, link=link_map[dist])
         for use_weights in [True, False]:
             for use_offset in [True, False]:
                 gm_dict = run_and_store_golden_master(

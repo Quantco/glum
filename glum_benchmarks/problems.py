@@ -1,0 +1,272 @@
+import inspect
+import os
+from functools import partial
+from typing import Any, Callable, Optional, Union, cast
+
+import attr
+import numpy as np
+import pandas as pd
+import tabmat as tm
+from git_root import git_root
+from joblib import Memory
+from scipy.sparse import csc_matrix, csr_matrix
+from sklearn.preprocessing import StandardScaler
+
+from .data import (
+    generate_housing_dataset,
+    generate_intermediate_insurance_dataset,
+    generate_narrow_insurance_dataset,
+    generate_real_insurance_dataset,
+    generate_wide_insurance_dataset,
+    simulate_categorical_dataset,
+    simulate_glm_dataset,
+)
+from .util import cache_location, exposure_and_offset_to_weights, get_tweedie_p
+
+joblib_memory = Memory(cache_location, verbose=0)
+
+
+@attr.s
+class Problem:
+    """Store metadata about which problem we should run."""
+
+    data_loader = attr.ib(type=Callable)
+    distribution = attr.ib(type=str)
+    alpha = attr.ib(type=float)
+    l1_ratio = attr.ib(type=float)
+
+
+@joblib_memory.cache
+def load_data(
+    loader_func: Callable[
+        [Optional[int], Optional[float], Optional[str]],
+        tuple[pd.DataFrame, np.ndarray, np.ndarray],
+    ],
+    num_rows: Optional[int] = None,
+    storage: str = "dense",
+    noise: Optional[float] = None,
+    distribution: str = "poisson",
+    data_setup: str = "no-weights",
+    standardize: bool = True,
+    k_over_n_ratio: Optional[float] = None,
+) -> dict[str, np.ndarray]:
+    """
+    Load the data.
+
+    By default, continuous features are pre-standardized before OHE and
+    format conversion. Pass ``standardize=False`` to skip (e.g. for
+    golden master tests that compare against stored coefficients).
+
+    A note about weights and exposures: Due to the way we have set up this problem, by
+    rescaling the target variable, it is appropriate to pass what is modeled as an
+    'exposure' as a weight. Everywhere else, exposures will be referred to as weights.
+    """
+    # Step 1) Load the data.
+    if data_setup not in ["weights", "offset", "no-weights"]:
+        raise NotImplementedError
+    loader_kwargs = dict(num_rows=num_rows, noise=noise, distribution=distribution)
+    if "k_over_n_ratio" in inspect.signature(loader_func).parameters:
+        loader_kwargs["k_over_n_ratio"] = k_over_n_ratio
+    X_in, y, exposure = cast(Any, loader_func)(**loader_kwargs)
+
+    # Step 1.5) Standardize continuous columns BEFORE OHE/format conversion.
+    # At this point we still have dtype information, so we can reliably
+    # distinguish continuous columns from categoricals.
+    if standardize:
+        X_in = X_in.copy()
+
+        continuous_cols = [
+            c
+            for c in X_in.select_dtypes(include=[np.number]).columns
+            if X_in[c].nunique(dropna=False) > 2
+        ]
+
+        if continuous_cols:
+            scaler = StandardScaler()
+            X_in[continuous_cols] = scaler.fit_transform(X_in[continuous_cols])
+
+    # Step 2) One hot encode columns if we are not using CategoricalMatrix
+    def transform_col(i: int, dtype) -> Union[pd.DataFrame, tm.CategoricalMatrix]:
+        if dtype.name == "category":
+            if storage == "cat":
+                return tm.CategoricalMatrix(X_in.iloc[:, i])
+            return pd.get_dummies(X_in.iloc[:, i], drop_first=True)
+        return X_in.iloc[:, [i]]
+
+    mat_parts = [transform_col(i, dtype) for i, dtype in enumerate(X_in.dtypes)]
+    # TODO: add a threshold for the number of categories needed to make a categorical
+    #  matrix
+
+    # Step 3) Convert the matrix to the appropriate storage type.
+    if storage == "auto":
+        X = tm.from_pandas(X_in, np.float64, sparse_threshold=0.1, cat_threshold=3)
+    elif storage == "cat":
+        cat_indices_in_expanded_arr: list[np.ndarray] = []
+        dense_indices_in_expanded_arr: list[int] = []
+        i = 0
+        for elt in mat_parts:
+            assert elt.ndim == 2
+            if isinstance(elt, tm.CategoricalMatrix):
+                ncol = elt.shape[1]
+                cat_indices_in_expanded_arr.append(np.arange(i, i + ncol))
+                i += ncol
+            else:
+                dense_indices_in_expanded_arr.append(i)
+                i += 1
+
+        non_cat_part = tm.DenseMatrix(
+            np.hstack(
+                [
+                    elt.values
+                    for elt in mat_parts
+                    if not isinstance(elt, tm.CategoricalMatrix)
+                ]
+            )
+        )
+        X = tm.SplitMatrix(
+            matrices=[non_cat_part]
+            + [elt for elt in mat_parts if isinstance(elt, tm.CategoricalMatrix)],
+            indices=[np.array(dense_indices_in_expanded_arr)]
+            + cat_indices_in_expanded_arr,
+        )
+    elif storage == "csr":
+        X = csr_matrix(
+            pd.concat(mat_parts, axis=1, ignore_index=True).to_numpy(dtype=np.float64)
+        )
+    elif storage == "csc":
+        X = csc_matrix(
+            pd.concat(mat_parts, axis=1, ignore_index=True).to_numpy(dtype=np.float64)
+        )
+    elif storage.startswith("split"):
+        threshold = float(storage.split("split")[1])
+        X = tm.from_csc(
+            csc_matrix(
+                pd.concat(mat_parts, axis=1, ignore_index=True).astype(np.float64)
+            ),
+            threshold,
+        )
+    else:  # Fall back to using a dense matrix.
+        X = pd.concat(mat_parts, axis=1, ignore_index=True)
+
+    # Step 5) Handle weights or offsets if needed.
+    if data_setup == "weights":
+        # The exposure correction doesn't make sense for these distributions since
+        # they don't use a log link (plus binomial isn't in the tweedie family),
+        # but this is what we were doing before.
+        if distribution in ["gaussian", "binomial"]:
+            return dict(X=X, y=y, sample_weight=exposure)
+        # when poisson, should be y=y, sample_weight=exposure
+        # instead have y = y / exposure, weight = exposure
+        y, sample_weight = exposure_and_offset_to_weights(
+            get_tweedie_p(distribution), y, exposure
+        )
+        return dict(X=X, y=y * exposure, sample_weight=sample_weight)
+
+    if data_setup == "offset":
+        log_exposure = np.log(exposure)
+        assert np.all(np.isfinite(log_exposure))
+        # y has already been divided by exposure loader_func, so undo it here
+        return dict(X=X, y=y * exposure, offset=log_exposure)
+    # data_setup = "no_weights"
+    return dict(X=X, y=y)
+
+
+def get_all_problems() -> dict[str, Problem]:
+    """
+    Return the name of all possible problems.
+
+    Returns
+    -------
+    Dict mapping problem names to Problem instances.
+
+    """
+    alpha = 0.001
+
+    housing_distributions = ["gaussian", "gamma", "binomial"]
+    housing_load_funcs = {
+        "intermediate-housing": generate_housing_dataset,
+    }
+
+    insurance_distributions = [
+        "gaussian",
+        "poisson",
+        "gamma",
+        "binomial",
+        "tweedie-p=1.5",
+    ]
+    insurance_load_funcs = {
+        "intermediate-insurance": generate_intermediate_insurance_dataset,
+        "narrow-insurance": generate_narrow_insurance_dataset,
+        "wide-insurance": generate_wide_insurance_dataset,
+    }
+    if os.path.isfile(git_root("data", "X.parquet")):
+        insurance_load_funcs["real-insurance"] = generate_real_insurance_dataset
+
+    # Simulated dataset with configurable K/N ratio.
+    simulated_distributions = ["gaussian", "poisson", "gamma", "binomial"]
+    simulated_load_funcs = {
+        "simulated-glm": simulate_glm_dataset,
+    }
+
+    problems = {}
+    for penalty_str, l1_ratio in [("l2", 0.0), ("net", 0.5), ("lasso", 1.0)]:
+        # Add housing problems
+        for distribution in housing_distributions:
+            suffix = penalty_str + "-" + distribution
+            dist = distribution
+            for problem_name, load_fn in housing_load_funcs.items():
+                for data_setup in ["no-weights", "offset"]:
+                    problems["-".join((problem_name, data_setup, suffix))] = Problem(
+                        data_loader=partial(
+                            load_data, load_fn, distribution=dist, data_setup=data_setup
+                        ),
+                        distribution=distribution,
+                        alpha=alpha,
+                        l1_ratio=l1_ratio,
+                    )
+        # Add insurance problems
+        for distribution in insurance_distributions:
+            suffix = penalty_str + "-" + distribution
+            dist = distribution
+            for problem_name, load_fn in insurance_load_funcs.items():
+                for data_setup in ["weights", "no-weights", "offset"]:
+                    problems["-".join((problem_name, data_setup, suffix))] = Problem(
+                        data_loader=partial(
+                            load_data, load_fn, distribution=dist, data_setup=data_setup
+                        ),
+                        distribution=distribution,
+                        alpha=alpha,
+                        l1_ratio=l1_ratio,
+                    )
+        # Add simulated problems
+        for distribution in simulated_distributions:
+            suffix = penalty_str + "-" + distribution
+            dist = distribution
+            for problem_name, load_fn in simulated_load_funcs.items():
+                problems["-".join((problem_name, "no-weights", suffix))] = Problem(
+                    data_loader=partial(
+                        load_data, load_fn, distribution=dist, data_setup="no-weights"
+                    ),
+                    distribution=distribution,
+                    alpha=alpha,
+                    l1_ratio=l1_ratio,
+                )
+
+        # Add categorical-simulated problems
+        for distribution in simulated_distributions:
+            suffix = penalty_str + "-" + distribution
+            problems["-".join(("categorical-simulated", "no-weights", suffix))] = (
+                Problem(
+                    data_loader=partial(
+                        load_data,
+                        simulate_categorical_dataset,
+                        distribution=distribution,
+                        data_setup="no-weights",
+                    ),
+                    distribution=distribution,
+                    alpha=alpha,
+                    l1_ratio=l1_ratio,
+                )
+            )
+
+    return problems

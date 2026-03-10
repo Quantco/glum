@@ -1585,7 +1585,7 @@ def guess_intercept(
 
         avg_eta = eta if np.isscalar(eta) else np.average(eta, weights=sample_weight)
 
-        return avg_y - avg_eta
+        return avg_y - avg_eta  # type: ignore[operator]
 
     elif isinstance(link, LogLink):
         # This is only correct for Tweedie
