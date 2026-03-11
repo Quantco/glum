@@ -10,7 +10,7 @@ from scipy import sparse
 
 _logger = logging.getLogger(__name__)
 
-_align_warnings_emitted: set[str] = set()
+_align_info_logs_emitted: set[str] = set()
 
 
 def align_df_categories(
@@ -34,13 +34,13 @@ def align_df_categories(
         if column not in df.schema:
             continue
         elif not isinstance(df[column].dtype, nw.Enum):
-            if column not in _align_warnings_emitted:
+            if column not in _align_info_logs_emitted:
                 _logger.info(f"Casting {column} to Enum (categorical).")
-                _align_warnings_emitted.add(column)
+                _align_info_logs_emitted.add(column)
         elif df[column].cat.get_categories().to_list() != levels:
-            if column not in _align_warnings_emitted:
+            if column not in _align_info_logs_emitted:
                 _logger.info(f"Aligning categories of {column}.")
-                _align_warnings_emitted.add(column)
+                _align_info_logs_emitted.add(column)
         else:
             continue
 

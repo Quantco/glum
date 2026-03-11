@@ -12,7 +12,7 @@ Changelog
 
 **Other changes:**
 
-- Deduplicated repeated log messages when casting columns to Enum in ``align_df_categories``, so they are emitted only once per column per session.
+- Deduplicated repeated log messages in ``align_df_categories``, both when casting columns to ``Enum`` and when aligning categories, so they are emitted only once per column per session.
 
 
 3.2.0 - 2026-03-10
