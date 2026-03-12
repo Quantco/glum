@@ -7,6 +7,14 @@
 Changelog
 =========
 
+3.2.1 - unreleased
+------------------
+
+**Other changes:**
+
+- Downgraded log messages in ``align_df_categories`` and ``add_missing_categories`` from INFO to DEBUG, and deduplicated them so they are emitted only once per column per fitted model.
+
+
 3.2.0 - 2026-03-10
 ------------------
 

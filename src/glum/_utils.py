@@ -16,6 +16,7 @@ def align_df_categories(
     categorical_levels: dict[str, list[str]],
     has_missing_category: dict[str, bool],
     cat_missing_method: str,
+    logs_emitted: Optional[set[str]] = None,
 ) -> nw.DataFrame:
     """Align data types for prediction.
 
@@ -32,9 +33,17 @@ def align_df_categories(
         if column not in df.schema:
             continue
         elif not isinstance(df[column].dtype, nw.Enum):
-            _logger.info(f"Casting {column} to Enum (categorical).")
+            key = f"align:{column}"
+            if logs_emitted is None or key not in logs_emitted:
+                _logger.debug(f"Casting {column} to Enum (categorical).")
+                if logs_emitted is not None:
+                    logs_emitted.add(key)
         elif df[column].cat.get_categories().to_list() != levels:
-            _logger.info(f"Aligning categories of {column}.")
+            key = f"align:{column}"
+            if logs_emitted is None or key not in logs_emitted:
+                _logger.debug(f"Aligning categories of {column}.")
+                if logs_emitted is not None:
+                    logs_emitted.add(key)
         else:
             continue
 
@@ -66,6 +75,7 @@ def add_missing_categories(
     feature_names: Sequence[str],
     categorical_format: str,
     cat_missing_name: str,
+    logs_emitted: Optional[set[str]] = None,
 ) -> nw.DataFrame:
     if not isinstance(df, nw.DataFrame):
         raise TypeError(f"Expected `narwhals.DataFrame'; got {type(df)}.")
@@ -98,7 +108,13 @@ def add_missing_categories(
                 raise ValueError(
                     f"Missing category {cat_missing_name} already exists in {column}."
                 )
-            _logger.info(f"Adding missing category {cat_missing_name} to {column}.")
+            key = f"add_missing:{column}"
+            if logs_emitted is None or key not in logs_emitted:
+                _logger.debug(
+                    f"Adding missing category {cat_missing_name} to {column}."
+                )
+                if logs_emitted is not None:
+                    logs_emitted.add(key)
             changed_dtypes[column] = df[column].cast(
                 nw.Enum(df[column].cat.get_categories().to_list() + [cat_missing_name])
             )

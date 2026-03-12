@@ -561,6 +561,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
 
         """
         self._validate_hyperparameters()
+        self._align_info_logs_emitted: set[str] = set()
 
         (
             X,
