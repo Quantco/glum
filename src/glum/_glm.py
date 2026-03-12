@@ -2541,6 +2541,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         -------
         self
         """
+        #### TO REMOVE
+        time.sleep(1)
 
         self._validate_hyperparameters()
 
