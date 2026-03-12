@@ -750,9 +750,6 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
                 b_ineq=b_ineq,
             )
 
-            # Compute train deviance with standardized x_train + raw coef
-            # (before unstandardize). StandardizedMatrix ensures the linear
-            # predictor is identical to using unstandardized data.
             train_deviance_path_ = [_get_train_deviance(_coef) for _coef in coef]
 
             if self.fit_intercept:
