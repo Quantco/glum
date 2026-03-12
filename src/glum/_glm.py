@@ -2541,7 +2541,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         -------
         self
         """
-        #### TO REMOVE
 
         self._validate_hyperparameters()
 
