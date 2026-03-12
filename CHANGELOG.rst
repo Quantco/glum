@@ -12,7 +12,7 @@ Changelog
 
 **Other changes:**
 
-- Deduplicated repeated log messages in ``align_df_categories``, both when casting columns to ``Enum`` and when aligning categories, so they are emitted only once per column per session.
+- Downgraded log messages in ``align_df_categories`` and ``add_missing_categories`` from INFO to DEBUG, and deduplicated them so they are emitted only once per column per fitted model.
 
 
 3.2.0 - 2026-03-10

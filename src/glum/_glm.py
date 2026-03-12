@@ -322,11 +322,13 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         df = nw.from_native(df)
 
         if hasattr(self, "categorical_levels_"):
+            logs_emitted = getattr(self, "_align_info_logs_emitted", None)
             df = align_df_categories(
                 df,
                 self.categorical_levels_,
                 getattr(self, "has_missing_category_", {}),
                 cat_missing_method_after_alignment,
+                logs_emitted=logs_emitted,
             )
             if cat_missing_method_after_alignment == "convert":
                 df = add_missing_categories(
@@ -335,6 +337,7 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
                     feature_names=self.feature_names_,
                     cat_missing_name=self.cat_missing_name,
                     categorical_format=self.categorical_format,
+                    logs_emitted=logs_emitted,
                 )
                 # there should be no missing categories after this
                 cat_missing_method_after_alignment = "fail"
@@ -2648,6 +2651,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         """
 
         self._validate_hyperparameters()
+        self._align_info_logs_emitted: set[str] = set()
 
         # NOTE: This function checks if all the entries in X and y are
         # finite. That can be expensive. But probably worthwhile.
