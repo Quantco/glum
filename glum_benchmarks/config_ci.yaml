@@ -1,0 +1,42 @@
+# CI benchmark config for run_benchmarks.py
+run_benchmarks: true
+analyze_results: true
+generate_plots: false
+update_docs: false
+
+run_name: "ci"
+clear_output: true
+
+iterations: 5
+num_threads: 1
+timeout: 60
+
+storage:
+  glum: auto
+
+# Runtime regression thresholds used by CI compare step.
+max_rel_slowdown: 0.15
+max_abs_slowdown_sec: 0.05
+max_regressed_cases: 0
+
+param_grid:
+  - libraries: [glum]
+    datasets: ["intermediate-insurance"]
+    regularizations: [l2, lasso, net]
+    distributions: [poisson]
+    alphas: [0.01]
+  - libraries: [glum]
+    datasets: ["intermediate-insurance"]
+    regularizations: [l2]
+    distributions: [gamma]
+    alphas: [0.01]
+  - libraries: [glum]
+    datasets: ["intermediate-insurance"]
+    regularizations: [lasso]
+    distributions: [tweedie-p=1.5]
+    alphas: [0.01]
+  - libraries: [glum]
+    datasets: ["intermediate-housing"]
+    regularizations: [net]
+    distributions: [gaussian]
+    alphas: [0.001]
