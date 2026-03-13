@@ -7,8 +7,13 @@
 Changelog
 =========
 
-3.2.1 - unreleased
+
+3.3.0 - unreleased
 ------------------
+
+**New feature:**
+
+- :class:`~glum.GeneralizedLinearRegressorCV` now exposes ``train_deviance_path_``, an array of shape ``(n_folds, n_l1_ratios, n_alphas)`` with the training-set deviance for each fold and alpha.
 
 **Other changes:**
 
