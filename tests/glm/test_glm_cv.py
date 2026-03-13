@@ -279,11 +279,10 @@ def test_train_deviance_path():
     np.random.seed(42)
     n_samples, n_features = 10, 5
     n_alphas = 5
-    X = np.random.randn(n_samples, n_features) * 1e4
+    X = np.random.randn(n_samples, n_features)
     y = np.random.randn(n_samples)
 
     model = GeneralizedLinearRegressorCV(
-        l1_ratio=0.5,
         n_alphas=n_alphas,
         min_alpha_ratio=1e-2,
     ).fit(X, y)
