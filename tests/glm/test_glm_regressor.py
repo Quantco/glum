@@ -1212,10 +1212,11 @@ def test_predict_list_categorical():
     df["x"] = df["x"].astype("category")
     df["y"] = df["x"].map({v: k + 1 for k, v in enumerate(letters)})
 
-    regressor = GeneralizedLinearRegressor(alpha=[0, 2], alpha_search=True)
-    regressor = regressor.fit(df[["x"]], df["y"])
-
-    candidate = regressor.predict(df[["x"]], alpha=0)
+    candidate = (
+        GeneralizedLinearRegressor(alpha=[0, 2], alpha_search=True, fit_intercept=False)
+        .fit(df[["x"]], df["y"])
+        .predict(df[["x"]], alpha=0)
+    )
 
     np.testing.assert_allclose(candidate, df["y"])
 

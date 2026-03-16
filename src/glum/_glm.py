@@ -1972,7 +1972,9 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
 
                 # Backwards compatibility
                 if isinstance(X, pd.DataFrame):
-                    self.feature_dtypes_ = X.dtypes.to_dict()
+                    with warnings.catch_warnings():
+                        warnings.filterwarnings("ignore")
+                        self.feature_dtypes_ = X.dtypes.to_dict()
 
                 X = cast(nw.DataFrame, nw.from_native(X))  # avoid inferring `Never`
 
