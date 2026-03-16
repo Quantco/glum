@@ -7,8 +7,12 @@
 Changelog
 =========
 
-3.2.1 - unreleased
+3.2.1 - 2026-03-16
 ------------------
+
+**Bug fix:**
+
+- Fixed an error when predicting at a specific ``alpha`` with categorical features.
 
 **Other changes:**
 
