@@ -753,6 +753,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
 
             train_deviance_path_ = [_get_train_deviance(_coef) for _coef in coef]
 
+            # Unlike train deviance, test deviance is computed on unstandardized
+            # x and coefficient rescaling differs by self.fit_intercept.
             if self.fit_intercept:
                 intercept_path_, coef_path_ = unstandardize(
                     self.col_means_, self.col_stds_, coef[:, 0], coef[:, 1:]
