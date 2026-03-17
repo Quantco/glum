@@ -13,7 +13,15 @@ Changelog
 
 **New feature:**
 
-- :class:`~glum.GeneralizedLinearRegressorCV` now exposes ``train_deviance_path_``, an array of shape ``(n_folds, n_l1_ratios, n_alphas)`` with the training-set deviance for each fold and alpha.
+- :class:`~glum.GeneralizedLinearRegressorCV` now exposes ``train_deviance_path_``, an array of shape ``(n_folds, n_l1_ratios, n_alphas)`` with the training-set deviance.
+
+
+3.2.1 - 2026-03-16
+------------------
+
+**Bug fix:**
+
+- Fixed an error when predicting at a specific ``alpha`` with categorical features.
 
 **Other changes:**
 

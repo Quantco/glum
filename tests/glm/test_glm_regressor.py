@@ -1202,6 +1202,25 @@ def test_predict_list(regression_data, alpha, alpha_index):
     np.testing.assert_allclose(candidate, target + 1)
 
 
+def test_predict_list_categorical():
+
+    letters = ["a", "b", "c", "d", "e", "f"]
+    rng = np.random.default_rng(42)
+
+    df = pd.DataFrame({"x": rng.choice(letters, size=100)})
+
+    df["x"] = df["x"].astype("category")
+    df["y"] = df["x"].map({v: k + 1 for k, v in enumerate(letters)})
+
+    candidate = (
+        GeneralizedLinearRegressor(alpha=[0, 2], alpha_search=True, fit_intercept=False)
+        .fit(df[["x"]], df["y"])
+        .predict(df[["x"]], alpha=0)
+    )
+
+    np.testing.assert_allclose(candidate, df["y"])
+
+
 def test_predict_error(regression_data):
     X, y = regression_data
 
