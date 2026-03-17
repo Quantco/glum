@@ -253,7 +253,7 @@ class LogitLink(Link):
 
 
 class CloglogLink(Link):
-    """The complementary log-log link function ``log(-log(-p))``."""
+    """The complementary log-log link function ``log(-log(1-mu))``."""
 
     def __eq__(self, other):  # noqa D
         return isinstance(other, self.__class__)
@@ -279,5 +279,4 @@ class CloglogLink(Link):
         return np.exp(lin_pred - np.exp(lin_pred))
 
     def inverse_derivative2(self, lin_pred):  # noqa D
-        # TODO: check if numerical stability can be improved
-        return np.exp(np.exp(lin_pred) - lin_pred) * np.expm1(lin_pred)
+        return -np.exp(lin_pred - np.exp(lin_pred)) * np.expm1(lin_pred)
