@@ -7,12 +7,21 @@
 Changelog
 =========
 
+3.2.3 - 2026-03-18
+------------------
+
+**Bug fix:**
+
+- Fixed incorrect call in :meth:`~glum.InverseGaussianDistribution.log_likelihood`. The previous implementation always returned NaN.
+
+
 3.2.2 - 2026-03-17
 ------------------
 
 **Bug fix:**
 
 - Fixed incorrect formula in :meth:`~glum.CloglogLink.inverse_derivative2`. This affected observed information matrix computation and robust/clustered standard errors for models using the complementary log-log link.
+
 
 3.2.1 - 2026-03-16
 ------------------
