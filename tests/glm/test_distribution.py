@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 import scipy as sp
+import scipy.stats
 import tabmat as tm
 
 from glum._distribution import (
@@ -538,6 +539,34 @@ def test_binomial_deviance_dispersion_loglihood(weighted):
     np.testing.assert_approx_equal(family.dispersion(y, mu, sample_weight=wgts), 1.25)
     np.testing.assert_approx_equal(family.deviance(y, mu, sample_weight=wgts), 6.730117)
     np.testing.assert_approx_equal(ll, -3.365058)
+
+
+@pytest.mark.parametrize("dispersion", [1, 2])
+def test_inv_gaussian_deviance_loglihood(dispersion):
+
+    n = 1_000
+    rng = np.random.default_rng(42)
+
+    mu = rng.uniform(1, 2, size=n)
+
+    y = rng.wald(mu, 1 / dispersion, size=n)
+
+    candidate = InverseGaussianDistribution().log_likelihood(y, mu, None, dispersion)
+
+    target = scipy.stats.invgauss.logpdf(
+        y, mu * dispersion, scale=(1 / dispersion)
+    ).sum()
+
+    np.testing.assert_approx_equal(candidate, target)
+
+    candidate = InverseGaussianDistribution().deviance(y, mu)
+
+    target = 2 * (
+        scipy.stats.invgauss.logpdf(y, y).sum()
+        - scipy.stats.invgauss.logpdf(y, mu).sum()
+    )
+
+    np.testing.assert_approx_equal(candidate, target)
 
 
 @pytest.mark.parametrize("weighted", [False, True])

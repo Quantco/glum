@@ -110,7 +110,7 @@ class TweedieLink(Link):
     def __eq__(self, other):  # noqa D
         return isinstance(other, self.__class__) and (self.power == other.power)
 
-    def __tweedie__repr__(self):  # noqa D
+    def __tweedie_repr__(self):  # noqa D
         return self.__class__(self.power)
 
     @property

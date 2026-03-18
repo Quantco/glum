@@ -69,10 +69,10 @@ def normal_log_likelihood(
     floating dispersion,
 ):
     cdef int i  # loop counter
-    cdef floating sum_weights  # helper
 
     cdef int n = y.shape[0]  # loop length
     cdef floating ll = 0.0  # output
+    cdef floating sum_weights = 0.0  # helper
 
     for i in prange(n, nogil=True):
         ll -= weights[i] * (y[i] - mu[i]) ** 2
@@ -203,12 +203,14 @@ def gamma_log_likelihood(
     floating dispersion,
 ):
     cdef int i  # loop counter
-    cdef floating ln_y, sum_weights  # helpers
+    cdef floating ln_y  # helper
+
+    cdef floating inv_dispersion = 1 / dispersion
+    cdef floating normalization = log(dispersion) * inv_dispersion + lgamma(inv_dispersion)
 
     cdef int n = y.shape[0]  # loop length
     cdef floating ll = 0.0  # output
-    cdef floating inv_dispersion = 1 / dispersion
-    cdef floating normalization = log(dispersion) * inv_dispersion + lgamma(inv_dispersion)
+    cdef floating sum_weights = 0.0  # helper
 
     for i in prange(n, nogil=True):
         ln_y = log(y[i])
@@ -287,22 +289,23 @@ def inv_gaussian_log_likelihood(
     const_floating1d mu,
     floating dispersion,
 ):
-    cdef int n = y.shape[0]  # loop length
     cdef int i  # loop counter
-    cdef floating sum_weights  # helper
-    cdef floating ll = 0.0  # output
 
+    cdef floating scale = 1 / (2 * dispersion)
     cdef floating sq_err  # helper
-    cdef floating inv_dispersion = 1 / (2 * dispersion)  # helper
+
+    cdef int n = y.shape[0]  # loop length
+    cdef floating sum_weights = 0.0  # helper
+    cdef floating ll = 0.0  # output
 
     for i in prange(n, nogil=True):
 
         sq_err = (y[i] / mu[i] - 1) ** 2
 
-        ll -= weights[i] * (inv_dispersion * sq_err / y[i] + log(y[i]) * 3 / 2)
-        sum_weights -= weights[i]
+        ll -= weights[i] * (scale * sq_err / y[i] + log(y[i]) * 3 / 2)
+        sum_weights += weights[i]
 
-    return ll + sum_weights * log(inv_dispersion / M_PI)
+    return ll + sum_weights * log(scale / M_PI) / 2
 
 def inv_gaussian_deviance(
     const_floating1d y,
