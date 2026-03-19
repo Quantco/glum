@@ -1145,7 +1145,7 @@ class InverseGaussianDistribution(ExponentialDispersionModel):
         y, mu, sample_weight = _as_float_arrays(y, mu, sample_weight)
         sample_weight = np.ones_like(y) if sample_weight is None else sample_weight
 
-        return tweedie_deviance(y, sample_weight, mu, p=3.0)
+        return inv_gaussian_deviance(y, sample_weight, mu, dispersion=1.0)
 
     def unit_deviance(self, y, mu):  # noqa D
         return numexpr.evaluate("y / (mu**2) + 1 / y - 2 / mu")
@@ -1205,7 +1205,7 @@ class InverseGaussianDistribution(ExponentialDispersionModel):
         if dispersion is None:
             dispersion = self.dispersion(y, mu, sample_weight)
 
-        return tweedie_log_likelihood(y, sample_weight, mu, 3.0, float(dispersion))
+        return inv_gaussian_log_likelihood(y, sample_weight, mu, float(dispersion))
 
     def dispersion(  # noqa D
         self, y, mu, sample_weight=None, ddof=1, method="pearson"

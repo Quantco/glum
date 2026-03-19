@@ -32,6 +32,15 @@ def test_link_properties(link):
 
     assert link.inverse_derivative2(x).shape == link.inverse_derivative(x).shape
 
+    # Check inverse_derivative2 against numerical second derivative
+    h = 1e-7
+    numerical_d2 = (link.inverse_derivative(x + h) - link.inverse_derivative(x - h)) / (
+        2 * h
+    )
+    np.testing.assert_allclose(
+        link.inverse_derivative2(x), numerical_d2, rtol=1e-4, atol=1e-8
+    )
+
 
 def test_equality():
     assert IdentityLink() == IdentityLink()
