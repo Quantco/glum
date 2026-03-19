@@ -11,18 +11,19 @@
 
 [Documentation](https://glum.readthedocs.io/en/latest/)
 
-Generalized linear models (GLM) are a core statistical tool that include many common methods like least-squares regression, Poisson regression and logistic regression as special cases. At QuantCo, we have used GLMs in e-commerce pricing, insurance claims prediction and more. We have developed `glum`, a fast Python-first GLM library. The development was based on [a fork of scikit-learn](https://github.com/scikit-learn/scikit-learn/pull/9405), so it has a scikit-learn-like API. We are thankful for the starting point provided by Christian Lorentzen in that PR!
+Generalized linear models (GLM) are a core statistical tool that include many common methods like least-squares regression, Poisson regression, and logistic regression as special cases. At QuantCo, we have used GLMs in e-commerce pricing, insurance claims prediction, and more. We have developed `glum`, a fast Python-first GLM library. The development was based on [a fork of scikit-learn](https://github.com/scikit-learn/scikit-learn/pull/9405), so it has a scikit-learn-like API. We are thankful for the starting point provided by Christian Lorentzen in that PR!
 
 We believe that for GLM development, broad support for distributions, regularization, and statistical inference, along with fast formula-based specification, is key. `glum` supports
 
-* Built-in cross validation for optimal regularization, efficiently exploiting a “regularization path”
+* Built-in cross-validation for optimal regularization, efficiently exploiting a “regularization path”
 * L1 regularization, which produces sparse and easily interpretable solutions
 * L2 regularization, including variable matrix-valued (Tikhonov) penalties, which are useful in modeling correlated effects
 * Elastic net regularization
-* Normal, Poisson, logistic, gamma, and Tweedie distributions, plus varied and customizable link functions
+* Normal, Poisson, binomial, gamma, inverse Gaussian, negative binomial, and Tweedie distributions, plus varied and customizable link functions
 * Built-in formula-based model specification using `formulaic`
 * Classical statistical inference for unregularized models
 * Box constraints, linear inequality constraints, sample weights, offsets
+* Support for multiple dataframe backends (pandas, polars, and more) via `narwhals`
 
 Performance also matters, so we conducted extensive benchmarks against other modern libraries. Although performance depends on the specific problem, we find that when N >> K (there are more observations than predictors), `glum` is consistently much faster for a wide range of problems. This repo includes the benchmarking tools in the `glum_benchmarks` module. For details, [see here](glum_benchmarks/README.md).
 
@@ -33,7 +34,7 @@ Performance also matters, so we conducted extensive benchmarks against other mod
 
 For more information on `glum`, including tutorials and API reference, please see [the documentation](https://glum.readthedocs.io/en/latest/).
 
-Why did we choose the name `glum`? We wanted a name that had the letters GLM and wasn't easily confused with any existing implementation. And we thought glum sounded like a funny name (and not glum at all!). If you need a more professional sounding name, feel free to pronounce it as G-L-um. Or maybe it stands for "Generalized linear... ummm... modeling?"
+Why did we choose the name `glum`? We wanted a name that had the letters GLM and wasn't easily confused with any existing implementation. And we thought glum sounded like a funny name (and not glum at all!). If you need a more professional-sounding name, feel free to pronounce it as G-L-um. Or maybe it stands for "Generalized linear... ummm... modeling?"
 
 # A classic example predicting housing prices
 
@@ -44,9 +45,7 @@ Why did we choose the name `glum`? We wanted a name that had the letters GLM and
 >>>
 >>> # This dataset contains house sale prices for King County, which includes
 >>> # Seattle. It includes homes sold between May 2014 and May 2015.
->>> # The full version of this dataset can be found at:
->>> # https://www.openml.org/search?type=data&status=active&id=42092
->>> house_data = pd.read_parquet("data/housing.parquet")
+>>> house_data = fetch_openml(name="house_sales", version=3, as_frame=True).frame
 >>>
 >>> # Use only select features
 >>> X = house_data[
@@ -64,7 +63,6 @@ Why did we choose the name `glum`? We wanted a name that had the letters GLM and
 ...     ]
 ... ].copy()
 >>>
->>>
 >>> # Model whether a house had an above or below median price via a Binomial
 >>> # distribution. We'll be doing L1-regularized logistic regression.
 >>> price = house_data["price"]
@@ -76,18 +74,6 @@ Why did we choose the name `glum`? We wanted a name that had the letters GLM and
 ... )
 >>>
 >>> _ = model.fit(X=X, y=y)
->>>
->>> # .report_diagnostics shows details about the steps taken by the iterative solver.
->>> diags = model.get_formatted_diagnostics(full_report=True)
->>> diags[['objective_fct']]
-        objective_fct
-n_iter               
-0            0.693091
-1            0.489500
-2            0.449585
-3            0.443681
-4            0.443498
-5            0.443497
 >>>
 >>> # Models can also be built with formulas from formulaic.
 >>> model_formula = GeneralizedLinearRegressor(
@@ -111,4 +97,4 @@ conda install glum -c conda-forge
 
 For optimal performance on an x86_64 architecture, we recommend using the MKL library
 (`conda install mkl`). By default, conda usually installs the openblas version, which
-is slower, but supported on all major architecture and OS.
+is slower, but supported on all major architectures and operating systems.
