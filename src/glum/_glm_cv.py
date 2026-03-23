@@ -298,8 +298,11 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         Estimated intercepts at every point along the regularization path,
         per fold and l1_ratio.
 
-    deviance_path_: array, shape(n_folds, n_alphas)
+    deviance_path_: array, shape(n_folds, n_l1_ratios, n_alphas)
         Deviance for the test set on each fold, varying alpha.
+
+    train_deviance_path_: array, shape(n_folds, n_l1_ratios, n_alphas)
+        Deviance for the training set on each fold, varying alpha.
 
     robust : bool, optional (default = False)
         If true, then robust standard errors are computed by default.
@@ -705,6 +708,14 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
                 P2_no_alpha,
             )
 
+            def _get_train_deviance(coef):
+                mu = self._link_instance.inverse(
+                    _safe_lin_pred(x_train, coef, offset_train)
+                )
+                return self._family_instance.deviance(
+                    y_train, mu, sample_weight=w_train
+                )
+
             coef = self._get_start_coef(
                 x_train,
                 y_train,
@@ -740,17 +751,19 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
                 b_ineq=b_ineq,
             )
 
+            train_deviance_path_ = [_get_train_deviance(_coef) for _coef in coef]
+
+            # Unlike train deviance, test deviance is computed on unstandardized
+            # x and coefficient rescaling differs by self.fit_intercept.
             if self.fit_intercept:
                 intercept_path_, coef_path_ = unstandardize(
                     self.col_means_, self.col_stds_, coef[:, 0], coef[:, 1:]
                 )
                 assert isinstance(intercept_path_, np.ndarray)  # make mypy happy
-                deviance_path_ = [
-                    _get_deviance(_coef)
-                    for _coef in np.concatenate(
-                        [intercept_path_[:, np.newaxis], coef_path_], axis=1
-                    )
-                ]
+                full_coef_path = np.concatenate(
+                    [intercept_path_[:, np.newaxis], coef_path_], axis=1
+                )
+                deviance_path_ = [_get_deviance(_coef) for _coef in full_coef_path]
             else:
                 # set intercept to zero as the other linear models do
                 intercept_path_, coef_path_ = unstandardize(
@@ -758,7 +771,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
                 )
                 deviance_path_ = [_get_deviance(_coef) for _coef in coef_path_]
 
-            return intercept_path_, coef_path_, deviance_path_
+            return intercept_path_, coef_path_, deviance_path_, train_deviance_path_
 
         jobs = (
             joblib.delayed(_fit_path)(
@@ -794,6 +807,11 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
 
         self.deviance_path_ = np.reshape(
             [elmt[2] for elmt in paths_data],
+            (cv.get_n_splits(), len(l1_ratio), len(alphas[0])),
+        )
+
+        self.train_deviance_path_ = np.reshape(
+            [elmt[3] for elmt in paths_data],
             (cv.get_n_splits(), len(l1_ratio), len(alphas[0])),
         )
 
