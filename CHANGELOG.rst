@@ -15,6 +15,10 @@ Changelog
 
 - :class:`~glum.GeneralizedLinearRegressorCV` now exposes ``train_deviance_path_``, an array of shape ``(n_folds, n_l1_ratios, n_alphas)`` with the training-set deviance.
 
+**Bug fix:**
+
+- Fixed numerical instability in the ``closed-form`` solver for unregularized models (``alpha=0``). The solver now uses weighted least squares directly on the square-root–weighted data matrix instead of forming the normal equations, matching the approach of ``sklearn.linear_model.LinearRegression`` and ensuring that fitting with explicit sample weights gives the same result as fitting with repeated rows.
+
 
 3.2.3 - 2026-03-18
 ------------------
