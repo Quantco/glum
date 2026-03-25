@@ -130,16 +130,25 @@ def _solve_least_squares_tikhonov(
         has_l2_penalty = np.any(P2 != 0)
 
     if not has_l2_penalty:
-        # Use direct WLS via sqrt-weighted data (avoids squaring the condition
-        # number of the normal equations) for maximum numerical stability.
+        # Use direct WLS via the sqrt-weighted data matrix (avoids squaring the
+        # condition number of the normal equations). We set cond explicitly to
+        # n_cols * eps (matching sklearn's LinearRegression) rather than using
+        # the default (eps), which sits right at the boundary of the near-zero
+        # singular values. The default threshold is fragile: different LAPACK
+        # implementations for differently-shaped matrices (e.g. 15×31 weighted
+        # vs 27×31 repeated-rows) can compute near-zero singular values
+        # slightly differently, leading to inconsistent rank detection across
+        # platforms.  n_cols * eps comfortably zeros out all null-space
+        # directions regardless of platform.
         sw_sqrt = np.sqrt(sample_weight)
         X_arr = X.toarray()
         A = X_arr * sw_sqrt[:, None]
-        b = sw_sqrt * y_minus_offset
+        b = sw_sqrt * (y_minus_offset)
         if fit_intercept:
             # Prepend a column of sqrt(w) for the unpenalised intercept.
             A = np.column_stack([sw_sqrt, A])
-        return linalg.lstsq(A, b)[0]
+        cond = A.shape[1] * np.finfo(A.dtype).eps
+        return linalg.lstsq(A, b, cond=cond)[0]
 
     # ------------------------------------------------------------------
     # P2 != 0: the L2 penalty makes the normal equations well-conditioned
