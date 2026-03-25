@@ -25,6 +25,8 @@ from glum._link import IdentityLink, LogitLink, LogLink
 GLM_SOLVERS = ["irls-ls", "lbfgs", "irls-cd", "trust-constr", "closed-form"]
 
 estimators = [
+    (GeneralizedLinearRegressor, {}),
+    (GeneralizedLinearRegressorCV, {}),
     (GeneralizedLinearRegressor, {"alpha": 1.0}),
     (GeneralizedLinearRegressorCV, {"n_alphas": 2}),
 ]
