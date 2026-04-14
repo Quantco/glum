@@ -7,7 +7,7 @@ from typing import Any, Optional, Union
 
 import numpy as np
 from scipy import linalg, sparse
-from scipy.optimize import LinearConstraint, fmin_l_bfgs_b, minimize
+from scipy.optimize import SR1, LinearConstraint, fmin_l_bfgs_b, minimize
 from sklearn.exceptions import ConvergenceWarning
 from sklearn.utils import check_array
 from sklearn.utils.validation import check_random_state
@@ -967,7 +967,7 @@ def _trust_constr_solver(
         x0=coef,
         jac=True,
         method="trust-constr",
-        hess="2-point",
+        hess=SR1(),
         constraints=constraints,
         options={
             "xtol": xtol,
