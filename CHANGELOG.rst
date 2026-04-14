@@ -14,7 +14,7 @@ Changelog
 
 - :class:`~glum.GeneralizedLinearRegressorCV` now exposes ``train_deviance_path_``, an array of shape ``(n_folds, n_l1_ratios, n_alphas)`` with the training-set deviance.
 
-**Other change:**
+**Other changes:**
 
 - Replaced the ``hess="2-point"`` finite-difference Hessian in the ``trust-constr`` solver with ``SR1()`` (quasi-Newton), significantly speeding up convergence when the number of features is large relative to the number of rows.
 
