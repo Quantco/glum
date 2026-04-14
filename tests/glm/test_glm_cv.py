@@ -185,6 +185,7 @@ def test_solver_equivalence_cv(params, use_offset):
     _assert_all_close(est_2.l1_ratio_, est_ref.l1_ratio_)
     _assert_all_close(est_2.coef_path_, est_ref.coef_path_)
     _assert_all_close(est_2.deviance_path_, est_ref.deviance_path_)
+    _assert_all_close(est_2.train_deviance_path_, est_ref.train_deviance_path_)
     _assert_all_close(est_2.intercept_, est_ref.intercept_)
     _assert_all_close(est_2.coef_, est_ref.coef_)
     _assert_all_close(
@@ -270,6 +271,24 @@ def test_cv_predict_with_alpha_index(l1_ratio):
     pred_alpha = model.predict(X, alpha=model.alpha_)
     assert pred_alpha.shape == (n_samples,)
     np.testing.assert_allclose(pred_alpha, pred_default)
+
+
+def test_train_deviance_path():
+    """train_deviance_path_ should have correct shape and train deviance
+    should be lower than test deviance in a severely overfitted example."""
+    np.random.seed(42)
+    n_samples, n_features = 10, 5
+    n_alphas = 5
+    X = np.random.randn(n_samples, n_features)
+    y = np.random.randn(n_samples)
+
+    model = GeneralizedLinearRegressorCV(
+        n_alphas=n_alphas,
+        min_alpha_ratio=1e-2,
+    ).fit(X, y)
+
+    assert model.train_deviance_path_.shape == model.deviance_path_.shape
+    assert model.train_deviance_path_.mean() < model.deviance_path_.mean()
 
 
 @pytest.mark.parametrize("scale_factor", [1.0, 1000.0])

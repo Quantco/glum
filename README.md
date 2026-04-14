@@ -23,7 +23,7 @@ We believe that for GLM development, broad support for distributions, regulariza
 * Built-in formula-based model specification using `formulaic`
 * Classical statistical inference for unregularized models
 * Box constraints, linear inequality constraints, sample weights, offsets
-* Support for multiple dataframe backends (pandas, polars, and more) via `narwhals`
+* Multiple dataframe backends (pandas, polars, and more) via `narwhals`
 
 Performance also matters, so we conducted extensive benchmarks against other modern libraries. Although performance depends on the specific problem, we find that when N >> K (there are more observations than predictors), `glum` is consistently much faster for a wide range of problems. This repo includes the benchmarking tools in the `glum_benchmarks` module. For details, [see here](glum_benchmarks/README.md).
 
