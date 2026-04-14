@@ -525,6 +525,25 @@ def test_poisson_ridge_ineq_constrained(scale_predictors):
     np.testing.assert_allclose(glm.coef_, [0.1, 0.1], rtol=1e-5)
 
 
+def test_ineq_constraints_enforces_monotonicity():
+    """A_ineq enforces coef[0] <= coef[1] when unconstrained solution violates it."""
+    rng = np.random.default_rng(42)
+    X = rng.standard_normal((500, 2))
+    y = rng.poisson(np.exp(X @ [0.5, -0.3])).astype(float)
+
+    # coef[0] - coef[1] <= 0
+    A_ineq = np.array([[1.0, -1.0]])
+    kwargs = dict(alpha=0.1, l1_ratio=0, family="poisson", gradient_tol=1e-10)
+
+    glm = GeneralizedLinearRegressor(**kwargs, A_ineq=A_ineq, b_ineq=np.zeros(1))
+    glm.fit(X, y)
+    assert glm.coef_[0] <= glm.coef_[1] + 1e-8
+
+    glm_free = GeneralizedLinearRegressor(**kwargs, solver="irls-cd")
+    glm_free.fit(X, y)
+    assert glm_free.coef_[0] > glm_free.coef_[1]
+
+
 def test_normal_enet():
     """Test elastic net regression with normal/gaussian family."""
     alpha, l1_ratio = 0.3, 0.7
