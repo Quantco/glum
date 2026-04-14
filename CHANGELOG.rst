@@ -7,13 +7,16 @@
 Changelog
 =========
 
-
-3.3.0 - unreleased
+3.3.0 - 2026-04-14
 ------------------
 
 **New feature:**
 
 - :class:`~glum.GeneralizedLinearRegressorCV` now exposes ``train_deviance_path_``, an array of shape ``(n_folds, n_l1_ratios, n_alphas)`` with the training-set deviance.
+
+**Other changes:**
+
+- Replaced the ``hess="2-point"`` finite-difference Hessian in the ``trust-constr`` solver with ``SR1()`` (quasi-Newton), significantly speeding up convergence when the number of features is large relative to the number of rows.
 
 
 3.2.3 - 2026-03-18
