@@ -9,7 +9,7 @@ from scipy import sparse
 
 from glum import GeneralizedLinearRegressor, GeneralizedLinearRegressorCV
 
-# n_alphas was renamed to alphas in sklearn 1.7
+# n_alphas was deprecated in sklearn 1.6 and renamed to alphas
 _SKL_ELASTICNETCV_HAS_N_ALPHAS = (
     "n_alphas" in inspect.signature(skl.linear_model.ElasticNetCV).parameters
 )
