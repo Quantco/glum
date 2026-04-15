@@ -1,3 +1,5 @@
+import inspect
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -6,6 +8,11 @@ import tabmat as tm
 from scipy import sparse
 
 from glum import GeneralizedLinearRegressor, GeneralizedLinearRegressorCV
+
+# n_alphas was renamed to alphas in sklearn 1.7
+_SKL_ELASTICNETCV_HAS_N_ALPHAS = "n_alphas" in inspect.signature(
+    skl.linear_model.ElasticNetCV
+).parameters
 
 GLM_SOLVERS = ["irls", "lbfgs", "cd", "trust-constr", "closed-form"]
 
@@ -50,11 +57,12 @@ def test_normal_elastic_net_comparison(l1_ratio, fit_intercept, convert_x_fn):
 
     x_arr = X if isinstance(X, np.ndarray) else X.toarray()
     t_arr = T if isinstance(T, np.ndarray) else T.toarray()
+    n_alphas_kwarg = "n_alphas" if _SKL_ELASTICNETCV_HAS_N_ALPHAS else "alphas"
     elastic_net = skl.linear_model.ElasticNetCV(
         l1_ratio=l1_ratio,
-        n_alphas=n_alphas,
         fit_intercept=fit_intercept,
         tol=tol,
+        **{n_alphas_kwarg: n_alphas},
     ).fit(x_arr, y)
     el_pred = elastic_net.predict(t_arr)
 
