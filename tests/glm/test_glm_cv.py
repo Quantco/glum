@@ -10,9 +10,9 @@ from scipy import sparse
 from glum import GeneralizedLinearRegressor, GeneralizedLinearRegressorCV
 
 # n_alphas was renamed to alphas in sklearn 1.7
-_SKL_ELASTICNETCV_HAS_N_ALPHAS = "n_alphas" in inspect.signature(
-    skl.linear_model.ElasticNetCV
-).parameters
+_SKL_ELASTICNETCV_HAS_N_ALPHAS = (
+    "n_alphas" in inspect.signature(skl.linear_model.ElasticNetCV).parameters
+)
 
 GLM_SOLVERS = ["irls", "lbfgs", "cd", "trust-constr", "closed-form"]
 
