@@ -10,6 +10,7 @@ import statsmodels.formula.api as smf
 
 from glum._formula import parse_formula
 from glum._glm import GeneralizedLinearRegressor
+from glum._glm_cv import GeneralizedLinearRegressorCV
 
 
 @pytest.fixture
@@ -342,3 +343,146 @@ def test_formula_predict(get_mixed_data, formula, fit_intercept, namespace):
     yhat_smf = model_smf.predict(data_unseen)
 
     np.testing.assert_almost_equal(yhat_formula, yhat_smf)
+
+
+def _make_monotonic_model(estimator_cls, **kwargs):
+    if estimator_cls is GeneralizedLinearRegressorCV:
+        kwargs.pop("alpha", None)
+        kwargs.setdefault("n_alphas", 5)
+    return estimator_cls(**kwargs)
+
+
+@pytest.mark.parametrize("direction", ["increasing", "decreasing"])
+@pytest.mark.parametrize(
+    "estimator_cls",
+    [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV],
+    ids=["GLM", "GLMCV"],
+)
+def test_monotonic_constraints_spline(direction, estimator_cls):
+    """Spline coefficients are ordered."""
+    sign = 1 if direction == "increasing" else -1
+    rng = np.random.default_rng(42)
+    n = 500
+    x = np.sort(rng.uniform(0, 1, n))
+    y = (np.sin(2 * np.pi * x) + rng.standard_normal(n) * 0.3).clip(0.01)
+    df = pd.DataFrame({"x": x, "y": y})
+
+    model = _make_monotonic_model(
+        estimator_cls,
+        formula="y ~ bs(x, df=6) - 1",
+        monotonic_constraints={"x": direction},
+        alpha=0.1,
+        l1_ratio=0,
+        fit_intercept=False,
+        gradient_tol=1e-8,
+    )
+    model.fit(df)
+
+    diffs = np.diff(model.coef_)
+    assert all(sign * diffs >= -1e-8)
+
+
+@pytest.mark.parametrize("direction", ["increasing", "decreasing"])
+@pytest.mark.parametrize(
+    "estimator_cls",
+    [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV],
+    ids=["GLM", "GLMCV"],
+)
+def test_monotonic_constraints_ordered_categorical(direction, estimator_cls):
+    """Ordered categorical coefficients respect direction."""
+    sign = 1 if direction == "increasing" else -1
+    rng = np.random.default_rng(42)
+    n = 200
+    categories = ["low", "mid", "high"]
+    cat = rng.choice(categories, n)
+    level = {"low": 0, "mid": 1, "high": 2}
+    y = np.array([level[c] for c in cat], dtype=float) + rng.standard_normal(n) * 0.3
+    df = pd.DataFrame(
+        {
+            "y": y.clip(0.01),
+            "edu": pd.Categorical(cat, categories=categories, ordered=True),
+        }
+    )
+
+    model = _make_monotonic_model(
+        estimator_cls,
+        formula="y ~ edu - 1",
+        monotonic_constraints={"edu": direction},
+        alpha=0.01,
+        l1_ratio=0,
+        fit_intercept=False,
+        gradient_tol=1e-8,
+    )
+    model.fit(df)
+
+    diffs = np.diff(model.coef_)
+    assert all(sign * diffs >= -1e-8)
+
+
+@pytest.mark.parametrize("direction", ["increasing", "decreasing"])
+@pytest.mark.parametrize(
+    "estimator_cls",
+    [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV],
+    ids=["GLM", "GLMCV"],
+)
+def test_monotonic_constraints_numeric(direction, estimator_cls):
+    """A single numeric coefficient has the expected sign."""
+    sign = 1 if direction == "increasing" else -1
+    rng = np.random.default_rng(42)
+    n = 200
+    x = rng.standard_normal(n)
+    y = (2.0 * x + rng.standard_normal(n) * 0.3).clip(0.01)
+    df = pd.DataFrame({"x": x, "y": y})
+
+    model = _make_monotonic_model(
+        estimator_cls,
+        formula="y ~ x - 1",
+        monotonic_constraints={"x": direction},
+        alpha=0.01,
+        l1_ratio=0,
+        fit_intercept=False,
+        gradient_tol=1e-8,
+    )
+    model.fit(df)
+
+    assert sign * model.coef_[0] >= -1e-8
+
+
+@pytest.mark.parametrize("direction", ["increasing", "decreasing"])
+@pytest.mark.parametrize(
+    "estimator_cls",
+    [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV],
+    ids=["GLM", "GLMCV"],
+)
+def test_monotonic_constraints_spline_interaction(direction, estimator_cls):
+    """Spline x categorical: coefficients ordered within each group level."""
+    sign = 1 if direction == "increasing" else -1
+    rng = np.random.default_rng(42)
+    n = 400
+    x = rng.uniform(0, 1, n)
+    g = rng.choice(["a", "b"], n)
+    y = (x + (g == "b").astype(float) + rng.standard_normal(n) * 0.3).clip(0.01)
+    df = pd.DataFrame(
+        {
+            "x": x,
+            "y": y,
+            "g": pd.Categorical(g),
+        }
+    )
+
+    model = _make_monotonic_model(
+        estimator_cls,
+        formula="y ~ bs(x, df=5):g - 1",
+        monotonic_constraints={"x": direction},
+        alpha=0.1,
+        l1_ratio=0,
+        fit_intercept=False,
+        gradient_tol=1e-8,
+    )
+    model.fit(df)
+
+    names = list(model.feature_names_)
+    for lvl in ["a", "b"]:
+        indices = [i for i, n in enumerate(names) if f"g[{lvl}]" in n]
+        diffs = np.diff(model.coef_[indices])
+        assert all(sign * diffs >= -1e-8)

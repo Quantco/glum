@@ -45,6 +45,11 @@ To showcase ``glum’s`` performance on another dataset, we also report results 
 .. BENCHMARK_FIGURES_END
 
 
+``glum`` also supports monotonic constraints on spline and ordered categorical terms, benchmarked here against ``pygam`` on the wide-insurance dataset with a gamma distribution.
+
+.. image:: _static/wide-insurance-gamma-monotonic-normalized.png
+   :width: 700
+
 ``glum`` is primarily optimized for N >> K settings, and is not tuned for N ~ K or N < K. This is illustrated by the simulated benchmark with varying K/N ratios: ``glum`` performs best when N >> K, and relative performance decreases as K/N increases.
 
 For K/N = 2, we include an unnormalized runtime plot, because in the normalized version the ``glmnet`` bar becomes too small to read clearly.

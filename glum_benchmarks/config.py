@@ -6,7 +6,9 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from ruamel.yaml import YAML
 
-Library = Literal["glum", "sklearn", "h2o", "skglm", "celer", "zeros", "glmnet"]
+Library = Literal[
+    "glum", "sklearn", "h2o", "skglm", "celer", "zeros", "glmnet", "pygam"
+]
 Dataset = Literal[
     "intermediate-insurance",
     "intermediate-housing",
@@ -15,7 +17,7 @@ Dataset = Literal[
     "simulated-glm",
     "categorical-simulated",
 ]
-Regularization = Literal["lasso", "l2", "net"]
+Regularization = Literal["lasso", "l2", "net", "monotonic-l2"]
 Alpha = float  # Valid values: 0.0001, 0.001, 0.01
 ALPHA_VALUES = (0.001, 0.01, 0.1)
 Distribution = Literal["gaussian", "gamma", "binomial", "poisson", "tweedie-p=1.5"]

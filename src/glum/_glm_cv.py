@@ -367,6 +367,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         upper_bounds: Optional[np.ndarray] = None,
         A_ineq: Optional[np.ndarray] = None,
         b_ineq: Optional[np.ndarray] = None,
+        monotonic_constraints: Optional[Mapping[str, str]] = None,
         force_all_finite: bool = True,
         cv=None,
         n_jobs: Optional[int] = None,
@@ -410,6 +411,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             upper_bounds=upper_bounds,
             A_ineq=A_ineq,
             b_ineq=b_ineq,
+            monotonic_constraints=monotonic_constraints,
             force_all_finite=force_all_finite,
             drop_first=drop_first,
             robust=robust,
@@ -585,6 +587,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
 
         #########
         # Checks
+        _mc_A_ineq, _mc_b_ineq = self._resolve_monotonic_constraints()
+
         self._set_up_for_fit(y)
         if (
             hasattr(self._family_instance, "_power")
@@ -632,8 +636,10 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         lower_bounds = check_bounds(self.lower_bounds, X.shape[1], X.dtype)
         upper_bounds = check_bounds(self.upper_bounds, X.shape[1], X.dtype)
 
-        A_ineq = copy.copy(self.A_ineq)
-        b_ineq = copy.copy(self.b_ineq)
+        _A = _mc_A_ineq if _mc_A_ineq is not None else self.A_ineq
+        _b = _mc_b_ineq if _mc_b_ineq is not None else self.b_ineq
+        A_ineq = copy.copy(_A)
+        b_ineq = copy.copy(_b)
 
         cv = skl.model_selection.check_cv(self.cv)
 

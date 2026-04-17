@@ -76,11 +76,12 @@ Why did we choose the name `glum`? We wanted a name that had the letters GLM and
 >>> _ = model.fit(X=X, y=y)
 >>>
 >>> # Models can also be built with formulas from formulaic.
+>>> # Monotonic constraints ensure bathrooms has a non-decreasing effect.
 >>> model_formula = GeneralizedLinearRegressor(
 ...     family='binomial',
-...     l1_ratio=1.0,
 ...     alpha=0.001,
-...     formula="bedrooms + np.log(bathrooms + 1) + bs(sqft_living, 3) + C(waterfront)"
+...     formula="bedrooms + bs(bathrooms, df=5) + bs(sqft_living, 3) + C(waterfront)",
+...     monotonic_constraints={"bathrooms": "increasing"}
 ... )
 >>> _ = model_formula.fit(X=house_data, y=y)
 

@@ -984,3 +984,171 @@ def _trust_constr_solver(
         )
 
     return res["x"], res["nit"], -1, None
+
+
+def _build_monotonic_penalty(
+    coef_no_intercept: np.ndarray,
+    A_ineq: np.ndarray,
+    b_ineq: np.ndarray,
+    constraint_lam: float = 1e9,
+) -> np.ndarray:
+    """Return ``lam * A_violated.T @ A_violated`` for currently violated constraints."""
+    violations = A_ineq @ coef_no_intercept - b_ineq
+    violated = violations > 0
+    if not np.any(violated):
+        return np.zeros((A_ineq.shape[1], A_ineq.shape[1]))
+    A_violated = A_ineq[violated]
+    return constraint_lam * (A_violated.T @ A_violated)
+
+
+def _monotonic_irls_solver(
+    coef,
+    X,
+    y: np.ndarray,
+    sample_weight: np.ndarray,
+    P1: Union[np.ndarray, sparse.spmatrix],
+    P2: Union[np.ndarray, sparse.spmatrix],
+    fit_intercept: bool,
+    family: ExponentialDispersionModel,
+    link: Link,
+    A_ineq: np.ndarray,
+    b_ineq: np.ndarray,
+    max_iter: int = 100,
+    max_inner_iter: int = 100_000,
+    gradient_tol: Optional[float] = 1e-4,
+    step_size_tol: Optional[float] = 1e-4,
+    hessian_approx: float = 0.0,
+    selection: str = "cyclic",
+    random_state=None,
+    offset: Optional[np.ndarray] = None,
+    verbose: bool = False,
+    constraint_lam_start: float = 1e5,
+    constraint_lam_max: float = 1e9,
+    constraint_lam_factor: float = 100.0,
+):
+    """IRLS with progressive quadratic penalty for monotonic constraints."""
+    idx = 1 if fit_intercept else 0
+    constraint_lam = constraint_lam_start
+
+    if P2.ndim == 1:
+        P2_base = np.diag(P2)
+    elif sparse.issparse(P2):
+        P2_base = P2.toarray()  # type: ignore[union-attr]
+    else:
+        P2_base = np.array(P2)
+
+    def _update_constraint_penalty(data, coef, lam):
+        C = _build_monotonic_penalty(coef[idx:], A_ineq, b_ineq, lam)
+        data.P2 = P2_base + C
+
+    data = IRLSData(
+        X=X,
+        y=y,
+        sample_weight=sample_weight,
+        P1=P1,
+        P2=P2_base.copy(),
+        fit_intercept=fit_intercept,
+        family=family,
+        link=link,
+        max_iter=max_iter,
+        max_inner_iter=max_inner_iter,
+        gradient_tol=gradient_tol,
+        step_size_tol=step_size_tol,
+        fixed_inner_tol=None,
+        hessian_approx=hessian_approx,
+        selection=selection,
+        random_state=random_state,
+        offset=offset,
+        lower_bounds=None,
+        upper_bounds=None,
+        verbose=verbose,
+    )
+
+    _update_constraint_penalty(data, coef, constraint_lam)
+
+    state = IRLSState(coef, data)
+    state.eta, state.mu, state.obj_val, coef_P2 = _update_predictions(
+        state, data, state.coef
+    )
+    state.gradient_rows, state.score, state.hessian_rows = update_quadratic(
+        state, data, coef_P2
+    )
+    (
+        _,
+        state.norm_min_subgrad,
+        state.max_min_subgrad,
+        state.inner_tol,
+    ) = check_convergence(state, data)
+    state.converged = False
+    state._record_iteration()
+
+    with ProgressBar(state.norm_min_subgrad, data.gradient_tol, data.verbose) as pb:
+        while state.n_iter < data.max_iter and not state.converged:
+            pb._update(state.n_iter, state.iteration_runtime, state.norm_min_subgrad)
+
+            violations = A_ineq @ state.coef[idx:] - b_ineq
+            if np.any(violations > 0):
+                constraint_lam = min(
+                    constraint_lam * constraint_lam_factor, constraint_lam_max
+                )
+
+            old_P2 = data.P2
+            _update_constraint_penalty(data, state.coef, constraint_lam)
+            penalty_changed = not np.array_equal(old_P2, data.P2)
+
+            if penalty_changed:
+                state.hessian_initialized = False
+
+            state.old_active_set = state.active_set
+            state.active_set = identify_active_set(state, data)
+
+            hessian, state.n_active_rows = update_hessian(state, data, state.active_set)
+
+            d, n_cycles_this_iter = _least_squares_solver(state, data, hessian)
+            state.n_cycles += n_cycles_this_iter
+
+            state.old_hessian_rows[:] = state.hessian_rows
+            (
+                state.coef,
+                state.step,
+                state.eta,
+                state.mu,
+                state.obj_val,
+                coef_P2,
+            ) = line_search(state, data, d)
+            state.n_updated = np.sum(np.abs(d) > 0)
+
+            state.gradient_rows, state.score, state.hessian_rows = update_quadratic(
+                state, data, coef_P2
+            )
+
+            (
+                state.converged,
+                state.norm_min_subgrad,
+                state.max_min_subgrad,
+                state.inner_tol,
+            ) = check_convergence(state, data)
+
+            if state.converged:
+                violations = A_ineq @ state.coef[idx:] - b_ineq
+                if np.any(violations > 1e-6):
+                    state.converged = False
+
+            state._record_iteration()
+
+    if not state.converged:
+        warnings.warn(
+            "IRLS failed to converge. Increase the maximum number of iterations "
+            f"max_iter (currently {data.max_iter})",
+            ConvergenceWarning,
+        )
+
+    max_violation = np.max(A_ineq @ state.coef[idx:] - b_ineq)
+    if max_violation > 1e-6:
+        warnings.warn(
+            f"Monotonic IRLS: max constraint violation {max_violation:.2e} "
+            f"after {state.n_iter} iterations.",
+            ConvergenceWarning,
+        )
+
+    return state.coef, state.n_iter, state.n_cycles, state.diagnostics
