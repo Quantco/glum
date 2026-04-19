@@ -1003,33 +1003,18 @@ def _build_monotonic_penalty(
 
 def _monotonic_irls_solver(
     coef,
-    X,
-    y: np.ndarray,
-    sample_weight: np.ndarray,
-    P1: Union[np.ndarray, sparse.spmatrix],
-    P2: Union[np.ndarray, sparse.spmatrix],
-    fit_intercept: bool,
-    family: ExponentialDispersionModel,
-    link: Link,
+    data: IRLSData,
     A_ineq: np.ndarray,
     b_ineq: np.ndarray,
-    max_iter: int = 100,
-    max_inner_iter: int = 100_000,
-    gradient_tol: Optional[float] = 1e-4,
-    step_size_tol: Optional[float] = 1e-4,
-    hessian_approx: float = 0.0,
-    selection: str = "cyclic",
-    random_state=None,
-    offset: Optional[np.ndarray] = None,
-    verbose: bool = False,
     constraint_lam_start: float = 1e5,
     constraint_lam_max: float = 1e9,
     constraint_lam_factor: float = 100.0,
-):
+) -> tuple[np.ndarray, int, int, list[list]]:
     """IRLS with progressive quadratic penalty for monotonic constraints."""
-    idx = 1 if fit_intercept else 0
+    idx = 1 if data.fit_intercept else 0
     constraint_lam = constraint_lam_start
 
+    P2 = data.P2
     if P2.ndim == 1:
         P2_base = np.diag(P2)
     elif sparse.issparse(P2):
@@ -1037,34 +1022,11 @@ def _monotonic_irls_solver(
     else:
         P2_base = np.array(P2)
 
-    def _update_constraint_penalty(data, coef, lam):
+    def _update_constraint_penalty(coef, lam):
         C = _build_monotonic_penalty(coef[idx:], A_ineq, b_ineq, lam)
         data.P2 = P2_base + C
 
-    data = IRLSData(
-        X=X,
-        y=y,
-        sample_weight=sample_weight,
-        P1=P1,
-        P2=P2_base.copy(),
-        fit_intercept=fit_intercept,
-        family=family,
-        link=link,
-        max_iter=max_iter,
-        max_inner_iter=max_inner_iter,
-        gradient_tol=gradient_tol,
-        step_size_tol=step_size_tol,
-        fixed_inner_tol=None,
-        hessian_approx=hessian_approx,
-        selection=selection,
-        random_state=random_state,
-        offset=offset,
-        lower_bounds=None,
-        upper_bounds=None,
-        verbose=verbose,
-    )
-
-    _update_constraint_penalty(data, coef, constraint_lam)
+    _update_constraint_penalty(coef, constraint_lam)
 
     state = IRLSState(coef, data)
     state.eta, state.mu, state.obj_val, coef_P2 = _update_predictions(
@@ -1093,7 +1055,7 @@ def _monotonic_irls_solver(
                 )
 
             old_P2 = data.P2
-            _update_constraint_penalty(data, state.coef, constraint_lam)
+            _update_constraint_penalty(state.coef, constraint_lam)
             penalty_changed = not np.array_equal(old_P2, data.P2)
 
             if penalty_changed:
@@ -1138,8 +1100,9 @@ def _monotonic_irls_solver(
 
     if not state.converged:
         warnings.warn(
-            "IRLS failed to converge. Increase the maximum number of iterations "
-            f"max_iter (currently {data.max_iter})",
+            "IRLS failed to converge. Increase"
+            " the maximum number of iterations max_iter"
+            f" (currently {data.max_iter})",
             ConvergenceWarning,
         )
 

@@ -581,41 +581,8 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         else:
             max_iter = self.max_iter
 
-        # 4.1 IRLS with monotonic penalty #####################################
-        if self._solver == "irls-ls-monotonic":
-            assert A_ineq is not None and b_ineq is not None
-            (
-                coef,
-                self.n_iter_,
-                self._n_cycles,
-                self.diagnostics_,
-            ) = _monotonic_irls_solver(
-                coef=coef,
-                X=X,
-                y=y,
-                sample_weight=sample_weight,
-                P1=P1,
-                P2=P2,
-                fit_intercept=self.fit_intercept,
-                family=self._family_instance,
-                link=self._link_instance,
-                A_ineq=A_ineq,
-                b_ineq=b_ineq,
-                max_iter=max_iter,
-                max_inner_iter=getattr(self, "max_inner_iter", 100_000),
-                gradient_tol=self._gradient_tol,
-                step_size_tol=self.step_size_tol,
-                hessian_approx=self.hessian_approx,
-                selection=self.selection,
-                random_state=self.random_state,
-                offset=offset,
-                verbose=self.verbose > 0,
-            )
-        # 4.2 IRLS ############################################################
-        elif "irls" in self._solver:
-            # Note: we already set P1 = l1*P1, see above
-            # Note: we already set P2 = l2*P2, see above
-            # Note: we already symmetrized P2 = 1/2 (P2 + P2')
+        # 4.1 IRLS #############################################################
+        if "irls" in self._solver:
             irls_data = IRLSData(
                 X=X,
                 y=y,
@@ -638,7 +605,15 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
                 upper_bounds=upper_bounds,
                 verbose=self.verbose > 0,
             )
-            if self._solver == "irls-ls":
+            if self._solver == "irls-ls-monotonic":
+                assert A_ineq is not None and b_ineq is not None
+                (
+                    coef,
+                    self.n_iter_,
+                    self._n_cycles,
+                    self.diagnostics_,
+                ) = _monotonic_irls_solver(coef, irls_data, A_ineq, b_ineq)
+            elif self._solver == "irls-ls":
                 coef, self.n_iter_, self._n_cycles, self.diagnostics_ = _irls_solver(
                     _least_squares_solver, coef, irls_data
                 )
