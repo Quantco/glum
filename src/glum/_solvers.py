@@ -991,12 +991,12 @@ def _build_monotonic_penalty(
     A_ineq: np.ndarray,
     b_ineq: np.ndarray,
     constraint_lam: float = 1e9,
-) -> np.ndarray:
-    """Return ``lam * A_violated.T @ A_violated`` for currently violated constraints."""
+) -> Optional[np.ndarray]:
+    """Return ``lam * A_violated.T @ A_violated``, or None if no violations."""
     violations = A_ineq @ coef_no_intercept - b_ineq
     violated = violations > 0
     if not np.any(violated):
-        return np.zeros((A_ineq.shape[1], A_ineq.shape[1]))
+        return None
     A_violated = A_ineq[violated]
     return constraint_lam * (A_violated.T @ A_violated)
 
@@ -1011,6 +1011,12 @@ def _monotonic_irls_solver(
     constraint_lam_factor: float = 100.0,
 ) -> tuple[np.ndarray, int, int, list[list]]:
     """IRLS with progressive quadratic penalty for monotonic constraints."""
+    if np.any(b_ineq != 0):
+        raise NotImplementedError(
+            "irls-ls-monotonic only supports b_ineq=0. "
+            "Use solver='trust-constr' for general A_ineq @ w <= b_ineq."
+        )
+
     idx = 1 if data.fit_intercept else 0
     constraint_lam = constraint_lam_start
 
@@ -1024,7 +1030,10 @@ def _monotonic_irls_solver(
 
     def _update_constraint_penalty(coef, lam):
         C = _build_monotonic_penalty(coef[idx:], A_ineq, b_ineq, lam)
-        data.P2 = P2_base + C
+        if C is None:
+            data.P2 = P2_base
+        else:
+            data.P2 = P2_base + C
 
     _update_constraint_penalty(coef, constraint_lam)
 

@@ -111,6 +111,17 @@ def _group_columns_by_factor(
     return dict(groups)
 
 
+def _sort_key(member: tuple[int, str | None]) -> tuple[float, str]:
+    """Sort key for (col_idx, factor_idx): numeric first, then lexicographic."""
+    _, idx = member
+    if idx is None:
+        return (0.0, "")
+    try:
+        return (float(idx), "")
+    except ValueError:
+        return (float("inf"), idx)
+
+
 def _build_monotonic_constraints(
     feature_names: Sequence[str],
     monotonic: Mapping[str, str] | Sequence[tuple[str, str]],
@@ -148,6 +159,8 @@ def _build_monotonic_constraints(
         sign = 1.0 if direction == "increasing" else -1.0
 
         for group_key, members in groups.items():
+            if len(members) > 1:
+                members.sort(key=_sort_key)
             if len(members) == 1:
                 row = np.zeros(n_features)
                 row[members[0][0]] = -sign

@@ -10,7 +10,7 @@ import statsmodels.api as sm
 import statsmodels.formula.api as smf
 from sklearn.preprocessing import SplineTransformer
 
-from glum._formula import parse_formula
+from glum._formula import _build_monotonic_constraints, parse_formula
 from glum._glm import GeneralizedLinearRegressor
 from glum._glm_cv import GeneralizedLinearRegressorCV
 
@@ -345,6 +345,23 @@ def test_formula_predict(get_mixed_data, formula, fit_intercept, namespace):
     yhat_smf = model_smf.predict(data_unseen)
 
     np.testing.assert_almost_equal(yhat_formula, yhat_smf)
+
+
+def test_build_monotonic_constraints_sorts_indices():
+    """Consecutive-pair constraints are correct even when columns are out of order."""
+    names = ["sp[10]", "sp[2]", "sp[1]", "sp[3]"]
+    A, b = _build_monotonic_constraints(names, {"sp": "increasing"})
+    assert b.tolist() == [0.0, 0.0, 0.0]
+    # Sorted order: sp[1]=idx2, sp[2]=idx1, sp[3]=idx3, sp[10]=idx0
+    # Pairs: (2,1), (1,3), (3,0) with sign=+1 for increasing: row[i]=1, row[j]=-1
+    expected = np.zeros((3, 4))
+    expected[0, 2] = 1.0  # sp[1]
+    expected[0, 1] = -1.0  # sp[2]
+    expected[1, 1] = 1.0  # sp[2]
+    expected[1, 3] = -1.0  # sp[3]
+    expected[2, 3] = 1.0  # sp[3]
+    expected[2, 0] = -1.0  # sp[10]
+    np.testing.assert_array_equal(A, expected)
 
 
 @pytest.mark.parametrize("direction", ["increasing", "decreasing"])
