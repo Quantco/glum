@@ -20,7 +20,7 @@ We believe that for GLM development, broad support for distributions, regulariza
 * L2 regularization, including variable matrix-valued (Tikhonov) penalties, which are useful in modeling correlated effects
 * Elastic net regularization
 * Normal, Poisson, binomial, gamma, inverse Gaussian, negative binomial, and Tweedie distributions, plus varied and customizable link functions
-* Built-in formula-based model specification using `formulaic`
+* Built-in formula-based model specification using `formulaic`, including monotonic constraints
 * Classical statistical inference for unregularized models
 * Box constraints, linear inequality constraints, sample weights, offsets
 * Multiple dataframe backends (pandas, polars, and more) via `narwhals`
