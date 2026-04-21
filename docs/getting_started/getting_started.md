@@ -100,6 +100,22 @@ preds = glm.predict(X_test)
 preds[0:5]
 ```
 
+<!-- #region -->
+## Regularization
+
+In the example above, the `alpha` and `l1_ratio` parameters specify the level of regularization, i.e. the amount by which fitted model coefficients are biased towards zero.
+The advantage of the regularized model is that one avoids overfitting by controlling the tradeoff between the bias and the variance of the coefficient estimator.
+An optimal level of regularization can be obtained data-adaptively through cross-validation. In the `GeneralizedLinearRegressorCV` example below, we show how this can be done by specifying an `alpha_search` parameter.
+
+To fit an unregularized GLM we set `alpha=0`. Note that the default level `alpha=None` results in regularization at the level `alpha=1.0`, which is the default in the scikit-learn's [ElasticNet](https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.ElasticNet.html).
+
+A basic unregularized GLM object is obtained as
+```python
+glm = GeneralizedLinearRegressor(family="normal", alpha=0)
+```
+which we interact with as in the example above.
+<!-- #endregion -->
+
 ## Fitting a GLM with cross validation
 
 Now, we fit using automatic cross validation with `glum.GeneralizedLinearRegressorCV`. This mirrors the commonly used `cv.glmnet` function.
