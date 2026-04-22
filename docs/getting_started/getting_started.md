@@ -6,20 +6,18 @@ jupyter:
       extension: .md
       format_name: markdown
       format_version: '1.3'
-      jupytext_version: 1.13.0
+      jupytext_version: 1.19.1
   kernelspec:
     display_name: Python 3 (ipykernel)
     language: python
     name: python3
 ---
 
-<!-- #region tags=[] -->
 # Getting Started: fitting a Lasso model
 
 The purpose of this tutorial is to show the basics of `glum`. It assumes a working knowledge of python, regularized linear models, and machine learning. The API is very similar to scikit-learn. After all, `glum` is based on a fork of scikit-learn.
 
 If you have not done so already, please refer to our [installation instructions](../install.rst) for installing `glum`.
-<!-- #endregion -->
 
 ```python
 import pandas as pd
@@ -67,7 +65,7 @@ We'll use `glum.GeneralizedLinearRegressor` to predict the house prices using th
 We set three key parameters:
 
 - `family`: the family parameter specifies the distributional assumption of the GLM and, as a consequence, the loss function to be minimized. Accepted strings are 'normal', 'poisson', 'gamma', 'inverse.gaussian', and 'binomial'. You can also pass in an instantiated `glum` distribution (e.g. `glum.TweedieDistribution(1.5)` )
-- `alpha`: the constant multiplying the penalty term that determines regularization strength.
+- `alpha`: the constant multiplying the penalty term that determines regularization strength. (*Note*: `GeneralizedLinearRegressor` also has an alpha-search option. See the `GeneralizedLinearRegressorCV` example below for details on how alpha-search works).
 - `l1_ratio`: the elastic net mixing parameter (`0 <= l1_ratio <= 1`). For `l1_ratio = 0`, the penalty is the L2 penalty (ridge). ``For l1_ratio = 1``, it is an L1 penalty (lasso).  For ``0 < l1_ratio < 1``, the penalty is a combination of L1 and L2.
 
 To be precise, we will be minimizing the function with respect to the parameters, $\beta$:
@@ -102,6 +100,7 @@ preds = glm.predict(X_test)
 preds[0:5]
 ```
 
+<!-- #region -->
 ## Regularization
 
 In the example above, the `alpha` and `l1_ratio` parameters specify the level of regularization, i.e. the amount by which fitted model coefficients are biased towards zero.
@@ -115,6 +114,7 @@ A basic unregularized GLM object is obtained as
 glm = GeneralizedLinearRegressor(family="normal", alpha=0)
 ```
 which we interact with as in the example above.
+<!-- #endregion -->
 
 ## Fitting a GLM with cross validation
 
