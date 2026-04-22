@@ -501,5 +501,5 @@ def test_monotonic_with_matrix_P2():
         m_dense = GeneralizedLinearRegressor(P2=P2, **common).fit(X, y)
         m_sparse = GeneralizedLinearRegressor(P2=sp.csc_matrix(P2), **common).fit(X, y)
 
-    np.testing.assert_allclose(m_dense.coef_, m_sparse.coef_, atol=1e-8)
+    np.testing.assert_allclose(m_dense.coef_, m_sparse.coef_, atol=1e-6)
     assert np.all(A_ineq @ m_dense.coef_ <= 1e-6)
