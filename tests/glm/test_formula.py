@@ -365,6 +365,14 @@ def test_build_monotonic_constraints_sorts_indices():
     np.testing.assert_array_equal(A, expected)
 
 
+def _make_spline_constraint_data(n=500, seed=42):
+    """Build synthetic data for monotonic constraint tests with splines."""
+    rng = np.random.default_rng(seed)
+    x = np.sort(rng.uniform(0, 1, n))
+    y = (np.sin(2 * np.pi * x) + rng.standard_normal(n) * 0.3).clip(0.01)
+    return x, y
+
+
 @pytest.mark.parametrize("direction", ["increasing", "decreasing"])
 @pytest.mark.parametrize(
     "estimator_cls",
@@ -374,10 +382,7 @@ def test_build_monotonic_constraints_sorts_indices():
 def test_monotonic_constraints_spline(direction, estimator_cls):
     """Spline coefficients are ordered."""
     sign = 1 if direction == "increasing" else -1
-    rng = np.random.default_rng(42)
-    n = 500
-    x = np.sort(rng.uniform(0, 1, n))
-    y = (np.sin(2 * np.pi * x) + rng.standard_normal(n) * 0.3).clip(0.01)
+    x, y = _make_spline_constraint_data()
     df = pd.DataFrame({"x": x, "y": y})
 
     kwargs = dict(
@@ -439,26 +444,10 @@ def test_monotonic_constraints_spline_interaction(direction):
             assert sign * (model.coef_[idx_b[0]] - model.coef_[idx_a[0]]) >= -1e-8
 
 
-def _make_spline_constraint_data(n=500, seed=42):
-    """Build spline design matrix with increasing-constraint matrices."""
-    rng = np.random.default_rng(seed)
-    x = np.sort(rng.uniform(0, 1, n))
-    y = (np.sin(2 * np.pi * x) + rng.standard_normal(n) * 0.3).clip(0.01)
-    X = SplineTransformer(n_knots=5, degree=3, include_bias=False).fit_transform(
-        x.reshape(-1, 1)
-    )
-    p = X.shape[1]
-    A_ineq = np.zeros((p - 1, p))
-    for i in range(p - 1):
-        A_ineq[i, i] = 1.0
-        A_ineq[i, i + 1] = -1.0
-    b_ineq = np.zeros(p - 1)
-    return x, X, y, A_ineq, b_ineq
-
 
 def test_monotonic_constraint_paths_agree():
     """IRLS-formula, IRLS-explicit A_ineq/b_ineq, and trust-constr agree."""
-    x, _, y, _, _ = _make_spline_constraint_data()
+    x, y = _make_spline_constraint_data()
     df = pd.DataFrame({"x": x, "y": y})
 
     common = dict(alpha=0.1, l1_ratio=0, fit_intercept=False, gradient_tol=1e-8)
@@ -507,7 +496,16 @@ def test_monotonic_constraint_paths_agree():
 
 def test_monotonic_with_matrix_P2():
     """Dense and sparse matrix P2 produce identical monotonic-constrained fits."""
-    _, X, y, A_ineq, b_ineq = _make_spline_constraint_data(n=300)
+    x, y = _make_spline_constraint_data(n=300)
+    X = SplineTransformer(n_knots=5, degree=3, include_bias=False).fit_transform(
+        x.reshape(-1, 1)
+    )
+    p = X.shape[1]
+    A_ineq = np.zeros((p - 1, p))
+    for i in range(p - 1):
+        A_ineq[i, i] = 1.0
+        A_ineq[i, i + 1] = -1.0
+    b_ineq = np.zeros(p - 1)
     P2 = np.eye(X.shape[1]) * 0.1
 
     common = dict(
