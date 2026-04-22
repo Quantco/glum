@@ -444,7 +444,6 @@ def test_monotonic_constraints_spline_interaction(direction):
             assert sign * (model.coef_[idx_b[0]] - model.coef_[idx_a[0]]) >= -1e-8
 
 
-
 def test_monotonic_constraint_paths_agree():
     """IRLS-formula, IRLS-explicit A_ineq/b_ineq, and trust-constr agree."""
     x, y = _make_spline_constraint_data()
