@@ -1903,6 +1903,11 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         ):
             raise ValueError("Must provide both A_ineq and b_ineq.")
         if self.monotonic_constraints is not None:
+            if self.A_ineq is not None or self.b_ineq is not None:
+                raise ValueError(
+                    "Cannot use monotonic_constraints together with "
+                    "explicit A_ineq/b_ineq."
+                )
             if getattr(self, "formula", None) is None:
                 raise ValueError(
                     "monotonic_constraints requires a formula. "
@@ -2759,17 +2764,11 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         lower_bounds = check_bounds(self.lower_bounds, X.shape[1], X.dtype)
         upper_bounds = check_bounds(self.upper_bounds, X.shape[1], X.dtype)
 
-        has_monotonic_c = self.monotonic_constraints is not None
-        has_Ab_c = self.A_ineq is not None and self.b_ineq is not None
         _A: Optional[np.ndarray]
         _b: Optional[np.ndarray]
-        if has_monotonic_c and has_Ab_c:
-            raise ValueError(
-                "Cannot use monotonic_constraints together with explicit A_ineq/b_ineq."
-            )
-        elif has_monotonic_c:
+        if self.monotonic_constraints is not None:
             _A, _b = self._resolve_monotonic_constraints()
-        elif has_Ab_c:
+        elif self.A_ineq is not None and self.b_ineq is not None:
             _A, _b = self.A_ineq, self.b_ineq
         else:
             _A, _b = None, None
