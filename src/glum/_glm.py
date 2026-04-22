@@ -583,6 +583,9 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
 
         # 4.1 IRLS #############################################################
         if "irls" in self._solver:
+            # Note: we already set P1 = l1*P1, see above
+            # Note: we already set P2 = l2*P2, see above
+            # Note: we already symmetrized P2 = 1/2 (P2 + P2')
             irls_data = IRLSData(
                 X=X,
                 y=y,
@@ -617,6 +620,7 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
                 coef, self.n_iter_, self._n_cycles, self.diagnostics_ = _irls_solver(
                     _least_squares_solver, coef, irls_data
                 )
+            # 4.2 coordinate descent ##############################################
             elif self._solver == "irls-cd":
                 coef, self.n_iter_, self._n_cycles, self.diagnostics_ = _irls_solver(
                     _cd_solver, coef, irls_data
