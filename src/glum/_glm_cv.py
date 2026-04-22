@@ -638,12 +638,12 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         has_Ab_c = self.A_ineq is not None and self.b_ineq is not None
         if has_monotonic_c and has_Ab_c:
             raise ValueError(
-                "Cannot use monotonic_constraints together with "
-                "explicit A_ineq/b_ineq."
+                "Cannot use monotonic_constraints together with explicit A_ineq/b_ineq."
             )
         elif has_monotonic_c:
             A_ineq, b_ineq = self._resolve_monotonic_constraints()
         elif has_Ab_c:
+            assert self.A_ineq is not None and self.b_ineq is not None
             A_ineq = copy.copy(self.A_ineq)
             b_ineq = copy.copy(self.b_ineq)
         else:

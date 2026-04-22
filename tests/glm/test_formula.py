@@ -8,6 +8,7 @@ import polars as pl
 import pytest
 import statsmodels.api as sm
 import statsmodels.formula.api as smf
+from scipy import sparse as sp
 from sklearn.preprocessing import SplineTransformer
 
 from glum._formula import _build_monotonic_constraints, parse_formula
@@ -438,23 +439,26 @@ def test_monotonic_constraints_spline_interaction(direction):
             assert sign * (model.coef_[idx_b[0]] - model.coef_[idx_a[0]]) >= -1e-8
 
 
-def test_monotonic_irls_vs_trust_constr():
-    """Penalty-based IRLS and trust-constr produce similar coefficients."""
-    rng = np.random.default_rng(42)
-    n = 500
+def _make_spline_constraint_data(n=500, seed=42):
+    """Build spline design matrix with increasing-constraint matrices."""
+    rng = np.random.default_rng(seed)
     x = np.sort(rng.uniform(0, 1, n))
     y = (np.sin(2 * np.pi * x) + rng.standard_normal(n) * 0.3).clip(0.01)
-
     X = SplineTransformer(n_knots=5, degree=3, include_bias=False).fit_transform(
         x.reshape(-1, 1)
     )
     p = X.shape[1]
-
     A_ineq = np.zeros((p - 1, p))
     for i in range(p - 1):
         A_ineq[i, i] = 1.0
         A_ineq[i, i + 1] = -1.0
     b_ineq = np.zeros(p - 1)
+    return X, y, A_ineq, b_ineq
+
+
+def test_monotonic_irls_vs_trust_constr():
+    """Penalty-based IRLS and trust-constr produce similar coefficients."""
+    X, y, A_ineq, b_ineq = _make_spline_constraint_data()
 
     common = dict(alpha=0.1, l1_ratio=0, fit_intercept=False, gradient_tol=1e-8)
 
@@ -477,3 +481,25 @@ def test_monotonic_irls_vs_trust_constr():
     assert np.all(A_ineq @ irls_model.coef_ <= 1e-6)
     assert np.all(A_ineq @ tc_model.coef_ <= 1e-6)
     assert np.any(A_ineq @ unconstrained_model.coef_ > 1e-6)
+
+
+def test_monotonic_with_matrix_P2():
+    """Dense and sparse matrix P2 produce identical monotonic-constrained fits."""
+    X, y, A_ineq, b_ineq = _make_spline_constraint_data(n=300)
+    P2 = np.eye(X.shape[1]) * 0.1
+
+    common = dict(
+        A_ineq=A_ineq,
+        b_ineq=b_ineq,
+        l1_ratio=0,
+        fit_intercept=False,
+        gradient_tol=1e-8,
+        solver="irls-ls-monotonic",
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        m_dense = GeneralizedLinearRegressor(P2=P2, **common).fit(X, y)
+        m_sparse = GeneralizedLinearRegressor(P2=sp.csc_matrix(P2), **common).fit(X, y)
+
+    np.testing.assert_allclose(m_dense.coef_, m_sparse.coef_, atol=1e-8)
+    assert np.all(A_ineq @ m_dense.coef_ <= 1e-6)

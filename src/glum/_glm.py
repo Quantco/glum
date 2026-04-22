@@ -1937,6 +1937,7 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         self,
     ) -> tuple[np.ndarray, np.ndarray]:
         """Resolve ``monotonic_constraints`` to ``(A_ineq, b_ineq)``."""
+        assert self.monotonic_constraints is not None
         factor_constraints = _resolve_monotonic_constraints_from_model_spec(
             self.X_model_spec_,
             self.monotonic_constraints,
@@ -2760,10 +2761,11 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
 
         has_monotonic_c = self.monotonic_constraints is not None
         has_Ab_c = self.A_ineq is not None and self.b_ineq is not None
+        _A: Optional[np.ndarray]
+        _b: Optional[np.ndarray]
         if has_monotonic_c and has_Ab_c:
             raise ValueError(
-                "Cannot use monotonic_constraints together with "
-                "explicit A_ineq/b_ineq."
+                "Cannot use monotonic_constraints together with explicit A_ineq/b_ineq."
             )
         elif has_monotonic_c:
             _A, _b = self._resolve_monotonic_constraints()

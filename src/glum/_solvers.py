@@ -991,14 +991,14 @@ def _build_monotonic_penalty(
     A_ineq: np.ndarray,
     b_ineq: np.ndarray,
     constraint_lam: float = 1e9,
-) -> Optional[np.ndarray]:
-    """Return ``lam * A_violated.T @ A_violated``, or None if no violations."""
+) -> Optional[sparse.csc_matrix]:
+    """Return ``lam * A_v.T @ A_v`` as sparse, or None if no violations."""
     violations = A_ineq @ coef_no_intercept - b_ineq
     violated = violations > 0
     if not np.any(violated):
         return None
-    A_violated = A_ineq[violated]
-    return constraint_lam * (A_violated.T @ A_violated)
+    A_v = sparse.csc_matrix(A_ineq[violated])
+    return constraint_lam * (A_v.T @ A_v)
 
 
 def _monotonic_irls_solver(
@@ -1022,17 +1022,21 @@ def _monotonic_irls_solver(
 
     P2_base = data.P2.copy()
 
-    def _update_constraint_penalty(coef, lam):
+    def _update_constraint_penalty(coef, lam) -> bool:
+        """Update data.P2 with penalty; return True if P2 changed."""
         C = _build_monotonic_penalty(coef[idx:], A_ineq, b_ineq, lam)
         if C is None:
+            changed = data.P2 is not P2_base
             data.P2 = P2_base
         else:
             if P2_base.ndim == 1:
-                data.P2 = np.diag(P2_base) + C
+                data.P2 = sparse.diags(P2_base) + C
             elif sparse.issparse(P2_base):
-                data.P2 = P2_base.toarray() + C  # type: ignore[union-attr]
-            else:
                 data.P2 = P2_base + C
+            else:
+                data.P2 = P2_base + C.toarray()
+            changed = True
+        return changed
 
     _update_constraint_penalty(coef, constraint_lam)
 
@@ -1062,9 +1066,7 @@ def _monotonic_irls_solver(
                     constraint_lam * constraint_lam_factor, constraint_lam_max
                 )
 
-            old_P2 = data.P2
-            _update_constraint_penalty(state.coef, constraint_lam)
-            penalty_changed = not np.array_equal(old_P2, data.P2)
+            penalty_changed = _update_constraint_penalty(state.coef, constraint_lam)
 
             if penalty_changed:
                 state.hessian_initialized = False
