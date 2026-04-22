@@ -1918,6 +1918,8 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
                     "monotonic_constraints must be a mapping; "
                     f"got {type(self.monotonic_constraints).__name__}."
                 )
+            if not self.monotonic_constraints:
+                raise ValueError("monotonic_constraints must not be empty.")
             for var, direction in self.monotonic_constraints.items():
                 if direction not in ("increasing", "decreasing"):
                     raise ValueError(
