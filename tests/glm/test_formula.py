@@ -453,14 +453,34 @@ def _make_spline_constraint_data(n=500, seed=42):
         A_ineq[i, i] = 1.0
         A_ineq[i, i + 1] = -1.0
     b_ineq = np.zeros(p - 1)
-    return X, y, A_ineq, b_ineq
+    return x, X, y, A_ineq, b_ineq
 
 
-def test_monotonic_irls_vs_trust_constr():
-    """Penalty-based IRLS and trust-constr produce similar coefficients."""
-    X, y, A_ineq, b_ineq = _make_spline_constraint_data()
+def test_monotonic_constraint_paths_agree():
+    """IRLS-formula, IRLS-explicit A_ineq/b_ineq, and trust-constr agree."""
+    x, _, y, _, _ = _make_spline_constraint_data()
+    df = pd.DataFrame({"x": x, "y": y})
 
     common = dict(alpha=0.1, l1_ratio=0, fit_intercept=False, gradient_tol=1e-8)
+
+    formula_model = GeneralizedLinearRegressor(
+        formula="y ~ bs(x, df=6) - 1",
+        monotonic_constraints={"x": "increasing"},
+        solver="irls-ls-monotonic",
+        **common,
+    )
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        formula_model.fit(df)
+
+    X = formula_model.X_model_spec_.get_model_matrix(df).toarray()
+    p = X.shape[1]
+    A_ineq = np.zeros((p - 1, p))
+    for i in range(p - 1):
+        A_ineq[i, i] = 1.0
+        A_ineq[i, i + 1] = -1.0
+    b_ineq = np.zeros(p - 1)
 
     irls_model = GeneralizedLinearRegressor(
         solver="irls-ls-monotonic", A_ineq=A_ineq, b_ineq=b_ineq, **common
@@ -476,8 +496,10 @@ def test_monotonic_irls_vs_trust_constr():
         tc_model.fit(X, y)
         unconstrained_model.fit(X, y)
 
-    np.testing.assert_allclose(irls_model.coef_, tc_model.coef_, atol=5e-4)
+    np.testing.assert_allclose(formula_model.coef_, irls_model.coef_, atol=1e-8)
+    np.testing.assert_allclose(irls_model.coef_, tc_model.coef_, atol=1e-3)
 
+    assert np.all(A_ineq @ formula_model.coef_ <= 1e-6)
     assert np.all(A_ineq @ irls_model.coef_ <= 1e-6)
     assert np.all(A_ineq @ tc_model.coef_ <= 1e-6)
     assert np.any(A_ineq @ unconstrained_model.coef_ > 1e-6)
@@ -485,7 +507,7 @@ def test_monotonic_irls_vs_trust_constr():
 
 def test_monotonic_with_matrix_P2():
     """Dense and sparse matrix P2 produce identical monotonic-constrained fits."""
-    X, y, A_ineq, b_ineq = _make_spline_constraint_data(n=300)
+    _, X, y, A_ineq, b_ineq = _make_spline_constraint_data(n=300)
     P2 = np.eye(X.shape[1]) * 0.1
 
     common = dict(
