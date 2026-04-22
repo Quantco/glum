@@ -1020,11 +1020,7 @@ def _monotonic_irls_solver(
     idx = 1 if data.fit_intercept else 0
     constraint_lam = constraint_lam_start
 
-    P2_base = data.P2
-    if sparse.issparse(P2_base):
-        P2_base = P2_base.copy()
-    elif isinstance(P2_base, np.ndarray):
-        P2_base = P2_base.copy()
+    P2_base = data.P2.copy()
 
     def _update_constraint_penalty(coef, lam):
         C = _build_monotonic_penalty(coef[idx:], A_ineq, b_ineq, lam)
