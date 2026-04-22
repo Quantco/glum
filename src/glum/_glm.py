@@ -1904,11 +1904,6 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
                     "monotonic_constraints requires a formula. "
                     "Use A_ineq/b_ineq for matrix inputs."
                 )
-            if (self.A_ineq is not None) or (self.b_ineq is not None):
-                raise ValueError(
-                    "Cannot use monotonic_constraints together with "
-                    "explicit A_ineq/b_ineq."
-                )
             if not isinstance(self.monotonic_constraints, Mapping):
                 raise TypeError(
                     "monotonic_constraints must be a mapping; "
@@ -1936,18 +1931,12 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
 
     def _resolve_monotonic_constraints(
         self,
-    ) -> tuple[Optional[np.ndarray], Optional[np.ndarray]]:
+    ) -> tuple[np.ndarray, np.ndarray]:
         """Resolve ``monotonic_constraints`` to ``(A_ineq, b_ineq)``."""
-        if self.monotonic_constraints is None:
-            return None, None
-
         factor_constraints = _resolve_monotonic_constraints_from_model_spec(
             self.X_model_spec_,
             self.monotonic_constraints,
         )
-
-        if not factor_constraints:
-            return None, None
 
         return _build_monotonic_constraints(
             self.feature_names_,
@@ -2754,8 +2743,6 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         assert isinstance(X, tm.MatrixBase)
         assert isinstance(y, np.ndarray)
 
-        _mc_A_ineq, _mc_b_ineq = self._resolve_monotonic_constraints()
-
         self._set_up_for_fit(y)
 
         # 1.3 arguments to take special care ##################################
@@ -2767,8 +2754,20 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         lower_bounds = check_bounds(self.lower_bounds, X.shape[1], X.dtype)
         upper_bounds = check_bounds(self.upper_bounds, X.shape[1], X.dtype)
 
-        _A = _mc_A_ineq if _mc_A_ineq is not None else self.A_ineq
-        _b = _mc_b_ineq if _mc_b_ineq is not None else self.b_ineq
+        has_monotonic_c = self.monotonic_constraints is not None
+        has_Ab_c = self.A_ineq is not None and self.b_ineq is not None
+        if has_monotonic_c and has_Ab_c:
+            raise ValueError(
+                "Cannot use monotonic_constraints together with "
+                "explicit A_ineq/b_ineq."
+            )
+        elif has_monotonic_c:
+            _A, _b = self._resolve_monotonic_constraints()
+        elif has_Ab_c:
+            _A, _b = self.A_ineq, self.b_ineq
+        else:
+            _A, _b = None, None
+
         A_ineq, b_ineq = check_inequality_constraints(
             _A, _b, n_features=X.shape[1], dtype=X.dtype
         )

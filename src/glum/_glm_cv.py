@@ -587,8 +587,6 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
 
         #########
         # Checks
-        _mc_A_ineq, _mc_b_ineq = self._resolve_monotonic_constraints()
-
         self._set_up_for_fit(y)
         if (
             hasattr(self._family_instance, "_power")
@@ -636,10 +634,20 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         lower_bounds = check_bounds(self.lower_bounds, X.shape[1], X.dtype)
         upper_bounds = check_bounds(self.upper_bounds, X.shape[1], X.dtype)
 
-        _A = _mc_A_ineq if _mc_A_ineq is not None else self.A_ineq
-        _b = _mc_b_ineq if _mc_b_ineq is not None else self.b_ineq
-        A_ineq = copy.copy(_A)
-        b_ineq = copy.copy(_b)
+        has_monotonic_c = self.monotonic_constraints is not None
+        has_Ab_c = self.A_ineq is not None and self.b_ineq is not None
+        if has_monotonic_c and has_Ab_c:
+            raise ValueError(
+                "Cannot use monotonic_constraints together with "
+                "explicit A_ineq/b_ineq."
+            )
+        elif has_monotonic_c:
+            A_ineq, b_ineq = self._resolve_monotonic_constraints()
+        elif has_Ab_c:
+            A_ineq = copy.copy(self.A_ineq)
+            b_ineq = copy.copy(self.b_ineq)
+        else:
+            A_ineq, b_ineq = None, None
 
         cv = skl.model_selection.check_cv(self.cv)
 
