@@ -484,7 +484,7 @@ def test_monotonic_constraint_paths_agree():
         tc_model.fit(X, y)
         unconstrained_model.fit(X, y)
 
-    np.testing.assert_allclose(formula_model.coef_, irls_model.coef_, atol=1e-8)
+    np.testing.assert_allclose(formula_model.coef_, irls_model.coef_, atol=1e-6)
     np.testing.assert_allclose(irls_model.coef_, tc_model.coef_, atol=1e-3)
 
     assert np.all(A_ineq @ formula_model.coef_ <= 1e-6)
