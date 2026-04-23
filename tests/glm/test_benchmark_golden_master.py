@@ -32,8 +32,12 @@ def expected_all():
         return json.load(fh)
 
 
-# Filter out simulated datasets which are for benchmarking only
-_gm_test_problems = {k: v for k, v in all_test_problems.items() if "simulated" not in k}
+# Filter out simulated and monotonic datasets which are for benchmarking only
+_gm_test_problems = {
+    k: v
+    for k, v in all_test_problems.items()
+    if "simulated" not in k and "monotonic" not in k
+}
 
 
 @pytest.mark.parametrize(

@@ -19,6 +19,15 @@ def _build_and_fit(model_args, fit_args):
     return GeneralizedLinearRegressor(**model_args).fit(**fit_args)
 
 
+MONOTONIC_FORMULA = (
+    "y ~ cr(BonusMalus, df=10)"
+    " + C(VehPower) + C(VehAge) + C(DrivAge)"
+    " + C(VehBrand) + C(VehGas) + C(Region) + C(Area)"
+    " + Density_log"
+)
+MONOTONIC_CONSTRAINTS = {"BonusMalus": "increasing"}
+
+
 def glum_bench(
     dat: dict[str, Union[np.ndarray, sps.spmatrix]],
     distribution: str,
@@ -49,6 +58,11 @@ def glum_bench(
     dict
 
     """
+    if "df" in dat:
+        return _glum_formula_bench(
+            dat, distribution, alpha, iterations, timeout=timeout
+        )
+
     result = {}
 
     X = dat["X"]
@@ -97,6 +111,40 @@ def glum_bench(
             m.report_diagnostics()
         elif diagnostics_level == "full":
             m.report_diagnostics(full_report=True)
+    return result
+
+
+def _build_formula_and_fit(df, model_args):
+    m = GeneralizedLinearRegressor(**model_args)
+    m.fit(df)
+    return m
+
+
+def _glum_formula_bench(dat, distribution, alpha, iterations, timeout=None):
+    result = {}
+
+    df = dat["df"].copy()
+    df["y"] = dat["y"]
+
+    model_args = dict(
+        formula=MONOTONIC_FORMULA,
+        family=get_sklearn_family(distribution),
+        monotonic_constraints=MONOTONIC_CONSTRAINTS,
+        alpha=alpha,
+        l1_ratio=0,
+        gradient_tol=benchmark_convergence_tolerance,
+        step_size_tol=0.01 * benchmark_convergence_tolerance,
+        max_iter=500,
+        verbose=False,
+    )
+
+    result["runtime"], m = runtime(
+        _build_formula_and_fit, iterations, df, model_args, timeout=timeout
+    )
+    result["intercept"] = m.intercept_
+    result["coef"] = m.coef_
+    result["n_iter"] = m.n_iter_
+    result["max_iter"] = m.max_iter
     return result
 
 

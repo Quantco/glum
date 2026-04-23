@@ -7,6 +7,13 @@
 Changelog
 =========
 
+3.4.0 - unreleased
+------------------
+
+**New feature:**
+
+- Added ``monotonic_constraints`` parameter to :class:`~glum.GeneralizedLinearRegressor` and :class:`~glum.GeneralizedLinearRegressorCV` for enforcing monotonic effects on splines, ordered categoricals, and interactions via the formula interface. Uses a new ``irls-ls-monotonic`` solver (5-20× faster than ``trust-constr`` on insurance benchmark).
+
 3.3.0 - 2026-04-14
 ------------------
 

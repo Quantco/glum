@@ -60,13 +60,17 @@ def _parse_problem_name(name: str) -> tuple[str, str, str]:
 
     Problem name format: {dataset}-no-weights-{regularization}-{distribution}
     where dataset is 2 parts (e.g., "intermediate-insurance"),
-    regularization is 1 part (lasso/l2/net),
+    regularization is 1 or 2 parts (e.g., "l2" or "monotonic-l2"),
     and distribution may contain hyphens (e.g., "tweedie-p=1.5").
     """
     parts = name.split("-")
     dataset = "-".join(parts[:2])
-    reg = parts[4]
-    dist = "-".join(parts[5:])
+    if parts[4] == "monotonic":
+        reg = "monotonic-" + parts[5]
+        dist = "-".join(parts[6:])
+    else:
+        reg = parts[4]
+        dist = "-".join(parts[5:])
     return dataset, reg, dist
 
 
@@ -711,6 +715,7 @@ def plot_results(config: BenchmarkConfig):
         "sklearn": "#1f78b4",
         "skglm": "#33a02c",
         "celer": "#fb9a99",
+        "pygam": "#cab2d6",
     }
 
     # Generate one plot per dataset/distribution combo. For simulated-glm,

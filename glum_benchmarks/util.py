@@ -396,6 +396,7 @@ def get_all_libraries() -> dict:
         glmnet_bench,
         glum_bench,
         h2o_bench,
+        pygam_bench,
         skglm_bench,
         sklearn_bench,
         zeros_bench,
@@ -407,6 +408,7 @@ def get_all_libraries() -> dict:
         "celer": celer_bench,
         "h2o": h2o_bench,
         "glmnet": glmnet_bench,
+        "pygam": pygam_bench,
         "skglm": skglm_bench,
         "sklearn": sklearn_bench,
     }
@@ -485,23 +487,23 @@ def execute_problem_library(
     )
 
     if len(result) > 0:
-        # Use best_alpha from CV if available, otherwise use base alpha
-        alpha_for_obj = result.get("best_alpha", P.alpha)
-        alpha_for_obj = (
-            alpha_for_obj / np.asarray(dat["sample_weight"]).mean()
-            if "sample_weight" in dat
-            else alpha_for_obj
-        )
-        obj_val = get_obj_val(
-            dat,
-            P.distribution,
-            alpha_for_obj,
-            P.l1_ratio,
-            result["intercept"],
-            result["coef"],
-        )
-
-        result["obj_val"] = obj_val
         result["num_rows"] = dat["y"].shape[0]
+
+        if "X" in dat:
+            # Use best_alpha from CV if available, otherwise use base alpha
+            alpha_for_obj = result.get("best_alpha", P.alpha)
+            alpha_for_obj = (
+                alpha_for_obj / np.asarray(dat["sample_weight"]).mean()
+                if "sample_weight" in dat
+                else alpha_for_obj
+            )
+            result["obj_val"] = get_obj_val(
+                dat,
+                P.distribution,
+                alpha_for_obj,
+                P.l1_ratio,
+                result["intercept"],
+                result["coef"],
+            )
 
     return result, params.alpha
