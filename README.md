@@ -20,7 +20,7 @@ We believe that for GLM development, broad support for distributions, regulariza
 * L2 regularization, including variable matrix-valued (Tikhonov) penalties, which are useful in modeling correlated effects
 * Elastic net regularization
 * Normal, Poisson, binomial, gamma, inverse Gaussian, negative binomial, and Tweedie distributions, plus varied and customizable link functions
-* Built-in formula-based model specification using `formulaic`
+* Built-in formula-based model specification using `formulaic`, including monotonic constraints
 * Classical statistical inference for unregularized models
 * Box constraints, linear inequality constraints, sample weights, offsets
 * Multiple dataframe backends (pandas, polars, and more) via `narwhals`
@@ -76,11 +76,12 @@ Why did we choose the name `glum`? We wanted a name that had the letters GLM and
 >>> _ = model.fit(X=X, y=y)
 >>>
 >>> # Models can also be built with formulas from formulaic.
+>>> # Monotonic constraints ensure bathrooms has a non-decreasing effect.
 >>> model_formula = GeneralizedLinearRegressor(
 ...     family='binomial',
-...     l1_ratio=1.0,
 ...     alpha=0.001,
-...     formula="bedrooms + np.log(bathrooms + 1) + bs(sqft_living, 3) + C(waterfront)"
+...     formula="bedrooms + bs(bathrooms, df=5) + bs(sqft_living, 3) + C(waterfront)",
+...     monotonic_constraints={"bathrooms": "increasing"}
 ... )
 >>> _ = model_formula.fit(X=house_data, y=y)
 

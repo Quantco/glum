@@ -46,6 +46,7 @@ storage:
   celer: csc
   skglm: csc
   glmnet: csc
+  pygam: dense
 
 # PARAMETER GRID
 # Each entry specifies a parameter set. Within each entry, the Cartesian
@@ -97,3 +98,8 @@ param_grid:
   num_rows: [1000]
   k_over_n_ratios: [1,2]
   distributions: [gaussian]
+- libraries: [glum, pygam]
+  datasets: [narrow-insurance, wide-insurance]
+  regularizations: [monotonic-l2]
+  distributions: [poisson, gamma]
+  alphas: [0.001]

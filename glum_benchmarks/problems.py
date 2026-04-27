@@ -21,6 +21,7 @@ from .data import (
     simulate_categorical_dataset,
     simulate_glm_dataset,
 )
+from .data.create_insurance import _read_insurance_data, compute_y_exposure
 from .util import cache_location, exposure_and_offset_to_weights, get_tweedie_p
 
 joblib_memory = Memory(cache_location, verbose=0)
@@ -171,6 +172,25 @@ def load_data(
     return dict(X=X, y=y)
 
 
+@joblib_memory.cache
+def load_formula_data(
+    num_rows=None,
+    distribution="poisson",
+    data_setup="no-weights",
+    **ignored_kwargs,
+):
+    """Load raw DataFrame for formula-based benchmarks (no OHE/standardization)."""
+    df_raw = _read_insurance_data(num_rows, noise=None, distribution=distribution)
+    y, exposure = compute_y_exposure(df_raw, distribution)
+    df_raw["BonusMalus"] = df_raw["BonusMalus"].clip(upper=150)
+    df_raw["Density_log"] = np.log(df_raw["Density"])
+
+    dat = dict(df=df_raw, y=y)
+    if data_setup == "weights":
+        dat["sample_weight"] = exposure
+    return dat
+
+
 def get_all_problems() -> dict[str, Problem]:
     """
     Return the name of all possible problems.
@@ -267,6 +287,22 @@ def get_all_problems() -> dict[str, Problem]:
                     alpha=alpha,
                     l1_ratio=l1_ratio,
                 )
+            )
+
+    # Monotonic-constrained formula problems (L2 only; L1 not yet supported)
+    monotonic_distributions = ["poisson", "gamma"]
+    for dataset_name in ["narrow-insurance", "wide-insurance"]:
+        for distribution in monotonic_distributions:
+            name = f"{dataset_name}-no-weights-monotonic-l2-{distribution}"
+            problems[name] = Problem(
+                data_loader=partial(
+                    load_formula_data,
+                    distribution=distribution,
+                    data_setup="no-weights",
+                ),
+                distribution=distribution,
+                alpha=alpha,
+                l1_ratio=0.0,
             )
 
     return problems

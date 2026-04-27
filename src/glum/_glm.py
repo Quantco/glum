@@ -30,7 +30,12 @@ from ._distribution import (
     TweedieDistribution,
     guess_intercept,
 )
-from ._formula import capture_context, parse_formula
+from ._formula import (
+    _build_monotonic_constraints,
+    _resolve_monotonic_constraints_from_model_spec,
+    capture_context,
+    parse_formula,
+)
 from ._linalg import is_pos_semidef
 from ._link import CloglogLink, IdentityLink, Link, LogitLink, LogLink, TweedieLink
 from ._solvers import (
@@ -39,6 +44,7 @@ from ._solvers import (
     _irls_solver,
     _lbfgs_solver,
     _least_squares_solver,
+    _monotonic_irls_solver,
     _tikhonov_solver,
     _trust_constr_solver,
 )
@@ -115,6 +121,7 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         upper_bounds: Optional[np.ndarray] = None,
         A_ineq: Optional[np.ndarray] = None,
         b_ineq: Optional[np.ndarray] = None,
+        monotonic_constraints: Optional[Mapping[str, str]] = None,
         force_all_finite: bool = True,
         drop_first: bool = False,
         robust: bool = True,
@@ -153,6 +160,7 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         self.upper_bounds = upper_bounds
         self.A_ineq = A_ineq
         self.b_ineq = b_ineq
+        self.monotonic_constraints = monotonic_constraints
         self.force_all_finite = force_all_finite
         self.drop_first = drop_first
         self.robust = robust
@@ -374,7 +382,9 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         self._num_obs: int = y.shape[0]
 
         if self.solver == "auto":
-            if (self.A_ineq is not None) and (self.b_ineq is not None):
+            if self.monotonic_constraints is not None:
+                self._solver = "irls-ls-monotonic"
+            elif self.A_ineq is not None and self.b_ineq is not None:
                 self._solver = "trust-constr"
             elif (self.lower_bounds is None) and (self.upper_bounds is None):
                 if (
@@ -562,6 +572,7 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
             isinstance(self._family_instance, NormalDistribution)
             and isinstance(self._link_instance, IdentityLink)
             and "irls" in self._solver
+            and self._solver != "irls-ls-monotonic"
         ):
             # IRLS-CD and IRLS-LS should converge in one iteration for any
             # normal distribution problem with identity link.
@@ -570,7 +581,7 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         else:
             max_iter = self.max_iter
 
-        # 4.1 IRLS ############################################################
+        # 4.1 IRLS #############################################################
         if "irls" in self._solver:
             # Note: we already set P1 = l1*P1, see above
             # Note: we already set P2 = l2*P2, see above
@@ -597,7 +608,15 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
                 upper_bounds=upper_bounds,
                 verbose=self.verbose > 0,
             )
-            if self._solver == "irls-ls":
+            if self._solver == "irls-ls-monotonic":
+                assert A_ineq is not None and b_ineq is not None
+                (
+                    coef,
+                    self.n_iter_,
+                    self._n_cycles,
+                    self.diagnostics_,
+                ) = _monotonic_irls_solver(coef, irls_data, A_ineq, b_ineq)
+            elif self._solver == "irls-ls":
                 coef, self.n_iter_, self._n_cycles, self.diagnostics_ = _irls_solver(
                     _least_squares_solver, coef, irls_data
                 )
@@ -1792,14 +1811,15 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
             "auto",
             "closed-form",
             "irls-ls",
+            "irls-ls-monotonic",
             "lbfgs",
             "irls-cd",
             "trust-constr",
         ]:
             raise ValueError(
                 "GeneralizedLinearRegressor supports only solvers"
-                " 'auto', 'closed-form', 'irls-ls', 'lbfgs', 'irls-cd' and"
-                " 'trust-constr'; "
+                " 'auto', 'closed-form', 'irls-ls', 'irls-ls-monotonic',"
+                " 'lbfgs', 'irls-cd' and 'trust-constr'; "
                 f"got (solver={self.solver})."
             )
         if not isinstance(self.max_iter, int) or self.max_iter <= 0:
@@ -1852,12 +1872,26 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
                 f"got {self.solver}."
             )
         if ((self.A_ineq is not None) or (self.b_ineq is not None)) and (
-            self.solver not in [None, "auto", "trust-constr"]
+            self.solver not in [None, "auto", "trust-constr", "irls-ls-monotonic"]
         ):
             raise ValueError(
-                "Only the 'trust-constr' solver supports inequality constraints; "
-                f"got {self.solver}."
+                "Only the 'trust-constr' and 'irls-ls-monotonic' solvers "
+                f"support inequality constraints; got {self.solver}."
             )
+        if (self.monotonic_constraints is not None) and (
+            self.solver not in [None, "auto", "trust-constr", "irls-ls-monotonic"]
+        ):
+            raise ValueError(
+                "Only 'auto', 'trust-constr', or 'irls-ls-monotonic' solvers "
+                f"support monotonic_constraints; got {self.solver}."
+            )
+        if self.monotonic_constraints is not None and self.l1_ratio is not None:
+            l1 = np.atleast_1d(np.asarray(self.l1_ratio))
+            if np.any(l1 > 0):
+                raise ValueError(
+                    "L1 penalties (l1_ratio > 0) are not supported with "
+                    "monotonic_constraints."
+                )
         if ((self.A_ineq is not None) or (self.b_ineq is not None)) and (
             (self.lower_bounds is not None) or (self.upper_bounds is not None)
         ):
@@ -1868,6 +1902,30 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
             (self.A_ineq is None) and (self.b_ineq is not None)
         ):
             raise ValueError("Must provide both A_ineq and b_ineq.")
+        if self.monotonic_constraints is not None:
+            if self.A_ineq is not None or self.b_ineq is not None:
+                raise ValueError(
+                    "Cannot use monotonic_constraints together with "
+                    "explicit A_ineq/b_ineq."
+                )
+            if getattr(self, "formula", None) is None:
+                raise ValueError(
+                    "monotonic_constraints requires a formula. "
+                    "Use A_ineq/b_ineq for matrix inputs."
+                )
+            if not isinstance(self.monotonic_constraints, Mapping):
+                raise TypeError(
+                    "monotonic_constraints must be a mapping; "
+                    f"got {type(self.monotonic_constraints).__name__}."
+                )
+            if not self.monotonic_constraints:
+                raise ValueError("monotonic_constraints must not be empty.")
+            for var, direction in self.monotonic_constraints.items():
+                if direction not in ("increasing", "decreasing"):
+                    raise ValueError(
+                        f"Direction for {var!r} must be 'increasing' or "
+                        f"'decreasing'; got {direction!r}."
+                    )
         if self.check_input:
             # check if P1 has only non-negative values, negative values might
             # indicate group lasso in the future.
@@ -1881,6 +1939,22 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         # fix if necessary.
         # If self.copy_X is False, check for data of wrong dtype and error if it exists.
         return self.copy_X or False
+
+    def _resolve_monotonic_constraints(
+        self,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Resolve ``monotonic_constraints`` to ``(A_ineq, b_ineq)``."""
+        assert self.monotonic_constraints is not None
+        factor_constraints = _resolve_monotonic_constraints_from_model_spec(
+            self.X_model_spec_,
+            self.monotonic_constraints,
+        )
+
+        return _build_monotonic_constraints(
+            self.feature_names_,
+            factor_constraints,
+            separator=self.interaction_separator,
+        )
 
     def _set_up_and_check_fit_args(
         self,
@@ -2496,6 +2570,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         upper_bounds: Optional[np.ndarray] = None,
         A_ineq: Optional[np.ndarray] = None,
         b_ineq: Optional[np.ndarray] = None,
+        monotonic_constraints: Optional[Mapping[str, str]] = None,
         force_all_finite: bool = True,
         drop_first: bool = False,
         robust: bool = True,
@@ -2537,6 +2612,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             upper_bounds=upper_bounds,
             A_ineq=A_ineq,
             b_ineq=b_ineq,
+            monotonic_constraints=monotonic_constraints,
             force_all_finite=force_all_finite,
             drop_first=drop_first,
             robust=robust,
@@ -2690,8 +2766,17 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         lower_bounds = check_bounds(self.lower_bounds, X.shape[1], X.dtype)
         upper_bounds = check_bounds(self.upper_bounds, X.shape[1], X.dtype)
 
+        _A: Optional[np.ndarray]
+        _b: Optional[np.ndarray]
+        if self.monotonic_constraints is not None:
+            _A, _b = self._resolve_monotonic_constraints()
+        elif self.A_ineq is not None and self.b_ineq is not None:
+            _A, _b = self.A_ineq, self.b_ineq
+        else:
+            _A, _b = None, None
+
         A_ineq, b_ineq = check_inequality_constraints(
-            self.A_ineq, self.b_ineq, n_features=X.shape[1], dtype=X.dtype
+            _A, _b, n_features=X.shape[1], dtype=X.dtype
         )
 
         if (lower_bounds is not None) and (upper_bounds is not None):

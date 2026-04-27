@@ -41,3 +41,10 @@ except ImportError:
     glmnet_bench = None  # type: ignore
 else:
     __all__.append("glmnet_bench")
+
+try:
+    from .bench_pygam import pygam_bench
+except ImportError:
+    pygam_bench = None  # type: ignore
+else:
+    __all__.append("pygam_bench")

@@ -1,3 +1,4 @@
+import warnings
 from typing import Literal
 
 import formulaic
@@ -7,9 +8,12 @@ import polars as pl
 import pytest
 import statsmodels.api as sm
 import statsmodels.formula.api as smf
+from scipy import sparse as sp
+from sklearn.preprocessing import SplineTransformer
 
-from glum._formula import parse_formula
+from glum._formula import _build_monotonic_constraints, parse_formula
 from glum._glm import GeneralizedLinearRegressor
+from glum._glm_cv import GeneralizedLinearRegressorCV
 
 
 @pytest.fixture
@@ -342,3 +346,179 @@ def test_formula_predict(get_mixed_data, formula, fit_intercept, namespace):
     yhat_smf = model_smf.predict(data_unseen)
 
     np.testing.assert_almost_equal(yhat_formula, yhat_smf)
+
+
+def test_build_monotonic_constraints_sorts_indices():
+    """Consecutive-pair constraints are correct even when columns are out of order."""
+    names = ["sp[10]", "sp[2]", "sp[1]", "sp[3]"]
+    A, b = _build_monotonic_constraints(names, {"sp": "increasing"})
+    assert b.tolist() == [0.0, 0.0, 0.0]
+    # Sorted order: sp[1]=idx2, sp[2]=idx1, sp[3]=idx3, sp[10]=idx0
+    # Pairs: (2,1), (1,3), (3,0) with sign=+1 for increasing: row[i]=1, row[j]=-1
+    expected = np.zeros((3, 4))
+    expected[0, 2] = 1.0  # sp[1]
+    expected[0, 1] = -1.0  # sp[2]
+    expected[1, 1] = 1.0  # sp[2]
+    expected[1, 3] = -1.0  # sp[3]
+    expected[2, 3] = 1.0  # sp[3]
+    expected[2, 0] = -1.0  # sp[10]
+    np.testing.assert_array_equal(A, expected)
+
+
+def _make_spline_constraint_data(n=500, seed=42):
+    """Build synthetic data for monotonic constraint tests with splines."""
+    rng = np.random.default_rng(seed)
+    x = np.sort(rng.uniform(0, 1, n))
+    y = (np.sin(2 * np.pi * x) + rng.standard_normal(n) * 0.3).clip(0.01)
+    return x, y
+
+
+@pytest.mark.parametrize("direction", ["increasing", "decreasing"])
+@pytest.mark.parametrize(
+    "estimator_cls",
+    [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV],
+    ids=["GLM", "GLMCV"],
+)
+def test_monotonic_constraints_spline(direction, estimator_cls):
+    """Spline coefficients are ordered."""
+    sign = 1 if direction == "increasing" else -1
+    x, y = _make_spline_constraint_data()
+    df = pd.DataFrame({"x": x, "y": y})
+
+    kwargs = dict(
+        formula="y ~ bs(x, df=6) - 1",
+        monotonic_constraints={"x": direction},
+        alpha=0.1,
+        l1_ratio=0,
+        fit_intercept=False,
+        gradient_tol=1e-8,
+    )
+    if estimator_cls is GeneralizedLinearRegressorCV:
+        del kwargs["alpha"]
+        kwargs["n_alphas"] = 5
+
+    model = estimator_cls(**kwargs)
+    model.fit(df)
+
+    diffs = np.diff(model.coef_)
+    assert all(sign * diffs >= -1e-8)
+
+
+@pytest.mark.parametrize("direction", ["increasing", "decreasing"])
+def test_monotonic_constraints_spline_interaction(direction):
+    """Spline x categorical: coefficients ordered within each group level."""
+    sign = 1 if direction == "increasing" else -1
+    rng = np.random.default_rng(42)
+    n = 400
+    x = rng.uniform(0, 1, n)
+    g = rng.choice(["a", "b"], n)
+    y = (x + (g == "b").astype(float) + rng.standard_normal(n) * 0.3).clip(0.01)
+    df = pd.DataFrame(
+        {
+            "x": x,
+            "y": y,
+            "g": pd.Categorical(g),
+        }
+    )
+
+    model = GeneralizedLinearRegressor(
+        formula="y ~ bs(x, df=5):g - 1",
+        monotonic_constraints={"x": direction, "g": direction},
+        alpha=0.1,
+        l1_ratio=0,
+        fit_intercept=False,
+        gradient_tol=1e-8,
+    )
+    model.fit(df)
+
+    names = list(model.feature_names_)
+    for lvl in ["a", "b"]:
+        indices = [i for i, n in enumerate(names) if f"g[{lvl}]" in n]
+        diffs = np.diff(model.coef_[indices])
+        assert all(sign * diffs >= -1e-8)
+
+    for bs_idx in sorted({n.split(":")[0] for n in names}):
+        idx_a = [i for i, n in enumerate(names) if n.startswith(bs_idx) and "g[a]" in n]
+        idx_b = [i for i, n in enumerate(names) if n.startswith(bs_idx) and "g[b]" in n]
+        if idx_a and idx_b:
+            assert sign * (model.coef_[idx_b[0]] - model.coef_[idx_a[0]]) >= -1e-8
+
+
+def test_monotonic_constraint_paths_agree():
+    """IRLS-formula, IRLS-explicit A_ineq/b_ineq, and trust-constr agree."""
+    x, y = _make_spline_constraint_data()
+    df = pd.DataFrame({"x": x, "y": y})
+
+    common = dict(alpha=0.1, l1_ratio=0, fit_intercept=False, gradient_tol=1e-8)
+
+    formula_model = GeneralizedLinearRegressor(
+        formula="y ~ bs(x, df=6) - 1",
+        monotonic_constraints={"x": "increasing"},
+        solver="irls-ls-monotonic",
+        **common,
+    )
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        formula_model.fit(df)
+
+    X = formula_model.X_model_spec_.get_model_matrix(df).toarray()
+    p = X.shape[1]
+    A_ineq = np.zeros((p - 1, p))
+    for i in range(p - 1):
+        A_ineq[i, i] = 1.0
+        A_ineq[i, i + 1] = -1.0
+    b_ineq = np.zeros(p - 1)
+
+    irls_model = GeneralizedLinearRegressor(
+        solver="irls-ls-monotonic", A_ineq=A_ineq, b_ineq=b_ineq, **common
+    )
+    tc_model = GeneralizedLinearRegressor(
+        solver="trust-constr", A_ineq=A_ineq, b_ineq=b_ineq, max_iter=1000, **common
+    )
+    unconstrained_model = GeneralizedLinearRegressor(solver="irls-ls", **common)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        irls_model.fit(X, y)
+        tc_model.fit(X, y)
+        unconstrained_model.fit(X, y)
+
+    np.testing.assert_allclose(formula_model.coef_, irls_model.coef_, atol=1e-6)
+    np.testing.assert_allclose(irls_model.coef_, tc_model.coef_, atol=1e-3)
+
+    assert np.all(A_ineq @ formula_model.coef_ <= 1e-6)
+    assert np.all(A_ineq @ irls_model.coef_ <= 1e-6)
+    assert np.all(A_ineq @ tc_model.coef_ <= 1e-6)
+    assert np.any(A_ineq @ unconstrained_model.coef_ > 1e-6)
+
+
+def test_monotonic_with_matrix_P2():
+    """Dense and sparse matrix P2 produce identical monotonic-constrained fits."""
+    x, y = _make_spline_constraint_data(n=300)
+    X = SplineTransformer(n_knots=5, degree=3, include_bias=False).fit_transform(
+        x.reshape(-1, 1)
+    )
+    p = X.shape[1]
+    A_ineq = np.zeros((p - 1, p))
+    for i in range(p - 1):
+        A_ineq[i, i] = 1.0
+        A_ineq[i, i + 1] = -1.0
+    b_ineq = np.zeros(p - 1)
+    P2 = np.eye(X.shape[1]) * 0.1
+
+    common = dict(
+        A_ineq=A_ineq,
+        b_ineq=b_ineq,
+        l1_ratio=0,
+        fit_intercept=False,
+        gradient_tol=1e-8,
+        solver="irls-ls-monotonic",
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        m_dense = GeneralizedLinearRegressor(P2=P2, **common).fit(X, y)
+        m_sparse = GeneralizedLinearRegressor(P2=sp.csc_matrix(P2), **common).fit(X, y)
+
+    np.testing.assert_allclose(m_dense.coef_, m_sparse.coef_, atol=1e-6)
+    assert np.all(A_ineq @ m_dense.coef_ <= 1e-6)
