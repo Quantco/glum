@@ -7,12 +7,11 @@ Usage: python tests/backwards_compatibility/run_all.py
 2. Queries conda-forge via `pixi search` to discover the latest patch release
    for each minor version of glum.
 3. For each version, uses `pixi exec` to fit a model and save artifacts
-   (model.pkl + predictions.csv) under artifacts/<version>/.
+   (model.pkl + predictions.npy) under artifacts/<version>/.
 4. Unpickles each saved model using the current glum and verifies that
    predictions match the HEAD reference.
 """
 
-import importlib.metadata
 import json
 import pickle
 import subprocess
@@ -29,10 +28,12 @@ ARTIFACTS_DIR = SCRIPT_DIR / "artifacts"
 SKIP_VERSIONS: set[str] = set()
 
 
-def get_data():
-    """Return the fixed dataset used for fitting and prediction."""
+def write_dataset() -> None:
+    """Write the fixed dataset to disk so all fit.py invocations use identical data."""
     X, y = make_regression(n_samples=500, n_features=5, noise=1.0, random_state=42)
-    return X, y
+    ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
+    np.save(str(ARTIFACTS_DIR / "X.npy"), X)
+    np.save(str(ARTIFACTS_DIR / "y.npy"), y)
 
 
 def discover_versions() -> list[str]:
@@ -76,13 +77,17 @@ def fit_version(version: str) -> bool:
         elif v < Version("3.1.0"):
             cmd += ["--spec=scikit-learn<1.6"]
         cmd += ["python", str(SCRIPT_DIR / "fit.py"), version]
-    return subprocess.run(cmd).returncode == 0
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        print(result.stdout, end="")
+        print(result.stderr, end="", file=sys.stderr)
+    return result.returncode == 0
 
 
 def compare_versions(versions: list[str]) -> bool:
     """Unpickle each version's model and verify its predictions match HEAD.
 
-    Also checks that predictions match the CSV stored by fit.py to confirm
+    Also checks that predictions match the array stored by fit.py to confirm
     the pickle round-trip is stable. Returns True if all versions pass.
     """
     version_dirs = [ARTIFACTS_DIR / v for v in versions if (ARTIFACTS_DIR / v).is_dir()]
@@ -91,15 +96,12 @@ def compare_versions(versions: list[str]) -> bool:
         print("ERROR: No artifact directories found. Did fit step produce any output?")
         return False
 
-    X, _ = get_data()
-    head_predictions = np.loadtxt(
-        str(ARTIFACTS_DIR / "HEAD" / "predictions.csv"), delimiter=","
-    )
+    X = np.load(str(ARTIFACTS_DIR / "X.npy"))
+    head_predictions = np.load(str(ARTIFACTS_DIR / "HEAD" / "predictions.npy"))
 
-    try:
-        current_version = importlib.metadata.version("glum")
-    except Exception:
-        current_version = "unknown"
+    import glum
+
+    current_version = glum.__version__
     print(f"Current glum version: {current_version}")
     print(f"Testing {len(version_dirs)} version(s): {[d.name for d in version_dirs]}\n")
 
@@ -108,7 +110,7 @@ def compare_versions(versions: list[str]) -> bool:
     for version_dir in version_dirs:
         version = version_dir.name
         pickle_path = version_dir / "model.pkl"
-        predictions_path = version_dir / "predictions.csv"
+        predictions_path = version_dir / "predictions.npy"
 
         try:
             with open(pickle_path, "rb") as f:
@@ -123,14 +125,14 @@ def compare_versions(versions: list[str]) -> bool:
             failures.append(f"{version}: predict() failed after unpickling: {e}")
             continue
 
-        stored_predictions = np.loadtxt(str(predictions_path), delimiter=",")
+        stored_predictions = np.load(str(predictions_path))
 
         try:
             np.testing.assert_allclose(
                 old_predictions,
                 stored_predictions,
                 rtol=1e-5,
-                err_msg=f"[{version}] Unpickled predictions do not match stored CSV",
+                err_msg=f"[{version}] Unpickled predictions do not match stored array",
             )
             print(f"[{version}] PASS: unpickled predictions match stored predictions")
         except AssertionError as e:
@@ -160,6 +162,8 @@ def compare_versions(versions: list[str]) -> bool:
 
 def main() -> None:
     """Fit HEAD and all released minor versions, then compare predictions."""
+    write_dataset()
+
     print("=== Fitting HEAD ===")
     if not fit_version("HEAD"):
         print("ERROR: Failed to fit HEAD model.")

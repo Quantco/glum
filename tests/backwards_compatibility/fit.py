@@ -6,7 +6,7 @@ Usage:
 
 Artifacts are written to:
   tests/backwards_compatibility/artifacts/<version>/model.pkl
-  tests/backwards_compatibility/artifacts/<version>/predictions.csv
+  tests/backwards_compatibility/artifacts/<version>/predictions.npy
 
 NOTE: This script must work with glum >= 2.0.0. It deliberately avoids
 features added in 3.x: formula interface, Polars DataFrames, monotonic
@@ -18,14 +18,11 @@ import pickle
 from pathlib import Path
 
 import numpy as np
-from sklearn.datasets import make_regression
 
 from glum import GeneralizedLinearRegressor
 
-
-def get_data():
-    X, y = make_regression(n_samples=500, n_features=5, noise=1.0, random_state=42)
-    return X, y
+SCRIPT_DIR = Path(__file__).resolve().parent
+ARTIFACTS_DIR = SCRIPT_DIR / "artifacts"
 
 
 def main():
@@ -36,21 +33,18 @@ def main():
     )
     args = parser.parse_args()
 
-    try:
-        import importlib.metadata
+    import glum
 
-        installed_version = importlib.metadata.version("glum")
-    except Exception:
-        installed_version = "unknown"
+    installed_version = glum.__version__
 
     print(f"Installed glum version: {installed_version}")
     print(f"Artifact label: {args.version}")
 
-    script_dir = Path(__file__).resolve().parent
-    output_dir = script_dir / "artifacts" / args.version
+    output_dir = ARTIFACTS_DIR / args.version
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    X, y = get_data()
+    X = np.load(str(ARTIFACTS_DIR / "X.npy"))
+    y = np.load(str(ARTIFACTS_DIR / "y.npy"))
 
     # All keyword args: glum 3.0 made all params keyword-only; kwargs work in 2.x too.
     # alpha=1.0: explicit to avoid 2.x (default=1) vs 3.x (default=0) difference.
@@ -65,12 +59,12 @@ def main():
 
     pickle_path = output_dir / "model.pkl"
     with open(pickle_path, "wb") as f:
-        pickle.dump(model, f, protocol=pickle.HIGHEST_PROTOCOL)
+        pickle.dump(model, f)
     print(f"Saved model to {pickle_path}")
 
     predictions = model.predict(X)
-    predictions_path = output_dir / "predictions.csv"
-    np.savetxt(str(predictions_path), predictions, delimiter=",")
+    predictions_path = output_dir / "predictions.npy"
+    np.save(str(predictions_path), predictions)
     print(f"Saved predictions to {predictions_path}")
 
 
