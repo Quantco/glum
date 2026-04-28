@@ -383,7 +383,7 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         self._num_obs: int = y.shape[0]
 
         if self.solver == "auto":
-            if self.monotonic_constraints is not None:
+            if getattr(self, "monotonic_constraints", None) is not None:
                 self._solver = "irls-ls-monotonic"
             elif self.A_ineq is not None and self.b_ineq is not None:
                 self._solver = "trust-constr"
@@ -1808,6 +1808,9 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
                 https://github.com/scikit-learn/scikit-learn/pull/9405.
                 """
             )
+
+        _monotonic_constraints = getattr(self, "monotonic_constraints", None)
+
         if self.solver not in [
             "auto",
             "closed-form",
@@ -1879,14 +1882,14 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
                 "Only the 'trust-constr' and 'irls-ls-monotonic' solvers "
                 f"support inequality constraints; got {self.solver}."
             )
-        if (self.monotonic_constraints is not None) and (
+        if (_monotonic_constraints is not None) and (
             self.solver not in [None, "auto", "trust-constr", "irls-ls-monotonic"]
         ):
             raise ValueError(
                 "Only 'auto', 'trust-constr', or 'irls-ls-monotonic' solvers "
                 f"support monotonic_constraints; got {self.solver}."
             )
-        if self.monotonic_constraints is not None and self.l1_ratio is not None:
+        if _monotonic_constraints is not None and self.l1_ratio is not None:
             l1 = np.atleast_1d(np.asarray(self.l1_ratio))
             if np.any(l1 > 0):
                 raise ValueError(
@@ -1903,7 +1906,7 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
             (self.A_ineq is None) and (self.b_ineq is not None)
         ):
             raise ValueError("Must provide both A_ineq and b_ineq.")
-        if self.monotonic_constraints is not None:
+        if _monotonic_constraints is not None:
             if self.A_ineq is not None or self.b_ineq is not None:
                 raise ValueError(
                     "Cannot use monotonic_constraints together with "
@@ -1914,14 +1917,14 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
                     "monotonic_constraints requires a formula. "
                     "Use A_ineq/b_ineq for matrix inputs."
                 )
-            if not isinstance(self.monotonic_constraints, Mapping):
+            if not isinstance(_monotonic_constraints, Mapping):
                 raise TypeError(
                     "monotonic_constraints must be a mapping; "
-                    f"got {type(self.monotonic_constraints).__name__}."
+                    f"got {type(_monotonic_constraints).__name__}."
                 )
-            if not self.monotonic_constraints:
+            if not _monotonic_constraints:
                 raise ValueError("monotonic_constraints must not be empty.")
-            for var, direction in self.monotonic_constraints.items():
+            for var, direction in _monotonic_constraints.items():
                 if direction not in ("increasing", "decreasing"):
                     raise ValueError(
                         f"Direction for {var!r} must be 'increasing' or "
@@ -2769,7 +2772,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
 
         _A: Optional[np.ndarray]
         _b: Optional[np.ndarray]
-        if self.monotonic_constraints is not None:
+        if getattr(self, "monotonic_constraints", None) is not None:
             _A, _b = self._resolve_monotonic_constraints()
         elif self.A_ineq is not None and self.b_ineq is not None:
             _A, _b = self.A_ineq, self.b_ineq
