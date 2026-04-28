@@ -7,6 +7,14 @@
 Changelog
 =========
 
+3.4.1 - 2026-04-29
+------------------
+
+**Bug fix:**
+
+- Fixed unpickling of models saved with older versions of glum that lack the ``monotonic_constraints`` attribute.
+
+
 3.4.0 - 2026-04-27
 ------------------
 

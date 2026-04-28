@@ -200,6 +200,7 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         # This handles models pickled with older versions of glum 3.x
         attribute_defaults = {
             "max_inner_iter": 100000,
+            "monotonic_constraints": None,
         }
 
         for attr, default_value in attribute_defaults.items():
