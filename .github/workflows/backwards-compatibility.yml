@@ -1,0 +1,35 @@
+name: Backwards Compatibility
+
+on:
+  # We would like to trigger for CI for any pull request action -
+  # both from QuantCo's branches as well as forks.
+  pull_request:
+  # In addition to pull requests, we want to run CI for pushes
+  # to the main branch and tags.
+  push:
+    branches:
+      - "main"
+    tags:
+      - "*"
+  workflow_dispatch:
+
+jobs:
+  backwards-compatibility:
+    name: Backwards compatibility tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up pixi
+        uses: prefix-dev/setup-pixi@a0af7a228712d6121d37aba47adf55c1332c9c2e # v0.9.4
+        with:
+          environments: default
+          cache: true
+
+      - name: Install current glum
+        run: pixi run postinstall
+
+      - name: Run backwards compatibility tests
+        run: pixi run test-backwards-compatibility

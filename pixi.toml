@@ -10,6 +10,7 @@ postinstall = "pip install --no-build-isolation --no-deps --disable-pip-version-
 store-benchmark-golden-master = { cmd = "python tests/glm/test_benchmark_golden_master.py", env = { PYTHONPATH = "." } }
 store-golden-master = { cmd = "python tests/glm/test_golden_master.py", env = { PYTHONPATH = "." } }
 test = { cmd = "pytest tests/glm --doctest-modules src/glum", env = { PYTHONPATH = "." } }
+test-backwards-compatibility = { cmd = "python tests/backwards_compatibility/run.py" }
 
 [feature.docs.tasks]
 make-docs = "cd docs && make html"
