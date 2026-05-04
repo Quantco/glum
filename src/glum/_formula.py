@@ -189,7 +189,7 @@ def _resolve_monotonic_constraints_from_model_spec(
     for _term, scoped_terms, column_names in model_spec.structure:
         for st in scoped_terms:
             for f in st.factors:
-                factor_name = str(f)
+                factor_name = str(f).rstrip("-+")
                 data_vars = {
                     str(v)
                     for v in f.factor.variables

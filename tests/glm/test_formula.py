@@ -404,6 +404,28 @@ def test_monotonic_constraints_spline(direction, estimator_cls):
     assert all(sign * diffs >= -1e-8)
 
 
+def test_monotonic_constraints_categorical_drop_first():
+    """Monotonic constraints work with C() and drop_first=True."""
+    rng = np.random.default_rng(0)
+    n = 120
+    age = np.tile(np.arange(6), n // 6).astype(float)
+    y = 1.0 / (1.0 + 0.3 * age) + rng.normal(0, 0.02, n)
+    y = np.clip(y, 1e-3, None)
+    df = pd.DataFrame({"age": age, "y": y})
+
+    model = GeneralizedLinearRegressor(
+        formula="y ~ C(age)",
+        family="gamma",
+        drop_first=True,
+        alpha=1e-6,
+        monotonic_constraints={"age": "decreasing"},
+    )
+    model.fit(df)
+
+    diffs = np.diff(model.coef_)
+    assert all(diffs <= 1e-8)
+
+
 @pytest.mark.parametrize("direction", ["increasing", "decreasing"])
 def test_monotonic_constraints_spline_interaction(direction):
     """Spline x categorical: coefficients ordered within each group level."""
