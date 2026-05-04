@@ -7,6 +7,18 @@
 Changelog
 =========
 
+3.4.1 - unreleased
+------------------
+
+**Bug fix:**
+
+- Fixed ``ValueError: Factor 'C(x)-' not found in feature_names`` when using ``monotonic_constraints`` with ``drop_first=True`` (the default) on categorical factors encoded via ``C()``.
+
+**Other changes:**
+
+- Added ``monotonic_constraints`` to ``__setstate__`` defaults for pickle compatibility with models saved before 3.4.0.
+
+
 3.4.0 - 2026-04-27
 ------------------
 
