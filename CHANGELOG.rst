@@ -12,7 +12,7 @@ Changelog
 
 **Bug fix:**
 
-- Fixed ``monotonic_constraints`` raising ``ValueError: Factor 'C(x)-' not found`` with ``drop_first=True`` on categorical factors. The internal constraint resolution read factor names from formulaic's ``ScopedFactor.__str__()``, which appends a ``-`` suffix when the factor is rank-reduced, but feature names never carry this suffix.
+- Fixed ``monotonic_constraints`` raising ``ValueError`` with ``drop_first=True`` on categorical factors.
 - Fixed pickle compatibility for models saved before ``monotonic_constraints`` was added.
 
 
