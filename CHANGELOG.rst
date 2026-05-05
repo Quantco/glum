@@ -7,6 +7,15 @@
 Changelog
 =========
 
+3.4.1 - 2026-05-06
+------------------
+
+**Bug fix:**
+
+- Fixed ``monotonic_constraints`` raising ``ValueError`` with ``drop_first=True`` on categorical factors.
+- Fixed pickle compatibility for models saved before ``monotonic_constraints`` was added.
+
+
 3.4.0 - 2026-04-27
 ------------------
 
