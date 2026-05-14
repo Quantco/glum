@@ -14,6 +14,7 @@ from ._distribution import (
 from ._glm import GeneralizedLinearRegressor, get_family, get_link
 from ._glm_cv import GeneralizedLinearRegressorCV
 from ._link import CloglogLink, IdentityLink, Link, LogitLink, LogLink, TweedieLink
+from ._stepwise import CVResult, ScoreTestResult, StepwiseGLM
 from ._tabmat_cache import CacheVersionError, TabmatCache
 
 try:
@@ -39,6 +40,9 @@ __all__ = [
     "CloglogLink",
     "GeneralizedLinearRegressor",
     "GeneralizedLinearRegressorCV",
+    "StepwiseGLM",
+    "ScoreTestResult",
+    "CVResult",
     "TabmatCache",
     "CacheVersionError",
     "get_family",

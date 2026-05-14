@@ -39,6 +39,7 @@ We suggest visiting the :doc:`Installation<install>` and :doc:`Getting Started<g
 .. toctree::
    :maxdepth: 1
 
+   Stepwise selection <stepwise.rst>
    Contributing/Development <contributing.rst>
    Algorithmic details <background.ipynb>
    API Reference <glm>
