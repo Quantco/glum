@@ -161,59 +161,101 @@ multiple times on the same DataFrame:
    cache = TabmatCache.load("model_cache.pkl")
 
 
-Building a cache directly from parquet
---------------------------------------
+Cross-session caching with ``managed_cache``
+--------------------------------------------
 
 For workflows that repeatedly fit a GLM on the same on-disk dataset —
 daily model refits, scheduled scoring jobs, nested CV across sessions —
-:meth:`~glum.TabmatCache.from_parquet` reads the file via :mod:`pyarrow`,
-applies dictionary encoding to any ``cat_cols``, and binds the file's
-fingerprint to the cache.  The fingerprint persists across
-:meth:`~glum.TabmatCache.save` / :meth:`~glum.TabmatCache.load` so a
-later session can verify that the underlying parquet hasn't changed.
+:func:`~glum.managed_cache` wraps the entire load-or-build-then-save
+lifecycle in a single ``with`` block.  On entry it loads a previously
+saved cache and verifies that the source file is unchanged, or rebuilds
+from scratch when needed.  On clean exit it persists the cache so the
+next session starts warm.
 
 .. code-block:: python
 
-   from glum import TabmatCache, GeneralizedLinearRegressor, fingerprint_file
+   from glum import managed_cache, GeneralizedLinearRegressor
 
-   # First session: build and persist the cache
-   cache = TabmatCache.from_parquet(
+   with managed_cache(
        "data/insurance.parquet",
-       columns=["ClaimNb", "VehAge", "DrivAge", "BonusMalus",
-                "Area", "VehBrand", "VehGas", "Region"],
-       cat_cols=["Area", "VehBrand", "VehGas", "Region"],
-   )
-   y = cache.source_df["ClaimNb"].to_numpy().astype(float)
-   X, _ = cache.get_subset(
-       cache.source_df,
-       ["VehAge", "DrivAge", "BonusMalus", "Region"],
-   )
-   GeneralizedLinearRegressor(family="poisson", alpha=0.01).fit(X, y)
-   cache.save("warm.pkl")
+       cat_cols=["Region", "Area", "VehBrand", "VehGas"],
+       columns=["ClaimNb", "VehAge", "DrivAge", "BonusMalus", "Region"],
+   ) as cache:
+       y = cache.read_target("ClaimNb")
+       X, _ = cache.get_subset(
+           cache.source_df,
+           ["VehAge", "DrivAge", "BonusMalus", "Region"],
+       )
+       GeneralizedLinearRegressor(family="poisson", alpha=0.01).fit(X, y)
+   # Cache auto-persisted because the with-block exited cleanly.
 
-   # Next session: skip pyarrow + pandas + tabmat reconstruction entirely
-   cache = TabmatCache.load("warm.pkl")
-   cache.verify_source(fingerprint_file("data/insurance.parquet"))
-   # ↑ raises SourceFingerprintError if the parquet was modified
-   #   (size or mtime changed); otherwise returns True.
+The first invocation reads the parquet via :mod:`pyarrow`, builds tabmat
+matrices, and persists the cache to ``./.tabmat_cache/insurance.pkl``
+(the default location).  Subsequent invocations load the cache, verify
+that ``data/insurance.parquet`` is unchanged (``size_bytes`` and
+``mtime_ns``), and yield the warm cache — no pyarrow read, no tabmat
+construction.  If the parquet has changed, ``managed_cache`` silently
+rebuilds (or raises :class:`~glum.SourceFingerprintError` if you pass
+``rebuild_on_mismatch=False``).
 
-The fingerprint is ``("file", absolute_path, size_bytes, mtime_ns)`` —
-sub-millisecond to compute, no file read.  Catches normal edits,
-replacements, and appends.  Does **not** catch in-place rewrites that
-preserve size and mtime; for those, hash the file contents yourself
-and pass the tuple via :meth:`~glum.TabmatCache.set_source_fingerprint`.
+``save_on_exit`` controls persistence policy:
 
-Note that :attr:`~glum.TabmatCache.source_df` is a convenience
-attribute set by :meth:`from_parquet` so you can immediately call
-:meth:`get_subset`.  It is **not** pickled — on a re-load you must
-re-read the parquet yourself if you want a pandas view of the data.
-The cached tabmat matrices, however, are fully usable without ever
-touching pandas again::
+- ``"success"`` (default): persist only if the with-block exited cleanly.
+- ``"always"``: persist regardless of exceptions.
+- ``"never"``: discard whatever state accumulated inside the block.
 
-   cache = TabmatCache.load("warm.pkl")
-   # No source_df, no pandas read — just use the cached matrices.
-   X = cache._subset_cache[("VehAge", "DrivAge", "BonusMalus", "Region")]
-   GeneralizedLinearRegressor(family="poisson", alpha=0.01).fit(X, y)
+Backend extensibility
+---------------------
+
+The default backend writes to a local directory, but
+:class:`~glum.CacheBackend` is a four-method ``Protocol`` — any object
+satisfying ``exists``, ``read``, ``write``, ``delete`` (all taking and
+returning ``bytes``) is a valid backend.  This is the seam for future
+distributed cache support (Redis, S3, Azure Blob).  The protocol is
+deliberately bytes-only so backends don't need to depend on
+:mod:`joblib` or pickle semantics — serialization is the cache's
+responsibility.
+
+.. code-block:: python
+
+   from glum import managed_cache, LocalFileBackend
+
+   # Custom backend (e.g. shared NFS mount)
+   backend = LocalFileBackend("/mnt/shared/glum_caches")
+
+   with managed_cache(
+       "data/insurance.parquet",
+       backend=backend,
+       key="prod/insurance.pkl",
+       cat_cols=["Region"],
+   ) as cache:
+       ...
+
+To implement your own backend (e.g. for Redis), satisfy the four-method
+protocol — see :class:`~glum.CacheBackend`.
+
+Lower-level building blocks
+---------------------------
+
+``managed_cache`` is sugar over three lower-level primitives that
+remain available for advanced use:
+
+- :meth:`~glum.TabmatCache.from_parquet` — build a cache directly from
+  a parquet file, returning an instance with the file fingerprint
+  bound but no persistence applied.
+- :meth:`~glum.TabmatCache.save_to` / :meth:`~glum.TabmatCache.load_from`
+  — backend-aware versions of :meth:`~glum.TabmatCache.save` /
+  :meth:`~glum.TabmatCache.load`.
+- :func:`~glum.fingerprint_file` — return the
+  ``("file", path, size, mtime_ns)`` tuple used by
+  :meth:`~glum.TabmatCache.verify_source`.
+
+The :attr:`~glum.TabmatCache.source_df` attribute is **lazy** after
+:meth:`~glum.TabmatCache.load`: accessing it re-reads the bound parquet
+on first use (with fingerprint verification) and caches the result for
+subsequent calls.  Likewise :meth:`~glum.TabmatCache.read_target` reads
+a single response column from the bound source without materializing a
+DataFrame, useful for extracting ``y`` cheaply.
 
 
 Limitations
