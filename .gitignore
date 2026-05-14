@@ -156,3 +156,4 @@ pkgs/*
 
 # rattler build artifacts
 output/
+.worktrees/
