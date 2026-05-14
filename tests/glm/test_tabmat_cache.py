@@ -408,3 +408,116 @@ class TestIntrospection:
     def test_invalid_maxsize_raises(self):
         with pytest.raises(ValueError):
             TabmatCache(fold_mat_maxsize=-1)
+
+
+# ---------------------------------------------------------------------------
+# DataFrame mutation detection
+# ---------------------------------------------------------------------------
+
+class TestMutationDetection:
+    """
+    The cache fingerprints the source DataFrame on first contact and
+    invalidates all entries when the fingerprint changes.  Detects
+    reassignment, row count changes, and column rename / reorder.
+    """
+
+    def test_reassigned_df_invalidates_cache(self, cache, numeric_df):
+        cache.register_cols(numeric_df)
+        cache.get_subset(numeric_df, ["x0", "x1"])
+        assert cache.stats()["n_cols"] > 0
+
+        # Reassigning to a copy changes id(df).
+        df2 = numeric_df.copy()
+        cache.get_subset(df2, ["x0", "x1"])
+
+        # Old per-column entries cleared and rebuilt against df2.
+        # n_cols should be 2 (just x0 and x1, populated via cold-path back-fill).
+        assert cache.stats()["n_cols"] == 2
+
+    def test_added_row_invalidates_cache(self, cache, numeric_df):
+        cache.register_cols(numeric_df[["x0", "x1"]])
+        n_before_cols = cache.stats()["n_cols"]
+        assert n_before_cols == 2
+
+        # Append a row → df.shape changes.
+        df_bigger = pd.concat([numeric_df, numeric_df.iloc[[0]]], ignore_index=True)
+        cache.register_cols(df_bigger[["x0", "x1"]])
+
+        # Cache should have been cleared and re-populated.
+        # New per-column matrices reflect the longer DataFrame.
+        for c in ["x0", "x1"]:
+            assert cache.get_col(c).shape[0] == len(df_bigger)
+
+    def test_renamed_column_invalidates_cache(self, cache, numeric_df):
+        cache.register_cols(numeric_df)
+        # Rename one column → column-tuple hash changes.
+        df_renamed = numeric_df.rename(columns={"x0": "x0_renamed"})
+        cache.register_cols(df_renamed[["x0_renamed", "x1"]])
+
+        # Old x0 should be gone; new x0_renamed should be present.
+        assert "x0" not in cache
+        assert "x0_renamed" in cache
+
+    def test_first_call_records_fingerprint(self, cache, numeric_df):
+        assert cache._df_fingerprint is None
+        cache.register_cols(numeric_df[["x0"]])
+        assert cache._df_fingerprint is not None
+
+    def test_value_mutation_via_iloc_may_or_may_not_be_detected(
+        self, cache, numeric_df,
+    ):
+        """
+        Documented limitation: in-place value mutation through pandas
+        APIs is not guaranteed to invalidate the cache.
+
+        Modern pandas Copy-on-Write *can* trigger an ``id(df)`` change
+        on assignment (which our fingerprint catches incidentally), but
+        this is an implementation detail of pandas — we don't rely on
+        it.  The fingerprint only formally tracks ``(id, shape, cols)``.
+
+        This test pins the contract: after a value mutation, the cache
+        may still report success, and the burden is on the user to call
+        :meth:`TabmatCache.clear`.  We verify the fingerprint behavior
+        is at least *consistent* (either changed or unchanged), without
+        asserting which.
+        """
+        cache.register_cols(numeric_df[["x0", "x1"]])
+        fp_before = cache._df_fingerprint
+
+        # Make a working copy and mutate it.  We intentionally don't
+        # mutate `numeric_df` itself so we don't pollute the module-
+        # scoped fixture for other tests.
+        df_mut = numeric_df.copy()
+        df_mut.iloc[0, 0] = 9999.0
+
+        # Whatever pandas does internally, our cache is not contractually
+        # required to detect this — just to behave correctly afterwards.
+        cache.register_cols(df_mut[["x0", "x1"]])
+        # Cache is still in a valid state (no exception, can serve
+        # subsequent get_col calls).
+        assert cache.get_col("x0").shape[0] == len(df_mut)
+
+    def test_clear_resets_fingerprint(self, cache, numeric_df):
+        cache.register_cols(numeric_df[["x0"]])
+        assert cache._df_fingerprint is not None
+        cache.clear()
+        assert cache._df_fingerprint is None
+
+    def test_load_does_not_carry_fingerprint(self, tmp_path, numeric_df):
+        """
+        After save/load, the fingerprint is None so the next call can
+        bind to whatever DataFrame the user supplies.
+        """
+        cache = TabmatCache()
+        cache.register_cols(numeric_df[["x0", "x1"]])
+        path = tmp_path / "cache.pkl"
+        cache.save(path)
+
+        restored = TabmatCache.load(path)
+        assert restored._df_fingerprint is None
+        # Subsequent register_cols on the same DataFrame should not
+        # clear, since the fingerprint is being established for the
+        # first time post-load.
+        n_before = restored.stats()["n_cols"]
+        restored.register_cols(numeric_df[["x0", "x1"]])
+        assert restored.stats()["n_cols"] == n_before

@@ -85,6 +85,25 @@ class CacheVersionError(RuntimeError):
     """Raised when a saved ``TabmatCache`` has an incompatible version."""
 
 
+def _df_fingerprint(df: pd.DataFrame) -> tuple:
+    """
+    Lightweight fingerprint for cache-invalidation purposes.
+
+    Captures DataFrame **identity**, **shape**, and the **column names**.
+    This detects:
+
+    * reassignment (``df = df.copy()`` changes ``id(df)``),
+    * row addition / removal (``df.shape`` changes), and
+    * column rename / reorder (column-name tuple hash changes).
+
+    It does **not** detect in-place value mutation
+    (``df.loc[0, "x"] = ...``).  That would require hashing column data
+    on every call, which is too expensive for a hot-path cache.  Users
+    who mutate in place must call :meth:`TabmatCache.clear` manually.
+    """
+    return (id(df), df.shape, hash(tuple(df.columns)))
+
+
 class TabmatCache:
     """
     Two-level tabmat matrix cache: column subsets + fold row-slices.
@@ -129,9 +148,37 @@ class TabmatCache:
         # (fold_id, tuple(cols), sw_id) → (col_means, col_stds)
         self._std_stats:      dict[tuple, tuple]       = {}
 
+        # ── Mutation-detection fingerprint ──────────────────────────────
+        # Lightweight signature of the DataFrame that produced our cached
+        # matrices.  Reset to None means "no DataFrame seen yet".  When a
+        # subsequent call arrives with a different fingerprint, all cached
+        # state is invalidated and the new DataFrame becomes the source of
+        # truth.  See `_df_fingerprint` for what is (and isn't) detected.
+        self._df_fingerprint: Optional[tuple] = None
+
     # ------------------------------------------------------------------
     # Column / subset layer
     # ------------------------------------------------------------------
+
+    def _check_fingerprint(self, df: pd.DataFrame) -> None:
+        """
+        Validate the cache fingerprint against ``df``.
+
+        On first contact, record the fingerprint.  On any subsequent
+        call with a mismatched fingerprint, clear all cached state and
+        log an info-level message.  This catches DataFrame reassignment,
+        row count changes, and column rename/reorder — but not in-place
+        value mutation (see :func:`_df_fingerprint`).
+        """
+        fp = _df_fingerprint(df)
+        if self._df_fingerprint is not None and fp != self._df_fingerprint:
+            _logger.info(
+                "TabmatCache: DataFrame fingerprint changed "
+                "(was %r, now %r); invalidating cache.",
+                self._df_fingerprint, fp,
+            )
+            self.clear()
+        self._df_fingerprint = fp
 
     def register_cols(self, df: pd.DataFrame) -> None:
         """
@@ -139,6 +186,7 @@ class TabmatCache:
         that is not yet registered.  Subsequent ``get_col(name)`` calls
         return the cached single-column matrix in O(1).
         """
+        self._check_fingerprint(df)
         for col in df.columns:
             if col not in self._col_matrices:
                 mat = tm.from_pandas(df[[col]])
@@ -170,6 +218,7 @@ class TabmatCache:
         shared by reference, so the subset cache adds no meaningful
         memory overhead.
         """
+        self._check_fingerprint(df)
         key = tuple(cols)
         if key not in self._subset_cache:
             if all(c in self._col_matrices for c in cols):
@@ -333,6 +382,7 @@ class TabmatCache:
         self._fold_mat.clear()
         self._fold_idx.clear()
         self._std_stats.clear()
+        self._df_fingerprint = None
 
     def clear_fold_slices(self) -> None:
         """Drop only the fold row-slice cache (keep column-set matrices)."""
@@ -350,6 +400,9 @@ class TabmatCache:
         The format includes a version sentinel; :meth:`load` will raise
         :class:`CacheVersionError` if the layout is incompatible.
         """
+        # We deliberately omit `_df_fingerprint`: id(df) is not meaningful
+        # across processes, and df.shape / column-name hash should be
+        # re-established by the user on first contact in the new session.
         state = {
             "__cache_version__": _CACHE_VERSION,
             "fold_mat_maxsize":  self.fold_mat_maxsize,
