@@ -5,29 +5,35 @@ StepwiseGLM
 A wrapper around :class:`glum.GeneralizedLinearRegressor` that accelerates
 iterative / stepwise model fitting via four complementary optimizations:
 
-1. **Column-level tabmat cache** — each DataFrame column is converted to a
-   tabmat sub-matrix exactly once.  Column subsets are assembled via
-   ``tabmat.hstack``, eliminating the narwhals dtype-detection overhead that
-   ``from_pandas`` incurs on every call.
+1. **Tabmat matrix cache** — built on :class:`glum.TabmatCache`.  Each
+   DataFrame column is converted to a tabmat sub-matrix exactly once.
+   Column subsets and fold row-slices are memoized.  See
+   :mod:`glum._tabmat_cache`.
 
-2. **Warm-start coefficients** — ``warm_start=True`` is always enabled so the
-   IRLS solver begins from the previous solution, reducing outer iterations on
-   incremental changes.
+2. **Warm-start coefficients** — ``warm_start=True`` is always enabled so
+   the IRLS solver begins from the previous solution, reducing outer
+   iterations on incremental changes.
 
 3. **Standardization cache** — column means and standard deviations are
    computed once per unique column and cached.  Subsequent fits inject the
-   cached stats directly, replacing the full O(n) pass each step.  The cache
-   is invalidated automatically when ``sample_weight`` changes.
+   cached stats directly, replacing the full O(n) pass each step.  The
+   cache is invalidated automatically when ``sample_weight`` changes.
 
-4. **Score-test candidate screener** — ``screen_candidates()`` computes the
-   score (Rao) test statistic for each candidate column against the current
-   fitted model.  This costs one dot-product per candidate instead of one full
-   IRLS solve, enabling forward-stepwise search to rank many candidates and
-   only refit the winner.
+4. **Score-test candidate screener** — :meth:`StepwiseGLM.screen_candidates`
+   computes the score (Rao) test statistic for each candidate column
+   against the current fitted model.  This costs one dot-product per
+   candidate instead of one full IRLS solve, enabling forward-stepwise
+   search to rank many candidates and only refit the winner.
+
+5. **Cross-validated selection** — :meth:`StepwiseGLM.cv_select` evaluates
+   candidates by hold-out deviance using cached per-fold matrices and
+   standardize stats.
 
 No global monkeypatching occurs.  The standardization cache is applied by
 temporarily replacing ``glum._glm.standardize`` for the duration of each
-``fit()`` call only, then restoring it unconditionally in a ``finally`` block.
+``fit()`` call only, then restoring it unconditionally in a ``finally``
+block.  The patch is also serialized across threads via a module-level
+:class:`threading.Lock`.
 
 Usage
 -----
@@ -54,6 +60,7 @@ Usage
 from __future__ import annotations
 
 import contextlib
+import threading
 from dataclasses import dataclass
 from typing import Optional, Union
 
@@ -66,6 +73,7 @@ from sklearn.model_selection import check_cv
 import glum
 import glum._glm as _glm_mod
 import glum._utils as _utils_mod
+from glum._tabmat_cache import TabmatCache
 
 # ---------------------------------------------------------------------------
 # Stash the real standardize at import time (idempotent)
@@ -74,87 +82,19 @@ import glum._utils as _utils_mod
 if not hasattr(_utils_mod, "_original_standardize"):
     _utils_mod._original_standardize = _utils_mod.standardize
 
-
 # ---------------------------------------------------------------------------
-# 1. Matrix cache
+# Thread-safety lock for the module-level standardize patch
 # ---------------------------------------------------------------------------
-
-class _MatrixCache:
-    """
-    Two-level tabmat matrix cache.
-
-    **Column-level store**: each DataFrame column is converted to a single-
-    column tabmat sub-matrix once and cached by name.  Used for score-test
-    candidate screening (one column at a time).
-
-    **Subset-level store**: full column-subset matrices are memoized by the
-    tuple of column names.  On the first call for a given column set,
-    ``tabmat.from_pandas`` wraps the existing pandas memory (cheap).  On
-    subsequent calls the cached ``MatrixBase`` is returned in O(1) via a dict
-    lookup — no data copying, no narwhals dtype detection.
-
-    At small n, ``hstack`` from per-column pieces is competitive.  At large n
-    (1M+ rows), ``from_pandas`` on a DataFrame slice is faster because it
-    wraps existing memory, while ``hstack`` must concatenate arrays.  The
-    subset-level memoization gives us the best of both: pay ``from_pandas``
-    cost once per unique column set, then zero cost thereafter.
-    """
-
-    def __init__(self, source_df: Optional[pd.DataFrame] = None):
-        # col_name → single-column MatrixBase  (for score tests)
-        self._col_matrices:   dict[str, tm.MatrixBase] = {}
-        self._col_feat_names: dict[str, list[str]]     = {}
-        # tuple(cols) → full-subset MatrixBase  (for fit())
-        self._subset_cache:   dict[tuple, tm.MatrixBase] = {}
-        self._subset_names:   dict[tuple, list[str]]    = {}
-
-        self._source_df: Optional[pd.DataFrame] = source_df
-
-    def set_source(self, df: pd.DataFrame) -> None:
-        """Register the source DataFrame used for subset lookups."""
-        self._source_df = df
-
-    def register_cols(self, df: pd.DataFrame) -> None:
-        """Build per-column cache entries for any unseen columns in df."""
-        for col in df.columns:
-            if col not in self._col_matrices:
-                mat = tm.from_pandas(df[[col]])
-                self._col_matrices[col]   = mat
-                self._col_feat_names[col] = mat.get_names(
-                    type="column", missing_prefix=f"_{col}_"
-                )
-
-    def get_subset(
-        self, df: pd.DataFrame, cols: list[str]
-    ) -> tuple[tm.MatrixBase, list[str]]:
-        """
-        Return (MatrixBase, expanded_feature_names) for a column subset.
-
-        Uses the subset-level memoization cache.  On a miss, calls
-        ``from_pandas`` on ``df[cols]`` and stores the result.
-        """
-        key = tuple(cols)
-        if key not in self._subset_cache:
-            mat = tm.from_pandas(df[cols])
-            self._subset_cache[key] = mat
-            self._subset_names[key] = mat.get_names(
-                type="column", missing_prefix="_col_"
-            )
-        return self._subset_cache[key], self._subset_names[key]
-
-    def get_col(self, col: str) -> tm.MatrixBase:
-        """Return the single-column matrix for a registered column."""
-        return self._col_matrices[col]
-
-    def col_feat_names(self, col: str) -> list[str]:
-        return self._col_feat_names[col]
-
-    def __contains__(self, col: str) -> bool:
-        return col in self._col_matrices
+# `_patch_standardize` mutates `glum._glm.standardize` (a module global).
+# Without serialization, concurrent fit() calls would clobber each other's
+# patch.  This lock holds for the duration of one IRLS solve — concurrent
+# StepwiseGLM users will fit sequentially, but each fit retains its full
+# speedup vs. the unpatched code path.
+_standardize_lock = threading.Lock()
 
 
 # ---------------------------------------------------------------------------
-# 2 & 3. Caching standardize replacement
+# Caching standardize replacement
 # ---------------------------------------------------------------------------
 
 class _CachingStandardize:
@@ -163,6 +103,12 @@ class _CachingStandardize:
 
     Serves cached column stats where available; falls back to the real
     ``standardize`` for new columns and populates the cache from the result.
+
+    Returns ``col_means`` and ``col_stds`` as **1-D numpy arrays** in both
+    the cache-hit and cache-miss paths.  This 1-D contract is required by
+    ``glum._utils.standardize_warm_start`` — see its implementation for the
+    edge case where 0-D scalars dotted with 1-D arrays produce shapes that
+    cannot be assigned back to ``coef[0]``.
     """
 
     def __init__(self, col_stats: dict, active_names: list[str], sw_id: int):
@@ -178,8 +124,8 @@ class _CachingStandardize:
         import scipy.sparse as sparse
 
         n = X.shape[1]
-        means = np.empty(n)
-        stds  = np.ones(n)
+        means = np.empty(n, dtype=float)
+        stds  = np.ones(n,  dtype=float)
         all_hit = True
 
         for j, name in enumerate(self._names):
@@ -190,6 +136,10 @@ class _CachingStandardize:
             else:
                 all_hit = False
                 self.cache_misses += 1
+
+        # Enforce 1-D contract for downstream standardize_warm_start.
+        means = np.atleast_1d(means.ravel())
+        stds  = np.atleast_1d(stds.ravel())
 
         if all_hit:
             col_means = means if center_predictors else np.zeros(n)
@@ -215,28 +165,38 @@ class _CachingStandardize:
             estimate_as_if_scaled_model,
             lower_bounds, upper_bounds, A_ineq, P1, P2,
         )
-        _, col_means, col_stds, *_ = result
+        X_std, col_means, col_stds, *rest = result
+        # Enforce 1-D contract on the returned values too.
+        col_means = np.atleast_1d(np.asarray(col_means, dtype=float).ravel())
         if col_stds is not None:
+            col_stds = np.atleast_1d(np.asarray(col_stds, dtype=float).ravel())
             for j, name in enumerate(self._names):
                 key = (name, self._sw_id)
                 if key not in self._col_stats:
-                    self._col_stats[key] = (col_means[j], col_stds[j])
-        return result
+                    self._col_stats[key] = (float(col_means[j]), float(col_stds[j]))
+        return (X_std, col_means, col_stds, *rest)
 
 
 @contextlib.contextmanager
 def _patch_standardize(caching_std):
-    """Swap glum._glm.standardize for one fit() call, restore on exit."""
-    orig = _glm_mod.standardize
-    try:
-        _glm_mod.standardize = caching_std
-        yield
-    finally:
-        _glm_mod.standardize = orig
+    """
+    Swap ``glum._glm.standardize`` for one fit() call, restore on exit.
+
+    Acquires :data:`_standardize_lock` for the duration of the patch so
+    concurrent ``StepwiseGLM.fit()`` calls from different threads serialize
+    cleanly instead of clobbering each other's patched function.
+    """
+    with _standardize_lock:
+        orig = _glm_mod.standardize
+        try:
+            _glm_mod.standardize = caching_std
+            yield
+        finally:
+            _glm_mod.standardize = orig
 
 
 # ---------------------------------------------------------------------------
-# 4. Score test result
+# Result dataclasses
 # ---------------------------------------------------------------------------
 
 @dataclass
@@ -248,128 +208,6 @@ class ScoreTestResult:
     pvalue:    float
     selected:  bool    # pvalue < alpha threshold
 
-
-# ---------------------------------------------------------------------------
-# 5. CV fold matrix cache
-# ---------------------------------------------------------------------------
-
-class _CVMatrixCache:
-    """
-    Per-fold tabmat matrix cache for repeated cross-validation.
-
-    Stores two things per fold:
-
-    **Fold row-slice cache** — the most recently used column subset for
-    each fold, keyed by ``(fold_id, tuple(cols))``.  When the next
-    stepwise step adds a single column, the new fold slice is assembled via
-    ``tabmat.hstack([cached_prev_slice, new_col[train_idx, :]])`` instead
-    of re-slicing the full matrix (~10× faster on mixed data).
-
-    **Fold standardize stats cache** — ``(col_means, col_stds)`` per
-    ``(fold_id, tuple(cols), sw_id)``.  The stats are stable across
-    repeated CV calls with the same split, so they need only be computed
-    once per unique (fold, column-set, sample-weight) triple.
-    """
-
-    def __init__(self):
-        # (fold_id, col_tuple) → (MatrixBase, train_idx ndarray)
-        self._fold_mat:    dict[tuple, tm.MatrixBase]  = {}
-        self._fold_idx:    dict[int,   np.ndarray]     = {}
-        # (fold_id, col_tuple, sw_id) → (col_means ndarray, col_stds ndarray)
-        self._std_stats:   dict[tuple, tuple]          = {}
-        # per-column matrices for incremental hstack (from _MatrixCache)
-        self._col_mats:    dict[str, tm.MatrixBase]    = {}
-
-    def register_col_mats(self, col_mats: dict) -> None:
-        """Share the per-column cache from _MatrixCache."""
-        self._col_mats = col_mats
-
-    def set_fold_indices(self, fold_id: int, train_idx: np.ndarray) -> None:
-        """Store the training indices for a fold (called once when CV splits are built)."""
-        self._fold_idx[fold_id] = train_idx
-
-    def get_fold_mat(
-        self,
-        fold_id: int,
-        cols: list[str],
-        full_mat: tm.MatrixBase,
-    ) -> tm.MatrixBase:
-        """
-        Return the fold training slice for ``cols``.
-
-        Strategy:
-        1. Exact cache hit → O(1).
-        2. The previous cached col-set for this fold is a prefix of ``cols``
-           (stepwise added one or more columns) → incremental hstack.
-        3. Full miss → re-slice ``full_mat`` and store.
-        """
-        key = (fold_id, tuple(cols))
-        if key in self._fold_mat:
-            return self._fold_mat[key]
-
-        train_idx = self._fold_idx[fold_id]
-
-        # Find longest cached prefix for this fold
-        best_prefix: Optional[tuple]       = None
-        best_prefix_mat: Optional[tm.MatrixBase] = None
-        for cached_key, cached_mat in self._fold_mat.items():
-            if cached_key[0] != fold_id:
-                continue
-            cached_cols = cached_key[1]
-            n = len(cached_cols)
-            if tuple(cols[:n]) == cached_cols and n > (len(best_prefix) if best_prefix else -1):
-                best_prefix     = cached_cols
-                best_prefix_mat = cached_mat
-
-        if best_prefix is not None and best_prefix_mat is not None:
-            # Incrementally append the new columns
-            new_cols = cols[len(best_prefix):]
-            pieces   = [best_prefix_mat]
-            for c in new_cols:
-                if c in self._col_mats:
-                    pieces.append(self._col_mats[c][train_idx, :])
-                else:
-                    # Fallback: slice from full mat column-by-column is hard;
-                    # just do a full re-slice for this miss.
-                    pieces = None
-                    break
-            if pieces is not None:
-                mat = tm.hstack(pieces) if len(pieces) > 1 else pieces[0]
-                self._fold_mat[key] = mat
-                return mat
-
-        # Full miss — row-slice the full dataset matrix
-        mat = full_mat[train_idx, :]
-        self._fold_mat[key] = mat
-        return mat
-
-    def get_std_stats(
-        self,
-        fold_id: int,
-        cols: list[str],
-        sw_id: int,
-    ) -> Optional[tuple]:
-        """Return cached ``(col_means, col_stds)`` or ``None`` on miss."""
-        return self._std_stats.get((fold_id, tuple(cols), sw_id))
-
-    def set_std_stats(
-        self,
-        fold_id: int,
-        cols: list[str],
-        sw_id: int,
-        col_means: np.ndarray,
-        col_stds: np.ndarray,
-    ) -> None:
-        self._std_stats[(fold_id, tuple(cols), sw_id)] = (col_means, col_stds)
-
-    def clear_fold_mats(self) -> None:
-        """Evict fold matrix cache (e.g. after column set changes substantially)."""
-        self._fold_mat.clear()
-
-
-# ---------------------------------------------------------------------------
-# CV result dataclass
-# ---------------------------------------------------------------------------
 
 @dataclass
 class CVResult:
@@ -390,6 +228,13 @@ class StepwiseGLM:
 
     Parameters
     ----------
+    cache : TabmatCache, optional
+        Pre-existing matrix cache to share across multiple ``StepwiseGLM``
+        instances or pre-warm via ``cache.register_cols(df)``.  If ``None``,
+        a fresh ``TabmatCache`` is created on construction.
+    cv_cache_maxsize : int, default 256
+        Maximum number of cached fold row-slices when a fresh cache is
+        created.  Ignored when ``cache`` is supplied.
     **glm_kwargs
         Forwarded to :class:`glum.GeneralizedLinearRegressor`.
         ``warm_start`` is always forced to ``True``.
@@ -398,31 +243,44 @@ class StepwiseGLM:
     ----------
     glm_ : GeneralizedLinearRegressor
         The underlying fitted estimator.
+    cache : TabmatCache
+        Shared matrix cache; safe to use with vanilla GLMs and across
+        multiple ``StepwiseGLM`` instances.
     cache_stats_ : dict
         Per-step standardization cache hit/miss counts, keyed by step index.
     score_test_history_ : list[list[ScoreTestResult]]
         One entry per ``screen_candidates()`` call.
+    cv_history_ : list[list[CVResult]]
+        One entry per ``cv_select()`` call.
     """
 
-    def __init__(self, **glm_kwargs):
+    def __init__(
+        self,
+        cache: Optional[TabmatCache] = None,
+        cv_cache_maxsize: int = 256,
+        **glm_kwargs,
+    ):
         glm_kwargs["warm_start"] = True
         self.glm_ = glum.GeneralizedLinearRegressor(**glm_kwargs)
 
-        self._mat_cache  = _MatrixCache()
-        self._cv_cache   = _CVMatrixCache()
+        self.cache = cache if cache is not None else TabmatCache(
+            fold_mat_maxsize=cv_cache_maxsize,
+        )
+
         self._col_stats: dict = {}
         self._last_sw_id: Optional[int] = None
         self._step = 0
         self._source_df: Optional[pd.DataFrame] = None
 
-        self.cache_stats_:       dict                      = {}
+        self.cache_stats_:        dict                       = {}
         self.score_test_history_: list[list[ScoreTestResult]] = []
-        self.cv_history_:        list[list[CVResult]]      = []
+        self.cv_history_:         list[list[CVResult]]       = []
 
         # State carried between fit() and screen_candidates()
-        self._last_y:     Optional[np.ndarray]    = None
-        self._last_mu:    Optional[np.ndarray]    = None
-        self._last_X_tab: Optional[tm.MatrixBase] = None
+        self._last_y:      Optional[np.ndarray]    = None
+        self._last_mu:     Optional[np.ndarray]    = None
+        self._last_offset: Optional[np.ndarray]    = None
+        self._last_X_tab:  Optional[tm.MatrixBase] = None
 
     # ------------------------------------------------------------------
     # fit()
@@ -443,19 +301,26 @@ class StepwiseGLM:
         X : pd.DataFrame or tabmat.MatrixBase
         y : array-like
         sample_weight : array-like, optional
+        **fit_kwargs
+            Forwarded to ``GeneralizedLinearRegressor.fit``.  An ``offset``
+            kwarg is captured and reused by ``screen_candidates()`` and
+            ``cv_select()`` so the cached fitted mu stays consistent.
         """
         y = np.asarray(y)
-        self._last_y = y   # cache for screen_candidates()
+        self._last_y = y
+
+        # Capture and normalize offset (re-used by score test + CV)
+        offset = fit_kwargs.get("offset")
+        self._last_offset = np.asarray(offset) if offset is not None else None
 
         # ── Resolve X ────────────────────────────────────────────────────
         if isinstance(X, pd.DataFrame):
-            self._source_df = X   # keep reference for score tests
-            X_tab, active_names = self._mat_cache.get_subset(X, list(X.columns))
+            self._source_df = X
+            X_tab, active_names = self.cache.get_subset(X, list(X.columns))
         elif isinstance(X, tm.MatrixBase):
             X_tab = X
             active_names = X_tab.get_names(type="column", missing_prefix="_col_")
         else:
-            # Unknown type — let glum handle it unoptimised
             self.glm_.fit(X, y, sample_weight=sample_weight, **fit_kwargs)
             self._step += 1
             return self
@@ -484,8 +349,11 @@ class StepwiseGLM:
         with _patch_standardize(caching_std):
             self.glm_.fit(X_tab, y, sample_weight=sample_weight, **fit_kwargs)
 
-        # ── Cache mu for score tests ──────────────────────────────────────
-        self._last_mu    = self.glm_.predict(X_tab)
+        # ── Cache mu (with offset!) for score tests ──────────────────────
+        if self._last_offset is not None:
+            self._last_mu = self.glm_.predict(X_tab, offset=self._last_offset)
+        else:
+            self._last_mu = self.glm_.predict(X_tab)
         self._last_X_tab = X_tab
 
         # ── Record cache stats ────────────────────────────────────────────
@@ -513,22 +381,12 @@ class StepwiseGLM:
         """
         Rank candidate columns using the score (Rao) test without refitting.
 
-        For each candidate, computes the score test statistic under the current
-        fitted model at O(n) cost per candidate — vs O(n·p·iters) for a full
-        IRLS refit.  Works for any GLM family and handles categorical columns
-        (multi-dof chi-squared test) automatically.
-
-        Parameters
-        ----------
-        df : pd.DataFrame
-            Source DataFrame containing all columns.
-        active_cols : list[str]
-            Columns currently in the model (informational only; model must
-            already be fitted via ``fit()``).
-        candidate_cols : list[str]
-            Columns to screen as potential additions.
-        alpha : float
-            Significance threshold for ``ScoreTestResult.selected``.
+        For each candidate, computes the score test statistic under the
+        current fitted model at O(n) cost per candidate — vs O(n·p·iters)
+        for a full IRLS refit.  Works for any GLM family and handles
+        categorical columns (multi-dof chi-squared test) automatically.
+        Uses the cached ``mu`` from the last :meth:`fit` call, which
+        correctly includes any offset that was passed to ``fit()``.
 
         Returns
         -------
@@ -551,13 +409,13 @@ class StepwiseGLM:
         hessian_rows    = (d1 ** 2) / var                # (n,)  curvature weights
 
         # Ensure candidate columns are in the per-column cache
-        self._mat_cache.register_cols(df[candidate_cols])
+        self.cache.register_cols(df[candidate_cols])
 
         results: list[ScoreTestResult] = []
 
         for col in candidate_cols:
-            mat = self._mat_cache.get_col(col)
-            k   = len(self._mat_cache.col_feat_names(col))   # expanded width
+            mat = self.cache.get_col(col)
+            k   = len(self.cache.col_feat_names(col))
 
             if k == 1:
                 # Numeric / binary: scalar chi2(1) test
@@ -568,10 +426,9 @@ class StepwiseGLM:
                 dof   = 1
             else:
                 # Categorical: vector chi2(k) test
-                # H is diagonal because one-hot columns are orthogonal per row
-                X_cat = mat.toarray()                       # (n, k)
-                s     = X_cat.T @ gradient_rows             # (k,)
-                H     = X_cat.T @ (hessian_rows[:, None] * X_cat)  # (k, k)
+                X_cat = mat.toarray()
+                s     = X_cat.T @ gradient_rows
+                H     = X_cat.T @ (hessian_rows[:, None] * X_cat)
                 try:
                     stat = float(s @ np.linalg.solve(H, s))
                 except np.linalg.LinAlgError:
@@ -599,6 +456,7 @@ class StepwiseGLM:
         candidate_cols: list[str],
         y: np.ndarray,
         sample_weight: Optional[np.ndarray] = None,
+        offset: Optional[np.ndarray] = None,
         cv=5,
         alphas: Optional[np.ndarray] = None,
         n_alphas: int = 20,
@@ -611,29 +469,15 @@ class StepwiseGLM:
         alpha that minimises mean fold deviance.  Results are sorted
         ascending by ``cv_deviance`` (lower = better).
 
-        The fold matrices are built incrementally — the row-slice for the
-        current active set is cached per fold, and adding a candidate
-        column appends only the new column's fold slice via
-        ``tabmat.hstack``.  Fold standardize stats are also cached,
-        eliminating the O(n) pass on repeated calls with the same split.
-
         Parameters
         ----------
-        df : pd.DataFrame
-            Source data for all columns.
-        active_cols : list[str]
-            Columns currently in the model.
-        candidate_cols : list[str]
-            Columns to evaluate as potential additions.
-        y : array-like
-        sample_weight : array-like, optional
-        cv : int or CV splitter
-            Passed to ``sklearn.model_selection.check_cv``.
-        alphas : array-like, optional
-            Explicit alpha grid.  If ``None``, a log-spaced grid of
-            ``n_alphas`` values is derived from the data.
-        n_alphas : int
-            Number of alphas to search when ``alphas`` is ``None``.
+        df, active_cols, candidate_cols, y, sample_weight, cv,
+        alphas, n_alphas
+            See class docstring.
+        offset : array-like, optional
+            Per-row offset (added to the linear predictor).  If ``None``,
+            falls back to whatever offset was used in the most recent
+            ``fit()`` call.
 
         Returns
         -------
@@ -643,36 +487,28 @@ class StepwiseGLM:
         y = np.asarray(y)
         sw_id = -1 if sample_weight is None else id(np.asarray(sample_weight))
 
+        # Default offset to whatever was used in fit()
+        if offset is None:
+            offset = self._last_offset
+        if offset is not None:
+            offset = np.asarray(offset)
+
         # ── Ensure per-column cache is populated ────────────────────────
         all_cols = list(dict.fromkeys(active_cols + candidate_cols))
-        self._mat_cache.register_cols(df[all_cols])
-        self._cv_cache.register_col_mats(self._mat_cache._col_matrices)
-
-        # ── Build the full tabmat for the active+candidate superset ─────
-        full_cols_key = tuple(all_cols)
-        full_mat, _ = self._mat_cache.get_subset(df, all_cols)
+        self.cache.register_cols(df[all_cols])
+        full_mat, _ = self.cache.get_subset(df, all_cols)
 
         # ── Build CV splits (stable across candidates) ───────────────────
         splitter = check_cv(cv)
         splits   = list(splitter.split(df, y))
-        n_folds  = len(splits)
 
         for fold_id, (train_idx, _) in enumerate(splits):
-            self._cv_cache.set_fold_indices(fold_id, train_idx)
+            self.cache.set_fold_indices(fold_id, train_idx)
 
         # ── Determine alpha grid ─────────────────────────────────────────
-        # Use glum's built-in alpha-path logic on the active set
         if alphas is None:
-            active_mat, active_names = self._mat_cache.get_subset(df, active_cols)
-            _tmp_glm = glum.GeneralizedLinearRegressorCV(
-                family=self.glm_.family,
-                l1_ratio=getattr(self.glm_, "l1_ratio", 0),
-                n_alphas=n_alphas,
-                cv=2,          # just to get alpha grid, not for real CV
-            )
-            # Derive alpha max from the active+first-candidate set as a proxy
             probe_cols = active_cols + candidate_cols[:1]
-            probe_mat, _ = self._mat_cache.get_subset(df, probe_cols)
+            probe_mat, _ = self.cache.get_subset(df, probe_cols)
             sw_probe = (np.ones(len(y)) / len(y)
                         if sample_weight is None
                         else np.asarray(sample_weight) / np.asarray(sample_weight).sum())
@@ -691,16 +527,15 @@ class StepwiseGLM:
             alphas = np.exp(np.linspace(np.log(alpha_max), np.log(alpha_min), n_alphas))
 
         # ── Per-candidate CV ─────────────────────────────────────────────
-        # Compute baseline deviance (active model, no candidate)
         baseline_dev = self._cv_deviance(
-            df, active_cols, y, sample_weight, splits, alphas, sw_id
+            df, active_cols, y, sample_weight, offset, splits, alphas, sw_id
         )
 
         results: list[CVResult] = []
         for cand in candidate_cols:
             cols = active_cols + [cand]
             dev  = self._cv_deviance(
-                df, cols, y, sample_weight, splits, alphas, sw_id
+                df, cols, y, sample_weight, offset, splits, alphas, sw_id
             )
             best_alpha = alphas[np.argmin(dev)]
             mean_dev   = float(np.mean(dev))
@@ -721,6 +556,7 @@ class StepwiseGLM:
         cols: list[str],
         y: np.ndarray,
         sample_weight: Optional[np.ndarray],
+        offset: Optional[np.ndarray],
         splits: list,
         alphas: np.ndarray,
         sw_id: int,
@@ -729,21 +565,16 @@ class StepwiseGLM:
         Return per-fold best deviance (shape: n_folds,) for a column set
         and alpha grid, using cached fold matrices and standardize stats.
 
-        The regularization path is warm-started from large alpha to small
-        (GLMNet trick) within each fold.  Fold matrices are assembled
-        incrementally from the column cache; standardize stats are cached
-        per (fold, cols, sw_id) so subsequent calls with the same split
-        pay zero O(n) standardize cost.
+        Offset (if provided) is sliced per-fold and forwarded to both the
+        fold IRLS fit and the test-set predict, so deviances reflect the
+        proper offset-bearing model.
         """
         fam  = self.glm_._family_instance
         fold_deviances = np.zeros(len(splits))
-
-        # Memoized full-column-set matrix (pays from_pandas at most once)
-        full_mat, _ = self._mat_cache.get_subset(df, cols)
+        full_mat, _ = self.cache.get_subset(df, cols)
 
         for fold_id, (train_idx, test_idx) in enumerate(splits):
-            # ── Fold matrices (incremental hstack from cache) ─────────────
-            X_train = self._cv_cache.get_fold_mat(fold_id, cols, full_mat)
+            X_train = self.cache.get_fold_slice(fold_id, cols, full_mat)
             X_test  = full_mat[test_idx, :]
 
             y_train = y[train_idx]
@@ -757,24 +588,23 @@ class StepwiseGLM:
                 sw_train = sw[train_idx] / sw[train_idx].sum()
                 sw_test  = sw[test_idx]  / sw[test_idx].sum()
 
+            # Slice offset per-fold (None passes through transparently)
+            offset_train = offset[train_idx] if offset is not None else None
+            offset_test  = offset[test_idx]  if offset is not None else None
+
             # ── Standardize stats (cached per fold+cols+sw) ───────────────
-            # Build a _CachingStandardize that caches fold-level stats
-            # keyed by (fold_id, col_name, sw_id).  On hit, injects stats
-            # directly without an O(n) pass.
-            fold_col_stats_key = (fold_id, tuple(cols), sw_id)
-            cached = self._cv_cache.get_std_stats(fold_id, cols, sw_id)
+            cached = self.cache.get_std_stats(fold_id, cols, sw_id)
             if cached is not None:
-                # Re-use cached stats — build a one-shot caching_std that
-                # will always hit and store the result into _col_stats
-                col_means = np.atleast_1d(np.asarray(cached[0], dtype=float).ravel())
-                col_stds  = np.atleast_1d(np.asarray(cached[1], dtype=float).ravel())
+                col_means, col_stds = cached
+                assert col_means.ndim == 1 and col_stds.ndim == 1
                 n_feat = X_train.shape[1]
                 inv_stds = np.where(col_stds > 0, 1.0 / col_stds, 1.0)
                 shifts   = -col_means * inv_stds
 
                 def _cached_std(X, sw, center, scale, lb, ub, Ai, P1, P2,
                                 _shifts=shifts, _inv_stds=inv_stds,
-                                _means=col_means, _stds=col_stds):
+                                _means=col_means, _stds=col_stds,
+                                _n=n_feat):
                     import scipy.sparse as sp
                     X_std = tm.StandardizedMatrix(X, _shifts, _inv_stds)
                     if not scale:
@@ -786,23 +616,24 @@ class StepwiseGLM:
                             P2 = P2 * _inv_stds ** 2
                         else:
                             P2 = (_inv_stds[:, None] * P2) * _inv_stds[None, :]
-                    return X_std, _means if center else np.zeros(n_feat), _stds, lb, ub, Ai, P1, P2
+                    return X_std, _means if center else np.zeros(_n), _stds, lb, ub, Ai, P1, P2
 
                 std_fn = _cached_std
                 needs_store = False
             else:
-                # Miss — delegate to real standardize and capture results
-                _store = {}
+                _store: dict = {}
 
                 def _capturing_std(X, sw, center, scale, lb, ub, Ai, P1, P2,
                                    _store=_store):
                     result = _utils_mod._original_standardize(
                         X, sw, center, scale, lb, ub, Ai, P1, P2
                     )
-                    _store['means'] = np.atleast_1d(np.asarray(result[1], dtype=float).ravel())
-                    _store['stds']  = (np.atleast_1d(np.asarray(result[2], dtype=float).ravel())
-                                       if result[2] is not None
-                                       else np.ones(X.shape[1]))
+                    means_r = np.atleast_1d(np.asarray(result[1], dtype=float).ravel())
+                    stds_r = (np.atleast_1d(np.asarray(result[2], dtype=float).ravel())
+                              if result[2] is not None
+                              else np.ones(X.shape[1]))
+                    _store['means'] = means_r
+                    _store['stds']  = stds_r
                     return result
 
                 std_fn = _capturing_std
@@ -816,13 +647,20 @@ class StepwiseGLM:
                 alpha=alphas[0],
                 warm_start=False,
             )
-            coef      = None
-            best_dev  = np.inf
+            coef         = None
+            best_dev     = np.inf
             stored_first = False
 
             # Warm-start across alpha steps is safe only when n_features > 1.
-            # With a single feature, standardize_warm_start has a numpy
-            # broadcasting edge case (0-d scalar .dot 1-D array → 1-D result).
+            # With a single feature, glum's standardize_warm_start has a
+            # numpy broadcasting edge case: np.squeeze on a (1,) array
+            # yields a 0-d scalar; scalar.dot((1,)) returns a (1,) array,
+            # which cannot be assigned via ``coef[0] += ...``.  This is an
+            # upstream bug; the workaround keeps cv_select working in the
+            # rare 1-feature-baseline case at the cost of cold IRLS starts
+            # along the alpha path (still warm-started from previous CV
+            # candidate evaluations within the same call, just not across
+            # alpha within this single fold).
             allow_warm = X_train.shape[1] > 1
 
             for k, alpha in enumerate(alphas):
@@ -835,16 +673,17 @@ class StepwiseGLM:
                     glm_fold.warm_start = False
 
                 with _patch_standardize(std_fn):
-                    glm_fold.fit(X_train, y_train, sample_weight=sw_train)
+                    fit_kwargs = {"sample_weight": sw_train}
+                    if offset_train is not None:
+                        fit_kwargs["offset"] = offset_train
+                    glm_fold.fit(X_train, y_train, **fit_kwargs)
 
-                # Capture and store std stats after first alpha (stats don't
-                # depend on alpha — only on X_train and sw_train)
+                # Capture and store std stats after first alpha
                 if needs_store and not stored_first and 'means' in _store:
-                    self._cv_cache.set_std_stats(
+                    self.cache.set_std_stats(
                         fold_id, cols, sw_id,
                         _store['means'], _store['stds']
                     )
-                    # Promote to cached function for remaining alphas
                     col_means = _store['means']
                     col_stds  = _store['stds']
                     n_feat    = X_train.shape[1]
@@ -853,7 +692,8 @@ class StepwiseGLM:
 
                     def _cached_std2(X, sw, center, scale, lb, ub, Ai, P1, P2,
                                      _shifts=shifts, _inv_stds=inv_stds,
-                                     _means=col_means, _stds=col_stds):
+                                     _means=col_means, _stds=col_stds,
+                                     _n=n_feat):
                         import scipy.sparse as sp
                         X_s = tm.StandardizedMatrix(X, _shifts, _inv_stds)
                         if not scale:
@@ -865,14 +705,17 @@ class StepwiseGLM:
                                 P2 = P2 * _inv_stds ** 2
                             else:
                                 P2 = (_inv_stds[:, None] * P2) * _inv_stds[None, :]
-                        return X_s, _means if center else np.zeros(n_feat), _stds, lb, ub, Ai, P1, P2
+                        return X_s, _means if center else np.zeros(_n), _stds, lb, ub, Ai, P1, P2
 
                     std_fn = _cached_std2
                     stored_first = True
 
                 coef = np.concatenate([[glm_fold.intercept_], glm_fold.coef_])
 
-                mu_test = glm_fold.predict(X_test)
+                if offset_test is not None:
+                    mu_test = glm_fold.predict(X_test, offset=offset_test)
+                else:
+                    mu_test = glm_fold.predict(X_test)
                 dev = float(fam.deviance(y_test, mu_test, sw_test))
                 if dev < best_dev:
                     best_dev = dev
@@ -891,7 +734,8 @@ class StepwiseGLM:
 
     def __getattr__(self, name: str):
         if name.startswith("_") or name in (
-            "glm_", "cache_stats_", "score_test_history_"
+            "glm_", "cache", "cache_stats_", "score_test_history_",
+            "cv_history_",
         ):
             raise AttributeError(name)
         return getattr(self.glm_, name)

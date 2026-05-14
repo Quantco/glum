@@ -14,6 +14,7 @@ from ._distribution import (
 from ._glm import GeneralizedLinearRegressor, get_family, get_link
 from ._glm_cv import GeneralizedLinearRegressorCV
 from ._link import CloglogLink, IdentityLink, Link, LogitLink, LogLink, TweedieLink
+from ._tabmat_cache import CacheVersionError, TabmatCache
 
 try:
     __version__ = importlib.metadata.distribution(__name__).version
@@ -38,6 +39,8 @@ __all__ = [
     "CloglogLink",
     "GeneralizedLinearRegressor",
     "GeneralizedLinearRegressorCV",
+    "TabmatCache",
+    "CacheVersionError",
     "get_family",
     "get_link",
 ]

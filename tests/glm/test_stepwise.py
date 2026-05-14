@@ -1,9 +1,14 @@
 """
-Tests for glum._stepwise — StepwiseGLM, _MatrixCache, _CVMatrixCache,
-_CachingStandardize, score-test screener, and cv_select.
+Tests for glum._stepwise — StepwiseGLM, _CachingStandardize, score-test
+screener, cv_select, offset forwarding, and concurrency.
+
+Lower-level cache tests live in ``test_tabmat_cache.py`` (the cache layer
+was lifted out into ``glum._tabmat_cache.TabmatCache``).
 """
 
 from __future__ import annotations
+
+import threading
 
 import numpy as np
 import pandas as pd
@@ -13,12 +18,12 @@ import tabmat as tm
 import glum
 import glum._glm as _glm_mod
 import glum._utils as _utils_mod
+from glum import TabmatCache
 from glum._stepwise import (
     CVResult,
     ScoreTestResult,
     StepwiseGLM,
-    _CVMatrixCache,
-    _MatrixCache,
+    _CachingStandardize,
     _patch_standardize,
 )
 
@@ -68,51 +73,38 @@ def mixed_df(rng):
 
 
 # ---------------------------------------------------------------------------
-# _MatrixCache
+# Shared TabmatCache integration
 # ---------------------------------------------------------------------------
 
-class TestMatrixCache:
-    def test_register_and_get_col(self, small_poisson):
-        df, _ = small_poisson
-        cache = _MatrixCache()
+class TestSharedCache:
+    def test_stepwise_uses_attached_tabmat_cache(self, small_poisson):
+        df, y = small_poisson
+        cache = TabmatCache()
+        sglm = StepwiseGLM(cache=cache, family="poisson", alpha=0.01)
+        sglm.fit(df[["x0", "x1", "x2"]], y)
+        assert sglm.cache is cache
+        # The fit should have populated the column-set cache
+        assert cache.stats()["n_subsets"] >= 1
+
+    def test_cache_shared_across_two_stepwise_instances(self, small_poisson):
+        df, y = small_poisson
+        cache = TabmatCache()
         cache.register_cols(df)
-        for col in df.columns:
-            assert col in cache
-            mat = cache.get_col(col)
-            assert mat.shape == (len(df), 1)
 
-    def test_get_subset_memoized(self, small_poisson):
-        df, _ = small_poisson
-        cache = _MatrixCache()
-        cols = ["x0", "x1", "x2"]
-        mat1, names1 = cache.get_subset(df, cols)
-        mat2, names2 = cache.get_subset(df, cols)
-        assert mat1 is mat2, "Repeated get_subset should return the same object"
-        assert names1 == names2
+        sglm_a = StepwiseGLM(cache=cache, family="poisson", alpha=0.01)
+        sglm_b = StepwiseGLM(cache=cache, family="gaussian", alpha=0.01)
 
-    def test_get_subset_shape(self, small_poisson):
-        df, _ = small_poisson
-        cache = _MatrixCache()
-        cols = ["x0", "x1", "x2"]
-        mat, names = cache.get_subset(df, cols)
-        assert mat.shape[0] == len(df)
-        assert mat.shape[1] == len(cols)
+        sglm_a.fit(df[["x0", "x1"]], y)
+        sglm_b.fit(df[["x0", "x1", "x2"]], y.astype(float))
 
-    def test_col_feat_names_numeric(self, small_poisson):
-        df, _ = small_poisson
-        cache = _MatrixCache()
-        cache.register_cols(df)
-        # Numeric column → single feature name
-        names = cache.col_feat_names("x0")
-        assert len(names) == 1
+        # Both instances should be using the same cache
+        assert sglm_a.cache is sglm_b.cache is cache
 
-    def test_col_feat_names_categorical(self, mixed_df):
-        df, _ = mixed_df
-        cache = _MatrixCache()
-        cache.register_cols(df)
-        # cat_a has 5 levels → 5 feature names (no drop_first here)
-        names = cache.col_feat_names("cat_a")
-        assert len(names) == 5
+    def test_default_cache_is_constructed_when_none(self, small_poisson):
+        df, y = small_poisson
+        sglm = StepwiseGLM(family="poisson", alpha=0.01)
+        assert isinstance(sglm.cache, TabmatCache)
+        sglm.fit(df[["x0", "x1"]], y)
 
 
 # ---------------------------------------------------------------------------
@@ -308,65 +300,9 @@ class TestScreenCandidates:
 
 
 # ---------------------------------------------------------------------------
-# _CVMatrixCache
+# (Cache-layer tests live in test_tabmat_cache.py — TabmatCache is the
+# public, reusable home of the column / fold-slice / std-stats caches.)
 # ---------------------------------------------------------------------------
-
-class TestCVMatrixCache:
-    def test_fold_mat_cache_hit(self, small_poisson):
-        df, _ = small_poisson
-        mat_cache = _MatrixCache()
-        mat_cache.register_cols(df)
-        cv_cache = _CVMatrixCache()
-        cv_cache.register_col_mats(mat_cache._col_matrices)
-
-        train_idx = np.arange(1600)
-        cv_cache.set_fold_indices(0, train_idx)
-
-        cols = ["x0", "x1", "x2"]
-        full_mat, _ = mat_cache.get_subset(df, cols)
-
-        m1 = cv_cache.get_fold_mat(0, cols, full_mat)
-        m2 = cv_cache.get_fold_mat(0, cols, full_mat)
-        assert m1 is m2, "Second call should return cached object"
-
-    def test_incremental_hstack(self, small_poisson):
-        """Adding one column should use hstack from cached prefix, not full re-slice."""
-        df, _ = small_poisson
-        mat_cache = _MatrixCache()
-        mat_cache.register_cols(df)
-        cv_cache = _CVMatrixCache()
-        cv_cache.register_col_mats(mat_cache._col_matrices)
-
-        train_idx = np.arange(1600)
-        cv_cache.set_fold_indices(0, train_idx)
-
-        # Populate cache with 2-col prefix
-        cols2 = ["x0", "x1"]
-        full2, _ = mat_cache.get_subset(df, cols2)
-        cv_cache.get_fold_mat(0, cols2, full2)
-
-        # Request 3-col set — should be built incrementally
-        cols3 = ["x0", "x1", "x2"]
-        full3, _ = mat_cache.get_subset(df, cols3)
-        m3 = cv_cache.get_fold_mat(0, cols3, full3)
-
-        assert m3.shape == (len(train_idx), 3)
-        assert (0, tuple(cols3)) in cv_cache._fold_mat
-
-    def test_std_stats_cache_round_trip(self, small_poisson):
-        df, _ = small_poisson
-        cv_cache = _CVMatrixCache()
-        means = np.array([0.1, 0.2, 0.3])
-        stds  = np.array([1.0, 1.1, 0.9])
-        cv_cache.set_std_stats(0, ["x0", "x1", "x2"], -1, means, stds)
-        result = cv_cache.get_std_stats(0, ["x0", "x1", "x2"], -1)
-        assert result is not None
-        np.testing.assert_array_equal(result[0], means)
-        np.testing.assert_array_equal(result[1], stds)
-
-    def test_std_stats_miss_returns_none(self):
-        cv_cache = _CVMatrixCache()
-        assert cv_cache.get_std_stats(0, ["x0"], -1) is None
 
 
 # ---------------------------------------------------------------------------
@@ -449,7 +385,7 @@ class TestCVSelect:
         sglm.fit(df[["x0", "x1"]], y)
         sglm.cv_select(df, ["x0", "x1"], ["x2"], y, cv=2, n_alphas=3)
         # At least one fold should have cached std stats
-        assert len(sglm._cv_cache._std_stats) > 0
+        assert sglm.cache.stats()["n_std_stats"] > 0
 
     def test_cv_history_appended(self, small_poisson):
         df, y = small_poisson
@@ -539,3 +475,198 @@ class TestEndToEnd:
         preds = sglm.predict(df[["x0", "x1"]])
         assert preds.shape == (len(y),)
         assert np.all(preds > 0)  # Poisson predictions must be positive
+
+
+# ---------------------------------------------------------------------------
+# Hardening: offset forwarding
+# ---------------------------------------------------------------------------
+
+class TestOffsetForwarding:
+    """
+    The offset argument was previously dropped silently from
+    `screen_candidates` (cached mu didn't include offset) and from
+    `cv_select` (fold fits never received it).  These tests verify the
+    fix forwards offset correctly through the full pipeline.
+    """
+
+    @pytest.fixture(scope="class")
+    def poisson_with_exposure(self):
+        """Poisson dataset with an explicit log-exposure offset."""
+        rng = np.random.default_rng(123)
+        n = 3_000
+        df = pd.DataFrame(
+            rng.standard_normal((n, 5)),
+            columns=[f"x{i}" for i in range(5)],
+        )
+        exposure = rng.uniform(0.1, 2.0, size=n)
+        # y ~ Poisson(exposure * exp(0.3 + 0.5*x1 - 0.4*x3))
+        mu = exposure * np.exp(0.3 + 0.5 * df["x1"] - 0.4 * df["x3"])
+        y  = rng.poisson(mu).astype(float)
+        offset = np.log(exposure)
+        return df, y, offset
+
+    def test_fit_with_offset_matches_vanilla_glum(self, poisson_with_exposure):
+        df, y, offset = poisson_with_exposure
+        cols = ["x0", "x1", "x2", "x3"]
+
+        ref = glum.GeneralizedLinearRegressor(family="poisson", alpha=0.01)
+        ref.fit(df[cols], y, offset=offset)
+
+        sglm = StepwiseGLM(family="poisson", alpha=0.01)
+        sglm.fit(df[cols], y, offset=offset)
+
+        np.testing.assert_allclose(sglm.glm_.coef_, ref.coef_, rtol=1e-4)
+
+    def test_offset_captured_for_screen_candidates(self, poisson_with_exposure):
+        df, y, offset = poisson_with_exposure
+        sglm = StepwiseGLM(family="poisson", alpha=0.01)
+        sglm.fit(df[["x0", "x1"]], y, offset=offset)
+
+        # The cached offset should be stored
+        assert sglm._last_offset is not None
+        np.testing.assert_array_equal(sglm._last_offset, offset)
+
+        # Score test should run and identify x3 as a true signal in top-3
+        results = sglm.screen_candidates(df, ["x0", "x1"], ["x2", "x3", "x4"])
+        top_cols = {r.column for r in results[:2]}
+        assert "x3" in top_cols, f"Expected x3 in top-2, got {top_cols}"
+
+    def test_cv_select_uses_offset_from_fit(self, poisson_with_exposure):
+        """cv_select should default to the offset used in fit()."""
+        df, y, offset = poisson_with_exposure
+        sglm = StepwiseGLM(family="poisson", alpha=0.01, drop_first=True)
+        sglm.fit(df[["x0", "x1"]], y, offset=offset)
+
+        # Without explicit offset arg, cv_select should use the cached one
+        results = sglm.cv_select(
+            df, ["x0", "x1"], ["x3", "x4"], y, cv=3, n_alphas=6
+        )
+        # x3 is the true signal — should be ranked first
+        assert results[0].column == "x3"
+
+    def test_cv_select_explicit_offset_overrides_cached(self, poisson_with_exposure):
+        """Passing offset to cv_select takes precedence over the cached one."""
+        df, y, offset = poisson_with_exposure
+        sglm = StepwiseGLM(family="poisson", alpha=0.01, drop_first=True)
+        sglm.fit(df[["x0", "x1"]], y, offset=offset)
+
+        # Pass a different offset (zeros) explicitly
+        zero_offset = np.zeros_like(offset)
+        results_zero = sglm.cv_select(
+            df, ["x0", "x1"], ["x3"], y,
+            offset=zero_offset, cv=2, n_alphas=4,
+        )
+        # Should still return a CVResult (just with different deviance)
+        assert len(results_zero) == 1
+
+
+# ---------------------------------------------------------------------------
+# Hardening: thread safety
+# ---------------------------------------------------------------------------
+
+class TestThreadSafety:
+    """
+    The standardize patch is serialized via a module-level lock.
+    Concurrent StepwiseGLM.fit() calls from two threads should both
+    produce the correct coefficients (no clobbering of the patched
+    `standardize` function).
+    """
+
+    def test_concurrent_fit_produces_correct_coefs(self, small_poisson, small_gaussian):
+        df_p, y_p = small_poisson
+        df_g, y_g = small_gaussian
+
+        # Reference (sequential) fits
+        ref_p = glum.GeneralizedLinearRegressor(family="poisson", alpha=0.01)
+        ref_p.fit(df_p[["x0", "x1", "x2"]], y_p)
+        ref_g = glum.GeneralizedLinearRegressor(family="gaussian", alpha=0.01)
+        ref_g.fit(df_g[["x0", "x1", "x2"]], y_g)
+
+        # Concurrent fits via two threads
+        sglm_p = StepwiseGLM(family="poisson", alpha=0.01)
+        sglm_g = StepwiseGLM(family="gaussian", alpha=0.01)
+
+        errors: list[Exception] = []
+
+        def _fit_p():
+            try:
+                # Loop a few times to increase chance of interleaving
+                for _ in range(3):
+                    sglm_p.fit(df_p[["x0", "x1", "x2"]], y_p)
+            except Exception as e:
+                errors.append(e)
+
+        def _fit_g():
+            try:
+                for _ in range(3):
+                    sglm_g.fit(df_g[["x0", "x1", "x2"]], y_g)
+            except Exception as e:
+                errors.append(e)
+
+        t_p = threading.Thread(target=_fit_p)
+        t_g = threading.Thread(target=_fit_g)
+        t_p.start(); t_g.start()
+        t_p.join();  t_g.join()
+
+        assert not errors, f"Thread errors: {errors}"
+
+        np.testing.assert_allclose(sglm_p.glm_.coef_, ref_p.coef_, rtol=1e-4)
+        np.testing.assert_allclose(sglm_g.glm_.coef_, ref_g.coef_, rtol=1e-4)
+
+
+# ---------------------------------------------------------------------------
+# Hardening: _CachingStandardize shape consistency
+# ---------------------------------------------------------------------------
+
+class TestCachingStandardizeShapes:
+    """
+    Both the cache-hit and cache-miss paths of _CachingStandardize must
+    return ``col_means`` and ``col_stds`` as 1-D numpy arrays.  This is
+    a defensive contract that simplifies downstream code in glum's
+    standardize_warm_start.
+    """
+
+    def test_miss_path_returns_1d_arrays(self, small_poisson):
+        df, _ = small_poisson
+        col_stats: dict = {}
+        cs = _CachingStandardize(
+            col_stats=col_stats,
+            active_names=["x0", "x1", "x2"],
+            sw_id=-1,
+        )
+        mat = tm.from_pandas(df[["x0", "x1", "x2"]])
+        sw  = np.ones(len(df)) / len(df)
+        result = cs(
+            mat, sw, True, False, None, None, None,
+            np.ones(3), np.ones(3),
+        )
+        _, col_means, col_stds, *_ = result
+        assert col_means.ndim == 1 and col_means.shape == (3,)
+        assert col_stds.ndim == 1 and col_stds.shape == (3,)
+        # And the stats were cached
+        assert len(col_stats) == 3
+
+    def test_hit_path_returns_1d_arrays(self, small_poisson):
+        df, _ = small_poisson
+        # Pre-populate cache for x0, x1, x2
+        col_stats: dict = {
+            ("x0", -1): (0.1, 1.0),
+            ("x1", -1): (0.2, 1.1),
+            ("x2", -1): (0.3, 0.9),
+        }
+        cs = _CachingStandardize(
+            col_stats=col_stats,
+            active_names=["x0", "x1", "x2"],
+            sw_id=-1,
+        )
+        mat = tm.from_pandas(df[["x0", "x1", "x2"]])
+        sw  = np.ones(len(df)) / len(df)
+        result = cs(
+            mat, sw, True, False, None, None, None,
+            np.ones(3), np.ones(3),
+        )
+        _, col_means, col_stds, *_ = result
+        assert col_means.ndim == 1 and col_means.shape == (3,)
+        assert col_stds.ndim == 1 and col_stds.shape == (3,)
+        # Confirmed all-hit path (no fallback to delegate)
+        assert cs.cache_hits == 3 and cs.cache_misses == 0
