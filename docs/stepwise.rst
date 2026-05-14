@@ -161,6 +161,61 @@ multiple times on the same DataFrame:
    cache = TabmatCache.load("model_cache.pkl")
 
 
+Building a cache directly from parquet
+--------------------------------------
+
+For workflows that repeatedly fit a GLM on the same on-disk dataset —
+daily model refits, scheduled scoring jobs, nested CV across sessions —
+:meth:`~glum.TabmatCache.from_parquet` reads the file via :mod:`pyarrow`,
+applies dictionary encoding to any ``cat_cols``, and binds the file's
+fingerprint to the cache.  The fingerprint persists across
+:meth:`~glum.TabmatCache.save` / :meth:`~glum.TabmatCache.load` so a
+later session can verify that the underlying parquet hasn't changed.
+
+.. code-block:: python
+
+   from glum import TabmatCache, GeneralizedLinearRegressor, fingerprint_file
+
+   # First session: build and persist the cache
+   cache = TabmatCache.from_parquet(
+       "data/insurance.parquet",
+       columns=["ClaimNb", "VehAge", "DrivAge", "BonusMalus",
+                "Area", "VehBrand", "VehGas", "Region"],
+       cat_cols=["Area", "VehBrand", "VehGas", "Region"],
+   )
+   y = cache.source_df["ClaimNb"].to_numpy().astype(float)
+   X, _ = cache.get_subset(
+       cache.source_df,
+       ["VehAge", "DrivAge", "BonusMalus", "Region"],
+   )
+   GeneralizedLinearRegressor(family="poisson", alpha=0.01).fit(X, y)
+   cache.save("warm.pkl")
+
+   # Next session: skip pyarrow + pandas + tabmat reconstruction entirely
+   cache = TabmatCache.load("warm.pkl")
+   cache.verify_source(fingerprint_file("data/insurance.parquet"))
+   # ↑ raises SourceFingerprintError if the parquet was modified
+   #   (size or mtime changed); otherwise returns True.
+
+The fingerprint is ``("file", absolute_path, size_bytes, mtime_ns)`` —
+sub-millisecond to compute, no file read.  Catches normal edits,
+replacements, and appends.  Does **not** catch in-place rewrites that
+preserve size and mtime; for those, hash the file contents yourself
+and pass the tuple via :meth:`~glum.TabmatCache.set_source_fingerprint`.
+
+Note that :attr:`~glum.TabmatCache.source_df` is a convenience
+attribute set by :meth:`from_parquet` so you can immediately call
+:meth:`get_subset`.  It is **not** pickled — on a re-load you must
+re-read the parquet yourself if you want a pandas view of the data.
+The cached tabmat matrices, however, are fully usable without ever
+touching pandas again::
+
+   cache = TabmatCache.load("warm.pkl")
+   # No source_df, no pandas read — just use the cached matrices.
+   X = cache._subset_cache[("VehAge", "DrivAge", "BonusMalus", "Region")]
+   GeneralizedLinearRegressor(family="poisson", alpha=0.01).fit(X, y)
+
+
 Limitations
 -----------
 

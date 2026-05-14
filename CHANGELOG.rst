@@ -13,6 +13,7 @@ Unreleased
 **New features:**
 
 - :class:`~glum.TabmatCache` — reusable cache for ``tabmat`` matrix construction and per-fold row-slicing, with on-disk persistence via :mod:`joblib`. Designed for workflows that repeatedly fit GLMs on the same DataFrame: stepwise selection, grid search, nested CV, ensemble fitting, and daily refits.
+- :meth:`~glum.TabmatCache.from_parquet` — build a cache directly from a parquet file via :mod:`pyarrow`, binding a file fingerprint (``("file", path, size, mtime_ns)``) to the cache.  Cross-session warm starts can verify the underlying file is unchanged via :meth:`~glum.TabmatCache.verify_source` without re-reading the data.  Helpers: :func:`~glum.fingerprint_file`, :class:`~glum.SourceFingerprintError`.
 - :class:`~glum.StepwiseGLM` — accelerated wrapper around :class:`~glum.GeneralizedLinearRegressor` for iterative model fitting. Provides score-test screening (``screen_candidates``) at O(n) per candidate, cross-validated variable selection (``cv_select``) with cached fold matrices and standardize statistics, backward elimination (``screen_drops`` / ``cv_select_drop``), and AIC/BIC stopping criteria via a ``criterion`` keyword on the CV methods.
 
 

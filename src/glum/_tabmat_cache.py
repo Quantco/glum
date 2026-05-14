@@ -64,25 +64,57 @@ Stand-alone use with a vanilla GLM::
 from __future__ import annotations
 
 import logging
+import os
 from collections import OrderedDict
 from pathlib import Path
-from typing import Optional, Union
+from typing import Optional, Sequence, Union
 
 import joblib
 import numpy as np
 import pandas as pd
 import tabmat as tm
 
-__all__ = ["TabmatCache", "CacheVersionError"]
+__all__ = [
+    "TabmatCache",
+    "CacheVersionError",
+    "SourceFingerprintError",
+    "fingerprint_file",
+]
 
 _logger = logging.getLogger(__name__)
 
 # Bumped whenever the on-disk layout changes incompatibly.
-_CACHE_VERSION = 1
+_CACHE_VERSION = 2   # bumped: added source_fingerprint to saved state
 
 
 class CacheVersionError(RuntimeError):
     """Raised when a saved ``TabmatCache`` has an incompatible version."""
+
+
+class SourceFingerprintError(RuntimeError):
+    """Raised when a verify_source check fails — the underlying file changed."""
+
+
+def fingerprint_file(path: Union[str, Path]) -> tuple:
+    """
+    Lightweight fingerprint of a file at ``path``.
+
+    Returns ``("file", absolute_path, size_bytes, mtime_ns)`` — cheap
+    (sub-millisecond, no read), portable across processes, and survives
+    save/load.  Catches ordinary edits, file replacements, and appends.
+
+    Does **not** catch malicious or buggy in-place rewrites that
+    preserve size and mtime.  For those, hash the file contents
+    separately and pass a tuple like ``("sha256", hex_digest)`` to
+    :meth:`TabmatCache.set_source_fingerprint`.
+    """
+    p = Path(path).resolve()
+    st = os.stat(p)
+    return ("file", str(p), int(st.st_size), int(st.st_mtime_ns))
+
+
+# Internal alias preserved so other modules can use the older name.
+_file_fingerprint = fingerprint_file
 
 
 def _df_fingerprint(df: pd.DataFrame) -> tuple:
@@ -155,6 +187,15 @@ class TabmatCache:
         # state is invalidated and the new DataFrame becomes the source of
         # truth.  See `_df_fingerprint` for what is (and isn't) detected.
         self._df_fingerprint: Optional[tuple] = None
+
+        # ── Source-of-truth fingerprint ─────────────────────────────────
+        # Optional cross-session identity tag for the data that produced
+        # these matrices.  Typically a file fingerprint (``_file_fingerprint``)
+        # set by :meth:`from_parquet`, but any opaque hashable tag is
+        # accepted via :meth:`set_source_fingerprint`.  Survives
+        # ``save()`` / ``load()`` so a freshly-loaded cache can be
+        # verified against the original data file in a new session.
+        self._source_fingerprint: Optional[tuple] = None
 
     # ------------------------------------------------------------------
     # Column / subset layer
@@ -383,11 +424,185 @@ class TabmatCache:
         self._fold_idx.clear()
         self._std_stats.clear()
         self._df_fingerprint = None
+        self._source_fingerprint = None
 
     def clear_fold_slices(self) -> None:
         """Drop only the fold row-slice cache (keep column-set matrices)."""
         self._fold_mat.clear()
         self._std_stats.clear()
+
+    # ------------------------------------------------------------------
+    # Source-of-truth fingerprinting (cross-session)
+    # ------------------------------------------------------------------
+
+    def set_source_fingerprint(self, fingerprint: tuple) -> None:
+        """
+        Attach an opaque source fingerprint to this cache.
+
+        The fingerprint is stored on the instance and persisted via
+        :meth:`save`.  Use :meth:`verify_source` to check it against a
+        fresh fingerprint of the original data.  Use whatever hashable
+        tuple uniquely identifies your source — a file fingerprint, a
+        content hash, a dataset version string, etc.
+        """
+        self._source_fingerprint = fingerprint
+
+    @property
+    def source_fingerprint(self) -> Optional[tuple]:
+        """The currently-bound source fingerprint, or ``None`` if unset."""
+        return self._source_fingerprint
+
+    def verify_source(
+        self,
+        expected: tuple,
+        strict: bool = True,
+    ) -> bool:
+        """
+        Check the bound source fingerprint against ``expected``.
+
+        Parameters
+        ----------
+        expected : tuple
+            Fingerprint produced from the user's current source of
+            truth.  For files, use :func:`_file_fingerprint` (exposed
+            indirectly via :meth:`from_parquet`'s ``source_path``).
+        strict : bool, default True
+            If True, raise :class:`SourceFingerprintError` on mismatch.
+            If False, return ``False`` instead so the caller can decide
+            how to react.
+
+        Returns
+        -------
+        bool
+            ``True`` if the bound fingerprint matches ``expected``.
+        """
+        if self._source_fingerprint is None:
+            if strict:
+                raise SourceFingerprintError(
+                    "No source fingerprint is bound to this cache; "
+                    "call set_source_fingerprint() or build via "
+                    "TabmatCache.from_parquet() first."
+                )
+            return False
+
+        if self._source_fingerprint != expected:
+            if strict:
+                raise SourceFingerprintError(
+                    f"Source fingerprint mismatch:\n"
+                    f"  bound:    {self._source_fingerprint!r}\n"
+                    f"  expected: {expected!r}\n"
+                    "The underlying data appears to have changed since "
+                    "this cache was built."
+                )
+            return False
+        return True
+
+    # ------------------------------------------------------------------
+    # Parquet ingestion (cross-session warm start without pandas in user code)
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def from_parquet(
+        cls,
+        path: Union[str, Path],
+        columns: Optional[Sequence[str]] = None,
+        cat_cols: Optional[Sequence[str]] = None,
+        fold_mat_maxsize: int = 256,
+        register_cols: bool = True,
+    ) -> "TabmatCache":
+        """
+        Build a :class:`TabmatCache` directly from a parquet file.
+
+        Reads the parquet via :mod:`pyarrow`, applies dictionary encoding
+        to any ``cat_cols`` (so they surface as ``pd.Categorical`` after
+        ``to_pandas``), converts to pandas, and pre-populates the cache.
+        The source file's fingerprint is bound to the cache so
+        :meth:`verify_source` works across sessions.
+
+        Parameters
+        ----------
+        path : str or Path
+            Parquet file to ingest.
+        columns : sequence of str, optional
+            Subset of columns to load.  If ``None``, all columns are
+            loaded.
+        cat_cols : sequence of str, optional
+            Columns to treat as categorical.  Each named column is
+            dictionary-encoded inside the arrow Table before conversion,
+            which becomes a ``pd.Categorical`` automatically.  Columns
+            already stored as dictionary-encoded in parquet are detected
+            by their arrow dtype and converted regardless.
+        fold_mat_maxsize : int, default 256
+            See :class:`TabmatCache`.
+        register_cols : bool, default True
+            If True, immediately call :meth:`register_cols` so the
+            per-column cache is populated.  Set ``False`` if you intend
+            to use only a subset of columns and want to defer the
+            per-column build.
+
+        Returns
+        -------
+        TabmatCache
+            Cache instance with the file fingerprint bound.  Ready for
+            :meth:`get_subset` calls passing the same DataFrame (which
+            this method exposes via :attr:`source_df` for convenience).
+
+        Notes
+        -----
+        ``pyarrow`` is a required dependency of glum, so this method has
+        no extra imports.  We still go through pandas as the final
+        narwhals-friendly DataFrame for ``tabmat.from_df``; the saving
+        relative to a naive ``pd.read_parquet`` is that we can
+        selectively dictionary-encode categorical columns without
+        re-allocating string arrays.
+        """
+        import pyarrow.parquet as pq
+        import pyarrow as pa
+
+        p = Path(path).resolve()
+        fp = _file_fingerprint(p)
+
+        # Read only the requested columns (cheaper than full read).
+        table = pq.read_table(p, columns=list(columns) if columns else None)
+
+        # Dictionary-encode anything the user marked categorical AND any
+        # column already stored as a parquet dictionary type.
+        cat_set = set(cat_cols or [])
+        for name in table.column_names:
+            col = table.column(name)
+            already_dict = pa.types.is_dictionary(col.type)
+            if name in cat_set and not already_dict:
+                table = table.set_column(
+                    table.column_names.index(name),
+                    name,
+                    col.dictionary_encode(),
+                )
+
+        # Convert to pandas: dictionary columns surface as pd.Categorical.
+        df = table.to_pandas()
+
+        cache = cls(fold_mat_maxsize=fold_mat_maxsize)
+        cache.set_source_fingerprint(fp)
+        if register_cols:
+            # Only register columns whose pandas dtype is tabmat-compatible:
+            # numeric, boolean, or pd.Categorical.  Plain string / object
+            # columns are silently skipped — the user opted out of treating
+            # them as categorical by not naming them in ``cat_cols``.
+            registerable = [
+                c for c in df.columns
+                if (
+                    isinstance(df[c].dtype, pd.CategoricalDtype)
+                    or pd.api.types.is_numeric_dtype(df[c])
+                    or pd.api.types.is_bool_dtype(df[c])
+                )
+            ]
+            if registerable:
+                cache.register_cols(df[registerable])
+        # Stash the DataFrame on the cache for convenience: users who
+        # want to call get_subset can pull it off without re-reading the
+        # parquet.  We deliberately do NOT pickle this on save().
+        cache.source_df = df
+        return cache
 
     # ------------------------------------------------------------------
     # Persistence
@@ -403,16 +618,19 @@ class TabmatCache:
         # We deliberately omit `_df_fingerprint`: id(df) is not meaningful
         # across processes, and df.shape / column-name hash should be
         # re-established by the user on first contact in the new session.
+        # We DO persist `_source_fingerprint` — its whole purpose is
+        # cross-session identity for the underlying data file/dataset.
         state = {
-            "__cache_version__": _CACHE_VERSION,
-            "fold_mat_maxsize":  self.fold_mat_maxsize,
-            "col_matrices":      self._col_matrices,
-            "col_feat_names":    self._col_feat_names,
-            "subset_cache":      self._subset_cache,
-            "subset_names":      self._subset_names,
-            "fold_mat":          dict(self._fold_mat),   # OrderedDict → dict
-            "fold_idx":          self._fold_idx,
-            "std_stats":         self._std_stats,
+            "__cache_version__":   _CACHE_VERSION,
+            "fold_mat_maxsize":    self.fold_mat_maxsize,
+            "col_matrices":        self._col_matrices,
+            "col_feat_names":      self._col_feat_names,
+            "subset_cache":        self._subset_cache,
+            "subset_names":        self._subset_names,
+            "fold_mat":            dict(self._fold_mat),   # OrderedDict → dict
+            "fold_idx":            self._fold_idx,
+            "std_stats":           self._std_stats,
+            "source_fingerprint":  self._source_fingerprint,
         }
         joblib.dump(state, str(path), compress=3)
 
@@ -436,11 +654,12 @@ class TabmatCache:
             )
 
         cache = cls(fold_mat_maxsize=state["fold_mat_maxsize"])
-        cache._col_matrices   = state["col_matrices"]
-        cache._col_feat_names = state["col_feat_names"]
-        cache._subset_cache   = state["subset_cache"]
-        cache._subset_names   = state["subset_names"]
-        cache._fold_mat       = OrderedDict(state["fold_mat"])
-        cache._fold_idx       = state["fold_idx"]
-        cache._std_stats      = state["std_stats"]
+        cache._col_matrices       = state["col_matrices"]
+        cache._col_feat_names     = state["col_feat_names"]
+        cache._subset_cache       = state["subset_cache"]
+        cache._subset_names       = state["subset_names"]
+        cache._fold_mat           = OrderedDict(state["fold_mat"])
+        cache._fold_idx           = state["fold_idx"]
+        cache._std_stats          = state["std_stats"]
+        cache._source_fingerprint = state.get("source_fingerprint")
         return cache

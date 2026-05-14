@@ -15,7 +15,12 @@ from ._glm import GeneralizedLinearRegressor, get_family, get_link
 from ._glm_cv import GeneralizedLinearRegressorCV
 from ._link import CloglogLink, IdentityLink, Link, LogitLink, LogLink, TweedieLink
 from ._stepwise import CVResult, ScoreTestResult, StepwiseGLM
-from ._tabmat_cache import CacheVersionError, TabmatCache
+from ._tabmat_cache import (
+    CacheVersionError,
+    SourceFingerprintError,
+    TabmatCache,
+    fingerprint_file,
+)
 
 try:
     __version__ = importlib.metadata.distribution(__name__).version
@@ -45,6 +50,8 @@ __all__ = [
     "CVResult",
     "TabmatCache",
     "CacheVersionError",
+    "SourceFingerprintError",
+    "fingerprint_file",
     "get_family",
     "get_link",
 ]

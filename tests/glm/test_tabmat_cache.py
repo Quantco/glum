@@ -11,7 +11,12 @@ import pytest
 import tabmat as tm
 
 import glum
-from glum import CacheVersionError, TabmatCache
+from glum import (
+    CacheVersionError,
+    SourceFingerprintError,
+    TabmatCache,
+    fingerprint_file,
+)
 from glum._tabmat_cache import _CACHE_VERSION
 
 
@@ -521,3 +526,246 @@ class TestMutationDetection:
         n_before = restored.stats()["n_cols"]
         restored.register_cols(numeric_df[["x0", "x1"]])
         assert restored.stats()["n_cols"] == n_before
+
+
+# ---------------------------------------------------------------------------
+# fingerprint_file helper
+# ---------------------------------------------------------------------------
+
+class TestFingerprintFile:
+    def test_basic_fingerprint_shape(self, tmp_path):
+        p = tmp_path / "hello.bin"
+        p.write_bytes(b"hello")
+        fp = fingerprint_file(p)
+        assert fp[0] == "file"
+        assert fp[1] == str(p.resolve())
+        assert fp[2] == 5
+        assert isinstance(fp[3], int)   # mtime_ns
+
+    def test_size_change_changes_fingerprint(self, tmp_path):
+        p = tmp_path / "f.bin"
+        p.write_bytes(b"hello")
+        fp1 = fingerprint_file(p)
+        p.write_bytes(b"hello world")   # different size
+        fp2 = fingerprint_file(p)
+        assert fp1 != fp2
+        assert fp1[2] != fp2[2]   # size differs
+
+    def test_mtime_change_changes_fingerprint(self, tmp_path):
+        import os, time
+        p = tmp_path / "f.bin"
+        p.write_bytes(b"hello")
+        fp1 = fingerprint_file(p)
+        # Forcibly bump mtime
+        old_size = p.stat().st_size
+        future = time.time() + 100
+        os.utime(p, (future, future))
+        fp2 = fingerprint_file(p)
+        assert fp1 != fp2
+        assert fp1[3] != fp2[3]   # mtime_ns differs
+        assert fp1[2] == fp2[2] == old_size
+
+    def test_resolves_absolute_path(self, tmp_path):
+        import os
+        p = tmp_path / "f.bin"
+        p.write_bytes(b"x")
+        # Pass a relative path — fingerprint should still be absolute
+        cwd = os.getcwd()
+        try:
+            os.chdir(tmp_path)
+            fp = fingerprint_file("f.bin")
+            assert fp[1] == str(p.resolve())
+        finally:
+            os.chdir(cwd)
+
+
+# ---------------------------------------------------------------------------
+# Source fingerprint binding & verify_source
+# ---------------------------------------------------------------------------
+
+class TestSourceFingerprint:
+    def test_default_is_none(self):
+        c = TabmatCache()
+        assert c.source_fingerprint is None
+
+    def test_set_and_get(self):
+        c = TabmatCache()
+        c.set_source_fingerprint(("custom", "v1", 42))
+        assert c.source_fingerprint == ("custom", "v1", 42)
+
+    def test_verify_matching_succeeds(self):
+        c = TabmatCache()
+        fp = ("file", "/tmp/x", 100, 1234567890)
+        c.set_source_fingerprint(fp)
+        assert c.verify_source(fp) is True
+
+    def test_verify_mismatch_raises_in_strict_mode(self):
+        c = TabmatCache()
+        c.set_source_fingerprint(("a",))
+        with pytest.raises(SourceFingerprintError, match="mismatch"):
+            c.verify_source(("b",))
+
+    def test_verify_mismatch_returns_false_in_lax_mode(self):
+        c = TabmatCache()
+        c.set_source_fingerprint(("a",))
+        assert c.verify_source(("b",), strict=False) is False
+
+    def test_verify_unset_raises_in_strict_mode(self):
+        c = TabmatCache()
+        with pytest.raises(SourceFingerprintError, match="No source fingerprint"):
+            c.verify_source(("a",))
+
+    def test_verify_unset_returns_false_in_lax_mode(self):
+        c = TabmatCache()
+        assert c.verify_source(("a",), strict=False) is False
+
+    def test_clear_resets_source_fingerprint(self):
+        c = TabmatCache()
+        c.set_source_fingerprint(("a",))
+        c.clear()
+        assert c.source_fingerprint is None
+
+    def test_source_fingerprint_round_trips_save_load(self, tmp_path):
+        c = TabmatCache()
+        c.set_source_fingerprint(("file", "/x", 7, 9))
+        path = tmp_path / "c.pkl"
+        c.save(path)
+        restored = TabmatCache.load(path)
+        assert restored.source_fingerprint == ("file", "/x", 7, 9)
+
+
+# ---------------------------------------------------------------------------
+# from_parquet factory
+# ---------------------------------------------------------------------------
+
+@pytest.fixture(scope="module")
+def tiny_parquet(tmp_path_factory):
+    """Write a small parquet file with mixed numeric + string columns."""
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    tmp = tmp_path_factory.mktemp("pq")
+    p = tmp / "tiny.parquet"
+
+    table = pa.table({
+        "num1":  np.arange(1000, dtype=np.float64),
+        "num2":  np.random.default_rng(0).standard_normal(1000),
+        "cat_a": np.array(["a", "b", "c"] * 333 + ["a"]),
+        "cat_b": np.array(["x", "y"] * 500),
+    })
+    pq.write_table(table, p)
+    return p
+
+
+class TestFromParquet:
+    def test_returns_cache_with_fingerprint_bound(self, tiny_parquet):
+        cache = TabmatCache.from_parquet(tiny_parquet)
+        assert cache.source_fingerprint is not None
+        assert cache.source_fingerprint[0] == "file"
+        assert cache.source_fingerprint[1] == str(tiny_parquet.resolve())
+
+    def test_register_cols_default_true_skips_plain_strings(self, tiny_parquet):
+        """
+        Without ``cat_cols``, plain string columns are skipped during
+        registration — the user opted out of treating them as categorical.
+        Only numeric / bool / Categorical dtypes are registered.
+        """
+        cache = TabmatCache.from_parquet(tiny_parquet)
+        assert cache.stats()["n_cols"] == 2   # num1, num2 only
+        assert "num1" in cache and "num2" in cache
+        assert "cat_a" not in cache and "cat_b" not in cache
+
+    def test_register_cols_default_true_with_cat_cols(self, tiny_parquet):
+        """When cat_cols is provided, those columns get registered too."""
+        cache = TabmatCache.from_parquet(
+            tiny_parquet, cat_cols=["cat_a", "cat_b"],
+        )
+        assert cache.stats()["n_cols"] == 4
+
+    def test_register_cols_false_defers(self, tiny_parquet):
+        cache = TabmatCache.from_parquet(tiny_parquet, register_cols=False)
+        assert cache.stats()["n_cols"] == 0
+        # source_df is still attached so user can register selectively
+        assert hasattr(cache, "source_df")
+
+    def test_columns_subset(self, tiny_parquet):
+        cache = TabmatCache.from_parquet(tiny_parquet, columns=["num1", "num2"])
+        assert cache.stats()["n_cols"] == 2
+        assert "num1" in cache
+        assert "cat_a" not in cache
+
+    def test_cat_cols_become_categorical(self, tiny_parquet):
+        cache = TabmatCache.from_parquet(
+            tiny_parquet,
+            cat_cols=["cat_a", "cat_b"],
+        )
+        # cat_a has 3 levels → 3 feature names (no drop_first)
+        assert len(cache.col_feat_names("cat_a")) == 3
+        assert len(cache.col_feat_names("cat_b")) == 2
+
+    def test_source_df_attached(self, tiny_parquet):
+        cache = TabmatCache.from_parquet(tiny_parquet)
+        assert isinstance(cache.source_df, pd.DataFrame)
+        assert len(cache.source_df) == 1000
+
+    def test_can_fit_glm_on_subset(self, tiny_parquet):
+        import glum
+        cache = TabmatCache.from_parquet(
+            tiny_parquet, cat_cols=["cat_a"],
+        )
+        df = cache.source_df
+        rng = np.random.default_rng(1)
+        # num1 is np.arange(1000); use num2 (~standard normal) as the signal.
+        y = rng.poisson(np.exp(0.3 + 0.5 * df["num2"])).astype(float)
+        X, _ = cache.get_subset(df, ["num2", "cat_a"])
+        glm = glum.GeneralizedLinearRegressor(
+            family="poisson", alpha=0.01, drop_first=True,
+        )
+        glm.fit(X, y)
+        # X has 1 numeric col + (3 - 1) dropped-first dummies = 3 cols total
+        assert glm.coef_.shape[0] == X.shape[1]
+
+    def test_verify_source_against_original_file(self, tiny_parquet):
+        cache = TabmatCache.from_parquet(tiny_parquet)
+        fp = fingerprint_file(tiny_parquet)
+        assert cache.verify_source(fp) is True
+
+    def test_verify_source_detects_modified_file(self, tiny_parquet, tmp_path):
+        """If the parquet is replaced with new content, verify_source raises."""
+        import pyarrow as pa, pyarrow.parquet as pq, shutil, time
+
+        # Copy the original to a new location, build cache, then overwrite the copy.
+        target = tmp_path / "data.parquet"
+        shutil.copy(tiny_parquet, target)
+
+        cache = TabmatCache.from_parquet(target)
+        # Sleep a hair to ensure mtime_ns changes (1ns resolution may collide
+        # on fast filesystems).
+        time.sleep(0.05)
+
+        new_table = pa.table({"num1": np.arange(500, dtype=np.float64)})
+        pq.write_table(new_table, target)   # different size & mtime
+
+        fp_new = fingerprint_file(target)
+        with pytest.raises(SourceFingerprintError):
+            cache.verify_source(fp_new)
+
+    def test_save_load_preserves_source_fingerprint(self, tiny_parquet, tmp_path):
+        cache = TabmatCache.from_parquet(tiny_parquet)
+        path = tmp_path / "cache.pkl"
+        cache.save(path)
+        restored = TabmatCache.load(path)
+        # Fingerprint round-trips cleanly
+        assert restored.source_fingerprint == cache.source_fingerprint
+        # And verify_source against the original file still succeeds
+        assert restored.verify_source(fingerprint_file(tiny_parquet)) is True
+
+    def test_source_df_not_persisted(self, tiny_parquet, tmp_path):
+        """source_df is a convenience attribute, NOT pickled."""
+        cache = TabmatCache.from_parquet(tiny_parquet)
+        path = tmp_path / "cache.pkl"
+        cache.save(path)
+        restored = TabmatCache.load(path)
+        assert not hasattr(restored, "source_df"), (
+            "source_df should not survive save/load; users re-bind manually"
+        )
