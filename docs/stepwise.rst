@@ -204,6 +204,201 @@ rebuilds (or raises :class:`~glum.SourceFingerprintError` if you pass
 - ``"always"``: persist regardless of exceptions.
 - ``"never"``: discard whatever state accumulated inside the block.
 
+Caching behavior: cold start vs. warm start
+-------------------------------------------
+
+The :class:`~glum.TabmatCache` is a *value object* — a populated set of
+tabmat matrices plus the fingerprint of the parquet that produced them.
+On the first call, :func:`~glum.managed_cache` reads the source file,
+constructs the matrices, and persists the bundle to the backend.  On
+every subsequent call, it loads the bundle, verifies the source hasn't
+changed, and yields the warm cache without touching tabmat construction
+at all.
+
+Cold start (cache file does not exist)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+1. ``backend.exists(key)`` returns ``False``.
+2. :meth:`~glum.TabmatCache.from_parquet` runs:
+
+   - ``pyarrow.parquet.read_table(path, columns=...)`` reads only the
+     requested columns from disk.
+   - Each ``cat_cols`` entry is dictionary-encoded in the Arrow table.
+   - ``table.to_pandas()`` produces a DataFrame with proper
+     ``pd.Categorical`` dtypes on the dictionary-encoded columns.
+   - :func:`~glum.fingerprint_file` records the source identity via
+     ``os.stat`` — no file content read.
+   - :meth:`~glum.TabmatCache.register_cols` builds a single-column
+     tabmat sub-matrix for each registerable column via
+     ``tabmat.from_pandas``.
+
+3. The yielded cache has ``source_df`` populated eagerly and
+   ``_col_matrices`` populated for every registerable column.
+
+4. ``cache.read_target("ClaimNb")`` runs an independent
+   ``pyarrow.parquet.read_table(path, columns=["ClaimNb"])``.  This is
+   *not* memoized — every call hits disk.
+
+5. ``cache.source_df`` returns the in-memory frame immediately.
+
+6. ``cache.get_subset(df, [...])`` finds the subset key absent from
+   ``_subset_cache``.  Because every requested column is already in
+   ``_col_matrices``, it assembles the subset via ``tabmat.hstack``
+   (cheap; no narwhals dtype detection) and stores the result.
+
+7. The GLM ``.fit(X, y)`` call runs IRLS on the assembled
+   ``StandardizedMatrix``.
+
+8. On clean exit, ``save_on_exit="success"`` invokes
+   :meth:`~glum.TabmatCache.save_to`: build the state dict,
+   ``joblib.dump`` into a bytes buffer with ``compress=3``, then
+   ``backend.write(key, ...)``.
+
+Warm start (cache file exists from a prior run)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+1. ``backend.exists(key)`` returns ``True``.
+2. :meth:`~glum.TabmatCache.load_from` runs:
+
+   - ``backend.read(key)`` returns the bytes.
+   - ``joblib.load`` deserializes the state dict in memory.
+   - ``_restore_from_state`` constructs a fresh cache and rebinds all
+     the persisted dicts — ``_col_matrices``, ``_subset_cache``,
+     ``_fold_mat``, ``_std_stats``, plus ``_source_fingerprint``,
+     ``_source_columns``, and ``_source_cat_cols`` rehydration
+     metadata.  **No tabmat conversion runs.**
+
+3. :func:`~glum.fingerprint_file` re-stats the source file; the
+   resulting tuple is compared by equality against
+   ``cache.source_fingerprint``.  Match → yield.  Mismatch → silently
+   rebuild from parquet (``rebuild_on_mismatch=True``) or raise.
+
+4. ``cache.read_target("ClaimNb")`` still hits disk.  This is
+   *intentional*: the target column may be updated daily even when the
+   feature columns are stable, and a cache miss is cheaper than a
+   stale ``y``.
+
+5. ``cache.source_df`` is **lazy** post-load.  The backing field is
+   ``None`` until first access; the property then re-reads the parquet
+   using the recorded ``columns`` and ``cat_cols``, runs
+   ``verify_source``, and caches the DataFrame in memory for the
+   remainder of the session.  Skip this step entirely if you never
+   touch ``source_df``.
+
+6. ``cache.get_subset(df, [...])`` finds the subset key already
+   present in ``_subset_cache``.  Returns the cached matrix in O(1)
+   via a dict lookup.  No ``from_pandas``, no ``hstack``, no work.
+
+7. GLM ``.fit(X, y)`` runs IRLS — same cost as cold-start.
+
+8. On clean exit, ``save_on_exit="success"`` re-pickles and overwrites
+   the cache file unconditionally.  There is no dirty-flag detection.
+
+Flowchart
+~~~~~~~~~
+
+.. code-block:: text
+
+                  managed_cache(parquet, ...) __enter__
+                                 |
+                                 v
+                    backend.exists(key) ?
+                          /            \
+                       No /              \ Yes
+                        /                  \
+                       v                    v
+            TabmatCache.from_parquet     load_from(backend, key)
+                       |                    |
+                       v                    v
+            pq.read_table + to_pandas    joblib.load(state)
+                       |                    |
+                       v                    v
+              register_cols(df, cols)    verify_source(file_fp)
+                       |                    /      \
+                       |                  ok       mismatch
+                       |                  /            \
+                       |                 v              v
+                       |              return     rebuild_on_mismatch?
+                       |              cache           /     \
+                       |                            Yes      No
+                       |                            /          \
+                       |                           v            v
+                       |                       (cold path)   raise
+                       |                          |
+                       v                          |
+                  +-----<--------------------------+
+                  |
+                  v
+              yield cache  ----->  user code:
+                                     y     = cache.read_target("y")   [parquet]
+                                     df    = cache.source_df          [O(1) cold | parquet warm]
+                                     X, _  = cache.get_subset(df,...) [hstack cold | O(1) warm]
+                                     GLM.fit(X, y)                    [IRLS]
+                  |
+                  v
+              __exit__ (save_on_exit policy)
+                  |
+                  v
+              cache.save_to(backend, key)   ->   re-pickle + overwrite
+
+Cost summary
+~~~~~~~~~~~~
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 25 25 20
+
+   * - Operation
+     - Cold (no cache)
+     - Warm (cache hit)
+     - Notes
+   * - Backend exists / load
+     - 0 (skipped)
+     - ~100–300 ms
+     - dominated by ``joblib.load``
+   * - Source fingerprint check
+     - 0 (skipped)
+     - ~1 ms
+     - ``os.stat`` + tuple eq
+   * - Build all per-column matrices
+     - ~10–50 ms × n_cols
+     - 0 (loaded from pickle)
+     - ``register_cols``
+   * - ``read_target``
+     - ~50–200 ms
+     - ~50–200 ms
+     - *every call* hits parquet
+   * - ``source_df`` first access
+     - ~0 (already in mem)
+     - ~500–1000 ms
+     - lazy re-read on warm
+   * - ``get_subset`` for a known column set
+     - ~5–20 ms (hstack)
+     - <1 ms (dict hit)
+     -
+   * - GLM IRLS solve
+     - same
+     - same
+     - the actual work
+   * - ``__exit__`` save
+     - ~400–1000 ms
+     - ~400–1000 ms
+     - re-pickles unconditionally
+
+Two performance gotchas worth knowing
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+1. :meth:`~glum.TabmatCache.read_target` reads from the parquet on
+   every call.  If you're iterating over candidates in a stepwise loop
+   and the target doesn't change, hoist ``y = cache.read_target(...)``
+   out of the inner loop.
+
+2. ``managed_cache(..., save_on_exit="success")`` re-pickles the cache
+   file on every clean exit, even when nothing changed.  For
+   high-frequency batch jobs (e.g., a scheduled inference task that
+   runs the cache through a single fit and exits cleanly), pass
+   ``save_on_exit="never"`` to skip the rewrite.
+
 Backend extensibility
 ---------------------
 
