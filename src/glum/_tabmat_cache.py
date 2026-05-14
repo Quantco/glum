@@ -84,7 +84,8 @@ __all__ = [
 _logger = logging.getLogger(__name__)
 
 # Bumped whenever the on-disk layout changes incompatibly.
-_CACHE_VERSION = 2   # bumped: added source_fingerprint to saved state
+# v3: added source_columns + source_cat_cols (for lazy source_df rehydration)
+_CACHE_VERSION = 3
 
 
 class CacheVersionError(RuntimeError):
@@ -121,19 +122,25 @@ def _df_fingerprint(df: pd.DataFrame) -> tuple:
     """
     Lightweight fingerprint for cache-invalidation purposes.
 
-    Captures DataFrame **identity**, **shape**, and the **column names**.
-    This detects:
+    Captures DataFrame **shape** and **column-name hash**.  Detects:
 
-    * reassignment (``df = df.copy()`` changes ``id(df)``),
     * row addition / removal (``df.shape`` changes), and
-    * column rename / reorder (column-name tuple hash changes).
+    * column rename / reorder / add / remove (column-name tuple hash
+      changes).
 
-    It does **not** detect in-place value mutation
-    (``df.loc[0, "x"] = ...``).  That would require hashing column data
-    on every call, which is too expensive for a hot-path cache.  Users
-    who mutate in place must call :meth:`TabmatCache.clear` manually.
+    Notably, we do **not** include ``id(df)`` because legitimate slicing
+    (``df[some_cols]``) produces new DataFrame objects with different
+    ``id()`` but identical underlying data — the cache should NOT
+    invalidate.  Conversely, ``df = df.copy()`` preserves shape and
+    columns, so reassignment to a copy of the same data leaves the
+    cache valid (which is correct: the values haven't changed).
+
+    Limitation: in-place value mutation (``df.loc[0, "x"] = ...``) is
+    not detected; hashing column data on every call would be too
+    expensive for a hot-path cache.  Users who mutate values directly
+    must call :meth:`TabmatCache.clear` manually.
     """
-    return (id(df), df.shape, hash(tuple(df.columns)))
+    return (df.shape, hash(tuple(df.columns)))
 
 
 class TabmatCache:
@@ -197,6 +204,18 @@ class TabmatCache:
         # verified against the original data file in a new session.
         self._source_fingerprint: Optional[tuple] = None
 
+        # ── Source rehydration metadata ─────────────────────────────────
+        # Columns + cat_cols recorded by :meth:`from_parquet` so a
+        # freshly-loaded cache can lazily re-read the bound parquet to
+        # reconstruct :attr:`source_df`.  Persisted across save/load.
+        self._source_columns:  Optional[list[str]] = None
+        self._source_cat_cols: Optional[list[str]] = None
+
+        # In-memory cache of the source DataFrame.  Set eagerly by
+        # :meth:`from_parquet`; lazily by the :attr:`source_df` property
+        # after a fresh load.  Never pickled.
+        self._source_df: Optional[pd.DataFrame] = None
+
     # ------------------------------------------------------------------
     # Column / subset layer
     # ------------------------------------------------------------------
@@ -221,14 +240,28 @@ class TabmatCache:
             self.clear()
         self._df_fingerprint = fp
 
-    def register_cols(self, df: pd.DataFrame) -> None:
+    def register_cols(
+        self,
+        df: pd.DataFrame,
+        cols: Optional[Sequence[str]] = None,
+    ) -> None:
         """
-        Build per-column tabmat sub-matrices for every column in ``df``
-        that is not yet registered.  Subsequent ``get_col(name)`` calls
-        return the cached single-column matrix in O(1).
+        Build per-column tabmat sub-matrices for unregistered columns.
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            Source DataFrame.  Its fingerprint is recorded for
+            mutation detection.
+        cols : sequence of str, optional
+            Columns to register.  If ``None`` (the default), every
+            column of ``df`` is registered.  Pass an explicit list
+            when you want to register only a subset *without*
+            invalidating the cache (since slicing ``df[cols]`` would
+            change the fingerprint).
         """
         self._check_fingerprint(df)
-        for col in df.columns:
+        for col in (cols if cols is not None else df.columns):
             if col not in self._col_matrices:
                 mat = tm.from_pandas(df[[col]])
                 self._col_matrices[col]   = mat
@@ -425,6 +458,9 @@ class TabmatCache:
         self._std_stats.clear()
         self._df_fingerprint = None
         self._source_fingerprint = None
+        self._source_columns = None
+        self._source_cat_cols = None
+        self._source_df = None
 
     def clear_fold_slices(self) -> None:
         """Drop only the fold row-slice cache (keep column-set matrices)."""
@@ -496,6 +532,96 @@ class TabmatCache:
                 )
             return False
         return True
+
+    # ------------------------------------------------------------------
+    # Lazy source DataFrame & target column
+    # ------------------------------------------------------------------
+
+    @property
+    def source_df(self) -> pd.DataFrame:
+        """
+        The DataFrame this cache was built from.
+
+        Eagerly populated by :meth:`from_parquet`.  After a fresh
+        :meth:`load`, the attribute is ``None`` until first access; on
+        access we re-read the bound parquet using the columns +
+        ``cat_cols`` that were recorded at build time, verify the file
+        fingerprint, and cache the result.
+
+        Raises
+        ------
+        SourceFingerprintError
+            If the bound parquet has changed since the cache was saved.
+        RuntimeError
+            If no file fingerprint is bound (e.g. the cache was built
+            via :meth:`register_cols` on an in-memory DataFrame).  In
+            that case the user should rebind via the
+            :attr:`source_df.setter`.
+        """
+        if self._source_df is not None:
+            return self._source_df
+        if self._source_fingerprint is None or self._source_fingerprint[0] != "file":
+            raise RuntimeError(
+                "Cannot rehydrate source_df: no file fingerprint is bound. "
+                "Either build via TabmatCache.from_parquet(), or set "
+                "cache.source_df = df manually."
+            )
+        path = self._source_fingerprint[1]
+        # Verify the file matches what produced the cache.
+        self.verify_source(fingerprint_file(path))
+
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+
+        table = pq.read_table(path, columns=self._source_columns)
+        cat_set = set(self._source_cat_cols or [])
+        for name in table.column_names:
+            col = table.column(name)
+            if name in cat_set and not pa.types.is_dictionary(col.type):
+                table = table.set_column(
+                    table.column_names.index(name),
+                    name,
+                    col.dictionary_encode(),
+                )
+        self._source_df = table.to_pandas()
+        return self._source_df
+
+    @source_df.setter
+    def source_df(self, df: pd.DataFrame) -> None:
+        """Bind a DataFrame manually (useful for non-file-built caches)."""
+        self._source_df = df
+
+    def read_target(self, col: str) -> np.ndarray:
+        """
+        Read a single response column from the bound source file.
+
+        Returns a numpy array, bypassing pandas entirely on the hot
+        path.  Useful for extracting ``y`` without re-materializing the
+        full DataFrame in memory.
+
+        Parameters
+        ----------
+        col : str
+            Column to read.
+
+        Raises
+        ------
+        SourceFingerprintError
+            If the bound parquet has changed since the cache was built.
+        RuntimeError
+            If the cache has no file fingerprint bound.
+        """
+        if self._source_fingerprint is None or self._source_fingerprint[0] != "file":
+            raise RuntimeError(
+                "read_target requires a file-bound cache; build via "
+                "TabmatCache.from_parquet() first."
+            )
+        path = self._source_fingerprint[1]
+        self.verify_source(fingerprint_file(path))
+
+        import pyarrow.parquet as pq
+        table = pq.read_table(path, columns=[col])
+        return table.column(col).to_numpy()
 
     # ------------------------------------------------------------------
     # Parquet ingestion (cross-session warm start without pandas in user code)
@@ -583,6 +709,10 @@ class TabmatCache:
 
         cache = cls(fold_mat_maxsize=fold_mat_maxsize)
         cache.set_source_fingerprint(fp)
+        # Record the (columns, cat_cols) used so a freshly-loaded cache
+        # in a future session can lazily reconstruct ``source_df``.
+        cache._source_columns  = list(columns) if columns else list(table.column_names)
+        cache._source_cat_cols = list(cat_cols) if cat_cols else []
         if register_cols:
             # Only register columns whose pandas dtype is tabmat-compatible:
             # numeric, boolean, or pd.Categorical.  Plain string / object
@@ -597,30 +727,34 @@ class TabmatCache:
                 )
             ]
             if registerable:
-                cache.register_cols(df[registerable])
-        # Stash the DataFrame on the cache for convenience: users who
-        # want to call get_subset can pull it off without re-reading the
-        # parquet.  We deliberately do NOT pickle this on save().
-        cache.source_df = df
+                # Pass the FULL df (so fingerprint stays consistent) and
+                # restrict registration to the registerable subset via
+                # the ``cols=`` kwarg.
+                cache.register_cols(df, cols=registerable)
+        # Stash the DataFrame in memory so the first session can immediately
+        # use ``cache.source_df`` without re-reading.  We deliberately do NOT
+        # pickle it on save() — see the lazy ``source_df`` property.
+        cache._source_df = df
         return cache
 
     # ------------------------------------------------------------------
     # Persistence
     # ------------------------------------------------------------------
 
-    def save(self, path: Union[str, Path]) -> None:
+    def _build_save_state(self) -> dict:
         """
-        Serialize the cache to ``path`` via :func:`joblib.dump`.
+        Build the state dict that ``save``/``save_to`` will serialize.
 
-        The format includes a version sentinel; :meth:`load` will raise
-        :class:`CacheVersionError` if the layout is incompatible.
+        Centralized so backend-aware persistence (``save_to``) stays in
+        sync with the path-based shortcut (``save``).  We deliberately
+        omit ``_df_fingerprint`` (``id(df)`` is meaningless across
+        processes) and ``_source_df`` (a lazy convenience attribute,
+        not state of truth).  We DO persist ``_source_fingerprint`` and
+        the ``_source_columns`` / ``_source_cat_cols`` rehydration
+        metadata so the next session can lazily reconstruct
+        ``source_df``.
         """
-        # We deliberately omit `_df_fingerprint`: id(df) is not meaningful
-        # across processes, and df.shape / column-name hash should be
-        # re-established by the user on first contact in the new session.
-        # We DO persist `_source_fingerprint` — its whole purpose is
-        # cross-session identity for the underlying data file/dataset.
-        state = {
+        return {
             "__cache_version__":   _CACHE_VERSION,
             "fold_mat_maxsize":    self.fold_mat_maxsize,
             "col_matrices":        self._col_matrices,
@@ -631,28 +765,20 @@ class TabmatCache:
             "fold_idx":            self._fold_idx,
             "std_stats":           self._std_stats,
             "source_fingerprint":  self._source_fingerprint,
+            "source_columns":      self._source_columns,
+            "source_cat_cols":     self._source_cat_cols,
         }
-        joblib.dump(state, str(path), compress=3)
 
     @classmethod
-    def load(cls, path: Union[str, Path]) -> "TabmatCache":
-        """
-        Load a previously-saved cache from ``path``.
-
-        Raises
-        ------
-        CacheVersionError
-            If the file was saved with an incompatible cache version.
-        """
-        state = joblib.load(str(path))
+    def _restore_from_state(cls, state: dict) -> "TabmatCache":
+        """Build a fresh cache from a save state dict."""
         version = state.get("__cache_version__")
         if version != _CACHE_VERSION:
             raise CacheVersionError(
                 f"Saved cache version is {version!r}, "
                 f"expected {_CACHE_VERSION!r}.  "
-                "Re-build the cache from the source DataFrame."
+                "Re-build the cache from the source data."
             )
-
         cache = cls(fold_mat_maxsize=state["fold_mat_maxsize"])
         cache._col_matrices       = state["col_matrices"]
         cache._col_feat_names     = state["col_feat_names"]
@@ -662,4 +788,66 @@ class TabmatCache:
         cache._fold_idx           = state["fold_idx"]
         cache._std_stats          = state["std_stats"]
         cache._source_fingerprint = state.get("source_fingerprint")
+        cache._source_columns     = state.get("source_columns")
+        cache._source_cat_cols    = state.get("source_cat_cols")
+        # _source_df stays None — repopulated lazily via the property.
         return cache
+
+    def save(self, path: Union[str, Path]) -> None:
+        """
+        Serialize the cache to a local file at ``path`` via
+        :func:`joblib.dump`.
+
+        The format includes a version sentinel; :meth:`load` will raise
+        :class:`CacheVersionError` if the layout is incompatible.
+
+        See :meth:`save_to` for the backend-aware variant used by
+        :func:`~glum.managed_cache` and any custom (Redis, blob)
+        backends.
+        """
+        joblib.dump(self._build_save_state(), str(path), compress=3)
+
+    @classmethod
+    def load(cls, path: Union[str, Path]) -> "TabmatCache":
+        """
+        Load a previously-saved cache from a local file at ``path``.
+
+        See :meth:`load_from` for the backend-aware variant.
+
+        Raises
+        ------
+        CacheVersionError
+            If the file was saved with an incompatible cache version.
+        """
+        state = joblib.load(str(path))
+        return cls._restore_from_state(state)
+
+    def save_to(self, backend, key: str) -> None:
+        """
+        Serialize the cache to ``backend`` under ``key``.
+
+        The cache is joblib-pickled into a bytes buffer and handed to
+        ``backend.write(key, data)``.  Use any object satisfying the
+        :class:`~glum.CacheBackend` protocol — :class:`~glum.LocalFileBackend`
+        is the default; custom backends for Redis / blob storage / etc.
+        plug in here.
+        """
+        import io
+        buf = io.BytesIO()
+        joblib.dump(self._build_save_state(), buf, compress=3)
+        backend.write(key, buf.getvalue())
+
+    @classmethod
+    def load_from(cls, backend, key: str) -> "TabmatCache":
+        """
+        Load a previously-saved cache from ``backend`` at ``key``.
+
+        Raises
+        ------
+        CacheVersionError
+            If the saved cache has an incompatible version.
+        """
+        import io
+        data = backend.read(key)
+        state = joblib.load(io.BytesIO(data))
+        return cls._restore_from_state(state)

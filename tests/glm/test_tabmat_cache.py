@@ -426,18 +426,24 @@ class TestMutationDetection:
     reassignment, row count changes, and column rename / reorder.
     """
 
-    def test_reassigned_df_invalidates_cache(self, cache, numeric_df):
+    def test_copied_df_preserves_cache(self, cache, numeric_df):
+        """
+        ``df = df.copy()`` produces a DataFrame with identical shape and
+        columns, so the cache fingerprint is unchanged and entries are
+        preserved.  This is the correct behavior — the underlying data
+        is identical, so why invalidate?
+        """
         cache.register_cols(numeric_df)
         cache.get_subset(numeric_df, ["x0", "x1"])
-        assert cache.stats()["n_cols"] > 0
+        n_before = cache.stats()["n_cols"]
+        assert n_before > 0
 
-        # Reassigning to a copy changes id(df).
-        df2 = numeric_df.copy()
-        cache.get_subset(df2, ["x0", "x1"])
+        df_copy = numeric_df.copy()
+        cache.get_subset(df_copy, ["x0", "x1"])
 
-        # Old per-column entries cleared and rebuilt against df2.
-        # n_cols should be 2 (just x0 and x1, populated via cold-path back-fill).
-        assert cache.stats()["n_cols"] == 2
+        # Cache unchanged: same shape + columns → same fingerprint.
+        assert cache.stats()["n_cols"] == n_before
+        assert ("x0", "x1") in cache._subset_cache
 
     def test_added_row_invalidates_cache(self, cache, numeric_df):
         cache.register_cols(numeric_df[["x0", "x1"]])
@@ -761,11 +767,126 @@ class TestFromParquet:
         assert restored.verify_source(fingerprint_file(tiny_parquet)) is True
 
     def test_source_df_not_persisted(self, tiny_parquet, tmp_path):
-        """source_df is a convenience attribute, NOT pickled."""
+        """
+        The DataFrame itself is NOT persisted to the cache file.
+        The :attr:`source_df` property exists post-load, but its backing
+        field is None until first access (when it lazily re-reads).
+        """
         cache = TabmatCache.from_parquet(tiny_parquet)
         path = tmp_path / "cache.pkl"
         cache.save(path)
         restored = TabmatCache.load(path)
-        assert not hasattr(restored, "source_df"), (
-            "source_df should not survive save/load; users re-bind manually"
+        # Backing field is None — nothing pickled.
+        assert restored._source_df is None
+        # Rehydration metadata IS preserved.
+        assert restored._source_columns is not None
+        assert restored._source_cat_cols is not None
+
+
+# ---------------------------------------------------------------------------
+# Lazy source_df and read_target
+# ---------------------------------------------------------------------------
+
+class TestLazySourceDfAndReadTarget:
+    def test_source_df_lazy_after_load(self, tiny_parquet, tmp_path):
+        """save → load → first source_df access re-reads the parquet."""
+        cache = TabmatCache.from_parquet(
+            tiny_parquet, cat_cols=["cat_a", "cat_b"],
         )
+        original_df = cache.source_df.copy()
+        path = tmp_path / "cache.pkl"
+        cache.save(path)
+
+        restored = TabmatCache.load(path)
+        assert restored._source_df is None        # nothing materialized yet
+        rehydrated = restored.source_df            # triggers lazy read
+        assert restored._source_df is not None    # now cached
+        # Shape and column names match
+        assert rehydrated.shape == original_df.shape
+        assert list(rehydrated.columns) == list(original_df.columns)
+        # Categorical encoding was reproduced
+        assert isinstance(rehydrated["cat_a"].dtype, pd.CategoricalDtype)
+        # Numeric values round-trip exactly
+        np.testing.assert_array_equal(
+            rehydrated["num1"].to_numpy(), original_df["num1"].to_numpy()
+        )
+
+    def test_source_df_setter_allows_manual_rebind(self):
+        """Caches built without from_parquet can have source_df set manually."""
+        cache = TabmatCache()
+        df = pd.DataFrame({"x": [1.0, 2.0, 3.0]})
+        cache.source_df = df
+        assert cache.source_df is df
+
+    def test_source_df_raises_when_no_file_binding(self, numeric_df):
+        """A cache built only via register_cols has no file to rehydrate from."""
+        cache = TabmatCache()
+        cache.register_cols(numeric_df)
+        # Clear the eagerly-set _source_df to simulate post-load state.
+        cache._source_df = None
+        with pytest.raises(RuntimeError, match="no file fingerprint"):
+            _ = cache.source_df
+
+    def test_source_df_verifies_fingerprint_on_rehydrate(
+        self, tiny_parquet, tmp_path,
+    ):
+        """If the parquet changes between save and load, source_df raises."""
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+        import shutil
+        import time
+
+        target = tmp_path / "data.parquet"
+        shutil.copy(tiny_parquet, target)
+
+        cache = TabmatCache.from_parquet(target, cat_cols=["cat_a"])
+        path = tmp_path / "cache.pkl"
+        cache.save(path)
+
+        # Overwrite the parquet with different content
+        time.sleep(0.05)
+        new_table = pa.table({"num1": np.arange(500, dtype=np.float64)})
+        pq.write_table(new_table, target)
+
+        restored = TabmatCache.load(path)
+        with pytest.raises(SourceFingerprintError):
+            _ = restored.source_df
+
+    def test_read_target_returns_numpy_array(self, tiny_parquet):
+        cache = TabmatCache.from_parquet(tiny_parquet)
+        y = cache.read_target("num1")
+        assert isinstance(y, np.ndarray)
+        assert y.shape == (1000,)
+        np.testing.assert_array_equal(y, np.arange(1000, dtype=np.float64))
+
+    def test_read_target_verifies_fingerprint(self, tiny_parquet, tmp_path):
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+        import shutil
+        import time
+
+        target = tmp_path / "data.parquet"
+        shutil.copy(tiny_parquet, target)
+        cache = TabmatCache.from_parquet(target)
+
+        time.sleep(0.05)
+        new_table = pa.table({"num1": np.arange(2, dtype=np.float64)})
+        pq.write_table(new_table, target)
+
+        with pytest.raises(SourceFingerprintError):
+            cache.read_target("num1")
+
+    def test_read_target_raises_when_no_file_binding(self):
+        cache = TabmatCache()
+        with pytest.raises(RuntimeError, match="file-bound"):
+            cache.read_target("anything")
+
+    def test_read_target_works_after_load(self, tiny_parquet, tmp_path):
+        """The whole point: read_target should work on a freshly loaded cache."""
+        cache = TabmatCache.from_parquet(tiny_parquet)
+        path = tmp_path / "cache.pkl"
+        cache.save(path)
+
+        restored = TabmatCache.load(path)
+        y = restored.read_target("num1")
+        assert y.shape == (1000,)
