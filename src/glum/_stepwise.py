@@ -211,11 +211,19 @@ class ScoreTestResult:
 
 @dataclass
 class CVResult:
-    """Cross-validation result for one candidate column."""
+    """
+    Cross-validation result for one candidate column.
+
+    ``cv_deviance``, ``cv_aic`` and ``cv_bic`` are always populated
+    regardless of which ``criterion`` was used to sort results; the
+    user can re-rank without re-fitting.
+    """
     column:         str
     cv_deviance:    float    # mean hold-out deviance across folds
+    cv_aic:         float    # mean hold-out AIC (-2 ll + 2 p)
+    cv_bic:         float    # mean hold-out BIC (-2 ll + p log n_test)
     alpha:          float    # best alpha chosen by CV
-    selected:       bool     # cv_deviance < baseline_deviance
+    selected:       bool     # better than baseline under the chosen criterion
 
 
 # ---------------------------------------------------------------------------
@@ -449,6 +457,8 @@ class StepwiseGLM:
     # cv_select()
     # ------------------------------------------------------------------
 
+    _VALID_CRITERIA = ("deviance", "aic", "bic")
+
     def cv_select(
         self,
         df: pd.DataFrame,
@@ -460,30 +470,67 @@ class StepwiseGLM:
         cv=5,
         alphas: Optional[np.ndarray] = None,
         n_alphas: int = 20,
+        screen_tol: float = 1e-3,
+        refit_tol: Optional[float] = None,
+        criterion: str = "deviance",
     ) -> list[CVResult]:
         """
-        Rank candidate columns by cross-validated hold-out deviance.
+        Rank candidate columns by cross-validated hold-out score.
 
         For each candidate ``c``, fits the model on ``active_cols + [c]``
-        along a regularization path across ``cv`` folds, selecting the
-        alpha that minimises mean fold deviance.  Results are sorted
-        ascending by ``cv_deviance`` (lower = better).
+        along a regularization path across ``cv`` folds and selects the
+        alpha minimising the chosen criterion.  Results are sorted
+        ascending under that criterion (lower = better).
 
         Parameters
         ----------
-        df, active_cols, candidate_cols, y, sample_weight, cv,
-        alphas, n_alphas
-            See class docstring.
+        df : pd.DataFrame
+            Source data containing every column referenced.
+        active_cols : list[str]
+            Columns currently in the model.
+        candidate_cols : list[str]
+            Columns to evaluate as potential additions.
+        y : array-like
+            Response vector.
+        sample_weight : array-like, optional
+            Per-row weights.
         offset : array-like, optional
-            Per-row offset (added to the linear predictor).  If ``None``,
-            falls back to whatever offset was used in the most recent
-            ``fit()`` call.
+            Per-row offset.  Defaults to whatever offset was used in the
+            most recent :meth:`fit` call.
+        cv : int or CV splitter, default 5
+            Passed to :func:`sklearn.model_selection.check_cv`.
+        alphas : array-like, optional
+            Explicit alpha grid.  If ``None``, derived from the data.
+        n_alphas : int, default 20
+            Number of alphas in the auto-generated grid.
+        screen_tol : float, default ``1e-3``
+            Gradient tolerance for candidate IRLS fits inside the CV
+            loop.  Default is ~100× looser than glum's standard ``1e-4``
+            because candidates only need enough convergence to rank
+            correctly, not full machine precision.  Raise this if you
+            observe ranking instability across runs.
+        refit_tol : float, optional
+            Reserved for a future "refit selected candidate at full
+            precision" workflow.  Currently unused; the selected
+            candidate is not refit here.
+        criterion : {"deviance", "aic", "bic"}, default ``"deviance"``
+            Sort order and the rule used to populate ``selected``.  All
+            three statistics are always computed and stored on the
+            returned :class:`CVResult` objects, so callers can re-rank
+            without re-fitting.
 
         Returns
         -------
         list[CVResult]
-            Sorted ascending by ``cv_deviance``.
+            Sorted ascending by the chosen ``criterion``.
         """
+        if criterion not in self._VALID_CRITERIA:
+            raise ValueError(
+                f"criterion must be one of {self._VALID_CRITERIA}; "
+                f"got {criterion!r}"
+            )
+        del refit_tol  # accepted for forward compatibility; not used yet
+
         y = np.asarray(y)
         sw_id = -1 if sample_weight is None else id(np.asarray(sample_weight))
 
@@ -526,31 +573,208 @@ class StepwiseGLM:
             alpha_min = alpha_max * 1e-4
             alphas = np.exp(np.linspace(np.log(alpha_max), np.log(alpha_min), n_alphas))
 
-        # ── Per-candidate CV ─────────────────────────────────────────────
-        baseline_dev = self._cv_deviance(
-            df, active_cols, y, sample_weight, offset, splits, alphas, sw_id
+        # ── Baseline scores (active model, no candidate) ─────────────────
+        baseline = self._cv_scores(
+            df, active_cols, y, sample_weight, offset,
+            splits, alphas, sw_id, screen_tol,
         )
 
         results: list[CVResult] = []
         for cand in candidate_cols:
             cols = active_cols + [cand]
-            dev  = self._cv_deviance(
-                df, cols, y, sample_weight, offset, splits, alphas, sw_id
+            scores = self._cv_scores(
+                df, cols, y, sample_weight, offset,
+                splits, alphas, sw_id, screen_tol,
             )
-            best_alpha = alphas[np.argmin(dev)]
-            mean_dev   = float(np.mean(dev))
-            results.append(CVResult(
-                column=cand,
-                cv_deviance=mean_dev,
-                alpha=float(best_alpha),
-                selected=(mean_dev < float(np.mean(baseline_dev))),
+            results.append(self._build_cv_result(
+                cand, scores, alphas, baseline, criterion,
             ))
 
-        results.sort(key=lambda r: r.cv_deviance)
+        results.sort(key=lambda r: self._criterion_value(r, criterion))
         self.cv_history_.append(results)
         return results
 
-    def _cv_deviance(
+    # ------------------------------------------------------------------
+    # Backward stepwise
+    # ------------------------------------------------------------------
+
+    def screen_drops(
+        self,
+        df: pd.DataFrame,
+        active_cols: list[str],
+        alpha: float = 0.05,
+    ) -> list[ScoreTestResult]:
+        """
+        Score each active column as a candidate for removal.
+
+        Uses the same chi-squared score statistic as
+        :meth:`screen_candidates` but applied to each currently active
+        column treated as if it were a candidate added to the reduced
+        model ``active_cols \\ {c}``.  In the score-test framework this
+        is equivalent: ``stat`` measures the column's incremental
+        contribution under the current fit.  Lowest statistic = best
+        drop candidate.
+
+        Results are sorted **ascending** by statistic (the order in
+        which a backward-elimination loop would consider dropping).
+        """
+        if self._last_mu is None or self._last_y is None:
+            raise RuntimeError("Call fit() before screen_drops().")
+        # The score test on each column-as-candidate quantifies how much
+        # information that column contributes given the rest.  For a
+        # backward step we want to drop the *least informative* column,
+        # so we reuse screen_candidates and reverse the sort.
+        results = self.screen_candidates(df, active_cols, active_cols, alpha=alpha)
+        # Re-sort ascending (lowest stat first = best drop).
+        results.sort(key=lambda r: r.statistic)
+        # Last entry in history is the descending version; replace it.
+        if self.score_test_history_:
+            self.score_test_history_[-1] = results
+        return results
+
+    def cv_select_drop(
+        self,
+        df: pd.DataFrame,
+        active_cols: list[str],
+        y: np.ndarray,
+        sample_weight: Optional[np.ndarray] = None,
+        offset: Optional[np.ndarray] = None,
+        cv=5,
+        alphas: Optional[np.ndarray] = None,
+        n_alphas: int = 20,
+        screen_tol: float = 1e-3,
+        refit_tol: Optional[float] = None,
+        criterion: str = "deviance",
+    ) -> list[CVResult]:
+        """
+        Rank each active column as a candidate for removal by CV score.
+
+        Mirror of :meth:`cv_select` for backward elimination: for each
+        ``c in active_cols``, evaluates the CV deviance / AIC / BIC of
+        ``active_cols \\ {c}``.  ``selected=True`` indicates the reduced
+        model is *better* (under the chosen criterion) than the full
+        active model — i.e. dropping ``c`` is justified.
+
+        Returns
+        -------
+        list[CVResult]
+            Sorted ascending under ``criterion`` (best drop candidate
+            first).  ``CVResult.column`` is the column being dropped.
+        """
+        if criterion not in self._VALID_CRITERIA:
+            raise ValueError(
+                f"criterion must be one of {self._VALID_CRITERIA}; "
+                f"got {criterion!r}"
+            )
+        del refit_tol
+
+        y = np.asarray(y)
+        sw_id = -1 if sample_weight is None else id(np.asarray(sample_weight))
+        if offset is None:
+            offset = self._last_offset
+        if offset is not None:
+            offset = np.asarray(offset)
+
+        self.cache.register_cols(df[active_cols])
+        self.cache.get_subset(df, active_cols)
+
+        splitter = check_cv(cv)
+        splits   = list(splitter.split(df, y))
+        for fold_id, (train_idx, _) in enumerate(splits):
+            self.cache.set_fold_indices(fold_id, train_idx)
+
+        if alphas is None:
+            probe_mat, _ = self.cache.get_subset(df, active_cols)
+            sw_probe = (np.ones(len(y)) / len(y)
+                        if sample_weight is None
+                        else np.asarray(sample_weight) / np.asarray(sample_weight).sum())
+            from glum._glm import setup_p1, setup_p2
+            l1 = getattr(self.glm_, "l1_ratio", 0)
+            P1 = setup_p1("identity", probe_mat, probe_mat.dtype, 1, l1)
+            P2 = setup_p2("identity", probe_mat, ["csc", "csr"], probe_mat.dtype, 1, l1)
+            probe_std, *_ = _utils_mod._original_standardize(
+                probe_mat, sw_probe, True, False, None, None, None, P1, P2
+            )
+            resid = (y - y.mean()) / len(y)
+            alpha_max = float(np.max(np.abs(probe_std.transpose_matvec(resid))))
+            alpha_min = alpha_max * 1e-4
+            alphas = np.exp(np.linspace(np.log(alpha_max), np.log(alpha_min), n_alphas))
+
+        # Baseline: the full active model
+        baseline = self._cv_scores(
+            df, active_cols, y, sample_weight, offset,
+            splits, alphas, sw_id, screen_tol,
+        )
+
+        results: list[CVResult] = []
+        for drop in active_cols:
+            reduced_cols = [c for c in active_cols if c != drop]
+            if not reduced_cols:
+                # Can't drop the only column — skip.
+                continue
+            scores = self._cv_scores(
+                df, reduced_cols, y, sample_weight, offset,
+                splits, alphas, sw_id, screen_tol,
+            )
+            results.append(self._build_cv_result(
+                drop, scores, alphas, baseline, criterion,
+            ))
+
+        results.sort(key=lambda r: self._criterion_value(r, criterion))
+        self.cv_history_.append(results)
+        return results
+
+    # ------------------------------------------------------------------
+    # Internal helpers for CV scoring
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _criterion_value(r: CVResult, criterion: str) -> float:
+        if criterion == "deviance":
+            return r.cv_deviance
+        if criterion == "aic":
+            return r.cv_aic
+        return r.cv_bic   # "bic"
+
+    @staticmethod
+    def _build_cv_result(
+        column: str,
+        scores: dict,
+        alphas: np.ndarray,
+        baseline: dict,
+        criterion: str,
+    ) -> CVResult:
+        """
+        Aggregate per-fold scores into a single :class:`CVResult`.
+
+        ``scores`` is the dict returned by :meth:`_cv_scores` with keys
+        ``deviance``, ``aic``, ``bic`` (each shape ``(n_folds,)``) plus
+        ``best_alpha_idx`` (the index minimising the *deviance* path).
+        """
+        mean_dev = float(np.mean(scores["deviance"]))
+        mean_aic = float(np.mean(scores["aic"]))
+        mean_bic = float(np.mean(scores["bic"]))
+        baseline_dev = float(np.mean(baseline["deviance"]))
+        baseline_aic = float(np.mean(baseline["aic"]))
+        baseline_bic = float(np.mean(baseline["bic"]))
+
+        if criterion == "deviance":
+            selected = mean_dev < baseline_dev
+        elif criterion == "aic":
+            selected = mean_aic < baseline_aic
+        else:
+            selected = mean_bic < baseline_bic
+
+        return CVResult(
+            column=column,
+            cv_deviance=mean_dev,
+            cv_aic=mean_aic,
+            cv_bic=mean_bic,
+            alpha=float(alphas[scores["best_alpha_idx"]]),
+            selected=selected,
+        )
+
+    def _cv_scores(
         self,
         df: pd.DataFrame,
         cols: list[str],
@@ -560,17 +784,30 @@ class StepwiseGLM:
         splits: list,
         alphas: np.ndarray,
         sw_id: int,
-    ) -> np.ndarray:
+        screen_tol: float = 1e-3,
+    ) -> dict:
         """
-        Return per-fold best deviance (shape: n_folds,) for a column set
-        and alpha grid, using cached fold matrices and standardize stats.
+        Return per-fold hold-out scores for a column set + alpha grid.
 
-        Offset (if provided) is sliced per-fold and forwarded to both the
-        fold IRLS fit and the test-set predict, so deviances reflect the
-        proper offset-bearing model.
+        Best alpha per fold is chosen by minimum **deviance**; AIC and
+        BIC at that same alpha are reported alongside, so the caller can
+        pick a sort criterion without re-fitting.
+
+        Returns
+        -------
+        dict with keys:
+            ``deviance`` : ndarray shape (n_folds,) — best-alpha deviance
+            ``aic``      : ndarray shape (n_folds,) — AIC at best-alpha
+            ``bic``      : ndarray shape (n_folds,) — BIC at best-alpha
+            ``best_alpha_idx`` : int — alpha index minimising mean fold
+                deviance across folds (used for ``CVResult.alpha``)
         """
         fam  = self.glm_._family_instance
-        fold_deviances = np.zeros(len(splits))
+        n_folds = len(splits)
+        n_alphas = len(alphas)
+        fold_dev_path = np.full((n_folds, n_alphas), np.inf)
+        fold_aic_path = np.full((n_folds, n_alphas), np.inf)
+        fold_bic_path = np.full((n_folds, n_alphas), np.inf)
         full_mat, _ = self.cache.get_subset(df, cols)
 
         for fold_id, (train_idx, test_idx) in enumerate(splits):
@@ -644,12 +881,13 @@ class StepwiseGLM:
                 family=self.glm_.family,
                 l1_ratio=getattr(self.glm_, "l1_ratio", 0),
                 drop_first=getattr(self.glm_, "drop_first", False),
+                gradient_tol=screen_tol,
                 alpha=alphas[0],
                 warm_start=False,
             )
             coef         = None
-            best_dev     = np.inf
             stored_first = False
+            n_test       = len(y_test)
 
             # Warm-start across alpha steps is safe only when n_features > 1.
             # With a single feature, glum's standardize_warm_start has a
@@ -716,13 +954,32 @@ class StepwiseGLM:
                     mu_test = glm_fold.predict(X_test, offset=offset_test)
                 else:
                     mu_test = glm_fold.predict(X_test)
+
                 dev = float(fam.deviance(y_test, mu_test, sw_test))
-                if dev < best_dev:
-                    best_dev = dev
+                # Number of effective parameters: nonzero coefficients +
+                # intercept.  For L2-only / unregularised models all are
+                # nonzero so this reduces to coef.shape[0]; for L1-regularised
+                # paths it adapts as alpha shrinks coefficients to zero.
+                p = int(np.count_nonzero(coef[1:])) + 1
+                ll = float(fam.log_likelihood(y_test, mu_test, sw_test))
+                aic = -2.0 * ll + 2.0 * p
+                bic = -2.0 * ll + p * np.log(n_test)
 
-            fold_deviances[fold_id] = best_dev
+                fold_dev_path[fold_id, k] = dev
+                fold_aic_path[fold_id, k] = aic
+                fold_bic_path[fold_id, k] = bic
 
-        return fold_deviances
+        # Best alpha index = argmin of *mean* deviance across folds.  We
+        # then report each criterion at that single alpha so all three
+        # numbers describe the same model.
+        mean_dev_path = fold_dev_path.mean(axis=0)
+        best_alpha_idx = int(np.argmin(mean_dev_path))
+        return {
+            "deviance":       fold_dev_path[:, best_alpha_idx],
+            "aic":            fold_aic_path[:, best_alpha_idx],
+            "bic":            fold_bic_path[:, best_alpha_idx],
+            "best_alpha_idx": best_alpha_idx,
+        }
 
     # ------------------------------------------------------------------
     # Convenience / delegation

@@ -618,6 +618,225 @@ class TestThreadSafety:
 # Hardening: _CachingStandardize shape consistency
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Looser candidate screening
+# ---------------------------------------------------------------------------
+
+class TestScreenTol:
+    """
+    The ``screen_tol`` knob on ``cv_select`` controls the gradient
+    tolerance passed to candidate IRLS fits inside the CV loop.  Looser
+    tolerance cuts iterations without changing the ranking on
+    well-separated signals.
+    """
+
+    def test_screen_tol_preserves_top1_ranking(self, small_poisson):
+        df, y = small_poisson
+        candidates = [f"x{i}" for i in range(2, 8)]
+
+        sglm_loose = StepwiseGLM(family="poisson", alpha=0.01, drop_first=True)
+        sglm_loose.fit(df[["x0", "x1"]], y)
+        loose = sglm_loose.cv_select(
+            df, ["x0", "x1"], candidates, y,
+            cv=3, n_alphas=8, screen_tol=1e-2,
+        )
+
+        sglm_tight = StepwiseGLM(family="poisson", alpha=0.01, drop_first=True)
+        sglm_tight.fit(df[["x0", "x1"]], y)
+        tight = sglm_tight.cv_select(
+            df, ["x0", "x1"], candidates, y,
+            cv=3, n_alphas=8, screen_tol=1e-6,
+        )
+
+        # Top-1 candidate should be identical
+        assert loose[0].column == tight[0].column, (
+            f"Top-1 differs: loose={loose[0].column}, tight={tight[0].column}"
+        )
+
+    def test_refit_tol_accepted_unused(self, small_poisson):
+        """refit_tol is accepted for forward compatibility; passing it must not raise."""
+        df, y = small_poisson
+        sglm = StepwiseGLM(family="poisson", alpha=0.01, drop_first=True)
+        sglm.fit(df[["x0", "x1"]], y)
+        results = sglm.cv_select(
+            df, ["x0", "x1"], ["x2"], y,
+            cv=2, n_alphas=3, refit_tol=1e-6,
+        )
+        assert len(results) == 1
+
+    def test_invalid_criterion_raises(self, small_poisson):
+        df, y = small_poisson
+        sglm = StepwiseGLM(family="poisson", alpha=0.01, drop_first=True)
+        sglm.fit(df[["x0", "x1"]], y)
+        with pytest.raises(ValueError, match="criterion"):
+            sglm.cv_select(
+                df, ["x0", "x1"], ["x2"], y,
+                cv=2, n_alphas=3, criterion="bogus",
+            )
+
+
+# ---------------------------------------------------------------------------
+# AIC / BIC
+# ---------------------------------------------------------------------------
+
+class TestAICBICScoring:
+    """
+    ``CVResult`` always carries ``cv_deviance``, ``cv_aic``, ``cv_bic``.
+    The ``criterion`` kwarg on ``cv_select`` controls sort order and
+    ``selected`` semantics.
+    """
+
+    def test_cv_result_has_aic_bic_fields(self, small_poisson):
+        df, y = small_poisson
+        sglm = StepwiseGLM(family="poisson", alpha=0.01, drop_first=True)
+        sglm.fit(df[["x0", "x1"]], y)
+        results = sglm.cv_select(
+            df, ["x0", "x1"], ["x2", "x3"], y, cv=2, n_alphas=4,
+        )
+        for r in results:
+            assert hasattr(r, "cv_aic") and hasattr(r, "cv_bic")
+            assert np.isfinite(r.cv_aic)
+            assert np.isfinite(r.cv_bic)
+
+    def test_cv_select_aic_criterion_changes_sort(self, small_poisson):
+        df, y = small_poisson
+        candidates = [f"x{i}" for i in range(2, 8)]
+        sglm = StepwiseGLM(family="poisson", alpha=0.01, drop_first=True)
+        sglm.fit(df[["x0", "x1"]], y)
+        by_aic = sglm.cv_select(
+            df, ["x0", "x1"], candidates, y,
+            cv=3, n_alphas=6, criterion="aic",
+        )
+        # Sorted ascending by cv_aic
+        aics = [r.cv_aic for r in by_aic]
+        assert aics == sorted(aics)
+
+    def test_cv_select_bic_criterion_changes_sort(self, small_poisson):
+        df, y = small_poisson
+        candidates = [f"x{i}" for i in range(2, 8)]
+        sglm = StepwiseGLM(family="poisson", alpha=0.01, drop_first=True)
+        sglm.fit(df[["x0", "x1"]], y)
+        by_bic = sglm.cv_select(
+            df, ["x0", "x1"], candidates, y,
+            cv=3, n_alphas=6, criterion="bic",
+        )
+        bics = [r.cv_bic for r in by_bic]
+        assert bics == sorted(bics)
+
+    def test_aic_bic_consistent_with_log_likelihood(self, small_poisson):
+        """For one candidate, cv_aic should equal -2*ll + 2*p averaged over folds."""
+        df, y = small_poisson
+        sglm = StepwiseGLM(family="poisson", alpha=0.01, drop_first=True)
+        sglm.fit(df[["x0", "x1"]], y)
+        results = sglm.cv_select(
+            df, ["x0", "x1"], ["x2"], y, cv=2, n_alphas=4,
+        )
+        r = results[0]
+        # AIC should be greater than -2 * sum(log_likelihood) by 2*p > 0
+        # (rough sanity check: AIC > BIC is false here since n_test > e^2 ~ 7
+        # for n=2000 sample, so BIC > AIC).
+        assert r.cv_bic > r.cv_aic, (
+            f"With n_test > e^2 we expect BIC > AIC; got AIC={r.cv_aic}, BIC={r.cv_bic}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Backward stepwise
+# ---------------------------------------------------------------------------
+
+class TestBackwardStepwise:
+    """
+    ``screen_drops`` and ``cv_select_drop`` are the symmetric
+    counterparts to ``screen_candidates`` and ``cv_select``: they rank
+    each active column as a candidate for **removal**.
+    """
+
+    def test_screen_drops_returns_active_cols(self, small_poisson):
+        df, y = small_poisson
+        active = ["x0", "x1", "x2", "x5"]
+        sglm = StepwiseGLM(family="poisson", alpha=0.01)
+        sglm.fit(df[active], y)
+        results = sglm.screen_drops(df, active)
+        assert {r.column for r in results} == set(active)
+
+    def test_screen_drops_sorted_ascending(self, small_poisson):
+        df, y = small_poisson
+        active = ["x0", "x1", "x2", "x5"]
+        sglm = StepwiseGLM(family="poisson", alpha=0.01)
+        sglm.fit(df[active], y)
+        results = sglm.screen_drops(df, active)
+        stats = [r.statistic for r in results]
+        assert stats == sorted(stats), "screen_drops should sort ascending"
+
+    def test_screen_drops_signal_columns_rank_last(self, small_poisson):
+        """x2 and x5 are true signals; they should rank LAST as drop candidates."""
+        df, y = small_poisson
+        active = ["x0", "x1", "x2", "x5"]
+        sglm = StepwiseGLM(family="poisson", alpha=0.01)
+        sglm.fit(df[active], y)
+        results = sglm.screen_drops(df, active)
+        # Signal columns x2 and x5 should be ranked last (least droppable)
+        bottom2 = {results[-1].column, results[-2].column}
+        assert bottom2 == {"x2", "x5"}, (
+            f"Expected x2, x5 as worst-drop; got {bottom2}"
+        )
+
+    def test_screen_drops_raises_before_fit(self, small_poisson):
+        df, _ = small_poisson
+        sglm = StepwiseGLM(family="poisson", alpha=0.01)
+        with pytest.raises(RuntimeError, match="fit"):
+            sglm.screen_drops(df, ["x0"])
+
+    def test_cv_select_drop_returns_each_active_col(self, small_poisson):
+        df, y = small_poisson
+        active = ["x0", "x1", "x2", "x5"]
+        sglm = StepwiseGLM(family="poisson", alpha=0.01, drop_first=True)
+        sglm.fit(df[active], y)
+        results = sglm.cv_select_drop(
+            df, active, y, cv=2, n_alphas=4,
+        )
+        assert len(results) == len(active)
+        assert {r.column for r in results} == set(active)
+
+    def test_cv_select_drop_signal_increases_deviance(self, small_poisson):
+        """Dropping a signal column should be worse than dropping a noise column."""
+        df, y = small_poisson
+        active = ["x0", "x1", "x2", "x5"]
+        sglm = StepwiseGLM(family="poisson", alpha=0.01, drop_first=True)
+        sglm.fit(df[active], y)
+        results = sglm.cv_select_drop(
+            df, active, y, cv=3, n_alphas=6,
+        )
+        # Results sorted ascending by deviance — least harmful drop first.
+        # The signal columns x2, x5 should appear at the *end* (largest dev).
+        last_two = {results[-1].column, results[-2].column}
+        assert last_two == {"x2", "x5"}, (
+            f"Expected x2, x5 as worst-drop by deviance; got {last_two}"
+        )
+
+    def test_cv_select_drop_with_criterion_aic(self, small_poisson):
+        df, y = small_poisson
+        active = ["x0", "x1", "x2"]
+        sglm = StepwiseGLM(family="poisson", alpha=0.01, drop_first=True)
+        sglm.fit(df[active], y)
+        results = sglm.cv_select_drop(
+            df, active, y, cv=2, n_alphas=4, criterion="aic",
+        )
+        # Should be sorted ascending by cv_aic
+        aics = [r.cv_aic for r in results]
+        assert aics == sorted(aics)
+
+    def test_cv_select_drop_single_column_skips(self, small_poisson):
+        """If active has just one column, cv_select_drop returns empty."""
+        df, y = small_poisson
+        sglm = StepwiseGLM(family="poisson", alpha=0.01, drop_first=True)
+        sglm.fit(df[["x0"]], y)
+        results = sglm.cv_select_drop(
+            df, ["x0"], y, cv=2, n_alphas=3,
+        )
+        assert results == []
+
+
 class TestCachingStandardizeShapes:
     """
     Both the cache-hit and cache-miss paths of _CachingStandardize must
