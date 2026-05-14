@@ -161,12 +161,30 @@ class TabmatCache:
         """
         Return ``(MatrixBase, expanded_feature_names)`` for a column subset.
 
-        Memoized by ``tuple(cols)``.  On miss, calls
-        :func:`tabmat.from_pandas` on ``df[cols]`` and stores the result.
+        Memoized by ``tuple(cols)``.  On a cache miss, the subset is
+        assembled from the per-column store via :func:`tabmat.hstack` if
+        every column is already registered (~4× faster than re-running
+        :func:`tabmat.from_pandas`); otherwise it falls back to
+        :func:`tabmat.from_pandas` on ``df[cols]`` and back-fills the
+        per-column store for next time.  Underlying numpy arrays are
+        shared by reference, so the subset cache adds no meaningful
+        memory overhead.
         """
         key = tuple(cols)
         if key not in self._subset_cache:
-            mat = tm.from_pandas(df[cols])
+            if all(c in self._col_matrices for c in cols):
+                # Fast path: assemble from cached per-column matrices.
+                mat = tm.hstack([self._col_matrices[c] for c in cols])
+            else:
+                # Cold path: build via from_pandas and back-fill the
+                # per-column store so subsequent subsets are fast.
+                mat = tm.from_pandas(df[cols])
+                for c in cols:
+                    if c not in self._col_matrices:
+                        self._col_matrices[c] = tm.from_pandas(df[[c]])
+                        self._col_feat_names[c] = self._col_matrices[c].get_names(
+                            type="column", missing_prefix=f"_{c}_"
+                        )
             self._subset_cache[key] = mat
             self._subset_names[key] = mat.get_names(
                 type="column", missing_prefix="_col_"

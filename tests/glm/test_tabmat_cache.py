@@ -84,6 +84,33 @@ class TestColumnSubsetCache:
         assert m1.shape != m2.shape
         assert m1 is not m2
 
+    def test_get_subset_fast_path_after_register(self, cache, numeric_df):
+        """After register_cols, subset miss is built via hstack of cached cols."""
+        cache.register_cols(numeric_df)
+        # All cols registered → subset miss takes the hstack fast path.
+        # We can't directly observe which path was taken, but we can verify
+        # the result is equivalent to from_pandas (correctness) and that
+        # the per-column store was NOT re-populated on the miss.
+        n_cols_before = cache.stats()["n_cols"]
+        m, _ = cache.get_subset(numeric_df, ["x0", "x1", "x2", "x3"])
+        n_cols_after = cache.stats()["n_cols"]
+        # No new per-column entries created — hstack reused the cached ones
+        assert n_cols_before == n_cols_after
+        # Correctness: assembled matrix matches a fresh from_pandas
+        import tabmat as tm
+        ref = tm.from_pandas(numeric_df[["x0", "x1", "x2", "x3"]])
+        np.testing.assert_allclose(m.toarray(), ref.toarray())
+
+    def test_get_subset_cold_path_backfills_per_col(self, cache, numeric_df):
+        """Cold subset miss (without register_cols) should back-fill per-col."""
+        # Don't register any cols up front
+        assert cache.stats()["n_cols"] == 0
+        m, _ = cache.get_subset(numeric_df, ["x0", "x1", "x2"])
+        # Per-column store should now contain those 3 columns
+        assert cache.stats()["n_cols"] == 3
+        for c in ["x0", "x1", "x2"]:
+            assert c in cache
+
     def test_col_feat_names_numeric(self, cache, numeric_df):
         cache.register_cols(numeric_df)
         names = cache.col_feat_names("x0")
