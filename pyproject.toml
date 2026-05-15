@@ -83,3 +83,6 @@ filterwarnings = [
     "ignore:.*distutils.*:UserWarning:.*",
     "ignore:.*The 'u' format is deprecated.*:DeprecationWarning:pywintypes",
 ]
+# Note: pytest's runtime config comes from pytest.ini (which takes
+# precedence over this section).  The `memory` marker and the
+# default `-m "not memory"` selection are registered there.

@@ -17,6 +17,7 @@ from ._link import CloglogLink, IdentityLink, Link, LogitLink, LogLink, TweedieL
 from ._stepwise import CVResult, ScoreTestResult, StepwiseGLM
 from ._cache_backend import CacheBackend, LocalFileBackend
 from ._managed_cache import managed_cache
+from ._memory import estimate_memory
 from ._tabmat_cache import (
     CacheVersionError,
     SourceFingerprintError,
@@ -57,6 +58,7 @@ __all__ = [
     "CacheBackend",
     "LocalFileBackend",
     "managed_cache",
+    "estimate_memory",
     "get_family",
     "get_link",
 ]

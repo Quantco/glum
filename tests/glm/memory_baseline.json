@@ -1,0 +1,72 @@
+{
+  "high_cardinality": {
+    "bottleneck": "hessian",
+    "cache_MB": 0.0,
+    "coef_MB": 2.0004,
+    "data_MB": 95.2,
+    "hessian_MB": 20008.0008,
+    "p_expanded": 50010,
+    "total_MB": 20161.2012,
+    "transient_MB": 56.0
+  },
+  "insurance_typical": {
+    "bottleneck": "data",
+    "cache_MB": 0.0,
+    "coef_MB": 0.00184,
+    "data_MB": 43.395456,
+    "hessian_MB": 0.016928,
+    "p_expanded": 46,
+    "total_MB": 81.382952,
+    "transient_MB": 37.968728
+  },
+  "insurance_with_zip": {
+    "bottleneck": "hessian",
+    "cache_MB": 0.0,
+    "coef_MB": 0.2002,
+    "data_MB": 35.576676,
+    "hessian_MB": 200.4002,
+    "p_expanded": 5005,
+    "total_MB": 274.145804,
+    "transient_MB": 37.968728
+  },
+  "lbfgs_workload": {
+    "bottleneck": "data",
+    "cache_MB": 0.0,
+    "coef_MB": 0.202,
+    "data_MB": 41.52,
+    "hessian_MB": 0.808,
+    "p_expanded": 5050,
+    "total_MB": 48.13,
+    "transient_MB": 5.6
+  },
+  "square_ish": {
+    "bottleneck": "data",
+    "cache_MB": 0.0,
+    "coef_MB": 0.008,
+    "data_MB": 80.4,
+    "hessian_MB": 0.32,
+    "p_expanded": 200,
+    "total_MB": 83.528,
+    "transient_MB": 2.8
+  },
+  "tall_narrow": {
+    "bottleneck": "data",
+    "cache_MB": 0.0,
+    "coef_MB": 0.0012,
+    "data_MB": 1240.0,
+    "hessian_MB": 0.0072,
+    "p_expanded": 30,
+    "total_MB": 1520.0084,
+    "transient_MB": 280.0
+  },
+  "wide_insurance": {
+    "bottleneck": "data",
+    "cache_MB": 0.0,
+    "coef_MB": 0.006,
+    "data_MB": 268.8064,
+    "hessian_MB": 0.18,
+    "p_expanded": 150,
+    "total_MB": 302.5924,
+    "transient_MB": 33.6
+  }
+}
