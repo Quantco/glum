@@ -41,7 +41,7 @@ jobs:
           - { os: ubuntu-latest, environment: 'py311' }
           - { os: ubuntu-latest, environment: 'py312' }
           - { os: ubuntu-latest, environment: 'py313' }
-          - { os: windows-latest, environment: 'py313' }
+          - { os: windows-2022, environment: 'py313' }
           - { os: macos-latest, environment: 'py313' }
           - { os: ubuntu-latest, environment: 'oldies' }
           - { os: ubuntu-latest, environment: 'nightly' }
