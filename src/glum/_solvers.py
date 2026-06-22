@@ -899,7 +899,6 @@ def _lbfgs_solver(
         func,
         coef,
         fprime=None,
-        iprint=(verbose > 0) - 1,
         pgtol=tol,
         maxiter=max_iter,
         factr=1e2,
