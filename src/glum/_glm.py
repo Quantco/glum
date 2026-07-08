@@ -2045,11 +2045,10 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
                         "or pass a contiguous matrix."
                     )
 
-                # Backwards compatibility
+                # Backwards compatibility: write to private backing attr to avoid
+                # triggering the deprecated feature_dtypes_ setter.
                 if isinstance(X, pd.DataFrame):
-                    with warnings.catch_warnings():
-                        warnings.filterwarnings("ignore")
-                        self.feature_dtypes_ = X.dtypes.to_dict()
+                    self._feature_dtypes_ = X.dtypes.to_dict()
 
                 X = cast(nw.DataFrame, nw.from_native(X))  # avoid inferring `Never`
 
