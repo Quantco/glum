@@ -237,7 +237,6 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         raise AttributeError("No categorical levels stored.")
 
     @property
-    @deprecated("Use `categorical_levels_` instead.")
     def feature_dtypes_(self) -> dict[str, Any]:
         return self._feature_dtypes_
 
