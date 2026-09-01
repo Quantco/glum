@@ -7,6 +7,13 @@
 Changelog
 =========
 
+Unreleased
+----------
+
+**Other changes:**
+
+- Removed scikit-learn from build dependencies.
+
 3.4.1 - 2026-05-06
 ------------------
 
