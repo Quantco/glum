@@ -5,7 +5,6 @@ requires = [
   'wheel',
   'Cython',
   'numpy>=1.25',
-  'scikit-learn',
 ]
 
 [tool.ruff]
