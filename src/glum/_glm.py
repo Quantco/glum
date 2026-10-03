@@ -48,6 +48,7 @@ from ._solvers import (
     _tikhonov_solver,
     _trust_constr_solver,
 )
+from ._term_layout import TermLayout
 from ._typing import (
     ArrayLike,
     ShapedArrayLike,
@@ -2160,6 +2161,9 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
 
         self.feature_names_ = X.get_names(type="column", missing_prefix="_col_")  # type: ignore
         self.term_names_ = X.get_names(type="term", missing_prefix="_col_")
+        self.term_layout_ = TermLayout.from_term_names(
+            self.term_names_, self.fit_intercept
+        )
 
         return X, y, sample_weight, offset, weights_sum, P1, P2  # type: ignore
 
