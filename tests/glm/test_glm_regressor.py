@@ -1616,6 +1616,34 @@ def test_categorical_types(k, n, namespace):
     np.testing.assert_allclose(pred_cat_oh, pred_oh_cat)
 
 
+def test_polars_categorical_levels():
+    """Polars categorical levels must match tabmat's (sorted) column order.
+
+    Neither unrelated categories from polars' global category pool nor the
+    order of appearance may leak into ``categorical_levels_``.
+    """
+    rng = np.random.default_rng(0)
+    group = rng.choice(["c", "a", "b"], size=200)
+    group[0] = "c"  # order of appearance differs from sorted order
+    y = rng.normal(size=200) + np.select([group == "b", group == "c"], [1.0, 5.0])
+
+    pl.Series(["unrelated"], dtype=pl.Categorical)  # pollute global category pool
+    X_pl = pl.DataFrame({"group": pl.Series(group, dtype=pl.Categorical)})
+    X_pd = pd.DataFrame({"group": pd.Categorical(group)})
+
+    model_pl = GeneralizedLinearRegressor(alpha=0).fit(X_pl, y)
+    model_pd = GeneralizedLinearRegressor(alpha=0).fit(X_pd, y)
+
+    assert model_pl.categorical_levels_ == {"group": ["a", "b", "c"]}
+    np.testing.assert_allclose(model_pl.coef_, model_pd.coef_)
+
+    new = ["a", "b", "c"]
+    np.testing.assert_allclose(
+        model_pl.predict(pl.DataFrame({"group": pl.Series(new, dtype=pl.Categorical)})),
+        model_pd.predict(pd.DataFrame({"group": pd.Categorical(new)})),
+    )
+
+
 @pytest.mark.parametrize(
     "kwargs", [{"alpha_search": True, "alpha": [1, 0.5, 0.1, 0.01]}, {"alpha": 0.1}]
 )
