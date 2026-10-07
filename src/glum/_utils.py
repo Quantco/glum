@@ -11,6 +11,19 @@ from scipy import sparse
 _logger = logging.getLogger(__name__)
 
 
+def get_categories(series: nw.Series) -> list:
+    """Get the categories of a categorical series, in tabmat's column order.
+
+    Polars ``Categorical`` (unlike ``Enum``) has no per-column category list:
+    ``get_categories()`` returns polars' global category pool (polars < 2.0) or
+    the values present in order of appearance (polars >= 2.0). Use the sorted
+    unique values instead, as tabmat does.
+    """
+    if series.implementation.is_polars() and isinstance(series.dtype, nw.Categorical):
+        return series.drop_nulls().unique().sort().to_list()
+    return series.cat.get_categories().to_list()
+
+
 def align_df_categories(
     df: nw.DataFrame,
     categorical_levels: dict[str, list[str]],
@@ -152,17 +165,10 @@ def expand_categorical_penalties(
             )
 
         expanded_penalty = []  # type: ignore
-        backend = nw.get_native_namespace(X).__name__
 
         for element, (column, dt) in zip(penalty, X.schema.items()):
             if isinstance(dt, (nw.Enum, nw.Categorical)):
-                # For Polars Categorical (not Enum), avoid .cat.get_categories()
-                # due to string cache issues. Enum is safe to use.
-                if backend == "polars" and isinstance(dt, nw.Categorical):
-                    num_categories = len(X[column].unique().drop_nulls())
-                else:
-                    num_categories = len(X[column].cat.get_categories())
-
+                num_categories = len(get_categories(X[column]))
                 length = num_categories + has_missing_category[column] - drop_first
                 expanded_penalty.extend(element for _ in range(length))
             else:
