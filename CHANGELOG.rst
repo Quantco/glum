@@ -10,6 +10,10 @@ Changelog
 Unreleased
 ----------
 
+**Bug fix:**
+
+- Fixed ``monotonic_constraints`` raising ``ValueError`` when a formula term contains square brackets, e.g. ``bs(x, knots=[15, 20, 30])``.
+
 **Other changes:**
 
 - Removed scikit-learn from build dependencies.
