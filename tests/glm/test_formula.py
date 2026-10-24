@@ -404,6 +404,22 @@ def test_monotonic_constraints_spline(direction, estimator_cls):
     assert all(sign * diffs >= -1e-8)
 
 
+def test_monotonic_constraints_spline_explicit_knots_list():
+    """Brackets inside the factor name (knots=[...]) don't break constraints."""
+    x, y = _make_spline_constraint_data()
+    df = pd.DataFrame({"x": x, "y": y})
+    model = GeneralizedLinearRegressor(
+        formula="y ~ bs(x, knots=[0.3, 0.5, 0.7], degree=3) - 1",
+        monotonic_constraints={"x": "increasing"},
+        alpha=0.1,
+        l1_ratio=0,
+        fit_intercept=False,
+        gradient_tol=1e-8,
+    )
+    model.fit(df)
+    assert all(np.diff(model.coef_) >= -1e-8)
+
+
 def test_monotonic_constraints_categorical_drop_first():
     """Monotonic constraints work with C() and drop_first=True."""
     rng = np.random.default_rng(0)
