@@ -62,7 +62,7 @@ def parse_formula(
 
 _FACTOR_RE = re.compile(
     r"""
-    (?P<name>.+?)          # factor name (may itself contain brackets, e.g. knots=[1, 2])
+    (?P<name>.+?)          # factor name, may contain brackets (e.g. knots=[1, 2])
     (?:\[(?P<idx>[^\]]*)\])?  # optional trailing bracketed index
     """,
     re.VERBOSE,
