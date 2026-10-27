@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import ast
 import re
 from collections import defaultdict
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from typing import Any
 
 import formulaic
@@ -128,13 +129,18 @@ def _build_monotonic_constraints(
     n_features: int | None = None,
     *,
     separator: str = ":",
+    anchored: Mapping[str, Collection[str]] | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Build ``(A_ineq, b_ineq)`` enforcing monotonicity on ordered terms.
 
     Multi-column terms (splines, ordered categoricals) get consecutive-pair
     constraints; single-column terms get a sign constraint.  Interactions
-    are constrained within each level of the other factor(s).
+    are constrained within each level of the other factor(s).  Columns in
+    ``anchored[factor]`` lack their first (implicitly zero) column, so the
+    first coefficient also gets a sign constraint.
     """
+    if anchored is None:
+        anchored = {}
     if n_features is None:
         n_features = len(feature_names)
 
@@ -166,6 +172,11 @@ def _build_monotonic_constraints(
                 row[members[0][0]] = -sign
                 rows.append(row)
             else:
+                anchored_cols = anchored.get(factor_name, ())
+                if any(feature_names[idx] in anchored_cols for idx, _ in members):
+                    row = np.zeros(n_features)
+                    row[members[0][0]] = -sign
+                    rows.append(row)
                 for (idx_i, _), (idx_j, _) in zip(members[:-1], members[1:]):
                     row = np.zeros(n_features)
                     row[idx_i] = sign
@@ -177,19 +188,54 @@ def _build_monotonic_constraints(
     return A_ineq, b_ineq
 
 
+def _drops_first_basis(factor_name: str) -> bool:
+    """Whether ``factor_name`` is a ``bs()`` call without ``include_intercept``."""
+    try:
+        node = ast.parse(factor_name, mode="eval").body
+    except SyntaxError:
+        return False
+    if not (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "bs"
+    ):
+        return False
+    include_intercept: ast.expr | None
+    if len(node.args) > 4:
+        include_intercept = node.args[4]
+    else:
+        include_intercept = next(
+            (kw.value for kw in node.keywords if kw.arg == "include_intercept"),
+            None,
+        )
+    if include_intercept is None:
+        return True
+    try:
+        return not ast.literal_eval(include_intercept)
+    except ValueError:
+        return False
+
+
 def _resolve_monotonic_constraints_from_model_spec(
     model_spec,
     monotonic_constraints: Mapping[str, str],
-) -> dict[str, str]:
-    """Map variable names (e.g. ``"x"``) to factor names (e.g. ``"bs(x, df=5)"``)."""
+) -> tuple[dict[str, str], dict[str, set[str]]]:
+    """Map variable names (e.g. ``"x"``) to factor names (e.g. ``"bs(x, df=5)"``).
+
+    Also return the ``anchored`` columns per factor (see
+    ``_build_monotonic_constraints``).
+    """
     _INCOMPATIBLE_TRANSFORMS = ("poly(", "cc(")
 
     var_to_factors: dict[str, list[tuple[str, int]]] = defaultdict(list)
+    anchored: dict[str, set[str]] = defaultdict(set)
 
     for _term, scoped_terms, column_names in model_spec.structure:
         for st in scoped_terms:
             for f in st.factors:
                 factor_name = str(f).rstrip("-+")
+                if str(f).endswith("-") or _drops_first_basis(factor_name):
+                    anchored[factor_name].update(column_names)
                 data_vars = {
                     str(v)
                     for v in f.factor.variables
@@ -215,4 +261,4 @@ def _resolve_monotonic_constraints_from_model_spec(
                     )
             result[factor_name] = direction
 
-    return result
+    return result, {name: anchored[name] for name in result if name in anchored}

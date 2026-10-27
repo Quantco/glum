@@ -14,6 +14,7 @@ Unreleased
 
 - Fixed ``categorical_levels_`` for polars ``Categorical`` columns not matching the design matrix columns. This could cause wrong predictions or errors in ``predict``.
 - Fixed ``monotonic_constraints`` raising ``ValueError`` when a formula term contains square brackets, e.g. ``bs(x, knots=[15, 20, 30])``.
+- Fixed ``monotonic_constraints`` not giving a monotone fitted effect when the first spline basis or categorical level is dropped.
 
 **Other changes:**
 

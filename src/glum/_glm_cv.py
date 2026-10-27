@@ -232,6 +232,13 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         Constraint vector for linear inequality constraints of the form
         ``A_ineq w <= b_ineq``.
 
+    monotonic_constraints : dict, optional (default=None)
+        Mapping from variable names in ``formula`` (e.g. ``"x"``) to
+        ``"increasing"`` or ``"decreasing"``. Requires ``formula``. Orders
+        consecutive coefficients of multi-column terms (including an implicit
+        zero for a dropped first column) and constrains the sign of
+        single-column terms. ``poly()`` and ``cc()`` are not supported.
+
     cv : int, cross-validation generator or Iterable, optional (default=None)
         Determines the cross-validation splitting strategy. One of:
 

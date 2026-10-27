@@ -491,6 +491,35 @@ def test_monotonic_constraints_categorical_drop_first():
 
 
 @pytest.mark.parametrize("direction", ["increasing", "decreasing"])
+@pytest.mark.parametrize(
+    "formula, var, kwargs",
+    [
+        ("y ~ bs(x, df=4)", "x", {}),
+        ("y ~ C(e)", "e", {"drop_first": True}),
+    ],
+    ids=["bs", "categorical_drop_first"],
+)
+def test_monotonic_constraints_predictions_with_intercept(
+    direction, formula, var, kwargs
+):
+    # The trend opposes the constraint, so the fitted effect must be flat,
+    # including the dropped (implicitly zero) first column.
+    sign = 1 if direction == "increasing" else -1
+    rng = np.random.default_rng(0)
+    df = pd.DataFrame({"x": rng.uniform(0, 1, 1000), "e": rng.integers(0, 4, 1000)})
+    df["y"] = -sign * (df["x"] + 0.2 * df["e"]) + rng.normal(0, 0.05, 1000)
+
+    model = GeneralizedLinearRegressor(
+        formula=formula, alpha=0, monotonic_constraints={var: direction}, **kwargs
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        model.fit(df)
+
+    assert all(sign * np.diff(model.predict(df.sort_values(var))) >= -1e-6)
+
+
+@pytest.mark.parametrize("direction", ["increasing", "decreasing"])
 def test_monotonic_constraints_spline_interaction(direction):
     """Spline x categorical: coefficients ordered within each group level."""
     sign = 1 if direction == "increasing" else -1

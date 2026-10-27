@@ -1946,7 +1946,7 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
     ) -> tuple[np.ndarray, np.ndarray]:
         """Resolve ``monotonic_constraints`` to ``(A_ineq, b_ineq)``."""
         assert self.monotonic_constraints is not None
-        factor_constraints = _resolve_monotonic_constraints_from_model_spec(
+        factor_constraints, anchored = _resolve_monotonic_constraints_from_model_spec(
             self.X_model_spec_,
             self.monotonic_constraints,
         )
@@ -1955,6 +1955,7 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
             self.feature_names_,
             factor_constraints,
             separator=self.interaction_separator,
+            anchored=anchored,
         )
 
     def _set_up_and_check_fit_args(
@@ -2445,6 +2446,13 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         Constraint vector for linear inequality constraints of the form
         ``A_ineq w <= b_ineq``. Refer to the documentation of ``A_ineq`` for
         details.
+
+    monotonic_constraints : dict, optional (default=None)
+        Mapping from variable names in ``formula`` (e.g. ``"x"``) to
+        ``"increasing"`` or ``"decreasing"``. Requires ``formula``. Orders
+        consecutive coefficients of multi-column terms (including an implicit
+        zero for a dropped first column) and constrains the sign of
+        single-column terms. ``poly()`` and ``cc()`` are not supported.
 
     drop_first : bool, optional (default = False)
         If ``True``, drop the first column when encoding categorical variables.
