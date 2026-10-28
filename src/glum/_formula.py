@@ -62,8 +62,8 @@ def parse_formula(
 
 _FACTOR_RE = re.compile(
     r"""
-    (?P<name>[^:\[\]]+)    # factor name — everything up to ':', '[', or ']'
-    (?:\[(?P<idx>[^\]]*)\])?  # optional bracketed index
+    (?P<name>.+\)|[^\[\]]+)  # a call f(...), which may contain brackets, or a bare name
+    (?:\[(?P<idx>.*)\])?     # optional index: everything up to the final ']'
     """,
     re.VERBOSE,
 )

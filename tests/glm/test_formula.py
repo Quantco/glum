@@ -11,7 +11,11 @@ import statsmodels.formula.api as smf
 from scipy import sparse as sp
 from sklearn.preprocessing import SplineTransformer
 
-from glum._formula import _build_monotonic_constraints, parse_formula
+from glum._formula import (
+    _build_monotonic_constraints,
+    _parse_column_name,
+    parse_formula,
+)
 from glum._glm import GeneralizedLinearRegressor
 from glum._glm_cv import GeneralizedLinearRegressorCV
 
@@ -402,6 +406,66 @@ def test_monotonic_constraints_spline(direction, estimator_cls):
 
     diffs = np.diff(model.coef_)
     assert all(sign * diffs >= -1e-8)
+
+
+def test_monotonic_constraints_spline_explicit_knots_list():
+    """Brackets inside the factor name (knots=[...]) don't break constraints."""
+    x, y = _make_spline_constraint_data()
+    df = pd.DataFrame({"x": x, "y": y})
+    model = GeneralizedLinearRegressor(
+        formula="y ~ bs(x, knots=[0.3, 0.5, 0.7], degree=3) - 1",
+        monotonic_constraints={"x": "increasing"},
+        alpha=0.1,
+        l1_ratio=0,
+        fit_intercept=False,
+        gradient_tol=1e-8,
+    )
+    model.fit(df)
+    assert all(np.diff(model.coef_) >= -1e-8)
+
+
+@pytest.mark.parametrize(
+    "col, expected",
+    [
+        ("x", [("x", None)]),
+        ("g[a]", [("g", "a")]),
+        ("C(g)[T.a]", [("C(g)", "T.a")]),
+        ("bs(x, knots=[1, 2])", [("bs(x, knots=[1, 2])", None)]),
+        ("bs(x, knots=[1, 2])[3]", [("bs(x, knots=[1, 2])", "3")]),
+        (
+            "bs(x, knots=[1, 2])[3]:C(g)[b]",
+            [("bs(x, knots=[1, 2])", "3"), ("C(g)", "b")],
+        ),
+        ("C(g, levels=['a', 'b'])[a]", [("C(g, levels=['a', 'b'])", "a")]),
+        ("g[test[9]]", [("g", "test[9]")]),
+        ("C(g)[T.test[9]]", [("C(g)", "T.test[9]")]),
+    ],
+)
+def test_parse_column_name(col, expected):
+    assert _parse_column_name(col) == expected
+
+
+def test_monotonic_constraints_categorical_levels_with_brackets():
+    """Levels containing brackets (e.g. 'lvl[0]') are still constrained."""
+    rng = np.random.default_rng(0)
+    n = 120
+    levels = [f"lvl[{i}]" for i in range(4)]
+    codes = np.tile(np.arange(4), n // 4)
+    # True effect is decreasing, so an increasing constraint must bind.
+    y = 1.0 - 0.2 * codes + rng.normal(0, 0.02, n)
+    df = pd.DataFrame(
+        {"g": pd.Categorical.from_codes(codes, categories=levels), "y": y}
+    )
+
+    model = GeneralizedLinearRegressor(
+        formula="y ~ C(g) - 1",
+        alpha=1e-6,
+        fit_intercept=False,
+        monotonic_constraints={"g": "increasing"},
+    )
+    model.fit(df)
+
+    assert all(np.diff(model.coef_) >= -1e-8)
 
 
 def test_monotonic_constraints_categorical_drop_first():
