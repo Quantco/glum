@@ -10,6 +10,10 @@ Changelog
 Unreleased
 ----------
 
+**Bug fix:**
+
+- Fixed ``categorical_levels_`` for polars ``Categorical`` columns not matching the design matrix columns. This could cause wrong predictions or errors in ``predict``.
+
 **Other changes:**
 
 - Removed scikit-learn from build dependencies.

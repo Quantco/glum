@@ -59,6 +59,7 @@ from ._utils import (
     add_missing_categories,
     align_df_categories,
     expand_categorical_penalties,
+    get_categories,
     is_contiguous,
     safe_toarray,
     standardize,
@@ -2052,7 +2053,7 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
                 X = cast(nw.DataFrame, nw.from_native(X))  # avoid inferring `Never`
 
                 self._categorical_levels_ = {
-                    col: X[col].cat.get_categories().to_list()
+                    col: get_categories(X[col])
                     for col, dtype in X.schema.items()
                     if isinstance(dtype, (nw.Categorical, nw.Enum))
                 }
