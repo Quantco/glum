@@ -189,16 +189,14 @@ def _build_monotonic_constraints(
 
 
 def _drops_first_basis(factor_name: str) -> bool:
-    """Whether ``factor_name`` is a ``bs()`` call without ``include_intercept``."""
+    """Check whether the factor is a ``bs()`` spline with its first basis dropped."""
+    if not factor_name.startswith("bs("):
+        return False
     try:
         node = ast.parse(factor_name, mode="eval").body
     except SyntaxError:
         return False
-    if not (
-        isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Name)
-        and node.func.id == "bs"
-    ):
+    if not isinstance(node, ast.Call):
         return False
     include_intercept: ast.expr | None
     if len(node.args) > 4:
