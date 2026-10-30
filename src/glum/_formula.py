@@ -196,7 +196,7 @@ def _drops_first_basis(factor_name: str) -> bool:
         node = ast.parse(factor_name, mode="eval").body
     except SyntaxError:  # e.g. a backtick-quoted column named "bs(x"
         return False
-    if not isinstance(node, ast.Call):  # e.g. "bs(x)[0]"; also narrows the type
+    if not isinstance(node, ast.Call):  # e.g. "bs(x)[1]"; also narrows the type
         return False
     include_intercept: ast.expr | None
     if len(node.args) > 4:  # passed positionally as the 5th argument
