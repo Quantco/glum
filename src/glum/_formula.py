@@ -213,10 +213,14 @@ def _resolve_monotonic_constraints_from_model_spec(
     dropped_first: set[tuple[str, str]] = set()
 
     for _term, scoped_terms, column_names in model_spec.structure:
+        # A term like C(a):C(b) without main effects splits into several scoped
+        # terms, but column_names does not say which columns each one emitted, so
+        # we only trust a factor's "reduced" flag if there is one scope.
+        single_scope = len(scoped_terms) == 1
         for st in scoped_terms:
             for f in st.factors:
                 factor_name = str(f).rstrip("-+")
-                if _drops_first_column(model_spec, f):
+                if single_scope and _drops_first_column(model_spec, f):
                     dropped_first.update((factor_name, col) for col in column_names)
                 data_vars = {
                     str(v)

@@ -14,6 +14,7 @@ from sklearn.preprocessing import SplineTransformer
 from glum._formula import (
     _build_monotonic_constraints,
     _parse_column_name,
+    _resolve_monotonic_constraints_from_model_spec,
     parse_formula,
 )
 from glum._glm import GeneralizedLinearRegressor
@@ -540,6 +541,37 @@ def test_monotonic_constraints_predictions_with_intercept(
     for level in ["a", "b"]:
         diffs = np.diff(pred[(df["g"] == level).to_numpy()])
         assert all(sign * diffs >= -1e-6)
+
+
+@pytest.mark.parametrize(
+    "formula, expected",
+    [
+        # C(a):C(b) without main effects splits into scopes where C(b) is reduced
+        # in one and full rank in the other; we can't tell the columns apart.
+        pytest.param("y ~ C(a):C(b)", set(), id="split_scopes"),
+        pytest.param(
+            "y ~ C(a) + C(a):C(b)",
+            {("C(a)", "C(a)[q]"), ("C(a)", "C(a)[r]")}
+            | {("C(b)", f"C(a)[{a}]:C(b)[{b}]") for a in "pqr" for b in "vw"},
+            id="single_scopes",
+        ),
+    ],
+)
+def test_monotonic_dropped_first_columns_with_interactions(formula, expected):
+    rng = np.random.default_rng(0)
+    n = 600
+    df = pd.DataFrame(
+        {"a": rng.choice(list("pqr"), n), "b": rng.choice(list("uvw"), n)}
+    )
+    df["y"] = rng.normal(size=n)
+
+    model = GeneralizedLinearRegressor(formula=formula, drop_first=True, alpha=0.01)
+    model.fit(df)
+
+    _, dropped_first = _resolve_monotonic_constraints_from_model_spec(
+        model.X_model_spec_, {"a": "increasing", "b": "increasing"}
+    )
+    assert dropped_first == expected
 
 
 def test_monotonic_constraints_full_spline_basis_not_anchored():
