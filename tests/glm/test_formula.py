@@ -14,6 +14,7 @@ from sklearn.preprocessing import SplineTransformer
 from glum._formula import (
     _build_monotonic_constraints,
     _parse_column_name,
+    _resolve_monotonic_constraints_from_model_spec,
     parse_formula,
 )
 from glum._glm import GeneralizedLinearRegressor
@@ -488,6 +489,107 @@ def test_monotonic_constraints_categorical_drop_first():
 
     diffs = np.diff(model.coef_)
     assert all(diffs >= -1e-8)
+
+
+@pytest.mark.parametrize("input", ["pandas", "polars"])
+@pytest.mark.parametrize("direction", ["increasing", "decreasing"])
+@pytest.mark.parametrize(
+    "formula, var, kwargs",
+    [
+        pytest.param("y ~ bs(x, df=4)", "x", {}, id="bs"),
+        pytest.param("y ~ bs(`x 2`, df=4)", "x 2", {}, id="bs_quoted"),
+        pytest.param(
+            "y ~ bs(x, df=4, include_intercept=flag)",
+            "x",
+            {"drop_first": True},
+            id="bs_context_drop_first",
+        ),
+        pytest.param("y ~ C(e)", "e", {"drop_first": True}, id="categorical"),
+        pytest.param(
+            "y ~ C(g) + bs(x, df=3):C(g)", "x", {"drop_first": True}, id="interaction"
+        ),
+    ],
+)
+def test_monotonic_constraints_predictions_with_intercept(
+    direction, formula, var, kwargs, input
+):
+    """The dropped (implicitly zero) first column is part of the monotone chain."""
+    # The trend opposes the constraint, so the fitted effect must be flat.
+    sign = 1 if direction == "increasing" else -1
+    rng = np.random.default_rng(0)
+    n = 1000
+    df = pd.DataFrame(
+        {
+            "x": rng.uniform(0, 1, n),
+            "e": rng.integers(0, 4, n),
+            "g": rng.choice(["a", "b"], n),
+        }
+    )
+    df["x 2"] = df["x"]
+    df["y"] = -sign * (df["x"] + 0.2 * df["e"]) + rng.normal(0, 0.05, n)
+    df = df.sort_values(var)
+    data = df if input == "pandas" else pl.from_pandas(df)
+
+    model = GeneralizedLinearRegressor(
+        formula=formula, alpha=0, monotonic_constraints={var: direction}, **kwargs
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        model.fit(data, context={"flag": True})
+
+    pred = model.predict(data, context={"flag": True})
+    for level in ["a", "b"]:
+        diffs = np.diff(pred[(df["g"] == level).to_numpy()])
+        assert all(sign * diffs >= -1e-6)
+
+
+@pytest.mark.parametrize(
+    "formula, expected",
+    [
+        # C(a):C(b) without main effects splits into scopes where C(b) is reduced
+        # in one and full rank in the other; we can't tell the columns apart.
+        pytest.param("y ~ C(a):C(b)", set(), id="split_scopes"),
+        pytest.param(
+            "y ~ C(a) + C(a):C(b)",
+            {("C(a)", "C(a)[q]"), ("C(a)", "C(a)[r]")}
+            | {("C(b)", f"C(a)[{a}]:C(b)[{b}]") for a in "pqr" for b in "vw"},
+            id="single_scopes",
+        ),
+    ],
+)
+def test_monotonic_dropped_first_columns_with_interactions(formula, expected):
+    rng = np.random.default_rng(0)
+    n = 600
+    df = pd.DataFrame(
+        {"a": rng.choice(list("pqr"), n), "b": rng.choice(list("uvw"), n)}
+    )
+    df["y"] = rng.normal(size=n)
+
+    model = GeneralizedLinearRegressor(formula=formula, drop_first=True, alpha=0.01)
+    model.fit(df)
+
+    _, dropped_first = _resolve_monotonic_constraints_from_model_spec(
+        model.X_model_spec_, {"a": "increasing", "b": "increasing"}
+    )
+    assert dropped_first == expected
+
+
+def test_monotonic_constraints_full_spline_basis_not_anchored():
+    """With ``include_intercept=True``, all coefficients are free to be negative."""
+    rng = np.random.default_rng(0)
+    df = pd.DataFrame({"x": rng.uniform(0, 1, 500)})
+    df["y"] = -1 + df["x"] + rng.normal(0, 0.05, 500)
+
+    model = GeneralizedLinearRegressor(
+        formula="y ~ bs(x, df=4, include_intercept=True) - 1",
+        fit_intercept=False,
+        alpha=0,
+        monotonic_constraints={"x": "increasing"},
+    )
+    model.fit(df)
+
+    assert model.coef_[0] < -0.5  # would be >= 0 if wrongly anchored
+    assert all(np.diff(model.coef_) >= -1e-8)
 
 
 @pytest.mark.parametrize("direction", ["increasing", "decreasing"])
