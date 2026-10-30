@@ -190,25 +190,25 @@ def _build_monotonic_constraints(
 
 def _drops_first_basis(factor_name: str) -> bool:
     """Check whether the factor is a ``bs()`` spline with its first basis dropped."""
-    if not factor_name.startswith("bs("):
+    if not factor_name.startswith("bs("):  # not a B-spline
         return False
     try:
         node = ast.parse(factor_name, mode="eval").body
     except SyntaxError:  # e.g. a backtick-quoted column named "bs(x"
         return False
-    if not isinstance(node, ast.Call):
+    if not isinstance(node, ast.Call):  # e.g. "bs(x)[0]"; also narrows the type
         return False
     include_intercept: ast.expr | None
-    if len(node.args) > 4:
+    if len(node.args) > 4:  # passed positionally as the 5th argument
         include_intercept = node.args[4]
-    else:
+    else:  # passed as a keyword, or not at all
         include_intercept = next(
             (kw.value for kw in node.keywords if kw.arg == "include_intercept"),
             None,
         )
-    if include_intercept is None:
+    if include_intercept is None:  # default include_intercept=False drops it
         return True
-    if isinstance(include_intercept, ast.Constant):
+    if isinstance(include_intercept, ast.Constant):  # literal True / False
         return not include_intercept.value
     return False  # non-literal, e.g. a context variable: can't tell
 
