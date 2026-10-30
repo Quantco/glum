@@ -206,7 +206,7 @@ def _drops_first_basis(factor_name: str) -> bool:
             (kw.value for kw in node.keywords if kw.arg == "include_intercept"),
             None,
         )
-    if include_intercept is None:  # default include_intercept=False drops it
+    if include_intercept is None:  # not passed; default False drops first basis
         return True
     if isinstance(include_intercept, ast.Constant):  # literal True / False
         return not include_intercept.value
