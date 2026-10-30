@@ -194,7 +194,7 @@ def _drops_first_basis(factor_name: str) -> bool:
         return False
     try:
         node = ast.parse(factor_name, mode="eval").body
-    except SyntaxError:
+    except SyntaxError:  # e.g. a backtick-quoted column named "bs(x"
         return False
     if not isinstance(node, ast.Call):
         return False
@@ -208,10 +208,9 @@ def _drops_first_basis(factor_name: str) -> bool:
         )
     if include_intercept is None:
         return True
-    try:
-        return not ast.literal_eval(include_intercept)
-    except ValueError:
-        return False
+    if isinstance(include_intercept, ast.Constant):
+        return not include_intercept.value
+    return False  # non-literal, e.g. a context variable: can't tell
 
 
 def _resolve_monotonic_constraints_from_model_spec(
