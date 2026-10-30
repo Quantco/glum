@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from collections import defaultdict
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from typing import Any
 
 import formulaic
@@ -128,12 +128,16 @@ def _build_monotonic_constraints(
     n_features: int | None = None,
     *,
     separator: str = ":",
+    dropped_first: Collection[tuple[str, str]] = (),
 ) -> tuple[np.ndarray, np.ndarray]:
     """Build ``(A_ineq, b_ineq)`` enforcing monotonicity on ordered terms.
 
     Multi-column terms (splines, ordered categoricals) get consecutive-pair
     constraints; single-column terms get a sign constraint.  Interactions
-    are constrained within each level of the other factor(s).
+    are constrained within each level of the other factor(s).  For
+    ``(factor, column)`` pairs in ``dropped_first``, the factor's first column
+    was dropped (its coefficient is implicitly zero), so the first remaining
+    coefficient also gets a sign constraint.
     """
     if n_features is None:
         n_features = len(feature_names)
@@ -166,6 +170,10 @@ def _build_monotonic_constraints(
                 row[members[0][0]] = -sign
                 rows.append(row)
             else:
+                if (factor_name, feature_names[members[0][0]]) in dropped_first:
+                    row = np.zeros(n_features)
+                    row[members[0][0]] = -sign
+                    rows.append(row)
                 for (idx_i, _), (idx_j, _) in zip(members[:-1], members[1:]):
                     row = np.zeros(n_features)
                     row[idx_i] = sign
@@ -177,19 +185,39 @@ def _build_monotonic_constraints(
     return A_ineq, b_ineq
 
 
+def _drops_first_column(model_spec, scoped_factor) -> bool:
+    """Whether the first column of ``scoped_factor`` was dropped."""
+    if scoped_factor.reduced:  # e.g. C(g) with drop_first=True
+        return True
+    # bs() omits its first basis function unless include_intercept=True. tabmat
+    # records this as formulaic's spans_intercept, separately for each column.
+    expr = scoped_factor.factor.expr
+    if not expr.startswith("bs("):
+        return False
+    _, state = model_spec.encoder_state.get(expr, (None, {}))
+    column_state: dict[str, Any] = next(iter(state.values()), {})
+    return column_state.get("spans_intercept") is False
+
+
 def _resolve_monotonic_constraints_from_model_spec(
     model_spec,
     monotonic_constraints: Mapping[str, str],
-) -> dict[str, str]:
-    """Map variable names (e.g. ``"x"``) to factor names (e.g. ``"bs(x, df=5)"``)."""
+) -> tuple[dict[str, str], set[tuple[str, str]]]:
+    """Map variable names (e.g. ``"x"``) to factor names (e.g. ``"bs(x, df=5)"``).
+
+    Also return the ``dropped_first`` pairs for ``_build_monotonic_constraints``.
+    """
     _INCOMPATIBLE_TRANSFORMS = ("poly(", "cc(")
 
     var_to_factors: dict[str, list[tuple[str, int]]] = defaultdict(list)
+    dropped_first: set[tuple[str, str]] = set()
 
     for _term, scoped_terms, column_names in model_spec.structure:
         for st in scoped_terms:
             for f in st.factors:
                 factor_name = str(f).rstrip("-+")
+                if _drops_first_column(model_spec, f):
+                    dropped_first.update((factor_name, col) for col in column_names)
                 data_vars = {
                     str(v)
                     for v in f.factor.variables
@@ -215,4 +243,4 @@ def _resolve_monotonic_constraints_from_model_spec(
                     )
             result[factor_name] = direction
 
-    return result
+    return result, dropped_first
