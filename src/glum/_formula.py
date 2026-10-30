@@ -213,9 +213,10 @@ def _resolve_monotonic_constraints_from_model_spec(
     dropped_first: set[tuple[str, str]] = set()
 
     for _term, scoped_terms, column_names in model_spec.structure:
-        # A term like C(a):C(b) without main effects splits into several scoped
-        # terms, but column_names does not say which columns each one emitted, so
-        # we only trust a factor's "reduced" flag if there is one scope.
+        # Due to Formulaic's limitation, we cannot always determine if a factor's
+        # "reduced" flag applies to all columns when there are multiple parts to a
+        # term. For those, we do not add a monotonic constraint based on the "reduced"
+        # flag, because it could be wrong.
         single_scope = len(scoped_terms) == 1
         for st in scoped_terms:
             for f in st.factors:
