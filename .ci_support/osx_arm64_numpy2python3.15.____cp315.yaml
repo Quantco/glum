@@ -5,7 +5,7 @@ MACOSX_SDK_VERSION:
 c_compiler:
 - clang
 c_compiler_version:
-- '18'
+- '21'
 c_stdlib:
 - macosx_deployment_target
 c_stdlib_version:
@@ -17,9 +17,9 @@ channel_targets:
 cxx_compiler:
 - clangxx
 cxx_compiler_version:
-- '18'
+- '21'
 llvm_openmp:
-- '18'
+- '21'
 macos_machine:
 - arm64-apple-darwin20.0.0
 numpy:
