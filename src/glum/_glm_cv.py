@@ -329,11 +329,14 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         Name of the category to which missing values will be converted if
         ``cat_missing_method='convert'``.  Only used if ``X`` is a pandas data frame.
 
-    col_means_: array, shape (n_features,)
+    col_means_ : array, shape (n_features,)
         The means of the columns of the design matrix ``X``.
 
-    col_stds_: array, shape (n_features,)
+    col_stds_ : array, shape (n_features,)
         The standard deviations of the columns of the design matrix ``X``.
+
+    feature_names_: list of str
+        The names of the coefficients.
     """
 
     def __init__(
