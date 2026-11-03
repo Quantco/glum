@@ -19,6 +19,9 @@ Unreleased
 **Other changes:**
 
 - Removed scikit-learn from build dependencies.
+- Require Python>=3.11, since conda-forge no longer supports Python 3.10. No Python 3.10 wheels are built or uploaded to PyPI any more.
+- Added ``py314`` and ``py315`` test environments, and a conda package build for Python 3.15.
+- Removed the ``py310`` test environment and moved the ``oldies`` environment and the conda package builds from Python 3.10 to 3.11, since conda-forge no longer supports Python 3.10. The ``oldies`` pins for pandas (1.5), scikit-learn (1.1.3) and scipy (1.9) were raised to the oldest releases with Python 3.11 builds.
 
 3.4.1 - 2026-05-06
 ------------------

@@ -63,14 +63,15 @@ setup(
     license="BSD",
     classifiers=[  # Optional
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
         "Programming Language :: Python :: 3.13",
+        "Programming Language :: Python :: 3.14",
+        "Programming Language :: Python :: 3.15",
     ],
     package_dir={"": "src"},
     packages=find_packages(where="src", include=["glum"]),
-    python_requires=">=3.10",
+    python_requires=">=3.11",
     install_requires=[
         "formulaic>=1.2.0",
         "joblib",
