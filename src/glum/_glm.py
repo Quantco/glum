@@ -1946,15 +1946,18 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
     ) -> tuple[np.ndarray, np.ndarray]:
         """Resolve ``monotonic_constraints`` to ``(A_ineq, b_ineq)``."""
         assert self.monotonic_constraints is not None
-        factor_constraints = _resolve_monotonic_constraints_from_model_spec(
-            self.X_model_spec_,
-            self.monotonic_constraints,
+        factor_constraints, dropped_first = (
+            _resolve_monotonic_constraints_from_model_spec(
+                self.X_model_spec_,
+                self.monotonic_constraints,
+            )
         )
 
         return _build_monotonic_constraints(
             self.feature_names_,
             factor_constraints,
             separator=self.interaction_separator,
+            dropped_first=dropped_first,
         )
 
     def _set_up_and_check_fit_args(
