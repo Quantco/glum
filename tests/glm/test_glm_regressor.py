@@ -11,6 +11,7 @@ import sklearn.datasets
 import statsmodels.api as sm
 import statsmodels.tools
 import tabmat as tm
+from packaging.version import Version
 from scipy import optimize, sparse
 
 from glum._distribution import (
@@ -885,8 +886,13 @@ def test_binomial_enet(alpha):
         n_repeated=0,
         random_state=rng,
     )
+    # `penalty` is deprecated in scikit-learn 1.8 and removed in 1.10. From 1.8 on,
+    # 0 < l1_ratio < 1 already means elastic net.
+    penalty_kwargs = (
+        {} if Version(skl.__version__).release >= (1, 8) else {"penalty": "elasticnet"}
+    )
     log = skl.linear_model.LogisticRegression(
-        penalty="elasticnet",
+        **penalty_kwargs,
         random_state=rng,
         fit_intercept=False,
         tol=1e-7,
