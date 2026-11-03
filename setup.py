@@ -83,7 +83,7 @@ setup(
         "pyarrow",
         "scikit-learn>=1.1.0",
         "scipy>=1.8.0",
-        "tabmat>=4.1.5",
+        "tabmat>=4.3.0",
         "tqdm",
     ],
     entry_points=None,
