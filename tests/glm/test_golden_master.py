@@ -319,6 +319,9 @@ def test_gm_approx_hessian(
     assert_gm_allclose(model, expected)
 
 
+@pytest.mark.filterwarnings(
+    "ignore:Line search failed:sklearn.exceptions.ConvergenceWarning"
+)
 @pytest.mark.parametrize(
     "distribution",
     distributions_to_test,
