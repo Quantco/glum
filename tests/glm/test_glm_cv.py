@@ -145,6 +145,7 @@ def test_normal_ridge_comparison(fit_intercept):
     ],
     ids=lambda params: ", ".join(f"{key}={val}" for key, val in params.items()),
 )
+@pytest.mark.filterwarnings("ignore:delta_grad == 0.0:UserWarning")
 @pytest.mark.parametrize("use_offset", [False, True])
 def test_solver_equivalence_cv(params, use_offset):
     n_alphas = 3
