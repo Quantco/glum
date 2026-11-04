@@ -92,6 +92,7 @@ setup(
         annotate=False,
         compiler_directives={
             "language_level": "3",
+            "freethreading_compatible": True,
             "boundscheck": False,
             "wraparound": False,
             "initializedcheck": False,
