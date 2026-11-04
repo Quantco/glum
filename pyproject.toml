@@ -91,6 +91,9 @@ filterwarnings = [
     # tabmat slices of dense matrices can be non-contiguous; fixed in tabmat
     # (Quantco/tabmat#559) and can be removed once the minimum tabmat has the fix.
     "ignore:Input array is not contiguous; making a copy.:UserWarning:tabmat",
+    # sklearn's check_estimator warns about checks it skips (e.g. array API checks
+    # when SCIPY_ARRAY_API is not set).
+    "ignore::sklearn.exceptions.SkipTestWarning",
     "ignore:.*distutils.*:DeprecationWarning:.*",
     "ignore:.*distutils.*:UserWarning:.*",
     "ignore:.*The 'u' format is deprecated.*:DeprecationWarning:pywintypes",
