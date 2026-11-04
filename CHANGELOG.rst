@@ -15,7 +15,6 @@ Unreleased
 - Fixed ``categorical_levels_`` for polars ``Categorical`` columns not matching the design matrix columns. This could cause wrong predictions or errors in ``predict``.
 - Fixed ``monotonic_constraints`` raising ``ValueError`` when a formula term contains square brackets, e.g. ``bs(x, knots=[15, 20, 30])``.
 - Fixed ``monotonic_constraints`` not giving a monotone fitted effect when the first spline basis or categorical level is dropped, e.g. for ``bs()`` without ``include_intercept=True`` or ``C()`` with ``drop_first=True``. Detecting the dropped ``bs()`` basis requires tabmat 4.3.0, which records ``spans_intercept``, so the minimum tabmat version is now 4.3.0.
-
 - Fixed ``GeneralizedLinearRegressorCV`` emitting a tabmat "Input array is not contiguous" warning for dense inputs, which users cannot act on.
 - Fixed a pandas deprecation warning being emitted before the "unseen categories" ``ValueError`` when predicting on data with unseen categories.
 
