@@ -40,9 +40,7 @@ _gm_test_problems = {
 }
 
 
-@pytest.mark.filterwarnings(
-    "ignore:IRLS failed to converge:sklearn.exceptions.ConvergenceWarning"
-)
+@pytest.mark.filterwarnings("ignore::sklearn.exceptions.ConvergenceWarning")
 @pytest.mark.parametrize(
     ["Pn", "P"],
     [
