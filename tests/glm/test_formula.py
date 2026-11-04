@@ -400,6 +400,7 @@ def test_monotonic_constraints_spline(direction, estimator_cls):
         l1_ratio=0,
         fit_intercept=False,
         gradient_tol=1e-5,
+        max_iter=1000,
     )
     if estimator_cls is GeneralizedLinearRegressorCV:
         del kwargs["alpha"]
@@ -426,6 +427,7 @@ def test_monotonic_constraints_spline_explicit_knots_list():
         l1_ratio=0,
         fit_intercept=False,
         gradient_tol=1e-5,
+        max_iter=1000,
     )
     model.fit(df)
     assert all(np.diff(model.coef_) >= -1e-8)
@@ -628,6 +630,7 @@ def test_monotonic_constraints_spline_interaction(direction):
         l1_ratio=0,
         fit_intercept=False,
         gradient_tol=1e-5,
+        max_iter=1000,
     )
     model.fit(df)
 
