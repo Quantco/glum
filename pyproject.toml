@@ -51,13 +51,12 @@ module = ["pytest.*", "_pytest.*"]
 follow_imports = "skip"
 
 [tool.cibuildwheel]
+build-frontend = "build[uv]"
 skip = [
   "*-win32",
   "*-manylinux_i686",
   "*-musllinux_*",
-  "cp38*",
-  "cp310*",
-  "cp314t-win*"
+  "*t-*",
 ]
 test-requires = ["pytest", "pytest-xdist"]
 
