@@ -60,8 +60,6 @@ def align_df_categories(
         else:
             continue
 
-        changed_dtypes[column] = df[column].cast(nw.Enum(levels))
-
         if cat_missing_method == "convert" and not has_missing_category[column]:
             unseen_categories = set(df[column].unique()) - set(
                 categorical_levels[column]
@@ -75,6 +73,8 @@ def align_df_categories(
             raise ValueError(
                 f"Column {column} contains unseen categories: {unseen_categories}."
             )
+
+        changed_dtypes[column] = df[column].cast(nw.Enum(levels))
 
     if changed_dtypes:
         df = df.with_columns(**changed_dtypes)

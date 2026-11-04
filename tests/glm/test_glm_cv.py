@@ -48,9 +48,8 @@ def test_normal_elastic_net_comparison(l1_ratio, fit_intercept, convert_x_fn):
         coef=True,
         random_state=42,
     )
-    X = convert_x_fn(X)
     y = y[0:n_samples]
-    X, T = X[0:n_samples], X[n_samples:]
+    X, T = convert_x_fn(X[0:n_samples]), convert_x_fn(X[n_samples:])
 
     x_arr = X if isinstance(X, np.ndarray) else X.toarray()
     t_arr = T if isinstance(T, np.ndarray) else T.toarray()

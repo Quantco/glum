@@ -387,9 +387,6 @@ def _make_spline_constraint_data(n=500, seed=42):
 @pytest.mark.filterwarnings(
     "ignore:Line search failed:sklearn.exceptions.ConvergenceWarning"
 )
-@pytest.mark.filterwarnings(
-    "ignore:IRLS failed to converge:sklearn.exceptions.ConvergenceWarning"
-)
 def test_monotonic_constraints_spline(direction, estimator_cls):
     """Spline coefficients are ordered."""
     sign = 1 if direction == "increasing" else -1
@@ -402,7 +399,7 @@ def test_monotonic_constraints_spline(direction, estimator_cls):
         alpha=0.1,
         l1_ratio=0,
         fit_intercept=False,
-        gradient_tol=1e-8,
+        gradient_tol=1e-5,
     )
     if estimator_cls is GeneralizedLinearRegressorCV:
         del kwargs["alpha"]
@@ -418,9 +415,6 @@ def test_monotonic_constraints_spline(direction, estimator_cls):
 @pytest.mark.filterwarnings(
     "ignore:Line search failed:sklearn.exceptions.ConvergenceWarning"
 )
-@pytest.mark.filterwarnings(
-    "ignore:IRLS failed to converge:sklearn.exceptions.ConvergenceWarning"
-)
 def test_monotonic_constraints_spline_explicit_knots_list():
     """Brackets inside the factor name (knots=[...]) don't break constraints."""
     x, y = _make_spline_constraint_data()
@@ -431,7 +425,7 @@ def test_monotonic_constraints_spline_explicit_knots_list():
         alpha=0.1,
         l1_ratio=0,
         fit_intercept=False,
-        gradient_tol=1e-8,
+        gradient_tol=1e-5,
     )
     model.fit(df)
     assert all(np.diff(model.coef_) >= -1e-8)
@@ -611,9 +605,6 @@ def test_monotonic_constraints_full_spline_basis_not_anchored():
     "ignore:Line search failed:sklearn.exceptions.ConvergenceWarning"
 )
 @pytest.mark.parametrize("direction", ["increasing", "decreasing"])
-@pytest.mark.filterwarnings(
-    "ignore:IRLS failed to converge:sklearn.exceptions.ConvergenceWarning"
-)
 def test_monotonic_constraints_spline_interaction(direction):
     """Spline x categorical: coefficients ordered within each group level."""
     sign = 1 if direction == "increasing" else -1
@@ -636,7 +627,7 @@ def test_monotonic_constraints_spline_interaction(direction):
         alpha=0.1,
         l1_ratio=0,
         fit_intercept=False,
-        gradient_tol=1e-8,
+        gradient_tol=1e-5,
     )
     model.fit(df)
 
