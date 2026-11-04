@@ -759,6 +759,7 @@ def test_binomial_cloglog_enet():
     np.testing.assert_allclose(glm.coef_, glmnet_coef, rtol=1e-3)
 
 
+@pytest.mark.filterwarnings("ignore:Sigmoid function too close to 0 or 1")
 @pytest.mark.parametrize("solver", ["irls-cd", "irls-ls"])
 def test_binomial_cloglog_unregularized(solver):
     """Test unregularized regression with binomial family and cloglog link.
@@ -794,6 +795,9 @@ def test_binomial_cloglog_unregularized(solver):
     np.testing.assert_allclose(glum_glm.coef_, sm_fit.params[1:], rtol=2e-5)
 
 
+@pytest.mark.filterwarnings(
+    "ignore:Line search failed:sklearn.exceptions.ConvergenceWarning"
+)
 def test_inv_gaussian_log_enet():
     """Test elastic net regression with inverse gaussian family and log link.
 
@@ -1622,6 +1626,9 @@ def test_categorical_types(k, n, namespace):
     np.testing.assert_allclose(pred_cat_oh, pred_oh_cat)
 
 
+@pytest.mark.filterwarnings(
+    "ignore:An ill-conditioned matrix detected:scipy.linalg.LinAlgWarning"
+)
 def test_polars_categorical_levels():
     """Polars categorical levels must match tabmat's (sorted) column order.
 
@@ -2373,6 +2380,9 @@ def test_score_method(as_data_frame, offset, weighted):
     assert pytest.approx(score, 1e-8) == int(offset is not None)
 
 
+@pytest.mark.filterwarnings(
+    "ignore:There is no general definition for the model.s degrees of freedom"
+)
 def test_information_criteria(regression_data):
     X, y = regression_data
     regressor = GeneralizedLinearRegressor(family="gaussian")

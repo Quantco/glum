@@ -169,6 +169,14 @@ python = "3.14.*"
 [feature.py315.dependencies]
 python = "3.15.*"
 
+[feature.nightly.tasks]
+# Nightly dependencies may emit new warnings; do not treat them as errors.
+test = { cmd = "pytest tests/glm --doctest-modules src/glum -W default", env = { PYTHONPATH = "." } }
+
+[feature.oldies.tasks]
+# Old dependencies may emit warnings we cannot fix; do not treat them as errors.
+test = { cmd = "pytest tests/glm --doctest-modules src/glum -W default", env = { PYTHONPATH = "." } }
+
 [feature.oldies.dependencies]
 formulaic = "1.2.*"
 narwhals = "2.0.*"
@@ -192,7 +200,7 @@ glum-tabmat = { features = [
     "test",
 ], no-default-feature = true }
 lint = { features = ["lint"], no-default-feature = true }
-nightly = ["build-tabmat", "py313", "test"]
+nightly = ["nightly", "build-tabmat", "py313", "test"]
 oldies = ["oldies", "test"]
 py311 = ["py311", "test"]
 py312 = ["py312", "test"]
