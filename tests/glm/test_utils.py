@@ -153,9 +153,7 @@ def test_align_df_categories_convert(df, has_missings):
             )
 
 
-@pytest.mark.filterwarnings(
-    "ignore:Constructing a Categorical with a dtype:pandas.errors.Pandas4Warning"
-)
+@pytest.mark.filterwarnings("ignore:Constructing a Categorical with a dtype")
 def test_align_df_categories_raise_on_unseen(df):
     categorical_levels = {column: ["a", "b"] for column in df.columns}
     has_missing_category = {column: False for column in df.columns}
