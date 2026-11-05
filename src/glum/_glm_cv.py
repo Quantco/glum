@@ -1,5 +1,4 @@
 import copy
-import warnings
 from collections.abc import Mapping, Sequence
 from typing import Any, Optional, Union
 
@@ -16,20 +15,6 @@ from ._link import Link, LogLink
 from ._typing import ArrayLike
 from ._utils import standardize, unstandardize
 from ._validation import check_bounds
-
-
-def _take_rows(X, idx):
-    """Select rows of ``X``, silencing tabmat's non-contiguous copy warning.
-
-    Row-slicing a dense matrix can give a non-contiguous array, which older tabmat
-    versions warn about. The user did not provide that input, so the warning is
-    not actionable (fixed in tabmat, Quantco/tabmat#559).
-    """
-    with warnings.catch_warnings():
-        warnings.filterwarnings(
-            "ignore", message="Input array is not contiguous", category=UserWarning
-        )
-        return X[idx, :]
 
 
 class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
@@ -678,14 +663,14 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             b_ineq,
         ):
             x_train, y_train, w_train = (
-                _take_rows(X, train_idx),
+                X[train_idx, :],
                 y[train_idx],
                 sample_weight[train_idx],
             )
             w_train /= w_train.sum()
 
             x_test, y_test, w_test = (
-                _take_rows(X, test_idx),
+                X[test_idx, :],
                 y[test_idx],
                 sample_weight[test_idx],
             )
