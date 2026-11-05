@@ -182,6 +182,8 @@ formulaic = "1.2.*"
 narwhals = "2.0.*"
 numpy = "1.24.*"
 pandas = "1.5.*"
+# narwhals 2.0 calls polars' `cat.get_categories`, which polars 2 removed
+polars = "<2"
 # newer pyarrow releases (25 at least) refuse to import with NumPy 1.x
 pyarrow = "<24"
 python = "3.11.*"
