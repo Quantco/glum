@@ -232,6 +232,16 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         Constraint vector for linear inequality constraints of the form
         ``A_ineq w <= b_ineq``.
 
+    monotonic_constraints : dict, optional (default=None)
+        Mapping from variable names in ``formula`` (e.g. ``"x"``) to
+        ``"increasing"`` or ``"decreasing"``. For single-column numeric
+        variables, including transforms like ``np.log(x)``, constrains the sign
+        of the coefficient. For ``bs()`` splines, categoricals and booleans,
+        orders consecutive coefficients (including an implicit zero for a dropped
+        first column). Other transforms are not supported. Categoricals must be
+        ordered (pandas ``Categorical`` with ``ordered=True`` or polars ``Enum``);
+        their coefficients follow the category order.
+
     cv : int, cross-validation generator or Iterable, optional (default=None)
         Determines the cross-validation splitting strategy. One of:
 

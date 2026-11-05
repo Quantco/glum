@@ -6,7 +6,9 @@ from collections.abc import Collection, Mapping, Sequence
 from typing import Any
 
 import formulaic
+import narwhals.stable.v2 as nw
 import numpy as np
+from formulaic.parser.types import Factor
 
 
 def capture_context(context) -> Mapping[str, Any] | None:
@@ -111,17 +113,6 @@ def _group_columns_by_factor(
     return dict(groups)
 
 
-def _sort_key(member: tuple[int, str | None]) -> tuple[float, str]:
-    """Sort key for (col_idx, factor_idx): numeric first, then lexicographic."""
-    _, idx = member
-    if idx is None:
-        return (0.0, "")
-    try:
-        return (float(idx), "")
-    except ValueError:
-        return (float("inf"), idx)
-
-
 def _build_monotonic_constraints(
     feature_names: Sequence[str],
     monotonic: Mapping[str, str] | Sequence[tuple[str, str]],
@@ -162,9 +153,9 @@ def _build_monotonic_constraints(
 
         sign = 1.0 if direction == "increasing" else -1.0
 
+        # Members are in column order, which follows the category order of
+        # categoricals and the basis order of splines.
         for group_key, members in groups.items():
-            if len(members) > 1:
-                members.sort(key=_sort_key)
             if len(members) == 1:
                 row = np.zeros(n_features)
                 row[members[0][0]] = -sign
@@ -199,6 +190,34 @@ def _drops_first_column(model_spec, scoped_factor) -> bool:
     return column_state.get("spans_intercept") is False
 
 
+def _check_monotonic_categoricals_are_ordered(
+    model_spec,
+    data: Any,
+    monotonic_constraints: Mapping[str, str],
+) -> None:
+    """Raise if a constrained variable enters the formula as unordered categorical."""
+    schema = nw.from_native(data, eager_only=True).schema
+    # Constrained variables that would be a problem if they were categorical.
+    unordered = {
+        var
+        for var in model_spec.variables_by_source.get("data", set())
+        if var in monotonic_constraints
+        and not isinstance(schema.get(var), (nw.Enum, nw.Boolean))
+    }
+    # Raise only if such a variable enters model spec as categorical factor.
+    for factor, variables in model_spec.factor_variables.items():
+        kind, _ = model_spec.encoder_state.get(factor.expr, (None, None))
+        if kind != Factor.Kind.CATEGORICAL:
+            continue
+        for var in unordered & variables:
+            raise ValueError(
+                f"Variable {var!r} enters {factor.expr!r} as an unordered "
+                "categorical, so its levels have no meaningful order for "
+                "monotonic_constraints. Convert it to an ordered categorical "
+                "(pandas.Categorical(..., ordered=True) or polars.Enum)."
+            )
+
+
 def _resolve_monotonic_constraints_from_model_spec(
     model_spec,
     monotonic_constraints: Mapping[str, str],
@@ -207,7 +226,7 @@ def _resolve_monotonic_constraints_from_model_spec(
 
     Also return the ``dropped_first`` pairs for ``_build_monotonic_constraints``.
     """
-    _INCOMPATIBLE_TRANSFORMS = ("poly(", "cc(")
+    _INCOMPATIBLE_TRANSFORMS = ("poly(", "cc(", "cr(", "cs(")
 
     var_to_factors: dict[str, list[tuple[str, int]]] = defaultdict(list)
     dropped_first: set[tuple[str, str]] = set()
