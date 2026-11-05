@@ -22,9 +22,12 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Set up micromamba
+        if: runner.os != 'Linux'
         uses: mamba-org/setup-micromamba@f457c30a868e4760d3a6fcea5f25dc655b8edf39
       - name: Build wheels
-        uses: pypa/cibuildwheel@b9e566a2b284570af229f6c2a33673410d0389a3 # v4.3.4
+        uses: pypa/cibuildwheel@f9b966cfadf4109556cadc5bb39ddb72d0ce664e # v4.3.5
+        with:
+          extras: uv
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           path: ./wheelhouse/*.whl
@@ -39,10 +42,10 @@ jobs:
         name: Install Python
         with:
           python-version: '3.11'
-      - name: Install build dependencies
-        run: python -m pip install setuptools setuptools-scm wheel Cython numpy scikit-learn
+      - name: Install build frontend
+        run: python -m pip install build
       - name: Build sdist
-        run: python setup.py sdist
+        run: python -m build --sdist
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           path: dist/*.tar.gz

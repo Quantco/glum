@@ -51,19 +51,18 @@ module = ["pytest.*", "_pytest.*"]
 follow_imports = "skip"
 
 [tool.cibuildwheel]
+build-frontend = "build[uv]"
 skip = [
   "*-win32",
   "*-manylinux_i686",
   "*-musllinux_*",
-  "cp38*",
-  "cp310*",
-  "cp314t-win*"
+  "*t-*",
 ]
 test-requires = ["pytest", "pytest-xdist"]
 
 [tool.cibuildwheel.macos]
-before-build = [
-  "/Users/runner/micromamba-bin/micromamba create -y -p $MAMBA_ROOT_PREFIX/envs/build -c conda-forge 'llvm-openmp=11'",
+before-all = [
+  "micromamba create -y -p \"$MAMBA_ROOT_PREFIX/envs/build\" -c conda-forge 'llvm-openmp=11'",
 ]
 
 [tool.cibuildwheel.macos.environment]
