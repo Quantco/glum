@@ -12,7 +12,6 @@ from scipy import sparse as sp
 from sklearn.preprocessing import SplineTransformer
 
 from glum._formula import (
-    _build_monotonic_constraints,
     _parse_column_name,
     _resolve_monotonic_constraints_from_model_spec,
     parse_formula,
@@ -353,23 +352,6 @@ def test_formula_predict(get_mixed_data, formula, fit_intercept, namespace):
     np.testing.assert_almost_equal(yhat_formula, yhat_smf)
 
 
-def test_build_monotonic_constraints_sorts_indices():
-    """Consecutive-pair constraints are correct even when columns are out of order."""
-    names = ["sp[10]", "sp[2]", "sp[1]", "sp[3]"]
-    A, b = _build_monotonic_constraints(names, {"sp": "increasing"})
-    assert b.tolist() == [0.0, 0.0, 0.0]
-    # Sorted order: sp[1]=idx2, sp[2]=idx1, sp[3]=idx3, sp[10]=idx0
-    # Pairs: (2,1), (1,3), (3,0) with sign=+1 for increasing: row[i]=1, row[j]=-1
-    expected = np.zeros((3, 4))
-    expected[0, 2] = 1.0  # sp[1]
-    expected[0, 1] = -1.0  # sp[2]
-    expected[1, 1] = 1.0  # sp[2]
-    expected[1, 3] = -1.0  # sp[3]
-    expected[2, 3] = 1.0  # sp[3]
-    expected[2, 0] = -1.0  # sp[10]
-    np.testing.assert_array_equal(A, expected)
-
-
 def _make_spline_constraint_data(n=500, seed=42):
     """Build synthetic data for monotonic constraint tests with splines."""
     rng = np.random.default_rng(seed)
@@ -455,7 +437,10 @@ def test_monotonic_constraints_categorical_levels_with_brackets():
     # True effect is decreasing, so an increasing constraint must bind.
     y = 1.0 - 0.2 * codes + rng.normal(0, 0.02, n)
     df = pd.DataFrame(
-        {"g": pd.Categorical.from_codes(codes, categories=levels), "y": y}
+        {
+            "g": pd.Categorical.from_codes(codes, categories=levels, ordered=True),
+            "y": y,
+        }
     )
 
     model = GeneralizedLinearRegressor(
@@ -473,9 +458,11 @@ def test_monotonic_constraints_categorical_drop_first():
     """Monotonic constraints work with C() and drop_first=True."""
     rng = np.random.default_rng(0)
     n = 120
-    education = np.tile(np.arange(4), n // 4).astype(float)
-    y = 0.5 + 0.2 * education + rng.normal(0, 0.02, n)
+    codes = np.tile(np.arange(4), n // 4)
+    y = 0.5 + 0.2 * codes + rng.normal(0, 0.02, n)
     y = np.clip(y, 1e-3, None)
+    levels = ["none", "school", "bachelor", "master"]
+    education = pd.Categorical.from_codes(codes, categories=levels, ordered=True)
     df = pd.DataFrame({"education": education, "y": y})
 
     model = GeneralizedLinearRegressor(
@@ -528,7 +515,11 @@ def test_monotonic_constraints_predictions_with_intercept(
     df["x 2"] = df["x"]
     df["y"] = -sign * (df["x"] + 0.2 * df["e"]) + rng.normal(0, 0.05, n)
     df = df.sort_values(var)
-    data = df if input == "pandas" else pl.from_pandas(df)
+    df["e"] = pd.Categorical(df["e"].astype(str), categories=list("0123"), ordered=True)
+    if input == "pandas":
+        data = df
+    else:
+        data = pl.from_pandas(df).with_columns(pl.col("e").cast(pl.Enum(list("0123"))))
 
     model = GeneralizedLinearRegressor(
         formula=formula, alpha=0, monotonic_constraints={var: direction}, **kwargs
@@ -541,6 +532,43 @@ def test_monotonic_constraints_predictions_with_intercept(
     for level in ["a", "b"]:
         diffs = np.diff(pred[(df["g"] == level).to_numpy()])
         assert all(sign * diffs >= -1e-6)
+
+
+@pytest.mark.parametrize("input", ["pandas", "polars"])
+@pytest.mark.parametrize("formula", ["y ~ lvl - 1", "y ~ C(lvl) - 1"])
+def test_monotonic_constraints_ordered_categorical_uses_category_order(formula, input):
+    # The categories are not in alphabetical order. high is slightly below mid,
+    # so the constraint binds: mid and high are pooled, above low.
+    rng = np.random.default_rng(0)
+    levels = ["low", "mid", "high"]
+    lvl = rng.choice(levels, 600)
+    y = pd.Series(lvl).map({"low": 0.0, "mid": 1.0, "high": 0.9}).to_numpy()
+    y = y + rng.normal(0, 0.1, 600)
+    if input == "pandas":
+        data = pd.DataFrame(
+            {"lvl": pd.Categorical(lvl, categories=levels, ordered=True), "y": y}
+        )
+    else:
+        data = pl.DataFrame({"lvl": pl.Series(lvl, dtype=pl.Enum(levels)), "y": y})
+
+    model = GeneralizedLinearRegressor(
+        formula=formula,
+        fit_intercept=False,
+        alpha=0,
+        monotonic_constraints={"lvl": "increasing"},
+    )
+    model.fit(data)
+
+    np.testing.assert_allclose(model.coef_, [0.0, 0.95, 0.95], atol=0.02)
+
+
+def test_monotonic_constraints_unordered_categorical_raises():
+    df = pd.DataFrame({"g": ["a", "b", "c"] * 10, "y": np.arange(30.0)})
+    model = GeneralizedLinearRegressor(
+        formula="y ~ C(g)", monotonic_constraints={"g": "increasing"}
+    )
+    with pytest.raises(ValueError, match="unordered categorical"):
+        model.fit(df)
 
 
 @pytest.mark.parametrize(
@@ -605,7 +633,7 @@ def test_monotonic_constraints_spline_interaction(direction):
         {
             "x": x,
             "y": y,
-            "g": pd.Categorical(g),
+            "g": pd.Categorical(g, ordered=True),
         }
     )
 
