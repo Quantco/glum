@@ -742,6 +742,7 @@ def plot_results(config: BenchmarkConfig):
                 ratio_suffix = ""
                 ratio_title_suffix = ""
                 if split_by_ratio:
+                    assert ratio_value is not None
                     ratio_text = f"{float(ratio_value):g}"
                     ratio_suffix = f"-k-over-n-{ratio_text}"
                     ratio_title_suffix = f" (K/N={ratio_text})"
