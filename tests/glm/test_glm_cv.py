@@ -1,18 +1,15 @@
-import inspect
-
 import numpy as np
 import pandas as pd
 import pytest
 import sklearn as skl
 import tabmat as tm
+from packaging.version import Version
 from scipy import sparse
 
 from glum import GeneralizedLinearRegressor, GeneralizedLinearRegressorCV
 
-# n_alphas was deprecated in sklearn 1.6 and renamed to alphas
-_SKL_ELASTICNETCV_HAS_N_ALPHAS = (
-    "n_alphas" in inspect.signature(skl.linear_model.ElasticNetCV).parameters
-)
+# n_alphas was deprecated in sklearn 1.7 in favor of an integer-valued alphas
+_SKL_ELASTICNETCV_HAS_N_ALPHAS = Version(skl.__version__) < Version("1.7")
 
 GLM_SOLVERS = ["irls", "lbfgs", "cd", "trust-constr", "closed-form"]
 
@@ -51,9 +48,8 @@ def test_normal_elastic_net_comparison(l1_ratio, fit_intercept, convert_x_fn):
         coef=True,
         random_state=42,
     )
-    X = convert_x_fn(X)
     y = y[0:n_samples]
-    X, T = X[0:n_samples], X[n_samples:]
+    X, T = convert_x_fn(X[0:n_samples]), convert_x_fn(X[n_samples:])
 
     x_arr = X if isinstance(X, np.ndarray) else X.toarray()
     t_arr = T if isinstance(T, np.ndarray) else T.toarray()
@@ -148,6 +144,7 @@ def test_normal_ridge_comparison(fit_intercept):
     ],
     ids=lambda params: ", ".join(f"{key}={val}" for key, val in params.items()),
 )
+@pytest.mark.filterwarnings("ignore:delta_grad == 0.0:UserWarning")
 @pytest.mark.parametrize("use_offset", [False, True])
 def test_solver_equivalence_cv(params, use_offset):
     n_alphas = 3

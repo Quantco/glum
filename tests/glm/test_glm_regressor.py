@@ -759,6 +759,7 @@ def test_binomial_cloglog_enet():
     np.testing.assert_allclose(glm.coef_, glmnet_coef, rtol=1e-3)
 
 
+@pytest.mark.filterwarnings("ignore:Sigmoid function too close to 0 or 1")
 @pytest.mark.parametrize("solver", ["irls-cd", "irls-ls"])
 def test_binomial_cloglog_unregularized(solver):
     """Test unregularized regression with binomial family and cloglog link.
@@ -794,6 +795,9 @@ def test_binomial_cloglog_unregularized(solver):
     np.testing.assert_allclose(glum_glm.coef_, sm_fit.params[1:], rtol=2e-5)
 
 
+@pytest.mark.filterwarnings(
+    "ignore:Line search failed:sklearn.exceptions.ConvergenceWarning"
+)
 def test_inv_gaussian_log_enet():
     """Test elastic net regression with inverse gaussian family and log link.
 
@@ -1366,15 +1370,17 @@ def test_passing_noncontiguous_as_X():
     baseline = GeneralizedLinearRegressor(family="normal", fit_intercept=False).fit(
         X[2:, :].copy(), y[2:]
     )
-    np_view = GeneralizedLinearRegressor(family="normal", fit_intercept=False).fit(
-        X[2:, :], y[2:]
-    )
-    pd_view = GeneralizedLinearRegressor(family="normal", fit_intercept=False).fit(
-        pd.DataFrame(X).iloc[2:, :], y[2:]
-    )
-    pl_view = GeneralizedLinearRegressor(family="normal", fit_intercept=False).fit(
-        pl.DataFrame(X)[2:, :], y[2:]
-    )
+    # tabmat warns that it has to copy a non-contiguous input
+    with pytest.warns(UserWarning, match="not contiguous"):
+        np_view = GeneralizedLinearRegressor(family="normal", fit_intercept=False).fit(
+            X[2:, :], y[2:]
+        )
+        pd_view = GeneralizedLinearRegressor(family="normal", fit_intercept=False).fit(
+            pd.DataFrame(X).iloc[2:, :], y[2:]
+        )
+        pl_view = GeneralizedLinearRegressor(family="normal", fit_intercept=False).fit(
+            pl.DataFrame(X)[2:, :], y[2:]
+        )
     np.testing.assert_almost_equal(baseline.coef_, np_view.coef_)
     np.testing.assert_almost_equal(baseline.coef_, pd_view.coef_)
     np.testing.assert_almost_equal(baseline.coef_, pl_view.coef_)
@@ -1637,8 +1643,9 @@ def test_polars_categorical_levels():
     X_pl = pl.DataFrame({"group": pl.Series(group, dtype=pl.Categorical)})
     X_pd = pd.DataFrame({"group": pd.Categorical(group)})
 
-    model_pl = GeneralizedLinearRegressor(alpha=0).fit(X_pl, y)
-    model_pd = GeneralizedLinearRegressor(alpha=0).fit(X_pd, y)
+    # drop the first level to avoid perfect collinearity with the intercept
+    model_pl = GeneralizedLinearRegressor(alpha=0, drop_first=True).fit(X_pl, y)
+    model_pd = GeneralizedLinearRegressor(alpha=0, drop_first=True).fit(X_pd, y)
 
     assert model_pl.categorical_levels_ == {"group": ["a", "b", "c"]}
     np.testing.assert_allclose(model_pl.coef_, model_pd.coef_)
@@ -2375,7 +2382,7 @@ def test_score_method(as_data_frame, offset, weighted):
 
 def test_information_criteria(regression_data):
     X, y = regression_data
-    regressor = GeneralizedLinearRegressor(family="gaussian")
+    regressor = GeneralizedLinearRegressor(family="gaussian", alpha=0)
     regressor.fit(X, y)
 
     llf = regressor.family_instance.log_likelihood(y, regressor.predict(X))

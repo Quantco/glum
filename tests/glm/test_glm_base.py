@@ -339,7 +339,7 @@ def test_P1_P2_expansion_with_categoricals(namespace):
     np.testing.assert_allclose(mdl1.coef_, mdl2.coef_)
 
     mdl2 = GeneralizedLinearRegressor(
-        l1_ratio=0.01, P1=[1, 2], P2=sparse.diags([2, 1, 1, 1, 1, 1])
+        l1_ratio=0.01, P1=[1, 2], P2=sparse.diags([2.0, 1, 1, 1, 1, 1])
     )
     mdl2.fit(X, y)
     np.testing.assert_allclose(mdl1.coef_, mdl2.coef_)
@@ -385,7 +385,7 @@ def test_P1_P2_expansion_with_categoricals_missings(namespace):
         alpha=1.0,
         l1_ratio=0.01,
         P1=[1, 2],
-        P2=sparse.diags([2, 1, 1, 1, 1, 1]),
+        P2=sparse.diags([2.0, 1, 1, 1, 1, 1]),
         cat_missing_method="convert",
     )
     mdl3.fit(X, y)
