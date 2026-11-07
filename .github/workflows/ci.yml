@@ -91,9 +91,6 @@ jobs:
           cp data/housing.parquet ../temp/data
           cd ../temp
           # Warnings are errors, except in environments with old or nightly
-          # dependencies (see the test tasks in pixi.toml).
-          case "${{ matrix.environment }}" in
-            nightly|oldies) warnings=default ;;
-            *) warnings=error ;;
-          esac
-          pixi run --manifest-path ../glum/pixi.toml -e ${{ matrix.environment }} python -W "$warnings" -m doctest -v README.md
+          # dependencies (see the test tasks in pixi.toml). This uses a GitHub
+          # expression instead of shell logic, because the shell differs by OS.
+          pixi run --manifest-path ../glum/pixi.toml -e ${{ matrix.environment }} python -W ${{ (matrix.environment == 'nightly' || matrix.environment == 'oldies') && 'default' || 'error' }} -m doctest -v README.md
