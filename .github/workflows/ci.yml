@@ -73,4 +73,10 @@ jobs:
           mkdir ../temp/data
           cp data/housing.parquet ../temp/data
           cd ../temp
-          pixi run --manifest-path ../glum/pixi.toml -e ${{ matrix.environment }} python -m doctest -v README.md
+          # Warnings are errors, except in environments with old or nightly
+          # dependencies (see the test tasks in pixi.toml).
+          case "${{ matrix.environment }}" in
+            nightly|oldies) warnings=default ;;
+            *) warnings=error ;;
+          esac
+          pixi run --manifest-path ../glum/pixi.toml -e ${{ matrix.environment }} python -W "$warnings" -m doctest -v README.md

@@ -1,4 +1,6 @@
+import contextlib
 import logging
+import warnings
 from collections.abc import Sequence
 from typing import Any, Optional, Union
 
@@ -178,6 +180,24 @@ def expand_categorical_penalties(
 
     else:
         return penalty
+
+
+@contextlib.contextmanager
+def ignore_tabmat_copy_warning():
+    """Silence tabmat's "not contiguous" warning.
+
+    Row slices of a data frame (e.g. ``df.iloc[:n]``) are not contiguous in memory,
+    so tabmat copies them and warns. The copy is harmless and users can only avoid
+    the warning by copying their data themselves, so we do not pass it on.
+
+    TODO: tabmat no longer warns after 4.3.1. Remove this once glum requires a
+    tabmat release that includes that change.
+    """
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore", message="Input array is not contiguous", category=UserWarning
+        )
+        yield
 
 
 def is_contiguous(X) -> bool:

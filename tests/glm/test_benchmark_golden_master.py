@@ -40,7 +40,6 @@ _gm_test_problems = {
 }
 
 
-@pytest.mark.filterwarnings("ignore::sklearn.exceptions.ConvergenceWarning")
 @pytest.mark.parametrize(
     ["Pn", "P"],
     [

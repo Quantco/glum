@@ -759,7 +759,6 @@ def test_binomial_cloglog_enet():
     np.testing.assert_allclose(glm.coef_, glmnet_coef, rtol=1e-3)
 
 
-@pytest.mark.filterwarnings("ignore:Sigmoid function too close to 0 or 1")
 @pytest.mark.parametrize("solver", ["irls-cd", "irls-ls"])
 def test_binomial_cloglog_unregularized(solver):
     """Test unregularized regression with binomial family and cloglog link.
@@ -795,9 +794,6 @@ def test_binomial_cloglog_unregularized(solver):
     np.testing.assert_allclose(glum_glm.coef_, sm_fit.params[1:], rtol=2e-5)
 
 
-@pytest.mark.filterwarnings(
-    "ignore:Line search failed:sklearn.exceptions.ConvergenceWarning"
-)
 def test_inv_gaussian_log_enet():
     """Test elastic net regression with inverse gaussian family and log link.
 
@@ -1370,17 +1366,17 @@ def test_passing_noncontiguous_as_X():
     baseline = GeneralizedLinearRegressor(family="normal", fit_intercept=False).fit(
         X[2:, :].copy(), y[2:]
     )
-    # tabmat warns that it has to copy a non-contiguous input
-    with pytest.warns(UserWarning, match="not contiguous"):
-        np_view = GeneralizedLinearRegressor(family="normal", fit_intercept=False).fit(
-            X[2:, :], y[2:]
-        )
-        pd_view = GeneralizedLinearRegressor(family="normal", fit_intercept=False).fit(
-            pd.DataFrame(X).iloc[2:, :], y[2:]
-        )
-        pl_view = GeneralizedLinearRegressor(family="normal", fit_intercept=False).fit(
-            pl.DataFrame(X)[2:, :], y[2:]
-        )
+    # Warnings are errors in the test suite, so this also checks that no warning
+    # is emitted for non-contiguous inputs.
+    np_view = GeneralizedLinearRegressor(family="normal", fit_intercept=False).fit(
+        X[2:, :], y[2:]
+    )
+    pd_view = GeneralizedLinearRegressor(family="normal", fit_intercept=False).fit(
+        pd.DataFrame(X).iloc[2:, :], y[2:]
+    )
+    pl_view = GeneralizedLinearRegressor(family="normal", fit_intercept=False).fit(
+        pl.DataFrame(X)[2:, :], y[2:]
+    )
     np.testing.assert_almost_equal(baseline.coef_, np_view.coef_)
     np.testing.assert_almost_equal(baseline.coef_, pd_view.coef_)
     np.testing.assert_almost_equal(baseline.coef_, pl_view.coef_)
@@ -1626,6 +1622,22 @@ def test_categorical_types(k, n, namespace):
     pred_cat_oh = model_cat.predict(X_oh)
     pred_oh_cat = model_oh.predict(X_cat)
     np.testing.assert_allclose(pred_cat_oh, pred_oh_cat)
+
+
+@pytest.mark.parametrize(
+    "estimator", [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV]
+)
+def test_pandas_row_slices_do_not_warn(estimator):
+    # Row slices such as df.iloc[:n] are not contiguous in memory; users cannot act
+    # on tabmat's copy warning, so fit, predict and score must not pass it on.
+    rng = np.random.default_rng(0)
+    df = pd.DataFrame(rng.normal(size=(60, 3)), columns=list("abc"))
+    y = rng.normal(size=60)
+    train, test = df.iloc[:40], df.iloc[40:]
+    kwargs = {"n_alphas": 3} if estimator is GeneralizedLinearRegressorCV else {}
+    model = estimator(**kwargs).fit(train, y[:40])
+    model.predict(test)
+    model.score(test, y[40:])
 
 
 def test_polars_categorical_levels():

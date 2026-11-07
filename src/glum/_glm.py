@@ -60,6 +60,7 @@ from ._utils import (
     align_df_categories,
     expand_categorical_penalties,
     get_categories,
+    ignore_tabmat_copy_warning,
     is_contiguous,
     safe_toarray,
     standardize,
@@ -351,14 +352,15 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
                 # there should be no missing categories after this
                 cat_missing_method_after_alignment = "fail"
 
-        X = tm.from_df(
-            df,
-            drop_first=self.drop_first,
-            categorical_format=getattr(  # convention prior to v3
-                self, "categorical_format", "{name}__{category}"
-            ),
-            cat_missing_method=cat_missing_method_after_alignment,
-        )
+        with ignore_tabmat_copy_warning():
+            X = tm.from_df(
+                df,
+                drop_first=self.drop_first,
+                categorical_format=getattr(  # convention prior to v3
+                    self, "categorical_format", "{name}__{category}"
+                ),
+                cat_missing_method=cat_missing_method_after_alignment,
+            )
 
         return X
 
@@ -2078,15 +2080,16 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
                         self.P2, X, drop_first, self.has_missing_category_
                     )
 
-                X = tm.from_df(
-                    X,
-                    drop_first=drop_first,
-                    categorical_format=getattr(  # convention prior to v3
-                        self, "categorical_format", "{name}__{category}"
-                    ),
-                    cat_missing_method=getattr(self, "cat_missing_method", "fail"),
-                    cat_missing_name=getattr(self, "cat_missing_name", "(MISSING)"),
-                )
+                with ignore_tabmat_copy_warning():
+                    X = tm.from_df(
+                        X,
+                        drop_first=drop_first,
+                        categorical_format=getattr(  # convention prior to v3
+                            self, "categorical_format", "{name}__{category}"
+                        ),
+                        cat_missing_method=getattr(self, "cat_missing_method", "fail"),
+                        cat_missing_name=getattr(self, "cat_missing_name", "(MISSING)"),
+                    )
 
         if y is None:
             raise ValueError(
@@ -2160,7 +2163,8 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         sample_weight = sample_weight / weights_sum
 
         # Convert to wrapper matrix types
-        X = tm.as_tabmat(X)
+        with ignore_tabmat_copy_warning():
+            X = tm.as_tabmat(X)
 
         self.feature_names_ = X.get_names(type="column", missing_prefix="_col_")  # type: ignore
         self.term_names_ = X.get_names(type="term", missing_prefix="_col_")

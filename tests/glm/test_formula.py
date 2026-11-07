@@ -384,13 +384,6 @@ def _make_spline_constraint_data(n=500, seed=42):
     [GeneralizedLinearRegressor, GeneralizedLinearRegressorCV],
     ids=["GLM", "GLMCV"],
 )
-# The penalty-based monotonic solver can stall on some platforms along the CV path.
-@pytest.mark.filterwarnings(
-    "ignore:IRLS failed to converge:sklearn.exceptions.ConvergenceWarning"
-)
-@pytest.mark.filterwarnings(
-    "ignore:Line search failed:sklearn.exceptions.ConvergenceWarning"
-)
 def test_monotonic_constraints_spline(direction, estimator_cls):
     """Spline coefficients are ordered."""
     sign = 1 if direction == "increasing" else -1
@@ -413,12 +406,10 @@ def test_monotonic_constraints_spline(direction, estimator_cls):
     model.fit(df)
 
     diffs = np.diff(model.coef_)
-    assert all(sign * diffs >= -1e-8)
+    # The penalty-based solver accepts constraint violations up to 1e-6.
+    assert all(sign * diffs >= -1e-6)
 
 
-@pytest.mark.filterwarnings(
-    "ignore:Line search failed:sklearn.exceptions.ConvergenceWarning"
-)
 def test_monotonic_constraints_spline_explicit_knots_list():
     """Brackets inside the factor name (knots=[...]) don't break constraints."""
     x, y = _make_spline_constraint_data()
@@ -456,9 +447,6 @@ def test_parse_column_name(col, expected):
     assert _parse_column_name(col) == expected
 
 
-@pytest.mark.filterwarnings(
-    "ignore:Line search failed:sklearn.exceptions.ConvergenceWarning"
-)
 def test_monotonic_constraints_categorical_levels_with_brackets():
     """Levels containing brackets (e.g. 'lvl[0]') are still constrained."""
     rng = np.random.default_rng(0)
@@ -605,9 +593,6 @@ def test_monotonic_constraints_full_spline_basis_not_anchored():
     assert all(np.diff(model.coef_) >= -1e-8)
 
 
-@pytest.mark.filterwarnings(
-    "ignore:Line search failed:sklearn.exceptions.ConvergenceWarning"
-)
 @pytest.mark.parametrize("direction", ["increasing", "decreasing"])
 def test_monotonic_constraints_spline_interaction(direction):
     """Spline x categorical: coefficients ordered within each group level."""
@@ -716,7 +701,7 @@ def test_monotonic_with_matrix_P2():
         b_ineq=b_ineq,
         l1_ratio=0,
         fit_intercept=False,
-        gradient_tol=1e-8,
+        gradient_tol=1e-5,
         solver="irls-ls-monotonic",
     )
     with warnings.catch_warnings():

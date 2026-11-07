@@ -16,10 +16,15 @@ Unreleased
 - Fixed ``monotonic_constraints`` raising ``ValueError`` when a formula term contains square brackets, e.g. ``bs(x, knots=[15, 20, 30])``.
 - Fixed ``monotonic_constraints`` not giving a monotone fitted effect when the first spline basis or categorical level is dropped, e.g. for ``bs()`` without ``include_intercept=True`` or ``C()`` with ``drop_first=True``. Detecting the dropped ``bs()`` basis requires tabmat 4.3.0, which records ``spans_intercept``, so the minimum tabmat version is now 4.3.0.
 - Fixed a pandas deprecation warning being emitted before the "unseen categories" ``ValueError`` when predicting on data with unseen categories.
+- Fixed the solver for ``monotonic_constraints`` comparing objective values computed with different constraint penalties in its line search. This caused spurious "Line search failed" convergence warnings and extra iterations.
+- The "Line search failed" ``ConvergenceWarning`` is no longer emitted when the loss no longer changes up to machine precision, since users cannot act on it.
+- Removed the "Sigmoid function too close to 0 or 1. Clipping." warning of the logit and cloglog links. The predicted probabilities are still clipped, but this regularly happens in intermediate solver iterations and users cannot act on it.
+- Fixed tabmat's "Input array is not contiguous; making a copy." warning being emitted for row slices of pandas data frames, e.g. ``df.iloc[:n]``, in ``fit``, ``predict`` and ``score``. tabmat itself no longer emits this warning after 4.3.1.
 
 **Other changes:**
 
 - Removed scikit-learn from build dependencies.
+- Warnings are now treated as errors in the test suite and in the README doctest in CI, except in the ``nightly`` and ``oldies`` environments.
 - Require Python>=3.11, since conda-forge no longer supports Python 3.10. No Python 3.10 wheels are built or uploaded to PyPI any more.
 - Added ``py314`` and ``py315`` test environments, and a conda package build for Python 3.15.
 - Removed the ``py310`` test environment and moved the ``oldies`` environment and the conda package builds from Python 3.10 to 3.11, since conda-forge no longer supports Python 3.10. The ``oldies`` pins for pandas (1.5), scikit-learn (1.1.3) and scipy (1.9) were raised to the oldest releases with Python 3.11 builds.

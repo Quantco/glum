@@ -1,4 +1,3 @@
-import warnings
 from abc import ABCMeta, abstractmethod
 from typing import Callable
 
@@ -237,11 +236,9 @@ class LogitLink(Link):
         inv_logit = special.expit(lin_pred)
         eps50 = 50 * np.finfo(inv_logit.dtype).eps
 
-        if np.any(inv_logit > 1 - eps50) or np.any(inv_logit < eps50):
-            warnings.warn("Sigmoid function too close to 0 or 1. Clipping.")
-            return np.clip(inv_logit, eps50, 1 - eps50)
-
-        return inv_logit
+        # Clip silently: this regularly happens for intermediate solver iterates
+        # and there is nothing a user could do about it.
+        return np.clip(inv_logit, eps50, 1 - eps50)
 
     def inverse_derivative(self, lin_pred):  # noqa D
         ep = special.expit(lin_pred)
@@ -269,11 +266,9 @@ class CloglogLink(Link):
         inv_cloglog = -np.expm1(-np.exp(lin_pred))
         eps50 = 50 * np.finfo(inv_cloglog.dtype).eps
 
-        if np.any(inv_cloglog > 1 - eps50) or np.any(inv_cloglog < eps50):
-            warnings.warn("Sigmoid function too close to 0 or 1. Clipping.")
-            return np.clip(inv_cloglog, eps50, 1 - eps50)
-
-        return inv_cloglog
+        # Clip silently: this regularly happens for intermediate solver iterates
+        # and there is nothing a user could do about it.
+        return np.clip(inv_cloglog, eps50, 1 - eps50)
 
     def inverse_derivative(self, lin_pred):  # noqa D
         return np.exp(lin_pred - np.exp(lin_pred))
