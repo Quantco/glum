@@ -9,7 +9,7 @@ from scipy import sparse
 from glum import GeneralizedLinearRegressor, GeneralizedLinearRegressorCV
 
 # n_alphas was deprecated in sklearn 1.7 in favor of an integer-valued alphas
-_SKL_ELASTICNETCV_HAS_N_ALPHAS = Version(skl.__version__) < Version("1.7")
+_SKL_ELASTICNETCV_HAS_N_ALPHAS = Version(skl.__version__).release < (1, 7)
 
 GLM_SOLVERS = ["irls", "lbfgs", "cd", "trust-constr", "closed-form"]
 
