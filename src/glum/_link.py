@@ -5,8 +5,31 @@ import numpy as np
 from scipy import special
 
 
+def _probability_bounds(prob: np.ndarray) -> tuple[float, float]:
+    """Bounds that probabilities are clipped to, to keep them away from 0 and 1."""
+    eps50 = 50 * np.finfo(prob.dtype).eps
+    return eps50, 1 - eps50
+
+
+def _clip_probability(prob: np.ndarray) -> np.ndarray:
+    return np.clip(prob, *_probability_bounds(prob))
+
+
+def _is_clipped_probability(prob: np.ndarray) -> np.ndarray:
+    lower, upper = _probability_bounds(prob)
+    return (prob < lower) | (prob > upper)
+
+
 class Link(metaclass=ABCMeta):
     """Abstract base class for link functions."""
+
+    def is_saturated(self, lin_pred) -> np.ndarray:
+        """Whether ``inverse(lin_pred)`` is numerically at the boundary of its range.
+
+        Only links that clip their inverse at the boundary of the unit interval,
+        such as the logit and cloglog links, can be saturated.
+        """
+        return np.zeros(np.shape(lin_pred), dtype=bool)
 
     @abstractmethod
     def link(self, mu):
@@ -233,12 +256,12 @@ class LogitLink(Link):
         return 1.0 / (mu * (1 - mu))
 
     def inverse(self, lin_pred):  # noqa D
-        inv_logit = special.expit(lin_pred)
-        eps50 = 50 * np.finfo(inv_logit.dtype).eps
-
         # Clip silently: this regularly happens for intermediate solver iterates
         # and there is nothing a user could do about it.
-        return np.clip(inv_logit, eps50, 1 - eps50)
+        return _clip_probability(special.expit(lin_pred))
+
+    def is_saturated(self, lin_pred) -> np.ndarray:  # noqa D
+        return _is_clipped_probability(special.expit(lin_pred))
 
     def inverse_derivative(self, lin_pred):  # noqa D
         ep = special.expit(lin_pred)
@@ -262,13 +285,16 @@ class CloglogLink(Link):
         return 1.0 / ((mu - 1) * (np.log1p(-mu)))
 
     def inverse(self, lin_pred):  # noqa D
-        lin_pred = lin_pred
-        inv_cloglog = -np.expm1(-np.exp(lin_pred))
-        eps50 = 50 * np.finfo(inv_cloglog.dtype).eps
-
         # Clip silently: this regularly happens for intermediate solver iterates
         # and there is nothing a user could do about it.
-        return np.clip(inv_cloglog, eps50, 1 - eps50)
+        return _clip_probability(-np.expm1(-np.exp(lin_pred)))
+
+    def is_saturated(self, lin_pred) -> np.ndarray:  # noqa D
+        # The cloglog link is asymmetric: the inverse reaches 1 at a linear predictor
+        # of about 3.5, which happens routinely, whereas reaching 0 requires about -32.
+        # Only the lower tail is thus a sign of (quasi-)separation.
+        prob = -np.expm1(-np.exp(lin_pred))
+        return prob < _probability_bounds(prob)[0]
 
     def inverse_derivative(self, lin_pred):  # noqa D
         return np.exp(lin_pred - np.exp(lin_pred))

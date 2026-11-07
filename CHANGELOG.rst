@@ -18,13 +18,14 @@ Unreleased
 - Fixed a pandas deprecation warning being emitted before the "unseen categories" ``ValueError`` when predicting on data with unseen categories.
 - Fixed the solver for ``monotonic_constraints`` comparing objective values computed with different constraint penalties in its line search. This caused spurious "Line search failed" convergence warnings and extra iterations.
 - The "Line search failed" ``ConvergenceWarning`` is no longer emitted when the loss no longer changes up to machine precision, since users cannot act on it.
-- Removed the "Sigmoid function too close to 0 or 1. Clipping." warning of the logit and cloglog links. The predicted probabilities are still clipped, but this regularly happens in intermediate solver iterations and users cannot act on it.
+- Replaced the "Sigmoid function too close to 0 or 1. Clipping." warning of the logit and cloglog links by a warning after the final fit. The old warning was emitted for single observations and intermediate solver iterations, which users cannot act on. The new warning is only emitted if more than 1% of the fitted values are numerically 0 or 1, which typically indicates (quasi-)perfect separation (for the cloglog link, only fitted values of 0 count, because values of 1 are routine). It suggests more regularization or removing the separating features.
 - Fixed tabmat's "Input array is not contiguous; making a copy." warning being emitted for row slices of pandas data frames, e.g. ``df.iloc[:n]``, in ``fit``, ``predict`` and ``score``. tabmat itself no longer emits this warning after 4.3.1.
 
 **Other changes:**
 
 - Removed scikit-learn from build dependencies.
 - Warnings are now treated as errors in the test suite and in the README doctest in CI, except in the ``nightly`` and ``oldies`` environments.
+- The documentation build now treats warnings as errors and runs in CI. Fixed the docstring formatting of ``cat_missing_method`` and ``get_link`` and several broken links in the tutorials and the changelog.
 - Require Python>=3.11, since conda-forge no longer supports Python 3.10. No Python 3.10 wheels are built or uploaded to PyPI any more.
 - Added ``py314`` and ``py315`` test environments, and a conda package build for Python 3.15.
 - Removed the ``py310`` test environment and moved the ``oldies`` environment and the conda package builds from Python 3.10 to 3.11, since conda-forge no longer supports Python 3.10. The ``oldies`` pins for pandas (1.5), scikit-learn (1.1.3) and scipy (1.9) were raised to the oldest releases with Python 3.11 builds.
@@ -150,7 +151,7 @@ Unreleased
 - Fixed a bug where :meth:`glum.GeneralizedLinearRegressor.fit` would raise a ``dtype`` mismatch error if fit with ``alpha_search=True``.
 - Use data type (``float64`` or ``float32``) dependent precision in solvers.
 
-**Other changes:
+**Other changes:**
 
 - Lower absolute tolerance when matching the ``alpha`` argument in :meth:`glum.GeneralizedLinearRegressor.predict` to the ``alphas`` used in training when ``alpha_search=True``.
 

@@ -13,7 +13,8 @@ test = { cmd = "pytest tests/glm --doctest-modules src/glum", env = { PYTHONPATH
 test-backwards-compatibility = { cmd = "python tests/backwards_compatibility/run.py" }
 
 [feature.docs.tasks]
-make-docs = "cd docs && make html"
+# Warnings are errors; --keep-going reports all of them instead of stopping at the first.
+make-docs = "cd docs && make html SPHINXOPTS='-W --keep-going'"
 readthedocs = { cmd = "rm -rf $READTHEDOCS_OUTPUT/html && cp -r docs/_build/html $READTHEDOCS_OUTPUT/html", depends-on = [
     "make-docs",
 ] }

@@ -28,6 +28,23 @@ jobs:
       - name: pre-commit
         run: pixi run -e lint pre-commit-run --color=always --show-diff-on-failure
 
+  docs:
+    name: Docs
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up pixi
+        uses: prefix-dev/setup-pixi@ad1da6449d9e506fd127fd67ab2d054a769f6a94 # v0.11.2
+        with:
+          environments: docs
+      - name: Install repository
+        run: pixi run -e docs postinstall
+      - name: Build docs
+        # The make-docs task treats warnings as errors.
+        run: pixi run -e docs make-docs
+
   unit-tests:
     name: Tests
     runs-on: ${{ matrix.os }}

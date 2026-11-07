@@ -33,6 +33,7 @@ extensions = [
 
 autodoc_default_options = {
     "exclude-members": (
+        "get_metadata_routing, "
         "set_fit_request, "
         "set_fit_predict_request, "
         "set_fit_transform_request, "

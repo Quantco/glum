@@ -36,7 +36,7 @@ from ._formula import (
     capture_context,
     parse_formula,
 )
-from ._linalg import is_pos_semidef
+from ._linalg import _safe_lin_pred, is_pos_semidef
 from ._link import CloglogLink, IdentityLink, Link, LogitLink, LogLink, TweedieLink
 from ._solvers import (
     IRLSData,
@@ -84,6 +84,11 @@ else:
     from sklearn.utils.validation import validate_data  # type: ignore
 
 _float_itemsize_to_dtype = {8: np.float64, 4: np.float32, 2: np.float16}
+
+
+# If more than this fraction of the fitted values is numerically 0 or 1, we warn.
+# Single observations can saturate for well-behaved models, e.g. with the cloglog link.
+_SATURATION_WARNING_FRACTION = 0.01
 
 
 class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstimator):
@@ -2171,6 +2176,28 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
 
         return X, y, sample_weight, offset, weights_sum, P1, P2  # type: ignore
 
+    def _warn_if_saturated(self, X, coef: np.ndarray, offset) -> None:
+        """Warn if the fitted values are numerically 0 or 1 for many observations.
+
+        Links such as the logit and cloglog links clip their inverse, so that
+        probabilities stay away from 0 and 1. This happens regularly for single
+        observations and intermediate solver iterates, which users cannot act on.
+        If it happens for many observations in the final fit, the model is
+        typically (quasi-)perfectly separating the data, which users can act on.
+
+        ``X`` and ``coef`` must be standardized in the same way.
+        """
+        saturated = self._link_instance.is_saturated(_safe_lin_pred(X, coef, offset))
+        fraction = float(np.mean(saturated)) if saturated.size else 0.0
+        if fraction > _SATURATION_WARNING_FRACTION:
+            warnings.warn(
+                f"The fitted values are numerically 0 or 1 for {fraction:.1%} of the "
+                "observations. This typically indicates that the model (almost) "
+                "perfectly separates the data. Consider increasing the regularization "
+                "(alpha) or removing features that separate the outcomes.",
+                stacklevel=3,
+            )
+
 
 class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     """Regression via a Generalized Linear Model (GLM) with penalties.
@@ -2485,6 +2512,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     cat_missing_method: str {'fail'|'zero'|'convert'}, default='fail'
         How to handle missing values in categorical columns. Only used if ``X``
         is a pandas data frame.
+
         - if 'fail', raise an error if there are missing values
         - if 'zero', missing values will represent all-zero indicator columns.
         - if 'convert', missing values will be converted to the ``cat_missing_name``
@@ -2880,6 +2908,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
                 b_ineq=b_ineq,
             )
 
+            self._warn_if_saturated(X, coef[-1], offset)
+
             # intercept_ and coef_ return the last estimated alpha
             if self.fit_intercept:
                 self.intercept_path_, self.coef_path_ = unstandardize(
@@ -2918,6 +2948,8 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
                 A_ineq=A_ineq,
                 b_ineq=b_ineq,
             )
+
+            self._warn_if_saturated(X, coef, offset)
 
             if self.fit_intercept:
                 self.intercept_, self.coef_ = unstandardize(
@@ -3191,9 +3223,10 @@ def get_link(link: Union[str, Link], family: ExponentialDispersionModel) -> Link
     """
     For the Tweedie distribution, this code follows actuarial best practices
     regarding link functions. Note that these links are sometimes not canonical:
-        - identity for normal (``p = 0``);
-        - no convention for ``p < 0``, so let's leave it as identity;
-        - log otherwise.
+
+    - identity for normal (``p = 0``);
+    - no convention for ``p < 0``, so let's leave it as identity;
+    - log otherwise.
     """
     if isinstance(link, Link):
         return link

@@ -304,8 +304,6 @@ def test_glm_log_regression(family, solver, tol, fit_intercept, offset):
     np.testing.assert_allclose(fit_coef, coef, rtol=8e-6)
 
 
-@pytest.mark.filterwarnings("ignore:The line search algorithm")
-@pytest.mark.filterwarnings("ignore:Line Search failed")
 @pytest.mark.parametrize("n_samples, n_features", [(100, 10), (10, 100)])
 @pytest.mark.parametrize("solver", GLM_SOLVERS)
 @pytest.mark.parametrize("use_offset", [False, True])
@@ -1622,6 +1620,41 @@ def test_categorical_types(k, n, namespace):
     pred_cat_oh = model_cat.predict(X_oh)
     pred_oh_cat = model_oh.predict(X_cat)
     np.testing.assert_allclose(pred_cat_oh, pred_oh_cat)
+
+
+@pytest.mark.parametrize("link", ["logit", "cloglog"])
+@pytest.mark.parametrize(
+    "estimator, kwargs",
+    [
+        (GeneralizedLinearRegressor, {"alpha": 1e-6}),
+        (GeneralizedLinearRegressorCV, {"alphas": [1e-6], "l1_ratio": 0}),
+    ],
+    ids=["GLM", "GLMCV"],
+)
+def test_warns_if_fitted_values_are_saturated(link, estimator, kwargs):
+    # A feature that perfectly separates the outcomes drives the fitted values to 0
+    # and 1, which users can act on, e.g. by regularizing more.
+    rng = np.random.default_rng(0)
+    X = rng.normal(size=(200, 2))
+    y = (X[:, 0] > 0).astype(int)
+    model = estimator(family="binomial", link=link, **kwargs)
+    with pytest.warns(UserWarning, match="numerically 0 or 1"):
+        model.fit(X, y)
+
+
+@pytest.mark.parametrize("link", ["logit", "cloglog"])
+def test_no_saturation_warning_for_well_behaved_data(link):
+    # Warnings are errors in the test suite. With the cloglog link, a few percent of
+    # the fitted values reach the upper clipping bound for well-behaved data.
+    X, y = sklearn.datasets.make_classification(
+        n_samples=500,
+        n_features=6,
+        n_informative=5,
+        n_redundant=0,
+        n_repeated=0,
+        random_state=np.random.RandomState(42),
+    )
+    GeneralizedLinearRegressor(family="binomial", link=link, alpha=0).fit(X, y)
 
 
 @pytest.mark.parametrize(
