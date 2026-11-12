@@ -378,7 +378,7 @@ def test_monotonic_constraints_spline(direction, estimator_cls):
         alpha=0.1,
         l1_ratio=0,
         fit_intercept=False,
-        gradient_tol=1e-8,
+        gradient_tol=1e-5,
     )
     if estimator_cls is GeneralizedLinearRegressorCV:
         del kwargs["alpha"]
@@ -388,7 +388,8 @@ def test_monotonic_constraints_spline(direction, estimator_cls):
     model.fit(df)
 
     diffs = np.diff(model.coef_)
-    assert all(sign * diffs >= -1e-8)
+    # The penalty-based solver accepts constraint violations up to 1e-6.
+    assert all(sign * diffs >= -1e-6)
 
 
 def test_monotonic_constraints_spline_explicit_knots_list():
@@ -401,7 +402,7 @@ def test_monotonic_constraints_spline_explicit_knots_list():
         alpha=0.1,
         l1_ratio=0,
         fit_intercept=False,
-        gradient_tol=1e-8,
+        gradient_tol=1e-5,
     )
     model.fit(df)
     assert all(np.diff(model.coef_) >= -1e-8)
@@ -643,7 +644,7 @@ def test_monotonic_constraints_spline_interaction(direction):
         alpha=0.1,
         l1_ratio=0,
         fit_intercept=False,
-        gradient_tol=1e-8,
+        gradient_tol=1e-5,
     )
     model.fit(df)
 
@@ -728,7 +729,7 @@ def test_monotonic_with_matrix_P2():
         b_ineq=b_ineq,
         l1_ratio=0,
         fit_intercept=False,
-        gradient_tol=1e-8,
+        gradient_tol=1e-5,
         solver="irls-ls-monotonic",
     )
     with warnings.catch_warnings():

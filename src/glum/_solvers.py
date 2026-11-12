@@ -829,11 +829,15 @@ def line_search(state: IRLSState, data: IRLSData, d: np.ndarray):
                 break
         factor *= beta
     else:
-        warnings.warn(
-            "Line search failed. Next iteration will be very close to current "
-            "iteration. Might result in more convergence issues.",
-            ConvergenceWarning,
-        )
+        # If the loss no longer changes up to machine precision, the iterate is
+        # converged to within numerical precision and there is nothing to warn
+        # about. Only warn if the loss is still moving.
+        if np.abs(loss_improvement) > tiny_loss:
+            warnings.warn(
+                "Line search failed. Next iteration will be very close to current "
+                "iteration. Might result in more convergence issues.",
+                ConvergenceWarning,
+            )
 
     state.n_line_search = _k
 
@@ -1065,10 +1069,17 @@ def _monotonic_irls_solver(
                     constraint_lam * constraint_lam_factor, constraint_lam_max
                 )
 
+            old_coef_P2 = _make_coef_P2(data.intercept_offset, data.P2, state.coef)
             penalty_changed = _update_constraint_penalty(state.coef, constraint_lam)
 
             if penalty_changed:
                 state.hessian_initialized = False
+                # The objective value and score include the P2 term, so they are
+                # stale after the penalty changed. The line search compares against
+                # them, so bring them up to date; otherwise it can fail spuriously.
+                new_coef_P2 = _make_coef_P2(data.intercept_offset, data.P2, state.coef)
+                state.obj_val += 0.5 * ((new_coef_P2 - old_coef_P2) @ state.coef)
+                state.score = state.score + old_coef_P2 - new_coef_P2
 
             state.old_active_set = state.active_set
             state.active_set = identify_active_set(state, data)

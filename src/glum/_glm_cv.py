@@ -330,6 +330,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
     cat_missing_method: str {'fail'|'zero'|'convert'}, default='fail'
         How to handle missing values in categorical columns. Only used if ``X``
         is a pandas data frame.
+
         - if 'fail', raise an error if there are missing values
         - if 'zero', missing values will represent all-zero indicator columns.
         - if 'convert', missing values will be converted to the ``cat_missing_name``
@@ -904,6 +905,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         )
 
         self.coef_path_ = _cv_coef_path
+
+        self._warn_if_saturated(X, coef[best_alpha], offset)
 
         if self.fit_intercept:
             self._refit_intercept_path, self._refit_coef_path = unstandardize(
