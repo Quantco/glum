@@ -47,7 +47,10 @@ jobs:
           mkdir ../temp/data
           cp data/housing.parquet ../temp/data
           cd ../temp
-          pixi run --manifest-path ../glum/pixi.toml -e ${{ matrix.environment }} python -m doctest -v README.md
+          # Warnings are errors, except in environments with old or nightly
+          # dependencies (see the test tasks in pixi.toml). This uses a GitHub
+          # expression instead of shell logic, because the shell differs by OS.
+          pixi run --manifest-path ../glum/pixi.toml -e ${{ matrix.environment }} python -W ${{ (matrix.environment == 'nightly' || matrix.environment == 'oldies') && 'default' || 'error' }} -m doctest -v README.md
 
       - name: Issue on failure
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0

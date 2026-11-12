@@ -53,3 +53,27 @@ def test_equality():
     assert TweedieLink(1.5) == TweedieLink(1.5)
     assert TweedieLink(1) != LogLink()
     assert TweedieLink(1) == LogLink().to_tweedie()
+
+
+@pytest.mark.parametrize("link", [LogitLink(), CloglogLink()], ids=["logit", "cloglog"])
+def test_inverse_clips_silently(link):
+    # Warnings are errors in the test suite, so this also checks that clipping does
+    # not warn.
+    eps50 = 50 * np.finfo(float).eps
+    mu = link.inverse(np.array([-50.0, 0.0, 50.0]))
+    assert np.all(mu >= eps50)
+    assert np.all(mu <= 1 - eps50)
+
+
+def test_is_saturated():
+    eta = np.array([-50.0, 0.0, 5.0, 50.0])
+    np.testing.assert_array_equal(
+        LogitLink().is_saturated(eta), [True, False, False, True]
+    )
+    # The cloglog inverse reaches 1 at a linear predictor of about 3.5, which is
+    # routine, so only the lower tail counts as saturated.
+    np.testing.assert_array_equal(
+        CloglogLink().is_saturated(eta), [True, False, False, False]
+    )
+    for link in [IdentityLink(), LogLink(), TweedieLink(1.5)]:
+        assert not link.is_saturated(eta).any()

@@ -75,10 +75,19 @@ MACOSX_DEPLOYMENT_TARGET="10.13"
 
 
 [tool.pytest.ini_options]
+addopts = "-s --tb=short"
+norecursedirs = ["__pycache__", "build"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
 # Filters are standard python warning filters as described here:
 # https://docs.python.org/3/library/warnings.html#the-warnings-filter
+# The oldies and nightly environments override this with `-W default` (see pixi.toml).
 filterwarnings = [
-    "ignore:.*distutils.*:DeprecationWarning:.*",
-    "ignore:.*distutils.*:UserWarning:.*",
-    "ignore:.*The 'u' format is deprecated.*:DeprecationWarning:pywintypes",
+    # Treat any warning as an error by default; add specific `ignore` filters
+    # below for unavoidable third-party warnings.
+    "error",
+    # sklearn's check_estimator warns about checks it skips (e.g. array API checks
+    # when SCIPY_ARRAY_API is not set).
+    "ignore::sklearn.exceptions.SkipTestWarning",
 ]

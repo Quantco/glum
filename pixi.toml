@@ -13,7 +13,8 @@ test = { cmd = "pytest tests/glm --doctest-modules src/glum", env = { PYTHONPATH
 test-backwards-compatibility = { cmd = "python tests/backwards_compatibility/run.py" }
 
 [feature.docs.tasks]
-make-docs = "cd docs && make html"
+# Warnings are errors; --keep-going reports all of them instead of stopping at the first.
+make-docs = "cd docs && make html SPHINXOPTS='-W --keep-going'"
 readthedocs = { cmd = "rm -rf $READTHEDOCS_OUTPUT/html && cp -r docs/_build/html $READTHEDOCS_OUTPUT/html", depends-on = [
     "make-docs",
 ] }
@@ -171,11 +172,21 @@ python = "3.14.*"
 [feature.py315.dependencies]
 python = "3.15.*"
 
+[feature.nightly.tasks]
+# Nightly dependencies may emit new warnings; do not treat them as errors.
+test = { cmd = "pytest tests/glm --doctest-modules src/glum -W default", env = { PYTHONPATH = "." } }
+
+[feature.oldies.tasks]
+# Old dependencies may emit warnings we cannot fix; do not treat them as errors.
+test = { cmd = "pytest tests/glm --doctest-modules src/glum -W default", env = { PYTHONPATH = "." } }
+
 [feature.oldies.dependencies]
 formulaic = "1.2.*"
 narwhals = "2.0.*"
 numpy = "1.24.*"
 pandas = "1.5.*"
+# narwhals 2.0 calls polars' `cat.get_categories`, which polars 2 removed
+polars = "<2"
 # newer pyarrow releases (25 at least) refuse to import with NumPy 1.x
 pyarrow = "<24"
 python = "3.11.*"
@@ -194,7 +205,7 @@ glum-tabmat = { features = [
     "test",
 ], no-default-feature = true }
 lint = { features = ["lint"], no-default-feature = true }
-nightly = ["build-tabmat", "py313", "test"]
+nightly = ["nightly", "build-tabmat", "py313", "test"]
 oldies = ["oldies", "test"]
 py311 = ["py311", "test"]
 py312 = ["py312", "test"]
