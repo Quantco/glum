@@ -20,6 +20,8 @@ Unreleased
 - The "Line search failed" ``ConvergenceWarning`` is no longer emitted when the loss no longer changes up to machine precision, since users cannot act on it.
 - Replaced the "Sigmoid function too close to 0 or 1. Clipping." warning of the logit and cloglog links by a warning after the final fit. The old warning was emitted for single observations and intermediate solver iterations, which users cannot act on. The new warning is only emitted if more than 1% of the fitted values are numerically 0 or 1, which typically indicates (quasi-)perfect separation (for the cloglog link, only fitted values of 0 count, because values of 1 are routine). It suggests more regularization or removing the separating features.
 - Fixed tabmat's "Input array is not contiguous; making a copy." warning being emitted for row slices of pandas data frames, e.g. ``df.iloc[:n]``, in ``fit``, ``predict`` and ``score``. tabmat itself no longer emits this warning after 4.3.1.
+- Fixed ``monotonic_constraints`` ordering the levels of an ordered categorical by their label (e.g. alphabetically) instead of by the category order.
+- ``monotonic_constraints`` now raises a ``ValueError`` for unordered categoricals, and for ``cr()`` and ``cs()`` splines, instead of silently failing to enforce monotonicity.
 
 **Other changes:**
 

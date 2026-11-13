@@ -32,6 +32,7 @@ from ._distribution import (
 )
 from ._formula import (
     _build_monotonic_constraints,
+    _check_monotonic_categoricals_are_ordered,
     _resolve_monotonic_constraints_from_model_spec,
     capture_context,
     parse_formula,
@@ -2016,9 +2017,10 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
                     self.y_model_spec_ = y.model_spec  # type: ignore
                     y = y.toarray().ravel()  # type: ignore
 
+                data = X
                 X = tm.from_formula(
                     formula=rhs,
-                    data=X,
+                    data=data,
                     include_intercept=False,
                     ensure_full_rank=self.drop_first,
                     categorical_format=self.categorical_format,
@@ -2027,6 +2029,11 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
                     add_column_for_intercept=False,
                     context=context,
                 )
+
+                if self.monotonic_constraints is not None:
+                    _check_monotonic_categoricals_are_ordered(
+                        X.model_spec, data, self.monotonic_constraints
+                    )
 
                 intercept = "1" in X.model_spec.terms
                 if intercept != self.fit_intercept:
@@ -2479,6 +2486,16 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         Constraint vector for linear inequality constraints of the form
         ``A_ineq w <= b_ineq``. Refer to the documentation of ``A_ineq`` for
         details.
+
+    monotonic_constraints : dict, optional (default=None)
+        Mapping from variable names in ``formula`` (e.g. ``"x"``) to
+        ``"increasing"`` or ``"decreasing"``. For single-column numeric
+        variables, including transforms like ``np.log(x)``, constrains the sign
+        of the coefficient. For ``bs()`` splines, categoricals and booleans,
+        orders consecutive coefficients (including an implicit zero for a dropped
+        first column). Other transforms are not supported. Categoricals must be
+        ordered (pandas ``Categorical`` with ``ordered=True`` or polars ``Enum``);
+        their coefficients follow the category order.
 
     drop_first : bool, optional (default = False)
         If ``True``, drop the first column when encoding categorical variables.
