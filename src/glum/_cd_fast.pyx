@@ -13,8 +13,6 @@ import numpy as np
 
 from cython cimport floating
 from cython.parallel import prange
-import warnings
-from sklearn.exceptions import ConvergenceWarning
 
 ctypedef np.float64_t DOUBLE
 ctypedef np.uint32_t UINT32_t
@@ -204,14 +202,9 @@ def enet_coordinate_descent_gram(int[::1] active_set,
                 )
                 if norm_min_subgrad <= tol:
                     break
-        else:
-            # for/else, runs if for doesn't end with a `break`
-            with gil:
-                warnings.warn("Coordinate descent did not converge. You might want to "
-                              "increase the number of iterations. Minimum norm "
-                              "subgradient: {}, tolerance: {}".format(norm_min_subgrad, tol),
-                              ConvergenceWarning)
 
+    # The caller can tell whether it converged from norm_min_subgrad <= tol, which
+    # is always computed in the last iteration, and warns if needed.
     return np.asarray(w), norm_min_subgrad, max_min_subgrad, tol, n_iter + 1
 
 
