@@ -71,6 +71,13 @@ cdef inline floating fsign(floating f) nogil:
         return -1.0
 
 
+cdef inline void axpy(floating* y, const floating* x, floating a, int n) noexcept nogil:
+    """y += a * x over n contiguous elements."""
+    cdef int k
+    for k in range(n):
+        y[k] += a * x[k]
+
+
 def identify_active_rows(
     floating[::1] gradient_rows,
     floating[::1] hessian_rows,
@@ -109,7 +116,7 @@ def identify_active_rows(
 def enet_coordinate_descent_gram(int[::1] active_set,
                                  floating[::1] w,
                                  floating[::1] P1,
-                                 floating[:,:] Q,
+                                 floating[:, ::1] Q,
                                  floating[::1] q,
                                  int max_iter, floating tol, object rng,
                                  bint intercept, bint random,
@@ -125,12 +132,25 @@ def enet_coordinate_descent_gram(int[::1] active_set,
         which amount to the Elastic-Net problem when:
         Q = X^T X (Gram matrix)
         q = X^T y
+
+        Q is restricted to ``active_set`` (rows and columns in active-set
+        order) and must be C-contiguous; w and q are full-length and indexed
+        by ``active_set``. q is updated in place.
     """
 
     # get the data information into easy vars
     cdef unsigned int n_active_features = active_set.shape[0]
 
+    # q restricted to the active set, in active-set order. After each
+    # coordinate move, q gets a rank-one update with a row of Q; on this
+    # compact copy that update is a contiguous axpy, which the compiler
+    # vectorises, instead of a gather/scatter through active_set. It is
+    # written back to q before each convergence check, which also runs in the
+    # last iteration, so q is up to date whenever the loop ends.
+    cdef floating[::1] q_active = np.asarray(q)[np.asarray(active_set)]
+
     cdef floating w_ii
+    cdef floating Q_ii
     cdef floating P1_ii
     cdef floating qii_temp
     cdef floating d_w_max
@@ -140,7 +160,7 @@ def enet_coordinate_descent_gram(int[::1] active_set,
     cdef floating norm_min_subgrad = 0
     cdef floating max_min_subgrad
     cdef unsigned int active_set_ii, active_set_jj
-    cdef unsigned int ii, jj
+    cdef unsigned int ii
     cdef int n_iter = 0
     cdef unsigned int f_iter
     cdef UINT32_t rand_r_state_seed = rng.randint(0, RAND_R_MAX)
@@ -162,13 +182,14 @@ def enet_coordinate_descent_gram(int[::1] active_set,
                 else:
                     P1_ii = P1[ii - intercept]
 
-                if Q[active_set_ii, active_set_ii] <= eps:
+                Q_ii = Q[active_set_ii, active_set_ii]
+                if Q_ii <= eps:
                     continue
 
                 w_ii = w[ii]  # Store previous value
 
-                qii_temp = q[ii] - w[ii] * Q[active_set_ii, active_set_ii]
-                w[ii] = fsign(-qii_temp) * fmax(fabs(qii_temp) - P1_ii, 0) / Q[active_set_ii, active_set_ii]
+                qii_temp = q_active[active_set_ii] - w_ii * Q_ii
+                w[ii] = fsign(-qii_temp) * fmax(fabs(qii_temp) - P1_ii, 0) / Q_ii
 
                 if ii >= <unsigned int>intercept:
                     if has_lower_bounds:
@@ -178,14 +199,14 @@ def enet_coordinate_descent_gram(int[::1] active_set,
                         if w[ii] > upper_bounds[ii - intercept]:
                             w[ii] = upper_bounds[ii - intercept]
 
+                d_w_ii = w[ii] - w_ii
                 if w[ii] != 0.0 or w_ii != 0.0:
-                    # q +=  (w[ii] - w_ii) * Q[ii] # Update q = X.T (X w - y)
-                    for active_set_jj in range(n_active_features):
-                        jj = active_set[active_set_jj]
-                        q[jj] += (w[ii] - w_ii) * Q[active_set_ii, active_set_jj]
+                    # q += d_w_ii * Q[ii]  # Update q = X.T (X w - y)
+                    axpy(&q_active[0], &Q[active_set_ii, 0], d_w_ii,
+                         n_active_features)
 
                 # update the maximum absolute coefficient update
-                d_w_ii = fabs(w[ii] - w_ii)
+                d_w_ii = fabs(d_w_ii)
                 if d_w_ii > d_w_max:
                     d_w_max = d_w_ii
 
@@ -196,6 +217,8 @@ def enet_coordinate_descent_gram(int[::1] active_set,
                 # the biggest coordinate update of this iteration was smaller than
                 # the tolerance: check the minimum norm subgradient as the
                 # ultimate stopping criterion
+                for active_set_jj in range(n_active_features):
+                    q[active_set[active_set_jj]] = q_active[active_set_jj]
                 cython_norm_min_subgrad(
                     active_set,
                     w, q, P1, intercept,
