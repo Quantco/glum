@@ -26,6 +26,8 @@ Unreleased
 
 **Other changes:**
 
+- Sped up the ``irls-cd`` solver for problems with collinear features, most commonly full one-hot encoded categoricals (``drop_first=False``, the default) next to an intercept or to each other. Coordinate descent could only creep along the directions in which the model does not change, so inner solves often ran up to ``max_inner_iter``. If an inner solve has not converged after 20 cycles, it now looks for such directions and moves along them exactly. On a Poisson lasso with three 50-level categoricals, this cuts the fit time from 32 seconds to 1.7 seconds, and from 220 seconds to 1.7 seconds with an elastic net penalty. Problems without such directions are not affected.
+- ``Coordinate descent did not converge`` warnings now come from the solver instead of the Cython kernel and show the value of ``max_inner_iter``.
 - Removed scikit-learn from build dependencies.
 - Warnings are now treated as errors in the test suite and in the README doctest in CI, except in the ``nightly`` and ``oldies`` environments.
 - The documentation build now treats warnings as errors and runs in CI. Fixed the docstring formatting of ``cat_missing_method`` and ``get_link`` and several broken links in the tutorials and the changelog.

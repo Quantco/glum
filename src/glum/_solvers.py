@@ -55,26 +55,302 @@ def _least_squares_solver(state, data, hessian):
     return d, 1
 
 
+# Number of coordinate descent cycles between two rounds of null space moves. An
+# inner solve that converges within this many cycles never looks for a null space.
+_NULL_MOVE_CYCLES = 20
+
+
 @timeit("inner_solver_runtime")
 def _cd_solver(state, data, active_hessian):
-    new_coef, gap, _, _, n_cycles = enet_coordinate_descent_gram(
-        state.active_set,
-        state.coef.copy(),
-        data.P1,
-        active_hessian,
-        -state.score,
-        data.max_inner_iter,
-        state.inner_tol,
-        data.random_state,
-        data.fit_intercept,
-        data.selection == "random",
-        data.has_lower_bounds,
-        data._lower_bounds,
-        data.has_upper_bounds,
-        data._upper_bounds,
-        np.finfo(state.coef.dtype).eps * 16,
+    """Minimise the quadratic model by coordinate descent.
+
+    If coordinate descent has not converged after ``_NULL_MOVE_CYCLES`` cycles and
+    the active Hessian has (near) null directions, e.g. because of full one-hot
+    categoricals, coordinate descent is interleaved with exact line
+    minimisations along a sparse basis of them; see :class:`_NullSpaceMoves`.
+    Otherwise, coordinate descent runs as before. The only difference is that it
+    can stop after ``_NULL_MOVE_CYCLES`` cycles if it has converged by then,
+    because the kernel checks convergence at the end of every call.
+    """
+    coef = state.coef.copy()
+    q = -state.score  # updated in place by the kernel and the null space moves
+    tol = state.inner_tol
+
+    def run_cd(max_iter):
+        _, norm_min_subgrad, _, _, n_cycles = enet_coordinate_descent_gram(
+            state.active_set,
+            coef,
+            data.P1,
+            active_hessian,
+            q,
+            max_iter,
+            tol,
+            data.random_state,
+            data.fit_intercept,
+            data.selection == "random",
+            data.has_lower_bounds,
+            data._lower_bounds,
+            data.has_upper_bounds,
+            data._upper_bounds,
+            np.finfo(state.coef.dtype).eps * 16,
+        )
+        return norm_min_subgrad <= tol, n_cycles
+
+    # A random run would draw a new seed with every call, so it is not split.
+    if data.selection == "random" or data.max_inner_iter <= _NULL_MOVE_CYCLES:
+        converged, n_cycles = run_cd(data.max_inner_iter)
+    else:
+        converged, n_cycles = run_cd(_NULL_MOVE_CYCLES)
+        if not converged:
+            null_basis = _cached_null_space_basis(state, active_hessian)
+            if null_basis is None:
+                converged, n_more = run_cd(data.max_inner_iter - n_cycles)
+                n_cycles += n_more
+            else:
+                moves = _NullSpaceMoves(state, data, active_hessian, null_basis)
+                chunk = _NULL_MOVE_CYCLES
+                while not converged and n_cycles < data.max_inner_iter:
+                    before = moves.model(coef, q)
+                    moves.apply(coef, q)
+                    after_moves = moves.model(coef, q)
+                    converged, n_more = run_cd(
+                        min(chunk, data.max_inner_iter - n_cycles)
+                    )
+                    n_cycles += n_more
+                    # Along dense, merely ill-conditioned directions, the moves
+                    # can cost as much as the cycles in between without helping.
+                    # Back off while they lower the model less than those cycles.
+                    if before - after_moves < after_moves - moves.model(coef, q):
+                        chunk *= 2
+                    else:
+                        chunk = _NULL_MOVE_CYCLES
+
+    if not converged:
+        warnings.warn(
+            "Coordinate descent did not converge. You might want to increase the "
+            f"number of iterations (currently max_inner_iter={data.max_inner_iter}).",
+            ConvergenceWarning,
+        )
+    return coef - state.coef, n_cycles
+
+
+# Directions along which the curvature of the diagonally scaled active Hessian
+# is below this are handled by null space moves.
+_NULL_SPACE_RTOL = 1e-3
+
+
+def _null_space_basis(Q: np.ndarray) -> Optional[np.ndarray]:
+    """Sparse basis of the (near) null space of the PSD matrix ``Q``.
+
+    Works on the scaled matrix ``S = D^{-1/2} Q D^{-1/2}``, ``D = diag(Q)``, whose
+    small eigenvalues are what makes coordinate descent slow. A pivoted Cholesky
+    factorisation ``S[p, p] = R.T @ R`` stops once the largest remaining pivot
+    falls below ``_NULL_SPACE_RTOL``. If it stops at rank ``r < n``, the columns
+    of ``[-R11^{-1} R12; I]`` (in pivoted order) span the remaining directions.
+    Each is supported on one non-pivot coordinate and the pivots it is
+    (nearly) collinear with. For a full set of one-hot columns next to an
+    intercept, that is one categorical and the intercept, which is what makes a
+    one-dimensional move along it effective. A small L2 penalty makes these
+    directions only nearly flat, which is why the tolerance is not at the
+    rounding level.
+
+    Returns ``None`` if there are no such directions, which is the common case
+    and costs about a third of a Cholesky factorisation.
+    """
+    n = Q.shape[0]
+    if n < 2:
+        return None
+    d = np.diag(Q)
+    scale = np.ones_like(d)
+    np.divide(1.0, np.sqrt(d), out=scale, where=d > 0)
+    (pstrf,) = linalg.get_lapack_funcs(("pstrf",), (Q,))
+    R, piv, rank, info = pstrf(Q * scale[:, None] * scale, tol=_NULL_SPACE_RTOL)
+    if info < 0 or rank >= n:
+        return None
+    piv = piv - 1  # LAPACK pivots are 1-based
+    basis = np.zeros((n, n - rank), dtype=Q.dtype)
+    basis[piv[:rank]] = -linalg.solve_triangular(
+        R[:rank, :rank], R[:rank, rank:], check_finite=False
     )
-    return new_coef - state.coef, n_cycles
+    basis[piv[rank:], np.arange(n - rank)] = 1.0
+    basis = _reduced_echelon_basis(basis, order=np.argsort(d, kind="stable"))
+    basis[np.abs(basis) < np.sqrt(np.finfo(Q.dtype).eps)] = 0.0
+    return basis * scale[:, None]
+
+
+def _reduced_echelon_basis(basis: np.ndarray, order: np.ndarray) -> np.ndarray:
+    """Another basis of the same space that is the identity on ``k`` coordinates.
+
+    The identity coordinates are picked greedily in the given ``order``,
+    skipping those that would make the pivot (nearly) zero. With the
+    coordinates ordered by increasing Hessian diagonal, the intercept and other
+    dense columns are picked last. For full one-hot categoricals, this gives one
+    vector per categorical, so that the moves along them are independent.
+    """
+    M = basis.T.copy()
+    free = np.ones(len(M), dtype=bool)
+    threshold = 1e-3 * np.abs(M).max()
+    for j in order:
+        if not free.any():
+            break
+        candidates = np.where(free, np.abs(M[:, j]), 0.0)
+        i = np.argmax(candidates)
+        if candidates[i] <= threshold:
+            continue
+        M[i] /= M[i, j]
+        others = np.arange(len(M)) != i
+        M[others] -= np.outer(M[others, j], M[i])
+        free[i] = False
+    return M.T
+
+
+def _cached_null_space_basis(state, Q) -> Optional[np.ndarray]:
+    """:func:`_null_space_basis`, reused while the active set does not change.
+
+    The null space of ``X_A.T @ W @ X_A`` does not depend on the (positive)
+    weights ``W``, so it usually stays the same over outer iterations with the
+    same active set. Using a basis from an earlier Hessian is always safe: the
+    moves minimise the model exactly along each direction, curvature included.
+    """
+    cache = state._null_space_cache
+    if cache is not None and np.array_equal(cache[0], state.active_set):
+        return cache[1]
+    basis = _null_space_basis(np.asarray(Q))
+    state._null_space_cache = (state.active_set.copy(), basis)
+    return basis
+
+
+class _NullSpaceMoves:
+    """Exact moves along a basis of (near) null directions of the active Hessian.
+
+    Along a null direction ``v`` the smooth part of the coordinate descent model
+    is (nearly) flat, so coordinate descent can only creep along it, one
+    coordinate at a time. Instead, each move minimises the model exactly over
+    ``w + t * v``::
+
+        phi(t) = t * q.v + 0.5 * t**2 * v.Q.v + sum_i P1_i |w_i + t v_i|
+
+    which is a one-dimensional, convex, piecewise quadratic problem. Each move
+    can only lower the model, so the moves are safe for any direction ``v``.
+    Bounds are respected by restricting ``t`` to the feasible interval.
+    """
+
+    def __init__(self, state, data, Q, basis):
+        a = state.active_set
+        self.active_set = a
+        offset = data.intercept_offset
+        is_penalized = a >= offset
+        P1 = np.zeros(len(a), dtype=Q.dtype)
+        P1[is_penalized] = data.P1[a[is_penalized] - offset]
+        lb = np.full(len(a), -np.inf)
+        ub = np.full(len(a), np.inf)
+        if data.has_lower_bounds:
+            lb[is_penalized] = data._lower_bounds[a[is_penalized] - offset]
+        if data.has_upper_bounds:
+            ub[is_penalized] = data._upper_bounds[a[is_penalized] - offset]
+
+        Q = np.asarray(Q)
+        Q_basis = Q @ basis
+        # Curvature at the rounding level of the diagonally scaled Hessian is
+        # treated as noise, i.e. as an exact null direction.
+        flat = np.sqrt(np.finfo(Q.dtype).eps)
+        diag = np.diag(Q)
+        self.directions = []
+        for j in range(basis.shape[1]):
+            nz = np.flatnonzero(basis[:, j])
+            v = basis[nz, j]
+            vQv = float(v @ Q_basis[nz, j])
+            if vQv <= flat * (diag[nz] @ v**2):
+                vQv = 0.0
+            self.directions.append((nz, v, Q_basis[:, j], vQv, P1[nz], lb[nz], ub[nz]))
+        self.P1 = P1
+        self.coef0 = state.coef[a]
+        self.score = state.score[a]
+
+    def model(self, coef, q) -> float:
+        """Value of the quadratic model, up to a constant, in ``O(n_active)``.
+
+        With ``delta = coef - coef0``, the kernel keeps ``q = -score + Q delta``,
+        so the smooth part ``-score.delta + 0.5 delta.Q.delta`` equals
+        ``0.5 delta.(q - score)``.
+        """
+        a = self.active_set
+        w = coef[a]
+        return float(0.5 * (w - self.coef0) @ (q[a] - self.score) + self.P1 @ np.abs(w))
+
+    def apply(self, coef, q):
+        """Move along each direction in turn, updating ``coef`` and ``q`` in place."""
+        a = self.active_set
+        for nz, v, Qv, vQv, P1, lb, ub in self.directions:
+            idx = a[nz]
+            w = coef[idx]
+            t = _l1_line_minimum(w, v, P1, float(q[idx] @ v), vQv, lb, ub)
+            if t != 0.0:
+                coef[idx] = w + t * v
+                q[a] += t * Qv
+
+
+def _l1_line_minimum(w, v, P1, gv, vQv, lb, ub) -> float:
+    """Minimiser of ``phi(t) = t*gv + 0.5*vQv*t**2 + sum_i P1_i |w_i + t v_i|``
+    subject to ``lb <= w + t*v <= ub``.
+
+    All ``v_i`` must be nonzero. The point returned is the one nearest to
+    ``t = 0`` where ``|phi'|`` is below a small tolerance. Along a null
+    direction (``vQv = 0``), ``phi`` can be flat over an interval; jumping across
+    it would not lower the model, only add a pure null space component to the
+    step, which the line search then rejects on rounding. If ``phi`` is
+    unbounded below, the step stops at the last breakpoint (``phi`` decreases
+    all the way to it) and coordinate descent takes it from there.
+    """
+    # feasible interval for t; it contains 0
+    lo = min(np.max(np.where(v > 0, (lb - w) / v, (ub - w) / v)), 0.0)
+    hi = max(np.min(np.where(v > 0, (ub - w) / v, (lb - w) / v)), 0.0)
+
+    # phi'(t) = gv + vQv*t + sum_i wt_i sign(t - bp_i), with breakpoints bp_i
+    is_penalized = P1 > 0
+    bp = -w[is_penalized] / v[is_penalized]
+    wt = P1[is_penalized] * np.abs(v[is_penalized])
+    total = wt.sum()
+    vQv = max(vQv, 0.0)
+    tie = 4096 * np.finfo(w.dtype).eps * (total + abs(gv))
+    if tie == 0.0:
+        return 0.0
+
+    # one-sided derivatives at t = 0
+    d_right = gv + 2 * wt[bp <= 0].sum() - total
+    d_left = gv + 2 * wt[bp < 0].sum() - total
+    if d_right < -tie:
+        t = _first_root_right(bp, wt, gv, vQv, total, d_right, tie, hi)
+    elif d_left > tie:
+        t = -_first_root_right(-bp, wt, -gv, vQv, total, -d_left, tie, -lo)
+    else:
+        return 0.0
+    return float(np.clip(t, lo, hi))
+
+
+def _first_root_right(bp, wt, gv, vQv, total, d_right0, tie, t_max) -> float:
+    """Smallest ``0 < t <= t_max`` with ``phi'(t) >= -tie`` (or ``t_max``), given
+    that ``phi'(0+) < -tie``."""
+    pos = (bp > 0) & (bp < t_max)
+    bp, wt = bp[pos], wt[pos]
+    order = np.argsort(bp)
+    bp, wt = bp[order], wt[order]
+    # constant part of phi' just left and just right of each breakpoint
+    base_left = d_right0 - gv + 2 * np.concatenate(([0.0], np.cumsum(wt)[:-1]))
+    base_right = base_left + 2 * wt
+    hit = np.flatnonzero(gv + vQv * bp + base_right >= -tie)
+    if len(hit):
+        k = hit[0]
+        base, t_end = base_left[k], bp[k]
+    else:
+        base = base_right[-1] if len(bp) else d_right0 - gv
+        t_end = t_max
+    if vQv > 0:
+        # phi' may reach zero before t_end
+        t_end = min(t_end, (-tie - gv - base) / vQv)
+    if np.isinf(t_end):  # unbounded below
+        return float(bp[-1]) if len(bp) else 0.0
+    return float(t_end)
 
 
 @timeit("build_hessian_runtime")
@@ -547,6 +823,8 @@ class IRLSState:
         self.n_active_rows = data.X.shape[0]
         self.old_active_set = None
         self.active_set = np.arange(self.coef.shape[0], dtype=np.int32)
+        # (active set, null space basis of its Hessian or None), see _cd_solver
+        self._null_space_cache: Optional[tuple] = None
 
         self.build_hessian_runtime = None
         self.inner_solver_runtime = None
