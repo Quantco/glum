@@ -25,6 +25,7 @@ Unreleased
 
 **Other changes:**
 
+- Sped up the inner coordinate descent of the ``irls-cd`` solver about 3x for ``float64`` and 5x for ``float32`` data, with bitwise identical results. The gradient update after each coordinate move now runs on a contiguous copy of the active set's gradient instead of indexing through the active set, so the compiler vectorises it.
 - Removed scikit-learn from build dependencies.
 - Warnings are now treated as errors in the test suite and in the README doctest in CI, except in the ``nightly`` and ``oldies`` environments.
 - The documentation build now treats warnings as errors and runs in CI. Fixed the docstring formatting of ``cat_missing_method`` and ``get_link`` and several broken links in the tutorials and the changelog.
