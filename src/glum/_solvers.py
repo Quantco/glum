@@ -785,9 +785,6 @@ def line_search(state: IRLSState, data: IRLSData, d: np.ndarray):
     # Note: the L2 penalty term is included in the score.
     bound = sigma * (-(state.score @ d) + P1wd_1 - P1w_1)
 
-    # np.sum(np.abs(state.score))
-    sum_abs_grad_old = -1  # defer calculation
-
     # The step direction in row space. We'll be multiplying this by varying
     # step sizes during the line search. Factoring this matrix-vector product
     # out of the inner loop improve performance a lot!
@@ -810,9 +807,10 @@ def line_search(state: IRLSState, data: IRLSData, d: np.ndarray):
         # 2. Deal with relative loss differences around machine precision.
         tiny_loss = np.abs(state.obj_val * eps)  # type: ignore
         if np.abs(loss_improvement) <= tiny_loss:
-            if sum_abs_grad_old < 0:
-                sum_abs_grad_old = linalg.norm(state.score, ord=1)
-            # 2.1 Check sum of absolute gradients as alternative condition.
+            # 2.1 Check the L1 norm of the minimum norm subgradient (the
+            # convergence criterion) as alternative condition. With an L1
+            # penalty or bounds, the plain gradient does not vanish at the
+            # optimum, so its norm says nothing about progress there.
             # Therefore, we need the recent gradient, see update_quadratic.
             sigma_inv = get_one_over_variance(
                 data.family, data.link, mu_wd, eta_wd, 1.0, data.sample_weight
@@ -824,8 +822,18 @@ def line_search(state: IRLSState, data: IRLSData, d: np.ndarray):
             if data.fit_intercept:
                 grad = np.concatenate(([gradient_rows.sum()], grad))
             grad -= coef_wd_P2
-            sum_abs_grad = linalg.norm(grad, ord=1)
-            if sum_abs_grad < sum_abs_grad_old:
+            sum_abs_grad, _ = _norm_min_subgrad(
+                np.arange(coef_wd.shape[0], dtype=np.int32),
+                coef_wd,
+                -grad,
+                data.P1,
+                data.intercept_offset,
+                data.has_lower_bounds,
+                data._lower_bounds,
+                data.has_upper_bounds,
+                data._upper_bounds,
+            )
+            if sum_abs_grad < state.norm_min_subgrad:
                 break
         factor *= beta
     else:

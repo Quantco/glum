@@ -22,6 +22,7 @@ Unreleased
 - Fixed tabmat's "Input array is not contiguous; making a copy." warning being emitted for row slices of pandas data frames, e.g. ``df.iloc[:n]``, in ``fit``, ``predict`` and ``score``. tabmat itself no longer emits this warning after 4.3.1.
 - Fixed ``monotonic_constraints`` ordering the levels of an ordered categorical by their label (e.g. alphabetically) instead of by the category order.
 - ``monotonic_constraints`` now raises a ``ValueError`` for unordered categoricals, and for ``cr()`` and ``cs()`` splines, instead of silently failing to enforce monotonicity.
+- Fixed the line search of the IRLS solvers rejecting good steps near the optimum of L1-penalized or bounded problems. When the change in the objective was too small to measure, it compared the L1 norm of the gradient, which does not vanish at the optimum of such problems. It now compares the minimum-norm subgradient, the quantity the convergence check uses.
 
 **Other changes:**
 
