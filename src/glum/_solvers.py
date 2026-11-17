@@ -25,10 +25,10 @@ from ._link import Link
 def timeit(runtime_attr: str):
     """
     Decorate a function to compute its run time and update the \
-    :class:`IRLSState` instance attribute called ``runtime_attr`` with the run \
+    `IRLSState` instance attribute called `runtime_attr` with the run \
     time of the function.
 
-    The first argument of ``fct`` should be an :class:`IRLSState` instance.
+    The first argument of `fct` should be an `IRLSState` instance.
     """
 
     def fct_wrap(fct):
@@ -64,12 +64,12 @@ _NULL_MOVE_CYCLES = 20
 def _cd_solver(state, data, active_hessian):
     """Minimize the quadratic model by coordinate descent.
 
-    If coordinate descent has not converged after ``_NULL_MOVE_CYCLES`` cycles and
+    If coordinate descent has not converged after `_NULL_MOVE_CYCLES` cycles and
     the active Hessian has (near) null directions, e.g. because of full one-hot
     categoricals, coordinate descent is interleaved with exact line
-    minimizations along a sparse basis of them; see :class:`_NullSpaceMoves`.
+    minimizations along a sparse basis of them; see `_NullSpaceMoves`.
     Otherwise, coordinate descent runs as before. The only difference is that it
-    can stop after ``_NULL_MOVE_CYCLES`` cycles if it has converged by then,
+    can stop after `_NULL_MOVE_CYCLES` cycles if it has converged by then,
     because the kernel checks convergence at the end of every call.
     """
     # The kernel requires a C-contiguous Q. Converting once here, rather than in
@@ -143,13 +143,13 @@ _NULL_SPACE_RTOL = 1e-3
 
 
 def _null_space_basis(Q: np.ndarray) -> Optional[np.ndarray]:
-    """Sparse basis of the (near) null space of the PSD matrix ``Q``.
+    """Sparse basis of the (near) null space of the PSD matrix `Q`.
 
-    Works on the scaled matrix ``S = D^{-1/2} Q D^{-1/2}``, ``D = diag(Q)``, whose
+    Works on the scaled matrix `S = D^{-1/2} Q D^{-1/2}`, `D = diag(Q)`, whose
     small eigenvalues are what makes coordinate descent slow. A pivoted Cholesky
-    factorization ``S[p, p] = R.T @ R`` stops once the largest remaining pivot
-    falls below ``_NULL_SPACE_RTOL``. If it stops at rank ``r < n``, the columns
-    of ``[-R11^{-1} R12; I]`` (in pivoted order) span the remaining directions.
+    factorization `S[p, p] = R.T @ R` stops once the largest remaining pivot
+    falls below `_NULL_SPACE_RTOL`. If it stops at rank `r < n`, the columns
+    of `[-R11^{-1} R12; I]` (in pivoted order) span the remaining directions.
     Each is supported on one non-pivot coordinate and the pivots it is
     (nearly) collinear with. For a full set of one-hot columns next to an
     intercept, that is one categorical and the intercept, which is what makes a
@@ -157,7 +157,7 @@ def _null_space_basis(Q: np.ndarray) -> Optional[np.ndarray]:
     directions only nearly flat, which is why the tolerance is not at the
     rounding level.
 
-    Returns ``None`` if there are no such directions, which is the common case
+    Returns `None` if there are no such directions, which is the common case
     and costs about a third of a Cholesky factorization.
     """
     n = Q.shape[0]
@@ -182,9 +182,9 @@ def _null_space_basis(Q: np.ndarray) -> Optional[np.ndarray]:
 
 
 def _reduced_echelon_basis(basis: np.ndarray, order: np.ndarray) -> np.ndarray:
-    """Another basis of the same space that is the identity on ``k`` coordinates.
+    """Another basis of the same space that is the identity on `k` coordinates.
 
-    The identity coordinates are picked greedily in the given ``order``,
+    The identity coordinates are picked greedily in the given `order`,
     skipping those that would make the pivot (nearly) zero. With the
     coordinates ordered by increasing Hessian diagonal, the intercept and other
     dense columns are picked last. For full one-hot categoricals, this gives one
@@ -208,10 +208,10 @@ def _reduced_echelon_basis(basis: np.ndarray, order: np.ndarray) -> np.ndarray:
 
 
 def _cached_null_space_basis(state, Q) -> Optional[np.ndarray]:
-    """:func:`_null_space_basis`, reused while the active set does not change.
+    """`_null_space_basis`, reused while the active set does not change.
 
-    The null space of ``X_A.T @ W @ X_A`` does not depend on the (positive)
-    weights ``W``, so it usually stays the same over outer iterations with the
+    The null space of `X_A.T @ W @ X_A` does not depend on the (positive)
+    weights `W`, so it usually stays the same over outer iterations with the
     same active set. Using a basis from an earlier Hessian is always safe: the
     moves minimize the model exactly along each direction, curvature included.
     """
@@ -226,16 +226,16 @@ def _cached_null_space_basis(state, Q) -> Optional[np.ndarray]:
 class _NullSpaceMoves:
     """Exact moves along a basis of (near) null directions of the active Hessian.
 
-    Along a null direction ``v`` the smooth part of the coordinate descent model
+    Along a null direction `v` the smooth part of the coordinate descent model
     is (nearly) flat, so coordinate descent can only creep along it, one
     coordinate at a time. Instead, each move minimizes the model exactly over
-    ``w + t * v``::
+    `w + t * v`:
 
         phi(t) = t * q.v + 0.5 * t**2 * v.Q.v + sum_i P1_i |w_i + t v_i|
 
     which is a one-dimensional, convex, piecewise quadratic problem. Each move
-    can only lower the model, so the moves are safe for any direction ``v``.
-    Bounds are respected by restricting ``t`` to the feasible interval.
+    can only lower the model, so the moves are safe for any direction `v`.
+    Bounds are respected by restricting `t` to the feasible interval.
     """
 
     def __init__(self, state, data, Q, basis):
@@ -271,18 +271,18 @@ class _NullSpaceMoves:
         self.score = state.score[a]
 
     def model(self, coef, q) -> float:
-        """Value of the quadratic model, up to a constant, in ``O(n_active)``.
+        """Value of the quadratic model, up to a constant, in `O(n_active)`.
 
-        With ``delta = coef - coef0``, the kernel keeps ``q = -score + Q delta``,
-        so the smooth part ``-score.delta + 0.5 delta.Q.delta`` equals
-        ``0.5 delta.(q - score)``.
+        With `delta = coef - coef0`, the kernel keeps `q = -score + Q delta`,
+        so the smooth part `-score.delta + 0.5 delta.Q.delta` equals
+        `0.5 delta.(q - score)`.
         """
         a = self.active_set
         w = coef[a]
         return float(0.5 * (w - self.coef0) @ (q[a] - self.score) + self.P1 @ np.abs(w))
 
     def apply(self, coef, q):
-        """Move along each direction in turn, updating ``coef`` and ``q`` in place."""
+        """Move along each direction in turn, updating `coef` and `q` in place."""
         a = self.active_set
         for nz, v, Qv, vQv, P1, lb, ub in self.directions:
             idx = a[nz]
@@ -294,15 +294,15 @@ class _NullSpaceMoves:
 
 
 def _l1_line_minimum(w, v, P1, gv, vQv, lb, ub) -> float:
-    """Minimizer of ``phi(t) = t*gv + 0.5*vQv*t**2 + sum_i P1_i |w_i + t v_i|``
-    subject to ``lb <= w + t*v <= ub``.
+    """Minimizer of `phi(t) = t*gv + 0.5*vQv*t**2 + sum_i P1_i |w_i + t v_i|`
+    subject to `lb <= w + t*v <= ub`.
 
-    All ``v_i`` must be nonzero. The point returned is the one nearest to
-    ``t = 0`` where ``|phi'|`` is below a small tolerance. Along a null
-    direction (``vQv = 0``), ``phi`` can be flat over an interval; jumping across
+    All `v_i` must be nonzero. The point returned is the one nearest to
+    `t = 0` where `|phi'|` is below a small tolerance. Along a null
+    direction (`vQv = 0`), `phi` can be flat over an interval; jumping across
     it would not lower the model, only add a pure null space component to the
-    step, which the line search then rejects on rounding. If ``phi`` is
-    unbounded below, the step stops at the last breakpoint (``phi`` decreases
+    step, which the line search then rejects on rounding. If `phi` is
+    unbounded below, the step stops at the last breakpoint (`phi` decreases
     all the way to it) and coordinate descent takes it from there.
     """
     # feasible interval for t; it contains 0
@@ -332,8 +332,8 @@ def _l1_line_minimum(w, v, P1, gv, vQv, lb, ub) -> float:
 
 
 def _first_root_right(bp, wt, gv, vQv, total, d_right0, tie, t_max) -> float:
-    """Smallest ``0 < t <= t_max`` with ``phi'(t) >= -tie`` (or ``t_max``), given
-    that ``phi'(0+) < -tie``."""
+    """Smallest `0 < t <= t_max` with `phi'(t) >= -tie` (or `t_max`), given
+    that `phi'(0+) < -tie`."""
     pos = (bp > 0) & (bp < t_max)
     bp, wt = bp[pos], wt[pos]
     order = np.argsort(bp)
@@ -361,42 +361,42 @@ def update_hessian(state, data, active_set):
     """
     Update the approximate Hessian.
 
-    The goal is to compute ``H = X^T @ diag(hessian_rows) @ X``. We will refer
-    to ``H`` as the Hessian, even though technically we are computing a
+    The goal is to compute `H = X^T @ diag(hessian_rows) @ X`. We will refer
+    to `H` as the Hessian, even though technically we are computing a
     Gauss-Newton approximation to the Hessian.
 
-    Instead of computing ``H`` directly, we will compute updates to ``H``:
-    ``dH``. So, given ``H0`` from a previous iteration,
-    ``H0 = X^T @ diag(hessian_rows_0) @ X``, we want to compute ``H1`` from this
-    iteration: ``H1 = X^T @ diag(hessian_rows_1) @ X``.
+    Instead of computing `H` directly, we will compute updates to `H`:
+    `dH`. So, given `H0` from a previous iteration,
+    `H0 = X^T @ diag(hessian_rows_0) @ X`, we want to compute `H1` from this
+    iteration: `H1 = X^T @ diag(hessian_rows_1) @ X`.
 
-    However, we will instead compute ``H1 = H0 + dH``, where
-    ``dH = X^T @ diag(hessian_rows_1 - hessian_rows_0) @ X``.
+    However, we will instead compute `H1 = H0 + dH`, where
+    `dH = X^T @ diag(hessian_rows_1 - hessian_rows_0) @ X`.
 
     We will also refer to
-    ``hessian_rows_diff = hessian_rows_1 - hessian_rows_0``.
+    `hessian_rows_diff = hessian_rows_1 - hessian_rows_0`.
 
-    The advantage of reframing the computation of ``H`` as an update is that the
-    values in ``hessian_rows_diff`` will vary depending on how large the
+    The advantage of reframing the computation of `H` as an update is that the
+    values in `hessian_rows_diff` will vary depending on how large the
     influence of that last coefficient update was on that row. As a result, in
-    lots of problems, many of the entries in ``hessian_rows_diff`` will be very
+    lots of problems, many of the entries in `hessian_rows_diff` will be very
     very small.
 
-    So, the goal with ``identify_active_rows`` is to filter to a subset of
-    ``hessian_rows_diff`` that we will use to compute the sandwich product for
-    ``dH``. If ``threshold/data.hessian_approx == 0.0``, then we will always use
-    every row. However, for ``data.hessian_approx != 0``, we include rows for
+    So, the goal with `identify_active_rows` is to filter to a subset of
+    `hessian_rows_diff` that we will use to compute the sandwich product for
+    `dH`. If `threshold/data.hessian_approx == 0.0`, then we will always use
+    every row. However, for `data.hessian_approx != 0`, we include rows for
     which
-    ``include = (np.abs(hessian_rows_diff[i]) >= T *
-    np.max(np.abs(hessian_rows_diff)))``.
+    `include = (np.abs(hessian_rows_diff[i]) >= T *
+    np.max(np.abs(hessian_rows_diff)))`.
 
     Essentially, this criterion ignores data matrix rows that have not seen the
     second derivatives of their predictions change very much in the last
     iteration.
 
     Critically, we set
-    ``hessian_rows_old[include] += hessian_rows_diff[include]``.
-    That way, ``hessian_rows_diff`` is no longer the change since the last
+    `hessian_rows_old[include] += hessian_rows_diff[include]`.
+    That way, `hessian_rows_diff` is no longer the change since the last
     iteration, but, instead, the change since the last iteration that a row was
     active. This ensures that we don't miss the situation where a row changes a
     small amount over several iterations which accumulates into a large change.
@@ -520,7 +520,7 @@ def _irls_solver(inner_solver, coef, data) -> tuple[np.ndarray, int, int, list[l
     """
     Solve GLM with L1 and L2 penalty by IRLS.
 
-    The objective being minimized in the coefficients w=coef is::
+    The objective being minimized in the coefficients w=coef is:
 
         F = f + g, f(w) = 1/2 deviance, g = 1/2 w*P2*w + ||P1*w||_1
 
@@ -870,9 +870,9 @@ class IRLSState:
 
 
 def _state_norm_min_subgrad(state: IRLSState, data: IRLSData):
-    """L1 and max norm of the minimum norm subgradient at ``state.coef``.
+    """L1 and max norm of the minimum norm subgradient at `state.coef`.
 
-    Computed from ``state.score``, so call it again whenever the score changes.
+    Computed from `state.score`, so call it again whenever the score changes.
     """
     return _norm_min_subgrad(
         np.arange(state.coef.shape[0], dtype=np.int32),
@@ -1292,7 +1292,7 @@ def _build_monotonic_penalty(
     b_ineq: np.ndarray,
     constraint_lam: float = 1e9,
 ) -> Optional[sparse.csc_matrix]:
-    """Return ``lam * A_v.T @ A_v`` as sparse, or None if no violations."""
+    """Return `lam * A_v.T @ A_v` as sparse, or None if no violations."""
     violations = A_ineq @ coef_no_intercept - b_ineq
     violated = violations > 0
     if not np.any(violated):

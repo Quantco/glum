@@ -131,9 +131,9 @@ def enet_coordinate_descent_gram(int[::1] active_set,
         Q = X^T X (Gram matrix)
         q = X^T y
 
-        Q is restricted to ``active_set`` (rows and columns in active-set
+        Q is restricted to `active_set` (rows and columns in active-set
         order) and must be C-contiguous; w and q are full-length and indexed
-        by ``active_set``. q is updated in place.
+        by `active_set`. q is updated in place.
     """
 
     # get the data information into easy vars

@@ -873,14 +873,45 @@ def plot_results(config: BenchmarkConfig):
 
 
 # Markers for auto-generated content in docs
-RST_START_MARKER = ".. BENCHMARK_FIGURES_START"
-RST_END_MARKER = ".. BENCHMARK_FIGURES_END"
 MD_START_MARKER = "<!-- BENCHMARK_FIGURES_START -->"
 MD_END_MARKER = "<!-- BENCHMARK_FIGURES_END -->"
+MD_BLOCK_PATTERN = re.compile(
+    rf"{re.escape(MD_START_MARKER)}.*?{re.escape(MD_END_MARKER)}", re.DOTALL
+)
+
+
+def _replace_marker_blocks(path: Path, blocks: list[str]) -> int | None:
+    """Replace the marker blocks in ``path`` with ``blocks``, in order.
+
+    Returns the number of replaced blocks, or ``None`` if the file is missing.
+    """
+    if not path.exists():
+        print(f"\n{path.name} not found: {path}")
+        return None
+
+    content = path.read_text()
+    matches = list(MD_BLOCK_PATTERN.finditer(content))
+    if not matches:
+        print(f"\nNo marker blocks found in {path}")
+        print(f"Add: {MD_START_MARKER} and {MD_END_MARKER}")
+        return 0
+    if len(blocks) != len(matches):
+        print(
+            f"\nWarning: {len(blocks)} figure group(s) in config but "
+            f"{len(matches)} marker block(s) in {path}. "
+            f"Replacing min({len(blocks)}, {len(matches)}) blocks."
+        )
+
+    # Replace blocks from last to first to preserve positions
+    for block, match in reversed(list(zip(blocks, matches))):
+        content = content[: match.start()] + block + content[match.end() :]
+    path.write_text(content)
+    print(f"\nUpdated: {path}")
+    return min(len(blocks), len(matches))
 
 
 def update_docs(config: BenchmarkConfig):
-    """Copy figures to docs/_static and update index.rst, benchmarks.rst and README.md.
+    """Copy figures to docs/_static and update index.md, benchmarks.md and README.md.
 
     Uses marker comments to safely replace only the auto-generated figure
     references in each file. Figures to include can be specified via
@@ -906,7 +937,7 @@ def update_docs(config: BenchmarkConfig):
     available = {f.name for f in all_figures}
 
     # Determine which figure groups to use for docs
-    # Each group maps to one BENCHMARK_FIGURES_START/END block in benchmarks.rst
+    # Each group maps to one BENCHMARK_FIGURES_START/END block in benchmarks.md
     if config.docs_figures is not None:
         docs_figure_groups = []
         for group in config.docs_figures:
@@ -943,58 +974,24 @@ def update_docs(config: BenchmarkConfig):
         shutil.copy2(src, dest)
         print(f"Copied: {fig_name} -> docs/_static/")
 
-    # Update benchmarks.rst
+    # Update benchmarks.md
     # Each figure group replaces one BENCHMARK_FIGURES_START/END block (in order)
     if any(docs_figure_groups):
-        if config.benchmarks_rst.exists():
-            with open(config.benchmarks_rst) as f:
-                rst_content = f.read()
-
-            block_pattern = re.compile(
-                rf"{re.escape(RST_START_MARKER)}.*?{re.escape(RST_END_MARKER)}",
-                re.DOTALL,
+        blocks = [
+            "\n\n".join(
+                [MD_START_MARKER]
+                + [f'![](_static/{fig_name}){{ width="700" }}' for fig_name in group]
+                + [MD_END_MARKER]
             )
-            blocks = list(block_pattern.finditer(rst_content))
-
-            if not blocks:
-                print(f"\nNo marker blocks found in {config.benchmarks_rst}")
-                print(f"Add: {RST_START_MARKER} and {RST_END_MARKER}")
-            else:
-                if len(docs_figure_groups) != len(blocks):
-                    print(
-                        f"\nWarning: {len(docs_figure_groups)} figure group(s) in "
-                        f"config but {len(blocks)} marker block(s) in "
-                        f"{config.benchmarks_rst}. "
-                        f"Replacing min({len(docs_figure_groups)}, "
-                        f"{len(blocks)}) blocks."
-                    )
-
-                # Replace blocks from last to first to preserve positions
-                total_figs = 0
-                for group, match in reversed(list(zip(docs_figure_groups, blocks))):
-                    rst_lines = [RST_START_MARKER, ""]
-                    for fig_name in group:
-                        rst_lines.append(f".. image:: _static/{fig_name}")
-                        rst_lines.append("   :width: 700")
-                        rst_lines.append("")
-                    rst_lines.append(RST_END_MARKER)
-                    replacement = "\n".join(rst_lines)
-                    rst_content = (
-                        rst_content[: match.start()]
-                        + replacement
-                        + rst_content[match.end() :]
-                    )
-                    total_figs += len(group)
-
-                with open(config.benchmarks_rst, "w") as f:
-                    f.write(rst_content)
-                print(f"\nUpdated: {config.benchmarks_rst}")
-                print(
-                    f"Replaced {min(len(docs_figure_groups), len(blocks))} block(s) "
-                    f"with {total_figs} total figure references."
-                )
-        else:
-            print(f"\nbenchmarks.rst not found: {config.benchmarks_rst}")
+            for group in docs_figure_groups
+        ]
+        n_replaced = _replace_marker_blocks(config.benchmarks_md, blocks)
+        if n_replaced:
+            total_figs = sum(len(g) for g in docs_figure_groups[:n_replaced])
+            print(
+                f"Replaced {n_replaced} block(s) "
+                f"with {total_figs} total figure references."
+            )
 
     # Update README.md
     # Use <img> tags with width for controlled display size and GitHub light/dark mode
@@ -1048,35 +1045,23 @@ def update_docs(config: BenchmarkConfig):
         else:
             print(f"\nREADME.md not found: {config.readme_file}")
 
-    # Update index.rst (headline figure, same as README)
+    # Update index.md (headline figure, same as README)
+    # The #only-light / #only-dark suffixes make the theme show one per color scheme.
     if readme_fig_names:
-        idx_lines = [RST_START_MARKER, ""]
+        idx_lines = [MD_START_MARKER]
         for fig_name in readme_fig_names:
-            idx_lines.append(f".. image:: _static/{fig_name}")
-            idx_lines.append("   :width: 600")
-            idx_lines.append("")
-        idx_lines.append(RST_END_MARKER)
-        idx_new_content = "\n".join(idx_lines)
-
-        if config.index_rst.exists():
-            with open(config.index_rst) as f:
-                idx_content = f.read()
-
-            if RST_START_MARKER in idx_content and RST_END_MARKER in idx_content:
-                pattern = re.compile(
-                    rf"{re.escape(RST_START_MARKER)}.*?{re.escape(RST_END_MARKER)}",
-                    re.DOTALL,
-                )
-                updated_idx = pattern.sub(idx_new_content, idx_content)
-                with open(config.index_rst, "w") as f:
-                    f.write(updated_idx)
-                print(f"\nUpdated: {config.index_rst}")
-                print(f"Inserted {len(readme_fig_names)} headline figure(s).")
-            else:
-                print(f"\nMarkers not found in {config.index_rst}")
-                print(f"Add: {RST_START_MARKER} and {RST_END_MARKER}")
-        else:
-            print(f"\nindex.rst not found: {config.index_rst}")
+            dark_name = fig_name.replace(".png", "_dark.png")
+            if not (config.docs_static_dir / dark_name).exists():
+                dark_name = fig_name
+            idx_lines.append(
+                f'![Benchmark results](_static/{fig_name}#only-light){{ width="600" }}'
+            )
+            idx_lines.append(
+                f'![Benchmark results](_static/{dark_name}#only-dark){{ width="600" }}'
+            )
+        idx_lines.append(MD_END_MARKER)
+        if _replace_marker_blocks(config.index_md, ["\n".join(idx_lines)]):
+            print(f"Inserted {len(readme_fig_names)} headline figure(s).")
 
 
 def main():
@@ -1125,7 +1110,7 @@ def main():
     if config.generate_plots:
         print(f"Figures saved to: {config.figure_dir}/")
     if config.update_docs:
-        print(f"Docs updated: {config.index_rst}, {config.benchmarks_rst}")
+        print(f"Docs updated: {config.index_md}, {config.benchmarks_md}")
         print(f"README updated: {config.readme_file}")
 
     # Snapshot config for reproducibility only when new benchmarks are run.

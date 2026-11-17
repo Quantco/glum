@@ -1,21 +1,4 @@
----
-jupyter:
-  jupytext:
-    formats: ipynb,md
-    text_representation:
-      extension: .md
-      format_name: markdown
-      format_version: '1.3'
-      jupytext_version: 1.13.7
-  kernelspec:
-    display_name: Python 3
-    language: python
-    name: python3
----
-
-<!-- #region -->
 # GLM Tutorial: Poisson, Gamma, and Tweedie with French Motor Third-Party Liability Claims
-
 
 **Intro**
 
@@ -23,7 +6,6 @@ This tutorial shows why and how to use Poisson, Gamma, and Tweedie GLMs on an in
 
 1. An sklearn-learn tutorial, [Tweedie regression on insurance claims](https://scikit-learn.org/stable/auto_examples/linear_model/plot_tweedie_regression_insurance_claims.html#pure-premium-modeling-via-a-product-model-vs-single-tweedieregressor), which was created for this (partially merged) [sklearn PR](https://github.com/scikit-learn/scikit-learn/pull/9405) that we based glum on
 2. An R tutorial, [Case Study: French Motor Third-Party Liability Claims](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3164764) with [R code](https://github.com/JSchelldorfer/ActuarialDataScience/tree/master/1%20-%20French%20Motor%20Third-Party%20Liability%20Claims).
-
 
 **Background**
 
@@ -34,16 +16,7 @@ Two approaches for modeling this value are:
 1. Modeling the total claim amount per exposure directly
 2. Modeling number of claims and claim amount separately with a frequency and a severity model
 
-In this tutorial, we demonstrate both approaches. We start with the second option as it shows how to use two different families/distributions (Poisson and Gamma) within a GLM on a single dataset. We then show the first approach using a single poison-gamma Tweedie regressor (i.e. a Tweedie with power $p \in (1,2)$)
-
-
-
-## Table of Contents
-* [1. Load and Prepare Datasets from Openml.org](#1.-Load-and-Prepare-Datasets-from-Openml.org)
-* [2. Frequency GLM - Poisson Distribution](#2.-Frequency-GLM---Poisson-Distribution)
-* [3. Severity GLM - Gamma Distribution](#3.-Severity-GLM---Gamma-distribution)
-* [4. Combined GLM - Tweedie Distribution](#4.-Combined-GLM---Tweedie-Distribution)
-<!-- #endregion -->
+In this tutorial, we demonstrate both approaches. We start with the second option as it shows how to use two different families/distributions (Poisson and Gamma) within a GLM on a single dataset. We then show the first approach using a single Poisson-Gamma Tweedie regressor (i.e. a Tweedie with power $p \in (1,2)$)
 
 ```python
 import matplotlib.pyplot as plt
@@ -55,17 +28,17 @@ from dask_ml.preprocessing import Categorizer
 from sklearn.metrics import mean_absolute_error
 from sklearn.model_selection import ShuffleSplit
 from glum import GeneralizedLinearRegressor
+
 from glum import TweedieDistribution
 
 from load_transform import load_transform
 ```
 
-## 1. Load and prepare datasets from Openml<a class="anchor"></a>
-[back to table of contents](#Table-of-Contents)
+## 1. Load and prepare datasets from Openml
 
-First, we load in our [dataset from openML]("https://www.openml.org/d/41214") and apply several transformations. In the interest of simplicity, we do not include the data loading and preparation code in this notebook. Below is a list of further resources if you wish to explore further:
+First, we load in our [dataset from openML](https://www.openml.org/d/41214) and apply several transformations. In the interest of simplicity, we do not include the data loading and preparation code in this notebook. Below is a list of further resources if you wish to explore further:
 
-1. If you want to run the same code yourself, please see the helper functions [here](https://github.com/Quantco/glum/tree/open-sourcing/docs/tutorials/glm_french_motor_tutorial).
+1. If you want to run the same code yourself, please see the helper functions [here](https://github.com/Quantco/glum/tree/main/docs/tutorials/glm_french_motor_tutorial).
 2. For a detailed description of the data, see [here](http://dutangc.free.fr/pub/RRepos/web/CASdatasets-index.html).
 3. For an excellent exploratory data analysis, see the case study paper linked above.
 
@@ -83,9 +56,227 @@ with pd.option_context('display.max_rows', 10):
     display(df)
 ```
 
-<!-- #region -->
-## 2. Frequency GLM - Poisson distribution<a class="anchor"></a>
-[back to Table of Contents](#Table-of-Contents)
+<div class="nb-output">
+<div>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>ClaimNb</th>
+      <th>Exposure</th>
+      <th>Area</th>
+      <th>VehPower</th>
+      <th>VehAge</th>
+      <th>DrivAge</th>
+      <th>BonusMalus</th>
+      <th>VehBrand</th>
+      <th>VehGas</th>
+      <th>Density</th>
+      <th>Region</th>
+      <th>ClaimAmount</th>
+      <th>ClaimAmountCut</th>
+    </tr>
+    <tr>
+      <th>IDpol</th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>1</th>
+      <td>0</td>
+      <td>0.10000</td>
+      <td>D</td>
+      <td>5</td>
+      <td>0</td>
+      <td>5</td>
+      <td>50</td>
+      <td>B12</td>
+      <td>Regular</td>
+      <td>1217</td>
+      <td>R82</td>
+      <td>0.0</td>
+      <td>0.0</td>
+    </tr>
+    <tr>
+      <th>3</th>
+      <td>0</td>
+      <td>0.77000</td>
+      <td>D</td>
+      <td>5</td>
+      <td>0</td>
+      <td>5</td>
+      <td>50</td>
+      <td>B12</td>
+      <td>Regular</td>
+      <td>1217</td>
+      <td>R82</td>
+      <td>0.0</td>
+      <td>0.0</td>
+    </tr>
+    <tr>
+      <th>5</th>
+      <td>0</td>
+      <td>0.75000</td>
+      <td>B</td>
+      <td>6</td>
+      <td>1</td>
+      <td>5</td>
+      <td>50</td>
+      <td>B12</td>
+      <td>Diesel</td>
+      <td>54</td>
+      <td>R22</td>
+      <td>0.0</td>
+      <td>0.0</td>
+    </tr>
+    <tr>
+      <th>10</th>
+      <td>0</td>
+      <td>0.09000</td>
+      <td>B</td>
+      <td>7</td>
+      <td>0</td>
+      <td>4</td>
+      <td>50</td>
+      <td>B12</td>
+      <td>Diesel</td>
+      <td>76</td>
+      <td>R72</td>
+      <td>0.0</td>
+      <td>0.0</td>
+    </tr>
+    <tr>
+      <th>11</th>
+      <td>0</td>
+      <td>0.84000</td>
+      <td>B</td>
+      <td>7</td>
+      <td>0</td>
+      <td>4</td>
+      <td>50</td>
+      <td>B12</td>
+      <td>Diesel</td>
+      <td>76</td>
+      <td>R72</td>
+      <td>0.0</td>
+      <td>0.0</td>
+    </tr>
+    <tr>
+      <th>...</th>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+    </tr>
+    <tr>
+      <th>6114326</th>
+      <td>0</td>
+      <td>0.00274</td>
+      <td>E</td>
+      <td>4</td>
+      <td>0</td>
+      <td>5</td>
+      <td>50</td>
+      <td>B12</td>
+      <td>Regular</td>
+      <td>3317</td>
+      <td>R93</td>
+      <td>0.0</td>
+      <td>0.0</td>
+    </tr>
+    <tr>
+      <th>6114327</th>
+      <td>0</td>
+      <td>0.00274</td>
+      <td>E</td>
+      <td>4</td>
+      <td>0</td>
+      <td>4</td>
+      <td>95</td>
+      <td>B12</td>
+      <td>Regular</td>
+      <td>9850</td>
+      <td>R11</td>
+      <td>0.0</td>
+      <td>0.0</td>
+    </tr>
+    <tr>
+      <th>6114328</th>
+      <td>0</td>
+      <td>0.00274</td>
+      <td>D</td>
+      <td>6</td>
+      <td>1</td>
+      <td>4</td>
+      <td>50</td>
+      <td>B12</td>
+      <td>Diesel</td>
+      <td>1323</td>
+      <td>R82</td>
+      <td>0.0</td>
+      <td>0.0</td>
+    </tr>
+    <tr>
+      <th>6114329</th>
+      <td>0</td>
+      <td>0.00274</td>
+      <td>B</td>
+      <td>4</td>
+      <td>0</td>
+      <td>5</td>
+      <td>50</td>
+      <td>B12</td>
+      <td>Regular</td>
+      <td>95</td>
+      <td>R26</td>
+      <td>0.0</td>
+      <td>0.0</td>
+    </tr>
+    <tr>
+      <th>6114330</th>
+      <td>0</td>
+      <td>0.00274</td>
+      <td>B</td>
+      <td>7</td>
+      <td>1</td>
+      <td>2</td>
+      <td>54</td>
+      <td>B12</td>
+      <td>Diesel</td>
+      <td>65</td>
+      <td>R72</td>
+      <td>0.0</td>
+      <td>0.0</td>
+    </tr>
+  </tbody>
+</table>
+<p>678013 rows × 13 columns</p>
+</div>
+</div>
+
+## 2. Frequency GLM - Poisson distribution
 
 We start with the first part of our two part GLM - modeling the frequency of claims using a Poisson regression. Below, we give some background on why the Poisson family makes the most sense in this context.
 
@@ -101,11 +292,9 @@ We define:
 - $y = \frac{z}{w}$: claim frequency per year
 - $X$: feature matrix
 
-
 The number of claims $z$ is an integer, $z \in [0, 1, 2, 3, \ldots]$. Theoretically, a policy could have an arbitrarily large number of claims&mdash;very unlikely but possible. The simplest distribution for this range is a Poisson distribution $z \sim Poisson$. However, instead of $z$, we will model the frequency $y$. Nonetheless, this  is still (scaled) Poisson distributed with variance inverse proportional to $w$, cf. [wikipedia:Reproductive_EDM](https://en.wikipedia.org/wiki/Exponential_dispersion_model#Reproductive).
 
 To verify our assumptions, we start by plotting the observed frequencies and a fitted Poisson distribution (Poisson regression with intercept only).
-<!-- #endregion -->
 
 ```python
 # plt.subplots(figsize=(10, 7))
@@ -123,16 +312,15 @@ plt.legend()
 plt.title("Frequency");
 ```
 
-<!-- #region -->
-This is a strong confirmation for the use of a Poisson when fitting!
+![png](glm_french_motor_files/output_0.png)
 
+This is a strong confirmation for the use of a Poisson when fitting!
 
 ### 2.2 Train and test frequency GLM
 
 Now, we start fitting our model. We use claims frequency = claim number/exposure as our outcome variable. We then divide the dataset into training set and test set with a 9:1 random split.
 
 Also, notice that we do not one hot encode our columns. Rather, we take advantage of `glum`'s integration with `tabmat`, which allows us to pass in categorical columns directly! `tabmat` will handle the encoding for us and even includes a handful of helpful matrix operation optimizations. We use the `Categorizer` from [dask_ml](https://ml.dask.org/modules/generated/dask_ml.preprocessing.Categorizer.html) to set our categorical columns as categorical dtypes and to ensure that the categories align in fitting and predicting.
-<!-- #endregion -->
 
 ```python
 z = df['ClaimNb'].values
@@ -157,9 +345,9 @@ Now, we define our GLM using the `GeneralizedLinearRegressor` class from `glum`.
 
 - `family='poisson'`: creates a Poisson regressor
 - `alpha_search=True`: tells the GLM to search along the regularization path for the best alpha
-- `l1_ratio = 1` tells the GLM to only use l1 penalty (not l2). `l1_ratio` is the elastic net mixing parameter. For ``l1_ratio = 0``, the penalty is an L2 penalty. ``For l1_ratio = 1``, it is an L1 penalty.  For ``0 < l1_ratio < 1``, the penalty is a combination of L1 and L2.
+- `l1_ratio = 1` tells the GLM to only use l1 penalty (not l2). `l1_ratio` is the elastic net mixing parameter. For `l1_ratio = 0`, the penalty is an L2 penalty. For `l1_ratio = 1`, it is an L1 penalty.  For `0 < l1_ratio < 1`, the penalty is a combination of L1 and L2.
 
-See the `GeneralizedLinearRegressor` class [API documentation](https://glum.readthedocs.io/en/latest/api/modules.html) for more details.
+See the `GeneralizedLinearRegressor` class [API documentation](../../glm.md) for more details.
 
 *Note*: `glum` also supported a cross validation model GeneralizedLinearRegressorCV. However, because cross validation requires fitting many models, it is much slower and we don't demonstrate it in this tutorial.
 
@@ -176,6 +364,66 @@ pd.DataFrame({'coefficient': np.concatenate(([f_glm1.intercept_], f_glm1.coef_))
              index=['intercept'] + f_glm1.feature_names_).T
 ```
 
+<div class="nb-output">
+<div>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>intercept</th>
+      <th>VehBrand[B1]</th>
+      <th>VehBrand[B10]</th>
+      <th>VehBrand[B11]</th>
+      <th>VehBrand[B12]</th>
+      <th>VehBrand[B13]</th>
+      <th>VehBrand[B14]</th>
+      <th>VehBrand[B2]</th>
+      <th>VehBrand[B3]</th>
+      <th>VehBrand[B4]</th>
+      <th>...</th>
+      <th>VehAge[1]</th>
+      <th>VehAge[2]</th>
+      <th>VehPower[4]</th>
+      <th>VehPower[5]</th>
+      <th>VehPower[6]</th>
+      <th>VehPower[7]</th>
+      <th>VehPower[8]</th>
+      <th>VehPower[9]</th>
+      <th>BonusMalus</th>
+      <th>Density</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>coefficient</th>
+      <td>-4.269268</td>
+      <td>-0.003721</td>
+      <td>-0.010846</td>
+      <td>0.138466</td>
+      <td>-0.259298</td>
+      <td>0.0</td>
+      <td>-0.110712</td>
+      <td>-0.003604</td>
+      <td>0.044075</td>
+      <td>0.0</td>
+      <td>...</td>
+      <td>0.045494</td>
+      <td>-0.139428</td>
+      <td>-0.070054</td>
+      <td>-0.028142</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.016531</td>
+      <td>0.164711</td>
+      <td>0.026764</td>
+      <td>0.000004</td>
+    </tr>
+  </tbody>
+</table>
+<p>1 rows × 60 columns</p>
+</div>
+</div>
+
 To measure our model's test and train performance, we use the deviance function for the Poisson family. We can get the total deviance function directly from `glum`'s distribution classes and divide it by the sum of our sample weight.
 
 *Note*: a Poisson distribution is equivalent to a Tweedie distribution with power = 1.
@@ -190,8 +438,17 @@ print('test loss f_glm1: {}'.format(
       PoissonDist.deviance(y_test_p, f_glm1.predict(X_test_p), sample_weight=w_test_p)/np.sum(w_test_p)))
 ```
 
+```text
+training loss f_glm1: 0.45704947333554996
+test loss f_glm1: 0.45793061314157735
+```
+
 A GLM with canonical link function (Normal - identity, Poisson - log, Gamma - 1/x, Binomial - logit) with an intercept term has the so called **balance property**. Neglecting small deviations due to an imperfect fit, on the training sample the results satisfy the equality:
-$$\sum_{i \in training} w_i y_i = \sum_{i \in training} w_i \hat{\mu}_i$$
+
+$$
+\sum_{i \in training} w_i y_i = \sum_{i \in training} w_i \hat{\mu}_i
+$$
+
 As expected, this property holds in our real data:
 
 ```python
@@ -199,8 +456,11 @@ As expected, this property holds in our real data:
 z_train_p.sum(), (f_glm1.predict(X_train_p) * w_train_p).sum()
 ```
 
-## 3. Severity GLM - Gamma distribution<a class="anchor"></a>
-[back to Table of Contents](#Table-of-Contents)
+```text
+(np.int64(23785), np.float64(23785.1985093688))
+```
+
+## 3. Severity GLM - Gamma distribution
 
 Now, we fit a GLM for the severity with the same features as the frequency model.
 The severity $y$ is the average claim size.
@@ -211,7 +471,7 @@ We define:
 - $y = \frac{z}{w}$: severity
 
 ### 3.1 Why Gamma distributions
-The severity $y$ is a positive, real number, $y \in (0, \infty)$. Theoretically, especially for liability claims, one could have arbitrary large numbers&mdash;very unlikely but possible. A very simple distribution for this range is an Exponential distribution, or its generalization, a Gamma distribution $y \sim Gamma$. In the insurance industry, it is well known that the severity might be skewed by a few very large losses. It's common to model these tail losses separately so here we cut out claims larger than 100,000 to focus on modeling small and moderate claims.
+The severity $y$ is a positive, real number, $y \in (0, \infty)$. Theoretically, especially for liability claims, one could have arbitrarily large numbers&mdash;very unlikely but possible. A very simple distribution for this range is an Exponential distribution, or its generalization, a Gamma distribution $y \sim Gamma$. In the insurance industry, it is well known that the severity might be skewed by a few very large losses. It's common to model these tail losses separately so here we cut out claims larger than 100,000 to focus on modeling small and moderate claims.
 
 ```python
 df_plot = (
@@ -232,6 +492,8 @@ plt.xlim(left=0, right = 1e4);
 #plt.xticks(x);
 ```
 
+![png](glm_french_motor_files/output_1.png)
+
 ```python
 # Check mean-variance relationship for Gamma: Var[Y] = E[Y]^2 / Exposure
 # Estimate Var[Y] and E[Y]
@@ -244,8 +506,8 @@ def my_agg(x):
     x_cnb = x['ClaimNb']
     n = x_sev.shape[0]
     names = {
-        'Sev_mean': np.average(x_sev, sample_weight=x_cnb),
-        'Sev_var': 1/(n-1) * np.sum((x_cnb/np.sum(x_cnb)) * (x_sev-np.average(x_sev, sample_weight=x_cnb))**2),
+        'Sev_mean': np.average(x_sev, weights=x_cnb),
+        'Sev_var': 1/(n-1) * np.sum((x_cnb/np.sum(x_cnb)) * (x_sev-np.average(x_sev, weights=x_cnb))**2),
         'ClaimNb_sum': x_cnb.sum()
     }
     return pd.Series(names, index=['Sev_mean', 'Sev_var', 'ClaimNb_sum'])
@@ -276,17 +538,18 @@ for col in ['VehPower', 'BonusMalus']:
     plt.xlabel('Mean of Severity ')
     plt.ylabel('Variance of Severity * ClaimNb')
     plt.legend()
-    plt.title('Man-Variance of Claim Severity by {}'.format(col))
+    plt.title('Mean-Variance of Claim Severity by {}'.format(col))
     plt.show()
 ```
 
-<!-- #region -->
-Great! A Gamma distribution seems to be an empirically reasonable assumption for this dataset.
+![png](glm_french_motor_files/output_2.png)
 
+![png](glm_french_motor_files/output_3.png)
+
+Great! A Gamma distribution seems to be an empirically reasonable assumption for this dataset.
 
 *Hint*: If Y were normal distributed, one should see a horizontal line, because $Var[Y] = constant/Exposure$
        and the fit should give $p \approx 0$.
-<!-- #endregion -->
 
 ### 3.2 Severity GLM with train and test data
 We fit a GLM for the severity with the same features as the frequency model. We use the same categorizer as before.
@@ -332,6 +595,66 @@ pd.DataFrame({'coefficient': np.concatenate(([s_glm1.intercept_], s_glm1.coef_))
              index=['intercept'] + s_glm1.feature_names_).T
 ```
 
+<div class="nb-output">
+<div>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>intercept</th>
+      <th>VehBrand[B1]</th>
+      <th>VehBrand[B10]</th>
+      <th>VehBrand[B11]</th>
+      <th>VehBrand[B12]</th>
+      <th>VehBrand[B13]</th>
+      <th>VehBrand[B14]</th>
+      <th>VehBrand[B2]</th>
+      <th>VehBrand[B3]</th>
+      <th>VehBrand[B4]</th>
+      <th>...</th>
+      <th>VehAge[1]</th>
+      <th>VehAge[2]</th>
+      <th>VehPower[4]</th>
+      <th>VehPower[5]</th>
+      <th>VehPower[6]</th>
+      <th>VehPower[7]</th>
+      <th>VehPower[8]</th>
+      <th>VehPower[9]</th>
+      <th>BonusMalus</th>
+      <th>Density</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>coefficient</th>
+      <td>7.3389</td>
+      <td>-0.034591</td>
+      <td>0.040528</td>
+      <td>0.13116</td>
+      <td>0.035838</td>
+      <td>0.100753</td>
+      <td>-0.073995</td>
+      <td>-0.033196</td>
+      <td>0.0</td>
+      <td>0.049078</td>
+      <td>...</td>
+      <td>0.0</td>
+      <td>-0.024827</td>
+      <td>-0.009537</td>
+      <td>-0.089972</td>
+      <td>0.071376</td>
+      <td>0.009361</td>
+      <td>-0.042491</td>
+      <td>0.051636</td>
+      <td>0.002365</td>
+      <td>-0.000001</td>
+    </tr>
+  </tbody>
+</table>
+<p>1 rows × 60 columns</p>
+</div>
+</div>
+
 Again, we measure performance with the deviance of the distribution. We also compare against the simple arithmetic mean and include the mean absolute error to help understand the actual scale of our results.
 
 *Note*: a Gamma distribution is equivalent to a Tweedie distribution with power = 2.
@@ -358,16 +681,26 @@ print('testing mean absolute error s_glm1:  {}'.format(
 
 print('\ntesting loss Mean (deviance):        {}'.format(
     GammaDist.deviance(
-        y_test_g, np.average(z_train_g, sample_weight=w_train_g)*np.ones_like(z_test_g), sample_weight=w_test_g
+        y_test_g, np.average(z_train_g, weights=w_train_g)*np.ones_like(z_test_g), sample_weight=w_test_g
     )/np.sum(w_test_g)
 ))
 print('testing mean absolute error Mean:    {}'.format(
-    mean_absolute_error(y_test_g, np.average(z_train_g, sample_weight=w_train_g)*np.ones_like(z_test_g))
+    mean_absolute_error(y_test_g, np.average(z_train_g, weights=w_train_g)*np.ones_like(z_test_g))
 ))
 ```
 
-Even though the deviance improvement seems small, the improvement in mean absolute error is not! (In the insurance world, this will make a significant difference when aggregated over all claims).
+```text
+training loss (deviance) s_glm1:     1.290104615344611
+training mean absolute error s_glm1: 1566.1785138646028
 
+testing loss s_glm1 (deviance):      1.2975718597070152
+testing mean absolute error s_glm1:  1504.4458958597081
+
+testing loss Mean (deviance):        1.3115309309577146
+testing mean absolute error Mean:    1689.205530922944
+```
+
+Even though the deviance improvement seems small, the improvement in mean absolute error is not! (In the insurance world, this will make a significant difference when aggregated over all claims).
 
 ### 3.3 Combined frequency and severity results
 
@@ -386,8 +719,12 @@ print("Total claim amount on test set, observed = {}, predicted = {}".
      )
 ```
 
-## 4. Combined GLM - Tweedie distribution<a class="anchor"></a>
-[back to Table of Contents](#Table-of-Contents)
+```text
+Total claim amount on train set, observed = 44594644.68, predicted = 44549152.422470555
+Total claim amount on test set, observed = 4707551.370000001, predicted = 4946960.354743528
+```
+
+## 4. Combined GLM - Tweedie distribution
 
 Finally, to demonstrate an alternate approach to the combined frequency severity model, we show how we can model pure premium directly using a Tweedie regressor. Any Tweedie distribution with power $p\in(1,2)$ is known as [compound Poisson Gamma distribution](https://en.wikipedia.org/wiki/Compound_Poisson_distribution#Compound_Poisson_Gamma_distribution)
 
@@ -411,10 +748,69 @@ TweedieDist = TweedieDistribution(1.5)
 t_glm1 = GeneralizedLinearRegressor(family=TweedieDist, alpha_search=True, l1_ratio=1, fit_intercept=True)
 t_glm1.fit(X_train_t, y_train_t, sample_weight=w_train_t)
 
-
 pd.DataFrame({'coefficient': np.concatenate(([t_glm1.intercept_], t_glm1.coef_))},
              index=['intercept'] + t_glm1.feature_names_).T
 ```
+
+<div class="nb-output">
+<div>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>intercept</th>
+      <th>VehBrand[B1]</th>
+      <th>VehBrand[B10]</th>
+      <th>VehBrand[B11]</th>
+      <th>VehBrand[B12]</th>
+      <th>VehBrand[B13]</th>
+      <th>VehBrand[B14]</th>
+      <th>VehBrand[B2]</th>
+      <th>VehBrand[B3]</th>
+      <th>VehBrand[B4]</th>
+      <th>...</th>
+      <th>VehAge[1]</th>
+      <th>VehAge[2]</th>
+      <th>VehPower[4]</th>
+      <th>VehPower[5]</th>
+      <th>VehPower[6]</th>
+      <th>VehPower[7]</th>
+      <th>VehPower[8]</th>
+      <th>VehPower[9]</th>
+      <th>BonusMalus</th>
+      <th>Density</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>coefficient</th>
+      <td>2.88667</td>
+      <td>-0.064157</td>
+      <td>0.0</td>
+      <td>0.231868</td>
+      <td>-0.211061</td>
+      <td>0.054979</td>
+      <td>-0.270346</td>
+      <td>-0.071453</td>
+      <td>0.00291</td>
+      <td>0.059324</td>
+      <td>...</td>
+      <td>0.008117</td>
+      <td>-0.229906</td>
+      <td>-0.111796</td>
+      <td>-0.123388</td>
+      <td>0.060757</td>
+      <td>0.005179</td>
+      <td>-0.021832</td>
+      <td>0.208158</td>
+      <td>0.032508</td>
+      <td>0.000002</td>
+    </tr>
+  </tbody>
+</table>
+<p>1 rows × 60 columns</p>
+</div>
+</div>
 
 Again, we use the distribution's deviance to measure model performance
 
@@ -424,6 +820,11 @@ print('training loss s_glm1: {}'.format(
 
 print('testing loss s_glm1:  {}'.format(
     TweedieDist.deviance(y_test_t, t_glm1.predict(X_test_t), sample_weight=w_test_t)/np.sum(w_test_t)))
+```
+
+```text
+training loss s_glm1: 73.9137110457745
+testing loss s_glm1:  72.35318912371724
 ```
 
 Finally, we again show the total predicted vs. true claim amount on the training and test set
@@ -439,6 +840,11 @@ print("Total claim amount on test set, observed = {}, predicted = {}".
      format(df['ClaimAmountCut'].values[test].sum(),
             np.sum(df['Exposure'].values[test] * t_glm1.predict(X_test_p)))
      )
+```
+
+```text
+Total claim amount on train set, observed = 44594644.68, predicted = 45027861.6600737
+Total claim amount on test set, observed = 4707551.370000001, predicted = 4999381.033866645
 ```
 
 In terms of the combined proximity to the true total claim amounts, the frequency severity model performed a bit better than Tweedie model. However, both approaches ultimately prove to be effective.

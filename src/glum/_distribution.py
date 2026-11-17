@@ -42,19 +42,19 @@ from ._link import IdentityLink, Link, LogitLink, LogLink
 class ExponentialDispersionModel(metaclass=ABCMeta):
     r"""Base class for reproductive Exponential Dispersion Models (EDM).
 
-    The PDF of :math:`Y \sim \mathrm{EDM}(\theta, \phi)` is given by
+    The PDF of $Y \sim \mathrm{EDM}(\theta, \phi)$ is given by
 
-    .. math::
+    $$
+    p(y \mid \theta, \phi)
+    = \exp \left(\frac{y \theta - b(\theta)}{\phi / w} + c(y; w / \phi) \right),
+    $$
 
-        p(y \mid \theta, \phi)
-        &= \exp \left(\frac{y \theta - b(\theta)}{\phi / w} + c(y; w / \phi) \right),
+    where $\theta$ is the scale parameter, $\phi$ is the dispersion
+    parameter, $w$ is a given weight, $b$ is the cumulant function
+    and $c$ is a normalization term.
 
-    where :math:`\theta` is the scale parameter, :math:`\phi` is the dispersion
-    parameter, :math:`w` is a given weight, :math:`b` is the cumulant function
-    and :math:`c` is a normalization term.
-
-    It can be shown that :math:`\mathrm{E}(Y) = b'(\theta)` and
-    :math:`\mathrm{var}(Y) = b''(\theta) \times \phi / w`.
+    It can be shown that $\mathrm{E}(Y) = b'(\theta)$ and
+    $\mathrm{var}(Y) = b''(\theta) \times \phi / w$.
 
     References
     ----------
@@ -76,17 +76,17 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
     @property
     @abstractmethod
     def include_lower_bound(self) -> bool:
-        """Return whether ``lower_bound`` is allowed as a value of ``y``."""
+        """Return whether `lower_bound` is allowed as a value of `y`."""
         pass
 
     @property
     @abstractmethod
     def include_upper_bound(self) -> bool:
-        """Return whether ``upper_bound`` is allowed as a value of ``y``."""
+        """Return whether `upper_bound` is allowed as a value of `y`."""
         pass
 
     def in_y_range(self, x) -> np.ndarray:
-        """Return ``True`` if ``x`` is in the valid range of the EDM."""
+        """Return `True` if `x` is in the valid range of the EDM."""
         if self.include_lower_bound:
             lb_op: np.ufunc = np.greater_equal
         else:
@@ -111,16 +111,16 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
     def unit_variance(self, mu):
         r"""Compute the unit variance.
 
-        The unit variance, :math:`v(\mu) \equiv b''((b')^{-1} (\mu))`,
-        determines the variance as a function of the mean :math:`\mu` by
-        :math:`\mathrm{var}(y_i) = v(\mu_i) \times \phi / w_i`. It can also be
-        derived from the unit deviance :math:`d(y, \mu)` as
+        The unit variance, $v(\mu) \equiv b''((b')^{-1} (\mu))$,
+        determines the variance as a function of the mean $\mu$ by
+        $\mathrm{var}(y_i) = v(\mu_i) \times \phi / w_i$. It can also be
+        derived from the unit deviance $d(y, \mu)$ as
 
-        .. math::
+        $$
+        v(\mu) = 2 \div \frac{\partial^2 d(y, \mu)}{\partial\mu^2} \big| _{y=\mu}.
+        $$
 
-            v(\mu) = 2 \div \frac{\partial^2 d(y, \mu)}{\partial\mu^2} \big| _{y=\mu}.
-
-        See also :meth:`~ExponentialDispersionModel.variance`.
+        See also [`variance`][glum.ExponentialDispersionModel.variance].
 
         Parameters
         ----------
@@ -131,7 +131,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
 
     @abstractmethod
     def unit_variance_derivative(self, mu):
-        r"""Compute the derivative of the unit variance with respect to ``mu``.
+        r"""Compute the derivative of the unit variance with respect to `mu`.
 
         Parameters
         ----------
@@ -143,9 +143,9 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
     def variance(self, mu, dispersion=1, sample_weight=1) -> np.ndarray:
         r"""Compute the variance function.
 
-        The variance of :math:`Y_i \sim \mathrm{EDM}(\mu_i, \phi / w_i)` takes
-        the form :math:`v(\mu_i) \times \phi / w_i`, where :math:`v(\mu)` is the
-        unit variance and :math:`w_i` are weights.
+        The variance of $Y_i \sim \mathrm{EDM}(\mu_i, \phi / w_i)$ takes
+        the form $v(\mu_i) \times \phi / w_i$, where $v(\mu)$ is the
+        unit variance and $w_i$ are weights.
 
         Parameters
         ----------
@@ -153,7 +153,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
             Predicted mean.
 
         dispersion : float, optional (default=1)
-            Dispersion parameter :math:`\phi`.
+            Dispersion parameter $\phi$.
 
         sample_weight : array-like, shape (n_samples,), optional (default=1)
             Weights or exposure to which variance is inverse proportional.
@@ -165,11 +165,11 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         return self.unit_variance(mu) * dispersion / sample_weight
 
     def variance_derivative(self, mu, dispersion=1, sample_weight=1):
-        r"""Compute the derivative of the variance with respect to ``mu``.
+        r"""Compute the derivative of the variance with respect to `mu`.
 
         The derivative of the variance is equal to
-        :math:`v(\mu_i) \times \phi / w_i`, where :math:`v(\mu)` is the unit
-        variance and :math:`ws_i` are weights.
+        $v(\mu_i) \times \phi / w_i$, where $v(\mu)$ is the unit
+        variance and $ws_i$ are weights.
 
         Parameters
         ----------
@@ -177,7 +177,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
             Predicted mean.
 
         dispersion : float, optional (default=1)
-            Dispersion parameter :math:`\phi`.
+            Dispersion parameter $\phi$.
 
         sample_weight : array-like, shape (n_samples,), optional (default=1)
             Weights or exposure to which variance is inverse proportional.
@@ -192,8 +192,8 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
     def unit_deviance(self, y, mu):
         r"""Compute the unit deviance.
 
-        In terms of the unit log likelihood :math:`\ell`, the unit deviance is
-        :math:`2 [\ell(y_i, y_i, \phi) - \ell(y_i, \mu, \phi)]`, i.e. twice the
+        In terms of the unit log likelihood $\ell$, the unit deviance is
+        $2 [\ell(y_i, y_i, \phi) - \ell(y_i, \mu, \phi)]$, i.e. twice the
         difference between the log likelihood of a saturated model (with one
         parameter per observation) and the model at hand.
 
@@ -208,10 +208,10 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         pass
 
     def unit_deviance_derivative(self, y, mu):
-        r"""Compute the derivative of the unit deviance with respect to ``mu``.
+        r"""Compute the derivative of the unit deviance with respect to `mu`.
 
         The derivative of the unit deviance is given by
-        :math:`2 \times (\mu - y) / v(\mu)`, where :math:`v(\mu)` is the unit
+        $2 \times (\mu - y) / v(\mu)$, where $v(\mu)$ is the unit
         variance.
 
         Parameters
@@ -232,8 +232,8 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         r"""Compute the deviance.
 
         The deviance is a weighted sum of the unit deviances. In terms of the
-        unit log likelihood :math:`\ell`, it equals
-        :math:`2 \sum_i [\ell(y_i, y_i, \phi) - \ell(y_i, \mu, \phi)]`,
+        unit log likelihood $\ell$, it equals
+        $2 \sum_i [\ell(y_i, y_i, \phi) - \ell(y_i, \mu, \phi)]$,
         i.e. twice the difference between the log likelihood of a saturated
         model (with one parameter per observation) and the model at hand.
 
@@ -254,7 +254,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
             return np.sum(self.unit_deviance(y, mu) * sample_weight)
 
     def deviance_derivative(self, y, mu, sample_weight=1):
-        r"""Compute the derivative of the deviance with respect to ``mu``.
+        r"""Compute the derivative of the deviance with respect to `mu`.
 
         Parameters
         ----------
@@ -282,7 +282,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         link: Link,
         offset=None,
     ):
-        """Compute ``mu`` and the derivative of the deviance with respect to
+        """Compute `mu` and the derivative of the deviance with respect to
         coefficients.
         """
         lin_pred = _safe_lin_pred(X, coef, offset)
@@ -306,14 +306,14 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         y,
         sample_weight,
     ) -> tuple[np.ndarray, np.ndarray, float]:
-        """Compute ``eta``, ``mu`` and the deviance.
+        """Compute `eta`, `mu` and the deviance.
 
         Returns
         -------
         numpy.ndarray, shape (X.shape[0],)
-            The linear predictor, ``eta``, as ``cur_eta + factor * X_dot_d``.
+            The linear predictor, `eta`, as `cur_eta + factor * X_dot_d`.
         numpy.ndarray, shape (X.shape[0],)
-            The link-function-transformed prediction, ``mu``.
+            The link-function-transformed prediction, `mu`.
         float
             The deviance.
         """
@@ -339,7 +339,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         eta_out,
         mu_out,
     ) -> float:
-        """Update ``eta`` and ``mu`` and compute the deviance.
+        """Update `eta` and `mu` and compute the deviance.
 
         This is a default implementation that should work for all valid
         distributions and link functions. To implement a custom optimized
@@ -390,7 +390,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
     def _rowwise_gradient_hessian(
         self, link, y, sample_weight, eta, mu, gradient_rows, hessian_rows
     ):
-        """Update ``gradient_rows`` and ``hessian_rows`` in place.
+        """Update `gradient_rows` and `hessian_rows` in place.
 
         This is a default implementation that should work for all valid
         distributions and link functions. To implement a custom optimized
@@ -415,7 +415,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         Parameters
         ----------
         link : Link
-            A link function (i.e. an instance of :class:`~glum._link.Link`).
+            A link function (i.e. an instance of `Link`).
         X : array-like
             Training data.
         y : array-like
@@ -500,7 +500,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
             return XW
 
     def dispersion(self, y, mu, sample_weight=None, ddof=1, method="pearson") -> float:
-        r"""Estimate the dispersion parameter :math:`\phi`.
+        r"""Estimate the dispersion parameter $\phi$.
 
         Parameters
         ----------
@@ -514,7 +514,7 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
             Weights or exposure to which variance is inversely proportional.
 
         ddof : int, optional (default=1)
-            Degrees of freedom consumed by the model for ``mu``.
+            Degrees of freedom consumed by the model for `mu`.
 
         method = {'pearson', 'deviance'}, optional (default='pearson')
             Whether to base the estimate on the Pearson residuals or the deviance.
@@ -541,31 +541,29 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
 class TweedieDistribution(ExponentialDispersionModel):
     r"""A class for the Tweedie distribution.
 
-    A Tweedie distribution with mean :math:`\mu = \mathrm{E}(Y)` is uniquely
+    A Tweedie distribution with mean $\mu = \mathrm{E}(Y)$ is uniquely
     defined by its mean-variance relationship
-    :math:`\mathrm{var}(Y) \propto \mu^{\mathrm{p}}`.
+    $\mathrm{var}(Y) \propto \mu^{\mathrm{p}}$.
 
     Special cases are:
 
-    ====== ================ ============
-    Power  Distribution     Support
-    ====== ================ ============
-    0      Normal           ``(-∞, +∞)``
-    1      Poisson          ``[0, +∞)``
-    (1, 2) Compound Poisson ``[0, +∞)``
-    2      Gamma            ``(0, +∞)``
-    3      Inverse Gaussian ``(0, +∞)``
-    ====== ================ ============
+    | Power  | Distribution     | Support    |
+    | ------ | ---------------- | ---------- |
+    | 0      | Normal           | `(-∞, +∞)` |
+    | 1      | Poisson          | `[0, +∞)`  |
+    | (1, 2) | Compound Poisson | `[0, +∞)`  |
+    | 2      | Gamma            | `(0, +∞)`  |
+    | 3      | Inverse Gaussian | `(0, +∞)`  |
 
     See the documentation of the superclass,
-    :class:`~glum.ExponentialDispersionModel`, for details.
+    [`ExponentialDispersionModel`][glum.ExponentialDispersionModel], for details.
 
     Parameters
     ----------
     power : float, optional (default=0)
-        The variance power of the ``unit_variance``
-        :math:`v(\mu) = \mu^{\mathrm{power}}`. For
-        :math:`0 < \mathrm{power} < 1`, no distribution exists.
+        The variance power of the `unit_variance`
+        $v(\mu) = \mu^{\mathrm{power}}$. For
+        $0 < \mathrm{power} < 1$, no distribution exists.
     """
 
     upper_bound = np.inf
@@ -715,7 +713,7 @@ class TweedieDistribution(ExponentialDispersionModel):
     def log_likelihood(self, y, mu, sample_weight=None, dispersion=None) -> float:
         r"""Compute the log likelihood.
 
-        For ``1 < p < 2``, we use the series approximation by Dunn and Smyth
+        For `1 < p < 2`, we use the series approximation by Dunn and Smyth
         (2005) to compute the normalization term.
 
         Parameters
@@ -730,7 +728,7 @@ class TweedieDistribution(ExponentialDispersionModel):
             Sample weights.
 
         dispersion : float, optional (default=None)
-            Dispersion parameter :math:`\phi`. Estimated if ``None``.
+            Dispersion parameter $\phi$. Estimated if `None`.
         """
         p = self.power
         y, mu, sample_weight = _as_float_arrays(y, mu, sample_weight)
@@ -778,10 +776,10 @@ class TweedieDistribution(ExponentialDispersionModel):
 class NormalDistribution(ExponentialDispersionModel):
     """Class for the normal (a.k.a. Gaussian) distribution.
 
-    The normal distribution models outcomes ``y`` in ``(-∞, +∞)``.
+    The normal distribution models outcomes `y` in `(-∞, +∞)`.
 
     See the documentation of the superclass,
-    :class:`~glum.ExponentialDispersionModel`, for details.
+    [`ExponentialDispersionModel`][glum.ExponentialDispersionModel], for details.
     """
 
     lower_bound = -np.inf
@@ -860,7 +858,7 @@ class NormalDistribution(ExponentialDispersionModel):
             Sample weights.
 
         dispersion : float, optional (default=None)
-            Dispersion parameter :math:`\phi`. Estimated if ``None``.
+            Dispersion parameter $\phi$. Estimated if `None`.
         """
         y, mu, sample_weight = _as_float_arrays(y, mu, sample_weight)
         sample_weight = np.ones_like(y) if sample_weight is None else sample_weight
@@ -891,10 +889,10 @@ class NormalDistribution(ExponentialDispersionModel):
 class PoissonDistribution(ExponentialDispersionModel):
     """Class for the scaled Poisson distribution.
 
-    The Poisson distribution models discrete outcomes ``y`` in ``[0, +∞)``.
+    The Poisson distribution models discrete outcomes `y` in `[0, +∞)`.
 
     See the documentation of the superclass,
-    :class:`~glum.ExponentialDispersionModel`, for details.
+    [`ExponentialDispersionModel`][glum.ExponentialDispersionModel], for details.
     """
 
     lower_bound = 0
@@ -923,8 +921,7 @@ class PoissonDistribution(ExponentialDispersionModel):
 
         return poisson_deviance(y, sample_weight, mu, dispersion=1.0)
 
-    def unit_deviance(self, y, mu):
-        """Compute the unit deviance."""
+    def unit_deviance(self, y, mu):  # noqa D
         return 2 * (special.xlogy(y, y / mu) - y + mu)
 
     def _rowwise_gradient_hessian(
@@ -974,7 +971,7 @@ class PoissonDistribution(ExponentialDispersionModel):
             Sample weights.
 
         dispersion : float, optional (default=None)
-            Dispersion parameter :math:`\phi`. Estimated if ``None``.
+            Dispersion parameter $\phi$. Estimated if `None`.
         """
         y, mu, sample_weight = _as_float_arrays(y, mu, sample_weight)
         sample_weight = np.ones_like(y) if sample_weight is None else sample_weight
@@ -1005,10 +1002,10 @@ class PoissonDistribution(ExponentialDispersionModel):
 class GammaDistribution(ExponentialDispersionModel):
     """Class for the gamma distribution.
 
-    The gamma distribution models outcomes ``y`` in ``(0, +∞)``.
+    The gamma distribution models outcomes `y` in `(0, +∞)`.
 
     See the documentation of the superclass,
-    :class:`~glum.ExponentialDispersionModel`, for details.
+    [`ExponentialDispersionModel`][glum.ExponentialDispersionModel], for details.
     """
 
     lower_bound = 0
@@ -1087,7 +1084,7 @@ class GammaDistribution(ExponentialDispersionModel):
             Sample weights.
 
         dispersion : float, optional (default=None)
-            Dispersion parameter :math:`\phi`. Estimated if ``None``.
+            Dispersion parameter $\phi$. Estimated if `None`.
         """
         y, mu, sample_weight = _as_float_arrays(y, mu, sample_weight)
         sample_weight = np.ones_like(y) if sample_weight is None else sample_weight
@@ -1118,10 +1115,10 @@ class GammaDistribution(ExponentialDispersionModel):
 class InverseGaussianDistribution(ExponentialDispersionModel):
     """Class for the inverse Gaussian distribution.
 
-    The inverse Gaussian distribution models outcomes ``y`` in ``(0, +∞)``.
+    The inverse Gaussian distribution models outcomes `y` in `(0, +∞)`.
 
     See the documentation of the superclass,
-    :class:`~glum.ExponentialDispersionModel`, for details.
+    [`ExponentialDispersionModel`][glum.ExponentialDispersionModel], for details.
     """
 
     lower_bound = 0
@@ -1197,7 +1194,7 @@ class InverseGaussianDistribution(ExponentialDispersionModel):
             Sample weights.
 
         dispersion : float, optional (default=None)
-            Dispersion parameter :math:`\phi`. Estimated if ``None``.
+            Dispersion parameter $\phi$. Estimated if `None`.
         """
         y, mu, sample_weight = _as_float_arrays(y, mu, sample_weight)
         sample_weight = np.ones_like(y) if sample_weight is None else sample_weight
@@ -1228,10 +1225,10 @@ class InverseGaussianDistribution(ExponentialDispersionModel):
 class GeneralizedHyperbolicSecant(ExponentialDispersionModel):
     """A class for the Generalized Hyperbolic Secant (GHS) distribution.
 
-    The GHS distribution models outcomes ``y`` in ``(-∞, +∞)``.
+    The GHS distribution models outcomes `y` in `(-∞, +∞)`.
 
     See the documentation of the superclass,
-    :class:`~glum.ExponentialDispersionModel`, for details.
+    [`ExponentialDispersionModel`][glum.ExponentialDispersionModel], for details.
     """
 
     lower_bound = -np.inf
@@ -1255,10 +1252,10 @@ class GeneralizedHyperbolicSecant(ExponentialDispersionModel):
 class BinomialDistribution(ExponentialDispersionModel):
     """A class for the Binomial distribution.
 
-    The Binomial distribution models outcomes ``y`` in ``[0, 1]``.
+    The Binomial distribution models outcomes `y` in `[0, 1]`.
 
     See the documentation of the superclass,
-    :class:`~glum.ExponentialDispersionModel`, for details.
+    [`ExponentialDispersionModel`][glum.ExponentialDispersionModel], for details.
     """
 
     lower_bound = 0
@@ -1351,22 +1348,23 @@ class BinomialDistribution(ExponentialDispersionModel):
 class NegativeBinomialDistribution(ExponentialDispersionModel):
     r"""A class for the Negative Binomial distribution.
 
-    A negative binomial distribution with mean :math:`\mu = \mathrm{E}(Y)` is
+    A negative binomial distribution with mean $\mu = \mathrm{E}(Y)$ is
     uniquely defined by its mean-variance relationship
-    :math:`\mathrm{var}(Y) \propto \mu + \theta * \mu^2`.
+    $\mathrm{var}(Y) \propto \mu + \theta * \mu^2$.
 
     Parameters
     ----------
     theta : float, optional (default=1.0)
-        The dispersion parameter from the ``unit_variance``
-        :math:`v(\mu) = \mu + \theta * \mu^2`. For
-        :math:`\theta <= 0`, no distribution exists.
+        The dispersion parameter from the `unit_variance`
+        $v(\mu) = \mu + \theta * \mu^2$. For
+        $\theta <= 0$, no distribution exists.
 
     References
     ----------
     For the log-likelihood and deviance:
-        * M. L. Zwilling Negative Binomial Regression, The Mathematica Journal 2013.
-          https://www.mathematica-journal.com/2013/06/27/negative-binomial-regression/
+
+    - M. L. Zwilling Negative Binomial Regression, The Mathematica Journal 2013.
+      <https://www.mathematica-journal.com/2013/06/27/negative-binomial-regression/>
     """
 
     lower_bound = 0
@@ -1507,11 +1505,11 @@ def get_one_over_variance(
 ):
     """Get one over the variance.
 
-    For Tweedie: ``sigma_inv = sample_weight / (mu ** p)`` during optimization,
-    because ``phi = 1``.
+    For Tweedie: `sigma_inv = sample_weight / (mu ** p)` during optimization,
+    because `phi = 1`.
 
     For binomial with logit link: simplifies to
-    ``variance = phi / ( sample_weight * (exp(eta) + 2 + exp(-eta)))``,
+    `variance = phi / ( sample_weight * (exp(eta) + 2 + exp(-eta)))`,
     more numerically accurate.
     """
     if isinstance(distribution, BinomialDistribution) and isinstance(link, LogitLink):
@@ -1525,7 +1523,7 @@ def get_one_over_variance(
 
 
 def _as_float_arrays(*args):
-    """Convert to a float array, passing ``None`` through, and broadcast."""
+    """Convert to a float array, passing `None` through, and broadcast."""
     never_broadcast = {}  # type: ignore
     maybe_broadcast = {}
     always_broadcast = {}
@@ -1561,8 +1559,8 @@ def guess_intercept(
     eta: Union[np.ndarray, float] = None,
 ):
     """
-    Say we want to find the scalar `b` that minimizes ``LL(eta + b)``, with \
-    ``eta`` fixed.
+    Say we want to find the scalar `b` that minimizes `LL(eta + b)`, with \
+    `eta` fixed.
 
     An exact solution exists for Tweedie distributions with a log link and for
     the normal distribution with identity link. An exact solution also exists

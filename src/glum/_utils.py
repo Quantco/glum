@@ -16,8 +16,8 @@ _logger = logging.getLogger(__name__)
 def get_categories(series: nw.Series) -> list:
     """Get the categories of a categorical series, in tabmat's column order.
 
-    Polars ``Categorical`` (unlike ``Enum``) has no per-column category list:
-    ``get_categories()`` returns polars' global category pool (polars < 2.0) or
+    Polars `Categorical` (unlike `Enum`) has no per-column category list:
+    `get_categories()` returns polars' global category pool (polars < 2.0) or
     the values present in order of appearance (polars >= 2.0). Use the sorted
     unique values instead, as tabmat does.
     """
@@ -36,8 +36,8 @@ def align_df_categories(
     """Align data types for prediction.
 
     This function checks that categorical columns have same categories in the
-    same order as specified in ``categorical_levels``. If an entry has a category not
-    specified in ``categorical_levels``, it will be set to ``numpy.nan``.
+    same order as specified in `categorical_levels`. If an entry has a category not
+    specified in `categorical_levels`, it will be set to `numpy.nan`.
     """
     if not isinstance(df, nw.DataFrame):
         raise TypeError(f"Expected `narwhals.DataFrame'; got {type(df)}.")
@@ -147,9 +147,9 @@ def add_missing_categories(
 def expand_categorical_penalties(
     penalty, X: nw.DataFrame, drop_first: bool, has_missing_category: dict[str, bool]
 ) -> Union[np.ndarray, str]:
-    """Determine penalty matrices ``P1`` or ``P2`` after expanding categorical columns.
+    """Determine penalty matrices `P1` or `P2` after expanding categorical columns.
 
-    If ``P1`` or ``P2`` has the same shape as ``X`` before expanding categorical
+    If `P1` or `P2` has the same shape as `X` before expanding categorical
     columns, we assume that the penalty at the location of categorical columns
     is the same for all levels.
     """
@@ -186,7 +186,7 @@ def expand_categorical_penalties(
 def ignore_tabmat_copy_warning():
     """Silence tabmat's "not contiguous" warning.
 
-    Row slices of a data frame (e.g. ``df.iloc[:n]``) are not contiguous in memory,
+    Row slices of a data frame (e.g. `df.iloc[:n]`) are not contiguous in memory,
     so tabmat copies them and warns. The copy is harmless and users can only avoid
     the warning by copying their data themselves, so we do not pass it on.
 
@@ -239,7 +239,7 @@ def standardize(
     Any,
 ]:
     """
-    Standardize the data matrix ``X`` and adjust the bounds and penalties to
+    Standardize the data matrix `X` and adjust the bounds and penalties to
     match the standardized data matrix, so that standardizing does not affect
     estimates.
 
@@ -256,13 +256,13 @@ def standardize(
     X : MatrixBase
     sample_weight : numpy.ndarray
     center_predictors : bool
-        If ``True``, adjust the data matrix so that columns have mean zero.
+        If `True`, adjust the data matrix so that columns have mean zero.
     estimate_as_if_scaled_model : bool
-        If ``True``, estimates returned equal those from a model where
+        If `True`, estimates returned equal those from a model where
         predictors have been standardized to have unit standard deviation, with
         penalty unchanged. Note that, internally, for purely computational
         reasons, we always scale predictors; whether estimates match a scaled
-        model depends on whether we modify the penalty. If ``False``, penalties
+        model depends on whether we modify the penalty. If `False`, penalties
         are rescaled to match the original scale, canceling out the effect of
         rescaling X.
     lower_bounds

@@ -48,7 +48,7 @@ Creates comparison charts from the CSV produced by Step 2.
 Copies figures to `docs/_static/` and updates figure references in documentation files.
 
 - **Input:** PNG files from `results/<run_name>/figures/`
-- **Output:** Copies to `docs/_static/` + updates `docs/benchmarks.rst` and `README.md`
+- **Output:** Copies to `docs/_static/` + updates `docs/benchmarks.md`, `docs/index.md` and `README.md`
 - **Set `update_docs: false`** in config.yaml to skip
 
 Use `docs_figures` and `readme_figures` in config.yaml to control which figures are included (default: all figures for docs, first non-normalized figure for README). Figure names are usually `<dataset>-<distribution>.png`. For `simulated-glm` they include the ratio suffix, e.g. `simulated-glm-gaussian-k-over-n-0.7.png`.

@@ -5,7 +5,7 @@
 run_benchmarks: true # Run the benchmarks (can be slow)
 analyze_results: true # Analyze and print results (writes CSV)
 generate_plots: true # Generate comparison plots (reads CSV and writes PNGs)
-update_docs: true # Copy figures to docs/_static and update benchmarks.rst and README.md
+update_docs: true # Copy figures to docs/_static and update benchmarks.md and README.md
 
 # Figures to include in docs/README (null = use defaults)
 # Default for readme: first non-normalized figure only
@@ -17,7 +17,7 @@ update_docs: true # Copy figures to docs/_static and update benchmarks.rst and R
 #   Normalized: append "-normalized" before ".png"
 #
 # docs_figures is a list of lists: each inner list maps to one
-# BENCHMARK_FIGURES_START/END block in benchmarks.rst (in order).
+# BENCHMARK_FIGURES_START/END block in benchmarks.md (in order).
 # Example with 3 blocks:
 #   docs_figures:
 #     - ["wide-insurance-gamma-normalized.png", "wide-insurance-poisson-normalized.png"]

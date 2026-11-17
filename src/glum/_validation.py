@@ -63,9 +63,9 @@ def check_X_y_tabmat_compliant(
     X: ArrayLike, y: typing.Union[VectorLike, sparse.spmatrix], **kwargs
 ) -> tuple[typing.Union[tm.MatrixBase, sparse.spmatrix, np.ndarray], np.ndarray]:
     """
-    See the documentation for :func:`sklearn.utils.check_X_y`. This function
+    See the documentation for `sklearn.utils.check_X_y`. This function
     behaves identically for inputs that are not from the Matrix package and
-    fixes some parameters, such as ``'force_all_finite'``, to match the needs of
+    fixes some parameters, such as `'force_all_finite'`, to match the needs of
     GLMs.
 
     Returns
@@ -157,7 +157,7 @@ def check_offset(
     offset: typing.Optional[typing.Union[VectorLike, float]], n_rows: int, dtype
 ) -> typing.Optional[np.ndarray]:
     """
-    Unlike weights, if the offset is ``None``, it can stay ``None``, so we only
+    Unlike weights, if the offset is `None`, it can stay `None`, so we only
     need to validate it when it is not.
     """
     if offset is None:
