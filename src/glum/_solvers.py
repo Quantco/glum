@@ -61,7 +61,7 @@ def _cd_solver(state, data, active_hessian):
         state.active_set,
         state.coef.copy(),
         data.P1,
-        active_hessian,
+        np.ascontiguousarray(active_hessian),
         -state.score,
         data.max_inner_iter,
         state.inner_tol,

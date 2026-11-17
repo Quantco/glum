@@ -7,6 +7,13 @@
 Changelog
 =========
 
+Unreleased
+----------
+
+**Other changes:**
+
+- Sped up the inner coordinate descent of the ``irls-cd`` solver about 3x for ``float64`` and 5x for ``float32`` data, with bitwise identical results. The gradient update after each coordinate move now runs on a contiguous copy of the active set's gradient instead of indexing through the active set, so the compiler vectorizes it.
+
 3.5.0 - 2026-11-16
 ------------------
 
