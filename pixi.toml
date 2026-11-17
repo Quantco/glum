@@ -65,6 +65,7 @@ setuptools = ">=61"
 setuptools-scm = ">=8.1"
 tabmat = ">=4.3.0"
 tqdm = "*"
+typing_extensions = "*"
 wheel = "*"
 
 [feature.no-tabmat.dependencies]
@@ -86,6 +87,18 @@ psutil = "*"
 pytest = "*"
 pytest-xdist = "*"
 statsmodels = "*"
+
+# libopenblas 0.3.34 on Windows can crash with an access violation in the DGEMM
+# kernel (stack buffer overflow for k > 128 on AMD CPUs exposing AVX-512), e.g. in
+# scipy.linalg.solve(assume_a="pos"). See
+# https://github.com/OpenMathLib/OpenBLAS/issues/6013 and
+# https://github.com/conda-forge/openblas-feedstock/issues/196.
+# Only 0.3.34 is excluded, so newer releases are picked up automatically; remove
+# this once the fix is released. The libblas constraint keeps the solver from
+# switching to another BLAS implementation (e.g. BLIS).
+[feature.test.target.win-64.dependencies]
+libblas = { version = "*", build = "*openblas" }
+libopenblas = "!=0.3.34"
 
 [feature.dev.dependencies]
 ipdb = "*"

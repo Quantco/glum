@@ -8,11 +8,18 @@ https://semver.org/spec/v2.0.0.html. The most important bits are:
 
 # Changelog
 
-## 3.5.1 - UNRELEASED
+## Unreleased
 
 **Bug fix:**
 
 - Fixed the check that `P2` is positive semi-definite rejecting valid matrices, such as graph Laplacians, whose smallest eigenvalue is zero. The tolerance for eigenvalues that are negative due to rounding errors now scales with the size and magnitude of `P2`. Also fixed the check crashing for sparse `P2` matrices with 2000 or more rows.
+- Fixed the line search of the IRLS solvers rejecting good steps near the optimum of L1-penalized or bounded problems. When the change in the objective was too small to measure, it compared the L1 norm of the gradient, which does not vanish at the optimum of such problems. It now compares the minimum-norm subgradient, the quantity the convergence check uses.
+
+**Other changes:**
+
+- Sped up the inner coordinate descent of the `irls-cd` solver about 3x for `float64` and 5x for `float32` data, with bitwise identical results. The gradient update after each coordinate move now runs on a contiguous copy of the active set's gradient instead of indexing through the active set, so the compiler vectorizes it.
+- Sped up the `irls-cd` solver for problems with collinear features, most commonly full one-hot encoded categoricals (`drop_first=False`, the default) next to an intercept or to each other. Coordinate descent could only creep along the directions in which the model does not change, so inner solves often ran up to `max_inner_iter`. If an inner solve has not converged after 20 cycles, it now looks for such directions and moves along them exactly. On a Poisson lasso with three 50-level categoricals, this cuts the fit time from 32 seconds to 1.7 seconds, and from 220 seconds to 1.7 seconds with an elastic net penalty. Problems without such directions are not affected.
+- `Coordinate descent did not converge` warnings now come from the solver instead of the Cython kernel and show the value of `max_inner_iter`.
 
 ## 3.5.0 - 2026-11-16
 
