@@ -19,11 +19,12 @@ Formulas can provide a concise and convenient way to specify many of the usual p
 ```
 
 Despite its brevity, it describes all of the following:
- - The outcome variable is the ratio of `ClaimAmountCut` and `Exposure`.
- - The predictors should include the interactions of the categorical variables `DrivAge` and `VehPower`, as well as those two variables themselves. (Even though they behave as such, neither the individual variables nor their interaction will be dummy-encoded by glum. For categoricals with many levels, this can lead to a substantial performance improvement over dummy encoding, especially for the interaction.)
- - If there are missing values in `DrivAge`, they should be treated as a separate category.
- - On the other hand, missing values in `VehPower` should be treated as all-zero indicators.
- - The predictors should also include a third degree B-spline interpolation of `BonusMalus`.
+
+- The outcome variable is the ratio of `ClaimAmountCut` and `Exposure`.
+- The predictors should include the interactions of the categorical variables `DrivAge` and `VehPower`, as well as those two variables themselves. (Even though they behave as such, neither the individual variables nor their interaction will be dummy-encoded by glum. For categoricals with many levels, this can lead to a substantial performance improvement over dummy encoding, especially for the interaction.)
+- If there are missing values in `DrivAge`, they should be treated as a separate category.
+- On the other hand, missing values in `VehPower` should be treated as all-zero indicators.
+- The predictors should also include a third degree B-spline interpolation of `BonusMalus`.
 
 The following chapters demonstrate each of these features in some detail, as well as some additional advantages of using the formula interface.
 
@@ -277,8 +278,9 @@ with pd.option_context('display.max_rows', 10):
 Now, let us start by fitting a very simple model. As usual, let's divide our samples into a training and a test set so that we get valid out-of-sample goodness-of-fit measures. Perhaps less usually, we do not create separate `y` and `X` data frames for our label and features – the formula will take care of that for us.
 
 We still have some preprocessing to do:
- - Many of the ordinal or nominal variables are encoded as integers, instead of as categoricals. We will need to convert these so that `glum` will know to estimate a separate coefficient for each of their levels.
- - The outcome variable is a transformation of other columns. We need to create it first.
+
+- Many of the ordinal or nominal variables are encoded as integers, instead of as categoricals. We will need to convert these so that `glum` will know to estimate a separate coefficient for each of their levels.
+- The outcome variable is a transformation of other columns. We need to create it first.
 
 As we will see later on, these steps can be incorporated into the formula itself, but let's not overcomplicate things at first.
 

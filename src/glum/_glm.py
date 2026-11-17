@@ -2586,10 +2586,11 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     References
     ----------
     For the coordinate descent implementation:
-        * Guo-Xun Yuan, Chia-Hua Ho, Chih-Jen Lin
-          An Improved GLMNET for L1-regularized Logistic Regression,
-          Journal of Machine Learning Research 13 (2012) 1999-2030
-          https://www.csie.ntu.edu.tw/~cjlin/papers/l1_glmnet/long-glmnet.pdf
+
+    - Guo-Xun Yuan, Chia-Hua Ho, Chih-Jen Lin
+      An Improved GLMNET for L1-regularized Logistic Regression,
+      Journal of Machine Learning Research 13 (2012) 1999-2030
+      <https://www.csie.ntu.edu.tw/~cjlin/papers/l1_glmnet/long-glmnet.pdf>
     """
 
     def __init__(

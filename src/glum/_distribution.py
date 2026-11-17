@@ -1364,8 +1364,9 @@ class NegativeBinomialDistribution(ExponentialDispersionModel):
     References
     ----------
     For the log-likelihood and deviance:
-        * M. L. Zwilling Negative Binomial Regression, The Mathematica Journal 2013.
-          https://www.mathematica-journal.com/2013/06/27/negative-binomial-regression/
+
+    - M. L. Zwilling Negative Binomial Regression, The Mathematica Journal 2013.
+      <https://www.mathematica-journal.com/2013/06/27/negative-binomial-regression/>
     """
 
     lower_bound = 0
