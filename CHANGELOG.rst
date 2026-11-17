@@ -7,6 +7,13 @@
 Changelog
 =========
 
+3.5.1 - UNRELEASED
+------------------
+
+**Bug fix:**
+
+- Declared ``typing_extensions`` as a runtime dependency. glum imports it unconditionally but previously relied on it being installed transitively.
+
 3.5.0 - 2026-11-16
 ------------------
 
