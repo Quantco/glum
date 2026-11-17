@@ -9,7 +9,7 @@
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.14991108.svg)](https://doi.org/10.5281/zenodo.14991108)
 
 
-[Documentation](https://glum.readthedocs.io/en/latest/)
+[Documentation](https://glum.readthedocs.io/latest/)
 
 Generalized linear models (GLM) are a core statistical tool that include many common methods like least-squares regression, Poisson regression, and logistic regression as special cases. At QuantCo, we have used GLMs in e-commerce pricing, insurance claims prediction, and more. We have developed `glum`, a fast Python-first GLM library. The development was based on [a fork of scikit-learn](https://github.com/scikit-learn/scikit-learn/pull/9405), so it has a scikit-learn-like API. We are thankful for the starting point provided by Christian Lorentzen in that PR!
 
@@ -32,7 +32,7 @@ Performance also matters, so we conducted extensive benchmarks against other mod
 <img src="docs/_static/wide-insurance-gamma-normalized_dark.png#gh-dark-mode-only" alt="Benchmark results" width="600">
 <!-- BENCHMARK_FIGURES_END -->
 
-For more information on `glum`, including tutorials and API reference, please see [the documentation](https://glum.readthedocs.io/en/latest/).
+For more information on `glum`, including tutorials and API reference, please see [the documentation](https://glum.readthedocs.io/latest/).
 
 Why did we choose the name `glum`? We wanted a name that had the letters GLM and wasn't easily confused with any existing implementation. And we thought glum sounded like a funny name (and not glum at all!). If you need a more professional-sounding name, feel free to pronounce it as G-L-um. Or maybe it stands for "Generalized linear... ummm... modeling?"
 

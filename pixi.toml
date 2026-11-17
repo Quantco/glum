@@ -13,13 +13,10 @@ test = { cmd = "pytest tests/glm --doctest-modules src/glum", env = { PYTHONPATH
 test-backwards-compatibility = { cmd = "python tests/backwards_compatibility/run.py" }
 
 [feature.docs.tasks]
-# Warnings are errors; --keep-going reports all of them instead of stopping at the first.
-make-docs = "cd docs && make html SPHINXOPTS='-W --keep-going'"
-readthedocs = { cmd = "rm -rf $READTHEDOCS_OUTPUT/html && cp -r docs/_build/html $READTHEDOCS_OUTPUT/html", depends-on = [
-    "make-docs",
-] }
-serve-docs = { cmd = "python -m http.server --directory docs/_build/html", depends-on = [
-    "make-docs",
+docs = "zensical serve"
+docs-build = "zensical build --strict"
+readthedocs = { cmd = "rm -rf $READTHEDOCS_OUTPUT/html && cp -r site $READTHEDOCS_OUTPUT/html", depends-on = [
+    "docs-build",
 ] }
 
 [feature.benchmark.tasks]
@@ -103,24 +100,19 @@ pre-commit-hooks = "*"
 ruff = "*"
 
 [feature.docs.dependencies]
-jinja2 = "*"
-jupyterlab = "*"
-jupytext = "*"
-make = "*"
-matplotlib-base = "*"
-nbclassic = ">=0.2.8"
-nbsphinx = ">=0.8.3"
-sphinx = ">=3.5.3,!=8.2"
-sphinx_rtd_theme = "*"
-sphinxcontrib-apidoc = "*"
-sphinxext-altair = "*"
+griffe-inherited-docstrings = "*"
+mkdocstrings = "*"
+mkdocstrings-python = "*"
+zensical = "*"
 
 [feature.tutorial.dependencies]
 altair = "*"            # used in docs/tutorials/rossman
 dask-ml = ">=2022.5.27" # used in tutorials rossman and insurance
 jupyterlab = "*"
+jupytext = "*"          # opens the tutorial pages as notebooks
 libpysal = "*"          # used in docs/tutorials/regularization_housing_data
 lifelines = "*"         # used in docs/tutorials/cox_model
+matplotlib-base = "*"
 openml = "*"            # used for downloading datasets in the tutorials.
 shapely = "*"           # used in docs/tutorials/regularization_housing_data
 

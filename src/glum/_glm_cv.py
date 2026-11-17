@@ -24,20 +24,20 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
 
     Cross-validated regression via a Generalized Linear Model (GLM) with
     penalties. For more on GLMs and on these parameters, see the documentation
-    for :class:`GeneralizedLinearRegressor`.
+    for [`GeneralizedLinearRegressor`][glum.GeneralizedLinearRegressor].
 
     Parameters
     ----------
     l1_ratio : float or array of floats, optional (default=0)
-        If you pass ``l1_ratio`` as an array, the ``fit`` method will choose the
-        best value of ``l1_ratio`` and store it as ``self.l1_ratio``.
+        If you pass `l1_ratio` as an array, the `fit` method will choose the
+        best value of `l1_ratio` and store it as `self.l1_ratio`.
 
     P1 : {'identity', array-like, None}, shape (n_features,), optional
          (default='identity')
         This array controls the strength of the regularization for each coefficient
         independently. A high value will lead to higher regularization while a value of
         zero will remove the regularization on this parameter.
-        Note that ``n_features = X.shape[1]``. If ``X`` is a pandas DataFrame
+        Note that `n_features = X.shape[1]`. If `X` is a pandas DataFrame
         with a categorical dtype and P1 has the same size as the number of columns,
         the penalty of the categorical column will be applied to all the levels of
         the categorical.
@@ -45,59 +45,59 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
     P2 : {'identity', array-like, sparse matrix, None}, shape (n_features,) \
             or (n_features, n_features), optional (default='identity')
         With this option, you can set the P2 matrix in the L2 penalty
-        ``w*P2*w``. This gives a fine control over this penalty (Tikhonov
+        `w*P2*w`. This gives a fine control over this penalty (Tikhonov
         regularization). A 2d array is directly used as the square matrix P2. A
         1d array is interpreted as diagonal (square) matrix. The default
-        ``'identity'`` and ``None`` set the identity matrix, which gives the usual
+        `'identity'` and `None` set the identity matrix, which gives the usual
         squared L2-norm. If you just want to exclude certain coefficients, pass a 1d
         array filled with 1 and 0 for the coefficients to be excluded. Note that P2 must
-        be positive semi-definite. If ``X`` is a pandas DataFrame with a categorical
+        be positive semi-definite. If `X` is a pandas DataFrame with a categorical
         dtype and P2 has the same size as the number of columns, the penalty of the
         categorical column will be applied to all the levels of the categorical. Note
         that if P2 is two-dimensional, its size needs to be of the same length as the
-        expanded ``X`` matrix.
+        expanded `X` matrix.
 
     fit_intercept : bool, optional (default=True)
         Specifies if a constant (a.k.a. bias or intercept) should be
-        added to the linear predictor (``X * coef + intercept``).
+        added to the linear predictor (`X * coef + intercept`).
 
     family : str or ExponentialDispersionModel, optional (default='normal')
         The distributional assumption of the GLM, i.e. the loss function to
-        minimize. If a string, one of: ``'binomial'``, ``'gamma'``,
-        ``'gaussian'``, ``'inverse.gaussian'``, ``'normal'``, ``'poisson'``,
-        ``'tweedie'`` or ``'negative.binomial'``. Note that ``'tweedie'`` sets
+        minimize. If a string, one of: `'binomial'`, `'gamma'`,
+        `'gaussian'`, `'inverse.gaussian'`, `'normal'`, `'poisson'`,
+        `'tweedie'` or `'negative.binomial'`. Note that `'tweedie'` sets
         the power of the Tweedie distribution to 1.5; to use another value,
-        specify it in parentheses (e.g., ``'tweedie (1.5)'``). The same applies
-        for ``'negative.binomial'`` and theta parameter.
+        specify it in parentheses (e.g., `'tweedie (1.5)'`). The same applies
+        for `'negative.binomial'` and theta parameter.
 
     link : {'auto', 'identity', 'log', 'logit', 'cloglog'}, Link or None, \
             optional (default='auto')
         The link function of the GLM, i.e. mapping from linear
-        predictor (``X * coef``) to expectation (``mu``). Option ``'auto'`` sets
+        predictor (`X * coef`) to expectation (`mu`). Option `'auto'` sets
         the link depending on the chosen family as follows:
 
-        - ``'identity'`` for family ``'normal'``
-        - ``'log'`` for families ``'poisson'``, ``'gamma'``,
-          ``'inverse.gaussian'`` and ``'negative.binomial'``.
-        - ``'logit'`` for family ``'binomial'``
+        - `'identity'` for family `'normal'`
+        - `'log'` for families `'poisson'`, `'gamma'`,
+          `'inverse.gaussian'` and `'negative.binomial'`.
+        - `'logit'` for family `'binomial'`
 
     solver : {'auto', 'closed-form', 'irls-cd', 'irls-ls', 'lbfgs', 'trust-constr'}, \
             optional (default='auto')
         Algorithm to use in the optimization problem:
 
-        - ``'auto'``: ``'closed-form'`` for eligible Gaussian identity-link
-          problems without L1 regularization, ``'irls-ls'`` for other pure-L2
-          cases, and ``'irls-cd'`` otherwise.
-        - ``'closed-form'``: Direct linear solve for eligible Gaussian
+        - `'auto'`: `'closed-form'` for eligible Gaussian identity-link
+          problems without L1 regularization, `'irls-ls'` for other pure-L2
+          cases, and `'irls-cd'` otherwise.
+        - `'closed-form'`: Direct linear solve for eligible Gaussian
           identity-link problems (ridge/OLS/WLS).
-        - ``'irls-cd'``: Iteratively reweighted least squares with a coordinate
+        - `'irls-cd'`: Iteratively reweighted least squares with a coordinate
           descent inner solver. This can deal with L1 as well as L2 penalties.
           Note that in order to avoid unnecessary memory duplication of X in the
-          ``fit`` method, ``X`` should be directly passed as a
+          `fit` method, `X` should be directly passed as a
           Fortran-contiguous Numpy array or sparse CSC matrix.
-        - ``'irls-ls'``: Iteratively reweighted least squares with a least
+        - `'irls-ls'`: Iteratively reweighted least squares with a least
           squares inner solver. This algorithm cannot deal with L1 penalties.
-        - ``'lbfgs'``: Scipy's L-BFGS-B optimizer. It cannot deal with L1
+        - `'lbfgs'`: Scipy's L-BFGS-B optimizer. It cannot deal with L1
           penalties.
 
     max_iter : int, optional (default=100)
@@ -105,30 +105,30 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
 
     max_inner_iter: int, optional (default=100000)
         The maximal number of iterations for the inner solver in the IRLS-CD
-        algorithm. This parameter is only used when ``solver='irls-cd'``.
+        algorithm. This parameter is only used when `solver='irls-cd'`.
 
     gradient_tol : float, optional (default=None)
-        Stopping criterion. If ``None``, solver-specific defaults will be used.
-        The default value for most solvers is ``1e-4``, except for
-        ``'trust-constr'``, which requires more conservative convergence
-        settings and has a default value of ``1e-8``.
+        Stopping criterion. If `None`, solver-specific defaults will be used.
+        The default value for most solvers is `1e-4`, except for
+        `'trust-constr'`, which requires more conservative convergence
+        settings and has a default value of `1e-8`.
 
         For the IRLS-LS, L-BFGS and trust-constr solvers, the iteration
-        will stop when ``max{|g_i|, i = 1, ..., n} <= tol``, where ``g_i`` is
-        the ``i``-th component of the gradient (derivative) of the objective
+        will stop when `max{|g_i|, i = 1, ..., n} <= tol`, where `g_i` is
+        the `i`-th component of the gradient (derivative) of the objective
         function. For the CD solver, convergence is reached when
-        ``sum_i(|minimum norm of g_i|)``, where ``g_i`` is the subgradient of
-        the objective and the minimum norm of ``g_i`` is the element of the
+        `sum_i(|minimum norm of g_i|)`, where `g_i` is the subgradient of
+        the objective and the minimum norm of `g_i` is the element of the
         subgradient with the smallest L2 norm.
 
-        If you wish to only use a step-size tolerance, set ``gradient_tol``
+        If you wish to only use a step-size tolerance, set `gradient_tol`
         to a very small number.
 
     step_size_tol: float, optional (default=None)
         Alternative stopping criterion. For the IRLS-LS and IRLS-CD solvers, the
         iteration will stop when the L2 norm of the step size is less than
-        ``step_size_tol``. This stopping criterion is disabled when
-        ``step_size_tol`` is ``None``.
+        `step_size_tol`. This stopping criterion is disabled when
+        `step_size_tol` is `None`.
 
     hessian_approx: float, optional (default=0.0)
         The threshold below which data matrix rows will be ignored for updating
@@ -136,146 +136,147 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         for further details.
 
     warm_start : bool, optional (default=False)
-        Whether to reuse the solution of the previous call to ``fit``
-        as initialization for ``coef_`` and ``intercept_`` (supersedes
-        ``start_params``). If ``False`` or if the attribute ``coef_`` does not
-        exist (first call to ``fit``), ``start_params`` sets the start values
-        for ``coef_`` and ``intercept_``.
+        Whether to reuse the solution of the previous call to `fit`
+        as initialization for `coef_` and `intercept_` (supersedes
+        `start_params`). If `False` or if the attribute `coef_` does not
+        exist (first call to `fit`), `start_params` sets the start values
+        for `coef_` and `intercept_`.
 
     n_alphas : int, optional (default=100)
         Number of alphas along the regularization path
 
     alphas : array-like, optional (default=None)
-        List of alphas for which to compute the models. If ``None``, the alphas
-        are set automatically. Setting ``None`` is preferred.
+        List of alphas for which to compute the models. If `None`, the alphas
+        are set automatically. Setting `None` is preferred.
 
     min_alpha_ratio : float, optional (default=None)
-        Length of the path. ``min_alpha_ratio=1e-6`` means that
-        ``min_alpha / max_alpha = 1e-6``. If ``None``, ``1e-6`` is used
-        when ``n_samples >= n_features``, else ``1e-2``.
+        Length of the path. `min_alpha_ratio=1e-6` means that
+        `min_alpha / max_alpha = 1e-6`. If `None`, `1e-6` is used
+        when `n_samples >= n_features`, else `1e-2`.
 
     min_alpha : float, optional (default=None)
         Minimum alpha to estimate the model with. The grid will then be created
-        over ``[max_alpha, min_alpha]``.
+        over `[max_alpha, min_alpha]`.
 
     start_params : array-like, shape (n_features*,), optional (default=None)
-        Relevant only if ``warm_start`` is ``False`` or if ``fit`` is called
-        for the first time (so that ``self.coef_`` does not exist yet). If
-        ``None``, all coefficients are set to zero and the start value for the
-        intercept is the weighted average of ``y`` (If ``fit_intercept`` is
-        ``True``). If an array, used directly as start values; if
-        ``fit_intercept`` is ``True``, its first element is assumed to be the
-        start value for the ``intercept_``. Note that
-        ``n_features* = X.shape[1] + fit_intercept``, i.e. it includes the
+        Relevant only if `warm_start` is `False` or if `fit` is called
+        for the first time (so that `self.coef_` does not exist yet). If
+        `None`, all coefficients are set to zero and the start value for the
+        intercept is the weighted average of `y` (If `fit_intercept` is
+        `True`). If an array, used directly as start values; if
+        `fit_intercept` is `True`, its first element is assumed to be the
+        start value for the `intercept_`. Note that
+        `n_features* = X.shape[1] + fit_intercept`, i.e. it includes the
         intercept.
 
     selection : str, optional (default='cyclic')
         For the CD solver 'cd', the coordinates (features) can be updated in
-        either cyclic or random order. If set to ``'random'``, a random
+        either cyclic or random order. If set to `'random'`, a random
         coefficient is updated every iteration rather than looping over features
         sequentially in the same order, which often leads to significantly
-        faster convergence, especially when ``gradient_tol`` is higher than
-        ``1e-4``.
+        faster convergence, especially when `gradient_tol` is higher than
+        `1e-4`.
 
     random_state : int or RandomState, optional (default=None)
         The seed of the pseudo random number generator that selects a random
-        feature to be updated for the CD solver. If an integer, ``random_state``
+        feature to be updated for the CD solver. If an integer, `random_state`
         is the seed used by the random number generator; if a
-        :class:`RandomState` instance, ``random_state`` is the random number
-        generator; if ``None``, the random number generator is the
-        :class:`RandomState` instance used by ``np.random``. Used when
-        ``selection`` is ``'random'``.
+        [`RandomState`][numpy.random.RandomState] instance, `random_state` is
+        the random number generator; if `None`, the random number generator is
+        the [`RandomState`][numpy.random.RandomState] instance used by
+        `np.random`. Used when `selection` is `'random'`.
 
     copy_X : bool, optional (default=None)
-        Whether to copy ``X``. Since ``X`` is never modified by
-        :class:`GeneralizedLinearRegressor`, this is unlikely to be needed; this
-        option exists mainly for compatibility with other scikit-learn
-        estimators. If ``False``, ``X`` will not be copied and there will be an
-        error if you pass an ``X`` in the wrong format, such as providing
-        integer ``X`` and float ``y`` (only guaranteed for numpy arrays and pandas data
-        frames). If ``None``, ``X`` will not be copied unless it is in the wrong format.
+        Whether to copy `X`. Since `X` is never modified by
+        [`GeneralizedLinearRegressor`][glum.GeneralizedLinearRegressor], this
+        is unlikely to be needed; this option exists mainly for compatibility
+        with other scikit-learn
+        estimators. If `False`, `X` will not be copied and there will be an
+        error if you pass an `X` in the wrong format, such as providing
+        integer `X` and float `y` (only guaranteed for numpy arrays and pandas data
+        frames). If `None`, `X` will not be copied unless it is in the wrong format.
 
     check_input : bool, optional (default=True)
-        Whether to bypass several checks on input: ``y`` values in range of
-        ``family``, ``sample_weight`` non-negative, ``P2`` positive
+        Whether to bypass several checks on input: `y` values in range of
+        `family`, `sample_weight` non-negative, `P2` positive
         semi-definite. Don't use this parameter unless you know what you are
         doing.
 
     verbose : int, optional (default=0)
         For the IRLS solver, any positive number will result in a pretty
         progress bar showing convergence. This features requires having the
-        tqdm package installed. For the L-BFGS solver, set ``verbose`` to any
+        tqdm package installed. For the L-BFGS solver, set `verbose` to any
         positive number for verbosity.
 
     scale_predictors: bool, optional (default=False)
-        If ``True``, estimate a scaled model where all predictors have a
+        If `True`, estimate a scaled model where all predictors have a
         standard deviation of 1. This can result in better estimates if
         predictors are on very different scales (for example, centimeters and
         kilometers).
 
         Advanced developer note: Internally, predictors are always rescaled for
         computational reasons, but this only affects results if
-        ``scale_predictors`` is ``True``.
+        `scale_predictors` is `True`.
 
     lower_bounds : array-like, shape (n_features), optional (default=None)
         Set a lower bound for the coefficients. Setting bounds forces the use
-        of the coordinate descent solver (``'irls-cd'``).
+        of the coordinate descent solver (`'irls-cd'`).
 
     upper_bounds : array-like, shape=(n_features), optional (default=None)
-        See ``lower_bounds``.
+        See `lower_bounds`.
 
     A_ineq : array-like, shape=(n_constraints, n_features), optional (default=None)
         Constraint matrix for linear inequality constraints of the form
-        ``A_ineq w <= b_ineq``.
+        `A_ineq w <= b_ineq`.
 
     b_ineq : array-like, shape=(n_constraints,), optional (default=None)
         Constraint vector for linear inequality constraints of the form
-        ``A_ineq w <= b_ineq``.
+        `A_ineq w <= b_ineq`.
 
     monotonic_constraints : dict, optional (default=None)
-        Mapping from variable names in ``formula`` (e.g. ``"x"``) to
-        ``"increasing"`` or ``"decreasing"``. For single-column numeric
-        variables, including transforms like ``np.log(x)``, constrains the sign
-        of the coefficient. For ``bs()`` splines, categoricals and booleans,
+        Mapping from variable names in `formula` (e.g. `"x"`) to
+        `"increasing"` or `"decreasing"`. For single-column numeric
+        variables, including transforms like `np.log(x)`, constrains the sign
+        of the coefficient. For `bs()` splines, categoricals and booleans,
         orders consecutive coefficients (including an implicit zero for a dropped
         first column). Other transforms are not supported. Categoricals must be
-        ordered (pandas ``Categorical`` with ``ordered=True`` or polars ``Enum``);
+        ordered (pandas `Categorical` with `ordered=True` or polars `Enum`);
         their coefficients follow the category order.
 
     cv : int, cross-validation generator or Iterable, optional (default=None)
         Determines the cross-validation splitting strategy. One of:
 
-        - ``None``, to use the default 5-fold cross-validation,
-        - ``int``, to specify the number of folds.
-        - ``Iterable`` yielding (train, test) splits as arrays of indices.
+        - `None`, to use the default 5-fold cross-validation,
+        - `int`, to specify the number of folds.
+        - `Iterable` yielding (train, test) splits as arrays of indices.
 
-        For integer/``None`` inputs, :class:`KFold` is used
+        For integer/`None` inputs, [`KFold`][sklearn.model_selection.KFold] is used
 
     n_jobs : int, optional (default=None)
         The maximum number of concurrently running jobs. The number of jobs that
-        are needed is ``len(l1_ratio)`` x ``n_folds``. ``-1`` is the same as the
-        number of CPU on your machine. ``None`` means ``1`` unless in a
-        :obj:`joblib.parallel_backend` context.
+        are needed is `len(l1_ratio)` x `n_folds`. `-1` is the same as the
+        number of CPU on your machine. `None` means `1` unless in a
+        `joblib.parallel_backend` context.
 
     drop_first : bool, optional (default = False)
-        If ``True``, drop the first column when encoding categorical variables.
+        If `True`, drop the first column when encoding categorical variables.
         Set this to True when alpha=0 and solver='auto' to prevent an error due to a
         singular feature matrix. In the case of using a formula with interactions,
-        setting this argument to ``True`` ensures structural full-rankness (it is
-        equivalent to ``ensure_full_rank`` in formulaic and tabmat).
+        setting this argument to `True` ensures structural full-rankness (it is
+        equivalent to `ensure_full_rank` in formulaic and tabmat).
 
     formula : FormulaSpec
         A formula accepted by formulaic. It can either be a one-sided formula, in
-        which case ``y`` must be specified in ``fit``, or a two-sided formula, in
-        which case ``y`` must be ``None``.
+        which case `y` must be specified in `fit`, or a two-sided formula, in
+        which case `y` must be `None`.
 
     interaction_separator: str, default=":"
         The separator between the names of interacted variables.
 
     categorical_format: str, default="{name}[T.{category}]"
         The format string used to generate the names of categorical variables.
-        Has to include the placeholders ``{name}`` and ``{category}``.
-        Only used if ``formula`` is not ``None``.
+        Has to include the placeholders `{name}` and `{category}`.
+        Only used if `formula` is not `None`.
 
     Attributes
     ----------
@@ -291,7 +292,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
 
     coef_ : array, shape (n_features,)
         Estimated coefficients for the linear predictor in the GLM at the
-        optimal (``l1_ratio_``, ``alpha_``).
+        optimal (`l1_ratio_`, `alpha_`).
 
     intercept_ : float
         Intercept (a.k.a. bias) added to linear predictor.
@@ -323,28 +324,28 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
 
     categorical_format : str, optional (default = "{name}[{category}]")
         Format string for categorical features. The format string should
-        contain the placeholder ``{name}`` for the feature name and
-        ``{category}`` for the category name. Only used if ``X`` is a pandas
+        contain the placeholder `{name}` for the feature name and
+        `{category}` for the category name. Only used if `X` is a pandas
         DataFrame.
 
     cat_missing_method: str {'fail'|'zero'|'convert'}, default='fail'
-        How to handle missing values in categorical columns. Only used if ``X``
+        How to handle missing values in categorical columns. Only used if `X`
         is a pandas data frame.
 
         - if 'fail', raise an error if there are missing values
         - if 'zero', missing values will represent all-zero indicator columns.
-        - if 'convert', missing values will be converted to the ``cat_missing_name``
+        - if 'convert', missing values will be converted to the `cat_missing_name`
           category.
 
     cat_missing_name: str, default='(MISSING)'
         Name of the category to which missing values will be converted if
-        ``cat_missing_method='convert'``.  Only used if ``X`` is a pandas data frame.
+        `cat_missing_method='convert'`.  Only used if `X` is a pandas data frame.
 
     col_means_ : array, shape (n_features,)
-        The means of the columns of the design matrix ``X``.
+        The means of the columns of the design matrix `X`.
 
     col_stds_ : array, shape (n_features,)
-        The standard deviations of the columns of the design matrix ``X``.
+        The standard deviations of the columns of the design matrix `X`.
 
     feature_names_: list of str
         The names of the coefficients.
@@ -446,14 +447,14 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         alpha: Optional[Union[float, Sequence[float]]] = None,
         context: Optional[Union[int, Mapping[str, Any]]] = None,
     ):
-        """Compute the linear predictor, ``X * coef_ + intercept_``.
+        """Compute the linear predictor, `X * coef_ + intercept_`.
 
-        When neither ``alpha_index`` nor ``alpha`` are given, predictions are for the
-        best CV-selected ``(l1_ratio_, alpha_)``.
+        When neither `alpha_index` nor `alpha` are given, predictions are for the
+        best CV-selected `(l1_ratio_, alpha_)`.
 
-        When either ``alpha_index`` or ``alpha`` are specified, predictions are for the
+        When either `alpha_index` or `alpha` are specified, predictions are for the
         corresponding alpha values on the full-data refit path for the best
-        ``l1_ratio_``.
+        `l1_ratio_`.
 
         Parameters
         ----------
@@ -465,27 +466,27 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
 
         alpha_index : int or sequence of int, optional (default=None)
             Index (or indices) into the alpha path from the full-data refit.
-            Incompatible with ``alpha``.
+            Incompatible with `alpha`.
 
         alpha : float or sequence of float, optional (default=None)
             Alpha value(s) to predict at, resolved to the closest index on
-            the refit alpha path. Incompatible with ``alpha_index``.
+            the refit alpha path. Incompatible with `alpha_index`.
 
         context : int or mapping, optional (default=None)
             The context to add to the evaluation context of the formula with,
             e.g., custom transforms. If an integer, the context is taken from
             the stack frame of the caller at the given depth. Otherwise, a
             mapping from variable names to values is expected. By default,
-            no context is added. Set ``context=0`` to make the calling scope
+            no context is added. Set `context=0` to make the calling scope
             available.
 
 
         Returns
         -------
         np.ndarray
-            Shape ``(n_samples,)`` when no ``alpha_index`` / ``alpha`` is
+            Shape `(n_samples,)` when no `alpha_index` / `alpha` is
             given or when a scalar alpha is passed. Shape
-            ``(n_samples, len(alpha_index))`` when a sequence is passed.
+            `(n_samples, len(alpha_index))` when a sequence is passed.
         """
         skl.utils.validation.check_is_fitted(self, "coef_")
 
@@ -535,7 +536,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         Parameters
         ----------
         X : {array-like, sparse matrix}, shape (n_samples, n_features)
-            Training data. Note that a ``float32`` matrix is acceptable and will
+            Training data. Note that a `float32` matrix is acceptable and will
             result in the entire algorithm being run in 32-bit precision.
             However, for problems that are poorly conditioned, this might result
             in poor convergence or flawed parameter estimates. If a Pandas data
@@ -551,15 +552,15 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         sample_weight : array-like, shape (n_samples,), optional (default=None)
             Individual weights w_i for each sample. Note that, for an
             Exponential Dispersion Model (EDM), one has
-            :math:`\mathrm{var}(y_i) = \phi \times v(mu) / w_i`. If
-            :math:`y_i \sim EDM(\mu, \phi / w_i)`, then
-            :math:`\sum w_i y_i / \sum w_i \sim EDM(\mu, \phi / \sum w_i)`,
-            i.e. the mean of :math:`y` is a weighted average with weights equal
-            to ``sample_weight``.
+            $\mathrm{var}(y_i) = \phi \times v(mu) / w_i$. If
+            $y_i \sim EDM(\mu, \phi / w_i)$, then
+            $\sum w_i y_i / \sum w_i \sim EDM(\mu, \phi / \sum w_i)$,
+            i.e. the mean of $y$ is a weighted average with weights equal
+            to `sample_weight`.
 
         offset: array-like, shape (n_samples,), optional (default=None)
             Added to linear predictor. An offset of 3 will increase expected
-            ``y`` by 3 if the link is linear and will multiply expected ``y`` by
+            `y` by 3 if the link is linear and will multiply expected `y` by
             3 if the link is logarithmic.
 
         store_covariance_matrix : bool, optional (default=False)
@@ -575,7 +576,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
             e.g., custom transforms. If an integer, the context is taken from
             the stack frame of the caller at the given depth. Otherwise, a
             mapping from variable names to values is expected. By default,
-            no context is added. Set ``context=0`` to make the calling scope
+            no context is added. Set `context=0` to make the calling scope
             available.
 
         """

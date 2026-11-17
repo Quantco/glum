@@ -42,8 +42,8 @@ jobs:
       - name: Install repository
         run: pixi run -e docs postinstall
       - name: Build docs
-        # The make-docs task treats warnings as errors.
-        run: pixi run -e docs make-docs
+        # The docs-build task treats warnings as errors.
+        run: pixi run -e docs docs-build
 
   unit-tests:
     name: Tests

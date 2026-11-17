@@ -10,10 +10,10 @@ from ._utils import safe_toarray
 
 def is_pos_semidef(p: Union[sparse.spmatrix, np.ndarray]) -> Union[bool, np.bool_]:
     """
-    Checks for positive semidefiniteness of ``p`` if ``p`` is a matrix, or
-    ``diag(p)`` if a vector.
+    Checks for positive semidefiniteness of `p` if `p` is a matrix, or
+    `diag(p)` if a vector.
 
-    ``np.linalg.cholesky(P2)`` 'only' asserts positive definiteness; due to
+    `np.linalg.cholesky(P2)` 'only' asserts positive definiteness; due to
     numerical precision, we allow eigenvalues to be a tiny bit negative.
     """
     # 1d case
@@ -73,10 +73,10 @@ def _safe_sandwich_dot(
     intercept=False,
 ) -> np.ndarray:
     """
-    Compute sandwich product ``X.T @ diag(d) @ X``.
+    Compute sandwich product `X.T @ diag(d) @ X`.
 
-    With ``intercept=True``, ``X`` is treated as if a column of 1 were appended
-    as first column of ``X``. ``X`` can be sparse; ``d`` must be an ndarray.
+    With `intercept=True`, `X` is treated as if a column of 1 were appended
+    as first column of `X`. `X` can be sparse; `d` must be an ndarray.
     Always returns an ndarray.
     """
     result = X.sandwich(d, rows, cols)
@@ -106,18 +106,18 @@ def _solve_least_squares_tikhonov(
     """
     Solve weighted least squares with optional Tikhonov (L2) penalty.
 
-    Finds ``beta`` minimising
+    Finds `beta` minimising
 
         0.5 * (y - X @ beta).T @ W @ (y - X @ beta)
         + 0.5 * beta.T @ P2 @ beta
 
-    with ``W = diag(sample_weight)``, via the closed-form solution
+    with `W = diag(sample_weight)`, via the closed-form solution
 
         beta_hat = inv(X.T @ W @ X + P2) @ X.T @ W @ y
 
-    With ``fit_intercept=True`` the design matrix is implicitly augmented
-    with a leading column of ones (unpenalised). When ``offset`` is not
-    ``None``, ``y`` is replaced by ``y - offset``.
+    With `fit_intercept=True` the design matrix is implicitly augmented
+    with a leading column of ones (unpenalised). When `offset` is not
+    `None`, `y` is replaced by `y - offset`.
 
     See Hastie, Tibshirani & Friedman (2009), *The Elements of Statistical
     Learning*, 2nd ed., Springer, Section 3.4.1, Eq. 3.44.

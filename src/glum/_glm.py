@@ -94,8 +94,8 @@ _SATURATION_WARNING_FRACTION = 0.01
 
 class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstimator):
     """
-    Base class for :class:`GeneralizedLinearRegressor` and
-    :class:`GeneralizedLinearRegressorCV`.
+    Base class for `GeneralizedLinearRegressor` and
+    `GeneralizedLinearRegressorCV`.
     """
 
     def __init__(
@@ -217,7 +217,7 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
 
     @property
     def family_instance(self) -> ExponentialDispersionModel:
-        """Return an :class:`~glum._distribution.ExponentialDispersionModel`."""
+        """Return an [`ExponentialDispersionModel`][glum.ExponentialDispersionModel]."""
         if hasattr(self, "_family_instance"):
             return self._family_instance
         else:
@@ -225,7 +225,7 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
 
     @property
     def link_instance(self) -> Link:
-        """Return a :class:`~glum._link.Link`."""
+        """Return a [`Link`][glum.Link]."""
         if hasattr(self, "_link_instance"):
             return self._link_instance
         else:
@@ -454,10 +454,10 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
 
         If all features do not have L1 regularization (ridge), the maximum alpha is
         such that coefficients are close to, but not exactly, zero, or whatever is
-        specified by the input parameters ``min_alpha_ratio`` and ``n_alphas``.
+        specified by the input parameters `min_alpha_ratio` and `n_alphas`.
 
-        ``min_alpha_ratio`` governs the length of the path. When ``None``, the
-        default is ``1e-6`` if ``n_samples >= n_features``, else ``1e-2``.
+        `min_alpha_ratio` governs the length of the path. When `None`, the
+        default is `1e-6` if `n_samples >= n_features`, else `1e-2`.
         Smaller values will lead to a longer path.
         """
         n_samples = X.shape[0]
@@ -540,8 +540,8 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         b_ineq: Optional[np.ndarray],
     ) -> np.ndarray:
         """
-        Must be run after running :func:`_set_up_for_fit`. Sets
-        ``self.coef_`` and ``self.intercept_``.
+        Must be run after running `_set_up_for_fit`. Sets
+        `self.coef_` and `self.intercept_`.
         """
         can_use_closed_form = (
             isinstance(self._family_instance, NormalDistribution)
@@ -729,13 +729,13 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         full_report: bool = False,
         custom_columns: Optional[Sequence] = None,
     ) -> None:
-        """Print diagnostics to ``stdout``.
+        """Print diagnostics to `stdout`.
 
         Parameters
         ----------
         full_report : bool, optional (default=False)
-            Print all available information. When ``False`` and
-            ``custom_columns`` is ``None``, a restricted set of columns is
+            Print all available information. When `False` and
+            `custom_columns` is `None`, a restricted set of columns is
             printed out.
 
         custom_columns : iterable, optional (default=None)
@@ -765,8 +765,8 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         Parameters
         ----------
         full_report : bool, optional (default=False)
-            Print all available information. When ``False`` and
-            ``custom_columns`` is ``None``, a restricted set of columns is
+            Print all available information. When `False` and
+            `custom_columns` is `None`, a restricted set of columns is
             printed out.
 
         custom_columns : iterable, optional (default=None)
@@ -810,7 +810,7 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         alpha_index: Optional[Union[int, Sequence[int]]],
         alpha: Optional[Union[float, Sequence[float]]],
     ) -> Optional[Union[int, Sequence[int]]]:
-        """Validate and resolve ``alpha`` / ``alpha_index`` arguments."""
+        """Validate and resolve `alpha` / `alpha_index` arguments."""
         if (alpha is not None) and (alpha_index is not None):
             raise ValueError("Please specify at most one of 'alpha_index' and 'alpha'.")
         if alpha is not None:
@@ -828,46 +828,46 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         alpha: Optional[Union[float, Sequence[float]]] = None,
         context: Optional[Union[int, Mapping[str, Any]]] = None,
     ):
-        """Compute the linear predictor, ``X * coef_ + intercept_``.
+        """Compute the linear predictor, `X * coef_ + intercept_`.
 
-        If ``alpha_search`` is ``True``, but ``alpha_index`` and ``alpha`` are both
-        ``None``, the predictions are for the last alpha value ``self._alphas[-1]``.
+        If `alpha_search` is `True`, but `alpha_index` and `alpha` are both
+        `None`, the predictions are for the last alpha value `self._alphas[-1]`.
 
         Parameters
         ----------
         X : array-like, shape (n_samples, n_features)
-            Observations. ``X`` may be a pandas data frame with categorical
-            types. If ``X`` was also a data frame with categorical types during
+            Observations. `X` may be a pandas data frame with categorical
+            types. If `X` was also a data frame with categorical types during
             fitting and a category wasn't observed at that point, the
-            corresponding prediction will be ``numpy.nan``.
+            corresponding prediction will be `numpy.nan`.
 
         offset : array-like, shape (n_samples,), optional (default=None)
             Offset added to the linear predictor.
 
         alpha_index : int or sequence of int, optional (default=None)
             Index (or indices) into the fitted alpha path. Only valid when
-            ``alpha_search`` is ``True``. Incompatible with ``alpha``.
+            `alpha_search` is `True`. Incompatible with `alpha`.
 
         alpha : float or sequence of float, optional (default=None)
             Alpha value(s) to predict at, resolved to the closest index on
-            the fitted alpha path. Only valid when ``alpha_search`` is
-            ``True``. Incompatible with ``alpha_index``.
+            the fitted alpha path. Only valid when `alpha_search` is
+            `True`. Incompatible with `alpha_index`.
 
         context : int or mapping, optional (default=None)
             The context to add to the evaluation context of the formula with,
             e.g., custom transforms. If an integer, the context is taken from
             the stack frame of the caller at the given depth. Otherwise, a
             mapping from variable names to values is expected. By default,
-            no context is added. Set ``context=0`` to make the calling scope
+            no context is added. Set `context=0` to make the calling scope
             available.
 
 
         Returns
         -------
         np.ndarray
-            Shape ``(n_samples,)`` when no ``alpha_index`` / ``alpha`` is
+            Shape `(n_samples,)` when no `alpha_index` / `alpha` is
             given or when a scalar alpha is passed. Shape
-            ``(n_samples, len(alpha_index))`` when a sequence is passed.
+            `(n_samples, len(alpha_index))` when a sequence is passed.
         """
         skl.utils.validation.check_is_fitted(self, "coef_")
 
@@ -944,18 +944,18 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         alpha: Optional[Union[float, Sequence[float]]] = None,
         context: Optional[Union[int, Mapping[str, Any]]] = None,
     ):
-        """Predict using GLM with feature matrix ``X``.
+        """Predict using GLM with feature matrix `X`.
 
-        If ``alpha_search`` is ``True``, but ``alpha_index`` and ``alpha`` are
-        both ``None``, we use the last alpha value ``self._alphas[-1]``.
+        If `alpha_search` is `True`, but `alpha_index` and `alpha` are
+        both `None`, we use the last alpha value `self._alphas[-1]`.
 
         Parameters
         ----------
         X : array-like, shape (n_samples, n_features)
-            Observations. ``X`` may be a pandas data frame with categorical
-            types. If ``X`` was also a data frame with categorical types during
+            Observations. `X` may be a pandas data frame with categorical
+            types. If `X` was also a data frame with categorical types during
             fitting and a category wasn't observed at that point, the
-            corresponding prediction will be ``numpy.nan``.
+            corresponding prediction will be `numpy.nan`.
 
         sample_weight : array-like, shape (n_samples,), optional (default=None)
             Sample weights to multiply predictions by.
@@ -963,27 +963,27 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         offset : array-like, shape (n_samples,), optional (default=None)
 
         alpha_index : int or list[int], optional (default=None)
-            Sets the index of the alpha(s) to use in case ``alpha_search`` is
-            ``True``. Incompatible with ``alpha`` (see below).
+            Sets the index of the alpha(s) to use in case `alpha_search` is
+            `True`. Incompatible with `alpha` (see below).
 
         alpha : float or list[float], optional (default=None)
-            Sets the alpha(s) to use in case ``alpha_search`` is ``True``.
-            Incompatible with ``alpha_index`` (see above).
+            Sets the alpha(s) to use in case `alpha_search` is `True`.
+            Incompatible with `alpha_index` (see above).
 
         context : Optional[Union[int, Mapping[str, Any]]], default=None
             The context to add to the evaluation context of the formula with,
             e.g., custom transforms. If an integer, the context is taken from
             the stack frame of the caller at the given depth. Otherwise, a
             mapping from variable names to values is expected. By default,
-            no context is added. Set ``context=0`` to make the calling scope
+            no context is added. Set `context=0` to make the calling scope
             available.
 
         Returns
         -------
         np.ndarray
-            Shape ``(n_samples,)`` when no ``alpha_index`` / ``alpha`` is
+            Shape `(n_samples,)` when no `alpha_index` / `alpha` is
             given or when a scalar alpha is passed. Shape
-            ``(n_samples, len(alpha_index))`` when a sequence is passed.
+            `(n_samples, len(alpha_index))` when a sequence is passed.
         """
         if nw.dependencies.is_into_dataframe(X):
             X = self._convert_from_df(X, context=capture_context(context))
@@ -1042,20 +1042,20 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
             The dispersion parameter. Estimated if absent.
         robust : boolean, optional, default=None
             Whether to compute robust standard errors instead of normal ones.
-            If not specified, the model's ``robust`` attribute is used.
+            If not specified, the model's `robust` attribute is used.
         clusters : array-like, optional, default=None
             Array with cluster membership. Clustered standard errors are
             computed if clusters is not None.
         expected_information : boolean, optional, default=None
             Whether to use the expected or observed information matrix.
             Only relevant when computing robust standard errors.
-            If not specified, the model's ``expected_information`` attribute is used.
+            If not specified, the model's `expected_information` attribute is used.
         context : Optional[Union[int, Mapping[str, Any]]], default=None
             The context to add to the evaluation context of the formula with,
             e.g., custom transforms. If an integer, the context is taken from
             the stack frame of the caller at the given depth. Otherwise, a
             mapping from variable names to values is expected. By default,
-            no context is added. Set ``context=0`` to make the calling scope
+            no context is added. Set `context=0` to make the calling scope
             available.
 
         Returns
@@ -1129,15 +1129,15 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
 
         The left hand side of the hypothesis may be specified in the following ways:
 
-        - ``R``: The restriction matrix representing the linear combination of
+        - `R`: The restriction matrix representing the linear combination of
           coefficients to test.
-        - ``features``: The name of a feature or a list of features to test.
-        - ``terms``: The name of a term or a list of terms to test.
-        - ``formula``: A formula string specifying the hypothesis to test.
+        - `features`: The name of a feature or a list of features to test.
+        - `terms`: The name of a term or a list of terms to test.
+        - `formula`: A formula string specifying the hypothesis to test.
 
-        The right hand side of the tested hypothesis is specified by ``r``. In the
-        case of a ``terms``-based test, the null hypothesis is that each coefficient
-        relating to a term equals the corresponding value in ``r``.
+        The right hand side of the tested hypothesis is specified by `r`. In the
+        case of a `terms`-based test, the null hypothesis is that each coefficient
+        relating to a term equals the corresponding value in `r`.
 
         Parameters
         ----------
@@ -1159,10 +1159,10 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         terms : Union[str, list[str]], optional, default=None
             The name of a term or a list of terms to test. It can cover one or more
             coefficients. In the case of a model based on a formula, a term is one
-            of the expressions separated by ``+`` signs. Otherwise, a term is one column
+            of the expressions separated by `+` signs. Otherwise, a term is one column
             in the input data. As categorical variables need not be one-hot encoded in
             glum, in their case, the hypothesis to be tested is that the coefficients
-            of all categories are equal to ``r``.
+            of all categories are equal to `r`.
         r : Sequence, optional, default=None
             The vector representing the values of the linear combination.
             If None, the test is for whether the linear combinations of the coefficients
@@ -1173,20 +1173,20 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
             The dispersion parameter. Estimated if absent.
         robust : boolean, optional, default=None
             Whether to compute robust standard errors instead of normal ones.
-            If not specified, the model's ``robust`` attribute is used.
+            If not specified, the model's `robust` attribute is used.
         clusters : array-like, optional, default=None
             Array with cluster membership. Clustered standard errors are
             computed if clusters is not None.
         expected_information : boolean, optional, default=None
             Whether to use the expected or observed information matrix.
             Only relevant when computing robust standard errors.
-            If not specified, the model's ``expected_information`` attribute is used.
+            If not specified, the model's `expected_information` attribute is used.
         context : Optional[Union[int, Mapping[str, Any]]], default=None
             The context to add to the evaluation context of the formula with,
             e.g., custom transforms. If an integer, the context is taken from
             the stack frame of the caller at the given depth. Otherwise, a
             mapping from variable names to values is expected. By default,
-            no context is added. Set ``context=0`` to make the calling scope
+            no context is added. Set `context=0` to make the calling scope
             available.
 
         Returns
@@ -1240,8 +1240,8 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
     ) -> WaldTestResult:
         """
         Perform a Wald test statistic for a hypothesis specified by constraints
-        given as ``R @ coef_ = r``. Under the null hypothesis, the test statistic
-        follows a chi-squared distribution with ``R.shape[0]`` degrees of freedom.
+        given as `R @ coef_ = r`. Under the null hypothesis, the test statistic
+        follows a chi-squared distribution with `R.shape[0]` degrees of freedom.
         """
         covariance_matrix = self.covariance_matrix(**kwargs)
 
@@ -1285,7 +1285,7 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
     ) -> WaldTestResult:
         """
         Perform a Wald test for the hypothesis that the coefficients of the
-        features in ``features`` are equal to the values in ``values``.
+        features in `features` are equal to the values in `values`.
         """
 
         if isinstance(features, str):
@@ -1317,7 +1317,7 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
 
     def _wald_test_formula(self, formula: str, **kwargs) -> WaldTestResult:
         """
-        Perform a Wald test for the hypothesis described in ``formula``.
+        Perform a Wald test for the hypothesis described in `formula`.
         """
 
         if self.fit_intercept:
@@ -1339,7 +1339,7 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
     ) -> WaldTestResult:
         """
         Perform a Wald test for the hypothesis that the coefficients of the
-        features in ``terms`` are equal to the values in ``values``.
+        features in `terms` are equal to the values in `values`.
         """
 
         if isinstance(terms, str):
@@ -1419,14 +1419,14 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
             The dispersion parameter. Estimated if absent.
         robust : boolean, optional, default=None
             Whether to compute robust standard errors instead of normal ones.
-            If not specified, the model's ``robust`` attribute is used.
+            If not specified, the model's `robust` attribute is used.
         clusters : array-like, optional, default=None
             Array with cluster membership. Clustered standard errors are
             computed if clusters is not None.
         expected_information : boolean, optional, default=None
             Whether to use the expected or observed information matrix.
             Only relevant when computing robust standard errors.
-            If not specified, the model's ``expected_information`` attribute is used.
+            If not specified, the model's `expected_information` attribute is used.
         store_covariance_matrix : boolean, optional, default=False
             Whether to store the covariance matrix in the model instance.
             If a covariance matrix has already been stored, it will be overwritten.
@@ -1435,7 +1435,7 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
             e.g., custom transforms. If an integer, the context is taken from
             the stack frame of the caller at the given depth. Otherwise, a
             mapping from variable names to values is expected. By default,
-            no context is added. Set ``context=0`` to make the calling scope
+            no context is added. Set `context=0` to make the calling scope
             available.
         """
         covariance_matrix = self.covariance_matrix(
@@ -1496,7 +1496,7 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
 
         robust : boolean, optional, default=None
             Whether to compute robust standard errors instead of normal ones.
-            If not specified, the model's ``robust`` attribute is used.
+            If not specified, the model's `robust` attribute is used.
 
         clusters : array-like, optional, default=None
             Array with cluster membership. Clustered standard errors are
@@ -1505,7 +1505,7 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         expected_information : boolean, optional, default=None
             Whether to use the expected or observed information matrix.
             Only relevant when computing robust standard errors.
-            If not specified, the model's ``expected_information`` attribute is used.
+            If not specified, the model's `expected_information` attribute is used.
 
         store_covariance_matrix : boolean, optional, default=False
             Whether to store the covariance matrix in the model instance.
@@ -1519,7 +1519,7 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
             e.g., custom transforms. If an integer, the context is taken from
             the stack frame of the caller at the given depth. Otherwise, a
             mapping from variable names to values is expected. By default,
-            no context is added. Set ``context=0`` to make the calling scope
+            no context is added. Set `context=0` to make the calling scope
             available.
 
         Notes
@@ -1531,37 +1531,36 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         - clustered
 
         For maximum-likelihood estimator, the covariance matrix takes the form
-        :math:`\\mathcal{H}^{-1}(\\theta_0)\\mathcal{I}(\\theta_0)
-        \\mathcal{H}^{-1}(\\theta_0)` where :math:`\\mathcal{H}^{-1}` is the
-        inverse Hessian and :math:`\\mathcal{I}` is the Information matrix.
+        $\\mathcal{H}^{-1}(\\theta_0)\\mathcal{I}(\\theta_0)
+        \\mathcal{H}^{-1}(\\theta_0)$ where $\\mathcal{H}^{-1}$ is the
+        inverse Hessian and $\\mathcal{I}$ is the Information matrix.
         The different types of covariance matrices use different approximation
         of these quantities.
 
         The non-robust covariance matrix is computed as the inverse of the Fisher
         information matrix. This assumes that the information matrix equality holds.
 
-        The robust (HC-1) covariance matrix takes the form :math:`\\mathbf{H}^{−1}
+        The robust (HC-1) covariance matrix takes the form $\\mathbf{H}^{−1}
         (\\hat{\\theta})\\mathbf{G}^{T}(\\hat{\\theta})\\mathbf{G}(\\hat{\\theta})
-        \\mathbf{H}^{−1}(\\hat{\\theta})` where :math:`\\mathbf{H}` is the empirical
-        Hessian and :math:`\\mathbf{G}` is the gradient. We apply a finite-sample
-        correction of :math:`\\frac{N}{N-p}`.
+        \\mathbf{H}^{−1}(\\hat{\\theta})$ where $\\mathbf{H}$ is the empirical
+        Hessian and $\\mathbf{G}$ is the gradient. We apply a finite-sample
+        correction of $\\frac{N}{N-p}$.
 
         The clustered covariance matrix uses a similar approach to the robust (HC-1)
-        covariance matrix. However, instead of using :math:`\\mathbf{G}^{T}(
-        \\hat{\\theta}\\mathbf{G}(\\hat{\\theta})` directly, we first sum over
+        covariance matrix. However, instead of using $\\mathbf{G}^{T}(
+        \\hat{\\theta}\\mathbf{G}(\\hat{\\theta})$ directly, we first sum over
         all the groups first. The finite-sample correction is affected as well,
-        becoming :math:`\\frac{M}{M-1}\\frac{N}{N-p}` where :math:`M` is the number
+        becoming $\\frac{M}{M-1}\\frac{N}{N-p}$ where $M$ is the number
         of groups.
 
         References
         ----------
-        .. Davidson, Russell & MacKinnon, James G. (1993).
-           "Estimation and Inference in Econometrics," OUP Catalogue,
-           Oxford University Press
-
-        .. Cameron, A. C., & Trivedi, P. K. (2005).
-           "Microeconometrics: methods and applications,"
-           Cambridge university press
+        - Davidson, Russell & MacKinnon, James G. (1993).
+          "Estimation and Inference in Econometrics," OUP Catalogue,
+          Oxford University Press
+        - Cameron, A. C., & Trivedi, P. K. (2005).
+          "Microeconometrics: methods and applications,"
+          Cambridge university press
 
         """
         self.covariance_matrix_: Union[np.ndarray, None]
@@ -1753,16 +1752,16 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         *,
         context: Optional[Union[int, Mapping[str, Any]]] = None,
     ):
-        """Compute :math:`D^2`, the percentage of deviance explained.
+        """Compute $D^2$, the percentage of deviance explained.
 
-        :math:`D^2` is a generalization of the coefficient of determination
-        :math:`R^2`. The :math:`R^2` uses the squared error and the :math:`D^2`,
-        the deviance. Note that those two are equal for ``family='normal'``.
+        $D^2$ is a generalization of the coefficient of determination
+        $R^2$. The $R^2$ uses the squared error and the $D^2$,
+        the deviance. Note that those two are equal for `family='normal'`.
 
-        :math:`D^2` is defined as
-        :math:`D^2 = 1 - \\frac{D(y_{\\mathrm{true}}, y_{\\mathrm{pred}})}
-        {D_{\\mathrm{null}}}`,
-        :math:`D_{\\mathrm{null}}` is the null deviance, i.e. the deviance of a
+        $D^2$ is defined as
+        $D^2 = 1 - \\frac{D(y_{\\mathrm{true}}, y_{\\mathrm{pred}})}
+        {D_{\\mathrm{null}}}$,
+        $D_{\\mathrm{null}}$ is the null deviance, i.e. the deviance of a
         model with intercept alone. The best possible score is one and it can be
         negative.
 
@@ -1784,7 +1783,7 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
             e.g., custom transforms. If an integer, the context is taken from
             the stack frame of the caller at the given depth. Otherwise, a
             mapping from variable names to values is expected. By default,
-            no context is added. Set ``context=0`` to make the calling scope
+            no context is added. Set `context=0` to make the calling scope
             available.
 
         Returns
@@ -1952,7 +1951,7 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
     def _resolve_monotonic_constraints(
         self,
     ) -> tuple[np.ndarray, np.ndarray]:
-        """Resolve ``monotonic_constraints`` to ``(A_ineq, b_ineq)``."""
+        """Resolve `monotonic_constraints` to `(A_ineq, b_ineq)`."""
         assert self.monotonic_constraints is not None
         factor_constraints, dropped_first = (
             _resolve_monotonic_constraints_from_model_spec(
@@ -2192,7 +2191,7 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         If it happens for many observations in the final fit, the model is
         typically (quasi-)perfectly separating the data, which users can act on.
 
-        ``X`` and ``coef`` must be standardized in the same way.
+        `X` and `coef` must be standardized in the same way.
         """
         saturated = self._link_instance.is_saturated(_safe_lin_pred(X, coef, offset))
         fraction = float(np.mean(saturated)) if saturated.size else 0.0
@@ -2210,54 +2209,54 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     """Regression via a Generalized Linear Model (GLM) with penalties.
 
     GLMs based on a reproductive Exponential Dispersion Model (EDM) aimed at
-    fitting and predicting the mean of the target ``y`` as ``mu=h(X*w)``.
+    fitting and predicting the mean of the target `y` as `mu=h(X*w)`.
     Therefore, the fit minimizes the following objective function with combined
-    L1 and L2 priors as regularizer::
+    L1 and L2 priors as regularizer:
 
             1/(2*sum(s)) * deviance(y, h(X*w); s)
             + alpha * l1_ratio * ||P1*w||_1
             + 1/2 * alpha * (1 - l1_ratio) * w*P2*w
 
-    with inverse link function ``h`` and ``s=sample_weight``.
-    Note that, for ``alpha=0`` the unregularized GLM is recovered.
-    This is not the default behavior (see ``alpha`` parameter description for details).
-    Additionally, for ``sample_weight=None``, one has ``s_i=1`` and
-    ``sum(s)=n_samples``. For ``P1=P2='identity'``, the penalty is the elastic net::
+    with inverse link function `h` and `s=sample_weight`.
+    Note that, for `alpha=0` the unregularized GLM is recovered.
+    This is not the default behavior (see `alpha` parameter description for details).
+    Additionally, for `sample_weight=None`, one has `s_i=1` and
+    `sum(s)=n_samples`. For `P1=P2='identity'`, the penalty is the elastic net:
 
             alpha * l1_ratio * ||w||_1 + 1/2 * alpha * (1 - l1_ratio) * ||w||_2^2.
 
     If you are interested in controlling the L1 and L2 penalties separately,
-    keep in mind that this is equivalent to::
+    keep in mind that this is equivalent to:
 
             a * L1 + b * L2,
 
-    where::
+    where:
 
             alpha = a + b and l1_ratio = a / (a + b).
 
-    The parameter ``l1_ratio`` corresponds to alpha in the R package glmnet,
-    while ``alpha`` corresponds to the lambda parameter in glmnet.
-    Specifically, ``l1_ratio = 1`` is the lasso penalty.
+    The parameter `l1_ratio` corresponds to alpha in the R package glmnet,
+    while `alpha` corresponds to the lambda parameter in glmnet.
+    Specifically, `l1_ratio = 1` is the lasso penalty.
 
-    Read more in :doc:`background<background>`.
+    Read more in [background][background].
 
     Parameters
     ----------
     alpha : {float, array-like}, optional (default=None)
         Constant that multiplies the penalty terms and thus determines the
-        regularization strength. If ``alpha_search`` is ``False`` (the default),
-        then ``alpha`` must be a scalar or None (equivalent to ``alpha=0``).
-        If ``alpha_search`` is ``True``, then ``alpha`` must be an iterable or
-        ``None``. See ``alpha_search`` to find how the regularization path is
-        set if ``alpha`` is ``None``. See the notes for the exact mathematical
-        meaning of this parameter. ``alpha=0`` is equivalent to unpenalized
-        GLMs. In this case, the design matrix ``X`` must have full column rank
+        regularization strength. If `alpha_search` is `False` (the default),
+        then `alpha` must be a scalar or None (equivalent to `alpha=0`).
+        If `alpha_search` is `True`, then `alpha` must be an iterable or
+        `None`. See `alpha_search` to find how the regularization path is
+        set if `alpha` is `None`. See the notes for the exact mathematical
+        meaning of this parameter. `alpha=0` is equivalent to unpenalized
+        GLMs. In this case, the design matrix `X` must have full column rank
         (no collinearities).
 
     l1_ratio : float, optional (default=0)
-        The elastic net mixing parameter, with ``0 <= l1_ratio <= 1``. For
-        ``l1_ratio = 0``, the penalty is an L2 penalty. ``For l1_ratio = 1``, it
-        is an L1 penalty.  For ``0 < l1_ratio < 1``, the penalty is a
+        The elastic net mixing parameter, with `0 <= l1_ratio <= 1`. For
+        `l1_ratio = 0`, the penalty is an L2 penalty. `For l1_ratio = 1`, it
+        is an L1 penalty.  For `0 < l1_ratio < 1`, the penalty is a
         combination of L1 and L2.
 
     P1 : {'identity', array-like, None}, shape (n_features,), optional
@@ -2265,7 +2264,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         This array controls the strength of the regularization for each coefficient
         independently. A high value will lead to higher regularization while a value of
         zero will remove the regularization on this parameter.
-        Note that ``n_features = X.shape[1]``. If ``X`` is a pandas DataFrame
+        Note that `n_features = X.shape[1]`. If `X` is a pandas DataFrame
         with a categorical dtype and P1 has the same size as the number of columns,
         the penalty of the categorical column will be applied to all the levels of
         the categorical.
@@ -2273,66 +2272,66 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     P2 : {'identity', array-like, sparse matrix, None}, shape (n_features,) \
             or (n_features, n_features), optional (default='identity')
         With this option, you can set the P2 matrix in the L2 penalty
-        ``w*P2*w``. This gives a fine control over this penalty (Tikhonov
+        `w*P2*w`. This gives a fine control over this penalty (Tikhonov
         regularization). A 2d array is directly used as the square matrix P2. A
         1d array is interpreted as diagonal (square) matrix. The default
-        ``'identity'`` and ``None`` set the identity matrix, which gives the usual
+        `'identity'` and `None` set the identity matrix, which gives the usual
         squared L2-norm. If you just want to exclude certain coefficients, pass a 1d
         array filled with 1 and 0 for the coefficients to be excluded. Note that P2 must
-        be positive semi-definite. If ``X`` is a pandas DataFrame with a categorical
+        be positive semi-definite. If `X` is a pandas DataFrame with a categorical
         dtype and P2 has the same size as the number of columns, the penalty of the
         categorical column will be applied to all the levels of the categorical. Note
         that if P2 is two-dimensional, its size needs to be of the same length as the
-        expanded ``X`` matrix.
+        expanded `X` matrix.
 
     fit_intercept : bool, optional (default=True)
         Specifies if a constant (a.k.a. bias or intercept) should be
-        added to the linear predictor (``X * coef + intercept``).
+        added to the linear predictor (`X * coef + intercept`).
 
     family : str or ExponentialDispersionModel, optional (default='normal')
         The distributional assumption of the GLM, i.e. the loss function to
-        minimize. If a string, one of: ``'binomial'``, ``'gamma'``,
-        ``'gaussian'``, ``'inverse.gaussian'``, ``'normal'``, ``'poisson'``,
-        ``'tweedie'`` or ``'negative.binomial'``. Note that ``'tweedie'`` sets
+        minimize. If a string, one of: `'binomial'`, `'gamma'`,
+        `'gaussian'`, `'inverse.gaussian'`, `'normal'`, `'poisson'`,
+        `'tweedie'` or `'negative.binomial'`. Note that `'tweedie'` sets
         the power of the Tweedie distribution to 1.5; to use another value,
-        specify it in parentheses (e.g., ``'tweedie (1.5)'``). The same applies
-        for ``'negative.binomial'`` and theta parameter.
+        specify it in parentheses (e.g., `'tweedie (1.5)'`). The same applies
+        for `'negative.binomial'` and theta parameter.
 
     link : {'auto', 'identity', 'log', 'logit', 'cloglog'} oe Link, \
             optional (default='auto')
         The link function of the GLM, i.e. mapping from linear
-        predictor (``X * coef``) to expectation (``mu``). Option ``'auto'`` sets
+        predictor (`X * coef`) to expectation (`mu`). Option `'auto'` sets
         the link depending on the chosen family as follows:
 
-        - ``'identity'`` for family ``'normal'``
-        - ``'log'`` for families ``'poisson'``, ``'gamma'``,
-          ``'inverse.gaussian'`` and ``'negative.binomial'``.
-        - ``'logit'`` for family ``'binomial'``
+        - `'identity'` for family `'normal'`
+        - `'log'` for families `'poisson'`, `'gamma'`,
+          `'inverse.gaussian'` and `'negative.binomial'`.
+        - `'logit'` for family `'binomial'`
 
     solver : {'auto', 'closed-form', 'irls-cd', 'irls-ls', 'lbfgs', 'trust-constr'}, \
             optional (default='auto')
         Algorithm to use in the optimization problem:
 
-        - ``'auto'``: ``'closed-form'`` for eligible Gaussian identity-link
-          problems without L1 regularization, ``'irls-ls'`` for other pure-L2
-          cases, and ``'irls-cd'`` otherwise.
-        - ``'closed-form'``: Direct linear solve for eligible Gaussian
+        - `'auto'`: `'closed-form'` for eligible Gaussian identity-link
+          problems without L1 regularization, `'irls-ls'` for other pure-L2
+          cases, and `'irls-cd'` otherwise.
+        - `'closed-form'`: Direct linear solve for eligible Gaussian
           identity-link problems (ridge/OLS/WLS).
-        - ``'irls-cd'``: Iteratively reweighted least squares with a coordinate
+        - `'irls-cd'`: Iteratively reweighted least squares with a coordinate
           descent inner solver. This can deal with L1 as well as L2 penalties.
           Note that in order to avoid unnecessary memory duplication of X in the
-          ``fit`` method, ``X`` should be directly passed as a
+          `fit` method, `X` should be directly passed as a
           Fortran-contiguous Numpy array or sparse CSC matrix.
-        - ``'irls-ls'``: Iteratively reweighted least squares with a least
+        - `'irls-ls'`: Iteratively reweighted least squares with a least
           squares inner solver. This algorithm cannot deal with L1 penalties.
-        - ``'lbfgs'``: Scipy's L-BFGS-B optimizer. It cannot deal with L1
+        - `'lbfgs'`: Scipy's L-BFGS-B optimizer. It cannot deal with L1
           penalties.
-        - ``'trust-constr'``: Calls
-          ``scipy.optimize.minimize(method='trust-constr')``. It cannot deal
+        - `'trust-constr'`: Calls
+          `scipy.optimize.minimize(method='trust-constr')`. It cannot deal
           with L1 penalties. This solver can optimize problems with inequality
-          constraints, passed via ``A_ineq`` and ``b_ineq``. It will be selected
+          constraints, passed via `A_ineq` and `b_ineq`. It will be selected
           automatically when inequality constraints are set and
-          ``solver='auto'``. Note that using this method can lead to
+          `solver='auto'`. Note that using this method can lead to
           significantly increased runtimes by a factor of ten or higher.
 
     max_iter : int, optional (default=100)
@@ -2340,30 +2339,30 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
 
     max_inner_iter: int, optional (default=100000)
         The maximal number of iterations for the inner solver in the IRLS-CD
-        algorithm. This parameter is only used when ``solver='irls-cd'``.
+        algorithm. This parameter is only used when `solver='irls-cd'`.
 
     gradient_tol : float, optional (default=None)
-        Stopping criterion. If ``None``, solver-specific defaults will be used.
-        The default value for most solvers is ``1e-4``, except for
-        ``'trust-constr'``, which requires more conservative convergence
-        settings and has a default value of ``1e-8``.
+        Stopping criterion. If `None`, solver-specific defaults will be used.
+        The default value for most solvers is `1e-4`, except for
+        `'trust-constr'`, which requires more conservative convergence
+        settings and has a default value of `1e-8`.
 
         For the IRLS-LS, L-BFGS and trust-constr solvers, the iteration
-        will stop when ``max{|g_i|, i = 1, ..., n} <= tol``, where ``g_i`` is
-        the ``i``-th component of the gradient (derivative) of the objective
+        will stop when `max{|g_i|, i = 1, ..., n} <= tol`, where `g_i` is
+        the `i`-th component of the gradient (derivative) of the objective
         function. For the CD solver, convergence is reached when
-        ``sum_i(|minimum norm of g_i|)``, where ``g_i`` is the subgradient of
-        the objective and the minimum norm of ``g_i`` is the element of the
+        `sum_i(|minimum norm of g_i|)`, where `g_i` is the subgradient of
+        the objective and the minimum norm of `g_i` is the element of the
         subgradient with the smallest L2 norm.
 
-        If you wish to only use a step-size tolerance, set ``gradient_tol``
+        If you wish to only use a step-size tolerance, set `gradient_tol`
         to a very small number.
 
     step_size_tol: float, optional (default=None)
         Alternative stopping criterion. For the IRLS-LS and IRLS-CD solvers, the
         iteration will stop when the L2 norm of the step size is less than
-        ``step_size_tol``. This stopping criterion is disabled when
-        ``step_size_tol`` is ``None``.
+        `step_size_tol`. This stopping criterion is disabled when
+        `step_size_tol` is `None`.
 
     hessian_approx: float, optional (default=0.0)
         The threshold below which data matrix rows will be ignored for updating
@@ -2371,138 +2370,139 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         for further details.
 
     warm_start : bool, optional (default=False)
-        Whether to reuse the solution of the previous call to ``fit``
-        as initialization for ``coef_`` and ``intercept_`` (supersedes
-        ``start_params``). If ``False`` or if the attribute ``coef_`` does not
-        exist (first call to ``fit``), ``start_params`` sets the start values
-        for ``coef_`` and ``intercept_``.
+        Whether to reuse the solution of the previous call to `fit`
+        as initialization for `coef_` and `intercept_` (supersedes
+        `start_params`). If `False` or if the attribute `coef_` does not
+        exist (first call to `fit`), `start_params` sets the start values
+        for `coef_` and `intercept_`.
 
     alpha_search : bool, optional (default=False)
         Whether to search along the regularization path for the best alpha.
-        When set to ``True``, ``alpha`` should either be ``None`` or an
+        When set to `True`, `alpha` should either be `None` or an
         iterable. To determine the regularization path, the following sequence
         is used:
 
-        1. If ``alpha`` is an iterable, use it directly. All other parameters
+        1. If `alpha` is an iterable, use it directly. All other parameters
            governing the regularization path are ignored.
-        2. If ``min_alpha`` is set, create a path from ``min_alpha`` to the
+        2. If `min_alpha` is set, create a path from `min_alpha` to the
            lowest alpha such that all coefficients are zero.
-        3. If ``min_alpha_ratio`` is set, create a path where the ratio of
-           ``min_alpha / max_alpha = min_alpha_ratio``.
-        4. If none of the above parameters are set, use a ``min_alpha_ratio`` of
-           ``1e-6`` if ``n_samples >= n_features``, else ``1e-2``.
+        3. If `min_alpha_ratio` is set, create a path where the ratio of
+           `min_alpha / max_alpha = min_alpha_ratio`.
+        4. If none of the above parameters are set, use a `min_alpha_ratio` of
+           `1e-6` if `n_samples >= n_features`, else `1e-2`.
 
-    alphas : DEPRECATED. Use ``alpha`` instead.
+    alphas : DEPRECATED. Use `alpha` instead.
 
     n_alphas : int, optional (default=100)
         Number of alphas along the regularization path
 
     min_alpha_ratio : float, optional (default=None)
-        Length of the path. ``min_alpha_ratio=1e-6`` means that
-        ``min_alpha / max_alpha = 1e-6``. If ``None``, ``1e-6`` is used
-        when ``n_samples >= n_features``, else ``1e-2``.
+        Length of the path. `min_alpha_ratio=1e-6` means that
+        `min_alpha / max_alpha = 1e-6`. If `None`, `1e-6` is used
+        when `n_samples >= n_features`, else `1e-2`.
 
     min_alpha : float, optional (default=None)
         Minimum alpha to estimate the model with. The grid will then be created
-        over ``[max_alpha, min_alpha]``.
+        over `[max_alpha, min_alpha]`.
 
     start_params : array-like, shape (n_features*,), optional (default=None)
-        Relevant only if ``warm_start`` is ``False`` or if ``fit`` is called
-        for the first time (so that ``self.coef_`` does not exist yet). If
-        ``None``, all coefficients are set to zero and the start value for the
-        intercept is the weighted average of ``y`` (If ``fit_intercept`` is
-        ``True``). If an array, used directly as start values; if
-        ``fit_intercept`` is ``True``, its first element is assumed to be the
-        start value for the ``intercept_``. Note that
-        ``n_features* = X.shape[1] + fit_intercept``, i.e. it includes the
+        Relevant only if `warm_start` is `False` or if `fit` is called
+        for the first time (so that `self.coef_` does not exist yet). If
+        `None`, all coefficients are set to zero and the start value for the
+        intercept is the weighted average of `y` (If `fit_intercept` is
+        `True`). If an array, used directly as start values; if
+        `fit_intercept` is `True`, its first element is assumed to be the
+        start value for the `intercept_`. Note that
+        `n_features* = X.shape[1] + fit_intercept`, i.e. it includes the
         intercept.
 
     selection : str, optional (default='cyclic')
         For the CD solver 'cd', the coordinates (features) can be updated in
-        either cyclic or random order. If set to ``'random'``, a random
+        either cyclic or random order. If set to `'random'`, a random
         coefficient is updated every iteration rather than looping over features
         sequentially in the same order, which often leads to significantly
-        faster convergence, especially when ``gradient_tol`` is higher than
-        ``1e-4``.
+        faster convergence, especially when `gradient_tol` is higher than
+        `1e-4`.
 
     random_state : int or RandomState, optional (default=None)
         The seed of the pseudo random number generator that selects a random
-        feature to be updated for the CD solver. If an integer, ``random_state``
+        feature to be updated for the CD solver. If an integer, `random_state`
         is the seed used by the random number generator; if a
-        :class:`RandomState` instance, ``random_state`` is the random number
-        generator; if ``None``, the random number generator is the
-        :class:`RandomState` instance used by ``np.random``. Used when
-        ``selection`` is ``'random'``.
+        [`RandomState`][numpy.random.RandomState] instance, `random_state` is
+        the random number generator; if `None`, the random number generator is
+        the [`RandomState`][numpy.random.RandomState] instance used by
+        `np.random`. Used when `selection` is `'random'`.
 
     copy_X : bool, optional (default=None)
-        Whether to copy ``X``. Since ``X`` is never modified by
-        :class:`GeneralizedLinearRegressor`, this is unlikely to be needed; this
-        option exists mainly for compatibility with other scikit-learn
-        estimators. If ``False``, ``X`` will not be copied and there will be an
-        error if you pass an ``X`` in the wrong format, such as providing
-        integer ``X`` and float ``y`` (only guaranteed for numpy arrays and pandas data
-        frames). If ``None``, ``X`` will not be copied unless it is in the wrong format.
+        Whether to copy `X`. Since `X` is never modified by
+        [`GeneralizedLinearRegressor`][glum.GeneralizedLinearRegressor], this
+        is unlikely to be needed; this option exists mainly for compatibility
+        with other scikit-learn
+        estimators. If `False`, `X` will not be copied and there will be an
+        error if you pass an `X` in the wrong format, such as providing
+        integer `X` and float `y` (only guaranteed for numpy arrays and pandas data
+        frames). If `None`, `X` will not be copied unless it is in the wrong format.
 
     check_input : bool, optional (default=True)
-        Whether to bypass several checks on input: ``y`` values in range of
-        ``family``, ``sample_weight`` non-negative, ``P2`` positive
+        Whether to bypass several checks on input: `y` values in range of
+        `family`, `sample_weight` non-negative, `P2` positive
         semi-definite. Don't use this parameter unless you know what you are
         doing.
 
     verbose : int, optional (default=0)
         For the IRLS solver, any positive number will result in a pretty
         progress bar showing convergence. This features requires having the
-        tqdm package installed. For the L-BFGS and ``'trust-constr'`` solvers,
-        set ``verbose`` to any positive number for verbosity.
+        tqdm package installed. For the L-BFGS and `'trust-constr'` solvers,
+        set `verbose` to any positive number for verbosity.
 
     scale_predictors: bool, optional (default=False)
-        If ``True``, scale all predictors to have standard deviation one.
-        Should be set to ``True`` if ``alpha > 0`` and if you want coefficients
+        If `True`, scale all predictors to have standard deviation one.
+        Should be set to `True` if `alpha > 0` and if you want coefficients
         to be penalized equally.
 
         Reported coefficient estimates are always at the original scale.
 
         Advanced developer note: Internally, predictors are always rescaled for
         computational reasons, but this only affects results if
-        ``scale_predictors`` is ``True``.
+        `scale_predictors` is `True`.
 
     lower_bounds : array-like, shape (n_features,), optional (default=None)
         Set a lower bound for the coefficients. Setting bounds forces the use
-        of the coordinate descent solver (``'irls-cd'``).
+        of the coordinate descent solver (`'irls-cd'`).
 
     upper_bounds : array-like, shape=(n_features,), optional (default=None)
-        See ``lower_bounds``.
+        See `lower_bounds`.
 
     A_ineq : array-like, shape=(n_constraints, n_features), optional (default=None)
         Constraint matrix for linear inequality constraints of the form
-        ``A_ineq w <= b_ineq``. Setting inequality constraints forces the use
-        of the local gradient-based solver ``'trust-constr'``, which may
+        `A_ineq w <= b_ineq`. Setting inequality constraints forces the use
+        of the local gradient-based solver `'trust-constr'`, which may
         increase runtime significantly. Note that the constraints only apply
-        to coefficients related to features in ``X``. If you want to constrain
-        the intercept, add it to the feature matrix ``X`` manually and set
-        ``fit_intercept==False``.
+        to coefficients related to features in `X`. If you want to constrain
+        the intercept, add it to the feature matrix `X` manually and set
+        `fit_intercept==False`.
 
     b_ineq : array-like, shape=(n_constraints,), optional (default=None)
         Constraint vector for linear inequality constraints of the form
-        ``A_ineq w <= b_ineq``. Refer to the documentation of ``A_ineq`` for
+        `A_ineq w <= b_ineq`. Refer to the documentation of `A_ineq` for
         details.
 
     monotonic_constraints : dict, optional (default=None)
-        Mapping from variable names in ``formula`` (e.g. ``"x"``) to
-        ``"increasing"`` or ``"decreasing"``. For single-column numeric
-        variables, including transforms like ``np.log(x)``, constrains the sign
-        of the coefficient. For ``bs()`` splines, categoricals and booleans,
+        Mapping from variable names in `formula` (e.g. `"x"`) to
+        `"increasing"` or `"decreasing"`. For single-column numeric
+        variables, including transforms like `np.log(x)`, constrains the sign
+        of the coefficient. For `bs()` splines, categoricals and booleans,
         orders consecutive coefficients (including an implicit zero for a dropped
         first column). Other transforms are not supported. Categoricals must be
-        ordered (pandas ``Categorical`` with ``ordered=True`` or polars ``Enum``);
+        ordered (pandas `Categorical` with `ordered=True` or polars `Enum`);
         their coefficients follow the category order.
 
     drop_first : bool, optional (default = False)
-        If ``True``, drop the first column when encoding categorical variables.
-        Set this to True when ``alpha=0`` and ``solver='auto'`` to prevent an error
+        If `True`, drop the first column when encoding categorical variables.
+        Set this to True when `alpha=0` and `solver='auto'` to prevent an error
         due to a singular feature matrix. In the case of using a formula with
-        interactions, setting this argument to ``True`` ensures structural
-        full-rankness (it is equivalent to ``ensure_full_rank`` in formulaic and
+        interactions, setting this argument to `True` ensures structural
+        full-rankness (it is equivalent to `ensure_full_rank` in formulaic and
         tabmat).
 
     robust : bool, optional (default = False)
@@ -2514,30 +2514,30 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
 
     formula : formulaic.FormulaSpec
         A formula accepted by formulaic. It can either be a one-sided formula, in
-        which case ``y`` must be specified in ``fit``, or a two-sided formula, in
-        which case ``y`` must be ``None``.
+        which case `y` must be specified in `fit`, or a two-sided formula, in
+        which case `y` must be `None`.
 
     interaction_separator: str, default=":"
         The separator between the names of interacted variables.
 
     categorical_format : str, optional, default='{name}[{category}]'
         Format string for categorical features. The format string should
-        contain the placeholder ``{name}`` for the feature name and
-        ``{category}`` for the category name. Only used if ``X`` is a pandas
+        contain the placeholder `{name}` for the feature name and
+        `{category}` for the category name. Only used if `X` is a pandas
         DataFrame.
 
     cat_missing_method: str {'fail'|'zero'|'convert'}, default='fail'
-        How to handle missing values in categorical columns. Only used if ``X``
+        How to handle missing values in categorical columns. Only used if `X`
         is a pandas data frame.
 
         - if 'fail', raise an error if there are missing values
         - if 'zero', missing values will represent all-zero indicator columns.
-        - if 'convert', missing values will be converted to the ``cat_missing_name``
+        - if 'convert', missing values will be converted to the `cat_missing_name`
           category.
 
     cat_missing_name: str, default='(MISSING)'
         Name of the category to which missing values will be converted if
-        ``cat_missing_method='convert'``.  Only used if ``X`` is a pandas data frame.
+        `cat_missing_method='convert'`.  Only used if `X` is a pandas data frame.
 
     Attributes
     ----------
@@ -2552,10 +2552,10 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         Actual number of iterations used in solver.
 
     col_means_ : array, shape (n_features,)
-        The means of the columns of the design matrix ``X``.
+        The means of the columns of the design matrix `X`.
 
     col_stds_ : array, shape (n_features,)
-        The standard deviations of the columns of the design matrix ``X``.
+        The standard deviations of the columns of the design matrix `X`.
 
     feature_names_: list of str
         The names of the coefficients.
@@ -2564,23 +2564,23 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     -----
     The fit itself does not need outcomes to be from an EDM, but only assumes
     the first two moments to be
-    :math:`\\mu_i \\equiv \\mathrm{E}(y_i) = h(x_i' w)` and
-    :math:`\\mathrm{var}(y_i) = (\\phi / s_i) v(\\mu_i)`. The unit
-    variance function :math:`v(\\mu_i)` is a property of and given by the
-    specific EDM; see :doc:`background<background>`.
+    $\\mu_i \\equiv \\mathrm{E}(y_i) = h(x_i' w)$ and
+    $\\mathrm{var}(y_i) = (\\phi / s_i) v(\\mu_i)$. The unit
+    variance function $v(\\mu_i)$ is a property of and given by the
+    specific EDM; see [background][background].
 
-    The parameters :math:`w` (``coef_`` and ``intercept_``) are estimated by
+    The parameters $w$ (`coef_` and `intercept_`) are estimated by
     minimizing the deviance plus penalty term, which is equivalent to
     (penalized) maximum likelihood estimation.
 
-    If the target ``y`` is a ratio, appropriate sample weights ``s`` should be
-    provided. As an example, consider Poisson distributed counts ``z``
-    (integers) and weights ``s = exposure`` (time, money, persons years, ...).
-    Then you fit ``y ≡ z/s``, i.e.
-    ``GeneralizedLinearModel(family='poisson').fit(X, y, sample_weight=s)``. The
+    If the target `y` is a ratio, appropriate sample weights `s` should be
+    provided. As an example, consider Poisson distributed counts `z`
+    (integers) and weights `s = exposure` (time, money, persons years, ...).
+    Then you fit `y ≡ z/s`, i.e.
+    `GeneralizedLinearModel(family='poisson').fit(X, y, sample_weight=s)`. The
     weights are necessary for the right (finite sample) mean. Consider
-    :math:`\\bar{y} = \\sum_i s_i y_i / \\sum_i s_i`: in this case, one might
-    say that :math:`y` follows a 'scaled' Poisson distribution. The same holds
+    $\\bar{y} = \\sum_i s_i y_i / \\sum_i s_i$: in this case, one might
+    say that $y$ follows a 'scaled' Poisson distribution. The same holds
     for other distributions.
 
     References
@@ -2734,7 +2734,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         Parameters
         ----------
         X : {array-like, sparse matrix}, shape (n_samples, n_features)
-            Training data. Note that a ``float32`` matrix is acceptable and will
+            Training data. Note that a `float32` matrix is acceptable and will
             result in the entire algorithm being run in 32-bit precision.
             However, for problems that are poorly conditioned, this might result
             in poor convergence or flawed parameter estimates. If a Pandas data
@@ -2750,21 +2750,21 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         sample_weight : array-like, shape (n_samples,), optional (default=None)
             Individual weights w_i for each sample. Note that, for an
             Exponential Dispersion Model (EDM), one has
-            :math:`\\mathrm{var}(y_i) = \\phi \\times v(mu) / w_i`.
-            If :math:`y_i \\sim EDM(\\mu, \\phi / w_i)`, then
-            :math:`\\sum w_i y_i / \\sum w_i \\sim EDM(\\mu, \\phi / \\sum w_i)`,
-            i.e. the mean of :math:`y` is a weighted average with weights equal
-            to ``sample_weight``.
+            $\\mathrm{var}(y_i) = \\phi \\times v(mu) / w_i$.
+            If $y_i \\sim EDM(\\mu, \\phi / w_i)$, then
+            $\\sum w_i y_i / \\sum w_i \\sim EDM(\\mu, \\phi / \\sum w_i)$,
+            i.e. the mean of $y$ is a weighted average with weights equal
+            to `sample_weight`.
 
         offset: array-like, shape (n_samples,), optional (default=None)
             Added to linear predictor. An offset of 3 will increase expected
-            ``y`` by 3 if the link is linear and will multiply expected ``y`` by
+            `y` by 3 if the link is linear and will multiply expected `y` by
             3 if the link is logarithmic.
 
         store_covariance_matrix : bool, optional (default=False)
             Whether to estimate and store the covariance matrix of the parameter
-            estimates. If ``True``, the covariance matrix will be available in the
-            ``covariance_matrix_`` attribute after fitting.
+            estimates. If `True`, the covariance matrix will be available in the
+            `covariance_matrix_` attribute after fitting.
 
         clusters : array-like, optional, default=None
             Array with cluster membership. Clustered standard errors are
@@ -2775,7 +2775,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             e.g., custom transforms. If an integer, the context is taken from
             the stack frame of the caller at the given depth. Otherwise, a
             mapping from variable names to values is expected. By default,
-            no context is added. Set ``context=0`` to make the calling scope
+            no context is added. Set `context=0` to make the calling scope
             available.
 
         weights_sum: float, optional (default=None)
@@ -3063,11 +3063,11 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     ):
         """
         Akaike's information criteria. Computed as:
-        :math:`-2\\log\\hat{\\mathcal{L}} + 2\\hat{k}` where
-        :math:`\\hat{\\mathcal{L}}` is the maximum likelihood estimate of the
-        model, and :math:`\\hat{k}` is the effective number of parameters. See
+        $-2\\log\\hat{\\mathcal{L}} + 2\\hat{k}$ where
+        $\\hat{\\mathcal{L}}$ is the maximum likelihood estimate of the
+        model, and $\\hat{k}$ is the effective number of parameters. See
         `_compute_information_criteria` for more information on the computation
-        of :math:`\\hat{k}`.
+        of $\\hat{k}$.
 
         Parameters
         ----------
@@ -3085,7 +3085,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             e.g., custom transforms. If an integer, the context is taken from
             the stack frame of the caller at the given depth. Otherwise, a
             mapping from variable names to values is expected. By default,
-            no context is added. Set ``context=0`` to make the calling scope
+            no context is added. Set `context=0` to make the calling scope
             available.
         """
         return self._get_info_criteria("aic", X, y, sample_weight, context=context)
@@ -3101,12 +3101,12 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
         """
         Second-order Akaike's information criteria (or small sample AIC).
         Computed as:
-        :math:`-2\\log\\hat{\\mathcal{L}} + 2\\hat{k} + \\frac{2k(k+1)}{n-k-1}`
-        where :math:`\\hat{\\mathcal{L}}` is the maximum likelihood estimate of
-        the model, :math:`n` is the number of training instances, and
-        :math:`\\hat{k}` is the effective number of parameters. See
+        $-2\\log\\hat{\\mathcal{L}} + 2\\hat{k} + \\frac{2k(k+1)}{n-k-1}$
+        where $\\hat{\\mathcal{L}}$ is the maximum likelihood estimate of
+        the model, $n$ is the number of training instances, and
+        $\\hat{k}$ is the effective number of parameters. See
         `_compute_information_criteria` for more information on the computation
-        of :math:`\\hat{k}`.
+        of $\\hat{k}$.
 
         Parameters
         ----------
@@ -3124,7 +3124,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             e.g., custom transforms. If an integer, the context is taken from
             the stack frame of the caller at the given depth. Otherwise, a
             mapping from variable names to values is expected. By default,
-            no context is added. Set ``context=0`` to make the calling scope
+            no context is added. Set `context=0` to make the calling scope
             available.
         """
         aicc = self._get_info_criteria("aicc", X, y, sample_weight, context=context)
@@ -3145,12 +3145,12 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
     ):
         """
         Bayesian information criterion. Computed as:
-        :math:`-2\\log\\hat{\\mathcal{L}} + k\\log(n)` where
-        :math:`\\hat{\\mathcal{L}}` is the maximum likelihood estimate of the
-        model, :math:`n` is the number of training instances, and
-        :math:`\\hat{k}` is the effective number of parameters. See
+        $-2\\log\\hat{\\mathcal{L}} + k\\log(n)$ where
+        $\\hat{\\mathcal{L}}$ is the maximum likelihood estimate of the
+        model, $n$ is the number of training instances, and
+        $\\hat{k}$ is the effective number of parameters. See
         `_compute_information_criteria` for more information on the computation
-        of :math:`\\hat{k}`.
+        of $\\hat{k}$.
 
         Parameters
         ----------
@@ -3168,7 +3168,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             e.g., custom transforms. If an integer, the context is taken from
             the stack frame of the caller at the given depth. Otherwise, a
             mapping from variable names to values is expected. By default,
-            no context is added. Set ``context=0`` to make the calling scope
+            no context is added. Set `context=0` to make the calling scope
             available.
         """
         return self._get_info_criteria("bic", X, y, sample_weight, context=context)
@@ -3241,8 +3241,8 @@ def get_link(link: Union[str, Link], family: ExponentialDispersionModel) -> Link
     For the Tweedie distribution, this code follows actuarial best practices
     regarding link functions. Note that these links are sometimes not canonical:
 
-    - identity for normal (``p = 0``);
-    - no convention for ``p < 0``, so let's leave it as identity;
+    - identity for normal (`p = 0`);
+    - no convention for `p < 0`, so let's leave it as identity;
     - log otherwise.
     """
     if isinstance(link, Link):

@@ -1,0 +1,562 @@
+<!--
+Versioning follows semantic versioning, see also
+https://semver.org/spec/v2.0.0.html. The most important bits are:
+* Update the major if you break the public API
+* Update the minor if you add new functionality
+* Update the patch if you fixed a bug
+-->
+
+# Changelog
+
+## 3.5.0 - 2026-11-16
+
+**Bug fix:**
+
+- Fixed `categorical_levels_` for polars `Categorical` columns not matching the design matrix columns. This could cause wrong predictions or errors in [`predict`][glum.GeneralizedLinearRegressor.predict].
+- Fixed `monotonic_constraints` raising `ValueError` when a formula term contains square brackets, e.g. `bs(x, knots=[15, 20, 30])`.
+- Fixed `monotonic_constraints` not giving a monotone fitted effect when the first spline basis or categorical level is dropped, e.g. for `bs()` without `include_intercept=True` or `C()` with `drop_first=True`. Detecting the dropped `bs()` basis requires tabmat 4.3.0, which records `spans_intercept`, so the minimum tabmat version is now 4.3.0.
+- Fixed a pandas deprecation warning being emitted before the "unseen categories" `ValueError` when predicting on data with unseen categories.
+- Fixed the solver for `monotonic_constraints` comparing objective values computed with different constraint penalties in its line search. This caused spurious "Line search failed" convergence warnings and extra iterations.
+- The "Line search failed" `ConvergenceWarning` is no longer emitted when the loss no longer changes up to machine precision, since users cannot act on it.
+- Replaced the "Sigmoid function too close to 0 or 1. Clipping." warning of the logit and cloglog links by a warning after the final fit. The old warning was emitted for single observations and intermediate solver iterations, which users cannot act on. The new warning is only emitted if more than 1% of the fitted values are numerically 0 or 1, which typically indicates (quasi-)perfect separation (for the cloglog link, only fitted values of 0 count, because values of 1 are routine). It suggests more regularization or removing the separating features.
+- Fixed tabmat's "Input array is not contiguous; making a copy." warning being emitted for row slices of pandas data frames, e.g. `df.iloc[:n]`, in [`fit`][glum.GeneralizedLinearRegressor.fit], [`predict`][glum.GeneralizedLinearRegressor.predict] and [`score`][glum.GeneralizedLinearRegressor.score]. tabmat itself no longer emits this warning after 4.3.1.
+- Fixed `monotonic_constraints` ordering the levels of an ordered categorical by their label (e.g. alphabetically) instead of by the category order.
+- `monotonic_constraints` now raises a `ValueError` for unordered categoricals, and for `cr()` and `cs()` splines, instead of silently failing to enforce monotonicity.
+
+**Other changes:**
+
+- Removed scikit-learn from build dependencies.
+- Warnings are now treated as errors in the test suite and in the README doctest in CI, except in the `nightly` and `oldies` environments.
+- The documentation build now treats warnings as errors and runs in CI. Fixed the docstring formatting of `cat_missing_method` and [`get_link`][glum.get_link] and several broken links in the tutorials and the changelog.
+- Require Python>=3.11, since conda-forge no longer supports Python 3.10. No Python 3.10 wheels are built or uploaded to PyPI any more.
+- Added `py314` and `py315` test environments, and a conda package build for Python 3.15.
+- Removed the `py310` test environment and moved the `oldies` environment and the conda package builds from Python 3.10 to 3.11, since conda-forge no longer supports Python 3.10. The `oldies` pins for pandas (1.5), scikit-learn (1.1.3) and scipy (1.9) were raised to the oldest releases with Python 3.11 builds.
+
+## 3.4.1 - 2026-05-06
+
+**Bug fix:**
+
+- Fixed `monotonic_constraints` raising `ValueError` with `drop_first=True` on categorical factors.
+- Fixed pickle compatibility for models saved before `monotonic_constraints` was added.
+
+## 3.4.0 - 2026-04-27
+
+**New feature:**
+
+- Added `monotonic_constraints` parameter to [`GeneralizedLinearRegressor`][glum.GeneralizedLinearRegressor] and [`GeneralizedLinearRegressorCV`][glum.GeneralizedLinearRegressorCV] for enforcing monotonic effects on splines, ordered categoricals, and interactions via the formula interface. Uses a new `irls-ls-monotonic` solver (5-20× faster than `trust-constr` on insurance benchmark).
+
+## 3.3.0 - 2026-04-14
+
+**New feature:**
+
+- [`GeneralizedLinearRegressorCV`][glum.GeneralizedLinearRegressorCV] now exposes `train_deviance_path_`, an array of shape `(n_folds, n_l1_ratios, n_alphas)` with the training-set deviance.
+
+**Other changes:**
+
+- Replaced the `hess="2-point"` finite-difference Hessian in the `trust-constr` solver with `SR1()` (quasi-Newton), significantly speeding up convergence when the number of features is large relative to the number of rows.
+
+## 3.2.3 - 2026-03-18
+
+**Bug fix:**
+
+- Fixed incorrect call in [`log_likelihood`][glum.InverseGaussianDistribution.log_likelihood]. The previous implementation always returned NaN.
+
+## 3.2.2 - 2026-03-17
+
+**Bug fix:**
+
+- Fixed incorrect formula in [`inverse_derivative2`][glum.CloglogLink.inverse_derivative2]. This affected observed information matrix computation and robust/clustered standard errors for models using the complementary log-log link.
+
+## 3.2.1 - 2026-03-16
+
+**Bug fix:**
+
+- Fixed an error when predicting at a specific `alpha` with categorical features.
+
+**Other changes:**
+
+- Downgraded log messages in `align_df_categories` and `add_missing_categories` from INFO to DEBUG, and deduplicated them so they are emitted only once per column per fitted model.
+
+## 3.2.0 - 2026-03-10
+
+**New features:**
+
+- Add `solver="closed-form"` for Gaussian identity-link models, using an analytical normal-equations solution for ridge/OLS, auto-selecting it under `solver="auto"` for unconstrained no-L1 cases, and falling back to least-squares for singular or ill-conditioned systems.
+- [`GeneralizedLinearRegressor`][glum.GeneralizedLinearRegressor] and [`GeneralizedLinearRegressorCV`][glum.GeneralizedLinearRegressorCV] now accept [Polars](https://pola.rs) DataFrames as input, in addition to pandas DataFrames and numpy arrays.
+
+**Bug fixes:**
+
+- Fixed `predict(X, alpha_index=...)` and `predict(X, alpha=...)` on [`GeneralizedLinearRegressorCV`][glum.GeneralizedLinearRegressorCV], which previously raised an error. The CV estimator now refits on the full data over the entire alpha path for the best `l1_ratio_`.
+- Fixed alpha path computation in [`GeneralizedLinearRegressorCV`][glum.GeneralizedLinearRegressorCV]: the alpha grid is now computed from the properly standardized feature matrix and per-feature `P1` penalties (matching the base class), and accounts for `offset` when present.
+
+## 3.1.3 - 2025-02-18
+
+**Bug fixes:**
+
+- Fixed `deviance_path_` in [`GeneralizedLinearRegressorCV`][glum.GeneralizedLinearRegressorCV] being scaled down by a factor of `n_folds` because test fold weights were not normalized to sum to 1.
+- Fixed [`NegativeBinomialDistribution`][glum.NegativeBinomialDistribution] [`theta`][glum.NegativeBinomialDistribution.theta] setter rejecting `np.number` types, causing `dist.theta = dist.theta` to raise a `TypeError`.
+
+**Other changes:**
+
+- We disabled fast math to avoid invalid results (e.g., when dividing by zero).
+- The default `alpha_max` for the regularization path in the pure ridge case (`l1_ratio=0`) is now computed from the null model gradient, matching glmnet's behavior. Previously it was hardcoded to 10.
+- When `min_alpha_ratio` is not set and `n_samples < n_features`, the default is now `1e-2` instead of `1e-6`, matching glmnet's convention.
+
+## 3.1.2 - 2025-01-30
+
+**Other changes:**
+
+- Linux-aarch64 wheels are now uploaded to PyPI.
+
+## 3.1.1 - 2025-01-13
+
+**Bug fixes:**
+
+- Fixed a bug where `_rowwise_gradient_hessian` and `_eta_mu_deviance` would call functions with wrong arguments in the `p = 3` case.
+- Fixed [`glum.InverseGaussianDistribution`][glum.InverseGaussianDistribution] not using the optimized gradient, Hessian and deviance implementations, as well as those derivatives having the wrong sign.
+
+**Other changes:**
+
+- Build and test with Python 3.13 in CI.
+
+## 3.1.0 - 2024-11-11
+
+**New features:**
+
+- New argument `max_inner_iter` for classes [`GeneralizedLinearRegressor`][glum.GeneralizedLinearRegressor] and [`GeneralizedLinearRegressorCV`][glum.GeneralizedLinearRegressorCV] to control the maximum number of iterations of the inner solver in the IRLS-CD algorithm.
+- New fitted attributes `col_means_` and `col_stds_` for classes [`GeneralizedLinearRegressor`][glum.GeneralizedLinearRegressor] and [`GeneralizedLinearRegressorCV`][glum.GeneralizedLinearRegressorCV].
+- [`GeneralizedLinearRegressor`][glum.GeneralizedLinearRegressor] now prints more informative logs when fitting with `alpha_search=True` and `verbose=True`.
+
+**Bug fixes:**
+
+- Fixed a bug where [`glum.GeneralizedLinearRegressor.fit`][glum.GeneralizedLinearRegressor.fit] would raise a `dtype` mismatch error if fit with `alpha_search=True`.
+- Use data type (`float64` or `float32`) dependent precision in solvers.
+
+**Other changes:**
+
+- Lower absolute tolerance when matching the `alpha` argument in [`glum.GeneralizedLinearRegressor.predict`][glum.GeneralizedLinearRegressor.predict] to the `alphas` used in training when `alpha_search=True`.
+
+## 3.0.2 - 2024-06-25
+
+**Bug fix:**
+
+- Fixed [`wald_test`][glum.GeneralizedLinearRegressor.wald_test] when using `terms` and no intercept.
+
+**Other changes:**
+
+- Moved the development infrastructure to pixi.
+- Moved the linting and formatting to ruff.
+- Removed libblas MKL from the development environment.
+- Replaced deprecated 'oldest-supported-numpy' dependency with 'numpy' to support 2.0 release.
+
+## 3.0.1 - 2024-05-23
+
+**Bug fix:**
+
+- We now support scikit-learn 1.5.
+
+## 3.0.0 - 2024-04-27
+
+**Breaking changes:**
+
+- All arguments to `GeneralizedLinearRegressorBase`, [`GeneralizedLinearRegressor`][glum.GeneralizedLinearRegressor] and [`GeneralizedLinearRegressorCV`][glum.GeneralizedLinearRegressorCV] are now keyword-only.
+- All arguments to public methods of `GeneralizedLinearRegressorBase`, [`GeneralizedLinearRegressor`][glum.GeneralizedLinearRegressor] or [`GeneralizedLinearRegressorCV`][glum.GeneralizedLinearRegressorCV] except `X`, `y`, `sample_weight` and `offset` are now keyword-only.
+- [`GeneralizedLinearRegressor`][glum.GeneralizedLinearRegressor]'s default value for `alpha` is now `0`, i.e. no regularization.
+- [`GammaDistribution`][glum.GammaDistribution], [`InverseGaussianDistribution`][glum.InverseGaussianDistribution], [`NormalDistribution`][glum.NormalDistribution] and [`PoissonDistribution`][glum.PoissonDistribution] no longer inherit from [`TweedieDistribution`][glum.TweedieDistribution].
+- The power parameter of [`TweedieLink`][glum.TweedieLink] has been renamed from `p` to `power`, in line with [`TweedieDistribution`][glum.TweedieDistribution].
+- [`TweedieLink`][glum.TweedieLink] no longer instantiates [`IdentityLink`][glum.IdentityLink] or [`LogLink`][glum.LogLink] for `power=0` and `power=1`, respectively. On the other hand, [`TweedieLink`][glum.TweedieLink] is now compatible with `power=0` and `power=1`.
+
+**New features:**
+
+- Added a formula interface for specifying models.
+- Improved feature name handling. Feature names are now created for non-pandas input matrices too. Furthermore, the format of categorical features can be specified by the user.
+- Term names are now stored in the model's attributes. This is useful for categorical features, where they refer to the whole variable, not just single levels.
+- Added more options for treating missing values in categorical columns. They can either raise a `ValueError` (`"fail"`), be treated as all-zero indicators (`"zero"`) or represented as a new category (`"convert"`).
+- `meth:GeneralizedLinearRegressor.wald_test` can now perform tests based on a formula string and term names.
+- [`InverseGaussianDistribution`][glum.InverseGaussianDistribution] gains a [`log_likelihood`][glum.InverseGaussianDistribution.log_likelihood] method.
+
+## 2.7.0 - 2024-02-19
+
+**Bug fix:**
+
+- Added cython compiler directive legacy_implicit_noexcept = True to fix performance regression with cython 3.
+
+**Other changes:**
+
+- Require Python>=3.9 in line with [NEP 29](https://numpy.org/neps/nep-0029-deprecation_policy.html#support-table).
+- Build and test with Python 3.12 in CI.
+- Added line search stopping criterion for tiny loss improvements based on gradient information.
+- Added warnings about breaking changes in future versions.
+
+## 2.6.0 - 2023-09-05
+
+**New features:**
+
+- Added the complementary log-log (`cloglog`) link function.
+- Added the option to store the covariance matrix after estimating it. In this case, the covariance matrix does not have to be recomputed when calling inference methods.
+- Added methods for performing Wald tests based on a restriction matrix, feature names or term names.
+- Added a method for creating a coefficient table with confidence intervals and p-values.
+
+**Bug fix:**
+
+- Fixed [`covariance_matrix`][glum.GeneralizedLinearRegressor.covariance_matrix] mutating feature names when called with a data frame. See [here](https://github.com/Quantco/glum/issues/669).
+
+**Other changes:**
+
+- When computing the covariance matrix, check whether the design matrix is ill-conditioned for all types of input. Furthermore, do it in a more efficient way.
+- Pin `tabmat<4.0.0` (the new release will bring breaking changes).
+
+## 2.5.2 - 2023-06-02
+
+**Bug fix**
+
+- Fix the `glm_benchmarks_analyze` command line tool. See [here](https://github.com/Quantco/glum/issues/642).
+- Fixed a bug in [`GeneralizedLinearRegressor`][glum.GeneralizedLinearRegressor] when fit on a data set with a constant column and `warm_start=True`. See [here](https://github.com/Quantco/glum/issues/645).
+
+**Other changes:**
+
+- Remove dev dependency on `dask_ml`.
+- We now pin `llvm-openmp=11` when creating the wheel for macOS in line with what scikit-learn does.
+
+## 2.5.1 - 2023-05-19
+
+**Other changes:**
+
+- Better error message when the number of input features is different between the fit and predict methods.
+
+**Bug fix:**
+
+- We fixed a bug in the computation of [`log_likelihood`][glum.NegativeBinomialDistribution.log_likelihood]. Previously, this method just returned `None`.
+
+## 2.5.0 - 2023-04-28
+
+**New feature:**
+
+- Added Negative Binomial distribution by setting the `'family'` parameter of
+  [`GeneralizedLinearRegressor`][glum.GeneralizedLinearRegressor] and [`GeneralizedLinearRegressorCV`][glum.GeneralizedLinearRegressorCV]
+  to `'negative.binomial'`.
+
+## 2.4.1 - 2023-03-14
+
+**Bug fixes:**
+
+- Fixed an issue with `_score_matrix` which failed when called with a tabmat matrix input.
+
+**Other changes**:
+
+- Removes unused scikit-learn cython imports.
+
+## 2.4.0 - 2023-01-31
+
+**Other changes**:
+
+- [`LogitLink`][glum.LogitLink] has been made public.
+- Apple Silicon wheels are now uploaded to PyPI.
+
+## 2.3.0 - 2023-01-06
+
+**Bug fixes:**
+
+- A data frame with dense and sparse columns was transformed to a dense matrix instead of a split matrix by `_set_up_and_check_fit_args`.
+  Fixed by calling `tabmat.from_pandas` on any data frame.
+
+**New features:**
+
+- The following classes and functions have been made public:
+  [`BinomialDistribution`][glum.BinomialDistribution],
+  [`ExponentialDispersionModel`][glum.ExponentialDispersionModel],
+  [`GammaDistribution`][glum.GammaDistribution],
+  [`GeneralizedHyperbolicSecant`][glum.GeneralizedHyperbolicSecant],
+  [`InverseGaussianDistribution`][glum.InverseGaussianDistribution],
+  [`NormalDistribution`][glum.NormalDistribution],
+  [`PoissonDistribution`][glum.PoissonDistribution],
+  [`IdentityLink`][glum.IdentityLink],
+  [`Link`][glum.Link],
+  [`LogLink`][glum.LogLink],
+  [`TweedieLink`][glum.TweedieLink],
+  `get_family` and
+  [`get_link`][glum.get_link].
+- The distribution and link classes now feature a more lenient equality check instead of the default identity check,
+  so that, e.g., `TweedieDistribution(1) == TweedieDistribution(1)` now returns `True`.
+
+## 2.2.1 - 2022-11-25
+
+**Other changes:**
+
+- Fixing pypi upload issue. Version 2.2.0 will not be available through the standard distribution channels.
+
+## 2.2.0 - 2022-11-25
+
+**New features:**
+
+- Add an argument to GeneralizedLinearRegressorBase to drop the first category in a Categorical column using [implementation in tabmat](https://github.com/Quantco/tabmat/pull/168)
+- One may now request the Tweedie loss by setting the `'family'` parameter of
+  [`GeneralizedLinearRegressor`][glum.GeneralizedLinearRegressor] and [`GeneralizedLinearRegressorCV`][glum.GeneralizedLinearRegressorCV]
+  to `'tweedie'`.
+
+**Bug fixes:**
+
+- Setting bounds for constant columns was not working (bounds were internally modified to 0).
+  A similar issue was preventing inequalities from working with constant columns. This is now fixed.
+
+**Other changes:**
+
+- No more builds for 32-bit systems with python >= 3.8. This is due to scipy not supporting it anymore.
+
+## 2.1.2 - 2022-07-01
+
+**Other changes:**
+
+- Next attempt to build wheel for PyPI without `--march=native`.
+
+## 2.1.1 - 2022-07-01
+
+**Other changes:**
+
+- We are now building the wheel for PyPI without `--march=native` to make it more portable across architectures.
+
+## 2.1.0 - 2022-06-27
+
+**New features:**
+
+- Added [`aic`][glum.GeneralizedLinearRegressor.aic], [`aicc`][glum.GeneralizedLinearRegressor.aicc] and [`bic`][glum.GeneralizedLinearRegressor.bic] attributes to the [`GeneralizedLinearRegressor`][glum.GeneralizedLinearRegressor].
+  These attributes provide the information criteria based on the training data and the effective degrees of freedom
+  of the maximum likelihood estimate for the model's parameters.
+- [`std_errors`][glum.GeneralizedLinearRegressor.std_errors] and [`covariance_matrix`][glum.GeneralizedLinearRegressor.covariance_matrix]
+  of [`GeneralizedLinearRegressor`][glum.GeneralizedLinearRegressor] now accept data frames with categorical data.
+
+**Bug fixes:**
+
+- The [`score`][glum.GeneralizedLinearRegressor.score] method of [`GeneralizedLinearRegressor`][glum.GeneralizedLinearRegressor] and [`GeneralizedLinearRegressorCV`][glum.GeneralizedLinearRegressorCV] now accepts offsets.
+- Fixed the calculation of the information matrix for the Binomial distribution with logit link, which affected nonrobust standard errors.
+
+**Other:**
+
+- The CI now runs daily unit tests against the nightly builds of numpy, pandas and scikit-learn.
+- The minimally required version of tabmat is now 3.1.0.
+
+## 2.0.3 - 2021-11-05
+
+**Other:**
+
+- We are now specifying the run time dependencies in `setup.py`, so that missing dependencies are automatically installed from PyPI when installing `glum` via pip.
+
+## 2.0.2 - 2021-11-03
+
+**Bug fix:**
+
+- Fixed the sign of the log likelihood of the Gaussian distribution (not used for fitting coefficients).
+- Fixed the wide benchmarks which had duplicated columns (categorical and numerical).
+
+**Other:**
+
+- The CI now builds the wheels and upload to pypi with every new release.
+- Renamed functions checking for qc.matrix compliance to refer to tabmat.
+
+## 2.0.1 - 2021-10-11
+
+**Bug fix:**
+
+- Fixed pyproject.toml. We now support installing through pip and pep517.
+
+## 2.0.0 - 2021-10-08
+
+**Breaking changes:**
+
+- Renamed the package to `glum`!! Hurray! Celebration.
+- [`GeneralizedLinearRegressor`][glum.GeneralizedLinearRegressor] and [`GeneralizedLinearRegressorCV`][glum.GeneralizedLinearRegressorCV] lose the `fit_dispersion` parameter.
+  Please use the [`dispersion`][glum.ExponentialDispersionModel.dispersion] method of the appropriate family instance instead.
+- All functions now use `sample_weight` as a keyword instead of `weights`, in line with scikit-learn.
+- All functions now use `dispersion` as a keyword instead of `phi`.
+- Several methods [`GeneralizedLinearRegressor`][glum.GeneralizedLinearRegressor] and [`GeneralizedLinearRegressorCV`][glum.GeneralizedLinearRegressorCV] that should have been private have had an underscore prefixed on their names: `tear_down_from_fit`, `_set_up_for_fit`, `_set_up_and_check_fit_args`, `_get_start_coef`, `_solve` and `_solve_regularization_path`.
+- [`glum.GeneralizedLinearRegressor.report_diagnostics`][glum.GeneralizedLinearRegressor.report_diagnostics] and [`glum.GeneralizedLinearRegressor.get_formatted_diagnostics`][glum.GeneralizedLinearRegressor.get_formatted_diagnostics] are now public.
+
+**New features:**
+
+- P1 and P2 now accepts 1d array with the same number of elements as the unexpanded design matrix. In this case,
+  the penalty associated with a categorical feature will be expanded to as many elements as there are levels,
+  all with the same value.
+- [`ExponentialDispersionModel`][glum.ExponentialDispersionModel] gains a [`dispersion`][glum.ExponentialDispersionModel.dispersion] method.
+- [`BinomialDistribution`][glum.BinomialDistribution] and [`TweedieDistribution`][glum.TweedieDistribution] gain a `log_likelihood` method.
+- The [`fit`][glum.GeneralizedLinearRegressor.fit] method of [`GeneralizedLinearRegressor`][glum.GeneralizedLinearRegressor] and [`GeneralizedLinearRegressorCV`][glum.GeneralizedLinearRegressorCV]
+  now saves the column types of pandas data frames.
+- [`GeneralizedLinearRegressor`][glum.GeneralizedLinearRegressor] and [`GeneralizedLinearRegressorCV`][glum.GeneralizedLinearRegressorCV] gain two properties: [`family_instance`][glum.GeneralizedLinearRegressor.family_instance] and [`link_instance`][glum.GeneralizedLinearRegressor.link_instance].
+- [`std_errors`][glum.GeneralizedLinearRegressor.std_errors] and [`covariance_matrix`][glum.GeneralizedLinearRegressor.covariance_matrix] have been added and support non-robust, robust (HC-1), and clustered
+  covariance matrices.
+- [`GeneralizedLinearRegressor`][glum.GeneralizedLinearRegressor] and [`GeneralizedLinearRegressorCV`][glum.GeneralizedLinearRegressorCV] now accept `family='gaussian'` as an alternative to `family='normal'`.
+
+**Bug fix:**
+
+- The [`score`][glum.GeneralizedLinearRegressor.score] method of [`GeneralizedLinearRegressor`][glum.GeneralizedLinearRegressor] and [`GeneralizedLinearRegressorCV`][glum.GeneralizedLinearRegressorCV] now accepts data frames.
+- Upgraded the code to use tabmat 3.0.0.
+
+**Other:**
+
+- A major overhaul of the documentation. Everything is better!
+- The methods of the link classes will now return scalars when given scalar inputs. Under certain circumstances, they'd return zero-dimensional arrays.
+- There is a new benchmark available `glm_benchmarks_run` based on the Boston housing dataset. See [here](https://github.com/Quantco/glum/pull/376).
+- `glm_benchmarks_analyze` now includes `offset` in the index. See [here](https://github.com/Quantco/glum/issues/346).
+- `glmnet_python` was removed from the benchmarks suite.
+- The innermost coordinate descent was optimized. This speeds up coordinate descent dominated problems like LASSO by about 1.5-2x. See [here](https://github.com/Quantco/glum/pull/424).
+
+## 1.5.1 - 2021-07-22
+
+**Bug fix:**
+
+* Have the [`linear_predictor`][glum.GeneralizedLinearRegressor.linear_predictor] and [`predict`][glum.GeneralizedLinearRegressor.predict] methods of [`GeneralizedLinearRegressor`][glum.GeneralizedLinearRegressor] and [`GeneralizedLinearRegressorCV`][glum.GeneralizedLinearRegressorCV]
+  honor the offset when `alpha` is `None`.
+
+## 1.5.0 - 2021-07-15
+
+**New features:**
+
+* The [`linear_predictor`][glum.GeneralizedLinearRegressor.linear_predictor] and [`predict`][glum.GeneralizedLinearRegressor.predict] methods of [`GeneralizedLinearRegressor`][glum.GeneralizedLinearRegressor] and [`GeneralizedLinearRegressorCV`][glum.GeneralizedLinearRegressorCV]
+  gain an `alpha` parameter (in complement to `alpha_index`). Moreover, they are now able to predict for multiple penalties.
+
+**Other:**
+
+* Methods of [`Link`][glum.Link] now consistently return NumPy arrays, whereas they used to preserve pandas series in special cases.
+* Don't list `sparse_dot_mkl` as a runtime requirement from the conda recipe.
+* The minimal `numpy` pin should be dependent on the `numpy` version in `host` and not fixed to `1.16`.
+
+## 1.4.3 - 2021-06-25
+
+**Bug fix:**
+
+- `copy_X = False` will now raise a value error when `X` has dtype `int32` or `int64`. Previously, it would only raise for dtype `int64`.
+
+## 1.4.2 - 2021-06-15
+
+**Tutorials and documentation improvements:**
+
+- Adding tutorials to the documentation.
+- Additional documentation improvements.
+
+**Bug fix:**
+
+- Verbose progress bar now working again.
+
+**Other:**
+
+- Small improvement in documentation for the `alpha_index` argument to [`predict`][glum.GeneralizedLinearRegressor.predict].
+- Pinned pre-commit hooks versions.
+
+## 1.4.1 - 2021-05-01
+
+We now have Windows builds!
+
+## 1.4.0 - 2021-04-13
+
+**Deprecations:**
+
+- Fusing the `alpha` and `alphas` arguments for [`GeneralizedLinearRegressor`][glum.GeneralizedLinearRegressor]. `alpha` now also accepts array like inputs. `alphas` is now deprecated but can still be used for backward compatibility. The `alphas` argument will be removed with the next major version.
+
+**Bug fix:**
+
+- We removed entry points to functions in `glum_benchmarks` from the conda package.
+
+## 1.3.1 - 2021-04-12
+
+**Bug fix:**
+
+- `glum._distribution.unit_variance_derivative` is
+  evaluating a proper numexpr expression again (regression in 1.3.0).
+
+## 1.3.0 - 2021-04-12
+
+**New features:**
+
+- We added a new solver based on `scipy.optimize.minimize(method='trust-constr')`.
+- We added support for linear inequality constraints of type `A_ineq.dot(coef_) <= b_ineq`.
+
+## 1.2.0 - 2021-02-04
+
+We removed `glum_benchmarks` from the conda package.
+
+## 1.1.1 - 2021-01-11
+
+Maintenance release to get a fresh build for OSX.
+
+## 1.1.0 - 2020-11-23
+
+**New feature:**
+
+- Direct support for pandas categorical types in [`fit`][glum.GeneralizedLinearRegressor.fit] and [`predict`][glum.GeneralizedLinearRegressor.predict]. These will be converted into a `CategoricalMatrix`.
+
+## 1.0.1 - 2020-11-12
+
+This is a maintenance release to be compatible with `tabmat>=1.0.0`.
+
+## 1.0.0 - 2020-11-11
+
+**Other:**
+
+- Renamed `alpha_level` attribute of [`GeneralizedLinearRegressor`][glum.GeneralizedLinearRegressor] and [`GeneralizedLinearRegressorCV`][glum.GeneralizedLinearRegressorCV] to `alpha_index`.
+- Clarified behavior of `scale_predictors`.
+
+## 0.0.15 - 2020-11-11
+
+**Other:**
+
+- Pin `tabmat<1.0.0` as we are expecting a breaking change with version 1.0.0.
+
+## 0.0.14 - 2020-08-06
+
+**New features:**
+
+- Add Tweedie Link.
+- Allow infinite bounds.
+
+**Bug fixes:**
+
+- Unstandardize regularization path.
+- No copying in predict.
+
+**Other:**
+
+- Various memory and performance improvements.
+- Update pre-commit hooks.
+
+## 0.0.13 - 2020-07-23
+
+See git history.
+
+## 0.0.12 - 2020-07-07
+
+See git history.
+
+## 0.0.11 - 2020-07-02
+
+See git history.
+
+## 0.0.10 - 2020-06-30
+
+See git history.
+
+## 0.0.9 - 2020-06-26
+
+See git history.
+
+## 0.0.8 - 2020-06-24
+
+See git history.
+
+## 0.0.7 - 2020-06-17
+
+See git history.
+
+## 0.0.6 - 2020-06-16
+
+See git history.
+
+## 0.0.5 - 2020-06-10
+
+See git history.
+
+## 0.0.4 - 2020-06-08
+
+See git history.
+
+## 0.0.3 - 2020-06-08
+
+See git history.

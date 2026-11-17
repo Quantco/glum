@@ -25,10 +25,10 @@ from ._link import Link
 def timeit(runtime_attr: str):
     """
     Decorate a function to compute its run time and update the \
-    :class:`IRLSState` instance attribute called ``runtime_attr`` with the run \
+    `IRLSState` instance attribute called `runtime_attr` with the run \
     time of the function.
 
-    The first argument of ``fct`` should be an :class:`IRLSState` instance.
+    The first argument of `fct` should be an `IRLSState` instance.
     """
 
     def fct_wrap(fct):
@@ -82,42 +82,42 @@ def update_hessian(state, data, active_set):
     """
     Update the approximate Hessian.
 
-    The goal is to compute ``H = X^T @ diag(hessian_rows) @ X``. We will refer
-    to ``H`` as the Hessian, even though technically we are computing a
+    The goal is to compute `H = X^T @ diag(hessian_rows) @ X`. We will refer
+    to `H` as the Hessian, even though technically we are computing a
     Gauss-Newton approximation to the Hessian.
 
-    Instead of computing ``H`` directly, we will compute updates to ``H``:
-    ``dH``. So, given ``H0`` from a previous iteration,
-    ``H0 = X^T @ diag(hessian_rows_0) @ X``, we want to compute ``H1`` from this
-    iteration: ``H1 = X^T @ diag(hessian_rows_1) @ X``.
+    Instead of computing `H` directly, we will compute updates to `H`:
+    `dH`. So, given `H0` from a previous iteration,
+    `H0 = X^T @ diag(hessian_rows_0) @ X`, we want to compute `H1` from this
+    iteration: `H1 = X^T @ diag(hessian_rows_1) @ X`.
 
-    However, we will instead compute ``H1 = H0 + dH``, where
-    ``dH = X^T @ diag(hessian_rows_1 - hessian_rows_0) @ X``.
+    However, we will instead compute `H1 = H0 + dH`, where
+    `dH = X^T @ diag(hessian_rows_1 - hessian_rows_0) @ X`.
 
     We will also refer to
-    ``hessian_rows_diff = hessian_rows_1 - hessian_rows_0``.
+    `hessian_rows_diff = hessian_rows_1 - hessian_rows_0`.
 
-    The advantage of reframing the computation of ``H`` as an update is that the
-    values in ``hessian_rows_diff`` will vary depending on how large the
+    The advantage of reframing the computation of `H` as an update is that the
+    values in `hessian_rows_diff` will vary depending on how large the
     influence of that last coefficient update was on that row. As a result, in
-    lots of problems, many of the entries in ``hessian_rows_diff`` will be very
+    lots of problems, many of the entries in `hessian_rows_diff` will be very
     very small.
 
-    So, the goal with ``identify_active_rows`` is to filter to a subset of
-    ``hessian_rows_diff`` that we will use to compute the sandwich product for
-    ``dH``. If ``threshold/data.hessian_approx == 0.0``, then we will always use
-    every row. However, for ``data.hessian_approx != 0``, we include rows for
+    So, the goal with `identify_active_rows` is to filter to a subset of
+    `hessian_rows_diff` that we will use to compute the sandwich product for
+    `dH`. If `threshold/data.hessian_approx == 0.0`, then we will always use
+    every row. However, for `data.hessian_approx != 0`, we include rows for
     which
-    ``include = (np.abs(hessian_rows_diff[i]) >= T *
-    np.max(np.abs(hessian_rows_diff)))``.
+    `include = (np.abs(hessian_rows_diff[i]) >= T *
+    np.max(np.abs(hessian_rows_diff)))`.
 
     Essentially, this criterion ignores data matrix rows that have not seen the
     second derivatives of their predictions change very much in the last
     iteration.
 
     Critically, we set
-    ``hessian_rows_old[include] += hessian_rows_diff[include]``.
-    That way, ``hessian_rows_diff`` is no longer the change since the last
+    `hessian_rows_old[include] += hessian_rows_diff[include]`.
+    That way, `hessian_rows_diff` is no longer the change since the last
     iteration, but, instead, the change since the last iteration that a row was
     active. This ensures that we don't miss the situation where a row changes a
     small amount over several iterations which accumulates into a large change.
@@ -241,7 +241,7 @@ def _irls_solver(inner_solver, coef, data) -> tuple[np.ndarray, int, int, list[l
     """
     Solve GLM with L1 and L2 penalty by IRLS.
 
-    The objective being minimized in the coefficients w=coef is::
+    The objective being minimized in the coefficients w=coef is:
 
         F = f + g, f(w) = 1/2 deviance, g = 1/2 w*P2*w + ||P1*w||_1
 
@@ -995,7 +995,7 @@ def _build_monotonic_penalty(
     b_ineq: np.ndarray,
     constraint_lam: float = 1e9,
 ) -> Optional[sparse.csc_matrix]:
-    """Return ``lam * A_v.T @ A_v`` as sparse, or None if no violations."""
+    """Return `lam * A_v.T @ A_v` as sparse, or None if no violations."""
     violations = A_ineq @ coef_no_intercept - b_ineq
     violated = violations > 0
     if not np.any(violated):

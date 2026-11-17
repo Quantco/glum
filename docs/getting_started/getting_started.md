@@ -1,23 +1,8 @@
----
-jupyter:
-  jupytext:
-    formats: ipynb,md
-    text_representation:
-      extension: .md
-      format_name: markdown
-      format_version: '1.3'
-      jupytext_version: 1.19.1
-  kernelspec:
-    display_name: Python 3 (ipykernel)
-    language: python
-    name: python3
----
-
 # Getting Started: fitting a Lasso model
 
 The purpose of this tutorial is to show the basics of `glum`. It assumes a working knowledge of python, regularized linear models, and machine learning. The API is very similar to scikit-learn. After all, `glum` is based on a fork of scikit-learn.
 
-If you have not done so already, please refer to our [installation instructions](../install.rst) for installing `glum`.
+If you have not done so already, please refer to our [installation instructions](../install.md) for installing `glum`.
 
 ```python
 import pandas as pd
@@ -87,6 +72,10 @@ The `GeneralizedLinearRegressor.fit()` method follows typical sklearn API style 
 glm.fit(X_train, y_train)
 ```
 
+```text
+GeneralizedLinearRegressor(alpha=0.1, l1_ratio=1)
+```
+
 Once the model has been estimated, we can retrieve useful information using an sklearn-style syntax.
 
 ```python
@@ -100,7 +89,11 @@ preds = glm.predict(X_test)
 preds[0:5]
 ```
 
-<!-- #region -->
+```text
+array([ 482648.22861173,  142902.68860096,  539452.61266271,
+        569693.78048478, 1042446.90903338])
+```
+
 ## Regularization
 
 In the example above, the `alpha` and `l1_ratio` parameters specify the level of regularization, i.e. the amount by which fitted model coefficients are biased towards zero.
@@ -114,7 +107,6 @@ A basic unregularized GLM object is obtained as
 glm = GeneralizedLinearRegressor(family="normal", alpha=0)
 ```
 which we interact with as in the example above.
-<!-- #endregion -->
 
 ## Fitting a GLM with cross validation
 
@@ -148,8 +140,9 @@ print(f"Chosen alpha:    {glmcv.alpha_}")
 print(f"Chosen l1 ratio: {glmcv.l1_ratio_}")
 ```
 
-Congratulations! You have finished our getting started tutorial. If you wish to learn more, please see our other tutorials for more advanced topics like Poisson, Gamma, and Tweedie regression, high dimensional fixed effects, and spatial smoothing using Tikhonov regularization.
-
-```python
-
+```text
+Chosen alpha:    232.70228992842283
+Chosen l1 ratio: 1.0
 ```
+
+Congratulations! You have finished our getting started tutorial. If you wish to learn more, please see our other tutorials for more advanced topics like Poisson, Gamma, and Tweedie regression, high dimensional fixed effects, and spatial smoothing using Tikhonov regularization.
