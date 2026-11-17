@@ -196,35 +196,48 @@ def _model_gradient(state, data, w):
     costs one matvec and one transpose matvec and never forms ``H``.
     """
     d = w - state.coef
-    q = -state.score
+    q = -state.score  # a new array, updated in place below
     if not d.any():
-        return q.copy()
+        return q
     off = data.intercept_offset
     # _safe_lin_pred only touches the nonzero entries of d, i.e. the working set.
     u = state.hessian_rows * _safe_lin_pred(data.X, d)
-    q = q + _make_coef_P2(off, data.P2, d)
-    q[off:] += data.X.transpose_matvec(u)
+    q[off:] += data.X.transpose_matvec(u)  # q is a new array: -score
     if off:
         q[0] += u.sum()
+    if _has_P2(data.P2):
+        q += _make_coef_P2(off, data.P2, d)
     return q
 
 
-def _kkt_violations(w, q, data):
-    """Per-coefficient size of the minimum norm subgradient, ignoring bounds.
+def _has_P2(P2) -> bool:
+    """Whether the L2 penalty is not identically zero."""
+    return P2.nnz > 0 if sparse.issparse(P2) else bool(np.any(P2))
 
-    Only used to rank candidates for the working set; the stopping criterion
-    uses ``_norm_min_subgrad``, which respects bounds.
+
+def _kkt_violations(w, q, data):
+    """Per-coefficient size of the minimum norm subgradient.
+
+    The same quantity as ``_norm_min_subgrad`` sums, including its treatment
+    of coefficients at a bound, computed with one pass over the (mostly zero)
+    coefficients and a fix-up of the nonzero ones.
     """
     off = data.intercept_offset
+    wf, qf = w[off:], q[off:]
     v = np.empty_like(w)
     if off:
         v[0] = abs(q[0])
-    wf, qf = w[off:], q[off:]
-    v[off:] = np.where(
-        wf == 0,
-        np.maximum(np.abs(qf) - data.P1, 0),
-        np.abs(qf + data.P1 * np.sign(wf)),
-    )
+    vf = v[off:]
+    # Signed minimum norm subgradient at zero coefficients ...
+    term = np.sign(qf) * np.maximum(np.abs(qf) - data.P1, 0)
+    # ... and at the nonzero ones.
+    nz = np.flatnonzero(wf)
+    term[nz] = qf[nz] + np.sign(wf[nz]) * data.P1[nz]
+    if data.has_lower_bounds:
+        term[(wf == data._lower_bounds) & (term > 0)] = 0
+    if data.has_upper_bounds:
+        term[(wf == data._upper_bounds) & (term < 0)] = 0
+    np.abs(term, out=vf)
     return v
 
 
@@ -243,7 +256,10 @@ def _cd_working_set_solver(state, data, active_hessian=None):
     """
     off = data.intercept_offset
     n_coef = state.coef.shape[0]
-    all_rows = np.arange(data.X.shape[0], dtype=np.int32)
+    # The intercept and unpenalized coefficients are always in the working set.
+    always = np.flatnonzero(data.P1 == 0) + off
+    if off:
+        always = np.r_[0, always]
     eps = np.finfo(state.coef.dtype).eps * 16
     # The polish fixes the signs, which bounds could contradict.
     can_polish = not (data.has_lower_bounds or data.has_upper_bounds)
@@ -275,24 +291,24 @@ def _cd_working_set_solver(state, data, active_hessian=None):
         if total >= prev_total:
             can_polish = False
         prev_total = total
-        # The support is always in the working set; fill up with violators.
+        # The support, the intercept and unpenalized columns are always in the
+        # working set; fill it up with the largest violations.
         viol = _kkt_violations(w, q, data)
-        score = viol.copy()
-        score[w != 0] = np.inf
-        if off:
-            score[0] = np.inf
+        forced = np.union1d(np.flatnonzero(w), always)
         # As in skglm: twice the support, at least _WS_MIN_SIZE. A working set
         # that grows regardless of the support costs rounds and larger Grams.
-        n_forced = int(np.isinf(score).sum())
-        ws_size = min(n_coef, max(_WS_MIN_SIZE, 2 * n_forced))
+        ws_size = min(n_coef, max(_WS_MIN_SIZE, 2 * len(forced)))
+        n_fill = ws_size - len(forced)
+        score = viol.copy()
+        score[forced] = 0
         candidates = np.flatnonzero(score > 0)
-        if len(candidates) > ws_size:
-            top = np.argpartition(-score[candidates], ws_size - 1)[:ws_size]
-            candidates = candidates[top]
-        ws = np.sort(candidates).astype(np.int32)
+        if len(candidates) > n_fill:
+            top = np.argpartition(-score[candidates], n_fill - 1)[:n_fill]
+            candidates = candidates[top] if n_fill > 0 else candidates[:0]
+        ws = np.union1d(forced, candidates).astype(np.int32)
         Q = np.ascontiguousarray(
             build_hessian_delta(
-                data.X, state.hessian_rows, data.fit_intercept, data.P2, all_rows, ws
+                data.X, state.hessian_rows, data.fit_intercept, data.P2, None, ws
             )
         )
         # The working set only needs to be solved as accurately as the
