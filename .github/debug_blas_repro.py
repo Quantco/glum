@@ -8,7 +8,7 @@ import time
 import numpy as np
 
 
-def work(idx, n, seconds):
+def work(idx, n, rows, seconds):
     faulthandler.enable()
     from scipy import linalg
 
@@ -16,7 +16,7 @@ def work(idx, n, seconds):
     deadline = time.time() + seconds
     count = 0
     while time.time() < deadline:
-        a = rng.normal(size=(n + 50, n))
+        a = rng.normal(size=(rows, n))
         h = a.T @ a + np.eye(n)
         b = rng.normal(size=n)
         linalg.solve(h, b, assume_a="pos")
@@ -25,13 +25,18 @@ def work(idx, n, seconds):
 
 
 if __name__ == "__main__":
-    nproc, n, seconds = int(sys.argv[1]), int(sys.argv[2]), float(sys.argv[3])
+    nproc, n, rows, seconds = (
+        int(sys.argv[1]),
+        int(sys.argv[2]),
+        int(sys.argv[3]),
+        float(sys.argv[4]),
+    )
     import scipy
 
     print("numpy", np.__version__, "scipy", scipy.__version__, flush=True)
     np.show_config()
     ctx = mp.get_context("spawn")
-    procs = [ctx.Process(target=work, args=(i, n, seconds)) for i in range(nproc)]
+    procs = [ctx.Process(target=work, args=(i, n, rows, seconds)) for i in range(nproc)]
     for p in procs:
         p.start()
     for p in procs:

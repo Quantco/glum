@@ -5,58 +5,25 @@ on:
   workflow_dispatch:
 
 jobs:
-  # Does the crash need glum at all? N processes doing concurrent
-  # scipy.linalg.solve(assume_a="pos") on dense matrices.
-  blas-repro:
-    name: BLAS repro (${{ matrix.variant }})
-    runs-on: windows-2022
-    timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        variant: [default, threads1]
-    env:
-      PYTHONFAULTHANDLER: "1"
-      OPENBLAS_NUM_THREADS: ${{ matrix.variant == 'threads1' && '1' || '' }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: prefix-dev/setup-pixi@ad1da6449d9e506fd127fd67ab2d054a769f6a94 # v0.11.2
-        with:
-          environments: py313
-      - name: Run reproducer (6 procs, 500x500, 5 rounds of 60s)
-        shell: bash
-        run: |
-          fails=0
-          for i in 1 2 3 4 5; do
-            echo "=== round $i ==="
-            pixi run -e py313 python -I .github/debug_blas_repro.py 6 500 60 || fails=$((fails+1))
-          done
-          echo "failed rounds: $fails / 5"
-          [ "$fails" -eq 0 ]
-
-  # Full suite under xdist, as in the real CI job.
-  full-suite:
-    name: Full suite xdist (${{ matrix.variant }})
+  # Cleaner check of the OpenBLAS 0.3.34 regression hypothesis: pin OpenBLAS
+  # *and* keep libblas on the OpenBLAS variant (the previous pin silently
+  # switched to BLIS).
+  pin-openblas-strict:
+    name: Pin OpenBLAS 0.3.33 (stay on openblas)
     runs-on: windows-2022
     timeout-minutes: 90
-    strategy:
-      fail-fast: false
-      matrix:
-        variant: [baseline, threads1, pin-openblas]
     env:
       CI: True
       PYTHONFAULTHANDLER: "1"
       PYTHONPATH: "."
-      OPENBLAS_NUM_THREADS: ${{ matrix.variant == 'threads1' && '1' || '' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: prefix-dev/setup-pixi@ad1da6449d9e506fd127fd67ab2d054a769f6a94 # v0.11.2
         with:
           environments: py313
-      - name: Pin libopenblas below 0.3.34
-        if: matrix.variant == 'pin-openblas'
+      - name: Pin libopenblas and keep the openblas libblas variant
         shell: bash
-        run: pixi add --feature py313 "libopenblas<0.3.34"
+        run: pixi add --feature py313 "libopenblas=0.3.33" "libblas=*=*openblas"
       - run: pixi run -e py313 postinstall
       - run: pixi list -e py313
       - name: Loop full suite (xdist)
@@ -69,4 +36,75 @@ jobs:
               --doctest-modules src/glum -nauto -p no:cacheprovider -q || fails=$((fails+1))
           done
           echo "failed iterations: $fails / 5"
+          [ "$fails" -eq 0 ]
+
+  # Which part of the suite is needed to trigger the crash? Baseline
+  # environment, no mitigation.
+  bisect:
+    name: Bisect (${{ matrix.name }})
+    runs-on: windows-2022
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: regressor-file-only, args: "tests/glm/test_glm_regressor.py -nauto" }
+          - { name: no-doctests, args: "tests/glm -nauto" }
+          - { name: full-n2, args: "tests/glm --doctest-modules src/glum -n2" }
+          - { name: full-n4, args: "tests/glm --doctest-modules src/glum -n4" }
+          - { name: full-loadfile, args: "tests/glm --doctest-modules src/glum -nauto --dist loadfile" }
+    env:
+      CI: True
+      PYTHONFAULTHANDLER: "1"
+      PYTHONPATH: "."
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: prefix-dev/setup-pixi@ad1da6449d9e506fd127fd67ab2d054a769f6a94 # v0.11.2
+        with:
+          environments: py313
+      - run: pixi run -e py313 postinstall
+      - name: Core count
+        shell: bash
+        run: pixi run -e py313 python -c "import os; print('cpus', os.cpu_count())"
+      - name: Loop
+        shell: bash
+        run: |
+          fails=0
+          for i in $(seq 1 5); do
+            echo "=== iteration $i ==="
+            pixi run -e py313 python -X faulthandler -m pytest ${{ matrix.args }} \
+              -p no:cacheprovider -q || fails=$((fails+1))
+          done
+          echo "failed iterations: $fails / 5"
+          [ "$fails" -eq 0 ]
+
+  # Reproducer closer to the real test: 500 columns but only 50 rows (as in
+  # test_categorical_types[*-500-50]), so X'X is rank deficient and only
+  # positive definite thanks to the penalty.
+  blas-repro:
+    name: BLAS repro (${{ matrix.name }})
+    runs-on: windows-2022
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: rank-deficient-50x500, rows: 50 }
+          - { name: rank-deficient-500x500, rows: 500 }
+    env:
+      PYTHONFAULTHANDLER: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: prefix-dev/setup-pixi@ad1da6449d9e506fd127fd67ab2d054a769f6a94 # v0.11.2
+        with:
+          environments: py313
+      - name: Run reproducer (6 procs, 500 cols, 3 rounds of 60s)
+        shell: bash
+        run: |
+          fails=0
+          for i in 1 2 3; do
+            echo "=== round $i ==="
+            pixi run -e py313 python -I .github/debug_blas_repro.py 6 500 ${{ matrix.rows }} 60 || fails=$((fails+1))
+          done
+          echo "failed rounds: $fails / 3"
           [ "$fails" -eq 0 ]
