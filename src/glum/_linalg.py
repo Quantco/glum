@@ -18,7 +18,7 @@ def is_pos_semidef(p: Union[sparse.spmatrix, np.ndarray]) -> Union[bool, np.bool
     """
     # 1d case
     if p.ndim == 1 or p.shape[0] == 1:
-        any_negative = (p < 0).max() if sparse.isspmatrix(p) else (p < 0).any()
+        any_negative = (p < 0).any() if isinstance(p, np.ndarray) else (p < 0).max()
         return not any_negative
 
     # 2d case

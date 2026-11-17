@@ -319,6 +319,10 @@ def test_gm_approx_hessian(
     assert_gm_allclose(model, expected)
 
 
+# IRLS does not converge within max_iter on some platforms (observed on GitHub's
+# macOS and Linux runners, but not locally). The golden master tests compare
+# against stored results and are not about convergence.
+@pytest.mark.filterwarnings("ignore::sklearn.exceptions.ConvergenceWarning")
 @pytest.mark.parametrize(
     "distribution",
     distributions_to_test,

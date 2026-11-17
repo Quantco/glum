@@ -232,6 +232,16 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         Constraint vector for linear inequality constraints of the form
         ``A_ineq w <= b_ineq``.
 
+    monotonic_constraints : dict, optional (default=None)
+        Mapping from variable names in ``formula`` (e.g. ``"x"``) to
+        ``"increasing"`` or ``"decreasing"``. For single-column numeric
+        variables, including transforms like ``np.log(x)``, constrains the sign
+        of the coefficient. For ``bs()`` splines, categoricals and booleans,
+        orders consecutive coefficients (including an implicit zero for a dropped
+        first column). Other transforms are not supported. Categoricals must be
+        ordered (pandas ``Categorical`` with ``ordered=True`` or polars ``Enum``);
+        their coefficients follow the category order.
+
     cv : int, cross-validation generator or Iterable, optional (default=None)
         Determines the cross-validation splitting strategy. One of:
 
@@ -320,6 +330,7 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
     cat_missing_method: str {'fail'|'zero'|'convert'}, default='fail'
         How to handle missing values in categorical columns. Only used if ``X``
         is a pandas data frame.
+
         - if 'fail', raise an error if there are missing values
         - if 'zero', missing values will represent all-zero indicator columns.
         - if 'convert', missing values will be converted to the ``cat_missing_name``
@@ -894,6 +905,8 @@ class GeneralizedLinearRegressorCV(GeneralizedLinearRegressorBase):
         )
 
         self.coef_path_ = _cv_coef_path
+
+        self._warn_if_saturated(X, coef[best_alpha], offset)
 
         if self.fit_intercept:
             self._refit_intercept_path, self._refit_coef_path = unstandardize(
