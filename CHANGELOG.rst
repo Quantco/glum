@@ -12,6 +12,7 @@ Unreleased
 
 **Bug fix:**
 
+- Fixed the check that ``P2`` is positive semi-definite rejecting valid matrices, such as graph Laplacians, whose smallest eigenvalue is zero. The tolerance for eigenvalues that are negative due to rounding errors now scales with the size and magnitude of ``P2``. Also fixed the check crashing for sparse ``P2`` matrices with 2000 or more rows.
 - Fixed the line search of the IRLS solvers rejecting good steps near the optimum of L1-penalized or bounded problems. When the change in the objective was too small to measure, it compared the L1 norm of the gradient, which does not vanish at the optimum of such problems. It now compares the minimum-norm subgradient, the quantity the convergence check uses.
 
 **Other changes:**
