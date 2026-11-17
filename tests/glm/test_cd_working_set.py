@@ -184,16 +184,68 @@ def test_screening_matches_unscreened(monkeypatch, family, fit_intercept, weight
     np.testing.assert_allclose(screened.coef_, full.coef_, atol=1e-7)
     np.testing.assert_allclose(screened.intercept_, full.intercept_, atol=1e-7)
     assert len(screened.coef_) == X.shape[1]
-    assert screened.col_stds_.shape == (X.shape[1],)
+    np.testing.assert_allclose(screened.col_means_, full.col_means_, rtol=1e-12)
+    np.testing.assert_allclose(screened.col_stds_, full.col_stds_, rtol=1e-12)
+
+
+@pytest.mark.parametrize("dense", [False, True])
+@pytest.mark.parametrize("signed", [False, True])
+@pytest.mark.parametrize("scale_predictors", [False, True])
+def test_screening_input_variants(monkeypatch, dense, signed, scale_predictors):
+    # The bound uses the absolute values of the columns and, when the model is
+    # estimated as if scaled, their standard deviations. Screen even if it keeps
+    # most columns, as it does with scale_predictors.
+    monkeypatch.setattr(glum._glm, "_SCREEN_MAX_RATIO", 1)
+    X, y = _screenable_problem("normal")
+    if signed:
+        X = X.copy()
+        X.data *= np.where(np.arange(X.nnz) % 3 == 0, -1.0, 1.0)
+    if dense:
+        X = X.toarray()
+    kwargs = dict(
+        family="normal",
+        alpha=0.01,
+        l1_ratio=1.0,
+        gradient_tol=1e-10,
+        scale_predictors=scale_predictors,
+    )
+    calls = []
+    screen_columns = GeneralizedLinearRegressor._screen_columns
+
+    def spy(self, *args, **kw):
+        out = screen_columns(self, *args, **kw)
+        calls.append(out is not None)
+        return out
+
+    monkeypatch.setattr(GeneralizedLinearRegressor, "_screen_columns", spy)
+    screened = GeneralizedLinearRegressor(**kwargs).fit(X, y)
+    assert calls == [True]
+    monkeypatch.setattr(
+        GeneralizedLinearRegressor, "_can_screen", lambda self, *a, **k: False
+    )
+    full = GeneralizedLinearRegressor(**kwargs).fit(X, y)
+    assert (full.coef_ != 0).sum() > 3
+    np.testing.assert_allclose(screened.coef_, full.coef_, atol=1e-7)
+    np.testing.assert_allclose(screened.intercept_, full.intercept_, atol=1e-7)
+    np.testing.assert_allclose(screened.col_stds_, full.col_stds_, rtol=1e-12)
 
 
 def test_screening_certificate_adds_missed_columns(monkeypatch):
     # With a guess that is far too small, the first subproblem misses columns
-    # of the solution; the full-problem check must add them back.
-    monkeypatch.setattr(glum._glm, "_SCREEN_GUESS", 0.05)
+    # of the solution (here: all of them); the full-problem check must add them.
+    monkeypatch.setattr(glum._glm, "_SCREEN_GUESS", 0.01)
+    added = []
+    add = glum._glm._Screen.add
+
+    def spy(self, cols):
+        added.append(len(cols))
+        add(self, cols)
+
+    monkeypatch.setattr(glum._glm._Screen, "add", spy)
     X, y = _screenable_problem("normal")
     kwargs = dict(family="normal", alpha=0.01, l1_ratio=1.0, gradient_tol=1e-10)
     low = GeneralizedLinearRegressor(**kwargs).fit(X, y)
+    assert sum(added) > 0
     monkeypatch.setattr(
         GeneralizedLinearRegressor, "_can_screen", lambda self, *a, **k: False
     )

@@ -60,6 +60,7 @@ from ._typing import (
     WaldTestResult,
 )
 from ._utils import (
+    _one_over_var_inf_to_val,
     add_missing_categories,
     align_df_categories,
     expand_categorical_penalties,
@@ -108,6 +109,68 @@ _SCREEN_MAX_RATIO = 4
 def _default_names(n: int, prefix: str = "_col_") -> tuple[str, ...]:
     """Default names of an unnamed matrix with ``n`` columns, cached by width."""
     return tuple(f"{prefix}{i}" for i in range(n))
+
+
+def _gradient_size(g: np.ndarray, sample_weight: np.ndarray) -> tuple[float, float]:
+    """``max|h|`` and ``sum(g)`` of the gradient rows ``g = w * h``."""
+    pos = sample_weight > 0
+    h_max = float(np.abs(g[pos] / sample_weight[pos]).max()) if pos.any() else 0.0
+    return h_max, float(g.sum())
+
+
+class _Screen:
+    """Columns kept by ``_screen_columns`` and what it takes to verify them.
+
+    A column ``j`` outside of ``cols`` is zero at a point with gradient rows
+    ``g = w * h`` if ``k_a_j * max|h| + k_m_j * |sum(g)| < P1_j``. Since all
+    ``P1_j > 0`` outside, one comparison with the largest ratios ``k_a_j / P1_j``
+    and ``k_m_j / P1_j`` outside clears all of them at once.
+    """
+
+    def __init__(self, cols, col_means, col_stds, mult, k_a, k_m, P1):
+        self.cols = cols
+        self.col_means = col_means
+        self.col_stds = col_stds
+        self.mult = mult  # None unless the bound is in units of scaled columns
+        self.k_a = k_a
+        self.k_m = k_m
+        self.P1 = P1
+        self.outside = np.ones(len(P1), dtype=bool)
+        self.outside[cols] = False
+        self._update_ratios()
+
+    def _update_ratios(self):
+        def largest_ratio(k):
+            # P1 > 0 outside; inside, P1 can be 0, which the mask discards.
+            with np.errstate(divide="ignore", invalid="ignore"):
+                ratio = k / self.P1
+            ratio[~self.outside] = 0
+            return float(ratio.max()) if len(ratio) else 0.0
+
+        self.r_a = largest_ratio(self.k_a)
+        self.r_m = 0.0 if self.k_m is None else largest_ratio(self.k_m)
+
+    def add(self, cols):
+        """Move ``cols`` into the problem."""
+        self.outside[cols] = False
+        self._update_ratios()
+
+    def violations(self, X, g, h_max, g_sum) -> np.ndarray:
+        """Columns outside that are not optimal at zero with gradient rows ``g``."""
+        if self.r_a * h_max + self.r_m * abs(g_sum) < 1 - 1e-12:
+            return np.empty(0, dtype=np.int64)
+        bound = self.k_a * h_max
+        if self.k_m is not None:
+            bound += self.k_m * abs(g_sum)
+        candidates = np.flatnonzero(self.outside & (bound >= self.P1 * (1 - 1e-12)))
+        if len(candidates) == 0:
+            return candidates
+        score = np.asarray(X.transpose_matvec(g, cols=candidates))
+        if self.k_m is not None:
+            score = score - self.col_means[candidates] * g_sum
+        if self.mult is not None:
+            score = score * self.mult[candidates]
+        return candidates[np.abs(score) > self.P1[candidates] * (1 + 1e-12)]
 
 
 # If more than this fraction of the fitted values is numerically 0 or 1, we warn.
@@ -548,86 +611,150 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
 
         return _make_grid(alpha_max)
 
-    def _can_screen(self, X, P2, P1, lower_bounds, upper_bounds, A_ineq) -> bool:
-        """Whether ``_solve_screened`` applies to this L1 problem."""
-        return (
+    def _can_screen(
+        self, X, P1, P2, lower_bounds, upper_bounds, A_ineq, store_covariance_matrix
+    ) -> bool:
+        """Whether ``_screen_columns`` applies to this fit of an L1 problem."""
+        alpha = self.alpha
+        return bool(
             self._solver == "irls-cd"
-            and isinstance(X, tm.StandardizedMatrix)
-            and isinstance(X.mat, (tm.SparseMatrix, tm.DenseMatrix))
+            and not self.alpha_search
+            and isinstance(alpha, (int, float, np.number))
+            and alpha > 0
+            and self.l1_ratio > 0
+            and isinstance(X, (tm.SparseMatrix, tm.DenseMatrix))
             and X.shape[1] >= _SCREEN_MIN_COLS
-            and bool(np.any(P1 > 0))
             and isinstance(P2, np.ndarray)
             and P2.ndim == 1
             and lower_bounds is None
             and upper_bounds is None
             and A_ineq is None
+            and not store_covariance_matrix
+            and self.start_params is None
+            and not (self.warm_start and hasattr(self, "coef_"))
+            and bool(np.any(P1 > 0))
         )
 
-    def _gradient_rows(self, X, y, sample_weight, coef, offset) -> np.ndarray:
-        """Rows ``g`` of the score ``X.T @ g`` (without penalties) at ``coef``."""
-        eta = _safe_lin_pred(X, coef, offset)
+    def _gradient_rows(self, y, sample_weight, eta) -> np.ndarray:
+        """Rows ``g`` of the score ``X.T @ g`` (without penalties) at ``eta``."""
         mu = self._link_instance.inverse(eta)
         sigma_inv = get_one_over_variance(
             self._family_instance, self._link_instance, mu, eta, 1.0, sample_weight
         )
         return sigma_inv * self._link_instance.inverse_derivative(eta) * (y - mu)
 
-    def _solve_screened(
-        self, X, y, sample_weight, P2, P1, coef, offset
-    ) -> Optional[np.ndarray]:
-        """Solve an L1 problem on the columns that can be nonzero, then verify.
+    def _screen_columns(self, X, y, sample_weight, offset, P1):
+        """Find the columns of an L1 problem that can be nonzero at the optimum.
 
-        The score of column ``j`` is ``x_j^T g``, where ``g = w * h`` are the
-        gradient rows. For the standardized column ``mult_j * x_j + shift_j``,
-        ``|score_j| <= mult_j * a_j * max|h| + |shift_j| * |sum(g)|`` with the
-        weighted L1 norm ``a_j = sum_i w_i |x_ij|``. A column with this bound
-        below ``P1_j`` is zero at any point with these gradient rows, in
-        particular at the optimum. Sparse data often has many columns with
-        small norms, e.g. 99% of news20's 1.4M columns.
+        ``X`` is the unstandardized matrix and ``P1`` includes ``alpha``. In the
+        model, column ``j`` is ``m_j * (x_j - c * mean_j)``, where ``m_j`` is one
+        over its standard deviation and ``c`` is 1 with an intercept, and its
+        penalty is ``m_j * P1_j`` (``P1_j`` with ``scale_predictors``). With the
+        gradient rows ``g = w * h``, Hölder's inequality bounds its score by
+        ``m_j * (a_j * max|h| + c * |mean_j| * |sum(g)|)``, where
+        ``a_j = sum_i w_i |x_ij|``. Divided by ``m_j`` (or not, with
+        ``scale_predictors``), the column is zero at any point with these
+        gradient rows, in particular at the optimum, if::
 
-        This solves the problem on the columns that pass the bound for a guess
-        of the gradient rows at the optimum (3 times their size at the start),
-        then checks the full problem with the actual gradient rows: columns
-        outside that still pass the bound get their exact score, and any that
-        violates optimality is added before solving again. The result is the
-        solution of the full problem. Returns None if screening does not shrink
-        the problem enough to pay off.
+            k_a_j * max|h| + k_m_j * |sum(g)| < P1_j
+
+        Sparse data often has many columns with small ``a_j``, e.g. 99% of
+        news20's 1.4M columns. As the gradient rows at the optimum are unknown,
+        this keeps the columns that pass the test for 3 times their size at
+        the start, and ``_solve_screened`` verifies the result. Returns None if
+        screening does not shrink the problem enough to pay off.
+        """
+        col_means, col_stds, abs_means = X._get_col_stats(sample_weight)
+        k_a = abs_means
+        k_m = np.abs(col_means) if self._center_predictors else None
+        if self.scale_predictors:
+            mult = _one_over_var_inf_to_val(col_stds, 1.0)
+            k_a = k_a * mult
+            k_m = None if k_m is None else k_m * mult
+        eta = np.zeros(X.shape[0], dtype=X.dtype)
+        if self.fit_intercept:
+            eta += guess_intercept(
+                y, sample_weight, self._link_instance, self._family_instance, offset
+            )
+        if offset is not None:
+            eta += offset
+        g = self._gradient_rows(y, sample_weight, eta)
+        h_max, g_sum = _gradient_size(g, sample_weight)
+        g_sum = abs(g_sum)
+        bound = (_SCREEN_GUESS * h_max) * k_a
+        if k_m is not None:
+            bound += (_SCREEN_GUESS * g_sum) * k_m
+        keep = (bound >= P1) | (P1 <= 0)
+        cols = np.flatnonzero(keep)
+        if len(cols) * _SCREEN_MAX_RATIO > X.shape[1]:
+            return None
+        return _Screen(
+            cols,
+            col_means,
+            col_stds,
+            mult if self.scale_predictors else None,
+            k_a,
+            k_m,
+            P1,
+        )
+
+    def _solve_screened(self, X, y, sample_weight, offset, P1, P2, screen):
+        """Solve an L1 problem on the screened columns, then verify the result.
+
+        ``X`` is the unstandardized matrix, ``P1`` and ``P2`` include ``alpha``.
+        This standardizes and solves the problem restricted to ``screen.cols``,
+        then checks the optimality of the zero coefficients of the other columns
+        with the gradient rows of the solution: one comparison of the largest
+        bound outside, else the exact scores of the columns whose bound does not
+        clear them. Columns that violate optimality are added before solving
+        again. The result is the solution of the full problem.
+
+        Sets ``col_means_`` and ``col_stds_`` for all columns and returns the
+        coefficients for all columns.
         """
         off = int(self.fit_intercept)
-        n_coef = X.shape[1] + off
-        mat = X.mat
-        mult = np.ones(X.shape[1], dtype=X.dtype) if X.mult is None else X.mult
-        abs_shift = np.abs(X.shift)
-        # Weighted column L1 norms, from one transpose matvec if X >= 0.
-        data = mat.data if isinstance(mat, tm.SparseMatrix) else mat.unpack()
-        if data.size == 0 or data.min() >= 0:
-            a = mat.transpose_matvec(sample_weight)
-        elif isinstance(mat, tm.SparseMatrix):
-            abs_mat = mat.array_csc.copy()
-            abs_mat.data = np.abs(abs_mat.data)
-            a = abs_mat.T @ sample_weight
-        else:
-            a = np.abs(data).T @ sample_weight
-        a = np.asarray(a) * mult
-        always = P1 <= 0  # unpenalized columns are never screened out
-
-        def bound(g):
-            pos = sample_weight > 0
-            h_max = np.abs(g[pos] / sample_weight[pos]).max() if pos.any() else 0.0
-            return a * h_max + abs_shift * abs(g.sum())
-
-        def solve_on(cols, start):
-            sub_index = np.r_[np.arange(off), cols + off]
-            sub_X = X[:, cols]
+        cols = screen.cols
+        coef: Optional[np.ndarray] = None
+        for _ in range(X.shape[1] + 1):
+            (
+                sub_X,
+                sub_means,
+                sub_stds,
+                _,
+                _,
+                _,
+                sub_P1,
+                sub_P2,
+            ) = standardize(
+                X[:, cols],
+                sample_weight,
+                self._center_predictors,
+                self.scale_predictors,
+                None,
+                None,
+                None,
+                P1[cols],
+                P2[cols],
+            )
+            if coef is None:
+                coef = self._get_start_coef(
+                    sub_X,
+                    y,
+                    sample_weight,
+                    offset,
+                    sub_means,
+                    sub_stds,
+                    dtype=[np.float64, np.float32],
+                )
             self._force_working_set = True
             try:
-                coef_sub = self._solve(
+                coef = self._solve(
                     X=sub_X,
                     y=y,
                     sample_weight=sample_weight,
-                    P2=P2[cols],
-                    P1=P1[cols],
-                    coef=start[sub_index],
+                    P2=sub_P2,
+                    P1=sub_P1,
+                    coef=coef,
                     offset=offset,
                     lower_bounds=None,
                     upper_bounds=None,
@@ -636,28 +763,34 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
                 )
             finally:
                 self._force_working_set = False
-            full = np.zeros(n_coef, dtype=coef.dtype)
-            full[sub_index] = coef_sub
-            return full, sub_X, coef_sub
-
-        g = self._gradient_rows(X, y, sample_weight, coef, offset)
-        cols = np.flatnonzero((_SCREEN_GUESS * bound(g) >= P1) | always)
-        if len(cols) * _SCREEN_MAX_RATIO > X.shape[1]:
-            return None
-        for _ in range(X.shape[1]):
-            coef, sub_X, coef_sub = solve_on(cols, coef)
-            g = self._gradient_rows(sub_X, y, sample_weight, coef_sub, offset)
-            outside = np.ones(X.shape[1], dtype=bool)
-            outside[cols] = False
-            candidates = np.flatnonzero(outside & (bound(g) >= P1))
-            if len(candidates) == 0:
-                break
-            score = X.transpose_matvec(g, cols=candidates)
-            violating = candidates[np.abs(score) > P1[candidates] * (1 + 1e-12)]
+            eta = _safe_lin_pred(sub_X, coef, offset)
+            g = self._gradient_rows(y, sample_weight, eta)
+            violating = screen.violations(X, g, *_gradient_size(g, sample_weight))
             if len(violating) == 0:
                 break
-            cols = np.union1d(cols, violating)
-        return coef
+            # Start from the solution so far; standardized coefficients do not
+            # depend on the other columns.
+            new_cols = np.union1d(cols, violating)
+            start = np.zeros(off + len(new_cols), dtype=coef.dtype)
+            start[:off] = coef[:off]
+            start[off + np.searchsorted(new_cols, cols)] = coef[off:]
+            cols, coef = new_cols, start
+            screen.add(violating)
+
+        assert coef is not None
+        self._warn_if_saturated(sub_X, coef, offset)
+        n_coef = X.shape[1] + off
+        full = np.zeros(n_coef, dtype=coef.dtype)
+        full[:off] = coef[:off]
+        full[off + cols] = coef[off:]
+        if self._center_predictors:
+            self.col_means_ = screen.col_means.copy()
+        else:
+            self.col_means_ = np.zeros_like(screen.col_means)
+        self.col_means_[cols] = sub_means
+        self.col_stds_ = screen.col_stds.copy()
+        self.col_stds_[cols] = sub_stds
+        return full
 
     def _solve(
         self,
@@ -3013,44 +3146,61 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
             # TODO: if alpha=0 check that X is not rank deficient
             # TODO: what else to check?
 
+        # Wide L1 problems: find the columns that can be nonzero before
+        # standardizing, so that only those are standardized and solved for.
+        screen = None
+        if self._can_screen(
+            X,
+            P1_no_alpha,
+            P2_no_alpha,
+            lower_bounds,
+            upper_bounds,
+            A_ineq,
+            store_covariance_matrix,
+        ):
+            screen = self._screen_columns(
+                X, y, sample_weight, offset, P1_no_alpha * self.alpha
+            )
+
         #######################################################################
         # 2c. potentially rescale predictors
         #######################################################################
 
-        (
-            X,
-            self.col_means_,
-            self.col_stds_,
-            lower_bounds,
-            upper_bounds,
-            A_ineq,
-            P1_no_alpha,
-            P2_no_alpha,
-        ) = standardize(
-            X,
-            sample_weight,
-            self._center_predictors,
-            self.scale_predictors,
-            lower_bounds,
-            upper_bounds,
-            A_ineq,
-            P1_no_alpha,
-            P2_no_alpha,
-        )
+        if screen is None:
+            (
+                X,
+                self.col_means_,
+                self.col_stds_,
+                lower_bounds,
+                upper_bounds,
+                A_ineq,
+                P1_no_alpha,
+                P2_no_alpha,
+            ) = standardize(
+                X,
+                sample_weight,
+                self._center_predictors,
+                self.scale_predictors,
+                lower_bounds,
+                upper_bounds,
+                A_ineq,
+                P1_no_alpha,
+                P2_no_alpha,
+            )
 
-        #######################################################################
-        # 3. initialization of coef = (intercept_, coef_)                     #
-        #######################################################################
+            ###################################################################
+            # 3. initialization of coef = (intercept_, coef_)                 #
+            ###################################################################
 
-        coef = self._get_start_coef(
-            X,
-            y,
-            sample_weight,
-            offset,
-            self.col_means_,
-            self.col_stds_,
-            dtype=[np.float64, np.float32],
-        )
+            coef = self._get_start_coef(
+                X,
+                y,
+                sample_weight,
+                offset,
+                self.col_means_,
+                self.col_stds_,
+                dtype=[np.float64, np.float32],
+            )
 
         #######################################################################
         # 4. fit                                                              #
@@ -3116,13 +3266,9 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
                 )
             P1 = P1_no_alpha * _alpha
             P2 = P2_no_alpha * _alpha
-            screened = None
-            if self._can_screen(X, P2, P1, lower_bounds, upper_bounds, A_ineq):
-                screened = self._solve_screened(
-                    X, y, sample_weight, P2, P1, coef, offset
-                )
-            if screened is not None:
-                coef = screened
+            if screen is not None:
+                # Also sets col_means_ and col_stds_.
+                coef = self._solve_screened(X, y, sample_weight, offset, P1, P2, screen)
             else:
                 coef = self._solve(
                     X=X,
@@ -3137,8 +3283,7 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
                     A_ineq=A_ineq,
                     b_ineq=b_ineq,
                 )
-
-            self._warn_if_saturated(X, coef, offset)
+                self._warn_if_saturated(X, coef, offset)
 
             if self.fit_intercept:
                 self.intercept_, self.coef_ = unstandardize(
