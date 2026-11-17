@@ -143,6 +143,9 @@ def _cd_solver(state, data, active_hessian):
 _WS_MIN_SIZE = 10
 _WS_INNER_TOL_RATIO = 0.3
 _WS_POLISH_RATIO = 1e-2
+# Rounds in a row without progress after which the working set solver gives up,
+# e.g. when the tolerance is below what the precision of the data allows.
+_WS_MAX_STALLS = 3
 
 
 def _polish_on_support(data, w, q, ws, Q):
@@ -264,6 +267,7 @@ def _cd_working_set_solver(state, data, active_hessian=None):
     # The polish fixes the signs, which bounds could contradict.
     can_polish = not (data.has_lower_bounds or data.has_upper_bounds)
     prev_total = np.inf
+    n_stalls = 0
     w = state.coef.copy()
     tol = state.inner_tol
     n_cycles = 0
@@ -287,9 +291,15 @@ def _cd_working_set_solver(state, data, active_hessian=None):
             converged = True
             break
         # Each round should reduce the violation. If one does not, stop
-        # polishing, so the rounds cannot cycle between two points.
+        # polishing, so the rounds cannot cycle between two points, and give up
+        # after a few such rounds in a row.
         if total >= prev_total:
             can_polish = False
+            n_stalls += 1
+            if n_stalls >= _WS_MAX_STALLS:
+                break
+        else:
+            n_stalls = 0
         prev_total = total
         # The support, the intercept and unpenalized columns are always in the
         # working set; fill it up with the largest violations.

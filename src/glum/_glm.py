@@ -29,7 +29,6 @@ from ._distribution import (
     NormalDistribution,
     PoissonDistribution,
     TweedieDistribution,
-    get_one_over_variance,
     guess_intercept,
 )
 from ._formula import (
@@ -157,6 +156,9 @@ class _Screen:
 
     def violations(self, X, g, h_max, g_sum) -> np.ndarray:
         """Columns outside that are not optimal at zero with gradient rows ``g``."""
+        if not (np.isfinite(h_max) and np.isfinite(g_sum)):
+            # Nothing can be certified, so no column may stay out.
+            return np.flatnonzero(self.outside)
         if self.r_a * h_max + self.r_m * abs(g_sum) < 1 - 1e-12:
             return np.empty(0, dtype=np.int64)
         bound = self.k_a * h_max
@@ -622,7 +624,12 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
             and isinstance(alpha, (int, float, np.number))
             and alpha > 0
             and self.l1_ratio > 0
-            and isinstance(X, (tm.SparseMatrix, tm.DenseMatrix))
+            # On dense data the bound is rarely small enough to pay for the pass
+            # over the data, unless the data is wide.
+            and (
+                isinstance(X, tm.SparseMatrix)
+                or (isinstance(X, tm.DenseMatrix) and X.shape[1] > X.shape[0])
+            )
             and X.shape[1] >= _SCREEN_MIN_COLS
             and isinstance(P2, np.ndarray)
             and P2.ndim == 1
@@ -636,12 +643,22 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         )
 
     def _gradient_rows(self, y, sample_weight, eta) -> np.ndarray:
-        """Rows ``g`` of the score ``X.T @ g`` (without penalties) at ``eta``."""
+        """Rows ``g`` of the score ``X.T @ g`` (without penalties) at ``eta``.
+
+        The same function as the IRLS solver uses for its score.
+        """
         mu = self._link_instance.inverse(eta)
-        sigma_inv = get_one_over_variance(
-            self._family_instance, self._link_instance, mu, eta, 1.0, sample_weight
+        gradient_rows, _ = self._family_instance.rowwise_gradient_hessian(
+            self._link_instance,
+            coef=None,
+            dispersion=1,
+            X=None,
+            y=y,
+            sample_weight=sample_weight,
+            eta=eta,
+            mu=mu,
         )
-        return sigma_inv * self._link_instance.inverse_derivative(eta) * (y - mu)
+        return gradient_rows
 
     def _screen_columns(self, X, y, sample_weight, offset, P1):
         """Find the columns of an L1 problem that can be nonzero at the optimum.
@@ -681,6 +698,8 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         g = self._gradient_rows(y, sample_weight, eta)
         h_max, g_sum = _gradient_size(g, sample_weight)
         g_sum = abs(g_sum)
+        if not (np.isfinite(h_max) and np.isfinite(g_sum)):
+            return None
         bound = (_SCREEN_GUESS * h_max) * k_a
         if k_m is not None:
             bound += (_SCREEN_GUESS * g_sum) * k_m
@@ -714,7 +733,11 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         """
         off = int(self.fit_intercept)
         cols = screen.cols
+        # Subproblems use the solver of the full problem, whose width decides it.
+        force_working_set = X.shape[1] + off > X.shape[0]
         coef: Optional[np.ndarray] = None
+        n_iter: int = 0
+        diagnostics: Any = []
         for _ in range(X.shape[1] + 1):
             (
                 sub_X,
@@ -746,8 +769,7 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
                     sub_stds,
                     dtype=[np.float64, np.float32],
                 )
-            self._force_working_set = True
-            try:
+            if len(coef) > 0:
                 coef = self._solve(
                     X=sub_X,
                     y=y,
@@ -760,10 +782,16 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
                     upper_bounds=None,
                     A_ineq=None,
                     b_ineq=None,
+                    force_working_set=force_working_set,
                 )
-            finally:
-                self._force_working_set = False
-            eta = _safe_lin_pred(sub_X, coef, offset)
+                n_iter += getattr(self, "n_iter_")
+                diagnostics += getattr(self, "diagnostics_")
+                eta = _safe_lin_pred(sub_X, coef, offset)
+            else:
+                # Nothing to solve for: no intercept and no column passed.
+                eta = np.zeros(X.shape[0], dtype=X.dtype)
+                if offset is not None:
+                    eta += offset
             g = self._gradient_rows(y, sample_weight, eta)
             violating = screen.violations(X, g, *_gradient_size(g, sample_weight))
             if len(violating) == 0:
@@ -776,9 +804,12 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
             start[off + np.searchsorted(new_cols, cols)] = coef[off:]
             cols, coef = new_cols, start
             screen.add(violating)
+        # Over all subproblems.
+        self.n_iter_, self.diagnostics_ = n_iter, diagnostics
 
         assert coef is not None
-        self._warn_if_saturated(sub_X, coef, offset)
+        if len(coef) > 0:
+            self._warn_if_saturated(sub_X, coef, offset)
         n_coef = X.shape[1] + off
         full = np.zeros(n_coef, dtype=coef.dtype)
         full[:off] = coef[:off]
@@ -805,10 +836,14 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         upper_bounds: Optional[np.ndarray],
         A_ineq: Optional[np.ndarray],
         b_ineq: Optional[np.ndarray],
+        force_working_set: bool = False,
     ) -> np.ndarray:
         """
         Must be run after running :func:`_set_up_for_fit`. Sets
         ``self.coef_`` and ``self.intercept_``.
+
+        With ``force_working_set``, ``irls-cd`` uses working sets even if the
+        problem has more rows than coefficients.
         """
         can_use_closed_form = (
             isinstance(self._family_instance, NormalDistribution)
@@ -900,11 +935,9 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
             elif self._solver == "irls-cd":
                 # With more columns than rows, the Hessian is rank deficient and
                 # large, so coordinate descent works on working sets instead.
-                # Screened subproblems (see _solve_screened) use working sets too.
                 inner_solver = (
                     _cd_working_set_solver
-                    if len(coef) > X.shape[0]
-                    or getattr(self, "_force_working_set", False)
+                    if len(coef) > X.shape[0] or force_working_set
                     else _cd_solver
                 )
                 coef, self.n_iter_, self._n_cycles, self.diagnostics_ = _irls_solver(

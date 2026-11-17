@@ -1,6 +1,9 @@
+import warnings
+
 import numpy as np
 import pytest
 import scipy.sparse as sps
+from sklearn.exceptions import ConvergenceWarning
 
 import glum._glm
 import glum._solvers
@@ -252,3 +255,53 @@ def test_screening_certificate_adds_missed_columns(monkeypatch):
     full = GeneralizedLinearRegressor(**kwargs).fit(X, y)
     assert (full.coef_ != 0).sum() > 3
     np.testing.assert_allclose(low.coef_, full.coef_, atol=1e-7)
+
+
+@pytest.mark.parametrize("family", ["normal", "binomial"])
+@pytest.mark.parametrize("fit_intercept", [True, False])
+def test_screening_keeps_no_column(family, fit_intercept):
+    # Far above the largest useful alpha, no column passes the bound.
+    X, y = _screenable_problem(family)
+    model = GeneralizedLinearRegressor(
+        family=family, alpha=100.0, l1_ratio=1.0, fit_intercept=fit_intercept
+    ).fit(X, y)
+    assert not model.coef_.any()
+    if fit_intercept:
+        mean = y.mean()
+        expected = mean if family == "normal" else np.log(mean / (1 - mean))
+        np.testing.assert_allclose(model.intercept_, expected, rtol=1e-6)
+
+
+def test_working_set_stops_at_unreachable_tolerance():
+    # In float32, gradient_tol=1e-10 cannot be reached; the solver must give up
+    # with a warning instead of running round after round.
+    X, y = _screenable_problem("normal")
+    model = GeneralizedLinearRegressor(
+        alpha=0.01, l1_ratio=1.0, gradient_tol=1e-10, max_inner_iter=1000
+    )
+    with pytest.warns(ConvergenceWarning):
+        model.fit(X.astype(np.float32), y.astype(np.float32))
+    assert (model.coef_ != 0).sum() > 3
+
+
+def test_screening_zero_weights_do_not_warn():
+    X, y = _screenable_problem("poisson")
+    sw = np.ones(len(y))
+    sw[:10] = 0
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        GeneralizedLinearRegressor(family="poisson", alpha=0.01, l1_ratio=1.0).fit(
+            X, y, sample_weight=sw
+        )
+
+
+def test_screening_counts_iterations_of_all_subproblems(monkeypatch):
+    monkeypatch.setattr(glum._glm, "_SCREEN_GUESS", 0.01)
+    X, y = _screenable_problem("binomial")
+    model = GeneralizedLinearRegressor(
+        family="binomial", alpha=0.005, l1_ratio=1.0, gradient_tol=1e-10
+    ).fit(X, y)
+    # The diagnostics of each solve start with its initial point.
+    n_solves = sum(d["n_iter"] == 0 for d in model.diagnostics_)
+    assert n_solves >= 2
+    assert model.n_iter_ == len(model.diagnostics_) - n_solves
