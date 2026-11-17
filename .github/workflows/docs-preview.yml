@@ -3,6 +3,10 @@ name: Docs preview
 # description. The link says "building" until ReadTheDocs has finished building
 # the docs for the latest commit and is updated on every push.
 on:
+  # TODO: Remove before merging. This trigger only exists to test the workflow on
+  # the pull request that adds it.
+  pull_request:
+    types: [opened, reopened, synchronize]
   # pull_request_target is needed to get a token that can edit the description of
   # pull requests from forks. This workflow never checks out or runs code from the
   # pull request.
