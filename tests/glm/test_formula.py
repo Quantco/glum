@@ -392,6 +392,45 @@ def test_monotonic_constraints_spline(direction, estimator_cls):
     assert all(sign * diffs >= -1e-6)
 
 
+def test_monotonic_line_search_sees_current_norm_min_subgrad(monkeypatch):
+    # When the constraint penalty changes, the solver updates the score. The line
+    # search fallback compares against state.norm_min_subgrad, so that must be
+    # updated too, not left at its value from before the penalty change.
+    from glum import _solvers
+
+    line_search = _solvers.line_search
+    rel_errors = []
+
+    def checked_line_search(state, data, d):
+        current, _ = _solvers._norm_min_subgrad(
+            np.arange(state.coef.shape[0], dtype=np.int32),
+            state.coef,
+            -state.score,
+            data.P1,
+            data.intercept_offset,
+            data.has_lower_bounds,
+            data._lower_bounds,
+            data.has_upper_bounds,
+            data._upper_bounds,
+        )
+        rel_errors.append(abs(state.norm_min_subgrad - current) / current)
+        return line_search(state, data, d)
+
+    monkeypatch.setattr(_solvers, "line_search", checked_line_search)
+    x, y = _make_spline_constraint_data()
+    GeneralizedLinearRegressor(
+        formula="y ~ bs(x, df=6) - 1",
+        monotonic_constraints={"x": "increasing"},
+        alpha=0.1,
+        l1_ratio=0,
+        fit_intercept=False,
+        gradient_tol=1e-5,
+    ).fit(pd.DataFrame({"x": x, "y": y}))
+
+    assert len(rel_errors) > 1
+    np.testing.assert_allclose(rel_errors, 0, atol=1e-10)
+
+
 def test_monotonic_constraints_spline_explicit_knots_list():
     """Brackets inside the factor name (knots=[...]) don't break constraints."""
     x, y = _make_spline_constraint_data()
