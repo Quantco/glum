@@ -5,7 +5,7 @@ from glum._cd_fast import enet_coordinate_descent_gram
 
 
 def _reference_cd(active_set, w, P1, Q, q, n_cycles, intercept, lb, ub):
-    """Cyclic coordinate descent, written out as in ``_cd_fast.pyx``."""
+    # Cyclic coordinate descent, written out as in _cd_fast.pyx.
     w, q = w.copy(), q.copy()
     for _ in range(n_cycles):
         for a, i in enumerate(active_set):
@@ -53,13 +53,11 @@ def _run(active_set, w, P1, Q, q, max_iter, tol, intercept, random, lb, ub):
 @pytest.mark.parametrize("intercept", [True, False])
 @pytest.mark.parametrize("bounds", [False, True])
 def test_enet_cd_gram_matches_reference(dtype, intercept, bounds):
-    """A fixed number of cycles on a non-contiguous active set matches the
-    plain-Python update rule, and leaves inactive coordinates untouched.
-
-    With tol=0 the kernel runs all cycles unless the iterate is exactly
-    stationary (e.g. every coordinate at a bound), so the reference is run
-    for the number of cycles the kernel reports.
-    """
+    # A fixed number of cycles on a non-contiguous active set matches the
+    # plain-Python update rule, and leaves inactive coordinates untouched.
+    # With tol=0 the kernel runs all cycles unless the iterate is exactly
+    # stationary (e.g. every coordinate at a bound), so the reference is run
+    # for the number of cycles the kernel reports.
     rng = np.random.default_rng(0)
     active_set, w0, P1, Q, q0 = _problem(dtype, intercept, rng)
     n_bounded = len(P1)
@@ -81,7 +79,7 @@ def test_enet_cd_gram_matches_reference(dtype, intercept, bounds):
 
 @pytest.mark.parametrize("intercept", [True, False])
 def test_enet_cd_gram_random_selection_converges(intercept):
-    """Random and cyclic selection converge to the same (unique) minimiser."""
+    # Random and cyclic selection converge to the same (unique) minimizer.
     rng = np.random.default_rng(1)
     active_set, w0, P1, Q, q0 = _problem(np.float64, intercept, rng)
     w_cyclic, *_ = _run(

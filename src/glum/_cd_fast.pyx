@@ -144,7 +144,7 @@ def enet_coordinate_descent_gram(int[::1] active_set,
     # q restricted to the active set, in active-set order. After each
     # coordinate move, q gets a rank-one update with a row of Q; on this
     # compact copy that update is a contiguous axpy, which the compiler
-    # vectorises, instead of a gather/scatter through active_set. It is
+    # vectorizes, instead of a gather/scatter through active_set. It is
     # written back to q before each convergence check, which also runs in the
     # last iteration, so q is up to date whenever the loop ends.
     cdef floating[::1] q_active = np.asarray(q)[np.asarray(active_set)]
