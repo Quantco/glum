@@ -127,3 +127,76 @@ def test_norm_min_subgrad_max_without_intercept(intercept):
     )
     assert norm == pytest.approx(np.abs(grad).sum())
     assert max_ == pytest.approx(3.0)
+
+
+def _screenable_problem(family, seed=0):
+    # Wide, sparse, non-negative, with a few frequent columns and many rare
+    # ones of small norm, like tf-idf text features.
+    rng = np.random.default_rng(seed)
+    n, p = 300, 3000
+    density = np.where(np.arange(p) < 30, 0.3, 0.003)
+    mask = rng.uniform(size=(n, p)) < density
+    scale = np.where(np.arange(p) < 30, 1.0, 0.1)  # rare columns have small values
+    X = sps.csc_matrix(mask * rng.uniform(0.1, 1.0, size=(n, p)) * scale)
+    beta = np.zeros(p)
+    beta[:8] = [1.5, -1.2, 1.0, 0.8, -0.8, 0.6, 0.5, -0.4]
+    eta = X @ beta
+    if family == "normal":
+        y = eta + 0.3 * rng.normal(size=n)
+    elif family == "poisson":
+        y = rng.poisson(np.exp(0.5 * eta)).astype(float)
+    else:
+        y = (rng.uniform(size=n) < 1 / (1 + np.exp(-eta))).astype(float)
+    return X, y
+
+
+@pytest.mark.parametrize("family", ["normal", "poisson", "binomial"])
+@pytest.mark.parametrize("fit_intercept", [True, False])
+@pytest.mark.parametrize("weights", [False, True])
+def test_screening_matches_unscreened(monkeypatch, family, fit_intercept, weights):
+    # Screening fits only the columns that can be nonzero and certifies the
+    # rest, so it must reach the optimum of the full problem.
+    X, y = _screenable_problem(family)
+    rng = np.random.default_rng(1)
+    sw = rng.uniform(0.5, 2.0, size=len(y)) if weights else None
+    offset = 0.1 * rng.normal(size=len(y)) if family != "binomial" else None
+    alpha = {"normal": 0.01, "poisson": 0.01, "binomial": 0.005}[family]
+    kwargs = dict(family=family, alpha=alpha, l1_ratio=1.0, fit_intercept=fit_intercept)
+
+    calls = []
+    solve_screened = GeneralizedLinearRegressor._solve_screened
+
+    def spy(self, *args, **kw):
+        out = solve_screened(self, *args, **kw)
+        calls.append(out is not None)
+        return out
+
+    monkeypatch.setattr(GeneralizedLinearRegressor, "_solve_screened", spy)
+    screened = GeneralizedLinearRegressor(gradient_tol=1e-10, max_iter=200, **kwargs)
+    screened.fit(X, y, sample_weight=sw, offset=offset)
+    assert calls == [True]  # screening was used
+
+    monkeypatch.setattr(
+        GeneralizedLinearRegressor, "_can_screen", lambda self, *a, **k: False
+    )
+    full = GeneralizedLinearRegressor(gradient_tol=1e-10, max_iter=200, **kwargs)
+    full.fit(X, y, sample_weight=sw, offset=offset)
+    np.testing.assert_allclose(screened.coef_, full.coef_, atol=1e-7)
+    np.testing.assert_allclose(screened.intercept_, full.intercept_, atol=1e-7)
+    assert len(screened.coef_) == X.shape[1]
+    assert screened.col_stds_.shape == (X.shape[1],)
+
+
+def test_screening_certificate_adds_missed_columns(monkeypatch):
+    # With a guess that is far too small, the first subproblem misses columns
+    # of the solution; the full-problem check must add them back.
+    monkeypatch.setattr(glum._glm, "_SCREEN_GUESS", 0.05)
+    X, y = _screenable_problem("normal")
+    kwargs = dict(family="normal", alpha=0.01, l1_ratio=1.0, gradient_tol=1e-10)
+    low = GeneralizedLinearRegressor(**kwargs).fit(X, y)
+    monkeypatch.setattr(
+        GeneralizedLinearRegressor, "_can_screen", lambda self, *a, **k: False
+    )
+    full = GeneralizedLinearRegressor(**kwargs).fit(X, y)
+    assert (full.coef_ != 0).sum() > 3
+    np.testing.assert_allclose(low.coef_, full.coef_, atol=1e-7)

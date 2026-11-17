@@ -29,6 +29,7 @@ from ._distribution import (
     NormalDistribution,
     PoissonDistribution,
     TweedieDistribution,
+    get_one_over_variance,
     guess_intercept,
 )
 from ._formula import (
@@ -92,6 +93,15 @@ _float_itemsize_to_dtype = {8: np.float64, 4: np.float32, 2: np.float16}
 def _fill_missing_names(names: list, prefix: str = "_col_") -> list:
     """Replace missing (``None``) names by ``f"{prefix}{index}"``."""
     return [f"{prefix}{i}" if name is None else name for i, name in enumerate(names)]
+
+
+# Screening of L1 problems (see _solve_screened): applies from this many columns,
+# guesses the gradient rows at the optimum as this multiple of those at the
+# start, and is skipped unless it keeps fewer than 1 / _SCREEN_MAX_RATIO of the
+# columns.
+_SCREEN_MIN_COLS = 1024
+_SCREEN_GUESS = 3.0
+_SCREEN_MAX_RATIO = 4
 
 
 @functools.lru_cache(maxsize=8)
@@ -538,6 +548,117 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
 
         return _make_grid(alpha_max)
 
+    def _can_screen(self, X, P2, P1, lower_bounds, upper_bounds, A_ineq) -> bool:
+        """Whether ``_solve_screened`` applies to this L1 problem."""
+        return (
+            self._solver == "irls-cd"
+            and isinstance(X, tm.StandardizedMatrix)
+            and isinstance(X.mat, (tm.SparseMatrix, tm.DenseMatrix))
+            and X.shape[1] >= _SCREEN_MIN_COLS
+            and bool(np.any(P1 > 0))
+            and isinstance(P2, np.ndarray)
+            and P2.ndim == 1
+            and lower_bounds is None
+            and upper_bounds is None
+            and A_ineq is None
+        )
+
+    def _gradient_rows(self, X, y, sample_weight, coef, offset) -> np.ndarray:
+        """Rows ``g`` of the score ``X.T @ g`` (without penalties) at ``coef``."""
+        eta = _safe_lin_pred(X, coef, offset)
+        mu = self._link_instance.inverse(eta)
+        sigma_inv = get_one_over_variance(
+            self._family_instance, self._link_instance, mu, eta, 1.0, sample_weight
+        )
+        return sigma_inv * self._link_instance.inverse_derivative(eta) * (y - mu)
+
+    def _solve_screened(
+        self, X, y, sample_weight, P2, P1, coef, offset
+    ) -> Optional[np.ndarray]:
+        """Solve an L1 problem on the columns that can be nonzero, then verify.
+
+        The score of column ``j`` is ``x_j^T g``, where ``g = w * h`` are the
+        gradient rows. For the standardized column ``mult_j * x_j + shift_j``,
+        ``|score_j| <= mult_j * a_j * max|h| + |shift_j| * |sum(g)|`` with the
+        weighted L1 norm ``a_j = sum_i w_i |x_ij|``. A column with this bound
+        below ``P1_j`` is zero at any point with these gradient rows, in
+        particular at the optimum. Sparse data often has many columns with
+        small norms, e.g. 99% of news20's 1.4M columns.
+
+        This solves the problem on the columns that pass the bound for a guess
+        of the gradient rows at the optimum (3 times their size at the start),
+        then checks the full problem with the actual gradient rows: columns
+        outside that still pass the bound get their exact score, and any that
+        violates optimality is added before solving again. The result is the
+        solution of the full problem. Returns None if screening does not shrink
+        the problem enough to pay off.
+        """
+        off = int(self.fit_intercept)
+        n_coef = X.shape[1] + off
+        mat = X.mat
+        mult = np.ones(X.shape[1], dtype=X.dtype) if X.mult is None else X.mult
+        abs_shift = np.abs(X.shift)
+        # Weighted column L1 norms, from one transpose matvec if X >= 0.
+        data = mat.data if isinstance(mat, tm.SparseMatrix) else mat.unpack()
+        if data.size == 0 or data.min() >= 0:
+            a = mat.transpose_matvec(sample_weight)
+        elif isinstance(mat, tm.SparseMatrix):
+            abs_mat = mat.array_csc.copy()
+            abs_mat.data = np.abs(abs_mat.data)
+            a = abs_mat.T @ sample_weight
+        else:
+            a = np.abs(data).T @ sample_weight
+        a = np.asarray(a) * mult
+        always = P1 <= 0  # unpenalized columns are never screened out
+
+        def bound(g):
+            pos = sample_weight > 0
+            h_max = np.abs(g[pos] / sample_weight[pos]).max() if pos.any() else 0.0
+            return a * h_max + abs_shift * abs(g.sum())
+
+        def solve_on(cols, start):
+            sub_index = np.r_[np.arange(off), cols + off]
+            sub_X = X[:, cols]
+            self._force_working_set = True
+            try:
+                coef_sub = self._solve(
+                    X=sub_X,
+                    y=y,
+                    sample_weight=sample_weight,
+                    P2=P2[cols],
+                    P1=P1[cols],
+                    coef=start[sub_index],
+                    offset=offset,
+                    lower_bounds=None,
+                    upper_bounds=None,
+                    A_ineq=None,
+                    b_ineq=None,
+                )
+            finally:
+                self._force_working_set = False
+            full = np.zeros(n_coef, dtype=coef.dtype)
+            full[sub_index] = coef_sub
+            return full, sub_X, coef_sub
+
+        g = self._gradient_rows(X, y, sample_weight, coef, offset)
+        cols = np.flatnonzero((_SCREEN_GUESS * bound(g) >= P1) | always)
+        if len(cols) * _SCREEN_MAX_RATIO > X.shape[1]:
+            return None
+        for _ in range(X.shape[1]):
+            coef, sub_X, coef_sub = solve_on(cols, coef)
+            g = self._gradient_rows(sub_X, y, sample_weight, coef_sub, offset)
+            outside = np.ones(X.shape[1], dtype=bool)
+            outside[cols] = False
+            candidates = np.flatnonzero(outside & (bound(g) >= P1))
+            if len(candidates) == 0:
+                break
+            score = X.transpose_matvec(g, cols=candidates)
+            violating = candidates[np.abs(score) > P1[candidates] * (1 + 1e-12)]
+            if len(violating) == 0:
+                break
+            cols = np.union1d(cols, violating)
+        return coef
+
     def _solve(
         self,
         X: Union[tm.MatrixBase, tm.StandardizedMatrix],
@@ -646,9 +767,11 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
             elif self._solver == "irls-cd":
                 # With more columns than rows, the Hessian is rank deficient and
                 # large, so coordinate descent works on working sets instead.
+                # Screened subproblems (see _solve_screened) use working sets too.
                 inner_solver = (
                     _cd_working_set_solver
                     if len(coef) > X.shape[0]
+                    or getattr(self, "_force_working_set", False)
                     else _cd_solver
                 )
                 coef, self.n_iter_, self._n_cycles, self.diagnostics_ = _irls_solver(
@@ -2991,19 +3114,29 @@ class GeneralizedLinearRegressor(GeneralizedLinearRegressorBase):
                     "with L1 penalties, which are included with "
                     f"(alpha={_alpha}) and (l1_ratio={self.l1_ratio})."
                 )
-            coef = self._solve(
-                X=X,
-                y=y,
-                sample_weight=sample_weight,
-                P2=P2_no_alpha * _alpha,
-                P1=P1_no_alpha * _alpha,
-                coef=coef,
-                offset=offset,
-                lower_bounds=lower_bounds,
-                upper_bounds=upper_bounds,
-                A_ineq=A_ineq,
-                b_ineq=b_ineq,
-            )
+            P1 = P1_no_alpha * _alpha
+            P2 = P2_no_alpha * _alpha
+            screened = None
+            if self._can_screen(X, P2, P1, lower_bounds, upper_bounds, A_ineq):
+                screened = self._solve_screened(
+                    X, y, sample_weight, P2, P1, coef, offset
+                )
+            if screened is not None:
+                coef = screened
+            else:
+                coef = self._solve(
+                    X=X,
+                    y=y,
+                    sample_weight=sample_weight,
+                    P2=P2,
+                    P1=P1,
+                    coef=coef,
+                    offset=offset,
+                    lower_bounds=lower_bounds,
+                    upper_bounds=upper_bounds,
+                    A_ineq=A_ineq,
+                    b_ineq=b_ineq,
+                )
 
             self._warn_if_saturated(X, coef, offset)
 
