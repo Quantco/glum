@@ -439,8 +439,8 @@ print('test loss f_glm1: {}'.format(
 ```
 
 ```text
-training loss f_glm1: 0.45704947333555124
-test loss f_glm1: 0.45793061314157707
+training loss f_glm1: 0.45704947333554996
+test loss f_glm1: 0.45793061314157735
 ```
 
 A GLM with canonical link function (Normal - identity, Poisson - log, Gamma - 1/x, Binomial - logit) with an intercept term has the so called **balance property**. Neglecting small deviations due to an imperfect fit, on the training sample the results satisfy the equality:
@@ -457,7 +457,7 @@ z_train_p.sum(), (f_glm1.predict(X_train_p) * w_train_p).sum()
 ```
 
 ```text
-(np.int64(23785), np.float64(23785.198509368805))
+(np.int64(23785), np.float64(23785.1985093688))
 ```
 
 ## 3. Severity GLM - Gamma distribution
@@ -690,13 +690,13 @@ print('testing mean absolute error Mean:    {}'.format(
 ```
 
 ```text
-training loss (deviance) s_glm1:     1.29010461534461
-training mean absolute error s_glm1: 1566.1785138646026
+training loss (deviance) s_glm1:     1.290104615344611
+training mean absolute error s_glm1: 1566.1785138646028
 
-testing loss s_glm1 (deviance):      1.2975718597070154
-testing mean absolute error s_glm1:  1504.445895859708
+testing loss s_glm1 (deviance):      1.2975718597070152
+testing mean absolute error s_glm1:  1504.4458958597081
 
-testing loss Mean (deviance):        1.3115309309577148
+testing loss Mean (deviance):        1.3115309309577146
 testing mean absolute error Mean:    1689.205530922944
 ```
 
@@ -823,8 +823,8 @@ print('testing loss s_glm1:  {}'.format(
 ```
 
 ```text
-training loss s_glm1: 73.91371104577468
-testing loss s_glm1:  72.35318912371723
+training loss s_glm1: 73.9137110457745
+testing loss s_glm1:  72.35318912371724
 ```
 
 Finally, we again show the total predicted vs. true claim amount on the training and test set
@@ -843,8 +843,8 @@ print("Total claim amount on test set, observed = {}, predicted = {}".
 ```
 
 ```text
-Total claim amount on train set, observed = 44594644.68, predicted = 45027861.66007367
-Total claim amount on test set, observed = 4707551.370000001, predicted = 4999381.033866642
+Total claim amount on train set, observed = 44594644.68, predicted = 45027861.6600737
+Total claim amount on test set, observed = 4707551.370000001, predicted = 4999381.033866645
 ```
 
 In terms of the combined proximity to the true total claim amounts, the frequency severity model performed a bit better than Tweedie model. However, both approaches ultimately prove to be effective.

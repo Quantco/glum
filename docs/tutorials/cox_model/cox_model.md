@@ -177,7 +177,7 @@ cph.print_summary()
     </tr>
     <tr>
       <th>time fit was run</th>
-      <td>2024-11-01 19:22:33 UTC</td>
+      <td>2026-11-17 09:32:40 UTC</td>
     </tr>
   </tbody>
 </table>
@@ -585,7 +585,7 @@ One might, therefore, wonder if the Poisson approach is competitive in terms of 
 ```
 
 ```text
-32.8 ms ± 3.79 ms per loop (mean ± std. dev. of 7 runs, 10 loops each)
+27.9 ms ± 297 µs per loop (mean ± std. dev. of 7 runs, 10 loops each)
 ```
 
 ```python
@@ -593,7 +593,7 @@ One might, therefore, wonder if the Poisson approach is competitive in terms of 
 ```
 
 ```text
-18 ms ± 73.4 µs per loop (mean ± std. dev. of 7 runs, 100 loops each)
+25.1 ms ± 531 µs per loop (mean ± std. dev. of 7 runs, 10 loops each)
 ```
 
 ## Conclusion

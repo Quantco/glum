@@ -110,7 +110,7 @@ df.head()
       <td>0</td>
       <td>NaN</td>
       <td>NaN</td>
-      <td>None</td>
+      <td>NaN</td>
     </tr>
     <tr>
       <th>1014980</th>
@@ -133,7 +133,7 @@ df.head()
       <td>0</td>
       <td>NaN</td>
       <td>NaN</td>
-      <td>None</td>
+      <td>NaN</td>
     </tr>
     <tr>
       <th>1013865</th>
@@ -156,7 +156,7 @@ df.head()
       <td>0</td>
       <td>NaN</td>
       <td>NaN</td>
-      <td>None</td>
+      <td>NaN</td>
     </tr>
     <tr>
       <th>1012750</th>
@@ -179,7 +179,7 @@ df.head()
       <td>0</td>
       <td>NaN</td>
       <td>NaN</td>
-      <td>None</td>
+      <td>NaN</td>
     </tr>
     <tr>
       <th>1011635</th>
@@ -202,7 +202,7 @@ df.head()
       <td>0</td>
       <td>NaN</td>
       <td>NaN</td>
-      <td>None</td>
+      <td>NaN</td>
     </tr>
   </tbody>
 </table>
@@ -313,13 +313,13 @@ df.head()
       <td>0</td>
       <td>NaN</td>
       <td>NaN</td>
-      <td>None</td>
+      <td>NaN</td>
       <td>-1</td>
       <td>1.000</td>
       <td>0</td>
-      <td>1.0</td>
-      <td>1.0</td>
-      <td>1.0</td>
+      <td>1.000</td>
+      <td>1.000</td>
+      <td>1.000</td>
       <td>True</td>
       <td>True</td>
       <td>True</td>
@@ -369,13 +369,13 @@ df.head()
       <td>0</td>
       <td>NaN</td>
       <td>NaN</td>
-      <td>None</td>
+      <td>NaN</td>
       <td>-1</td>
       <td>1.000</td>
       <td>1</td>
       <td>False</td>
-      <td>1.0</td>
-      <td>1.0</td>
+      <td>1.000</td>
+      <td>1.000</td>
       <td>True</td>
       <td>True</td>
       <td>True</td>
@@ -425,13 +425,13 @@ df.head()
       <td>0</td>
       <td>NaN</td>
       <td>NaN</td>
-      <td>None</td>
+      <td>NaN</td>
       <td>-1</td>
       <td>1.000</td>
       <td>2</td>
       <td>True</td>
       <td>False</td>
-      <td>1.0</td>
+      <td>1.000</td>
       <td>True</td>
       <td>True</td>
       <td>False</td>
@@ -481,7 +481,7 @@ df.head()
       <td>0</td>
       <td>NaN</td>
       <td>NaN</td>
-      <td>None</td>
+      <td>NaN</td>
       <td>-1</td>
       <td>1.000</td>
       <td>3</td>
@@ -537,7 +537,7 @@ df.head()
       <td>0</td>
       <td>NaN</td>
       <td>NaN</td>
-      <td>None</td>
+      <td>NaN</td>
       <td>-1</td>
       <td>1.000</td>
       <td>4</td>
@@ -595,7 +595,7 @@ select_val = (
 ```
 
 ```text
-(57876, 12502)
+(np.int64(57876), np.int64(12502))
 ```
 
 ## 2. Fit baseline GLM
@@ -638,140 +638,140 @@ pd.DataFrame(
     <tr style="text-align: right;">
       <th></th>
       <th>intercept</th>
-      <th>year__2013</th>
-      <th>year__2014</th>
-      <th>year__2015</th>
-      <th>month__1</th>
-      <th>month__2</th>
-      <th>month__3</th>
-      <th>month__4</th>
-      <th>month__5</th>
-      <th>month__6</th>
-      <th>month__7</th>
-      <th>month__8</th>
-      <th>month__9</th>
-      <th>month__10</th>
-      <th>month__11</th>
-      <th>month__12</th>
-      <th>day_of_week__1</th>
-      <th>day_of_week__2</th>
-      <th>day_of_week__3</th>
-      <th>day_of_week__4</th>
-      <th>day_of_week__5</th>
-      <th>day_of_week__6</th>
-      <th>day_of_week__7</th>
-      <th>store__1</th>
-      <th>store__2</th>
-      <th>store__3</th>
-      <th>store__4</th>
-      <th>store__5</th>
-      <th>store__6</th>
-      <th>store__7</th>
-      <th>store__8</th>
-      <th>store__9</th>
-      <th>store__10</th>
-      <th>store__11</th>
-      <th>store__12</th>
-      <th>store__13</th>
-      <th>store__14</th>
-      <th>store__15</th>
-      <th>store__16</th>
-      <th>store__17</th>
-      <th>store__18</th>
-      <th>store__19</th>
-      <th>store__20</th>
-      <th>store__21</th>
-      <th>store__22</th>
-      <th>store__23</th>
-      <th>store__24</th>
-      <th>store__25</th>
-      <th>store__26</th>
-      <th>store__27</th>
-      <th>store__28</th>
-      <th>store__29</th>
-      <th>store__30</th>
-      <th>store__31</th>
-      <th>store__32</th>
-      <th>store__33</th>
-      <th>store__34</th>
-      <th>store__35</th>
-      <th>store__36</th>
-      <th>store__37</th>
-      <th>store__38</th>
-      <th>store__39</th>
-      <th>store__40</th>
-      <th>store__41</th>
-      <th>store__42</th>
-      <th>store__43</th>
-      <th>store__44</th>
-      <th>store__45</th>
-      <th>store__46</th>
-      <th>store__47</th>
-      <th>store__48</th>
-      <th>store__49</th>
-      <th>store__50</th>
-      <th>store__51</th>
-      <th>store__52</th>
-      <th>store__53</th>
-      <th>store__54</th>
-      <th>store__55</th>
-      <th>store__56</th>
-      <th>store__57</th>
-      <th>store__58</th>
-      <th>store__59</th>
-      <th>store__60</th>
-      <th>store__61</th>
-      <th>store__62</th>
-      <th>store__63</th>
-      <th>store__64</th>
-      <th>store__65</th>
-      <th>store__66</th>
-      <th>store__67</th>
-      <th>store__68</th>
-      <th>store__69</th>
-      <th>store__70</th>
-      <th>store__71</th>
-      <th>store__72</th>
-      <th>store__73</th>
-      <th>store__74</th>
-      <th>store__75</th>
-      <th>store__76</th>
-      <th>store__77</th>
-      <th>store__78</th>
-      <th>store__79</th>
-      <th>store__80</th>
-      <th>store__81</th>
-      <th>store__82</th>
-      <th>store__83</th>
-      <th>store__84</th>
-      <th>store__85</th>
-      <th>store__86</th>
-      <th>store__87</th>
-      <th>store__88</th>
-      <th>store__89</th>
-      <th>store__90</th>
-      <th>store__91</th>
-      <th>store__92</th>
-      <th>store__93</th>
-      <th>store__94</th>
-      <th>store__95</th>
-      <th>store__96</th>
-      <th>store__97</th>
-      <th>store__98</th>
-      <th>store__99</th>
-      <th>store__100</th>
-      <th>store__101</th>
-      <th>store__102</th>
-      <th>store__103</th>
-      <th>store__104</th>
-      <th>store__105</th>
-      <th>store__106</th>
-      <th>store__107</th>
-      <th>store__108</th>
-      <th>store__109</th>
-      <th>store__110</th>
-      <th>store__111</th>
-      <th>store__112</th>
+      <th>year[2013]</th>
+      <th>year[2014]</th>
+      <th>year[2015]</th>
+      <th>month[1]</th>
+      <th>month[2]</th>
+      <th>month[3]</th>
+      <th>month[4]</th>
+      <th>month[5]</th>
+      <th>month[6]</th>
+      <th>month[7]</th>
+      <th>month[8]</th>
+      <th>month[9]</th>
+      <th>month[10]</th>
+      <th>month[11]</th>
+      <th>month[12]</th>
+      <th>day_of_week[1]</th>
+      <th>day_of_week[2]</th>
+      <th>day_of_week[3]</th>
+      <th>day_of_week[4]</th>
+      <th>day_of_week[5]</th>
+      <th>day_of_week[6]</th>
+      <th>day_of_week[7]</th>
+      <th>store[1]</th>
+      <th>store[2]</th>
+      <th>store[3]</th>
+      <th>store[4]</th>
+      <th>store[5]</th>
+      <th>store[6]</th>
+      <th>store[7]</th>
+      <th>store[8]</th>
+      <th>store[9]</th>
+      <th>store[10]</th>
+      <th>store[11]</th>
+      <th>store[12]</th>
+      <th>store[13]</th>
+      <th>store[14]</th>
+      <th>store[15]</th>
+      <th>store[16]</th>
+      <th>store[17]</th>
+      <th>store[18]</th>
+      <th>store[19]</th>
+      <th>store[20]</th>
+      <th>store[21]</th>
+      <th>store[22]</th>
+      <th>store[23]</th>
+      <th>store[24]</th>
+      <th>store[25]</th>
+      <th>store[26]</th>
+      <th>store[27]</th>
+      <th>store[28]</th>
+      <th>store[29]</th>
+      <th>store[30]</th>
+      <th>store[31]</th>
+      <th>store[32]</th>
+      <th>store[33]</th>
+      <th>store[34]</th>
+      <th>store[35]</th>
+      <th>store[36]</th>
+      <th>store[37]</th>
+      <th>store[38]</th>
+      <th>store[39]</th>
+      <th>store[40]</th>
+      <th>store[41]</th>
+      <th>store[42]</th>
+      <th>store[43]</th>
+      <th>store[44]</th>
+      <th>store[45]</th>
+      <th>store[46]</th>
+      <th>store[47]</th>
+      <th>store[48]</th>
+      <th>store[49]</th>
+      <th>store[50]</th>
+      <th>store[51]</th>
+      <th>store[52]</th>
+      <th>store[53]</th>
+      <th>store[54]</th>
+      <th>store[55]</th>
+      <th>store[56]</th>
+      <th>store[57]</th>
+      <th>store[58]</th>
+      <th>store[59]</th>
+      <th>store[60]</th>
+      <th>store[61]</th>
+      <th>store[62]</th>
+      <th>store[63]</th>
+      <th>store[64]</th>
+      <th>store[65]</th>
+      <th>store[66]</th>
+      <th>store[67]</th>
+      <th>store[68]</th>
+      <th>store[69]</th>
+      <th>store[70]</th>
+      <th>store[71]</th>
+      <th>store[72]</th>
+      <th>store[73]</th>
+      <th>store[74]</th>
+      <th>store[75]</th>
+      <th>store[76]</th>
+      <th>store[77]</th>
+      <th>store[78]</th>
+      <th>store[79]</th>
+      <th>store[80]</th>
+      <th>store[81]</th>
+      <th>store[82]</th>
+      <th>store[83]</th>
+      <th>store[84]</th>
+      <th>store[85]</th>
+      <th>store[86]</th>
+      <th>store[87]</th>
+      <th>store[88]</th>
+      <th>store[89]</th>
+      <th>store[90]</th>
+      <th>store[91]</th>
+      <th>store[92]</th>
+      <th>store[93]</th>
+      <th>store[94]</th>
+      <th>store[95]</th>
+      <th>store[96]</th>
+      <th>store[97]</th>
+      <th>store[98]</th>
+      <th>store[99]</th>
+      <th>store[100]</th>
+      <th>store[101]</th>
+      <th>store[102]</th>
+      <th>store[103]</th>
+      <th>store[104]</th>
+      <th>store[105]</th>
+      <th>store[106]</th>
+      <th>store[107]</th>
+      <th>store[108]</th>
+      <th>store[109]</th>
+      <th>store[110]</th>
+      <th>store[111]</th>
+      <th>store[112]</th>
     </tr>
   </thead>
   <tbody>

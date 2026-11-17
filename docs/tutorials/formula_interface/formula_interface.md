@@ -825,6 +825,29 @@ bm_names = [n for n in t_glm_mono.feature_names_ if "BonusMalus" in n]
 pd.DataFrame({"coefficient": bm_coefs}, index=bm_names).T
 ```
 
+<div class="nb-output">
+<div>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>bs(BonusMalus, 3)[1]</th>
+      <th>bs(BonusMalus, 3)[2]</th>
+      <th>bs(BonusMalus, 3)[3]</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>coefficient</th>
+      <td>2.651015</td>
+      <td>2.651015</td>
+      <td>2.651015</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+</div>
+
 ## 7. Miscellaneous Features
 
 ### Variable Names

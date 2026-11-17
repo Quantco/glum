@@ -185,7 +185,7 @@ maps.read_shapefile("Zip_Codes/Zip_Codes.shp")
       <td>033</td>
       <td>117508.211718</td>
       <td>2.280129e+08</td>
-      <td>POLYGON ((-122.2184228967409 47.4375036485968,...</td>
+      <td>POLYGON ((-122.21842289674088 47.4375036485967...</td>
     </tr>
     <tr>
       <th>1</th>
@@ -195,7 +195,7 @@ maps.read_shapefile("Zip_Codes/Zip_Codes.shp")
       <td>033</td>
       <td>166737.664791</td>
       <td>4.826754e+08</td>
-      <td>(POLYGON ((-122.2418694980486 47.4412158004961...</td>
+      <td>MULTIPOLYGON (((-122.24186949804857 47.4412158...</td>
     </tr>
     <tr>
       <th>2</th>
@@ -205,7 +205,7 @@ maps.read_shapefile("Zip_Codes/Zip_Codes.shp")
       <td>033</td>
       <td>101363.840369</td>
       <td>2.566747e+08</td>
-      <td>POLYGON ((-122.2057111926017 47.65169738162997...</td>
+      <td>POLYGON ((-122.20571119260165 47.6516973816299...</td>
     </tr>
     <tr>
       <th>3</th>
@@ -225,7 +225,7 @@ maps.read_shapefile("Zip_Codes/Zip_Codes.shp")
       <td>033</td>
       <td>94351.264837</td>
       <td>2.000954e+08</td>
-      <td>POLYGON ((-122.1674637459728 47.38548925033355...</td>
+      <td>POLYGON ((-122.16746374597284 47.3854892503335...</td>
     </tr>
     <tr>
       <th>...</th>
@@ -245,7 +245,7 @@ maps.read_shapefile("Zip_Codes/Zip_Codes.shp")
       <td>053</td>
       <td>30734.178112</td>
       <td>2.612224e+07</td>
-      <td>POLYGON ((-122.4427945843513 47.2647926142345,...</td>
+      <td>POLYGON ((-122.44279458435132 47.2647926142345...</td>
     </tr>
     <tr>
       <th>200</th>
@@ -255,7 +255,7 @@ maps.read_shapefile("Zip_Codes/Zip_Codes.shp")
       <td>053</td>
       <td>23495.038425</td>
       <td>2.890938e+07</td>
-      <td>POLYGON ((-122.4438167281511 47.26617469660845...</td>
+      <td>POLYGON ((-122.44381672815106 47.2661746966084...</td>
     </tr>
     <tr>
       <th>201</th>
@@ -265,7 +265,7 @@ maps.read_shapefile("Zip_Codes/Zip_Codes.shp")
       <td>053</td>
       <td>61572.154365</td>
       <td>2.160645e+08</td>
-      <td>POLYGON ((-122.3889999141967 47.23495303304902...</td>
+      <td>POLYGON ((-122.38899991419673 47.2349530330490...</td>
     </tr>
     <tr>
       <th>202</th>
@@ -285,7 +285,7 @@ maps.read_shapefile("Zip_Codes/Zip_Codes.shp")
       <td>053</td>
       <td>74118.972418</td>
       <td>1.088373e+08</td>
-      <td>(POLYGON ((-122.5212509005256 47.2712095490982...</td>
+      <td>MULTIPOLYGON (((-122.52125090052556 47.2712095...</td>
     </tr>
   </tbody>
 </table>
@@ -355,16 +355,16 @@ df.head()
   <tbody>
     <tr>
       <th>0</th>
-      <td>0</td>
-      <td>0</td>
-      <td>0</td>
-      <td>0</td>
-      <td>0</td>
-      <td>0</td>
-      <td>0</td>
-      <td>0</td>
-      <td>0</td>
-      <td>0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
       <td>...</td>
       <td>3</td>
       <td>1.00</td>
@@ -379,16 +379,16 @@ df.head()
     </tr>
     <tr>
       <th>1</th>
-      <td>0</td>
-      <td>0</td>
-      <td>0</td>
-      <td>0</td>
-      <td>0</td>
-      <td>0</td>
-      <td>0</td>
-      <td>0</td>
-      <td>0</td>
-      <td>0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
       <td>...</td>
       <td>3</td>
       <td>2.25</td>
@@ -403,16 +403,16 @@ df.head()
     </tr>
     <tr>
       <th>2</th>
-      <td>0</td>
-      <td>0</td>
-      <td>0</td>
-      <td>0</td>
-      <td>0</td>
-      <td>0</td>
-      <td>0</td>
-      <td>0</td>
-      <td>0</td>
-      <td>0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
       <td>...</td>
       <td>2</td>
       <td>1.00</td>
@@ -427,16 +427,16 @@ df.head()
     </tr>
     <tr>
       <th>3</th>
-      <td>0</td>
-      <td>0</td>
-      <td>0</td>
-      <td>0</td>
-      <td>0</td>
-      <td>0</td>
-      <td>0</td>
-      <td>0</td>
-      <td>0</td>
-      <td>0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
       <td>...</td>
       <td>4</td>
       <td>3.00</td>
@@ -451,16 +451,16 @@ df.head()
     </tr>
     <tr>
       <th>4</th>
-      <td>0</td>
-      <td>0</td>
-      <td>0</td>
-      <td>0</td>
-      <td>0</td>
-      <td>0</td>
-      <td>0</td>
-      <td>0</td>
-      <td>0</td>
-      <td>0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
+      <td>0.0</td>
       <td>...</td>
       <td>3</td>
       <td>2.00</td>
@@ -549,7 +549,7 @@ array([[ 3., -1., -1., ...,  0.,  0.,  0.],
        ...,
        [ 0.,  0.,  0., ...,  0.,  0.,  0.],
        [ 0.,  0.,  0., ...,  0.,  0.,  0.],
-       [ 0.,  0.,  0., ...,  0.,  0.,  0.]])
+       [ 0.,  0.,  0., ...,  0.,  0.,  0.]], shape=(79, 79))
 ```
 
 ## 5. Fit models
@@ -598,20 +598,20 @@ plt.show()
 
 ```text
 alpha=1e-12
-Test region coefficient: 0.0010920106922960072
-Test RMSPE: 72.65620542354644
+Test region coefficient: 0.0010921173013757916
+Test RMSPE: 72.65620542354641
 
 alpha=0.1
-Test region coefficient: -0.0036087215513505183
-Test RMSPE: 43.926082004444204
+Test region coefficient: -0.0036087215513505105
+Test RMSPE: 43.92608200444423
 
 alpha=1
-Test region coefficient: -0.01041392075707663
-Test RMSPE: 19.51113178158937
+Test region coefficient: -0.010413920757076617
+Test RMSPE: 19.51113178158938
 
 alpha=10
-Test region coefficient: -0.0033476740903954213
-Test RMSPE: 44.59786775358339
+Test region coefficient: -0.0033476740903954066
+Test RMSPE: 44.59786775358345
 ```
 
 ![png](regularization_housing_files/output_1.png)
