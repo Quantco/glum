@@ -1,6 +1,6 @@
 site_name: glum
 site_description: "High performance Python GLMs with all the features!"
-site_url: https://glum.readthedocs.io/latest/
+site_url: https://glum.readthedocs.io/en/latest/
 hooks:
   - docs/hooks/copyright.py
 use_directory_urls: false
