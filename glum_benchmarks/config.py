@@ -91,7 +91,7 @@ class BenchmarkConfig(BaseModel):
     )
     update_docs: bool = Field(
         default=False,
-        description="Whether to copy figures to docs/_static and update benchmarks.rst",
+        description="Whether to copy figures to docs/_static and update benchmarks.md",
     )
     max_rel_slowdown: float = Field(
         default=0.15,
@@ -107,7 +107,7 @@ class BenchmarkConfig(BaseModel):
     docs_figures: list[list[str]] | None = Field(
         default=None,
         description=(
-            "Figure groups for docs/benchmarks.rst. Each inner list maps to one "
+            "Figure groups for docs/benchmarks.md. Each inner list maps to one "
             "BENCHMARK_FIGURES_START/END block (in order). None = all figures in "
             "a single block."
         ),
@@ -179,12 +179,12 @@ class BenchmarkConfig(BaseModel):
         return self.script_dir.parent / "docs" / "_static"
 
     @property
-    def index_rst(self) -> Path:
-        return self.script_dir.parent / "docs" / "index.rst"
+    def index_md(self) -> Path:
+        return self.script_dir.parent / "docs" / "index.md"
 
     @property
-    def benchmarks_rst(self) -> Path:
-        return self.script_dir.parent / "docs" / "benchmarks.rst"
+    def benchmarks_md(self) -> Path:
+        return self.script_dir.parent / "docs" / "benchmarks.md"
 
     @property
     def readme_file(self) -> Path:

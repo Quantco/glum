@@ -1,13 +1,12 @@
-import openml
+import pandas as pd
 
 
 def download_and_transform():
     """Download data from openml and apply basic transformations."""
-    dataset = openml.datasets.get_dataset(42092)
-    df, y, _, _ = dataset.get_data(
-        dataset_format="dataframe", target=dataset.default_target_attribute
-    )
-    df["price"] = y
+    df = pd.read_csv("https://www.openml.org/data/get_csv/21578898/house_sales.arff")
+    df = df.drop(columns="id")
+    df["zipcode"] = pd.Categorical(df["zipcode"].astype(str), ordered=True)
+    df = df[[c for c in df.columns if c != "price"] + ["price"]]
 
     df = df[(df["price"] < 1.5e6) & (df["price"] > 1e5)]
 

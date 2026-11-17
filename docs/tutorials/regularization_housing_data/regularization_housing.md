@@ -21,7 +21,6 @@ import geopandas as geopd
 import libpysal
 import matplotlib.pyplot as plt
 import numpy as np
-import openml
 import pandas as pd
 
 from sklearn.metrics import mean_squared_error

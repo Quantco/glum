@@ -37,14 +37,15 @@ def read_shapefile(shp_path):
 def _get_shapely_shape(s):
     if len(s.parts) == 1:
         return shapely.geometry.Polygon(s.points, [])
-    return shapely.geometry.multipolygon.MultiPolygon(
-        [[ps] for ps in np.split(s.points, s.parts[1:])], context_type="geojson"
+    # Each part is the exterior ring of one polygon.
+    return shapely.geometry.MultiPolygon(
+        [shapely.geometry.Polygon(ps) for ps in np.split(s.points, s.parts[1:])]
     )
 
 
 def _get_polygon_coords(x):
     if type(x) is shapely.geometry.multipolygon.MultiPolygon:
-        return [list(x[j].exterior.coords) for j in range(len(x.geoms))]
+        return [list(geom.exterior.coords) for geom in x.geoms]
     else:
         return [list(x.exterior.coords)]
 
@@ -143,7 +144,7 @@ def plot_heatmap(df, label_col, data_col, ax, vmin=None, vmax=None):
             for ip in range(len(row.coords[dim])):
                 x_lon[ip] = row.coords[dim][ip][0]
                 y_lat[ip] = row.coords[dim][ip][1]
-            if row.color_ton is None:
+            if pd.isna(row.color_ton):
                 ax.fill(x_lon, y_lat, "#FFFFFF", hatch="///", edgecolor="#747474")
             else:
                 ax.fill(x_lon, y_lat, row.color_ton)

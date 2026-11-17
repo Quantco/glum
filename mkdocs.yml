@@ -38,12 +38,7 @@ repo_name: quantco/glum
 repo_url: https://github.com/quantco/glum
 edit_uri: edit/main/docs/
 exclude_docs: |
-  *.ipynb
   *.py
-  *.pdf
-  performance.png
-  tutorials/glm_french_motor_tutorial/README.md
-  tutorials/glm_french_motor_tutorial/regions-20140306-100m-shp/
   tutorials/regularization_housing_data/Zip_Codes/
 plugins:
   - search

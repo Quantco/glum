@@ -7,19 +7,20 @@ If you have not done so already, please refer to our [installation instructions]
 ```python
 import pandas as pd
 import sklearn
-from sklearn.datasets import fetch_openml
 from glum import GeneralizedLinearRegressor, GeneralizedLinearRegressorCV
 ```
 
 ## Data
 
-We start by loading the King County housing dataset from openML and splitting it into training and test sets. For simplicity, we don't go into any details regarding exploration or data cleaning.
+We start by loading the King County housing dataset, which comes from [openML](https://www.openml.org/d/42092) and is included in the `glum` repository, and splitting it into training and test sets. For simplicity, we don't go into any details regarding exploration or data cleaning.
 
 ```python
-house_data = fetch_openml(name="house_sales", version=3, as_frame=True)
+house_data = pd.read_parquet(
+    "https://raw.githubusercontent.com/Quantco/glum/main/data/housing.parquet"
+)
 
 # Use only select features
-X = house_data.data[
+X = house_data[
     [
         "bedrooms",
         "bathrooms",
@@ -34,7 +35,7 @@ X = house_data.data[
 ].copy()
 
 # Targets
-y = house_data.target
+y = house_data["price"]
 ```
 
 ```python

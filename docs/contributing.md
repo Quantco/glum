@@ -108,7 +108,7 @@ pixi run -e docs docs
 and navigate to <http://localhost:8000> to view the documentation. It is rebuilt automatically whenever a file changes. To build the documentation once and treat warnings as errors, as in CI, run `pixi run -e docs docs-build`.
 
 !!! note
-    The tutorials are Markdown pages that include the output of their code. The code is not executed as part of the documentation build. If you change a tutorial's code, run it yourself (for example, by opening the page as a notebook with [jupytext](https://jupytext.readthedocs.io/)) and update the output in the page. Also don't forget to install the extra dependencies for the tutorials as described above.
+    The tutorials are Markdown pages that include the output of their code. The code is not executed as part of the documentation build. If you change a tutorial's code, run it yourself and update the output in the page. Also don't forget to install the extra dependencies for the tutorials as described above.
 
 Docstrings follow the [numpy docstring style guide](https://numpydoc.readthedocs.io/en/latest/format.html#docstring-standard) and use Markdown. Code is written as `` `code` ``, math as `$x^2$` and cross-references to other objects as ``[`GeneralizedLinearRegressor`][glum.GeneralizedLinearRegressor]``.
 

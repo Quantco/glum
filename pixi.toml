@@ -15,6 +15,7 @@ test-backwards-compatibility = { cmd = "python tests/backwards_compatibility/run
 [feature.docs.tasks]
 docs = "zensical serve"
 docs-build = "zensical build --strict"
+run-tutorials = "python docs/run_tutorials.py"
 readthedocs = { cmd = "rm -rf $READTHEDOCS_OUTPUT/html && cp -r site $READTHEDOCS_OUTPUT/html", depends-on = [
     "docs-build",
 ] }
@@ -106,14 +107,13 @@ mkdocstrings-python = "*"
 zensical = "*"
 
 [feature.tutorial.dependencies]
-altair = "*"            # used in docs/tutorials/rossman
 dask-ml = ">=2022.5.27" # used in tutorials rossman and insurance
-jupyterlab = "*"
-jupytext = "*"          # opens the tutorial pages as notebooks
+geopandas = "*"         # used in docs/tutorials/regularization_housing_data
+ipython = "*"           # used by docs/run_tutorials.py
 libpysal = "*"          # used in docs/tutorials/regularization_housing_data
 lifelines = "*"         # used in docs/tutorials/cox_model
 matplotlib-base = "*"
-openml = "*"            # used for downloading datasets in the tutorials.
+pyshp = "*"             # used in docs/tutorials/regularization_housing_data
 shapely = "*"           # used in docs/tutorials/regularization_housing_data
 
 [feature.benchmark.dependencies]

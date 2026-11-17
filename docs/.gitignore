@@ -1,2 +1,0 @@
-# Allow pdfs in the docs/_static folder
-!_static/*.pdf

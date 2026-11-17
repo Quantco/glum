@@ -18,7 +18,6 @@ We will use a gamma distribution for our model. This choice is motivated by two 
 import os
 from pathlib import Path
 
-import altair as alt
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -37,11 +36,6 @@ from metrics import root_mean_squared_percentage_error
 
 pd.set_option("display.float_format", lambda x: "%.3f" % x)
 pd.set_option('display.max_columns', None)
-alt.data_transformers.enable("json")  # to allow for large plots
-```
-
-```text
-DataTransformerRegistry.enable('json')
 ```
 
 ## 1. Data loading and feature engineering
@@ -619,7 +613,7 @@ baseline_glm = GeneralizedLinearRegressor(
     family="gamma",
     scale_predictors=True,
     l1_ratio=0.0,
-    alphas=1e-1,
+    alpha=1.0,
 )
 ```
 
@@ -1065,7 +1059,7 @@ for i, select in enumerate([select_train, select_val]):
     ax = axs[i]
     df_plot_date = df[select].groupby(
         ["year", "month"]
-    ).agg("sum")[sales_cols].reset_index()
+    )[sales_cols].sum().reset_index()
 
     year_month_date = df_plot_date['month'].map(str)+ '-' + df_plot_date['year'].map(str)
     df_plot_date['year_month'] = pd.to_datetime(year_month_date, format='%m-%Y').dt.strftime('%m-%Y')
@@ -1093,7 +1087,7 @@ for i, select in enumerate([select_train, select_val]):
     ax = axs[i]
     df_plot_store = df[select].groupby(
         ["store"]
-    ).agg("sum")[sales_cols].reset_index()[:20].sort_values(by="sales")
+    )[sales_cols].sum().reset_index()[:20].sort_values(by="sales")
 
     df_plot_store.plot.bar(x="store", ax=ax)
     ax.set_xlabel("Store")
