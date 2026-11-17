@@ -81,23 +81,15 @@ jobs:
         run: pixi run -e ${{ matrix.environment }} postinstall
       - name: Verify free-threaded imports
         if: matrix.environment == 'py314t'
-        # Load glum's extension modules directly: importing the glum package also
-        # imports tabmat, which does not support free-threading in 4.3.0 and
-        # re-enables the GIL. Once a tabmat release supports it, this can import
-        # glum and assert that the GIL stays disabled (see Quantco/tabmat#557).
+        # Importing glum (and tabmat) must not re-enable the GIL.
         run: |
           pixi run -e py314t python - <<'PY'
-          import glob
-          import importlib.util
           import sys
           import sysconfig
 
           assert sysconfig.get_config_var("Py_GIL_DISABLED") == 1
-          for name in ("_cd_fast", "_functions"):
-              (path,) = glob.glob(f"src/glum/{name}.*.so")
-              spec = importlib.util.spec_from_file_location(name, path)
-              spec.loader.exec_module(importlib.util.module_from_spec(spec))
-              assert not sys._is_gil_enabled(), f"Importing {name} enabled the GIL"
+          import glum  # noqa: F401
+          assert not sys._is_gil_enabled(), "Importing glum enabled the GIL"
           PY
       - name: Run pytest
         run: pixi run -e ${{ matrix.environment }} test -nauto

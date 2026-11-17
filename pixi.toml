@@ -172,8 +172,7 @@ python = "3.14.*"
 [feature.py314t.dependencies]
 python = "3.14.*"
 python-freethreading = "3.14.*"
-[feature.py314t.tasks]
-test = { cmd = "python -X gil=0 -m pytest tests/glm --doctest-modules src/glum", env = { PYTHONPATH = "." } }
+tabmat = ">=4.3.1"
 [feature.py315.dependencies]
 python = "3.15.*"
 
