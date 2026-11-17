@@ -67,6 +67,7 @@ setuptools = ">=61"
 setuptools-scm = ">=8.1"
 tabmat = ">=4.3.0"
 tqdm = "*"
+typing_extensions = "*"
 wheel = "*"
 
 [feature.no-tabmat.dependencies]
