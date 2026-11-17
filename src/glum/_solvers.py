@@ -869,6 +869,24 @@ class IRLSState:
         )
 
 
+def _state_norm_min_subgrad(state: IRLSState, data: IRLSData):
+    """L1 and max norm of the minimum norm subgradient at ``state.coef``.
+
+    Computed from ``state.score``, so call it again whenever the score changes.
+    """
+    return _norm_min_subgrad(
+        np.arange(state.coef.shape[0], dtype=np.int32),
+        state.coef,
+        -state.score,
+        data.P1,
+        data.intercept_offset,
+        data.has_lower_bounds,
+        data._lower_bounds,
+        data.has_upper_bounds,
+        data._upper_bounds,
+    )
+
+
 def check_convergence(
     state: IRLSState, data: IRLSData
 ) -> tuple[bool, float, float, float]:
@@ -881,17 +899,7 @@ def check_convergence(
     # this also updates the inner tolerance for the next loop!
 
     # L1 norm of the minimum norm subgradient
-    norm_min_subgrad, max_min_subgrad = _norm_min_subgrad(
-        np.arange(state.coef.shape[0], dtype=np.int32),
-        state.coef,
-        -state.score,
-        state.data.P1,
-        state.data.intercept_offset,
-        data.has_lower_bounds,
-        data._lower_bounds,
-        data.has_upper_bounds,
-        data._upper_bounds,
-    )
+    norm_min_subgrad, max_min_subgrad = _state_norm_min_subgrad(state, data)
     gradient_converged = norm_min_subgrad < state.data.gradient_tol
 
     # Simple L2 step length convergence criteria
@@ -1363,12 +1371,16 @@ def _monotonic_irls_solver(
 
             if penalty_changed:
                 state.hessian_initialized = False
-                # The objective value and score include the P2 term, so they are
-                # stale after the penalty changed. The line search compares against
-                # them, so bring them up to date; otherwise it can fail spuriously.
+                # The objective value, score and minimum norm subgradient include
+                # the P2 term, so they are stale after the penalty changed. The
+                # line search compares against them, so bring them up to date;
+                # otherwise it can fail spuriously.
                 new_coef_P2 = _make_coef_P2(data.intercept_offset, data.P2, state.coef)
                 state.obj_val += 0.5 * ((new_coef_P2 - old_coef_P2) @ state.coef)
                 state.score = state.score + old_coef_P2 - new_coef_P2
+                state.norm_min_subgrad, state.max_min_subgrad = _state_norm_min_subgrad(
+                    state, data
+                )
 
             state.old_active_set = state.active_set
             state.active_set = identify_active_set(state, data)
