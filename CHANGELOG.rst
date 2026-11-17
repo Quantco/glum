@@ -29,7 +29,7 @@ Changelog
 - Warnings are now treated as errors in the test suite and in the README doctest in CI, except in the ``nightly`` and ``oldies`` environments.
 - The documentation build now treats warnings as errors and runs in CI. Fixed the docstring formatting of ``cat_missing_method`` and ``get_link`` and several broken links in the tutorials and the changelog.
 - Require Python>=3.11, since conda-forge no longer supports Python 3.10. No Python 3.10 wheels are built or uploaded to PyPI any more.
-- Declared the Cython extensions free-threading compatible, built free-threaded wheels, and added a ``py314t`` test environment. Importing glum still enables the GIL until tabmat releases free-threading support.
+- Declared the Cython extensions free-threading compatible, built free-threaded wheels, and added a ``py314t`` test environment. 
 - Added ``py314`` and ``py315`` test environments, and a conda package build for Python 3.15.
 - Removed the ``py310`` test environment and moved the ``oldies`` environment and the conda package builds from Python 3.10 to 3.11, since conda-forge no longer supports Python 3.10. The ``oldies`` pins for pandas (1.5), scikit-learn (1.1.3) and scipy (1.9) were raised to the oldest releases with Python 3.11 builds.
 
