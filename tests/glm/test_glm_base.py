@@ -308,6 +308,44 @@ def test_positive_semidefinite():
     assert is_pos_semidef(sparse.eye(2))
 
 
+def _graph_laplacian(n, scale=1.0):
+    # Laplacian of a ring with additional random edges. It is positive
+    # semi-definite with an eigenvalue of exactly zero, which numerical
+    # eigenvalue solvers return as a tiny (possibly negative) number.
+    rows = np.arange(n)
+    ring = sparse.coo_matrix((np.ones(n), (rows, (rows + 1) % n)), shape=(n, n))
+    extra = sparse.random(
+        n, n, density=5 / n, random_state=0, data_rvs=lambda k: np.ones(k)
+    )
+    adjacency = ((ring + ring.T + extra + extra.T) > 0).astype(float)
+    degree = sparse.diags(np.asarray(adjacency.sum(axis=1)).ravel())
+    return (scale * (degree - adjacency)).tocsc()
+
+
+@pytest.mark.parametrize("n", [100, 2500])
+@pytest.mark.parametrize("scale", [1.0, 1e3])
+def test_positive_semidefinite_graph_laplacian(n, scale):
+    # The tolerance for negative eigenvalues must grow with the size of the matrix
+    # and the magnitude of its entries. n=2500 uses the sparse eigenvalue solver.
+    laplacian = _graph_laplacian(n, scale)
+    assert is_pos_semidef(laplacian)
+    if n < 2000:
+        assert is_pos_semidef(laplacian.toarray())
+
+    # Shifting one diagonal element down makes the matrix clearly indefinite.
+    indefinite = laplacian.tolil()
+    indefinite[0, 0] -= 3 * scale
+    indefinite = indefinite.tocsc()
+    assert not is_pos_semidef(indefinite)
+    if n < 2000:
+        assert not is_pos_semidef(indefinite.toarray())
+
+
+def test_positive_semidefinite_zero_matrix():
+    assert is_pos_semidef(np.zeros((3, 3)))
+    assert is_pos_semidef(sparse.csr_matrix((3, 3)))
+
+
 @pytest.mark.parametrize("namespace", ["pandas", "polars"])
 def test_P1_P2_expansion_with_categoricals(namespace):
     rng = np.random.default_rng(42)

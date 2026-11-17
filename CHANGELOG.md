@@ -8,6 +8,12 @@ https://semver.org/spec/v2.0.0.html. The most important bits are:
 
 # Changelog
 
+## 3.5.1 - UNRELEASED
+
+**Bug fix:**
+
+- Fixed the check that `P2` is positive semi-definite rejecting valid matrices, such as graph Laplacians, whose smallest eigenvalue is zero. The tolerance for eigenvalues that are negative due to rounding errors now scales with the size and magnitude of `P2`. Also fixed the check crashing for sparse `P2` matrices with 2000 or more rows.
+
 ## 3.5.0 - 2026-11-16
 
 **Bug fix:**

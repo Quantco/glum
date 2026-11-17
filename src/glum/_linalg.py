@@ -4,6 +4,7 @@ from typing import Optional, Union
 import numpy as np
 import tabmat as tm
 from scipy import linalg, sparse
+from scipy.sparse import linalg as sparse_linalg
 
 from ._utils import safe_toarray
 
@@ -14,7 +15,9 @@ def is_pos_semidef(p: Union[sparse.spmatrix, np.ndarray]) -> Union[bool, np.bool
     `diag(p)` if a vector.
 
     `np.linalg.cholesky(P2)` 'only' asserts positive definiteness; due to
-    numerical precision, we allow eigenvalues to be a tiny bit negative.
+    numerical precision, we allow eigenvalues to be a tiny bit negative. The
+    rounding error of computed eigenvalues grows with the size of the matrix and
+    the magnitude of its entries, so the tolerance does, too.
     """
     # 1d case
     if p.ndim == 1 or p.shape[0] == 1:
@@ -22,30 +25,28 @@ def is_pos_semidef(p: Union[sparse.spmatrix, np.ndarray]) -> Union[bool, np.bool
         return not any_negative
 
     # 2d case
-    # About -6e-7 for 32-bit, -1e-15 for 64-bit
-    epsneg = -10 * np.finfo(np.result_type(float, p.dtype)).epsneg
+    finfo = np.finfo(np.result_type(float, p.dtype))
 
-    if sparse.issparse(p):
-        # Computing eigenvalues for sparse matrices is inefficient. If the matrix is
-        # not huge, convert to dense. Otherwise, calculate 10% of its eigenvalues.
+    if sparse.issparse(p) and p.shape[0] >= 2000:
+        # Computing all eigenvalues of a large sparse matrix is expensive. Only
+        # compute the smallest one and bound the largest one by the matrix norm.
         p = typing.cast(sparse.spmatrix, p)
-        if p.shape[0] < 2000:
+        try:
+            min_eigenvalue = sparse_linalg.eigsh(
+                p, k=1, which="SA", return_eigenvectors=False
+            )[0]
+            scale = sparse_linalg.norm(p, np.inf)
+        except sparse_linalg.ArpackNoConvergence:
             eigenvalues = linalg.eigvalsh(p.toarray())
-        else:
-            n_evals_to_compuate = p.shape[0] // 10 + 1
-            sigma = -1000 * epsneg  # start searching near this value
-            which = "SA"  # find smallest algebraic eigenvalues first
-            eigenvalues = linalg.eigsh(
-                p,
-                k=n_evals_to_compuate,
-                sigma=sigma,
-                which=which,
-                return_eigenvectors=False,
-            )
-    else:  # dense
-        eigenvalues = linalg.eigvalsh(p)
+            min_eigenvalue, scale = eigenvalues[0], np.abs(eigenvalues).max()
+    else:
+        eigenvalues = linalg.eigvalsh(safe_toarray(p))
+        min_eigenvalue, scale = eigenvalues[0], np.abs(eigenvalues).max()
 
-    return np.all(eigenvalues >= epsneg)
+    # Never stricter than the previous fixed tolerance of 10 * epsneg (about
+    # 6e-7 for 32-bit and 1e-15 for 64-bit).
+    tolerance = max(10 * finfo.epsneg, p.shape[0] * finfo.eps * scale)
+    return min_eigenvalue >= -tolerance
 
 
 def _safe_lin_pred(
