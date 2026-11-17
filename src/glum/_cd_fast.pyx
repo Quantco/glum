@@ -13,6 +13,17 @@ import numpy as np
 
 from cython cimport floating
 from cython.parallel import prange
+cimport openmp
+
+
+# Starting and joining OpenMP threads costs more than these loops gain on small
+# data (e.g. ~0.2 ms per call for 72 rows), so they run serially below this
+# many rows.
+cdef Py_ssize_t PARALLEL_MIN_ROWS = 8192
+
+
+cdef inline int _num_threads(Py_ssize_t n) noexcept nogil:
+    return 1 if n < PARALLEL_MIN_ROWS else openmp.omp_get_max_threads()
 
 ctypedef np.float64_t DOUBLE
 ctypedef np.uint32_t UINT32_t
@@ -99,7 +110,7 @@ def identify_active_rows(
             max_diff = abs_val
 
     cdef bint exclude
-    for i in prange(n, nogil=True):
+    for i in prange(n, nogil=True, num_threads=_num_threads(n)):
         abs_val = fabs(hessian_rows_diff[i])
         exclude = abs_val < C * max_diff
         if exclude:

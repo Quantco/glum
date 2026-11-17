@@ -1,7 +1,18 @@
 from cython cimport floating
 from cython.parallel import prange
+cimport openmp
 
 from libc.math cimport M_PI, ceil, exp, floor, lgamma, log
+
+
+# Starting and joining OpenMP threads costs more than these loops gain on small
+# data (e.g. ~0.2 ms per call for 72 rows), so they run serially below this
+# many rows.
+cdef Py_ssize_t PARALLEL_MIN_ROWS = 8192
+
+
+cdef inline int _num_threads(Py_ssize_t n) noexcept nogil:
+    return 1 if n < PARALLEL_MIN_ROWS else openmp.omp_get_max_threads()
 
 ctypedef fused numeric:
     short
@@ -38,7 +49,7 @@ def normal_identity_eta_mu_deviance(
     cdef int n = cur_eta.shape[0]
     cdef int i
     cdef floating deviance = 0.0
-    for i in prange(n, nogil=True):
+    for i in prange(n, nogil=True, num_threads=_num_threads(n)):
         eta_out[i] = cur_eta[i] + factor * X_dot_d[i]
         mu_out[i] = eta_out[i]
         deviance += weights[i] * (y[i] - mu_out[i]) ** 2
@@ -55,7 +66,7 @@ def normal_identity_rowwise_gradient_hessian(
 ):
     cdef int n = eta.shape[0]
     cdef int i
-    for i in prange(n, nogil=True):
+    for i in prange(n, nogil=True, num_threads=_num_threads(n)):
         gradient_rows_out[i] = weights[i] * (y[i] - mu[i])
         # Note: hessian_rows_out yields -1 times the true hessian to match
         # the default calculation in _distribution.py
@@ -74,7 +85,7 @@ def normal_log_likelihood(
     cdef floating ll = 0.0  # output
     cdef floating sum_weights = 0.0  # helper
 
-    for i in prange(n, nogil=True):
+    for i in prange(n, nogil=True, num_threads=_num_threads(n)):
         ll -= weights[i] * (y[i] - mu[i]) ** 2
         sum_weights -= weights[i]
 
@@ -91,7 +102,7 @@ def normal_deviance(
     cdef int n = y.shape[0]  # loop length
     cdef floating D = 0.0  # output
 
-    for i in prange(n, nogil=True):
+    for i in prange(n, nogil=True, num_threads=_num_threads(n)):
         D += weights[i] * (y[i] - mu[i]) ** 2
 
     return D
@@ -108,7 +119,7 @@ def poisson_log_eta_mu_deviance(
     cdef int n = cur_eta.shape[0]
     cdef int i
     cdef floating deviance = 0.0
-    for i in prange(n, nogil=True):
+    for i in prange(n, nogil=True, num_threads=_num_threads(n)):
         eta_out[i] = cur_eta[i] + factor * X_dot_d[i]
         mu_out[i] = exp(eta_out[i])
         deviance += weights[i] * (y[i] * eta_out[i] - mu_out[i])
@@ -124,7 +135,7 @@ def poisson_log_rowwise_gradient_hessian(
 ):
     cdef int n = eta.shape[0]
     cdef int i
-    for i in prange(n, nogil=True):
+    for i in prange(n, nogil=True, num_threads=_num_threads(n)):
         gradient_rows_out[i] = weights[i] * (y[i] - mu[i])
         hessian_rows_out[i] = weights[i] * mu[i]
 
@@ -139,7 +150,7 @@ def poisson_log_likelihood(
     cdef int n = y.shape[0]  # loop length
     cdef floating ll = 0.0  # output
 
-    for i in prange(n, nogil=True):
+    for i in prange(n, nogil=True, num_threads=_num_threads(n)):
         ll -= weights[i] * mu[i]
         if y[i] > 0:
             ll -= weights[i] * (lgamma(1 + y[i]) - y[i] * log(mu[i]))
@@ -157,7 +168,7 @@ def poisson_deviance(
     cdef int n = y.shape[0]  # loop length
     cdef floating D = 0.0  # output
 
-    for i in prange(n, nogil=True):
+    for i in prange(n, nogil=True, num_threads=_num_threads(n)):
         D += weights[i] * mu[i]
         if y[i] > 0:
             D += weights[i] * y[i] * (log(y[i]) - log(mu[i]) - 1)
@@ -176,7 +187,7 @@ def gamma_log_eta_mu_deviance(
     cdef int n = cur_eta.shape[0]
     cdef int i
     cdef floating deviance = 0.0
-    for i in prange(n, nogil=True):
+    for i in prange(n, nogil=True, num_threads=_num_threads(n)):
         eta_out[i] = cur_eta[i] + factor * X_dot_d[i]
         mu_out[i] = exp(eta_out[i])
         deviance += weights[i] * (y[i] / mu_out[i] + eta_out[i])
@@ -192,7 +203,7 @@ def gamma_log_rowwise_gradient_hessian(
 ):
     cdef int n = eta.shape[0]
     cdef int i
-    for i in prange(n, nogil=True):
+    for i in prange(n, nogil=True, num_threads=_num_threads(n)):
         gradient_rows_out[i] = weights[i] * (y[i] / mu[i] - 1)
         hessian_rows_out[i] = weights[i] * (y[i] / mu[i])
 
@@ -212,7 +223,7 @@ def gamma_log_likelihood(
     cdef floating ll = 0.0  # output
     cdef floating sum_weights = 0.0  # helper
 
-    for i in prange(n, nogil=True):
+    for i in prange(n, nogil=True, num_threads=_num_threads(n)):
         ln_y = log(y[i])
         ll += weights[i] * (inv_dispersion * (ln_y - log(mu[i]) - y[i] / mu[i]) - ln_y)
         sum_weights += weights[i]
@@ -230,7 +241,7 @@ def gamma_deviance(
     cdef int n = y.shape[0]  # loop length
     cdef floating D = 0.0  # output
 
-    for i in prange(n, nogil=True):
+    for i in prange(n, nogil=True, num_threads=_num_threads(n)):
         D += weights[i] * (log(mu[i]) - log(y[i]) + y[i] / mu[i] - 1)
 
     return 2 * D
@@ -249,7 +260,7 @@ def inv_gaussian_log_eta_mu_deviance(
     cdef floating sq_err  # helper
     cdef floating deviance = 0.0  # output
 
-    for i in prange(n, nogil=True):
+    for i in prange(n, nogil=True, num_threads=_num_threads(n)):
 
         eta_out[i] = cur_eta[i] + factor * X_dot_d[i]
         mu_out[i] = exp(eta_out[i])
@@ -273,7 +284,7 @@ def inv_gaussian_log_rowwise_gradient_hessian(
 
     cdef floating inv_mu, inv_mu2
 
-    for i in prange(n, nogil=True):
+    for i in prange(n, nogil=True, num_threads=_num_threads(n)):
 
         inv_mu = 1 / mu[i]
         inv_mu2 = inv_mu ** 2
@@ -298,7 +309,7 @@ def inv_gaussian_log_likelihood(
     cdef floating sum_weights = 0.0  # helper
     cdef floating ll = 0.0  # output
 
-    for i in prange(n, nogil=True):
+    for i in prange(n, nogil=True, num_threads=_num_threads(n)):
 
         sq_err = (y[i] / mu[i] - 1) ** 2
 
@@ -318,7 +329,7 @@ def inv_gaussian_deviance(
     cdef floating sq_err  # helper
     cdef floating D = 0.0  # output
 
-    for i in prange(n, nogil=True):
+    for i in prange(n, nogil=True, num_threads=_num_threads(n)):
         sq_err = (y[i] / mu[i] - 1) ** 2
         D += weights[i] * sq_err / y[i]
 
@@ -338,7 +349,7 @@ def tweedie_log_eta_mu_deviance(
     cdef int i
     cdef floating deviance = 0.0
     cdef floating mu1mp
-    for i in prange(n, nogil=True):
+    for i in prange(n, nogil=True, num_threads=_num_threads(n)):
         eta_out[i] = cur_eta[i] + factor * X_dot_d[i]
         mu_out[i] = exp(eta_out[i])
         mu1mp = mu_out[i] ** (1 - p)
@@ -357,7 +368,7 @@ def tweedie_log_rowwise_gradient_hessian(
     cdef int n = eta.shape[0]
     cdef int i
     cdef floating mu1mp, ymm
-    for i in prange(n, nogil=True):
+    for i in prange(n, nogil=True, num_threads=_num_threads(n)):
         mu1mp = mu[i] ** (1 - p)
         ymm = y[i] - mu[i]
         gradient_rows_out[i] = weights[i] * mu1mp * ymm
@@ -377,7 +388,7 @@ def tweedie_deviance(
     cdef int n = y.shape[0]  # loop length
     cdef floating D = 0.0  # output
 
-    for i in prange(n, nogil=True):
+    for i in prange(n, nogil=True, num_threads=_num_threads(n)):
 
         mu1mp = mu[i] ** (1 - p)
         D += weights[i] * (mu1mp * mu[i]) / (2 - p)
@@ -400,7 +411,7 @@ def tweedie_log_likelihood(
     cdef int n = y.shape[0]  # loop length
     cdef floating ll = 0.0  # output
 
-    for i in prange(n, nogil=True):
+    for i in prange(n, nogil=True, num_threads=_num_threads(n)):
         ll += weights[i] * _tweedie_unit_loglikelihood(y[i], mu[i], p, dispersion)
 
     return ll
@@ -484,7 +495,7 @@ def binomial_logit_eta_mu_deviance(
     cdef floating unit_deviance
     cdef floating deviance = 0.0
     cdef floating expposeta, expnegeta
-    for i in prange(n, nogil=True):
+    for i in prange(n, nogil=True, num_threads=_num_threads(n)):
         eta_out[i] = cur_eta[i] + factor * X_dot_d[i]
         # When eta is positive, we want to use formulas that depend on
         # exp(-eta), but when eta is negative we want to use formulas that
@@ -515,7 +526,7 @@ def binomial_logit_rowwise_gradient_hessian(
 ):
     cdef int n = eta.shape[0]
     cdef int i
-    for i in prange(n, nogil=True):
+    for i in prange(n, nogil=True, num_threads=_num_threads(n)):
         gradient_rows_out[i] = weights[i] * (y[i] - mu[i])
         hessian_rows_out[i] = weights[i] * mu[i] * (1 - mu[i])
 
@@ -534,7 +545,7 @@ def negative_binomial_log_eta_mu_deviance(
     cdef floating deviance = 0.0
     cdef floating r = 1.0 / theta  # helper
 
-    for i in prange(n, nogil=True):
+    for i in prange(n, nogil=True, num_threads=_num_threads(n)):
         eta_out[i] = cur_eta[i] + factor * X_dot_d[i]
         mu_out[i] = exp(eta_out[i])
         deviance += weights[i] * (-y[i] * eta_out[i] + (y[i] + r) * log(mu_out[i] + r))
@@ -551,7 +562,7 @@ def negative_binomial_log_rowwise_gradient_hessian(
 ):
     cdef int n = eta.shape[0]
     cdef int i
-    for i in prange(n, nogil=True):
+    for i in prange(n, nogil=True, num_threads=_num_threads(n)):
         gradient_rows_out[i] = weights[i] * (y[i] - mu[i]) / (1.0 + theta * mu[i])
         hessian_rows_out[i] = weights[i] * mu[i]  / (1.0 + theta * mu[i])
 
@@ -568,7 +579,7 @@ def negative_binomial_log_likelihood(
     cdef floating ll = 0.0  # output
     cdef floating r = 1.0 / theta  # helper
 
-    for i in prange(n, nogil=True):
+    for i in prange(n, nogil=True, num_threads=_num_threads(n)):
         ll += weights[i] * (
             y[i] * log(theta * mu[i]) -
             (y[i] + r) * log(1 + theta * mu[i]) +
@@ -591,7 +602,7 @@ def negative_binomial_deviance(
     cdef floating D = 0.0  # output
     cdef floating r = 1.0 / theta  # helper
 
-    for i in prange(n, nogil=True):
+    for i in prange(n, nogil=True, num_threads=_num_threads(n)):
         D += - weights[i] * (y[i] + r) * log((y[i] + r) / (mu[i] + r))
         if y[i] > 0:
             D += weights[i] * y[i] * log(y[i] / mu[i])
