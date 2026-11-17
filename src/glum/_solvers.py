@@ -62,12 +62,12 @@ _NULL_MOVE_CYCLES = 20
 
 @timeit("inner_solver_runtime")
 def _cd_solver(state, data, active_hessian):
-    """Minimise the quadratic model by coordinate descent.
+    """Minimize the quadratic model by coordinate descent.
 
     If coordinate descent has not converged after ``_NULL_MOVE_CYCLES`` cycles and
     the active Hessian has (near) null directions, e.g. because of full one-hot
     categoricals, coordinate descent is interleaved with exact line
-    minimisations along a sparse basis of them; see :class:`_NullSpaceMoves`.
+    minimizations along a sparse basis of them; see :class:`_NullSpaceMoves`.
     Otherwise, coordinate descent runs as before. The only difference is that it
     can stop after ``_NULL_MOVE_CYCLES`` cycles if it has converged by then,
     because the kernel checks convergence at the end of every call.
@@ -147,7 +147,7 @@ def _null_space_basis(Q: np.ndarray) -> Optional[np.ndarray]:
 
     Works on the scaled matrix ``S = D^{-1/2} Q D^{-1/2}``, ``D = diag(Q)``, whose
     small eigenvalues are what makes coordinate descent slow. A pivoted Cholesky
-    factorisation ``S[p, p] = R.T @ R`` stops once the largest remaining pivot
+    factorization ``S[p, p] = R.T @ R`` stops once the largest remaining pivot
     falls below ``_NULL_SPACE_RTOL``. If it stops at rank ``r < n``, the columns
     of ``[-R11^{-1} R12; I]`` (in pivoted order) span the remaining directions.
     Each is supported on one non-pivot coordinate and the pivots it is
@@ -158,7 +158,7 @@ def _null_space_basis(Q: np.ndarray) -> Optional[np.ndarray]:
     rounding level.
 
     Returns ``None`` if there are no such directions, which is the common case
-    and costs about a third of a Cholesky factorisation.
+    and costs about a third of a Cholesky factorization.
     """
     n = Q.shape[0]
     if n < 2:
@@ -213,7 +213,7 @@ def _cached_null_space_basis(state, Q) -> Optional[np.ndarray]:
     The null space of ``X_A.T @ W @ X_A`` does not depend on the (positive)
     weights ``W``, so it usually stays the same over outer iterations with the
     same active set. Using a basis from an earlier Hessian is always safe: the
-    moves minimise the model exactly along each direction, curvature included.
+    moves minimize the model exactly along each direction, curvature included.
     """
     cache = state._null_space_cache
     if cache is not None and np.array_equal(cache[0], state.active_set):
@@ -228,7 +228,7 @@ class _NullSpaceMoves:
 
     Along a null direction ``v`` the smooth part of the coordinate descent model
     is (nearly) flat, so coordinate descent can only creep along it, one
-    coordinate at a time. Instead, each move minimises the model exactly over
+    coordinate at a time. Instead, each move minimizes the model exactly over
     ``w + t * v``::
 
         phi(t) = t * q.v + 0.5 * t**2 * v.Q.v + sum_i P1_i |w_i + t v_i|
@@ -294,7 +294,7 @@ class _NullSpaceMoves:
 
 
 def _l1_line_minimum(w, v, P1, gv, vQv, lb, ub) -> float:
-    """Minimiser of ``phi(t) = t*gv + 0.5*vQv*t**2 + sum_i P1_i |w_i + t v_i|``
+    """Minimizer of ``phi(t) = t*gv + 0.5*vQv*t**2 + sum_i P1_i |w_i + t v_i|``
     subject to ``lb <= w + t*v <= ub``.
 
     All ``v_i`` must be nonzero. The point returned is the one nearest to

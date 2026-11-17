@@ -119,9 +119,9 @@ def _fit(X, y, monkeypatch, null_moves, **kwargs):
 
 @pytest.mark.parametrize("fit_intercept", [True, False])
 def test_null_moves_singular_hessian(monkeypatch, fit_intercept):
-    """Full one-hot categoricals make the Hessian singular (with an intercept,
-    or with more than one categorical). The null moves reach the same optimum in
-    far fewer coordinate descent cycles."""
+    # Full one-hot categoricals make the Hessian singular (with an intercept,
+    # or with more than one categorical). The null moves reach the same optimum in
+    # far fewer coordinate descent cycles.
     np.random.seed(0)
     data = simulate_mixed_data(
         ohe_categorical=False, random_seed=0, family="poisson", n_rows=2000,
@@ -158,11 +158,9 @@ def test_null_moves_respect_bounds(monkeypatch, drop_first):
 
 
 def test_full_rank_unaffected(monkeypatch):
-    """Without collinearity, there are no moves and the result is the same.
-
-    It is not bitwise the same: an inner solve that is already converged after
-    ``_NULL_MOVE_CYCLES`` cycles now stops there.
-    """
+    # Without collinearity, there are no moves and the result is the same. It is
+    # not bitwise the same: an inner solve that is already converged after
+    # _NULL_MOVE_CYCLES cycles now stops there.
     df, y = _categorical_data()
     # small gradient_tol so that some inner solves need more than
     # _NULL_MOVE_CYCLES cycles
@@ -192,7 +190,7 @@ def test_inner_non_convergence_warns():
 
 
 def test_model_value_matches_quadratic_model():
-    """``_NullSpaceMoves.model`` is the coordinate descent model up to a constant."""
+    # _NullSpaceMoves.model is the coordinate descent model up to a constant.
     rng = np.random.default_rng(0)
     A = rng.normal(size=(30, 6))
     Q = A.T @ A
