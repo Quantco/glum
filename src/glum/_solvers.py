@@ -137,6 +137,206 @@ def _cd_solver(state, data, active_hessian):
     return coef - state.coef, n_cycles
 
 
+# Working set solver: smallest working set, the fraction of the current
+# violation that each working set subproblem is solved to, and, when the
+# solution is polished, the fraction below which that is not needed.
+_WS_MIN_SIZE = 10
+_WS_INNER_TOL_RATIO = 0.3
+_WS_POLISH_RATIO = 1e-2
+
+
+def _polish_on_support(data, w, q, ws, Q):
+    """Minimize the model exactly on the support of ``w`` with its signs fixed.
+
+    With the support ``S`` and signs ``s`` fixed, the model is a quadratic in
+    ``w_S``, minimized by the Newton step ``w_S - H_SS^{-1} (q_S + P1_S s)``,
+    where ``q`` is the model gradient at ``w``. If the signs of the result
+    agree with ``s``, it lies on the same face of the L1 ball as ``w`` and
+    minimizes the model there, so it is at least as good as ``w``. Otherwise,
+    or if ``H_SS`` is singular, ``w`` is returned unchanged. ``S`` must be part
+    of the working set ``ws``, whose Hessian is ``Q``.
+    """
+    off = data.intercept_offset
+    S = np.flatnonzero(w)
+    if off and (len(S) == 0 or S[0] != 0):
+        S = np.r_[0, S]
+    if len(S) == 0:
+        return w
+    pos = np.searchsorted(ws, S)
+    signs = np.sign(w[S])
+    P1_S = np.zeros(len(S))
+    penalized = S >= off
+    P1_S[penalized] = data.P1[S[penalized] - off]
+    # An ill-conditioned H_SS gives an unreliable step: keep w instead.
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", linalg.LinAlgWarning)
+            step = linalg.solve(
+                Q[np.ix_(pos, pos)],
+                q[S] + P1_S * signs,
+                assume_a="pos",
+                check_finite=False,
+            )
+    except (linalg.LinAlgError, linalg.LinAlgWarning, ValueError):
+        return w
+    w_S = w[S] - step
+    if not np.all(np.sign(w_S[penalized]) == signs[penalized]):
+        return w
+    out = w.copy()
+    out[S] = w_S
+    return out
+
+
+def _model_gradient(state, data, w):
+    """Gradient of the quadratic model at ``w``, for all coefficients.
+
+    The model is ``-score @ d + 0.5 * d @ H @ d`` with ``d = w - state.coef`` and
+    ``H = X.T @ diag(hessian_rows) @ X + P2``, so the gradient is
+    ``-score + H @ d``. This is the ``q`` of the coordinate descent kernel. It
+    costs one matvec and one transpose matvec and never forms ``H``.
+    """
+    d = w - state.coef
+    q = -state.score
+    if not d.any():
+        return q.copy()
+    off = data.intercept_offset
+    # _safe_lin_pred only touches the nonzero entries of d, i.e. the working set.
+    u = state.hessian_rows * _safe_lin_pred(data.X, d)
+    q = q + _make_coef_P2(off, data.P2, d)
+    q[off:] += data.X.transpose_matvec(u)
+    if off:
+        q[0] += u.sum()
+    return q
+
+
+def _kkt_violations(w, q, data):
+    """Per-coefficient size of the minimum norm subgradient, ignoring bounds.
+
+    Only used to rank candidates for the working set; the stopping criterion
+    uses ``_norm_min_subgrad``, which respects bounds.
+    """
+    off = data.intercept_offset
+    v = np.empty_like(w)
+    if off:
+        v[0] = abs(q[0])
+    wf, qf = w[off:], q[off:]
+    v[off:] = np.where(
+        wf == 0,
+        np.maximum(np.abs(qf) - data.P1, 0),
+        np.abs(qf + data.P1 * np.sign(wf)),
+    )
+    return v
+
+
+@timeit("inner_solver_runtime")
+def _cd_working_set_solver(state, data, active_hessian=None):
+    """Minimize the quadratic model by coordinate descent on working sets.
+
+    For problems with more columns than rows, the Hessian of the active set is
+    large and, being rank deficient, makes coordinate descent slow. Instead,
+    this solver keeps the gradient of the model for all coefficients, picks a
+    working set of the current support and the largest optimality violations,
+    and solves the model restricted to it with the Gram coordinate descent
+    kernel. Only the Hessian of the working set is formed. The working set
+    starts at ``_WS_MIN_SIZE`` (or twice the support) and doubles each round,
+    as in skglm, until the full model is solved to ``state.inner_tol``.
+    """
+    off = data.intercept_offset
+    n_coef = state.coef.shape[0]
+    all_rows = np.arange(data.X.shape[0], dtype=np.int32)
+    eps = np.finfo(state.coef.dtype).eps * 16
+    # The polish fixes the signs, which bounds could contradict.
+    can_polish = not (data.has_lower_bounds or data.has_upper_bounds)
+    prev_total = np.inf
+    w = state.coef.copy()
+    tol = state.inner_tol
+    n_cycles = 0
+    ws_size = _WS_MIN_SIZE
+    converged = False
+    all_coefs = np.arange(n_coef, dtype=np.int32)
+    for _ in range(n_coef):
+        q = _model_gradient(state, data, w)
+        total, _ = _norm_min_subgrad(
+            all_coefs,
+            w,
+            q,
+            data.P1,
+            off,
+            data.has_lower_bounds,
+            data._lower_bounds,
+            data.has_upper_bounds,
+            data._upper_bounds,
+        )
+        if total <= tol:
+            converged = True
+            break
+        # Each round should reduce the violation. If one does not, stop
+        # polishing, so the rounds cannot cycle between two points.
+        if total >= prev_total:
+            can_polish = False
+        prev_total = total
+        # The support is always in the working set; fill up with violators.
+        viol = _kkt_violations(w, q, data)
+        score = viol.copy()
+        score[w != 0] = np.inf
+        if off:
+            score[0] = np.inf
+        # As in skglm: twice the support, at least _WS_MIN_SIZE. A working set
+        # that grows regardless of the support costs rounds and larger Grams.
+        n_forced = int(np.isinf(score).sum())
+        ws_size = min(n_coef, max(_WS_MIN_SIZE, 2 * n_forced))
+        candidates = np.flatnonzero(score > 0)
+        if len(candidates) > ws_size:
+            top = np.argpartition(-score[candidates], ws_size - 1)[:ws_size]
+            candidates = candidates[top]
+        ws = np.sort(candidates).astype(np.int32)
+        Q = np.ascontiguousarray(
+            build_hessian_delta(
+                data.X, state.hessian_rows, data.fit_intercept, data.P2, all_rows, ws
+            )
+        )
+        # The working set only needs to be solved as accurately as the
+        # violations outside of it allow; once there are none, solve it to the
+        # final tolerance instead of returning for another round.
+        outside = viol.sum() - viol[ws].sum()
+        # With the polish below, coordinate descent only needs to find the
+        # support and signs, not to converge on its own.
+        floor = _WS_POLISH_RATIO * total if can_polish else 0.0
+        sub_tol = max(_WS_INNER_TOL_RATIO * max(outside, floor), tol)
+        # Like in _cd_solver, the kernel updates w and q in place.
+        w, sub_norm, _, _, sub_cycles = enet_coordinate_descent_gram(
+            ws,
+            w,
+            data.P1,
+            Q,
+            q,
+            data.max_inner_iter,
+            sub_tol,
+            data.random_state,
+            data.fit_intercept,
+            data.selection == "random",
+            data.has_lower_bounds,
+            data._lower_bounds,
+            data.has_upper_bounds,
+            data._upper_bounds,
+            eps,
+        )
+        n_cycles += sub_cycles
+        if can_polish:
+            w = _polish_on_support(data, w, q, ws, Q)
+
+    if not converged:
+        warnings.warn(
+            "Coordinate descent did not converge on the working sets.",
+            ConvergenceWarning,
+        )
+    return w - state.coef, n_cycles
+
+
+# The IRLS loop must not build the full Hessian for this inner solver.
+_cd_working_set_solver.builds_own_hessian = True  # type: ignore[attr-defined]
+
+
 # Directions along which the curvature of the diagonally scaled active Hessian
 # is below this are handled by null space moves.
 _NULL_SPACE_RTOL = 1e-3
@@ -415,6 +615,9 @@ def update_hessian(state, data, active_set):
     # delta H. If we just computed H directly, then this wouldn't be an issue.
     # A slight modification of this: we could still use a baseline H from the
     # first iteration with the entire column set.
+    if state.hessian is None:
+        n_coef = state.coef.shape[0]
+        state.hessian = np.zeros((n_coef, n_coef), dtype=data.X.dtype)
     first_iteration = not state.hessian_initialized
     reset_iteration = not _is_subset(state.old_active_set, active_set)
     if first_iteration or reset_iteration:
@@ -589,8 +792,13 @@ def _irls_solver(inner_solver, coef, data) -> tuple[np.ndarray, int, int, list[l
             state.old_active_set = state.active_set
             state.active_set = identify_active_set(state, data)
 
-            # 0) Build the hessian
-            hessian, state.n_active_rows = update_hessian(state, data, state.active_set)
+            # 0) Build the hessian, unless the inner solver builds what it needs
+            if getattr(inner_solver, "builds_own_hessian", False):
+                hessian, state.n_active_rows = None, data.X.shape[0]
+            else:
+                hessian, state.n_active_rows = update_hessian(
+                    state, data, state.active_set
+                )
 
             # 1) Solve the L1 and L2 penalized least squares problem
             d, n_cycles_this_iter = inner_solver(state, data, hessian)
@@ -811,9 +1019,9 @@ class IRLSState:
         self.old_hessian_rows = np.zeros(data.X.shape[0], dtype=data.X.dtype)
         self.gradient_rows = None
         self.hessian_rows = None
-        self.hessian = np.zeros(
-            (self.coef.shape[0], self.coef.shape[0]), dtype=data.X.dtype
-        )
+        # Allocated by update_hessian on first use: the working set solver never
+        # needs the full (n_coef x n_coef) matrix.
+        self.hessian: Optional[np.ndarray] = None
         self.hessian_initialized = False
         self.coef_P2 = None
         self.norm_min_subgrad = None

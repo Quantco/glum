@@ -1,3 +1,4 @@
+import functools
 import re
 import sys
 import time
@@ -42,6 +43,7 @@ from ._link import CloglogLink, IdentityLink, Link, LogitLink, LogLink, TweedieL
 from ._solvers import (
     IRLSData,
     _cd_solver,
+    _cd_working_set_solver,
     _irls_solver,
     _lbfgs_solver,
     _least_squares_solver,
@@ -85,6 +87,17 @@ else:
     from sklearn.utils.validation import validate_data  # type: ignore
 
 _float_itemsize_to_dtype = {8: np.float64, 4: np.float32, 2: np.float16}
+
+
+def _fill_missing_names(names: list, prefix: str = "_col_") -> list:
+    """Replace missing (``None``) names by ``f"{prefix}{index}"``."""
+    return [f"{prefix}{i}" if name is None else name for i, name in enumerate(names)]
+
+
+@functools.lru_cache(maxsize=8)
+def _default_names(n: int, prefix: str = "_col_") -> tuple[str, ...]:
+    """Default names of an unnamed matrix with ``n`` columns, cached by width."""
+    return tuple(f"{prefix}{i}" for i in range(n))
 
 
 # If more than this fraction of the fitted values is numerically 0 or 1, we warn.
@@ -631,8 +644,15 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
                 )
             # 4.2 coordinate descent ##############################################
             elif self._solver == "irls-cd":
+                # With more columns than rows, the Hessian is rank deficient and
+                # large, so coordinate descent works on working sets instead.
+                inner_solver = (
+                    _cd_working_set_solver
+                    if len(coef) > X.shape[0]
+                    else _cd_solver
+                )
                 coef, self.n_iter_, self._n_cycles, self.diagnostics_ = _irls_solver(
-                    _cd_solver, coef, irls_data
+                    inner_solver, coef, irls_data
                 )
         # 4.3 L-BFGS ##########################################################
         elif self._solver == "lbfgs":
@@ -2174,12 +2194,31 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         weights_sum: float = np.sum(sample_weight)  # type: ignore
         sample_weight = sample_weight / weights_sum
 
+        # Plain numpy or scipy input has no names.
+        unnamed = not isinstance(X, tm.MatrixBase)
+
         # Convert to wrapper matrix types
         with ignore_tabmat_copy_warning():
             X = tm.as_tabmat(X)
 
-        self.feature_names_ = X.get_names(type="column", missing_prefix="_col_")  # type: ignore
-        self.term_names_ = X.get_names(type="term", missing_prefix="_col_")
+        if unnamed:
+            self.feature_names_ = list(_default_names(X.shape[1]))
+            self.term_names_ = list(self.feature_names_)
+        elif isinstance(X, (tm.DenseMatrix, tm.SparseMatrix)):
+            # Same as get_names(..., missing_prefix="_col_") for these types,
+            # but several times faster for wide matrices. Other types (e.g.
+            # categoricals) build their default names differently.
+            column_names = X.get_names(type="column")
+            term_names = X.get_names(type="term")
+            self.feature_names_ = _fill_missing_names(column_names)
+            self.term_names_ = (
+                list(self.feature_names_)
+                if term_names == column_names
+                else _fill_missing_names(term_names)
+            )
+        else:
+            self.feature_names_ = X.get_names(type="column", missing_prefix="_col_")  # type: ignore
+            self.term_names_ = X.get_names(type="term", missing_prefix="_col_")
 
         return X, y, sample_weight, offset, weights_sum, P1, P2  # type: ignore
 
