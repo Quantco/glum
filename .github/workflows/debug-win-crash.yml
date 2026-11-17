@@ -5,11 +5,12 @@ on:
   workflow_dispatch:
 
 jobs:
-  # Serial: no xdist, so faulthandler shows the crashing frame of the main thread.
-  serial:
-    name: Serial loop (windows, py313)
+  # Full suite under xdist, as in the real CI job. Not fail-fast: we want to
+  # see how many iterations crash.
+  full-parallel:
+    name: Full suite, xdist loop (windows, py313)
     runs-on: windows-2022
-    timeout-minutes: 60
+    timeout-minutes: 120
     env:
       CI: True
       PYTHONFAULTHANDLER: "1"
@@ -21,24 +22,23 @@ jobs:
           environments: py313
       - run: pixi run -e py313 postinstall
       - run: pixi list -e py313
-      - name: Loop test (no xdist)
+      - name: Loop full suite (xdist)
         shell: bash
         run: |
           fails=0
-          for i in $(seq 1 40); do
+          for i in $(seq 1 10); do
             echo "=== iteration $i ==="
-            pixi run -e py313 python -X faulthandler -m pytest \
-              "tests/glm/test_glm_regressor.py::test_categorical_types" \
-              -p no:xdist -p no:cacheprovider -x -s -q || fails=$((fails+1))
+            pixi run -e py313 python -X faulthandler -m pytest tests/glm \
+              --doctest-modules src/glum -nauto -p no:cacheprovider -q || fails=$((fails+1))
           done
-          echo "failed iterations: $fails / 40"
+          echo "failed iterations: $fails / 10"
           [ "$fails" -eq 0 ]
 
-  # Same, but under xdist as in the real CI job.
-  parallel:
-    name: Parallel loop (windows, py313)
+  # Full suite without xdist: if it crashes, faulthandler shows the main thread.
+  full-serial:
+    name: Full suite, serial loop (windows, py313)
     runs-on: windows-2022
-    timeout-minutes: 60
+    timeout-minutes: 120
     env:
       CI: True
       PYTHONFAULTHANDLER: "1"
@@ -49,15 +49,14 @@ jobs:
         with:
           environments: py313
       - run: pixi run -e py313 postinstall
-      - name: Loop test (xdist)
+      - name: Loop full suite (serial)
         shell: bash
         run: |
           fails=0
-          for i in $(seq 1 40); do
+          for i in $(seq 1 4); do
             echo "=== iteration $i ==="
-            pixi run -e py313 python -X faulthandler -m pytest \
-              "tests/glm/test_glm_regressor.py::test_categorical_types" \
-              -nauto -p no:cacheprovider -q || fails=$((fails+1))
+            pixi run -e py313 python -X faulthandler -m pytest tests/glm \
+              --doctest-modules src/glum -p no:xdist -p no:cacheprovider -s -v || fails=$((fails+1))
           done
-          echo "failed iterations: $fails / 40"
+          echo "failed iterations: $fails / 4"
           [ "$fails" -eq 0 ]
