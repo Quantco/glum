@@ -72,6 +72,9 @@ def _cd_solver(state, data, active_hessian):
     can stop after ``_NULL_MOVE_CYCLES`` cycles if it has converged by then,
     because the kernel checks convergence at the end of every call.
     """
+    # The kernel requires a C-contiguous Q. Converting once here, rather than in
+    # run_cd, avoids a copy per call (it is already contiguous today).
+    active_hessian = np.ascontiguousarray(active_hessian)
     coef = state.coef.copy()
     q = -state.score  # updated in place by the kernel and the null space moves
     tol = state.inner_tol
