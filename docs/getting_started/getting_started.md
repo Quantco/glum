@@ -52,7 +52,7 @@ We set three key parameters:
 
 - `family`: the family parameter specifies the distributional assumption of the GLM and, as a consequence, the loss function to be minimized. Accepted strings are 'normal', 'poisson', 'gamma', 'inverse.gaussian', and 'binomial'. You can also pass in an instantiated `glum` distribution (e.g. `glum.TweedieDistribution(1.5)` )
 - `alpha`: the constant multiplying the penalty term that determines regularization strength. (*Note*: `GeneralizedLinearRegressor` also has an alpha-search option. See the `GeneralizedLinearRegressorCV` example below for details on how alpha-search works).
-- `l1_ratio`: the elastic net mixing parameter (`0 <= l1_ratio <= 1`). For `l1_ratio = 0`, the penalty is the L2 penalty (ridge). ``For l1_ratio = 1``, it is an L1 penalty (lasso).  For ``0 < l1_ratio < 1``, the penalty is a combination of L1 and L2.
+- `l1_ratio`: the elastic net mixing parameter (`0 <= l1_ratio <= 1`). For `l1_ratio = 0`, the penalty is the L2 penalty (ridge). For `l1_ratio = 1`, it is an L1 penalty (lasso).  For `0 < l1_ratio < 1`, the penalty is a combination of L1 and L2.
 
 To be precise, we will be minimizing the function with respect to the parameters, $\beta$:
 

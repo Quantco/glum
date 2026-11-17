@@ -748,7 +748,7 @@ pd.DataFrame(
 </div>
 </div>
 
-To allow for even more flexibility, you can add custom transformations that are defined in the context from which the call is made. E.g., we can define a transformation that takes the logarithm of ``VehAge + 1`` after casting it to numeric. To make the formula recognize this transform, you need to explicitly set ``context=0`` when calling the fit method (note that this differs from ``formulaic``'s default, which is already ``context=0``).
+To allow for even more flexibility, you can add custom transformations that are defined in the context from which the call is made. E.g., we can define a transformation that takes the logarithm of `VehAge + 1` after casting it to numeric. To make the formula recognize this transform, you need to explicitly set `context=0` when calling the fit method (note that this differs from `formulaic`'s default, which is already `context=0`).
 
 ```python
 def _log_plus_one(x):

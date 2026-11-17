@@ -547,15 +547,13 @@ class TweedieDistribution(ExponentialDispersionModel):
 
     Special cases are:
 
-    ====== ================ ============
-    Power  Distribution     Support
-    ====== ================ ============
-    0      Normal           `(-∞, +∞)`
-    1      Poisson          `[0, +∞)`
-    (1, 2) Compound Poisson `[0, +∞)`
-    2      Gamma            `(0, +∞)`
-    3      Inverse Gaussian `(0, +∞)`
-    ====== ================ ============
+    | Power  | Distribution     | Support    |
+    | ------ | ---------------- | ---------- |
+    | 0      | Normal           | `(-∞, +∞)` |
+    | 1      | Poisson          | `[0, +∞)`  |
+    | (1, 2) | Compound Poisson | `[0, +∞)`  |
+    | 2      | Gamma            | `(0, +∞)`  |
+    | 3      | Inverse Gaussian | `(0, +∞)`  |
 
     See the documentation of the superclass,
     [`ExponentialDispersionModel`][glum.ExponentialDispersionModel], for details.
