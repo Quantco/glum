@@ -5,58 +5,68 @@ on:
   workflow_dispatch:
 
 jobs:
-  # Full suite under xdist, as in the real CI job. Not fail-fast: we want to
-  # see how many iterations crash.
-  full-parallel:
-    name: Full suite, xdist loop (windows, py313)
+  # Does the crash need glum at all? N processes doing concurrent
+  # scipy.linalg.solve(assume_a="pos") on dense matrices.
+  blas-repro:
+    name: BLAS repro (${{ matrix.variant }})
     runs-on: windows-2022
-    timeout-minutes: 120
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [default, threads1]
     env:
-      CI: True
       PYTHONFAULTHANDLER: "1"
-      PYTHONPATH: "."
+      OPENBLAS_NUM_THREADS: ${{ matrix.variant == 'threads1' && '1' || '' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: prefix-dev/setup-pixi@ad1da6449d9e506fd127fd67ab2d054a769f6a94 # v0.11.2
         with:
           environments: py313
+      - name: Run reproducer (6 procs, 500x500, 5 rounds of 60s)
+        shell: bash
+        run: |
+          fails=0
+          for i in 1 2 3 4 5; do
+            echo "=== round $i ==="
+            pixi run -e py313 python -I .github/debug_blas_repro.py 6 500 60 || fails=$((fails+1))
+          done
+          echo "failed rounds: $fails / 5"
+          [ "$fails" -eq 0 ]
+
+  # Full suite under xdist, as in the real CI job.
+  full-suite:
+    name: Full suite xdist (${{ matrix.variant }})
+    runs-on: windows-2022
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [baseline, threads1, pin-openblas]
+    env:
+      CI: True
+      PYTHONFAULTHANDLER: "1"
+      PYTHONPATH: "."
+      OPENBLAS_NUM_THREADS: ${{ matrix.variant == 'threads1' && '1' || '' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: prefix-dev/setup-pixi@ad1da6449d9e506fd127fd67ab2d054a769f6a94 # v0.11.2
+        with:
+          environments: py313
+      - name: Pin libopenblas below 0.3.34
+        if: matrix.variant == 'pin-openblas'
+        shell: bash
+        run: pixi add --feature py313 "libopenblas<0.3.34"
       - run: pixi run -e py313 postinstall
       - run: pixi list -e py313
       - name: Loop full suite (xdist)
         shell: bash
         run: |
           fails=0
-          for i in $(seq 1 10); do
+          for i in $(seq 1 5); do
             echo "=== iteration $i ==="
             pixi run -e py313 python -X faulthandler -m pytest tests/glm \
               --doctest-modules src/glum -nauto -p no:cacheprovider -q || fails=$((fails+1))
           done
-          echo "failed iterations: $fails / 10"
-          [ "$fails" -eq 0 ]
-
-  # Full suite without xdist: if it crashes, faulthandler shows the main thread.
-  full-serial:
-    name: Full suite, serial loop (windows, py313)
-    runs-on: windows-2022
-    timeout-minutes: 120
-    env:
-      CI: True
-      PYTHONFAULTHANDLER: "1"
-      PYTHONPATH: "."
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: prefix-dev/setup-pixi@ad1da6449d9e506fd127fd67ab2d054a769f6a94 # v0.11.2
-        with:
-          environments: py313
-      - run: pixi run -e py313 postinstall
-      - name: Loop full suite (serial)
-        shell: bash
-        run: |
-          fails=0
-          for i in $(seq 1 4); do
-            echo "=== iteration $i ==="
-            pixi run -e py313 python -X faulthandler -m pytest tests/glm \
-              --doctest-modules src/glum -p no:xdist -p no:cacheprovider -s -v || fails=$((fails+1))
-          done
-          echo "failed iterations: $fails / 4"
+          echo "failed iterations: $fails / 5"
           [ "$fails" -eq 0 ]
