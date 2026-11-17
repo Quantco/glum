@@ -103,3 +103,27 @@ def test_default_feature_names(sparse):
     assert model.feature_names_ == expected
     assert model.term_names_ == expected
     assert model.term_names_ is not model.feature_names_
+
+
+@pytest.mark.parametrize("intercept", [False, True])
+def test_norm_min_subgrad_max_without_intercept(intercept):
+    # The maximum of the minimum norm subgradient used to stay at its initial
+    # value of +inf without an intercept, which made every column active.
+    from glum._cd_fast import _norm_min_subgrad
+
+    grad = np.array([0.1, 1.0, -3.0, 0.5])
+    coef = np.zeros(4)
+    P1 = np.zeros(4 - intercept)
+    norm, max_ = _norm_min_subgrad(
+        np.arange(4, dtype=np.int32),
+        coef,
+        grad,
+        P1,
+        intercept,
+        False,
+        np.empty(0),
+        False,
+        np.empty(0),
+    )
+    assert norm == pytest.approx(np.abs(grad).sum())
+    assert max_ == pytest.approx(3.0)

@@ -7,7 +7,7 @@
 # License: BSD 3 clause
 #         Substantial modifications by Ben Thompson <t.ben.thompson@gmail.com>
 #
-from libc.math cimport INFINITY, fabs
+from libc.math cimport fabs
 cimport numpy as np
 import numpy as np
 
@@ -291,7 +291,7 @@ cdef void cython_norm_min_subgrad(
     cdef int i
 
     norm_out[0] = 0
-    max_out[0] = INFINITY
+    max_out[0] = 0
     for active_set_i in range(len(active_set)):
         i = active_set[active_set_i]
 

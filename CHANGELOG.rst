@@ -13,6 +13,7 @@ Unreleased
 **Bug fix:**
 
 - Fixed the check that ``P2`` is positive semi-definite rejecting valid matrices, such as graph Laplacians, whose smallest eigenvalue is zero. The tolerance for eigenvalues that are negative due to rounding errors now scales with the size and magnitude of ``P2``. Also fixed the check crashing for sparse ``P2`` matrices with 2000 or more rows.
+- Fixed the maximum of the minimum-norm subgradient being infinite for models without an intercept. The ``irls-cd`` solver uses it to decide which coefficients to update, so without an intercept it updated all of them in every iteration and built the Hessian of all columns. L1-penalized fits without an intercept can be much faster now (e.g. about 1 s to 10 ms on the leukemia benchmark with glum's previous solver), with the same results.
 - Fixed the line search of the IRLS solvers rejecting good steps near the optimum of L1-penalized or bounded problems. When the change in the objective was too small to measure, it compared the L1 norm of the gradient, which does not vanish at the optimum of such problems. It now compares the minimum-norm subgradient, the quantity the convergence check uses.
 
 **Other changes:**
