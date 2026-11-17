@@ -1,0 +1,63 @@
+name: Debug Windows crash
+on:
+  push:
+    branches: ["debug/win-crash"]
+  workflow_dispatch:
+
+jobs:
+  # Serial: no xdist, so faulthandler shows the crashing frame of the main thread.
+  serial:
+    name: Serial loop (windows, py313)
+    runs-on: windows-2022
+    timeout-minutes: 60
+    env:
+      CI: True
+      PYTHONFAULTHANDLER: "1"
+      PYTHONPATH: "."
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: prefix-dev/setup-pixi@ad1da6449d9e506fd127fd67ab2d054a769f6a94 # v0.11.2
+        with:
+          environments: py313
+      - run: pixi run -e py313 postinstall
+      - run: pixi list -e py313
+      - name: Loop test (no xdist)
+        shell: bash
+        run: |
+          fails=0
+          for i in $(seq 1 40); do
+            echo "=== iteration $i ==="
+            pixi run -e py313 python -X faulthandler -m pytest \
+              "tests/glm/test_glm_regressor.py::test_categorical_types" \
+              -p no:xdist -p no:cacheprovider -x -s -q || fails=$((fails+1))
+          done
+          echo "failed iterations: $fails / 40"
+          [ "$fails" -eq 0 ]
+
+  # Same, but under xdist as in the real CI job.
+  parallel:
+    name: Parallel loop (windows, py313)
+    runs-on: windows-2022
+    timeout-minutes: 60
+    env:
+      CI: True
+      PYTHONFAULTHANDLER: "1"
+      PYTHONPATH: "."
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: prefix-dev/setup-pixi@ad1da6449d9e506fd127fd67ab2d054a769f6a94 # v0.11.2
+        with:
+          environments: py313
+      - run: pixi run -e py313 postinstall
+      - name: Loop test (xdist)
+        shell: bash
+        run: |
+          fails=0
+          for i in $(seq 1 40); do
+            echo "=== iteration $i ==="
+            pixi run -e py313 python -X faulthandler -m pytest \
+              "tests/glm/test_glm_regressor.py::test_categorical_types" \
+              -nauto -p no:cacheprovider -q || fails=$((fails+1))
+          done
+          echo "failed iterations: $fails / 40"
+          [ "$fails" -eq 0 ]
