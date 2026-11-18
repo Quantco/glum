@@ -1,0 +1,108 @@
+name: Docs preview
+# Add a link to the ReadTheDocs preview of the pull request to the bottom of its
+# description. The link says "building" until ReadTheDocs has finished building
+# the docs for the latest commit and is updated on every push.
+on:
+  # pull_request_target is needed to get a token that can edit the description of
+  # pull requests from forks. This workflow never checks out or runs code from the
+  # pull request.
+  pull_request_target:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  pull-requests: write
+
+concurrency:
+  # A new push supersedes the previous run for the same pull request.
+  group: docs-preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  docs-preview:
+    name: Docs preview link
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Update pull request description
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const project = "glum";
+            const pr = context.payload.pull_request.number;
+            const sha = context.payload.pull_request.head.sha;
+            const shortSha = sha.slice(0, 7);
+            const previewUrl = `https://${project}--${pr}.org.readthedocs.build/en/${pr}/`;
+            const buildsUrl = `https://readthedocs.org/api/v3/projects/${project}/versions/${pr}/builds/?limit=10`;
+            const startMarker = "<!-- docs-preview-start -->";
+            const endMarker = "<!-- docs-preview-end -->";
+            const pollIntervalMs = 30 * 1000;
+            const maxWaitMs = 10 * 60 * 1000;
+
+            // Replace the docs preview block at the bottom of the description. Returns
+            // false if a newer commit has been pushed in the meantime.
+            async function setPreview(text) {
+              const { data } = await github.rest.pulls.get({
+                ...context.repo,
+                pull_number: pr,
+              });
+              if (data.head.sha !== sha) {
+                core.info(`Head moved to ${data.head.sha}, leaving it to the newer run.`);
+                return false;
+              }
+              const body = data.body || "";
+              const pattern = new RegExp(`\\s*${startMarker}[\\s\\S]*?${endMarker}`, "g");
+              const stripped = body.replace(pattern, "").trimEnd();
+              const block = `${startMarker}\n---\n${text}\n${endMarker}`;
+              const newBody = stripped ? `${stripped}\n\n${block}` : block;
+              if (newBody !== body) {
+                await github.rest.pulls.update({
+                  ...context.repo,
+                  pull_number: pr,
+                  body: newBody,
+                });
+              }
+              return true;
+            }
+
+            async function latestBuildForCommit() {
+              try {
+                const response = await fetch(buildsUrl);
+                if (!response.ok) {
+                  core.info(`ReadTheDocs API returned ${response.status}.`);
+                  return undefined;
+                }
+                const { results } = await response.json();
+                // Results are sorted from newest to oldest.
+                return results.find((build) => build.commit === sha);
+              } catch (error) {
+                core.info(`Failed to query ReadTheDocs: ${error}`);
+                return undefined;
+              }
+            }
+
+            if (!(await setPreview(`📚 Docs preview: ⏳ building for ${shortSha}...`))) {
+              return;
+            }
+
+            const deadline = Date.now() + maxWaitMs;
+            while (Date.now() < deadline) {
+              await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+              const build = await latestBuildForCommit();
+              if (!build || build.state.code !== "finished") {
+                continue;
+              }
+              if (build.success) {
+                await setPreview(`📚 Docs preview: ${previewUrl} (built from ${shortSha})`);
+              } else {
+                await setPreview(
+                  `📚 Docs preview: ❌ [build failed](${build.urls.build}) for ${shortSha}`,
+                );
+                core.setFailed(`The ReadTheDocs build failed: ${build.urls.build}`);
+              }
+              return;
+            }
+
+            await setPreview(
+              `📚 Docs preview: ⚠️ timed out waiting for the ReadTheDocs build of ${shortSha}`,
+            );
+            core.setFailed("Timed out waiting for the ReadTheDocs build.");

@@ -1,40 +1,26 @@
----
-jupyter:
-  jupytext:
-    formats: ipynb,md
-    text_representation:
-      extension: .md
-      format_name: markdown
-      format_version: '1.3'
-      jupytext_version: 1.19.1
-  kernelspec:
-    display_name: Python 3 (ipykernel)
-    language: python
-    name: python3
----
-
 # Getting Started: fitting a Lasso model
 
 The purpose of this tutorial is to show the basics of `glum`. It assumes a working knowledge of python, regularized linear models, and machine learning. The API is very similar to scikit-learn. After all, `glum` is based on a fork of scikit-learn.
 
-If you have not done so already, please refer to our [installation instructions](../install.rst) for installing `glum`.
+If you have not done so already, please refer to our [installation instructions](../install.md) for installing `glum`.
 
 ```python
 import pandas as pd
 import sklearn
-from sklearn.datasets import fetch_openml
 from glum import GeneralizedLinearRegressor, GeneralizedLinearRegressorCV
 ```
 
 ## Data
 
-We start by loading the King County housing dataset from openML and splitting it into training and test sets. For simplicity, we don't go into any details regarding exploration or data cleaning.
+We start by loading the King County housing dataset, which comes from [openML](https://www.openml.org/d/42092) and is included in the `glum` repository, and splitting it into training and test sets. For simplicity, we don't go into any details regarding exploration or data cleaning.
 
 ```python
-house_data = fetch_openml(name="house_sales", version=3, as_frame=True)
+house_data = pd.read_parquet(
+    "https://raw.githubusercontent.com/Quantco/glum/main/data/housing.parquet"
+)
 
 # Use only select features
-X = house_data.data[
+X = house_data[
     [
         "bedrooms",
         "bathrooms",
@@ -49,7 +35,7 @@ X = house_data.data[
 ].copy()
 
 # Targets
-y = house_data.target
+y = house_data["price"]
 ```
 
 ```python
@@ -66,7 +52,7 @@ We set three key parameters:
 
 - `family`: the family parameter specifies the distributional assumption of the GLM and, as a consequence, the loss function to be minimized. Accepted strings are 'normal', 'poisson', 'gamma', 'inverse.gaussian', and 'binomial'. You can also pass in an instantiated `glum` distribution (e.g. `glum.TweedieDistribution(1.5)` )
 - `alpha`: the constant multiplying the penalty term that determines regularization strength. (*Note*: `GeneralizedLinearRegressor` also has an alpha-search option. See the `GeneralizedLinearRegressorCV` example below for details on how alpha-search works).
-- `l1_ratio`: the elastic net mixing parameter (`0 <= l1_ratio <= 1`). For `l1_ratio = 0`, the penalty is the L2 penalty (ridge). ``For l1_ratio = 1``, it is an L1 penalty (lasso).  For ``0 < l1_ratio < 1``, the penalty is a combination of L1 and L2.
+- `l1_ratio`: the elastic net mixing parameter (`0 <= l1_ratio <= 1`). For `l1_ratio = 0`, the penalty is the L2 penalty (ridge). For `l1_ratio = 1`, it is an L1 penalty (lasso).  For `0 < l1_ratio < 1`, the penalty is a combination of L1 and L2.
 
 To be precise, we will be minimizing the function with respect to the parameters, $\beta$:
 
@@ -87,6 +73,10 @@ The `GeneralizedLinearRegressor.fit()` method follows typical sklearn API style 
 glm.fit(X_train, y_train)
 ```
 
+```text
+GeneralizedLinearRegressor(alpha=0.1, l1_ratio=1)
+```
+
 Once the model has been estimated, we can retrieve useful information using an sklearn-style syntax.
 
 ```python
@@ -100,7 +90,11 @@ preds = glm.predict(X_test)
 preds[0:5]
 ```
 
-<!-- #region -->
+```text
+array([ 482648.22861178,  142902.68860098,  539452.61266266,
+        569693.78048471, 1042446.9090334 ])
+```
+
 ## Regularization
 
 In the example above, the `alpha` and `l1_ratio` parameters specify the level of regularization, i.e. the amount by which fitted model coefficients are biased towards zero.
@@ -114,7 +108,6 @@ A basic unregularized GLM object is obtained as
 glm = GeneralizedLinearRegressor(family="normal", alpha=0)
 ```
 which we interact with as in the example above.
-<!-- #endregion -->
 
 ## Fitting a GLM with cross validation
 
@@ -148,8 +141,9 @@ print(f"Chosen alpha:    {glmcv.alpha_}")
 print(f"Chosen l1 ratio: {glmcv.l1_ratio_}")
 ```
 
-Congratulations! You have finished our getting started tutorial. If you wish to learn more, please see our other tutorials for more advanced topics like Poisson, Gamma, and Tweedie regression, high dimensional fixed effects, and spatial smoothing using Tikhonov regularization.
-
-```python
-
+```text
+Chosen alpha:    232.70228992842283
+Chosen l1 ratio: 1.0
 ```
+
+Congratulations! You have finished our getting started tutorial. If you wish to learn more, please see our other tutorials for more advanced topics like Poisson, Gamma, and Tweedie regression, high dimensional fixed effects, and spatial smoothing using Tikhonov regularization.

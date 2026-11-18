@@ -85,6 +85,7 @@ setup(
         "scipy>=1.8.0",
         "tabmat>=4.3.0",
         "tqdm",
+        "typing_extensions",
     ],
     entry_points=None,
     ext_modules=cythonize(

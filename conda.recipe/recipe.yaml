@@ -55,6 +55,7 @@ requirements:
     - scipy >=1.8.0
     - tabmat >=4.3.0
     - tqdm
+    - typing_extensions
 
 tests:
   - python:

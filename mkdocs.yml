@@ -1,0 +1,118 @@
+site_name: glum
+site_description: "High performance Python GLMs with all the features!"
+site_url: https://glum.readthedocs.io/en/latest/
+hooks:
+  - docs/hooks/copyright.py
+use_directory_urls: false
+theme:
+  name: material
+  palette:
+    # Palette toggle for automatic mode
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/brightness-auto
+        name: Switch to light mode
+    # Palette toggle for light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    # Palette toggle for dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: Switch to system preference
+  features:
+    - content.action.edit
+    - search.suggest
+    - search.highlight
+    - content.code.annotate
+    - content.code.copy
+    - navigation.tabs
+  icon:
+    repo: fontawesome/brands/github-alt
+    edit: material/pencil
+repo_name: quantco/glum
+repo_url: https://github.com/quantco/glum
+edit_uri: edit/main/docs/
+exclude_docs: |
+  *.py
+  tutorials/regularization_housing_data/Zip_Codes/
+plugins:
+  - search
+  - autorefs
+  - mkdocstrings:
+      handlers:
+        python:
+          inventories:
+            - https://docs.python.org/3/objects.inv
+            - https://numpy.org/doc/stable/objects.inv
+            - https://pandas.pydata.org/docs/objects.inv
+            - https://scikit-learn.org/stable/objects.inv
+            - https://docs.scipy.org/doc/scipy/objects.inv
+          # https://mkdocstrings.github.io/python
+          paths: [src]
+          options:
+            filters:
+              - "!^_" # Disable all single underscore methods ("protected")
+              - "^__init__$"
+              - "!^get_metadata_routing$"
+              - "!^set_.*_request$"
+            extensions:
+              - griffe_inherited_docstrings:
+                  merge: true
+            allow_inspection: true
+            show_if_no_docstring: false
+            show_signature_annotations: true
+            show_signature: true
+            show_symbol_type_heading: true
+            show_root_heading: false
+            docstring_style: numpy
+            docstring_section_style: table
+            separate_signature: true
+            merge_init_into_class: true
+            inherited_members: true
+            members_order: source
+
+extra_css:
+  - stylesheets/extra.css
+
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-mml-chtml.js
+
+nav:
+  - Welcome: index.md
+  - Installation: install.md
+  - Getting Started: getting_started/getting_started.md
+  - Motivation: motivation.md
+  - Benchmarks: benchmarks.md
+  - Tutorials:
+      - tutorials/tutorials.md
+      - "Poisson, Gamma, and Tweedie with French Motor Third-Party Liability Claims": tutorials/glm_french_motor_tutorial/glm_french_motor.md
+      - High Dimensional Fixed Effects with Rossman Sales: tutorials/rossman/fixed_effects_rossman.md
+      - Regularization with King County Housing Sales: tutorials/regularization_housing_data/regularization_housing.md
+      - Formula interface: tutorials/formula_interface/formula_interface.md
+      - Cox Proportional Hazards Model: tutorials/cox_model/cox_model.md
+      - Fitting Penalized Splines: tutorials/penalized_splines/penalized_splines.md
+  - Contributing/Development: contributing.md
+  - Algorithmic details: background.md
+  - API Reference: glm.md
+  - Changelog: changelog.md
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - footnotes
+  - md_in_html
+  - tables
+  - pymdownx.details
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - pymdownx.inlinehilite
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.tasklist:
+      custom_checkbox: true

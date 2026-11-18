@@ -22,10 +22,17 @@ def _setup_and_fit(X_np, y, distribution, l1_ratio, alpha):
     from rpy2.robjects.packages import importr
     from rpy2.robjects.vectors import FloatVector, IntVector
 
-    # Packages must be pre-installed. Fail fast if missing.
+    # glmnet and Matrix must be pre-installed. Fail fast if missing.
     # Use suppressPackageStartupMessages to avoid noisy loading messages.
     required_pkgs = ["glmnet", "Matrix"]
     if distribution.startswith("tweedie"):
+        # `tweedie` has no osx-arm64 build on conda-forge, so install it (and
+        # `statmod`) from CRAN if the environment doesn't provide it.
+        for pkg in ["tweedie", "statmod"]:
+            ro.r(
+                f'if (!requireNamespace("{pkg}", quietly = TRUE)) '
+                f'install.packages("{pkg}", repos = "https://cloud.r-project.org")'
+            )
         required_pkgs += ["tweedie", "statmod"]
     for pkg in required_pkgs:
         ro.r(f'suppressPackageStartupMessages(library("{pkg}"))')

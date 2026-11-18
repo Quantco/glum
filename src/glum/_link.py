@@ -24,7 +24,7 @@ class Link(metaclass=ABCMeta):
     """Abstract base class for link functions."""
 
     def is_saturated(self, lin_pred) -> np.ndarray:
-        """Whether ``inverse(lin_pred)`` is numerically at the boundary of its range.
+        """Whether `inverse(lin_pred)` is numerically at the boundary of its range.
 
         Only links that clip their inverse at the boundary of the unit interval,
         such as the logit and cloglog links, can be saturated.
@@ -35,8 +35,8 @@ class Link(metaclass=ABCMeta):
     def link(self, mu):
         """Compute the link function.
 
-        The link function ``g`` links the mean, ``mu ≡ E(Y)``, to the linear
-        predictor, ``X * w``, so that ``g(mu)`` is equal to the linear predictor.
+        The link function `g` links the mean, `mu ≡ E(Y)`, to the linear
+        predictor, `X * w`, so that `g(mu)` is equal to the linear predictor.
 
         Parameters
         ----------
@@ -60,9 +60,9 @@ class Link(metaclass=ABCMeta):
     def inverse(self, lin_pred):
         """Compute the inverse link function.
 
-        The inverse link function ``h`` gives the inverse relationship between
-        the linear predictor, ``X * w``, and the mean, ``mu ≡ E(Y)``, so that
-        ``h(X * w) = mu``.
+        The inverse link function `h` gives the inverse relationship between
+        the linear predictor, `X * w`, and the mean, `mu ≡ E(Y)`, so that
+        `h(X * w) = mu`.
 
         Parameters
         ----------
@@ -121,9 +121,9 @@ def catch_p(fun) -> Callable:
 
 
 class TweedieLink(Link):
-    """The Tweedie link function ``x^(1-p)`` if ``p≠1`` and ``log(x)`` if ``p=1``.
+    """The Tweedie link function `x^(1-p)` if `p≠1` and `log(x)` if `p=1`.
 
-    See the documentation of the superclass, :class:`~glum.Link`, for details.
+    See the documentation of the superclass, [`Link`][glum.Link], for details.
     """
 
     def __init__(self, power):
@@ -219,7 +219,7 @@ class IdentityLink(Link):
 
 
 class LogLink(Link):
-    """The log link function ``log(x)``."""
+    """The log link function `log(x)`."""
 
     def __eq__(self, other):  # noqa D
         return isinstance(other, self.__class__)
@@ -244,7 +244,7 @@ class LogLink(Link):
 
 
 class LogitLink(Link):
-    """The logit link function ``logit(x)``."""
+    """The logit link function `logit(x)`."""
 
     def __eq__(self, other):  # noqa D
         return isinstance(other, self.__class__)
@@ -273,7 +273,7 @@ class LogitLink(Link):
 
 
 class CloglogLink(Link):
-    """The complementary log-log link function ``log(-log(1-mu))``."""
+    """The complementary log-log link function `log(-log(1-mu))`."""
 
     def __eq__(self, other):  # noqa D
         return isinstance(other, self.__class__)

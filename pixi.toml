@@ -13,13 +13,11 @@ test = { cmd = "pytest tests/glm --doctest-modules src/glum", env = { PYTHONPATH
 test-backwards-compatibility = { cmd = "python tests/backwards_compatibility/run.py" }
 
 [feature.docs.tasks]
-# Warnings are errors; --keep-going reports all of them instead of stopping at the first.
-make-docs = "cd docs && make html SPHINXOPTS='-W --keep-going'"
-readthedocs = { cmd = "rm -rf $READTHEDOCS_OUTPUT/html && cp -r docs/_build/html $READTHEDOCS_OUTPUT/html", depends-on = [
-    "make-docs",
-] }
-serve-docs = { cmd = "python -m http.server --directory docs/_build/html", depends-on = [
-    "make-docs",
+docs = "zensical serve"
+docs-build = "zensical build --strict"
+run-tutorials = "python docs/run_tutorials.py"
+readthedocs = { cmd = "rm -rf $READTHEDOCS_OUTPUT/html && cp -r site $READTHEDOCS_OUTPUT/html", depends-on = [
+    "docs-build",
 ] }
 
 [feature.benchmark.tasks]
@@ -67,6 +65,7 @@ setuptools = ">=61"
 setuptools-scm = ">=8.1"
 tabmat = ">=4.3.0"
 tqdm = "*"
+typing_extensions = "*"
 wheel = "*"
 
 [feature.no-tabmat.dependencies]
@@ -89,6 +88,18 @@ pytest = "*"
 pytest-xdist = "*"
 statsmodels = "*"
 
+# libopenblas 0.3.34 on Windows can crash with an access violation in the DGEMM
+# kernel (stack buffer overflow for k > 128 on AMD CPUs exposing AVX-512), e.g. in
+# scipy.linalg.solve(assume_a="pos"). See
+# https://github.com/OpenMathLib/OpenBLAS/issues/6013 and
+# https://github.com/conda-forge/openblas-feedstock/issues/196.
+# Only 0.3.34 is excluded, so newer releases are picked up automatically; remove
+# this once the fix is released. The libblas constraint keeps the solver from
+# switching to another BLAS implementation (e.g. BLIS).
+[feature.test.target.win-64.dependencies]
+libblas = { version = "*", build = "*openblas" }
+libopenblas = "!=0.3.34"
+
 [feature.dev.dependencies]
 ipdb = "*"
 ipykernel = "*"
@@ -103,25 +114,19 @@ pre-commit-hooks = "*"
 ruff = "*"
 
 [feature.docs.dependencies]
-jinja2 = "*"
-jupyterlab = "*"
-jupytext = "*"
-make = "*"
-matplotlib-base = "*"
-nbclassic = ">=0.2.8"
-nbsphinx = ">=0.8.3"
-sphinx = ">=3.5.3,!=8.2"
-sphinx_rtd_theme = "*"
-sphinxcontrib-apidoc = "*"
-sphinxext-altair = "*"
+griffe-inherited-docstrings = "*"
+mkdocstrings = "*"
+mkdocstrings-python = "*"
+zensical = "*"
 
 [feature.tutorial.dependencies]
-altair = "*"            # used in docs/tutorials/rossman
 dask-ml = ">=2022.5.27" # used in tutorials rossman and insurance
-jupyterlab = "*"
+geopandas = "*"         # used in docs/tutorials/regularization_housing_data
+ipython = "*"           # used by docs/run_tutorials.py
 libpysal = "*"          # used in docs/tutorials/regularization_housing_data
 lifelines = "*"         # used in docs/tutorials/cox_model
-openml = "*"            # used for downloading datasets in the tutorials.
+matplotlib-base = "*"
+pyshp = "*"             # used in docs/tutorials/regularization_housing_data
 shapely = "*"           # used in docs/tutorials/regularization_housing_data
 
 [feature.benchmark.dependencies]
@@ -134,6 +139,7 @@ pygam = "*"
 pytest = "*"
 r-base = "*"
 r-glmnet = "*"
+r-statmod = "*"         # used by the glmnet tweedie benchmark
 rich = "*"
 rpy2 = "*"
 "ruamel.yaml" = "*"

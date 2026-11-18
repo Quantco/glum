@@ -4,17 +4,20 @@ from typing import Optional, Union
 import numpy as np
 import tabmat as tm
 from scipy import linalg, sparse
+from scipy.sparse import linalg as sparse_linalg
 
 from ._utils import safe_toarray
 
 
 def is_pos_semidef(p: Union[sparse.spmatrix, np.ndarray]) -> Union[bool, np.bool_]:
     """
-    Checks for positive semidefiniteness of ``p`` if ``p`` is a matrix, or
-    ``diag(p)`` if a vector.
+    Checks for positive semidefiniteness of `p` if `p` is a matrix, or
+    `diag(p)` if a vector.
 
-    ``np.linalg.cholesky(P2)`` 'only' asserts positive definiteness; due to
-    numerical precision, we allow eigenvalues to be a tiny bit negative.
+    `np.linalg.cholesky(P2)` 'only' asserts positive definiteness; due to
+    numerical precision, we allow eigenvalues to be a tiny bit negative. The
+    rounding error of computed eigenvalues grows with the size of the matrix and
+    the magnitude of its entries, so the tolerance does, too.
     """
     # 1d case
     if p.ndim == 1 or p.shape[0] == 1:
@@ -22,30 +25,28 @@ def is_pos_semidef(p: Union[sparse.spmatrix, np.ndarray]) -> Union[bool, np.bool
         return not any_negative
 
     # 2d case
-    # About -6e-7 for 32-bit, -1e-15 for 64-bit
-    epsneg = -10 * np.finfo(np.result_type(float, p.dtype)).epsneg
+    finfo = np.finfo(np.result_type(float, p.dtype))
 
-    if sparse.issparse(p):
-        # Computing eigenvalues for sparse matrices is inefficient. If the matrix is
-        # not huge, convert to dense. Otherwise, calculate 10% of its eigenvalues.
+    if sparse.issparse(p) and p.shape[0] >= 2000:
+        # Computing all eigenvalues of a large sparse matrix is expensive. Only
+        # compute the smallest one and bound the largest one by the matrix norm.
         p = typing.cast(sparse.spmatrix, p)
-        if p.shape[0] < 2000:
+        try:
+            min_eigenvalue = sparse_linalg.eigsh(
+                p, k=1, which="SA", return_eigenvectors=False
+            )[0]
+            scale = sparse_linalg.norm(p, np.inf)
+        except sparse_linalg.ArpackNoConvergence:
             eigenvalues = linalg.eigvalsh(p.toarray())
-        else:
-            n_evals_to_compuate = p.shape[0] // 10 + 1
-            sigma = -1000 * epsneg  # start searching near this value
-            which = "SA"  # find smallest algebraic eigenvalues first
-            eigenvalues = linalg.eigsh(
-                p,
-                k=n_evals_to_compuate,
-                sigma=sigma,
-                which=which,
-                return_eigenvectors=False,
-            )
-    else:  # dense
-        eigenvalues = linalg.eigvalsh(p)
+            min_eigenvalue, scale = eigenvalues[0], np.abs(eigenvalues).max()
+    else:
+        eigenvalues = linalg.eigvalsh(safe_toarray(p))
+        min_eigenvalue, scale = eigenvalues[0], np.abs(eigenvalues).max()
 
-    return np.all(eigenvalues >= epsneg)
+    # Never stricter than the previous fixed tolerance of 10 * epsneg (about
+    # 6e-7 for 32-bit and 1e-15 for 64-bit).
+    tolerance = max(10 * finfo.epsneg, p.shape[0] * finfo.eps * scale)
+    return min_eigenvalue >= -tolerance
 
 
 def _safe_lin_pred(
@@ -73,10 +74,10 @@ def _safe_sandwich_dot(
     intercept=False,
 ) -> np.ndarray:
     """
-    Compute sandwich product ``X.T @ diag(d) @ X``.
+    Compute sandwich product `X.T @ diag(d) @ X`.
 
-    With ``intercept=True``, ``X`` is treated as if a column of 1 were appended
-    as first column of ``X``. ``X`` can be sparse; ``d`` must be an ndarray.
+    With `intercept=True`, `X` is treated as if a column of 1 were appended
+    as first column of `X`. `X` can be sparse; `d` must be an ndarray.
     Always returns an ndarray.
     """
     result = X.sandwich(d, rows, cols)
@@ -106,18 +107,18 @@ def _solve_least_squares_tikhonov(
     """
     Solve weighted least squares with optional Tikhonov (L2) penalty.
 
-    Finds ``beta`` minimising
+    Finds `beta` minimising
 
         0.5 * (y - X @ beta).T @ W @ (y - X @ beta)
         + 0.5 * beta.T @ P2 @ beta
 
-    with ``W = diag(sample_weight)``, via the closed-form solution
+    with `W = diag(sample_weight)`, via the closed-form solution
 
         beta_hat = inv(X.T @ W @ X + P2) @ X.T @ W @ y
 
-    With ``fit_intercept=True`` the design matrix is implicitly augmented
-    with a leading column of ones (unpenalised). When ``offset`` is not
-    ``None``, ``y`` is replaced by ``y - offset``.
+    With `fit_intercept=True` the design matrix is implicitly augmented
+    with a leading column of ones (unpenalised). When `offset` is not
+    `None`, `y` is replaced by `y - offset`.
 
     See Hastie, Tibshirani & Friedman (2009), *The Elements of Statistical
     Learning*, 2nd ed., Springer, Section 3.4.1, Eq. 3.44.

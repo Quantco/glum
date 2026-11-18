@@ -1,0 +1,28 @@
+/* Saved outputs of tutorial code, e.g. pandas data frames. */
+.nb-output {
+  overflow-x: auto;
+  margin: 0 0 1em;
+  font-size: 0.7rem;
+}
+
+.nb-output table {
+  border-collapse: collapse;
+}
+
+.nb-output th,
+.nb-output td {
+  padding: 0.2em 0.6em;
+  border-bottom: 0.05rem solid var(--md-typeset-table-color);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.nb-output thead th {
+  border-bottom-width: 0.1rem;
+}
+
+/* Tables with many short columns: scroll instead of wrapping every cell. */
+.wide-table td,
+.wide-table th {
+  white-space: nowrap;
+}

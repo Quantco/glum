@@ -72,7 +72,7 @@ _FACTOR_RE = re.compile(
 
 
 def _parse_column_name(col: str, separator: str = ":") -> list[tuple[str, str | None]]:
-    """Parse ``"bs(x, df=5)[3]:g[a]"`` into ``[('bs(x, df=5)', '3'), ('g', 'a')]``."""
+    """Parse `"bs(x, df=5)[3]:g[a]"` into `[('bs(x, df=5)', '3'), ('g', 'a')]`."""
     factors = []
     for part in col.split(separator):
         m = _FACTOR_RE.fullmatch(part.strip())
@@ -121,12 +121,12 @@ def _build_monotonic_constraints(
     separator: str = ":",
     dropped_first: Collection[tuple[str, str]] = (),
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Build ``(A_ineq, b_ineq)`` enforcing monotonicity on ordered terms.
+    """Build `(A_ineq, b_ineq)` enforcing monotonicity on ordered terms.
 
     Multi-column terms (splines, ordered categoricals) get consecutive-pair
     constraints; single-column terms get a sign constraint.  Interactions
     are constrained within each level of the other factor(s).  For
-    ``(factor, column)`` pairs in ``dropped_first``, the factor's first column
+    `(factor, column)` pairs in `dropped_first`, the factor's first column
     was dropped (its coefficient is implicitly zero), so the first remaining
     coefficient also gets a sign constraint.
     """
@@ -177,7 +177,7 @@ def _build_monotonic_constraints(
 
 
 def _drops_first_column(model_spec, scoped_factor) -> bool:
-    """Whether the first column of ``scoped_factor`` was dropped."""
+    """Whether the first column of `scoped_factor` was dropped."""
     if scoped_factor.reduced:  # e.g. C(g) with drop_first=True
         return True
     # bs() omits its first basis function unless include_intercept=True. tabmat
@@ -222,9 +222,9 @@ def _resolve_monotonic_constraints_from_model_spec(
     model_spec,
     monotonic_constraints: Mapping[str, str],
 ) -> tuple[dict[str, str], set[tuple[str, str]]]:
-    """Map variable names (e.g. ``"x"``) to factor names (e.g. ``"bs(x, df=5)"``).
+    """Map variable names (e.g. `"x"`) to factor names (e.g. `"bs(x, df=5)"`).
 
-    Also return the ``dropped_first`` pairs for ``_build_monotonic_constraints``.
+    Also return the `dropped_first` pairs for `_build_monotonic_constraints`.
     """
     _INCOMPATIBLE_TRANSFORMS = ("poly(", "cc(", "cr(", "cs(")
 
