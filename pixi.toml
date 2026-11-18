@@ -139,6 +139,7 @@ pygam = "*"
 pytest = "*"
 r-base = "*"
 r-glmnet = "*"
+r-statmod = "*"         # used by the glmnet tweedie benchmark
 rich = "*"
 rpy2 = "*"
 "ruamel.yaml" = "*"

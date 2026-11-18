@@ -20,7 +20,7 @@ def _build_and_fit(model_args, fit_args):
 
 
 MONOTONIC_FORMULA = (
-    "y ~ cr(BonusMalus, df=10)"
+    "y ~ bs(BonusMalus, df=10)"
     " + C(VehPower) + C(VehAge) + C(DrivAge)"
     " + C(VehBrand) + C(VehGas) + C(Region) + C(Area)"
     " + Density_log"

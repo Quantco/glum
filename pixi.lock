@@ -2,13 +2,13 @@ version: 7
 platforms:
 - name: linux-64
   virtual-packages:
-  - __unix=0
+  - __unix=0=0
   - __linux=4.18
   - __glibc=2.28
   - __archspec=0=x86_64
 - name: osx-arm64
   virtual-packages:
-  - __unix=0
+  - __unix=0=0
   - __osx=13.0
   - __archspec=0=m1
 - name: win-64
@@ -187,6 +187,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/linux-64/r-matrix-1.7_6-r45h0e4624f_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/r-rcpp-1.1.2-r45h3697838_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/r-rcppeigen-0.3.4.0.2-r45h3704496_1.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/r-statmod-1.5.2-r45hb1d0f04_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/r-survival-3.8_12-r45hddc5280_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/re2-2025.11.05-hbf548d4_3.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/readline-8.3-hd6e31c0_1.conda
@@ -523,6 +524,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/r-matrix-1.7_6-r45h3f89421_0.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/r-rcpp-1.1.2-r45h1380947_0.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/r-rcppeigen-0.3.4.0.2-r45hd057375_1.conda
+      - conda: https://conda.anaconda.org/conda-forge/osx-arm64/r-statmod-1.5.2-r45h95dfc9f_0.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/r-survival-3.8_12-r45hb5b23e3_0.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/re2-2025.11.05-hb8e9f31_3.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/readline-8.3-h8b90a29_1.conda
@@ -765,6 +767,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/win-64/r-matrix-1.7_6-r44h5ea86f4_0.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/r-rcpp-1.1.2-r44hd8a2815_0.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/r-rcppeigen-0.3.4.0.2-r44hac2c72c_1.conda
+      - conda: https://conda.anaconda.org/conda-forge/win-64/r-statmod-1.5.2-r44h60fe942_0.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/r-survival-3.8_12-r44ha31549c_0.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/re2-2025.11.05-haef9524_3.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/rpy2-3.6.4-py314r44h83472a1_1.conda
@@ -11239,6 +11242,21 @@ packages:
   run_exports: {}
   size: 1496128
   timestamp: 1757496030112
+- conda: https://conda.anaconda.org/conda-forge/linux-64/r-statmod-1.5.2-r45hb1d0f04_0.conda
+  sha256: 3095c4e59616a46480533f2e545136e25b1cb20d7ec6535d4a7f0938c48ff789
+  md5: 377126a1601c75ff75c2c8c277e55a81
+  depends:
+  - __glibc >=2.17,<3.0.a0
+  - libgcc >=14
+  - libgfortran
+  - libgfortran5 >=14.3.0
+  - r-base >=4.5,<4.6.0a0
+  license: GPL-2.0-or-later
+  license_family: GPL3
+  purls: []
+  run_exports: {}
+  size: 325043
+  timestamp: 1779038241839
 - conda: https://conda.anaconda.org/conda-forge/linux-64/r-survival-3.8_12-r45hddc5280_0.conda
   sha256: 9075d3145d34039fbffb6c1fb5c54f43d980b05fc0382093b7d4347e00411c1a
   md5: 2165bf9ffcefc182e65ada290f3dbe29
@@ -14377,7 +14395,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/pydantic?source=compressed-mapping
+  - pkg:pypi/pydantic?source=hash-mapping
   run_exports: {}
   size: 360046
   timestamp: 1793349177574
@@ -15194,7 +15212,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/tzlocal?source=hash-mapping
+  - pkg:pypi/tzlocal?source=compressed-mapping
   run_exports: {}
   size: 24206
   timestamp: 1792678127238
@@ -16176,7 +16194,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/fonttools?source=hash-mapping
+  - pkg:pypi/fonttools?source=compressed-mapping
   run_exports: {}
   size: 3183401
   timestamp: 1793164558057
@@ -19843,6 +19861,20 @@ packages:
   run_exports: {}
   size: 1476319
   timestamp: 1757496293279
+- conda: https://conda.anaconda.org/conda-forge/osx-arm64/r-statmod-1.5.2-r45h95dfc9f_0.conda
+  sha256: 07a62277620d640cc6cc680e4b3f91b208c684a107ad31b21e879d3c6ae8a5c7
+  md5: cf07183846ee8a510d0c550e3bda843c
+  depends:
+  - __osx >=11.0
+  - libgfortran
+  - libgfortran5 >=14.3.0
+  - r-base >=4.5,<4.6.0a0
+  license: GPL-2.0-or-later
+  license_family: GPL3
+  purls: []
+  run_exports: {}
+  size: 323836
+  timestamp: 1779038718331
 - conda: https://conda.anaconda.org/conda-forge/osx-arm64/r-survival-3.8_12-r45hb5b23e3_0.conda
   sha256: ec0ff560a73c74ffc27a919a81b62f5d6a3b0638cdd17945bc540d70274efdd2
   md5: ae997d184f57fd6ea4618b16d75058ba
@@ -21441,7 +21473,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/cffi?source=hash-mapping
+  - pkg:pypi/cffi?source=compressed-mapping
   run_exports: {}
   size: 347452
   timestamp: 1788485352441
@@ -23963,7 +23995,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/markupsafe?source=hash-mapping
+  - pkg:pypi/markupsafe?source=compressed-mapping
   run_exports: {}
   size: 30360
   timestamp: 1793707107512
@@ -25836,6 +25868,22 @@ packages:
   run_exports: {}
   size: 1488051
   timestamp: 1757496391587
+- conda: https://conda.anaconda.org/conda-forge/win-64/r-statmod-1.5.2-r44h60fe942_0.conda
+  sha256: 8ee832019e88526f08e44004173d024f57c8518290e61202d0418711b83a5d98
+  md5: 0a9e60784130897ba7c7b1d595cd91e9
+  depends:
+  - libgcc >=14
+  - libgfortran
+  - libgfortran5 >=14.3.0
+  - libwinpthread >=12.0.0.r4.gg4f2fc60ca
+  - r-base >=4.4,<4.5.0a0
+  - ucrt >=10.0.20348.0
+  license: GPL-2.0-or-later
+  license_family: GPL3
+  purls: []
+  run_exports: {}
+  size: 327716
+  timestamp: 1779038406573
 - conda: https://conda.anaconda.org/conda-forge/win-64/r-survival-3.8_12-r44ha31549c_0.conda
   sha256: 077d624b60b793502c19098c0108b21e234fad4b232180ef2067755af8961c8a
   md5: 255371a6c5e27c35d2a5b8502e238c8d
