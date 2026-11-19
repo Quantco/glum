@@ -175,6 +175,10 @@ python = "3.12.*"
 python = "3.13.*"
 [feature.py314.dependencies]
 python = "3.14.*"
+[feature.py314t.dependencies]
+python = "3.14.*"
+python-freethreading = "3.14.*"
+tabmat = ">=4.3.1"
 [feature.py315.dependencies]
 python = "3.15.*"
 
@@ -217,4 +221,5 @@ py311 = ["py311", "test"]
 py312 = ["py312", "test"]
 py313 = ["py313", "test"]
 py314 = ["py314", "test"]
+py314t = ["py314t", "test"]
 py315 = ["py315", "test"]
