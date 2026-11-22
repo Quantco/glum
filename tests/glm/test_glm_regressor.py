@@ -2494,6 +2494,31 @@ def test_dropping_distinct_categorical_column():
     assert regressor.coef_.shape == (1,)
     assert regressor.feature_names_ == ["num"]
     assert regressor.term_names_ == ["num"]
+    # "num" is collinear with the intercept, so the best prediction is the mean.
+    np.testing.assert_allclose(regressor.predict(X), y.mean())
+
+
+@pytest.mark.parametrize("solver", ["auto", "closed-form"])
+@pytest.mark.parametrize(
+    "make_X",
+    [
+        # A constant column, collinear with the intercept
+        lambda rng: np.column_stack([np.ones(20), rng.normal(size=20)]),
+        # A duplicated column
+        lambda rng: np.repeat(rng.normal(size=(20, 1)), 2, axis=1),
+    ],
+    ids=["constant", "duplicated"],
+)
+def test_closed_form_collinear_predictions(solver, make_X):
+    # Rank-deficient unpenalized problems must fall back to the minimum-norm
+    # least squares solution rather than solving a near-singular system.
+    rng = np.random.default_rng(0)
+    X = make_X(rng)
+    y = rng.normal(size=20)
+    glm = GeneralizedLinearRegressor(alpha=0, solver=solver).fit(X, y)
+    expected = skl.linear_model.LinearRegression().fit(X, y).predict(X)
+    np.testing.assert_allclose(glm.predict(X), expected, rtol=1e-8, atol=1e-10)
+    assert np.all(np.abs(glm.coef_) < 1e3)
 
 
 def test_P1_P2_with_drop_first():
