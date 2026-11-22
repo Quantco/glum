@@ -82,7 +82,7 @@ setup(
         "pandas>=1.4",
         "pyarrow",
         "scikit-learn>=1.1.0",
-        "scipy>=1.8.0",
+        "scipy>=1.15.0",
         "tabmat>=4.3.0",
         "tqdm",
         "typing_extensions",
