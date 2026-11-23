@@ -158,11 +158,10 @@ def _solve_least_squares_tikhonov(
         elif has_l2_penalty:
             hessian += safe_toarray(P2)
 
-    # With nonzero L2 penalty this system is often SPD, so we try the faster
-    # Cholesky path first.
-    coef = _solve_well_conditioned_symmetric(
-        hessian, rhs, positive_definite=bool(has_l2_penalty)
-    )
+    # The Hessian is positive semi-definite (sample weights are non-negative and
+    # P2 is PSD), so we use the Cholesky path. It fails or reports a tiny
+    # reciprocal condition number if the Hessian is singular or ill-conditioned.
+    coef = _solve_well_conditioned_psd(hessian, rhs)
     if coef is None:
         # OLS can be singular / rank-deficient (e.g. collinearity). Use
         # minimum-norm least squares solution as a robust closed-form fallback.
@@ -170,12 +169,11 @@ def _solve_least_squares_tikhonov(
     return coef
 
 
-def _solve_well_conditioned_symmetric(
-    a: np.ndarray, b: np.ndarray, positive_definite: bool
-) -> Optional[np.ndarray]:
+def _solve_well_conditioned_psd(a: np.ndarray, b: np.ndarray) -> Optional[np.ndarray]:
     """
-    Solve `a @ x = b` for symmetric `a`, or return `None` if `a` is singular or
-    ill-conditioned (reciprocal condition number below machine epsilon).
+    Solve `a @ x = b` for positive semi-definite `a` using a Cholesky
+    factorization, or return `None` if `a` is singular or ill-conditioned
+    (reciprocal condition number below machine epsilon).
 
     This calls LAPACK directly instead of `scipy.linalg.solve`, which signals
     ill-conditioning through a `LinAlgWarning`. Catching that warning would
@@ -190,27 +188,12 @@ def _solve_well_conditioned_symmetric(
     anorm = np.abs(a).sum(axis=0).max()
     eps = np.finfo(np.result_type(a, b)).eps
 
-    if positive_definite:
-        potrf, pocon, potrs = linalg.get_lapack_funcs(
-            ("potrf", "pocon", "potrs"), (a, b)
-        )
-        factor, info = potrf(a, lower=False, clean=False)
-        if info != 0:
-            return None
-        rcond, info = pocon(factor, anorm, uplo="U")
-        if info != 0 or not rcond >= eps:
-            return None
-        x, info = potrs(factor, b, lower=False)
-    else:
-        sytrf, sycon, sytrs = linalg.get_lapack_funcs(
-            ("sytrf", "sycon", "sytrs"), (a, b)
-        )
-        factor, ipiv, info = sytrf(a, lower=False)
-        if info != 0:
-            return None
-        rcond, info = sycon(factor, ipiv, anorm, lower=False)
-        if info != 0 or not rcond >= eps:
-            return None
-        x, info = sytrs(factor, ipiv, b, lower=False)
-
+    potrf, pocon, potrs = linalg.get_lapack_funcs(("potrf", "pocon", "potrs"), (a, b))
+    factor, info = potrf(a, lower=False, clean=False)
+    if info != 0:
+        return None
+    rcond, info = pocon(factor, anorm, uplo="U")
+    if info != 0 or not rcond >= eps:
+        return None
+    x, info = potrs(factor, b, lower=False)
     return x if info == 0 else None
