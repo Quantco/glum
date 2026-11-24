@@ -14,6 +14,7 @@ https://semver.org/spec/v2.0.0.html. The most important bits are:
 
 - Fixed the check that `P2` is positive semi-definite rejecting valid matrices, such as graph Laplacians, whose smallest eigenvalue is zero. The tolerance for eigenvalues that are negative due to rounding errors now scales with the size and magnitude of `P2`. Also fixed the check crashing for sparse `P2` matrices with 2000 or more rows.
 - Fixed the line search of the IRLS solvers rejecting good steps near the optimum of L1-penalized or bounded problems. When the change in the objective was too small to measure, it compared the L1 norm of the gradient, which does not vanish at the optimum of such problems. It now compares the minimum-norm subgradient, the quantity the convergence check uses.
+- Fixed the `closed-form` solver returning huge coefficients and wrong predictions for rank-deficient problems that are not exactly singular, e.g. a constant column next to the intercept. It now falls back to the minimum-norm least squares solution whenever the system is ill-conditioned, as documented, not only when it is exactly singular. This surfaced with tabmat 4.3.2, which computes the sandwich product more accurately.
 
 **Other changes:**
 
