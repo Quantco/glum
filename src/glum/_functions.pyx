@@ -194,6 +194,8 @@ def gamma_log_rowwise_gradient_hessian(
     cdef int i
     for i in prange(n, nogil=True):
         gradient_rows_out[i] = weights[i] * (y[i] / mu[i] - 1)
+        # True Hessian (the FIM would be weights[i]). It is positive definite
+        # because y > 0.
         hessian_rows_out[i] = weights[i] * (y[i] / mu[i])
 
 def gamma_log_likelihood(
@@ -553,6 +555,8 @@ def negative_binomial_log_rowwise_gradient_hessian(
     cdef int i
     for i in prange(n, nogil=True):
         gradient_rows_out[i] = weights[i] * (y[i] - mu[i]) / (1.0 + theta * mu[i])
+        # Use the FIM. The true Hessian, weights[i] * mu[i] * (1 + theta * y[i])
+        # / (1 + theta * mu[i]) ** 2, would also be positive semi-definite.
         hessian_rows_out[i] = weights[i] * mu[i]  / (1.0 + theta * mu[i])
 
 def negative_binomial_log_likelihood(

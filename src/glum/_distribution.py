@@ -397,7 +397,8 @@ class ExponentialDispersionModel(metaclass=ABCMeta):
         version for a specific distribution and link function, please override
         this function in the subclass.
         """
-        # FOR TWEEDIE: sigma_inv = weights / (mu ** p) during optimization bc phi = 1
+        # Use the Fisher information (expected Hessian), which is always positive
+        # semi-definite. The dispersion is set to one during optimization.
         sigma_inv = get_one_over_variance(self, link, mu, eta, 1.0, sample_weight)
         d1 = link.inverse_derivative(eta)  # = h'(eta)
         # Alternatively:
