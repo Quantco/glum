@@ -59,7 +59,7 @@ With $1 < p < 2$, the Tweedie distribution is a [compound Poisson-gamma](https:/
 
 ## Objective function
 
-To fit a GLM, we minimize the negative log-likelihood (or typically the unit deviance) subject to an elastic net constraint involving a mix of L1 and L2 penalty terms:
+To fit a GLM, we minimize the negative log-likelihood (or, equivalently, the deviance) subject to an elastic net constraint involving a mix of L1 and L2 penalty terms:
 
 $$
 \min_{\beta} \mathcal L + \alpha \rho ||\beta||_1  + \frac{\alpha (1-\rho)}{2} ||\beta||_2^2
@@ -79,7 +79,7 @@ $$
 \hat{\phi} = \frac{1}{\sum_i w_i - k} \sum_i w_i \frac{(y_i - \hat{\mu}_i)^2}{v(\hat{\mu}_i)},
 $$
 
-where $k$ is the number of estimated coefficients. The denominator treats the weights as frequency weights, i.e. a row with weight 3 counts as three observations. If the weights are instead precision weights, such as exposures, $\hat{\phi}$ estimates $\phi \cdot n / \sum_i w_i$ rather than $\phi$. Standard errors are not affected, because rescaling the weights changes $\hat{\phi}$ and the Fisher information by inverse factors. See [`ExponentialDispersionModel.dispersion`][glum.ExponentialDispersionModel.dispersion], which also offers a deviance-based estimator.
+where $k$ is the number of estimated coefficients. The denominator treats the weights as frequency weights, i.e. a row with weight 3 counts as three observations. If the weights are instead precision weights, such as exposures, $\hat{\phi}$ estimates $\phi \cdot n / \sum_i w_i$ rather than $\phi$. With the current implementation, the standard errors also depend on the scale of precision weights; see [#1050](https://github.com/Quantco/glum/issues/1050). See [`ExponentialDispersionModel.dispersion`][glum.ExponentialDispersionModel.dispersion], which also offers a deviance-based estimator.
 
 ## Optimizers/solvers
 
@@ -89,7 +89,7 @@ There are three solvers implemented in `glum`:
 * `irls-cd` and `irls-ls` - These solvers are both based on Iteratively Reweighted Least Squares (IRLS). IRLS proceeds by iteratively approximating the objective function with a quadratic, then solving that quadratic for the optimal update. For purely L2-penalized settings, the `irls-ls` uses a least squares inner solver for each quadratic subproblem. For problems that have any L1-penalty component, the `irls-cd` uses a coordinate descent inner solver for each quadratic subproblem. The IRLS-LS and IRLS-CD implementations largely follow the algorithm described in `newglmnet` (see references below).
 
 ### Convexity
-Our objective function will generally be convex, because the log-likelihoods of members of the exponential family are convex in their "natural parameterizations." The natural parameterization may not be the most obvious one. Example: The log-likelihood of the normal distribution is convex in one over the variance, which is its natural parameterization. It is not convex in the variance. We can generally assume we are solving convex problems.
+The log-likelihood of an EDM is concave in its canonical parameter $\theta$, so the negative log-likelihood is convex in $\beta$ whenever the link is canonical ($\theta = \eta$), e.g. for normal-identity, Poisson-log and binomial-logit. Some non-canonical combinations are convex as well, e.g. gamma-log, Tweedie-log with $1 < p < 2$ and negative binomial-log, whose true negative Hessian is positive semi-definite (see [below](#gradient-and-hessian)). Others are not, e.g. inverse Gaussian-log and normal-log. Since the Fisher information is positive semi-definite, each IRLS subproblem is convex in either case.
 
 An exception is multicollinearity (rank deficiency) in the design matrix, without an L2 component to the penalty. In that case, the problem will be only weakly convex and will have no unique miminum. This is not an arcane consideration, since we frequently generate rank deficiency by constructing multiple sets of one-hot encoded categorical variables. This can make evaluating different optimizers tricky, since they could converge to different equally good optima. The original `glmnet` paper suggests using at least a small L2 regularization component to remove "degeneracies and wild behavior."
 
@@ -123,16 +123,16 @@ $$
 \frac{w_i\, h'(\eta_i)^2}{v(\mu_i)}.
 $$
 
-The Fisher information is always positive semi-definite, which is not true in general for the true Hessian.
+The Fisher information is always positive semi-definite, which is not true in general for the true negative Hessian.
 
-For common combinations of distribution and link, `glum` has faster specialized implementations. Most of them compute the same Fisher information as the default; the exception is gamma and Tweedie with $1 < p < 2$ with a log link, which use the true Hessian:
+For common combinations of distribution and link, `glum` has faster specialized implementations. Most of them compute the same Fisher information as the default; the exception is gamma and Tweedie with $1 < p < 2$ with a log link, which use the true negative Hessian:
 
 | Distribution and link | Hessian used |
 | --- | --- |
-| Normal, identity; Poisson, log; binomial, logit | Fisher information, which equals the true Hessian for these canonical links |
-| Inverse Gaussian, log | Fisher information, since the true Hessian is not positive semi-definite in general |
+| Normal, identity; Poisson, log; binomial, logit | Fisher information, which equals the true negative Hessian for these canonical links |
+| Inverse Gaussian, log | Fisher information, since the true negative Hessian is not positive semi-definite in general |
 | Negative binomial, log | Fisher information |
-| Gamma, log; Tweedie with $1 < p < 2$, log | true Hessian, which is positive semi-definite in these cases |
+| Gamma, log; Tweedie with $1 < p < 2$, log | true negative Hessian, which is positive semi-definite in these cases |
 
 ### Coordinate Descent
 With an L1 penalty, we use the `irls-cd` solver where the inner solver finds the minimum of the quadratic using coordinate descent. We exit the inner loop when the quadratic problem's gradient is small. The classic reference here is the `glmnet` paper.
