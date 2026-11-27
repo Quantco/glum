@@ -79,7 +79,7 @@ $$
 \hat{\phi} = \frac{1}{\sum_i w_i - k} \sum_i w_i \frac{(y_i - \hat{\mu}_i)^2}{v(\hat{\mu}_i)},
 $$
 
-where $k$ is the number of estimated coefficients. See [`ExponentialDispersionModel.dispersion`][glum.ExponentialDispersionModel.dispersion], which also offers a deviance-based estimator.
+where $k$ is the number of estimated coefficients. The denominator treats the weights as frequency weights, i.e. a row with weight 3 counts as three observations. If the weights are instead precision weights, such as exposures, $\hat{\phi}$ estimates $\phi \cdot n / \sum_i w_i$ rather than $\phi$. Standard errors are not affected, because rescaling the weights changes $\hat{\phi}$ and the Fisher information by inverse factors. See [`ExponentialDispersionModel.dispersion`][glum.ExponentialDispersionModel.dispersion], which also offers a deviance-based estimator.
 
 ## Optimizers/solvers
 
