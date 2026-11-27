@@ -71,9 +71,9 @@ $$
 \log p(y \, |\, \mu, \phi) = -\frac{w}{2 \phi}\, d(y, \mu) + \tilde{c}(y; w / \phi).
 $$
 
-Minimizing the deviance $\sum_i w_i\, d(y_i, \mu_i)$ is therefore equivalent to maximizing the likelihood, its gradient is the exact score, and the dispersion $\phi$ only rescales the problem (which can be absorbed into $\alpha$). We fit with $\phi = 1$ and never need to evaluate the normalization term $\tilde{c}$, which is expensive for some distributions (e.g. Tweedie).
+Minimizing the deviance $\sum_i w_i\, d(y_i, \mu_i)$ is therefore equivalent to maximizing the likelihood, because its gradient is $-2\phi$ times the score. The dispersion $\phi$ only rescales the problem (which can be absorbed into $\alpha$). We fit with $\phi = 1$ and never need to evaluate the normalization term $\tilde{c}$, which is expensive for some distributions (e.g. Tweedie).
 
-The dispersion only matters for inference (standard errors, likelihood values). If it is not given, it is estimated after the fit from the Pearson residuals (`jorgensen`, §3.5):
+The dispersion only matters for inference (standard errors, likelihood values). The orthogonality of $\beta$ and $\phi$ in an EDM (their Fisher information is block-diagonal) means that estimating the dispersion adds no first-order variance to $\hat{\beta}$. Standard errors can therefore be computed from the known-dispersion formula using a consistent estimate $\hat{\phi}$. If $\phi$ is not given, it is estimated after the fit from the Pearson residuals (`jorgensen`, §3.5):
 
 $$
 \hat{\phi} = \frac{1}{\sum_i w_i - k} \sum_i w_i \frac{(y_i - \hat{\mu}_i)^2}{v(\hat{\mu}_i)},
@@ -123,14 +123,15 @@ $$
 \frac{w_i\, h'(\eta_i)^2}{v(\mu_i)}.
 $$
 
-The Fisher information is always positive semi-definite, which is not true in general for the true Hessian or for a Gauss-Newton approximation of it. It also makes $\beta$ and $\phi$ orthogonal, i.e. the Fisher information is block-diagonal in $(\beta, \phi)$, which is why we can fit $\beta$ with $\phi = 1$ and estimate $\phi$ afterwards.
+The Fisher information is always positive semi-definite, which is not true in general for the true Hessian.
 
 For common combinations of distribution and link, `glum` has faster specialized implementations. Most of them compute the same Fisher information as the default; the exception is gamma and Tweedie with $1 < p < 2$ with a log link, which use the true Hessian:
 
 | Distribution and link | Hessian used |
 | --- | --- |
 | Normal, identity; Poisson, log; binomial, logit | Fisher information, which equals the true Hessian for these canonical links |
-| Inverse Gaussian, log; negative binomial, log | Fisher information, since the true Hessian is not positive semi-definite in general |
+| Inverse Gaussian, log | Fisher information, since the true Hessian is not positive semi-definite in general |
+| Negative binomial, log | Fisher information |
 | Gamma, log; Tweedie with $1 < p < 2$, log | true Hessian, which is positive semi-definite in these cases |
 
 ### Coordinate Descent
