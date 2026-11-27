@@ -10,25 +10,25 @@ For mathematical and algorithmic details, see below:
 
 This package is intended to fit L1 and L2-norm penalized generalized linear models (GLMs). What is a GLM?
 
-A GLM is a linear model ($\eta = x^\top \beta$) wrapped in a transformation (link function) and equipped with a response distribution from an exponential family. The choice of link function and response distribution is very flexible. In a GLM, a predictive distribution for the response variable $Y$ is associated with a vector of observed predictors $x$.  The distribution has the form:
+A GLM is a linear model ($\eta = x^\top \beta$) wrapped in a transformation (link function) and equipped with a response distribution from an exponential dispersion model (EDM). The choice of link function and response distribution is very flexible. In a GLM, a predictive distribution for the response variable $Y$ is associated with a vector of observed predictors $x$. The distribution has the form:
 
 $$
 \begin{align}
-  p(y \, |\, x) &= m(y, \phi) \exp\left(\frac{\theta\, T(y) - A(\theta)}{\phi}\right)  & & \textrm{random component / distribution family} \\
-  \theta &:= g(\eta) && \textrm{systematic component / link function} \\
-  \eta &:= x^\top \beta && \textrm{parametric link component / linear predictor}
+  p(y \, |\, \theta, \phi) &= \exp\left(\frac{y\, \theta - b(\theta)}{\phi / w} + c(y; w / \phi)\right)  & & \textrm{random component / distribution family} \\
+  g(\mu) &= \eta && \textrm{systematic component / link function} \\
+  \eta &= x^\top \beta && \textrm{linear predictor}
 \end{align}
 $$
 
-Here $\beta$ are the parameters; $\phi$ is a parameter representing dispersion ("variance"); and $m$, $T$, $A$ are characterized by the user-specified model family; and $g$ is the **link function.** For background on the exponential family, and how common distributions can be represented in the form of the "random component" above, see [Wikipedia | Exponential family](https://en.wikipedia.org/wiki/Exponential_family#Table_of_distributions).
+Here $\beta$ are the parameters; $\theta$ is the canonical parameter; $\phi$ is the dispersion parameter; $w$ is a known sample weight; $b$ (the cumulant function) and $c$ are characterized by the distribution family; and $g$ is the **link function.** We follow the terminology of the `jorgensen` reference, which covers all distributions implemented in `glum`, including Tweedie distributions (§2.7).
 
-The expected mean of $Y$ depends on $x$ by composition of **linear response** $\eta$ and (inverse) link function, i.e.:
+The mean and variance of $Y$ are
 
 $$
-E[y | \eta] := \mu = g^{-1}(\eta).
+\mu = \mathrm{E}[Y] = b'(\theta) = g^{-1}(\eta), \qquad \mathrm{var}(Y) = \frac{\phi}{w}\, v(\mu),
 $$
 
-Proving this involves use of [moment-generating functions and cumulants](https://en.wikipedia.org/wiki/Exponential_family#Moments_and_cumulants_of_the_sufficient_statistic).
+where $v(\mu) = b''(\theta)$ is the **unit variance** function. For example, $v(\mu) = \mu^p$ for the Tweedie distribution with power $p$. If $g = (b')^{-1}$, so that $\theta = \eta$, the link is called **canonical.** For background on exponential families, and how common distributions can be represented in the form of the "random component" above, see [Wikipedia | Exponential dispersion model](https://en.wikipedia.org/wiki/Exponential_dispersion_model).
 
 Defining an offset of $\gamma$, we can write the linear predictor as $\eta = X^T \beta + \gamma$.
 
@@ -48,10 +48,9 @@ $$
 \frac{\mu^{1-p}}{1-p} & \text{if } p \neq 1\\
 \log \mu              & \text{if } p = 1
 \end{array}\right.,\\
-T(y) &= y, \\
-A(\theta) &= \left\{\begin{array}{ll}
+b(\theta) &= \left\{\begin{array}{ll}
 \frac{\mu^{2-p}}{2-p} & \text{if } p \neq 2\\
-\log \mu              & \text{if } p = 2.
+\log \mu              & \text{if } p = 2
 \end{array}\right.,
 \end{align*}
 $$
@@ -65,6 +64,22 @@ To fit a GLM, we minimize the negative log-likelihood (or typically the unit dev
 $$
 \min_{\beta} \mathcal L + \alpha \rho ||\beta||_1  + \frac{\alpha (1-\rho)}{2} ||\beta||_2^2
 $$
+
+For an EDM, the log-likelihood depends on $\mu$ only through the **unit deviance** $d(y, \mu)$:
+
+$$
+\log p(y \, |\, \mu, \phi) = -\frac{w}{2 \phi}\, d(y, \mu) + \tilde{c}(y; w / \phi).
+$$
+
+Minimizing the deviance $\sum_i w_i\, d(y_i, \mu_i)$ is therefore equivalent to maximizing the likelihood, its gradient is the exact score, and the dispersion $\phi$ only rescales the problem (which can be absorbed into $\alpha$). We fit with $\phi = 1$ and never need to evaluate the normalization term $\tilde{c}$, which is expensive for some distributions (e.g. Tweedie). The saddlepoint approximation (`jorgensen`, §3.3) is the low-dispersion approximation of $\tilde{c}$; it is not needed for fitting.
+
+The dispersion only matters for inference (standard errors, likelihood values). If it is not given, it is estimated after the fit from the Pearson residuals (`jorgensen`, §3.5):
+
+$$
+\hat{\phi} = \frac{1}{\sum_i w_i - k} \sum_i w_i \frac{(y_i - \hat{\mu}_i)^2}{v(\hat{\mu}_i)},
+$$
+
+where $k$ is the number of estimated coefficients. See [`ExponentialDispersionModel.dispersion`][glum.ExponentialDispersionModel.dispersion], which also offers a deviance-based estimator.
 
 ## Optimizers/solvers
 
@@ -80,7 +95,7 @@ An exception is multicollinearity (rank deficiency) in the design matrix, withou
 
 ### IRLS
 
-We minimize the log likelihood using Iteratively Reweighted Least Squares (IRLS). IRLS can be justified by seeing it as taking a Newton step, but replacing the Hessian with the expected Hessian.
+We minimize the log likelihood using Iteratively Reweighted Least Squares (IRLS). IRLS can be justified by seeing it as taking a Newton step, but replacing the Hessian with the expected Hessian (Fisher information). See [below](#gradient-and-hessian) for which Hessian is used in which case.
 
 In the `irls-cd` and `irls-ls` solvers, the outer loop is an IRLS iteration that forms a quadratic approximation to the negative loglikelihood. That is, we find `w` and `z` so that the problem can be expressed as:
 
@@ -93,6 +108,30 @@ We exit when either the gradient is small (`gradient_tol`) or the step size is s
 Once we have formed this quadratic approximation, an "inner solver" finds the minimum of the quadratic. In the `irls-ls` solver, the inner solver is simply a direct least squares solve.
 
 See the `glmintro` reference for an excellent discussion of IRLS in the context of GLMs.
+
+#### Gradient and Hessian { #gradient-and-hessian }
+
+With $h = g^{-1}$, the gradient of the log-likelihood with respect to $\eta_i$ (with $\phi = 1$) is
+
+$$
+\frac{w_i\, h'(\eta_i)}{v(\mu_i)} (y_i - \mu_i).
+$$
+
+By default, i.e. for any combination of distribution and link not listed in the table below, we replace the negative Hessian by the Fisher information (the expected negative Hessian, `jorgensen` §3.4):
+
+$$
+\frac{w_i\, h'(\eta_i)^2}{v(\mu_i)}.
+$$
+
+The Fisher information is always positive semi-definite, which is not true in general for the true Hessian or for a Gauss-Newton approximation of it. It also makes $\beta$ and $\phi$ orthogonal, i.e. the Fisher information is block-diagonal in $(\beta, \phi)$, which is why we can fit $\beta$ with $\phi = 1$ and estimate $\phi$ afterwards.
+
+For common combinations of distribution and link, `glum` has faster specialized implementations. Most of them compute the same Fisher information as the default; the exception is Gamma and Tweedie with $1 < p < 2$ with a log link, which use the true Hessian:
+
+| Distribution and link | Hessian used |
+| --- | --- |
+| Normal, identity; Poisson, log; Binomial, logit | Fisher information, which equals the true Hessian for these canonical links |
+| Inverse Gaussian, log; Negative binomial, log | Fisher information, since the true Hessian is not positive semi-definite in general |
+| Gamma, log; Tweedie with $1 < p < 2$, log | true Hessian, which is positive semi-definite in these cases |
 
 ### Coordinate Descent
 With an L1 penalty, we use the `irls-cd` solver where the inner solver finds the minimum of the quadratic using coordinate descent. We exit the inner loop when the quadratic problem's gradient is small. The classic reference here is the `glmnet` paper.
@@ -142,12 +181,14 @@ Internal to our solvers, all matrix types are wrapped in a `tabmat.StandardizedM
 References
 ----------
 
-`glmnet` - [Regularization Paths for Generalized Linear Models via Coordinate Descent](https://web.stanford.edu/~hastie/Papers/glmnet.pdf)
+`glmnet` - [Regularization Paths for Generalized Linear Models via Coordinate Descent](https://doi.org/10.18637/jss.v033.i01), Jerome Friedman, Trevor Hastie and Robert Tibshirani, Journal of Statistical Software 33(1), 2010
 
-`newglmnet` - [An Improved GLMNET for L1-regularized LogisticRegression](https://www.csie.ntu.edu.tw/~cjlin/papers/l1_glmnet/long-glmnet.pdf)
+`newglmnet` - [An Improved GLMNET for L1-regularized Logistic Regression](https://www.jmlr.org/papers/v13/yuan12a.html), Guo-Xun Yuan, Chia-Hua Ho and Chih-Jen Lin, Journal of Machine Learning Research 13, 1999–2030, 2012
 
 `glmintro` - [Bryan Lewis on GLMs](https://bwlewis.github.io/GLM/)
 
-`coordinate_descent` - [Coordinate Descent Algorithms](http://www.optimization-online.org/DB_FILE/2014/12/4679.pdf)
+`coordinate_descent` - [Coordinate Descent Algorithms](https://optimization-online.org/2014/12/4679/), Stephen J. Wright, Mathematical Programming 151(1), 3–34, 2015
 
-`glmbook` - [Generalized Linear Models](http://www.utstat.toronto.edu/~brunner/oldclass/2201s11/readings/glmbook.pdf), McCullagh and Nelder
+`jorgensen` - [The Theory of Exponential Dispersion Models and Analysis of Deviance](https://impa.br/wp-content/uploads/2017/04/Mon_51.pdf), Bent Jørgensen, 2nd edition, Monografias de Matemática 51, IMPA, 1992
+
+`glmbook` - [Generalized Linear Models](https://doi.org/10.1201/9780203753736), P. McCullagh and J. A. Nelder, 2nd edition, Routledge
